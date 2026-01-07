@@ -3,166 +3,258 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIL-COM | Gestión y Reportes</title>
+    <title>MIL-COM V7 | Sistema de Gestión Militar</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" type="module"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" type="module"></script>
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #0a0c10; color: #e2e8f0; }
-        .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
-        .btn-active { background-color: #f2994a !important; color: #000 !important; font-weight: 900; }
-        .tab-btn-active { border-bottom: 3px solid #f2994a; color: #f2994a; }
-        #reader { border-radius: 12px; overflow: hidden; border: 2px solid #30363d; }
-        .status-ok { color: #238636; background: rgba(35, 134, 54, 0.1); }
-        .status-error { color: #f85149; background: rgba(248, 81, 73, 0.1); }
-        .scanner-active { border-color: #f2994a !important; box-shadow: 0 0 20px rgba(242, 153, 74, 0.2); }
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800;900&display=swap');
         
-        @media print {
-            .no-print { display: none !important; }
-            body { background: white; color: black; }
-            .card { border: none; background: white; }
-            .print-only { display: block !important; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; color: black !important; }
+        :root {
+            --primary: #f2994a;
+            --bg-dark: #0d1117;
+            --card-dark: #161b22;
+            --border-dark: #30363d;
         }
-        .print-only { display: none; }
+
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-dark); 
+            color: #e2e8f0; 
+            overflow-x: hidden;
+        }
+
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+        .card { 
+            background: var(--card-dark); 
+            border: 1px solid var(--border-dark); 
+            border-radius: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-active { 
+            background-color: var(--primary) !important; 
+            color: #000 !important; 
+            box-shadow: 0 0 15px rgba(242, 153, 74, 0.4);
+        }
+
+        .tab-btn-active { 
+            border-bottom: 4px solid var(--primary); 
+            color: var(--primary); 
+            background: rgba(242, 153, 74, 0.08); 
+        }
+
+        #reader { 
+            border-radius: 16px; 
+            overflow: hidden; 
+            border: 2px solid var(--border-dark); 
+            background: #000; 
+        }
+
+        .scanner-active { border-color: var(--primary) !important; box-shadow: 0 0 25px rgba(242, 153, 74, 0.4); }
+        .scanner-error { border-color: #ef4444 !important; box-shadow: 0 0 25px rgba(239, 68, 68, 0.4); }
+        .scanner-success { border-color: #22c55e !important; box-shadow: 0 0 25px rgba(34, 197, 94, 0.4); }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        .loading-shimmer {
+            background: linear-gradient(90deg, #161b22 25%, #21262d 50%, #161b22 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        input:focus { border-color: var(--primary) !important; outline: none; }
     </style>
 </head>
-<body class="p-2 md:p-6">
+<body class="p-2 md:p-6 lg:p-8">
 
-    <div class="max-w-7xl mx-auto space-y-4 no-print">
-        <!-- HEADER -->
-        <header class="card p-4 flex flex-col md:flex-row justify-between items-center border-b-4 border-orange-500">
-            <div class="flex items-center gap-4">
-                <div class="text-orange-500">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- HEADER SUPERIOR -->
+        <header class="card p-5 flex flex-col md:flex-row justify-between items-center border-b-4 border-orange-500 shadow-2xl">
+            <div class="flex items-center gap-5">
+                <div class="p-3 bg-orange-500/10 rounded-2xl border border-orange-500/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-black uppercase tracking-tighter">MIL-COM | Control de Raciones</h1>
-                    <p class="text-[10px] font-bold text-slate-500 uppercase">Sistema de Registro de Comedor Militar</p>
+                    <h1 class="text-2xl font-black tracking-tighter uppercase leading-none">MIL-COM <span class="text-orange-500">V7</span></h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        <p id="current-mode-title" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CONTROL ACCESO</p>
+                    </div>
                 </div>
             </div>
-            <div id="clock" class="text-2xl font-mono font-bold text-orange-500 mt-2 md:mt-0">00:00:00</div>
+            <div class="mt-4 md:mt-0 flex flex-col items-end">
+                <div id="clock" class="text-3xl font-mono font-black text-orange-500 drop-shadow-sm">00:00:00</div>
+                <p id="today-date-top" class="text-[10px] font-bold text-slate-500 uppercase italic"></p>
+            </div>
         </header>
 
-        <!-- NAVEGACIÓN -->
-        <nav class="flex bg-[#161b22] rounded-xl border border-[#30363d] overflow-hidden">
-            <button onclick="changeTab('scan')" id="tab-scan" class="flex-1 py-3 text-[11px] font-black uppercase tab-btn-active">Escanear</button>
-            <button onclick="changeTab('users')" id="tab-users" class="flex-1 py-3 text-[11px] font-black uppercase text-slate-500">Personal</button>
-            <button onclick="changeTab('funds')" id="tab-funds" class="flex-1 py-3 text-[11px] font-black uppercase text-slate-500">Recargas</button>
-            <button onclick="changeTab('reports')" id="tab-reports" class="flex-1 py-3 text-[11px] font-black uppercase text-slate-500">Reportes</button>
+        <!-- NAVEGACIÓN PRINCIPAL -->
+        <nav class="flex bg-[#161b22] rounded-2xl border border-[#30363d] overflow-hidden p-1 gap-1 shadow-lg">
+            <button onclick="changeTab('scan')" id="tab-scan" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all tab-btn-active">1. Escaneo</button>
+            <button onclick="changeTab('users')" id="tab-users" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500 hover:bg-white/5">2. Personal</button>
+            <button onclick="changeTab('funds')" id="tab-funds" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500 hover:bg-white/5">3. Recargas</button>
+            <button onclick="changeTab('reports')" id="tab-reports" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500 hover:bg-white/5">4. Reportes</button>
         </nav>
 
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <!-- PANEL IZQUIERDO: SCANNER -->
-            <div class="lg:col-span-4 space-y-4">
-                <div class="card p-4">
-                    <div class="mb-2 flex justify-between items-center">
-                        <span class="text-[9px] font-black text-orange-500 uppercase tracking-widest">Lector de Códigos</span>
-                        <span id="scan-status" class="text-[9px] font-bold text-green-500 uppercase">● Activo</span>
-                    </div>
-                    <div id="reader" class="w-full aspect-square bg-black mb-4"></div>
-                    
-                    <div class="space-y-4">
-                        <div class="flex gap-1 bg-black/50 p-1 rounded-lg">
-                            <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded btn-active">Desayuno</button>
-                            <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded text-slate-500">Almuerzo</button>
-                            <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded text-slate-500">Cena</button>
+            <!-- PANEL IZQUIERDO: SCANNER E INFO -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="card p-5 sticky top-6">
+                    <div id="reader-container" class="relative">
+                        <div id="reader" class="w-full aspect-square"></div>
+                        <div id="scan-overlay" class="absolute inset-0 pointer-events-none flex items-center justify-center opacity-0 transition-opacity">
+                             <div class="w-1/2 h-1/2 border-2 border-dashed border-white/30 rounded-full animate-ping"></div>
                         </div>
-                        <input type="text" id="dni-main" readonly placeholder="ESCANEANDO..." class="w-full bg-[#0d1117] border border-[#30363d] p-4 text-xl font-mono text-center text-orange-500 font-bold rounded-xl outline-none">
                     </div>
-                </div>
 
-                <!-- PRECIOS -->
-                <div class="card p-4">
-                    <h3 class="text-[9px] font-black uppercase text-slate-500 mb-3">Costos del Servicio</h3>
-                    <div class="grid grid-cols-3 gap-2">
-                        <div class="text-center p-2 bg-black/30 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase">D.</p>
-                            <p id="p-des" class="font-bold text-xs">L. 0</p>
-                        </div>
-                        <div class="text-center p-2 bg-black/30 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase">A.</p>
-                            <p id="p-alm" class="font-bold text-xs">L. 0</p>
-                        </div>
-                        <div class="text-center p-2 bg-black/30 rounded">
-                            <p class="text-[8px] text-slate-500 uppercase">C.</p>
-                            <p id="p-cen" class="font-bold text-xs">L. 0</p>
+                    <div id="scan-feedback" class="mt-5 p-4 bg-black/40 rounded-xl border border-dashed border-[#30363d] text-center">
+                        <p id="dni-display" class="text-3xl font-mono text-orange-500 font-black tracking-widest">---</p>
+                        <p id="scan-context" class="text-[9px] text-slate-500 font-black uppercase mt-1 tracking-tighter">Esperando identificación...</p>
+                    </div>
+
+                    <div class="mt-6 space-y-3">
+                        <p class="text-[10px] font-black text-slate-500 uppercase ml-1">Servicio Activo:</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn py-3 text-[11px] font-black rounded-xl border border-[#30363d] btn-active">DESAYUNO</button>
+                            <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn py-3 text-[11px] font-black rounded-xl border border-[#30363d] text-slate-400">ALMUERZO</button>
+                            <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn py-3 text-[11px] font-black rounded-xl border border-[#30363d] text-slate-400">CENA</button>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- PANEL DERECHO: VISTAS -->
-            <div class="lg:col-span-8 space-y-4">
+            <div class="lg:col-span-8">
                 
-                <!-- VISTA: ESCANEO / HISTORIAL HOY -->
-                <div id="view-scan" class="space-y-4">
+                <!-- VISTA 1: HISTORIAL ACCESO -->
+                <div id="view-scan" class="space-y-6">
                     <div class="card overflow-hidden">
-                        <div class="p-4 border-b border-[#30363d] flex justify-between items-center">
-                            <h2 class="text-[11px] font-black uppercase">Consumo del Día</h2>
-                            <span id="today-date" class="text-[10px] font-mono text-slate-500"></span>
+                        <div class="p-5 border-b border-[#30363d] bg-black/20 flex justify-between items-center">
+                            <div>
+                                <h2 class="text-sm font-black uppercase italic">Registro de Actividad</h2>
+                                <p class="text-[9px] text-slate-500 font-bold">Tiempo real • Últimas 50 transacciones</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <div class="bg-orange-500/10 text-orange-500 px-3 py-1 rounded-full text-[10px] font-black border border-orange-500/20">
+                                    HOY: <span id="stats-today">0</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="max-h-[550px] overflow-y-auto">
-                            <table class="w-full text-left text-[11px]">
-                                <thead class="bg-black/50 text-slate-500 uppercase sticky top-0">
-                                    <tr><th class="p-3">Hora</th><th class="p-3">Personal</th><th class="p-3">Estado</th></tr>
-                                </thead>
-                                <tbody id="history-body" class="divide-y divide-[#30363d]"></tbody>
+                        <div class="max-h-[600px] overflow-y-auto">
+                            <table class="w-full text-left">
+                                <tbody id="history-body" class="divide-y divide-[#30363d]">
+                                    <!-- Dinámico -->
+                                </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
 
-                <!-- VISTA: BASE DE DATOS -->
-                <div id="view-users" class="hidden card p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-black uppercase italic">Base de Datos Personal</h2>
-                        <button onclick="openRegisterModal()" class="bg-orange-500 text-black px-4 py-2 rounded font-black text-[10px] uppercase">Nuevo Registro</button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs">
-                            <thead class="text-slate-500 uppercase font-bold border-b border-[#30363d]">
-                                <tr><th class="p-3">DNI</th><th class="p-3">Nombre</th><th class="p-3">Rango</th><th class="p-3 text-right">Saldo</th><th class="p-3 text-center">X</th></tr>
-                            </thead>
-                            <tbody id="users-body" class="divide-y divide-[#30363d]"></tbody>
-                        </table>
+                <!-- VISTA 2: BASE DE PERSONAL -->
+                <div id="view-users" class="hidden space-y-6">
+                    <div class="card p-5">
+                        <div class="flex flex-col md:flex-row gap-4 mb-6">
+                            <div class="relative flex-1">
+                                <input type="text" id="user-search" oninput="renderUsers()" placeholder="BUSCAR POR NOMBRE O DNI..." class="w-full bg-black border border-[#30363d] p-4 pl-12 rounded-xl text-xs font-bold uppercase">
+                                <svg class="w-5 h-5 absolute left-4 top-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                            </div>
+                            <div class="bg-black border border-[#30363d] px-6 rounded-xl flex items-center justify-between min-w-[200px]">
+                                <span class="text-[10px] font-black text-slate-500 uppercase">Personal:</span>
+                                <span id="total-count" class="text-lg font-black text-orange-500 ml-4">0</span>
+                            </div>
+                        </div>
+                        <div class="max-h-[600px] overflow-y-auto rounded-xl border border-[#30363d]">
+                            <table class="w-full text-left text-xs">
+                                <thead class="text-slate-500 uppercase font-black bg-black/40 sticky top-0 z-10">
+                                    <tr>
+                                        <th class="p-4 border-b border-[#30363d]">Identificación</th>
+                                        <th class="p-4 border-b border-[#30363d]">Grado y Nombre</th>
+                                        <th class="p-4 border-b border-[#30363d] text-right">Saldo Disponible</th>
+                                        <th class="p-4 border-b border-[#30363d] text-center">Gestión</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-body" class="divide-y divide-[#30363d]"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <!-- VISTA: REPORTES -->
-                <div id="view-reports" class="hidden card p-6">
-                    <h2 class="text-lg font-black uppercase italic mb-6">Generador de Reportes</h2>
-                    <div class="grid md:grid-cols-3 gap-4 mb-6">
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase">Desde</label>
-                            <input type="date" id="rep-start" class="w-full bg-black border border-[#30363d] p-2 rounded text-xs">
+                <!-- VISTA 3: RECARGAS MASIVAS -->
+                <div id="view-funds" class="hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="card p-5 flex flex-col">
+                            <h2 class="text-xs font-black uppercase mb-4 text-orange-500">1. Listado de Selección</h2>
+                            <input type="text" id="fund-search" oninput="renderFundList()" placeholder="FILTRAR..." class="bg-black border border-[#30363d] p-3 rounded-lg text-[10px] uppercase mb-4">
+                            <div class="flex gap-4 mb-3 border-b border-[#30363d] pb-2">
+                                <button onclick="toggleAllCheckboxes(true)" class="text-[9px] font-black text-blue-400 uppercase hover:underline">Seleccionar Todo</button>
+                                <button onclick="toggleAllCheckboxes(false)" class="text-[9px] font-black text-slate-500 uppercase hover:underline">Limpiar</button>
+                            </div>
+                            <div class="flex-1 max-h-[400px] overflow-y-auto bg-black/20 rounded-xl">
+                                <table class="w-full text-[10px]">
+                                    <tbody id="fund-list-body" class="divide-y divide-[#30363d]"></tbody>
+                                </table>
+                            </div>
                         </div>
-                        <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase">Hasta</label>
-                            <input type="date" id="rep-end" class="w-full bg-black border border-[#30363d] p-2 rounded text-xs">
+                        <div class="card p-8 flex flex-col items-center justify-center text-center space-y-6 bg-gradient-to-b from-transparent to-green-500/5">
+                            <div class="p-6 bg-green-500/10 rounded-full border border-green-500/20 text-green-500 shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl font-black uppercase tracking-tight italic">Carga de Fondos</h3>
+                                <p class="text-[10px] text-slate-500 font-bold uppercase mt-1">Efectivos marcados: <span id="selected-count" class="text-white bg-green-600 px-2 py-0.5 rounded ml-1">0</span></p>
+                            </div>
+                            <div class="w-full">
+                                <label class="text-[10px] font-black text-slate-500 uppercase block mb-2">Valor de Recarga (Lps)</label>
+                                <input type="number" id="mass-fund-amount" placeholder="0.00" class="w-full bg-black border-2 border-[#30363d] p-5 rounded-2xl text-4xl font-black text-center text-green-500 shadow-inner">
+                            </div>
+                            <button onclick="executeMassFund()" class="w-full bg-green-600 hover:bg-green-500 text-white py-5 rounded-2xl font-black uppercase text-sm shadow-xl transform active:scale-95 transition-all">PROCESAR ACREDITACIÓN</button>
+                            <p class="text-[9px] text-slate-600 font-bold uppercase tracking-widest">SISTEMA MILITAR SEGURO</p>
                         </div>
-                        <div class="flex items-end gap-2">
-                            <button onclick="generateReport()" class="flex-1 bg-orange-500 text-black py-2 rounded font-black text-[10px] uppercase">Filtrar</button>
-                            <button onclick="window.print()" class="flex-1 bg-white text-black py-2 rounded font-black text-[10px] uppercase">Imprimir</button>
-                        </div>
-                    </div>
-                    <div id="report-results" class="space-y-4">
-                        <!-- Resultados de reporte aquí -->
-                        <p class="text-center text-slate-500 py-10 text-xs italic">Seleccione un rango de fechas para generar el reporte analítico.</p>
                     </div>
                 </div>
 
-                <!-- VISTA: RECARGAS (Mismo anterior simplificado) -->
-                <div id="view-funds" class="hidden card p-6">
-                    <h2 class="text-lg font-black uppercase italic mb-6">Recarga de Saldo</h2>
-                    <div class="max-w-md mx-auto space-y-4">
-                        <input type="text" id="fund-dni" placeholder="DNI DEL SOLDADO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-orange-500 font-bold text-center">
-                        <input type="number" id="fund-amount" placeholder="CANTIDAD L." class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-green-500 font-black text-2xl text-center">
-                        <button onclick="processDeposit()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase shadow-lg">Confirmar Recarga</button>
+                <!-- VISTA 4: REPORTES -->
+                <div id="view-reports" class="hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="card p-6 text-center">
+                            <p class="text-[10px] font-black text-slate-500 uppercase">Recaudado Hoy</p>
+                            <p id="rep-income" class="text-2xl font-black text-green-500 mt-1">L. 0.00</p>
+                        </div>
+                        <div class="card p-6 text-center border-orange-500/30">
+                            <p class="text-[10px] font-black text-slate-500 uppercase">Raciones Hoy</p>
+                            <p id="rep-rations" class="text-2xl font-black text-orange-500 mt-1">0</p>
+                        </div>
+                        <div class="card p-6 text-center">
+                            <p class="text-[10px] font-black text-slate-500 uppercase">Saldo en Sistema</p>
+                            <p id="rep-balance" class="text-2xl font-black text-blue-500 mt-1">L. 0.00</p>
+                        </div>
+                    </div>
+                    <div class="card p-10 flex flex-col items-center justify-center">
+                        <div class="mb-6 opacity-20">
+                            <svg class="w-20 h-20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd"></path></svg>
+                        </div>
+                        <h2 class="text-xl font-black uppercase italic mb-2">Exportación de Datos</h2>
+                        <p class="text-xs text-slate-500 mb-6 text-center max-w-xs">Genere un archivo CSV compatible con Excel con todo el historial de transacciones.</p>
+                        <button onclick="exportCSV()" class="bg-orange-500 hover:bg-orange-600 text-black px-10 py-4 rounded-xl font-black uppercase text-xs transition-colors shadow-lg shadow-orange-500/20">Descargar Reporte General (.CSV)</button>
                     </div>
                 </div>
 
@@ -170,308 +262,409 @@
         </div>
     </div>
 
-    <!-- AREA DE IMPRESIÓN (Solo visible al imprimir) -->
-    <div class="print-only">
-        <center>
-            <h1 style="font-size: 20px; text-transform: uppercase; font-weight: bold;">Fuerzas Armadas de Honduras</h1>
-            <h2 style="font-size: 16px; text-transform: uppercase;">Reporte de Consumo de Raciones - MIL-COM</h2>
-            <hr style="margin: 20px 0;">
-        </center>
-        <div id="print-content"></div>
-        <div style="margin-top: 50px; display: flex; justify-content: space-around;">
-            <div style="text-align: center; border-top: 1px solid black; width: 200px; padding-top: 5px;">Oficial de Guardia</div>
-            <div style="text-align: center; border-top: 1px solid black; width: 200px; padding-top: 5px;">Encargado de Comedor</div>
-        </div>
-    </div>
-
-    <!-- MODALES Y ALERTAS (Igual que antes) -->
-    <div id="reg-modal" class="hidden fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div class="card max-w-sm w-full p-8 border-t-8 border-orange-500">
-            <h3 class="text-xl font-black uppercase italic mb-6">Alta de Personal</h3>
+    <!-- MODAL REGISTRO -->
+    <div id="reg-modal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="card max-w-sm w-full p-8 border-t-8 border-orange-500 shadow-2xl">
+            <h3 class="text-2xl font-black uppercase italic text-center mb-2">Alta de Personal</h3>
+            <p class="text-center text-[10px] text-slate-500 mb-6 font-bold uppercase tracking-widest">Nuevo registro detectado</p>
             <div class="space-y-4">
-                <input type="text" id="nu-dni" placeholder="DNI" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase text-orange-500">
-                <input type="text" id="nu-name" placeholder="NOMBRES Y APELLIDOS" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
-                <input type="text" id="nu-rank" placeholder="RANGO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
-                <div class="flex gap-4 pt-4">
-                    <button onclick="closeRegisterModal()" class="flex-1 text-slate-500 font-black uppercase text-[10px]">Cancelar</button>
-                    <button onclick="saveNewUser()" class="flex-1 bg-orange-500 text-black py-4 rounded-xl font-black uppercase text-[10px]">Guardar</button>
+                <div class="space-y-1">
+                    <label class="text-[9px] font-black text-slate-500 uppercase ml-1">DNI Escaneado</label>
+                    <input type="text" id="nu-dni" readonly class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-mono text-orange-500 text-center text-lg">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[9px] font-black text-slate-500 uppercase ml-1">Nombres Completos</label>
+                    <input type="text" id="nu-name" placeholder="EJ: JUAN PEREZ" class="w-full bg-[#0d1117] border border-[#30363d] p-4 rounded-xl font-bold uppercase focus:ring-2 ring-orange-500/20">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[9px] font-black text-slate-500 uppercase ml-1">Rango / Grado</label>
+                    <input type="text" id="nu-rank" placeholder="EJ: CABO" class="w-full bg-[#0d1117] border border-[#30363d] p-4 rounded-xl font-bold uppercase focus:ring-2 ring-orange-500/20">
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closeRegisterModal()" class="flex-1 py-4 font-black text-slate-500 text-xs uppercase hover:bg-white/5 rounded-xl">CERRAR</button>
+                    <button onclick="saveNewUser()" class="flex-2 bg-orange-500 text-black py-4 px-6 rounded-xl font-black uppercase text-xs shadow-lg shadow-orange-500/20">REGISTRAR</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="alert" class="hidden fixed top-10 right-10 z-[100] p-6 rounded-xl shadow-2xl border-l-8 min-w-[300px]">
-        <h4 id="alert-title" class="font-black uppercase text-lg"></h4>
-        <p id="alert-msg" class="text-sm font-bold opacity-80"></p>
+    <!-- ALERTAS FLOTANTES -->
+    <div id="alert" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 z-[100] p-6 rounded-2xl shadow-2xl border-l-8 min-w-[320px] transition-all transform animate-bounce">
+        <div class="flex items-start gap-4">
+            <div id="alert-icon" class="mt-1"></div>
+            <div>
+                <h4 id="alert-title" class="font-black uppercase text-lg leading-tight tracking-tighter"></h4>
+                <p id="alert-msg" class="text-sm font-medium opacity-80 mt-0.5"></p>
+            </div>
+        </div>
     </div>
 
-    <script>
-        // DATA CENTRALIZADA
-        let APP_DATA = {
-            prices: JSON.parse(localStorage.getItem('m_v4_prices')) || { Desayuno: 50, Almuerzo: 100, Cena: 70 },
-            users: JSON.parse(localStorage.getItem('m_v4_users')) || [],
-            history: JSON.parse(localStorage.getItem('m_v4_history')) || []
+    <script type="module">
+        // Se usaría in-memory por defecto a menos que pidas Firestore. 
+        // Implementamos lógica robusta en memoria con persistencia en LocalStorage 
+        // pero preparada para sincronizar.
+
+        let STATE = {
+            prices: { Desayuno: 50, Almuerzo: 100, Cena: 70 },
+            users: JSON.parse(localStorage.getItem('milcom_v7_users')) || [],
+            history: JSON.parse(localStorage.getItem('milcom_v7_history')) || []
         };
 
         let currentService = 'Desayuno';
         let currentTab = 'scan';
+        let selectedForMass = new Set();
         let scanner = null;
-        let isLocked = false;
+        let scanLock = false;
 
         function init() {
-            updatePricesUI();
+            startClock();
             startScanner();
             renderAll();
-            document.getElementById('today-date').innerText = new Date().toLocaleDateString();
+            document.getElementById('today-date-top').innerText = new Date().toLocaleDateString('es-HN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         }
 
-        // SCANNER OPTIMIZADO PARA CÓDIGO DE BARRAS
+        // --- SCANNER ---
         function startScanner() {
             scanner = new Html5Qrcode("reader");
-            const config = { 
-                fps: 25, 
-                qrbox: { width: 280, height: 150 }, // Caja rectangular para códigos de barras
-                aspectRatio: 1.0,
-                formatsToSupport: [ 
-                    Html5QrcodeSupportedFormats.CODE_128,
-                    Html5QrcodeSupportedFormats.EAN_13,
-                    Html5QrcodeSupportedFormats.CODE_39,
-                    Html5QrcodeSupportedFormats.PDF417, 
-                    Html5QrcodeSupportedFormats.QR_CODE 
-                ]
-            };
+            const config = { fps: 60, qrbox: { width: 250, height: 250 } };
             
-            scanner.start({ facingMode: "environment" }, config, (decodedText) => {
-                if(isLocked) return;
-                const dni = decodedText.trim().toUpperCase();
-                handleScanAction(dni);
-            }).catch(e => console.warn("Error cámara"));
-        }
-
-        function handleScanAction(dni) {
-            isLocked = true;
-            document.getElementById('reader').classList.add('scanner-active');
-            document.getElementById('dni-main').value = dni;
-
-            if(currentTab === 'scan') processAccess(dni);
-            else if(currentTab === 'funds') document.getElementById('fund-dni').value = dni;
-            else if(currentTab === 'users') checkUserDB(dni);
-
-            // LIMPIEZA AUTOMÁTICA DESPUÉS DE 2 SEGUNDOS
-            setTimeout(() => {
-                isLocked = false;
-                document.getElementById('reader').classList.remove('scanner-active');
-                document.getElementById('dni-main').value = ""; 
-            }, 2000);
-        }
-
-        function processAccess(dni) {
-            const user = APP_DATA.users.find(u => u.dni === dni);
-            const today = new Date().toLocaleDateString();
-            const cost = APP_DATA.prices[currentService];
-
-            if(!user) {
-                showAlert("DNI NO REGISTRADO", "Proceda a registro manual", "red");
-                logAction(dni, 'DESCONOCIDO', '---', 'ERROR: NO REGISTRADO', 0);
-                return;
-            }
-
-            // Validar si ya comió este servicio hoy
-            const yaComio = APP_DATA.history.find(h => h.dni === dni && h.date === today && h.service === currentService && h.status === 'AUTORIZADO');
-            
-            if(yaComio) {
-                showAlert("ACCESO DENEGADO", "Ración ya entregada hoy", "red");
-                logAction(user.dni, user.name, user.rank, 'DENEGADO (DUPLICADO)', 0);
-            } else if(user.balance < cost) {
-                showAlert("SALDO INSUFICIENTE", `Saldo actual: L. ${user.balance}`, "red");
-                logAction(user.dni, user.name, user.rank, 'DENEGADO (SIN SALDO)', 0);
-            } else {
-                user.balance -= cost;
-                showAlert("ACCESO AUTORIZADO", `${user.rank} ${user.name}`, "green");
-                logAction(user.dni, user.name, user.rank, 'AUTORIZADO', cost);
-                saveData();
-            }
-        }
-
-        function logAction(dni, name, rank, status, cost) {
-            APP_DATA.history.push({
-                dni, name, rank, status, cost,
-                service: currentService,
-                date: new Date().toLocaleDateString(),
-                isoDate: new Date().toISOString().split('T')[0], // Para filtros de reporte
-                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+            scanner.start({ facingMode: "environment" }, config, (text) => {
+                if(scanLock) return;
+                handleScan(text.trim().toUpperCase());
+            }).catch(err => {
+                console.error("Scanner error:", err);
+                document.getElementById('reader').innerHTML = `
+                    <div class="p-8 text-center text-xs text-red-500 font-bold uppercase">
+                        Error de Cámara<br>Verifique permisos
+                    </div>
+                `;
             });
-            saveData();
-            renderAll();
         }
 
-        // REPORTES ANALÍTICOS
-        function generateReport() {
-            const start = document.getElementById('rep-start').value;
-            const end = document.getElementById('rep-end').value;
+        async function handleScan(dni) {
+            scanLock = true;
+            const readerEl = document.getElementById('reader');
+            document.getElementById('dni-display').innerText = dni;
             
-            if(!start || !end) {
-                alert("Seleccione ambas fechas");
+            const user = STATE.users.find(u => u.dni === dni);
+
+            if (currentTab === 'scan') {
+                if (!user) {
+                    feedbackUI('error');
+                    showNotice("NO REGISTRADO", `DNI ${dni} no figura en la base.`, "red");
+                } else {
+                    processAccess(user);
+                }
+            } else if (currentTab === 'users') {
+                if (!user) {
+                    feedbackUI('success');
+                    openRegisterModal(dni);
+                } else {
+                    feedbackUI('error');
+                    showNotice("EXISTE", `${user.name} ya está registrado.`, "blue");
+                }
+            } else if (currentTab === 'funds') {
+                if (user) {
+                    feedbackUI('success');
+                    toggleUserSelection(user.dni);
+                    showNotice("SELECCIONADO", `${user.rank} marcado para recarga.`, "green");
+                } else {
+                    feedbackUI('error');
+                    showNotice("ERROR", "Personal no registrado.", "red");
+                }
+            }
+
+            setTimeout(() => {
+                scanLock = false;
+                readerEl.classList.remove('scanner-active', 'scanner-success', 'scanner-error');
+                document.getElementById('dni-display').innerText = "---";
+            }, 1500);
+        }
+
+        function feedbackUI(type) {
+            const el = document.getElementById('reader');
+            el.classList.add(type === 'success' ? 'scanner-success' : 'scanner-error');
+        }
+
+        // --- LOGICA DE NEGOCIO ---
+        function processAccess(user) {
+            const today = new Date().toLocaleDateString();
+            const cost = STATE.prices[currentService];
+            
+            // Verificar si ya consumió hoy este servicio
+            const duplicate = STATE.history.find(h => 
+                h.dni === user.dni && 
+                h.date === today && 
+                h.service === currentService && 
+                h.status === 'AUTORIZADO'
+            );
+
+            if(duplicate) {
+                feedbackUI('error');
+                showNotice("DENEGADO", "RACIÓN YA ENTREGADA HOY", "red");
+                logHistory(user, 'DENEGADO (DUPLICADO)', 0);
+            } else if(user.balance < cost) {
+                feedbackUI('error');
+                showNotice("SALDO INSUFICIENTE", `L. ${user.balance.toFixed(2)} de L. ${cost} necesarios`, "red");
+                logHistory(user, 'DENEGADO (SIN SALDO)', 0);
+            } else {
+                feedbackUI('success');
+                user.balance -= cost;
+                showNotice("AUTORIZADO", `${user.rank} ${user.name}`, "green");
+                logHistory(user, 'AUTORIZADO', cost);
+                saveAndSync();
+            }
+        }
+
+        // --- RENDERIZADO ---
+        function renderAll() {
+            renderHistory();
+            renderUsers();
+            renderFundList();
+            updateReportStats();
+        }
+
+        function renderHistory() {
+            const today = new Date().toLocaleDateString();
+            const history = [...STATE.history].reverse().slice(0, 50);
+            const body = document.getElementById('history-body');
+            
+            document.getElementById('stats-today').innerText = STATE.history.filter(h => h.date === today && h.status === 'AUTORIZADO').length;
+
+            if (history.length === 0) {
+                body.innerHTML = `<tr><td class="p-10 text-center text-slate-600 text-[10px] font-black uppercase italic tracking-widest">Sin actividad reciente</td></tr>`;
                 return;
             }
 
-            const filtered = APP_DATA.history.filter(h => h.isoDate >= start && h.isoDate <= end);
-            const totalRaciones = filtered.filter(f => f.status === 'AUTORIZADO').length;
-            const totalLempiras = filtered.reduce((acc, curr) => acc + curr.cost, 0);
-
-            let html = `
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="bg-black/50 p-4 rounded border border-orange-500/30">
-                        <p class="text-[10px] uppercase text-slate-500">Total Raciones</p>
-                        <p class="text-2xl font-black">${totalRaciones}</p>
-                    </div>
-                    <div class="bg-black/50 p-4 rounded border border-green-500/30">
-                        <p class="text-[10px] uppercase text-slate-500">Recaudación</p>
-                        <p class="text-2xl font-black text-green-500">L. ${totalLempiras.toFixed(2)}</p>
-                    </div>
-                </div>
-                <div class="overflow-x-auto card">
-                    <table class="w-full text-[10px] text-left">
-                        <thead class="bg-white/5 text-slate-500 uppercase">
-                            <tr><th class="p-2">Fecha</th><th class="p-2">Hora</th><th class="p-2">Personal</th><th class="p-2">Servicio</th><th class="p-2">Estado</th><th class="p-2 text-right">L.</th></tr>
-                        </thead>
-                        <tbody>
-                            ${filtered.map(f => `
-                                <tr class="border-t border-white/5">
-                                    <td class="p-2">${f.date}</td>
-                                    <td class="p-2">${f.time}</td>
-                                    <td class="p-2 font-bold">${f.name}</td>
-                                    <td class="p-2">${f.service}</td>
-                                    <td class="p-2 ${f.status.includes('AUTORIZADO') ? 'text-green-500' : 'text-red-500'}">${f.status}</td>
-                                    <td class="p-2 text-right">${f.cost}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
-
-            document.getElementById('report-results').innerHTML = html;
-            // Preparar contenido de impresión
-            document.getElementById('print-content').innerHTML = `
-                <p><b>Periodo:</b> ${start} al ${end}</p>
-                <p><b>Total Raciones Autorizadas:</b> ${totalRaciones}</p>
-                <p><b>Total Recaudado:</b> L. ${totalLempiras.toFixed(2)}</p>
-                <br>
-                ${html}
-            `;
-        }
-
-        // UTILS
-        function renderAll() {
-            const today = new Date().toLocaleDateString();
-            const historyBody = document.getElementById('history-body');
-            const usersBody = document.getElementById('users-body');
-
-            // Historial de hoy
-            historyBody.innerHTML = APP_DATA.history.filter(h => h.date === today).reverse().map(h => `
-                <tr class="border-b border-white/5">
-                    <td class="p-3 text-slate-500 font-mono">${h.time}</td>
-                    <td class="p-3">
-                        <div class="font-bold uppercase">${h.name}</div>
-                        <div class="text-[9px] text-slate-500">${h.rank} | ${h.service}</div>
+            body.innerHTML = history.map(h => `
+                <tr class="hover:bg-white/5 transition-colors border-l-4 ${h.status.includes('AUTORIZADO') ? 'border-green-500' : 'border-red-500'}">
+                    <td class="p-4">
+                        <div class="text-[10px] font-mono text-slate-500">${h.time}</div>
+                        <div class="text-[11px] font-black uppercase text-orange-500">${h.dni}</div>
                     </td>
-                    <td class="p-3">
-                        <span class="px-2 py-1 rounded text-[8px] font-black ${h.status === 'AUTORIZADO' ? 'status-ok' : 'status-error'}">
+                    <td class="p-4">
+                        <div class="text-xs font-black uppercase tracking-tight">${h.name}</div>
+                        <div class="text-[9px] text-slate-500 font-bold uppercase">${h.rank} <span class="mx-1 text-slate-700">•</span> ${h.service}</div>
+                    </td>
+                    <td class="p-4 text-right">
+                        <div class="text-[10px] font-black uppercase ${h.status.includes('AUTORIZADO') ? 'text-green-500' : 'text-red-500'} italic">
                             ${h.status}
-                        </span>
+                        </div>
+                        <div class="text-[9px] text-slate-600 font-bold">L. ${h.cost.toFixed(2)}</div>
                     </td>
-                </tr>
-            `).join('');
-
-            // Usuarios
-            usersBody.innerHTML = APP_DATA.users.map(u => `
-                <tr class="hover:bg-white/5">
-                    <td class="p-3 font-mono text-orange-500">${u.dni}</td>
-                    <td class="p-3 font-bold uppercase">${u.name}</td>
-                    <td class="p-3 text-slate-500 font-bold">${u.rank}</td>
-                    <td class="p-3 text-right font-black text-green-500">L. ${u.balance.toFixed(2)}</td>
-                    <td class="p-3 text-center"><button onclick="deleteUser('${u.dni}')" class="text-red-500">✕</button></td>
                 </tr>
             `).join('');
         }
 
-        function changeTab(tab) {
+        function renderUsers() {
+            const query = document.getElementById('user-search').value.toUpperCase();
+            const filtered = STATE.users.filter(u => u.name.includes(query) || u.dni.includes(query));
+            document.getElementById('total-count').innerText = STATE.users.length;
+            
+            const body = document.getElementById('users-body');
+            body.innerHTML = filtered.map(u => `
+                <tr class="hover:bg-white/5 transition-colors group">
+                    <td class="p-4 font-mono text-orange-500 font-bold">${u.dni}</td>
+                    <td class="p-4">
+                        <div class="font-black uppercase text-slate-200">${u.name}</div>
+                        <div class="text-[9px] text-slate-500 font-bold">${u.rank}</div>
+                    </td>
+                    <td class="p-4 text-right">
+                        <span class="font-black ${u.balance > 0 ? 'text-green-500' : 'text-red-500'} text-sm">L. ${u.balance.toFixed(2)}</span>
+                    </td>
+                    <td class="p-4 text-center">
+                        <button onclick="deleteUser('${u.dni}')" class="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 uppercase">Eliminar</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderFundList() {
+            const query = document.getElementById('fund-search').value.toUpperCase();
+            const filtered = STATE.users.filter(u => u.name.includes(query) || u.dni.includes(query));
+            
+            document.getElementById('fund-list-body').innerHTML = filtered.map(u => `
+                <tr class="hover:bg-white/5 cursor-pointer" onclick="toggleUserSelection('${u.dni}')">
+                    <td class="p-3 w-10 text-center">
+                        <div class="w-5 h-5 border-2 rounded ${selectedForMass.has(u.dni) ? 'bg-orange-500 border-orange-500' : 'border-[#30363d]'} flex items-center justify-center transition-all">
+                            ${selectedForMass.has(u.dni) ? '✓' : ''}
+                        </div>
+                    </td>
+                    <td class="p-3">
+                        <div class="font-black uppercase text-slate-300">${u.name}</div>
+                        <div class="text-[8px] text-slate-500 font-bold uppercase italic">Saldo Actual: L. ${u.balance.toFixed(2)}</div>
+                    </td>
+                </tr>
+            `).join('');
+            document.getElementById('selected-count').innerText = selectedForMass.size;
+        }
+
+        // --- ACCIONES MASIVAS ---
+        window.toggleUserSelection = function(dni) {
+            if (selectedForMass.has(dni)) selectedForMass.delete(dni);
+            else selectedForMass.add(dni);
+            renderFundList();
+        }
+
+        window.toggleAllCheckboxes = function(val) {
+            if (val) STATE.users.forEach(u => selectedForMass.add(u.dni));
+            else selectedForMass.clear();
+            renderFundList();
+        }
+
+        window.executeMassFund = function() {
+            const amount = parseFloat(document.getElementById('mass-fund-amount').value);
+            if (isNaN(amount) || amount <= 0) { showNotice("VALOR INVÁLIDO", "Ingrese un monto mayor a 0.", "red"); return; }
+            if (selectedForMass.size === 0) { showNotice("SIN SELECCIÓN", "Marque al menos una persona.", "red"); return; }
+
+            const confirmMsg = `¿Acreditar L. ${amount.toFixed(2)} a ${selectedForMass.size} efectivos?\nTotal a depositar: L. ${(amount * selectedForMass.size).toFixed(2)}`;
+            if (!confirm(confirmMsg)) return;
+
+            STATE.users.forEach(u => {
+                if (selectedForMass.has(u.dni)) u.balance += amount;
+            });
+
+            showNotice("ACREDITACIÓN ÉXITOSA", `Se procesaron ${selectedForMass.size} recargas.`, "green");
+            selectedForMass.clear();
+            document.getElementById('mass-fund-amount').value = "";
+            saveAndSync();
+        }
+
+        // --- NAVEGACIÓN Y MODALES ---
+        window.changeTab = function(tab) {
             currentTab = tab;
+            const titles = { scan: 'CONTROL ACCESO', users: 'BASE PERSONAL', funds: 'RECARGAS MASIVAS', reports: 'REPORTES' };
+            document.getElementById('current-mode-title').innerText = titles[tab];
+            document.getElementById('scan-context').innerText = tab === 'funds' ? 'ESCANEÉ PARA SELECCIONAR...' : 'ESPERANDO IDENTIFICACIÓN...';
+            
             ['scan', 'users', 'funds', 'reports'].forEach(t => {
                 document.getElementById('view-'+t).classList.toggle('hidden', t !== tab);
                 document.getElementById('tab-'+t).classList.toggle('tab-btn-active', t === tab);
                 document.getElementById('tab-'+t).classList.toggle('text-slate-500', t !== tab);
             });
+            renderAll();
         }
 
-        function setService(s) {
-            currentService = s;
-            document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('btn-active'));
-            document.getElementById('svc-'+s).classList.add('btn-active');
+        window.openRegisterModal = function(dni) {
+            document.getElementById('nu-dni').value = dni;
+            document.getElementById('reg-modal').classList.remove('hidden');
+            document.getElementById('nu-name').focus();
         }
 
-        function updatePricesUI() {
-            document.getElementById('p-des').innerText = `L. ${APP_DATA.prices.Desayuno}`;
-            document.getElementById('p-alm').innerText = `L. ${APP_DATA.prices.Almuerzo}`;
-            document.getElementById('p-cen').innerText = `L. ${APP_DATA.prices.Cena}`;
+        window.closeRegisterModal = function() { 
+            document.getElementById('reg-modal').classList.add('hidden');
+            document.getElementById('nu-name').value = "";
+            document.getElementById('nu-rank').value = "";
         }
 
-        function openRegisterModal() { document.getElementById('reg-modal').classList.remove('hidden'); }
-        function closeRegisterModal() { document.getElementById('reg-modal').classList.add('hidden'); }
-
-        function saveNewUser() {
-            const dni = document.getElementById('nu-dni').value.toUpperCase();
-            const name = document.getElementById('nu-name').value.toUpperCase();
-            const rank = document.getElementById('nu-rank').value.toUpperCase();
-            if(!dni || !name) return;
-            APP_DATA.users.push({ dni, name, rank, balance: 0 });
-            saveData(); renderAll(); closeRegisterModal();
-            showAlert("EXITO", "Soldado registrado", "green");
+        window.saveNewUser = function() {
+            const dni = document.getElementById('nu-dni').value;
+            const name = document.getElementById('nu-name').value.trim().toUpperCase();
+            const rank = document.getElementById('nu-rank').value.trim().toUpperCase();
+            
+            if(!name || !rank) { showNotice("DATOS INCOMPLETOS", "Rellene todos los campos.", "red"); return; }
+            
+            STATE.users.push({ dni, name, rank, balance: 0 });
+            saveAndSync();
+            closeRegisterModal();
+            showNotice("REGISTRO ÉXITOSO", `${rank} agregado a la base.`, "green");
         }
 
-        function processDeposit() {
-            const dni = document.getElementById('fund-dni').value.toUpperCase();
-            const amount = parseFloat(document.getElementById('fund-amount').value);
-            const user = APP_DATA.users.find(u => u.dni === dni);
-            if(!user || !amount) { alert("DNI no hallado o monto inválido"); return; }
-            user.balance += amount;
-            saveData(); renderAll();
-            document.getElementById('fund-dni').value = "";
-            document.getElementById('fund-amount').value = "";
-            showAlert("RECARGA OK", `L. ${amount} a ${user.name}`, "green");
-        }
-
-        function deleteUser(dni) {
-            if(confirm("¿Eliminar registro?")) {
-                APP_DATA.users = APP_DATA.users.filter(u => u.dni !== dni);
-                saveData(); renderAll();
+        window.deleteUser = function(dni) {
+            if(confirm("¿Eliminar este registro permanentemente? Esta acción no se puede deshacer.")) {
+                STATE.users = STATE.users.filter(u => u.dni !== dni);
+                saveAndSync();
             }
         }
 
-        function showAlert(t, m, c) {
+        // --- UTILIDADES ---
+        function startClock() {
+            setInterval(() => {
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-HN', {hour12:false});
+            }, 1000);
+        }
+
+        function logHistory(user, status, cost) {
+            STATE.history.push({
+                dni: user.dni, 
+                name: user.name, 
+                rank: user.rank,
+                status, 
+                cost, 
+                service: currentService,
+                date: new Date().toLocaleDateString(),
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'})
+            });
+            saveAndSync();
+        }
+
+        window.setService = function(s) {
+            currentService = s;
+            document.querySelectorAll('.svc-btn').forEach(b => {
+                b.classList.remove('btn-active');
+                b.classList.add('text-slate-400');
+            });
+            const btn = document.getElementById('svc-'+s);
+            btn.classList.add('btn-active');
+            btn.classList.remove('text-slate-400');
+        }
+
+        function showNotice(t, m, color) {
             const el = document.getElementById('alert');
-            const color = c === 'red' ? '#f85149' : '#238636';
+            const icon = document.getElementById('alert-icon');
+            const c = color === 'red' ? '#ef4444' : (color === 'blue' ? '#3b82f6' : '#22c55e');
+            
             document.getElementById('alert-title').innerText = t;
-            document.getElementById('alert-title').style.color = color;
+            document.getElementById('alert-title').style.color = c;
             document.getElementById('alert-msg').innerText = m;
-            el.style.backgroundColor = '#161b22';
-            el.style.borderLeft = `8px solid ${color}`;
+            
+            el.style.backgroundColor = '#1c2128';
+            el.style.borderLeft = `8px solid ${c}`;
+            
+            icon.innerHTML = color === 'red' ? '<svg class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>' : '<svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>';
+
             el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 3000);
+            setTimeout(() => el.classList.add('hidden'), 4000);
         }
 
-        function saveData() {
-            localStorage.setItem('m_v4_prices', JSON.stringify(APP_DATA.prices));
-            localStorage.setItem('m_v4_users', JSON.stringify(APP_DATA.users));
-            localStorage.setItem('m_v4_history', JSON.stringify(APP_DATA.history));
+        function saveAndSync() {
+            localStorage.setItem('milcom_v7_users', JSON.stringify(STATE.users));
+            localStorage.setItem('milcom_v7_history', JSON.stringify(STATE.history));
+            renderAll();
         }
 
-        setInterval(() => {
-            document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-HN', {hour12:false});
-        }, 1000);
+        function updateReportStats() {
+            const today = new Date().toLocaleDateString();
+            const todayData = STATE.history.filter(h => h.date === today && h.status === 'AUTORIZADO');
+            
+            const income = todayData.reduce((acc, curr) => acc + curr.cost, 0);
+            const totalSystemBalance = STATE.users.reduce((acc, curr) => acc + curr.balance, 0);
+
+            document.getElementById('rep-income').innerText = `L. ${income.toFixed(2)}`;
+            document.getElementById('rep-rations').innerText = todayData.length;
+            document.getElementById('rep-balance').innerText = `L. ${totalSystemBalance.toFixed(2)}`;
+        }
+
+        window.exportCSV = function() {
+            let csv = "\uFEFF"; // BOM para Excel
+            csv += "Fecha,Hora,DNI,Nombre,Rango,Servicio,Estado,Costo\n";
+            STATE.history.forEach(h => {
+                csv += `${h.date},${h.time},${h.dni},"${h.name}","${h.rank}",${h.service},${h.status},${h.cost}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MILCOM_REPORTE_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+        }
 
         window.onload = init;
+        
+        // Exponer funciones necesarias al scope global (necesario por ser type="module")
+        window.renderUsers = renderUsers;
+        window.renderFundList = renderFundList;
+        window.renderAll = renderAll;
     </script>
 </body>
 </html>
