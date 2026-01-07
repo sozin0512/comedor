@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIL-COM | Gestión de Raciones</title>
+    <title>MIL-COM |</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
@@ -17,6 +17,7 @@
         .status-error { color: #f85149; background: rgba(248, 81, 73, 0.1); }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+        .scanner-active { outline: 4px solid #f2994a; outline-offset: -4px; }
     </style>
 </head>
 <body class="p-2 md:p-6">
@@ -47,31 +48,33 @@
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
             
-            <!-- PANEL IZQUIERDO: SCANNER Y ACCIONES -->
+            <!-- PANEL IZQUIERDO: SCANNER Y ACCIONES (SIEMPRE VISIBLE) -->
             <div class="lg:col-span-4 space-y-4">
                 <div class="card p-4">
                     <div id="reader" class="w-full aspect-video bg-black mb-4"></div>
                     
-                    <!-- SELECTOR DE COMIDA -->
-                    <div class="flex gap-1 bg-black/50 p-1 rounded-lg mb-4">
-                        <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded btn-active">Desayuno</button>
-                        <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded text-slate-500">Almuerzo</button>
-                        <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded text-slate-500">Cena</button>
-                    </div>
+                    <div id="control-actions" class="space-y-4">
+                        <!-- SELECTOR DE COMIDA -->
+                        <div class="flex gap-1 bg-black/50 p-1 rounded-lg mb-4">
+                            <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded btn-active">Desayuno</button>
+                            <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded text-slate-500">Almuerzo</button>
+                            <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded text-slate-500">Cena</button>
+                        </div>
 
-                    <div class="space-y-3">
-                        <input type="text" id="dni-main" placeholder="ESPERANDO ESCANEO..." class="w-full bg-[#0d1117] border border-[#30363d] p-4 text-xl font-mono text-center text-orange-500 font-bold rounded-xl focus:border-orange-500 outline-none uppercase">
-                        
-                        <!-- PRECIO ACTUAL -->
-                        <div class="flex justify-between items-center bg-black/30 p-3 rounded-lg border border-white/5">
-                            <span class="text-[10px] font-bold text-slate-500 uppercase">Costo Ración:</span>
-                            <span id="display-price" class="text-lg font-black text-white">L. 0.00</span>
+                        <div class="space-y-3">
+                            <input type="text" id="dni-main" placeholder="ESPERANDO ESCANEO..." class="w-full bg-[#0d1117] border border-[#30363d] p-4 text-xl font-mono text-center text-orange-500 font-bold rounded-xl focus:border-orange-500 outline-none uppercase">
+                            
+                            <!-- PRECIO ACTUAL -->
+                            <div class="flex justify-between items-center bg-black/30 p-3 rounded-lg border border-white/5">
+                                <span class="text-[10px] font-bold text-slate-500 uppercase">Costo Ración:</span>
+                                <span id="display-price" class="text-lg font-black text-white">L. 0.00</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- CONFIGURACIÓN DE PRECIOS -->
-                <div class="card p-4">
+                <div id="price-config" class="card p-4">
                     <h3 class="text-[9px] font-black uppercase text-slate-500 mb-3 tracking-widest">Ajuste de Precios (L.)</h3>
                     <div class="grid grid-cols-3 gap-2">
                         <div class="space-y-1">
@@ -101,9 +104,8 @@
                     <div class="card p-3 border-l-4 border-red-600"><p class="text-[9px] font-bold text-slate-500 uppercase">Alertas</p><p id="count-err" class="text-xl font-black text-red-500">0</p></div>
                 </div>
 
-                <!-- CONTENEDOR DE PESTAÑAS -->
+                <!-- VISTA: PANEL DE CONTROL -->
                 <div id="view-scan" class="space-y-4">
-                    <!-- BITÁCORA DE REGISTROS (HISTORIAL) -->
                     <div class="card overflow-hidden">
                         <div class="p-4 border-b border-[#30363d] bg-[#1c2128] flex justify-between items-center">
                             <h2 class="text-[11px] font-black uppercase italic tracking-widest">Bitácora de Raciones (Hoy)</h2>
@@ -120,44 +122,48 @@
                                         <th class="p-3 text-center">Estado</th>
                                     </tr>
                                 </thead>
-                                <tbody id="history-body" class="divide-y divide-[#30363d]">
-                                    <!-- Dinámico -->
-                                </tbody>
+                                <tbody id="history-body" class="divide-y divide-[#30363d]"></tbody>
                             </table>
                         </div>
                     </div>
                 </div>
 
-                <!-- VISTA BASE DE DATOS -->
+                <!-- VISTA: BASE DE DATOS -->
                 <div id="view-users" class="hidden card p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-lg font-black uppercase italic">Archivo de Suboficiales</h2>
-                        <button onclick="openRegisterModal()" class="bg-orange-500 text-black px-4 py-2 rounded font-black text-[10px] uppercase">Nuevo Registro</button>
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div>
+                            <h2 class="text-lg font-black uppercase italic">Archivo de Personal</h2>
+                            <p class="text-[10px] text-orange-500 font-bold uppercase">Escanee un carnet para buscar o registrar</p>
+                        </div>
+                        <button onclick="openRegisterModal()" class="bg-orange-500 text-black px-4 py-2 rounded font-black text-[10px] uppercase shadow-lg">Registro Manual</button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
-                            <thead class="text-slate-500 uppercase font-bold">
-                                <tr><th class="p-3">DNI</th><th class="p-3">Nombre</th><th class="p-3 text-right">Saldo (L.)</th><th class="p-3 text-center">Acción</th></tr>
+                            <thead class="text-slate-500 uppercase font-bold border-b border-[#30363d]">
+                                <tr><th class="p-3">DNI</th><th class="p-3">Nombre</th><th class="p-3">Rango</th><th class="p-3 text-right">Saldo (L.)</th><th class="p-3 text-center">Acción</th></tr>
                             </thead>
                             <tbody id="users-body" class="divide-y divide-[#30363d]"></tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- VISTA RECARGAS -->
+                <!-- VISTA: RECARGAS -->
                 <div id="view-funds" class="hidden card p-6 border-t-4 border-green-600">
                     <h2 class="text-lg font-black uppercase italic mb-6">Acreditar Saldo a Personal</h2>
                     <div class="grid md:grid-cols-2 gap-6">
                         <div class="space-y-4">
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">1. Identifique al Personal (Escaner o DNI)</p>
                             <input type="text" id="fund-dni" placeholder="DNI DEL PERSONAL" class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-orange-500 font-bold">
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">2. Ingrese el Monto</p>
                             <input type="number" id="fund-amount" placeholder="MONTO EN LEMPIRAS" class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-green-500 font-black text-2xl">
                         </div>
                         <div class="flex flex-col gap-4">
-                            <div class="border-2 border-dashed border-[#30363d] rounded-xl p-8 text-center cursor-pointer hover:border-orange-500" onclick="document.getElementById('receipt-img').click()">
-                                <p id="receipt-label" class="text-[10px] font-black text-slate-500 uppercase">Subir Foto Comprobante</p>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">3. Comprobante de Depósito</p>
+                            <div class="border-2 border-dashed border-[#30363d] rounded-xl p-8 text-center cursor-pointer hover:border-orange-500 bg-black/20" onclick="document.getElementById('receipt-img').click()">
+                                <p id="receipt-label" class="text-[10px] font-black text-slate-500 uppercase">Adjuntar Foto Recibo</p>
                                 <input type="file" id="receipt-img" class="hidden" accept="image/*" onchange="previewFile(this)">
                             </div>
-                            <button onclick="processDeposit()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase text-xs shadow-lg">Confirmar Recarga</button>
+                            <button onclick="processDeposit()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase text-xs shadow-lg hover:bg-green-500 transition-all">Confirmar Recarga</button>
                         </div>
                     </div>
                 </div>
@@ -171,12 +177,21 @@
         <div class="card max-w-sm w-full p-8 border-t-8 border-orange-500">
             <h3 class="text-xl font-black uppercase italic mb-6">Alta de Personal</h3>
             <div class="space-y-4">
-                <input type="text" id="nu-dni" placeholder="DNI" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
-                <input type="text" id="nu-name" placeholder="NOMBRE COMPLETO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
-                <input type="text" id="nu-rank" placeholder="GRADO / RANGO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
+                <div>
+                    <label class="text-[9px] font-black text-slate-500 uppercase ml-2">Identidad (DNI)</label>
+                    <input type="text" id="nu-dni" placeholder="DNI" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase text-orange-500">
+                </div>
+                <div>
+                    <label class="text-[9px] font-black text-slate-500 uppercase ml-2">Nombre Completo</label>
+                    <input type="text" id="nu-name" placeholder="NOMBRES Y APELLIDOS" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
+                </div>
+                <div>
+                    <label class="text-[9px] font-black text-slate-500 uppercase ml-2">Grado / Rango</label>
+                    <input type="text" id="nu-rank" placeholder="EJ. SUBOFICIAL III" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
+                </div>
                 <div class="flex gap-4 pt-4">
-                    <button onclick="closeRegisterModal()" class="flex-1 text-slate-500 font-black uppercase text-[10px]">Cerrar</button>
-                    <button onclick="saveNewUser()" class="flex-1 bg-orange-500 text-black py-4 rounded-xl font-black uppercase text-[10px]">Guardar</button>
+                    <button onclick="closeRegisterModal()" class="flex-1 text-slate-500 font-black uppercase text-[10px]">Cancelar</button>
+                    <button onclick="saveNewUser()" class="flex-1 bg-orange-500 text-black py-4 rounded-xl font-black uppercase text-[10px]">Guardar Registro</button>
                 </div>
             </div>
         </div>
@@ -203,46 +218,68 @@
         let receiptData = null;
 
         function init() {
-            // Cargar UI
             Object.keys(APP_DATA.prices).forEach(k => {
-                document.getElementById('inp-'+k).value = APP_DATA.prices[k];
+                if(document.getElementById('inp-'+k)) document.getElementById('inp-'+k).value = APP_DATA.prices[k];
             });
             updateServiceUI();
             startScanner();
             renderAll();
         }
 
-        // SCANNER INTELIGENTE
+        // SCANNER INTELIGENTE MULTI-MODO
         function startScanner() {
             scanner = new Html5Qrcode("reader");
-            const config = { fps: 20, qrbox: { width: 300, height: 180 } };
+            const config = { 
+                fps: 20, 
+                qrbox: { width: 300, height: 180 },
+                formatsToSupport: [ 
+                    Html5QrcodeSupportedFormats.PDF417, 
+                    Html5QrcodeSupportedFormats.QR_CODE, 
+                    Html5QrcodeSupportedFormats.CODE_128 
+                ]
+            };
             
             scanner.start({ facingMode: "environment" }, config, (decodedText) => {
                 if(isLocked) return;
                 const dni = decodedText.trim().toUpperCase();
                 handleScanAction(dni);
-            }).catch(e => console.warn("Cámara no encontrada"));
+            }).catch(e => console.warn("Cámara offline"));
         }
 
         function handleScanAction(dni) {
             isLocked = true;
+            document.getElementById('reader').classList.add('scanner-active');
+            
+            // Actualizar visual de DNI en el panel principal siempre
             document.getElementById('dni-main').value = dni;
 
             if(currentTab === 'scan') {
                 processAccess(dni);
-            } else if(currentTab === 'funds') {
+            } 
+            else if(currentTab === 'funds') {
                 document.getElementById('fund-dni').value = dni;
-                showAlert("Personal Identificado", "Proceda a ingresar el monto del recibo", "orange");
-            } else if(currentTab === 'users') {
-                const u = APP_DATA.users.find(x => x.dni === dni);
-                if(!u) openRegisterModal(dni);
-                else showAlert("Personal Localizado", `${u.rank}: ${u.name}`, "blue");
+                const user = APP_DATA.users.find(u => u.dni === dni);
+                if(user) showAlert("Personal Identificado", `${user.rank} ${user.name}`, "orange");
+                else showAlert("DNI Escaneado", "Personal no registrado. Regístrelo antes de recargar.", "red");
+            } 
+            else if(currentTab === 'users') {
+                const user = APP_DATA.users.find(u => u.dni === dni);
+                if(user) {
+                    showAlert("Personal Localizado", `${user.rank}: ${user.name}`, "blue");
+                    // Opcional: Podrías resaltar la fila en la tabla aquí
+                } else {
+                    showAlert("Nuevo Personal", "DNI no encontrado. Abriendo alta...", "orange");
+                    setTimeout(() => openRegisterModal(dni), 1000);
+                }
             }
 
-            setTimeout(() => isLocked = false, 3000);
+            setTimeout(() => {
+                isLocked = false;
+                document.getElementById('reader').classList.remove('scanner-active');
+            }, 3000);
         }
 
-        // LÓGICA DE NEGOCIO
+        // LÓGICA DE ACCESO
         function processAccess(dni) {
             const user = APP_DATA.users.find(u => u.dni === dni);
             const today = new Date().toLocaleDateString();
@@ -253,20 +290,18 @@
                 return;
             }
 
-            // Validar si ya comió hoy
             if(APP_DATA.history.some(h => h.dni === dni && h.date === today && h.service === currentService && h.status === 'AUTORIZADO')) {
-                showAlert("RACIÓN DUPLICADA", `${user.name} ya consumió su ${currentService} hoy.`, "red");
+                showAlert("RACIÓN DUPLICADA", `${user.name} ya consumió hoy.`, "red");
                 logHistory(user, 'DENEGADO (DUPLICADO)', 0);
                 return;
             }
 
             if(user.balance < cost) {
-                showAlert("SALDO INSUFICIENTE", `L. ${user.balance.toFixed(2)} de L. ${cost} requeridos.`, "red");
+                showAlert("SALDO INSUFICIENTE", `L. ${user.balance.toFixed(2)} | Falta recargar.`, "red");
                 logHistory(user, 'DENEGADO (SIN SALDO)', 0);
                 return;
             }
 
-            // ÉXITO
             user.balance -= cost;
             logHistory(user, 'AUTORIZADO', cost);
             saveData();
@@ -295,24 +330,23 @@
             const user = APP_DATA.users.find(u => u.dni === dni);
 
             if(!user || isNaN(amount) || amount <= 0 || !receiptData) {
-                alert("Verifique DNI, Monto y Foto del Comprobante.");
+                alert("Verifique DNI registrado, monto y que haya subido el recibo.");
                 return;
             }
 
             user.balance += amount;
             saveData();
             
-            // Limpiar
             document.getElementById('fund-dni').value = "";
             document.getElementById('fund-amount').value = "";
             receiptData = null;
-            document.getElementById('receipt-label').innerText = "Subir Foto Comprobante";
+            document.getElementById('receipt-label').innerText = "Adjuntar Foto Recibo";
             
-            showAlert("RECARGA EXITOSA", `Se acreditaron L. ${amount} a ${user.name}`, "green");
+            showAlert("RECARGA EXITOSA", `L. ${amount} acreditados a ${user.name}`, "green");
             renderAll();
         }
 
-        // UI HELPERS
+        // UI RENDERERS
         function renderAll() {
             const today = new Date().toLocaleDateString();
             const historyBody = document.getElementById('history-body');
@@ -348,13 +382,13 @@
                     <tr class="hover:bg-white/5 transition-colors">
                         <td class="p-3 font-mono text-orange-500">${u.dni}</td>
                         <td class="p-3 font-bold uppercase">${u.name}</td>
+                        <td class="p-3 font-bold text-slate-500 uppercase">${u.rank}</td>
                         <td class="p-3 text-right font-black text-green-500">L. ${u.balance.toFixed(2)}</td>
-                        <td class="p-3 text-center"><button onclick="deleteUser('${u.dni}')" class="text-red-500 hover:scale-110">✕</button></td>
+                        <td class="p-3 text-center"><button onclick="deleteUser('${u.dni}')" class="text-red-500 hover:scale-125 transition-transform">✕</button></td>
                     </tr>
                 `;
             }).join('');
 
-            // Totales
             document.getElementById('count-d').innerText = stats.d;
             document.getElementById('count-a').innerText = stats.a;
             document.getElementById('count-err').innerText = stats.err;
@@ -368,6 +402,10 @@
                 document.getElementById('tab-'+t).classList.toggle('tab-btn-active', t === tab);
                 document.getElementById('tab-'+t).classList.toggle('text-slate-500', t !== tab);
             });
+            // Mostrar/Ocultar controles laterales según contexto
+            document.getElementById('control-actions').classList.toggle('hidden', tab === 'funds');
+            document.getElementById('price-config').classList.toggle('hidden', tab !== 'scan');
+
             if(tab === 'users') renderAll();
         }
 
@@ -391,27 +429,40 @@
         function openRegisterModal(dni = '') {
             document.getElementById('nu-dni').value = dni;
             document.getElementById('reg-modal').classList.remove('hidden');
+            if(!dni) document.getElementById('nu-dni').focus();
+            else document.getElementById('nu-name').focus();
         }
 
         function closeRegisterModal() {
             document.getElementById('reg-modal').classList.add('hidden');
+            document.getElementById('nu-dni').value = "";
+            document.getElementById('nu-name').value = "";
+            document.getElementById('nu-rank').value = "";
         }
 
         function saveNewUser() {
             const dni = document.getElementById('nu-dni').value.toUpperCase();
             const name = document.getElementById('nu-name').value.toUpperCase();
             const rank = document.getElementById('nu-rank').value.toUpperCase();
-            if(!dni || !name) return;
+            if(!dni || !name) {
+                alert("DNI y Nombre son obligatorios.");
+                return;
+            }
+
+            if(APP_DATA.users.find(u => u.dni === dni)) {
+                alert("Este DNI ya existe en la base de datos.");
+                return;
+            }
 
             APP_DATA.users.push({ dni, name, rank, balance: 0 });
             saveData();
             closeRegisterModal();
             renderAll();
-            showAlert("REGISTRO EXITOSO", `${name} añadido a la base.`, "green");
+            showAlert("REGISTRO EXITOSO", `${name} ha sido dado de alta.`, "green");
         }
 
         function deleteUser(dni) {
-            if(confirm("¿Eliminar suboficial?")) {
+            if(confirm("¿Eliminar este registro de personal permanentemente?")) {
                 APP_DATA.users = APP_DATA.users.filter(u => u.dni !== dni);
                 saveData();
                 renderAll();
@@ -429,7 +480,7 @@
         function previewFile(input) {
             const f = input.files[0];
             if(f) {
-                document.getElementById('receipt-label').innerText = "ARCHIVO: " + f.name;
+                document.getElementById('receipt-label').innerText = "DOC: " + f.name;
                 const r = new FileReader();
                 r.onload = (e) => receiptData = e.target.result;
                 r.readAsDataURL(f);
@@ -438,14 +489,14 @@
 
         function showAlert(t, m, c) {
             const el = document.getElementById('alert');
-            const color = c === 'red' ? '#f85149' : (c === 'green' ? '#238636' : '#f2994a');
+            const color = c === 'red' ? '#f85149' : (c === 'green' ? '#238636' : (c === 'blue' ? '#58a6ff' : '#f2994a'));
             document.getElementById('alert-title').innerText = t;
             document.getElementById('alert-title').style.color = color;
             document.getElementById('alert-msg').innerText = m;
             el.style.backgroundColor = '#161b22';
             el.style.borderLeftColor = color;
             el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 5000);
+            setTimeout(() => el.classList.add('hidden'), 4000);
         }
 
         function saveData() {
