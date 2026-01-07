@@ -3,339 +3,414 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control de Acceso Seguro - Comedor</title>
+    <title>Gestión de Comedor y Pagos</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Librería para escaneo de códigos de barras/QR -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f1f5f9;
-        }
-
-        .card {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        }
-
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-
-        .input-focus {
-            transition: all 0.2s;
-            border: 2px solid #e2e8f0;
-        }
-
-        .input-focus:focus {
-            border-color: #1e40af;
-            box-shadow: 0 0 0 4px rgba(30, 64, 175, 0.1);
-            outline: none;
-        }
-
-        .access-denied {
-            animation: shake 0.5s core linear;
-            border-color: #ef4444 !important;
-            background-color: #fef2f2;
-        }
-
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
-        }
-
-        /* Estilos para el contenedor del escáner */
-        #reader {
-            border: none !important;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        #reader__dashboard_section_csr button {
-            background-color: #1e40af !important;
-            color: white !important;
-            padding: 8px 16px !important;
-            border-radius: 8px !important;
-            cursor: pointer !important;
-            font-weight: bold !important;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .input-focus:focus { border-color: #1e40af; box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1); outline: none; }
+        #reader { border: none !important; border-radius: 12px; overflow: hidden; height: 300px; }
+        .tab-active { border-bottom: 3px solid #1e40af; color: #1e40af; font-weight: 900; }
+        .tab-inactive { color: #94a3b8; }
+        .scanner-active { border: 4px solid #fbbf24 !important; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-2 md:p-6">
 
     <div class="max-w-7xl mx-auto">
-        <!-- Header -->
-        <header class="mb-6 flex flex-col md:flex-row justify-between items-center bg-blue-900 p-6 rounded-xl shadow-lg text-white">
+        <!-- Header Principal -->
+        <header class="mb-6 flex flex-col md:flex-row justify-between items-center bg-slate-900 p-6 rounded-xl text-white shadow-xl border-b-4 border-yellow-500">
             <div>
-                <h1 class="text-2xl font-black uppercase tracking-widest">Control Biográfico de Comedor</h1>
-                <p class="text-blue-200 text-sm">Prevención de Suplantación e Ingresos Duplicados</p>
+                <h1 class="text-xl font-black uppercase tracking-tighter text-yellow-500">Sistema de Control Biográfico y Financiero</h1>
+                <p class="text-slate-400 text-xs font-bold uppercase italic text-gray-500">Unidad Mil-Com - Gestión de Identidades y Raciones</p>
             </div>
-            <div class="flex items-center gap-4 mt-4 md:mt-0">
-                <div id="current-time" class="text-2xl font-mono font-bold bg-blue-800 px-4 py-2 rounded border border-blue-700">00:00:00</div>
-            </div>
+            <div id="current-time" class="text-xl font-mono font-bold bg-slate-800 px-4 py-2 rounded border border-slate-700 mt-2 md:mt-0">00:00:00</div>
         </header>
+
+        <!-- Navegación Principal -->
+        <div class="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+            <button onclick="switchTab('control')" id="nav-control" class="px-4 py-2 text-xs uppercase tab-active">Control de Acceso</button>
+            <button onclick="switchTab('recarga')" id="nav-recarga" class="px-4 py-2 text-xs uppercase tab-inactive">Cargar Saldo</button>
+            <button onclick="switchTab('personal')" id="nav-personal" class="px-4 py-2 text-xs uppercase tab-inactive">Base de Suboficiales</button>
+            <button onclick="switchTab('reportes')" id="nav-reportes" class="px-4 py-2 text-xs uppercase tab-inactive">Historial Diario</button>
+        </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <!-- Panel de Registro y Escaneo -->
-            <div class="lg:col-span-5 space-y-6">
+            <!-- COLUMNA IZQUIERDA: CONFIGURACIÓN Y SCANNER -->
+            <div class="lg:col-span-4 space-y-6">
                 
-                <!-- Escáner de Cámara -->
-                <div class="card p-4 border-t-4 border-green-600">
-                    <h2 class="text-lg font-bold text-gray-800 mb-3 flex items-center">
-                        <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
-                        Escáner de Identificación
-                    </h2>
-                    <div id="reader" class="bg-gray-100 min-h-[250px]"></div>
-                    <p class="text-[10px] text-center text-gray-500 mt-2 italic">Coloque el código de barras o QR frente a la cámara</p>
+                <!-- PRECIOS -->
+                <div class="card p-4 border-t-4 border-yellow-500">
+                    <h2 class="text-[10px] font-black text-slate-500 mb-3 uppercase tracking-widest">Ajuste de Precios</h2>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="text-center p-2 bg-slate-50 rounded border">
+                            <p class="text-[8px] font-bold text-gray-400 uppercase">Desayuno</p>
+                            <input type="number" id="price-Desayuno" value="5.00" class="w-full text-center font-black text-xs bg-transparent outline-none" onchange="savePrices()">
+                        </div>
+                        <div class="text-center p-2 bg-slate-50 rounded border">
+                            <p class="text-[8px] font-bold text-gray-400 uppercase">Almuerzo</p>
+                            <input type="number" id="price-Almuerzo" value="10.00" class="w-full text-center font-black text-xs bg-transparent outline-none" onchange="savePrices()">
+                        </div>
+                        <div class="text-center p-2 bg-slate-50 rounded border">
+                            <p class="text-[8px] font-bold text-gray-400 uppercase">Cena</p>
+                            <input type="number" id="price-Cena" value="7.00" class="w-full text-center font-black text-xs bg-transparent outline-none" onchange="savePrices()">
+                        </div>
+                    </div>
                 </div>
 
-                <div class="card p-6 border-t-4 border-blue-600">
-                    <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
-                        Datos del Comensal
-                    </h2>
-
-                    <div class="mb-6">
-                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Servicio Actual</label>
-                        <div class="flex gap-2">
-                            <button onclick="setMeal('Desayuno')" id="btn-Desayuno" class="meal-btn flex-1 py-2 rounded-md border-2 font-bold text-xs transition-all border-orange-200 text-orange-700 bg-orange-50">DESAYUNO</button>
-                            <button onclick="setMeal('Almuerzo')" id="btn-Almuerzo" class="meal-btn flex-1 py-2 rounded-md border-2 font-bold text-xs transition-all border-gray-200 text-gray-400">ALMUERZO</button>
-                            <button onclick="setMeal('Cena')" id="btn-Cena" class="meal-btn flex-1 py-2 rounded-md border-2 font-bold text-xs transition-all border-gray-200 text-gray-400">CENA</button>
+                <!-- SCANNER & ACCESO -->
+                <div id="side-control" class="space-y-6">
+                    <div class="card p-2 border-t-4 border-blue-600 relative">
+                        <div id="reader"></div>
+                        <div class="absolute top-4 right-4 z-10">
+                            <span class="bg-blue-600 text-white text-[8px] font-bold px-2 py-1 rounded-full uppercase animate-pulse">Escaner Activo</span>
                         </div>
                     </div>
 
-                    <form id="registro-form" class="space-y-4">
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">DNI (Manual o Escaneado)</label>
-                            <input type="text" id="dni-input" autocomplete="off" placeholder="Esperando DNI..." class="w-full p-4 text-2xl font-mono font-bold rounded-lg input-focus border-2" required>
+                    <div class="card p-5 border-t-4 border-slate-800">
+                        <div class="flex gap-1 mb-4 bg-slate-100 p-1 rounded-lg">
+                            <button onclick="setMeal('Desayuno')" id="btn-Desayuno" class="meal-btn flex-1 py-2 rounded font-bold text-[10px] transition-all bg-white shadow text-blue-700">DESAYUNO</button>
+                            <button onclick="setMeal('Almuerzo')" id="btn-Almuerzo" class="meal-btn flex-1 py-2 rounded font-bold text-[10px] transition-all text-slate-500">ALMUERZO</button>
+                            <button onclick="setMeal('Cena')" id="btn-Cena" class="meal-btn flex-1 py-2 rounded font-bold text-[10px] transition-all text-slate-500">CENA</button>
                         </div>
 
-                        <div id="info-preview" class="hidden p-4 bg-blue-50 rounded-lg border border-blue-100">
-                            <p class="text-xs text-blue-600 font-bold uppercase">Datos Encontrados:</p>
-                            <p id="preview-nombre" class="text-lg font-black text-blue-900 leading-tight"></p>
-                            <p id="preview-rango" class="text-sm text-blue-700"></p>
-                        </div>
+                        <form id="registro-form" class="space-y-4">
+                            <div class="relative">
+                                <input type="text" id="dni-input" placeholder="DNI O ESCANEO DE CARNET..." class="w-full p-4 text-xl font-mono font-black rounded-lg border-2 input-focus text-center uppercase border-slate-300" required>
+                                <div class="text-center mt-2">
+                                    <span class="text-[9px] text-slate-400 font-bold uppercase italic">Detecta PDF417, QR y Códigos de Barras</span>
+                                </div>
+                            </div>
+                            
+                            <div id="info-preview" class="hidden p-4 rounded-lg border-2 border-dashed border-blue-200 bg-blue-50/50 flex flex-col items-center text-center">
+                                <p id="preview-nombre" class="font-black text-slate-900 text-lg uppercase"></p>
+                                <p id="preview-rango" class="text-[10px] text-slate-500 font-bold mb-2 italic"></p>
+                                <div class="bg-white px-4 py-2 rounded-xl border shadow-sm w-full">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-[9px] font-bold text-gray-400 uppercase">Saldo Actual:</span>
+                                        <span id="preview-saldo" class="text-sm font-black"></span>
+                                    </div>
+                                    <div class="flex justify-between items-center pt-1 border-t border-slate-100">
+                                        <span class="text-[9px] font-bold text-gray-400 uppercase">Costo Servicio:</span>
+                                        <span id="preview-costo-actual" class="text-sm font-black text-blue-600"></span>
+                                    </div>
+                                </div>
+                            </div>
 
-                        <button type="submit" id="submit-btn" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-4 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50">
-                            CONFIRMAR INGRESO
-                        </button>
-                    </form>
-                </div>
-
-                <div id="alerta-fraude" class="hidden card p-4 bg-red-600 text-white animate-bounce">
-                    <div class="flex items-center">
-                        <svg class="w-10 h-10 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                        <div>
-                            <p class="font-black text-lg underline uppercase">¡ALERTA DE SEGURIDAD!</p>
-                            <p class="text-sm opacity-90" id="fraude-msg"></p>
-                        </div>
+                            <button type="submit" class="w-full bg-slate-900 hover:bg-black text-white font-black py-4 rounded-xl shadow-lg transition-all active:scale-95 uppercase text-xs tracking-widest">
+                                REGISTRAR ACCESO MANUAL
+                            </button>
+                        </form>
                     </div>
                 </div>
             </div>
 
-            <!-- Panel de Monitoreo -->
-            <div class="lg:col-span-7 space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="card p-4 bg-white border-l-4 border-orange-500">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase">Desayunos</p>
-                        <p id="stat-desayuno" class="text-2xl font-black">0</p>
+            <!-- COLUMNA DERECHA: TABLAS Y DATOS -->
+            <div class="lg:col-span-8 space-y-6">
+                
+                <!-- SECCIÓN 1: MONITOREO / CONTROL -->
+                <div id="view-control" class="space-y-6">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="card p-4 border-l-4 border-blue-500"><p class="text-[8px] font-bold text-gray-400 uppercase">Desayunos Hoy</p><p id="stat-desayuno" class="text-xl font-black">0</p></div>
+                        <div class="card p-4 border-l-4 border-blue-500"><p class="text-[8px] font-bold text-gray-400 uppercase">Almuerzos Hoy</p><p id="stat-almuerzo" class="text-xl font-black">0</p></div>
+                        <div class="card p-4 border-l-4 border-green-500"><p class="text-[8px] font-bold text-gray-400 uppercase">Fondo Total</p><p id="stat-total" class="text-xl font-black">$0</p></div>
+                        <div class="card p-4 border-l-4 border-red-500"><p class="text-[8px] font-bold text-gray-400 uppercase">Denegados</p><p id="stat-rechazados" class="text-xl font-black">0</p></div>
                     </div>
-                    <div class="card p-4 bg-white border-l-4 border-blue-500">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase">Almuerzos</p>
-                        <p id="stat-almuerzo" class="text-2xl font-black">0</p>
-                    </div>
-                    <div class="card p-4 bg-white border-l-4 border-indigo-500">
-                        <p class="text-[10px] font-bold text-gray-400 uppercase">Cenas</p>
-                        <p id="stat-cena" class="text-2xl font-black">0</p>
-                    </div>
-                    <div class="card p-4 bg-red-50 border-l-4 border-red-600">
-                        <p class="text-[10px] font-bold text-red-600 uppercase">Rechazados</p>
-                        <p id="stat-rechazados" class="text-2xl font-black text-red-700">0</p>
+
+                    <div class="card overflow-hidden">
+                        <div class="p-4 border-b bg-slate-50 flex justify-between items-center">
+                            <h3 class="text-xs font-black uppercase italic">Movimientos de Hoy</h3>
+                            <span id="label-fecha" class="text-[10px] font-bold text-slate-500"></span>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 text-slate-500 text-[9px] uppercase font-black border-b">
+                                    <tr><th class="p-4">Hora</th><th class="p-4">Personal</th><th class="p-4">Servicio</th><th class="p-4 text-right">Costo</th><th class="p-4 text-center">Estado</th></tr>
+                                </thead>
+                                <tbody id="log-body" class="divide-y text-xs"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
-                <div class="card overflow-hidden">
-                    <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
-                        <h3 class="font-bold text-gray-700 uppercase text-sm tracking-widest">Historial Diario</h3>
-                        <div class="flex gap-2">
-                            <button id="btn-export" class="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold hover:bg-green-700">EXPORTAR EXCEL</button>
+                <!-- SECCIÓN 2: CARGAR SALDO -->
+                <div id="view-recarga" class="hidden space-y-4">
+                    <div class="card p-6 border-t-4 border-green-600">
+                        <h3 class="font-black text-lg mb-4 text-slate-800 uppercase italic">Registro de Fondos</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-4">
+                                <label class="block text-[10px] font-black uppercase text-slate-500">1. Buscar Suboficial (DNI)</label>
+                                <input type="text" id="recarga-dni" class="w-full p-3 border-2 rounded-lg font-mono font-bold border-slate-200 uppercase" placeholder="DNI...">
+                                <div id="recarga-persona-info" class="mt-2 text-xs font-bold text-green-700 p-2 bg-green-50 rounded border border-green-200 hidden"></div>
+                                <input type="number" id="recarga-monto" class="w-full p-3 border-2 rounded-lg font-black text-xl border-slate-200" placeholder="Monto $0.00">
+                            </div>
+                            <div class="space-y-4">
+                                <label class="block text-[10px] font-black uppercase text-slate-500">2. Comprobante</label>
+                                <div class="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center bg-slate-50 cursor-pointer" onclick="document.getElementById('file-input').click()">
+                                    <span class="text-[10px] font-bold text-slate-500" id="file-name">Subir Imagen</span>
+                                    <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleFile(this)">
+                                </div>
+                                <button onclick="procesarRecarga()" class="w-full bg-green-600 text-white font-black py-4 rounded-xl shadow-lg uppercase text-xs">Acreditar Saldo</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="overflow-x-auto h-[500px]">
-                        <table class="w-full text-left">
-                            <thead class="bg-gray-100 text-gray-600 text-[10px] uppercase sticky top-0">
-                                <tr>
-                                    <th class="p-4">Hora</th>
-                                    <th class="p-4">Suboficial</th>
-                                    <th class="p-4">DNI</th>
-                                    <th class="p-4">Estado</th>
-                                </tr>
-                            </thead>
-                            <tbody id="log-body" class="divide-y text-xs">
-                                <!-- Filas -->
-                            </tbody>
-                        </table>
+                </div>
+
+                <!-- SECCIÓN 3: BASE DE SUBOFICIALES -->
+                <div id="view-personal" class="hidden space-y-4">
+                    <div class="card p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-black text-lg uppercase italic">Registro de Suboficiales</h3>
+                            <button onclick="showAddUserModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">Nuevo Registro</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-50 font-black uppercase text-[9px]">
+                                    <tr><th class="p-3">DNI</th><th class="p-3">Nombre Completo</th><th class="p-3">Rango</th><th class="p-3 text-right">Saldo Actual</th><th class="p-3">Acciones</th></tr>
+                                </thead>
+                                <tbody id="user-table-body" class="divide-y"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 4: REPORTES -->
+                <div id="view-reportes" class="hidden space-y-4">
+                    <div class="card p-6">
+                        <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-4">
+                            <h3 class="font-black text-lg uppercase italic text-blue-900">Historial de Raciones</h3>
+                            <input type="date" id="filter-date" onchange="renderReporte()" class="p-2 border-2 rounded-lg font-bold">
+                        </div>
+                        <div id="reporte-container" class="space-y-4"></div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script>
-        // PADRÓN OFICIAL (Base de datos de 200 personas aproximadas)
-        const PADRON_OFICIAL = [
-            { dni: "1010", nombre: "JUAN PEREZ", rango: "SUBOFICIAL MAYOR" },
-            { dni: "2020", nombre: "MARIA GARCIA", rango: "SUBOFICIAL AUXILIAR" },
-            { dni: "3030", nombre: "CARLOS RUIZ", rango: "CABO PRIMERO" },
-            { dni: "4040", nombre: "LUIS LOPEZ", rango: "SUBOFICIAL SEGUNDO" },
-            { dni: "5050", nombre: "ANA MARTINEZ", rango: "SUBOFICIAL PRINCIPAL" },
-            { dni: "6060", nombre: "ROBERTO SOSA", rango: "CABO" },
-            { dni: "7070", nombre: "ELENA PEÑA", rango: "SUBOFICIAL PRIMERO" }
-        ];
+    <!-- MODAL ALTA USUARIO -->
+    <div id="modal-user" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <h3 class="text-xl font-black uppercase mb-4 italic">Alta de Suboficial</h3>
+            <div class="space-y-4">
+                <input type="text" id="new-dni" placeholder="DNI (COMO FIGURA EN CARNET)" class="w-full p-3 border-2 rounded-lg font-bold">
+                <input type="text" id="new-nombre" placeholder="Nombre Completo" class="w-full p-3 border-2 rounded-lg font-bold uppercase">
+                <input type="text" id="new-rango" placeholder="Rango / Grado" class="w-full p-3 border-2 rounded-lg font-bold uppercase">
+                <div class="flex gap-2">
+                    <button onclick="document.getElementById('modal-user').classList.add('hidden')" class="flex-1 bg-slate-100 py-3 rounded-xl font-black text-xs uppercase">Cancelar</button>
+                    <button onclick="saveNewUser()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-black text-xs uppercase">Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        let registros = JSON.parse(localStorage.getItem('comedor_v4_data')) || [];
+    <!-- MODAL ALERTA -->
+    <div id="modal-alerta" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+        <div id="alert-box" class="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl border-t-8">
+            <h3 id="modal-titulo" class="text-xl font-black uppercase mb-2"></h3>
+            <p id="modal-msg" class="text-slate-600 font-medium mb-6 text-sm"></p>
+            <button onclick="document.getElementById('modal-alerta').classList.add('hidden')" class="w-full bg-slate-900 text-white py-3 rounded-xl font-black uppercase text-xs">Cerrar</button>
+        </div>
+    </div>
+
+    <script>
+        // CONFIGURACIÓN Y ESTADO
+        let PRECIOS = JSON.parse(localStorage.getItem('mil_precios')) || { 'Desayuno': 5, 'Almuerzo': 10, 'Cena': 7 };
+        let PADRON = JSON.parse(localStorage.getItem('mil_padron')) || [
+            { dni: "60239", nombre: "SUBOFICIAL EJEMPLO", rango: "SARGENTO", saldo: 100.00 }
+        ];
+        let registros = JSON.parse(localStorage.getItem('mil_com_regs')) || [];
+        let recargas = JSON.parse(localStorage.getItem('mil_com_recargas')) || [];
+        
         let mealActual = 'Desayuno';
         let html5QrCode;
+        let selectedFileBase64 = null;
+        let lastScanned = null;
+        let scanCooldown = false;
 
-        const dniInput = document.getElementById('dni-input');
-        const infoPreview = document.getElementById('info-preview');
-        const previewNombre = document.getElementById('preview-nombre');
-        const previewRango = document.getElementById('preview-rango');
-        const form = document.getElementById('registro-form');
-        const alertaFraude = document.getElementById('alerta-fraude');
-
-        // INICIALIZACIÓN DEL ESCÁNER
-        function onScanSuccess(decodedText, decodedResult) {
-            // El texto decodificado es el DNI
-            dniInput.value = decodedText;
-            validarDNI(decodedText);
+        function init() {
+            document.getElementById('price-Desayuno').value = PRECIOS.Desayuno;
+            document.getElementById('price-Almuerzo').value = PRECIOS.Almuerzo;
+            document.getElementById('price-Cena').value = PRECIOS.Cena;
+            document.getElementById('filter-date').valueAsDate = new Date();
+            document.getElementById('label-fecha').innerText = new Date().toLocaleDateString();
             
-            // Pausar brevemente para evitar múltiples lecturas del mismo código
-            html5QrCode.pause();
-            setTimeout(() => { html5QrCode.resume(); }, 2000);
+            initScanner();
+            renderAll();
         }
 
+        function savePrices() {
+            PRECIOS.Desayuno = parseFloat(document.getElementById('price-Desayuno').value) || 0;
+            PRECIOS.Almuerzo = parseFloat(document.getElementById('price-Almuerzo').value) || 0;
+            PRECIOS.Cena = parseFloat(document.getElementById('price-Cena').value) || 0;
+            localStorage.setItem('mil_precios', JSON.stringify(PRECIOS));
+        }
+
+        // SCANNER MULTI-FORMATO (ADAPTADO A CARNETS)
         function initScanner() {
+            // Se añaden formatos de códigos de barras industriales como PDF417 (común en carnets)
+            const formatsToSupport = [
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.PDF417,
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.EAN_13
+            ];
+
             html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
-            
-            // Iniciar con la cámara trasera por defecto
-            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
-            .catch(err => {
-                console.error("Error iniciando cámara", err);
-                document.getElementById('reader').innerHTML = `<p class="p-4 text-red-500 text-xs">Cámara no detectada o permiso denegado.</p>`;
-            });
+            const config = { 
+                fps: 15, 
+                qrbox: { width: 300, height: 150 }, // Box alargado para códigos de barras de carnet
+                aspectRatio: 1.0,
+                formatsToSupport: formatsToSupport
+            };
+
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config, 
+                onScanSuccess
+            ).catch(err => console.error("Error scanner:", err));
         }
 
-        // Reloj
-        setInterval(() => {
-            document.getElementById('current-time').innerText = new Date().toLocaleTimeString('es-ES', {hour12: false});
-        }, 1000);
+        function onScanSuccess(decodedText) {
+            if(scanCooldown || decodedText === lastScanned) return;
+            
+            // Limpiar el texto decodificado por si trae caracteres de control
+            const cleanDni = decodedText.trim().toUpperCase();
+            document.getElementById('dni-input').value = cleanDni;
+            validarDNI(cleanDni);
+            
+            // Intentar procesar automáticamente si el suboficial existe
+            const p = PADRON.find(p => p.dni === cleanDni);
+            if(p) {
+                procesarAcceso(cleanDni);
+                activarCooldown();
+            }
+        }
 
+        function activarCooldown() {
+            scanCooldown = true;
+            document.getElementById('reader').classList.add('scanner-active');
+            setTimeout(() => {
+                scanCooldown = false;
+                document.getElementById('reader').classList.remove('scanner-active');
+            }, 3000);
+        }
+
+        // LOGICA DE NEGOCIO
+        function validarDNI(val) {
+            const p = PADRON.find(p => p.dni === val.toUpperCase());
+            const preview = document.getElementById('info-preview');
+            if(p) {
+                preview.classList.remove('hidden');
+                document.getElementById('preview-nombre').innerText = p.nombre;
+                document.getElementById('preview-rango').innerText = p.rango;
+                document.getElementById('preview-saldo').innerText = `$${p.saldo.toFixed(2)}`;
+                document.getElementById('preview-costo-actual').innerText = `$${PRECIOS[mealActual].toFixed(2)}`;
+                document.getElementById('preview-saldo').className = p.saldo >= PRECIOS[mealActual] ? "text-sm font-black text-green-600" : "text-sm font-black text-red-600";
+            } else {
+                preview.classList.add('hidden');
+            }
+        }
+
+        function procesarAcceso(dni) {
+            const p = PADRON.find(p => p.dni === dni);
+            const hoy = new Date().toLocaleDateString();
+            const costo = PRECIOS[mealActual];
+
+            if(!p) {
+                customAlert("No Registrado", "El carnet no coincide con ningún suboficial en la base.", "red");
+                return;
+            }
+
+            // Validar si ya comió hoy
+            const yaComio = registros.find(r => r.dni === dni && r.fecha === hoy && r.servicio === mealActual && r.estado === 'AUTORIZADO');
+            if(yaComio) { 
+                customAlert("Ración Duplicada", `${p.nombre} ya consumió ${mealActual} hoy.`, "orange"); 
+                registrarLog(p, 'DENEGADO (DUPLICADO)', 0);
+                return; 
+            }
+
+            // Validar saldo
+            if(p.saldo < costo) { 
+                customAlert("Fondos Insuficientes", `Saldo: $${p.saldo.toFixed(2)}. Reclame carga de fondos.`, "red"); 
+                registrarLog(p, 'DENEGADO (SIN SALDO)', 0);
+                return; 
+            }
+
+            // Descontar y registrar
+            p.saldo -= costo;
+            localStorage.setItem('mil_padron', JSON.stringify(PADRON));
+            registrarLog(p, 'AUTORIZADO', costo);
+            
+            document.getElementById('dni-input').value = "";
+            document.getElementById('info-preview').classList.add('hidden');
+            customAlert("Acceso Autorizado", `${p.rango} ${p.nombre} puede pasar.`, "green");
+        }
+
+        document.getElementById('registro-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            procesarAcceso(document.getElementById('dni-input').value.toUpperCase());
+        });
+
+        function registrarLog(p, estado, costo) {
+            registros.push({
+                dni: p.dni, nombre: p.nombre, rango: p.rango, estado, costo,
+                servicio: mealActual,
+                fecha: new Date().toLocaleDateString(),
+                hora: new Date().toLocaleTimeString('es-ES', {hour12:false, hour:'2-digit', minute:'2-digit'})
+            });
+            localStorage.setItem('mil_com_regs', JSON.stringify(registros));
+            renderAll();
+        }
+
+        // UI Y NAVEGACIÓN
         function setMeal(meal) {
             mealActual = meal;
             document.querySelectorAll('.meal-btn').forEach(btn => {
-                btn.classList.remove('border-orange-200', 'text-orange-700', 'bg-orange-50', 'border-blue-200', 'text-blue-700', 'bg-blue-50', 'border-indigo-200', 'text-indigo-700', 'bg-indigo-50');
-                btn.classList.add('border-gray-200', 'text-gray-400');
+                btn.className = "meal-btn flex-1 py-2 rounded font-bold text-[10px] transition-all text-slate-500";
             });
-            const activeBtn = document.getElementById(`btn-${meal}`);
-            activeBtn.classList.remove('border-gray-200', 'text-gray-400');
-            if(meal === 'Desayuno') activeBtn.classList.add('border-orange-200', 'text-orange-700', 'bg-orange-50');
-            if(meal === 'Almuerzo') activeBtn.classList.add('border-blue-200', 'text-blue-700', 'bg-blue-50');
-            if(meal === 'Cena') activeBtn.classList.add('border-indigo-200', 'text-indigo-700', 'bg-indigo-50');
-            renderAll();
+            document.getElementById(`btn-${meal}`).className = "meal-btn flex-1 py-2 rounded font-bold text-[10px] transition-all bg-white shadow text-blue-700";
+            validarDNI(document.getElementById('dni-input').value);
         }
 
-        function validarDNI(val) {
-            alertaFraude.classList.add('hidden');
-            dniInput.classList.remove('access-denied');
-            const persona = PADRON_OFICIAL.find(p => p.dni === val);
-            if(persona) {
-                infoPreview.classList.remove('hidden');
-                previewNombre.innerText = persona.nombre;
-                previewRango.innerText = persona.rango;
-                return persona;
-            } else {
-                infoPreview.classList.add('hidden');
-                return null;
-            }
-        }
-
-        dniInput.addEventListener('input', (e) => validarDNI(e.target.value));
-
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const dni = dniInput.value;
-            const hoy = new Date().toLocaleDateString();
-            const persona = validarDNI(dni);
-
-            if(!persona) {
-                showError("EL DNI NO EXISTE EN EL PADRÓN OFICIAL");
-                registrarAccion(dni, "DESCONOCIDO", "N/A", `RECHAZADO (NO EN PADRÓN)`);
-                return;
-            }
-
-            const yaComio = registros.find(r => r.dni === dni && r.fecha === hoy && r.servicio === mealActual && r.estado === 'AUTORIZADO');
-            if(yaComio) {
-                showError(`INTENTO DE FRAUDE: ${persona.nombre} YA COMIÓ ${mealActual.toUpperCase()} A LAS ${yaComio.hora}`);
-                registrarAccion(dni, persona.nombre, persona.rango, `FRAUDE: DUPLICADO ${mealActual}`);
-                return;
-            }
-
-            registrarAccion(dni, persona.nombre, persona.rango, 'AUTORIZADO');
-            dniInput.value = '';
-            infoPreview.classList.add('hidden');
-        });
-
-        function registrarAccion(dni, nombre, rango, estado) {
-            const reg = {
-                id: Date.now(),
-                dni, nombre, rango, 
-                servicio: mealActual,
-                fecha: new Date().toLocaleDateString(),
-                hora: new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}),
-                estado
-            };
-            registros.push(reg);
-            localStorage.setItem('comedor_v4_data', JSON.stringify(registros));
-            renderAll();
-        }
-
-        function showError(msg) {
-            alertaFraude.classList.remove('hidden');
-            document.getElementById('fraude-msg').innerText = msg;
-            dniInput.classList.add('access-denied');
-            // Sonido opcional o vibración podría ir aquí
+        function switchTab(tab) {
+            const tabs = ['control', 'recarga', 'personal', 'reportes'];
+            tabs.forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`nav-${t}`).classList.replace('tab-active', 'tab-inactive');
+            });
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.getElementById(`nav-${tab}`).classList.replace('tab-inactive', 'tab-active');
+            document.getElementById('side-control').classList.toggle('hidden', tab !== 'control');
+            
+            if(tab === 'personal') renderUserTable();
+            if(tab === 'reportes') renderReporte();
         }
 
         function renderAll() {
             const hoy = new Date().toLocaleDateString();
             const tbody = document.getElementById('log-body');
-            tbody.innerHTML = '';
-            let stats = { Desayuno: 0, Almuerzo: 0, Cena: 0, Rechazado: 0 };
+            tbody.innerHTML = "";
+            let stats = { Desayuno: 0, Almuerzo: 0, Rechazados: 0, Total: 0 };
+
+            PADRON.forEach(p => stats.Total += p.saldo);
 
             registros.filter(r => r.fecha === hoy).reverse().forEach(r => {
                 if(r.estado === 'AUTORIZADO') stats[r.servicio]++;
-                else stats.Rechazado++;
+                else stats.Rechazados++;
 
                 const row = document.createElement('tr');
-                row.className = r.estado.includes('AUTORIZADO') ? "" : "bg-red-50 text-red-600";
                 row.innerHTML = `
-                    <td class="p-4 font-mono font-bold">${r.hora}</td>
-                    <td class="p-4"><b>${r.nombre}</b><br><span class="opacity-60">${r.rango}</span></td>
-                    <td class="p-4 font-mono">${r.dni}</td>
-                    <td class="p-4">
-                        <span class="status-badge ${r.estado === 'AUTORIZADO' ? 'bg-green-100 text-green-700' : 'bg-red-600 text-white'}">
-                            ${r.estado}
-                        </span>
+                    <td class="p-4 font-mono font-bold opacity-50 text-[10px]">${r.hora}</td>
+                    <td class="p-4 uppercase"><b>${r.nombre}</b><br><span class="text-[8px] text-gray-400 font-bold">${r.rango}</span></td>
+                    <td class="p-4 font-black text-slate-500 uppercase text-[9px]">${r.servicio}</td>
+                    <td class="p-4 text-right font-black">$${(r.costo || 0).toFixed(2)}</td>
+                    <td class="p-4 text-center">
+                        <span class="px-2 py-1 rounded text-[8px] font-black uppercase ${r.estado === 'AUTORIZADO' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}">${r.estado}</span>
                     </td>
                 `;
                 tbody.appendChild(row);
@@ -343,26 +418,122 @@
 
             document.getElementById('stat-desayuno').innerText = stats.Desayuno;
             document.getElementById('stat-almuerzo').innerText = stats.Almuerzo;
-            document.getElementById('stat-cena').innerText = stats.Cena;
-            document.getElementById('stat-rechazados').innerText = stats.Rechazado;
+            document.getElementById('stat-rechazados').innerText = stats.Rechazados;
+            document.getElementById('stat-total').innerText = `$${stats.Total.toFixed(2)}`;
         }
 
-        document.getElementById('btn-export').addEventListener('click', () => {
-            let csv = "Fecha;Hora;DNI;Nombre;Rango;Servicio;Estado\n";
-            registros.forEach(r => { csv += `${r.fecha};${r.hora};${r.dni};${r.nombre};${r.rango};${r.servicio};${r.estado}\n`; });
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = "comedor_reporte.csv";
-            a.click();
-        });
+        // CARGA DE SALDO CON IMAGEN
+        function handleFile(input) {
+            const file = input.files[0];
+            if (file) {
+                document.getElementById('file-name').innerText = file.name;
+                const reader = new FileReader();
+                reader.onload = (e) => selectedFileBase64 = e.target.result;
+                reader.readAsDataURL(file);
+            }
+        }
 
-        // Iniciar escáner al cargar
-        window.onload = () => {
-            initScanner();
+        function procesarRecarga() {
+            const dni = document.getElementById('recarga-dni').value.toUpperCase();
+            const monto = parseFloat(document.getElementById('recarga-monto').value);
+            const p = PADRON.find(p => p.dni === dni);
+
+            if(!p || isNaN(monto) || monto <= 0 || !selectedFileBase64) {
+                customAlert("Error", "Complete todos los campos y adjunte el comprobante.", "red");
+                return;
+            }
+
+            p.saldo += monto;
+            localStorage.setItem('mil_padron', JSON.stringify(PADRON));
+            
+            recargas.push({
+                dni, nombre: p.nombre, monto,
+                fecha: new Date().toLocaleDateString(),
+                hora: new Date().toLocaleTimeString(),
+                imagen: selectedFileBase64
+            });
+            localStorage.setItem('mil_com_recargas', JSON.stringify(recargas));
+            
+            document.getElementById('recarga-dni').value = "";
+            document.getElementById('recarga-monto').value = "";
+            selectedFileBase64 = null;
+            document.getElementById('file-name').innerText = "Subir Imagen";
+            
+            customAlert("Éxito", `Saldo acreditado a ${p.nombre}`, "green");
             renderAll();
-        };
+        }
+
+        // PERSONAL
+        function renderUserTable() {
+            const body = document.getElementById('user-table-body');
+            body.innerHTML = PADRON.map(p => `
+                <tr class="hover:bg-slate-50">
+                    <td class="p-3 font-mono font-bold">${p.dni}</td>
+                    <td class="p-3 font-black uppercase">${p.nombre}</td>
+                    <td class="p-3 text-slate-500 font-bold">${p.rango}</td>
+                    <td class="p-3 text-right font-black text-green-700">$${p.saldo.toFixed(2)}</td>
+                    <td class="p-3"><button onclick="eliminarUser('${p.dni}')" class="text-red-500 font-bold uppercase text-[9px]">Eliminar</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function saveNewUser() {
+            const dni = document.getElementById('new-dni').value.toUpperCase();
+            const nombre = document.getElementById('new-nombre').value.toUpperCase();
+            const rango = document.getElementById('new-rango').value.toUpperCase();
+            if(!dni || !nombre) return;
+            PADRON.push({ dni, nombre, rango, saldo: 0 });
+            localStorage.setItem('mil_padron', JSON.stringify(PADRON));
+            document.getElementById('modal-user').classList.add('hidden');
+            renderUserTable();
+        }
+
+        function eliminarUser(dni) {
+            if(confirm("¿Eliminar de la base de datos?")) {
+                PADRON = PADRON.filter(u => u.dni !== dni);
+                localStorage.setItem('mil_padron', JSON.stringify(PADRON));
+                renderUserTable();
+            }
+        }
+
+        function renderReporte() {
+            const dateStr = document.getElementById('filter-date').value;
+            if(!dateStr) return;
+            const target = new Date(dateStr + "T00:00:00").toLocaleDateString();
+            const filtrados = registros.filter(r => r.fecha === target);
+            const container = document.getElementById('reporte-container');
+            
+            if(filtrados.length === 0) {
+                container.innerHTML = "<p class='text-center p-8 text-slate-400 font-bold'>Sin movimientos en esta fecha.</p>";
+                return;
+            }
+
+            let total = 0;
+            let html = `<div class='card p-4'><table class='w-full text-xs'><thead class='font-black uppercase text-[9px] border-b'><tr><th class='p-2'>Hora</th><th class='p-2'>Personal</th><th class='p-2'>Servicio</th><th class='p-2 text-right'>Costo</th></tr></thead><tbody>`;
+            filtrados.forEach(r => {
+                total += r.costo;
+                html += `<tr><td class='p-2 font-mono'>${r.hora}</td><td class='p-2 font-bold'>${r.nombre}</td><td class='p-2'>${r.servicio}</td><td class='p-2 text-right font-bold'>$${r.costo.toFixed(2)}</td></tr>`;
+            });
+            html += `</tbody><tfoot class='border-t font-black'><tr><td colspan='3' class='p-2 text-right'>TOTAL DÍA:</td><td class='p-2 text-right'>$${total.toFixed(2)}</td></tr></tfoot></table></div>`;
+            container.innerHTML = html;
+        }
+
+        function customAlert(titulo, msg, color) {
+            const modal = document.getElementById('modal-alerta');
+            const box = document.getElementById('alert-box');
+            modal.classList.remove('hidden');
+            const colorHex = color === 'red' ? '#dc2626' : (color === 'orange' ? '#ea580c' : '#16a34a');
+            box.style.borderColor = colorHex;
+            document.getElementById('modal-titulo').innerText = titulo;
+            document.getElementById('modal-titulo').style.color = colorHex;
+            document.getElementById('modal-msg').innerText = msg;
+        }
+
+        setInterval(() => {
+            document.getElementById('current-time').innerText = new Date().toLocaleTimeString('es-ES', {hour12:false});
+        }, 1000);
+
+        window.onload = init;
     </script>
 </body>
 </html>
