@@ -1,968 +1,275 @@
 <!DOCTYPE html>
-<html lang="es-HN">
+<html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Sistema Mil-Com HN</title>
-
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Inter:wght@400;700;900&display=swap');
-    body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
-    .card { background: #1e293b; border-radius: 16px; border: 1px solid #334155; }
-    #reader { border: none !important; border-radius: 16px; overflow: hidden; background: #000; }
-    .tab-active { color: #fbbf24; border-bottom: 4px solid #fbbf24; font-weight: 900; }
-    .meal-active { background-color: #fbbf24 !important; color: #000 !important; transform: scale(1.05); }
-    .scanner-highlight { outline: 4px solid #fbbf24; }
-    ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión de Comedor - Suboficiales</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #video-preview {
+            transform: scaleX(-1);
+            border-radius: 1rem;
+            background: #1a202c;
+        }
+    </style>
 </head>
+<body class="bg-gray-50 min-h-screen text-gray-800">
 
-<body class="p-3 md:p-6 min-h-screen">
-  <div class="max-w-6xl mx-auto">
+    <div class="max-w-4xl mx-auto p-4 md:p-8">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-blue-900">Control de Comedor</h1>
+            <p class="text-gray-600">Registro de Ingreso de Suboficiales</p>
+        </header>
 
-    <!-- Encabezado -->
-    <header class="mb-6 flex flex-col md:flex-row justify-between items-center bg-slate-900 p-6 rounded-2xl border-b-4 border-yellow-500 shadow-2xl">
-      <div class="flex items-center gap-4">
-        <div class="bg-yellow-500 p-3 rounded-lg text-black">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
-        </div>
-        <div>
-          <h1 class="text-2xl font-black uppercase tracking-tighter">Control de Raciones Mil-Com</h1>
-          <p class="text-yellow-500 text-[10px] font-bold uppercase tracking-widest">Unidad de Gestión de Fondos (HNL)</p>
-        </div>
-      </div>
-      <div id="clock" class="text-3xl font-mono font-black text-yellow-500 mt-4 md:mt-0">00:00:00</div>
-    </header>
+        <!-- Scanner Section -->
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden mb-8 border border-gray-100">
+            <div class="p-6 bg-blue-900 text-white flex justify-between items-center">
+                <h2 class="text-xl font-semibold">Escaneo de Documento</h2>
+                <div id="currentTime" class="text-sm font-mono bg-blue-800 px-3 py-1 rounded-full">--:--:--</div>
+            </div>
 
-    <!-- Navegación -->
-    <nav class="flex gap-2 mb-6 bg-slate-800/50 p-2 rounded-2xl border border-slate-700 overflow-x-auto no-scrollbar">
-      <button onclick="switchTab('control')" id="nav-control" class="flex-1 py-3 px-4 text-[11px] font-black uppercase whitespace-nowrap tab-active">Escáner / Acceso</button>
-      <button onclick="switchTab('recarga')" id="nav-recarga" class="flex-1 py-3 px-4 text-[11px] font-black uppercase whitespace-nowrap text-slate-400">Recarga L.</button>
-      <button onclick="switchTab('personal')" id="nav-personal" class="flex-1 py-3 px-4 text-[11px] font-black uppercase whitespace-nowrap text-slate-400">Base de Datos</button>
-      <button onclick="switchTab('historial')" id="nav-historial" class="flex-1 py-3 px-4 text-[11px] font-black uppercase whitespace-nowrap text-slate-400">Historial Día</button>
-    </nav>
-
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-
-      <!-- COLUMNA IZQUIERDA -->
-      <div class="lg:col-span-5 space-y-6">
-
-        <!-- Scanner -->
-        <div class="card overflow-hidden relative">
-          <div id="reader" class="w-full h-64 md:h-80"></div>
-          <div class="absolute bottom-0 w-full bg-yellow-500 text-black text-[10px] font-black uppercase text-center py-1">Lector Inteligente Activo</div>
-        </div>
-
-        <!-- Selección de Servicio -->
-        <div id="side-meal-select" class="card p-6 border-t-4 border-yellow-500">
-          <div class="flex gap-2 mb-6 bg-slate-900 p-1 rounded-xl">
-            <button onclick="setMeal('Desayuno')" id="btn-Desayuno" class="meal-btn flex-1 py-3 rounded-lg font-black text-[10px] uppercase transition-all meal-active">Desayuno</button>
-            <button onclick="setMeal('Almuerzo')" id="btn-Almuerzo" class="meal-btn flex-1 py-3 rounded-lg font-black text-[10px] uppercase transition-all text-slate-500">Almuerzo</button>
-            <button onclick="setMeal('Cena')" id="btn-Cena" class="meal-btn flex-1 py-3 rounded-lg font-black text-[10px] uppercase transition-all text-slate-500">Cena</button>
-          </div>
-
-          <div class="space-y-4">
-            <input type="text" id="dni-input" placeholder="ESPERANDO ESCANEO..." class="w-full bg-slate-900 p-5 text-2xl font-mono font-black border-2 border-slate-700 rounded-2xl text-center uppercase focus:border-yellow-500 text-yellow-500 outline-none">
-
-            <div id="preview-user" class="hidden">
-              <div class="bg-slate-900 border border-yellow-500/30 rounded-2xl p-4 text-center">
-                <p id="pv-nombre" class="text-lg font-black uppercase"></p>
-                <p id="pv-rango" class="text-[10px] text-yellow-500 font-bold uppercase mb-2"></p>
-                <div class="bg-slate-800 p-2 rounded-lg flex justify-between">
-                  <span class="text-[9px] font-bold text-slate-500 uppercase">Saldo Actual:</span>
-                  <span id="pv-saldo" class="text-sm font-black text-green-500"></span>
+            <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Video Container -->
+                <div class="relative">
+                    <video id="video-preview" class="w-full h-64 object-cover border-4 border-gray-200" autoplay playsinline></video>
+                    <canvas id="canvas-capture" class="hidden"></canvas>
+                    <div id="scanner-overlay" class="absolute inset-0 border-2 border-dashed border-blue-400 opacity-50 m-12 pointer-events-none"></div>
+                    <button id="btn-scan" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-all transform active:scale-95 flex justify-center items-center gap-2">
+                        <span>Capturar y Analizar</span>
+                    </button>
                 </div>
-              </div>
-            </div>
 
-            <button onclick="processAccess(document.getElementById('dni-input').value.toUpperCase())" class="w-full bg-white text-black font-black py-4 rounded-2xl uppercase text-[11px] shadow-lg hover:bg-yellow-500 transition-all">Validar Entrada Manual</button>
-          </div>
+                <!-- Form Section -->
+                <div class="space-y-4">
+                    <div id="loader" class="hidden flex flex-col items-center justify-center py-10 space-y-4">
+                        <div class="loading-spinner"></div>
+                        <p class="text-blue-600 font-medium italic">Analizando imagen con IA...</p>
+                    </div>
+
+                    <div id="result-fields">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Número de Identidad</label>
+                            <input type="text" id="id-number" placeholder="Esperando escaneo..." class="w-full bg-gray-100 border border-gray-300 rounded-lg py-2 px-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nombre Completo</label>
+                            <input type="text" id="full-name" placeholder="Esperando escaneo..." class="w-full bg-gray-100 border border-gray-300 rounded-lg py-2 px-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div class="mt-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Tiempo de Comida</label>
+                            <select id="meal-type" class="w-full bg-white border border-gray-300 rounded-lg py-2 px-4 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="Desayuno">Desayuno</option>
+                                <option value="Almuerzo" selected>Almuerzo</option>
+                                <option value="Cena">Cena</option>
+                            </select>
+                        </div>
+                        <button id="btn-save" class="mt-6 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl transition-all transform active:scale-95">
+                            Registrar Ingreso
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Precios -->
-        <div id="side-prices" class="card p-4">
-          <h4 class="text-[9px] font-black text-slate-500 uppercase mb-3">Costos de Hoy (L.)</h4>
-          <div class="grid grid-cols-3 gap-2">
-            <input type="number" id="p-Desayuno" class="bg-slate-900 p-2 rounded border border-slate-700 text-xs text-center font-bold" onchange="savePrice('Desayuno', this.value)">
-            <input type="number" id="p-Almuerzo" class="bg-slate-900 p-2 rounded border border-slate-700 text-xs text-center font-bold" onchange="savePrice('Almuerzo', this.value)">
-            <input type="number" id="p-Cena" class="bg-slate-900 p-2 rounded border border-slate-700 text-xs text-center font-bold" onchange="savePrice('Cena', this.value)">
-          </div>
-          <p class="mt-3 text-[10px] text-slate-500 font-bold uppercase">Se guardan por día automáticamente.</p>
+        <!-- History Table -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+            <div class="p-4 bg-gray-100 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="font-bold text-gray-700 uppercase tracking-wider text-sm">Historial de Hoy</h3>
+                <span id="counter" class="bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-xs font-bold">Total: 0</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="bg-gray-50 text-gray-500 border-b">
+                            <th class="px-6 py-3 font-semibold">Hora</th>
+                            <th class="px-6 py-3 font-semibold">Identidad</th>
+                            <th class="px-6 py-3 font-semibold">Nombre</th>
+                            <th class="px-6 py-3 font-semibold">Comida</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body">
+                        <!-- Rows will be added here -->
+                    </tbody>
+                </table>
+                <div id="empty-state" class="p-8 text-center text-gray-400 italic">
+                    No hay registros el día de hoy.
+                </div>
+            </div>
         </div>
-
-      </div>
-
-      <!-- COLUMNA DERECHA -->
-      <div class="lg:col-span-7 space-y-6">
-
-        <!-- Resumen Hoy -->
-        <div id="stats-bar" class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="card p-4 border-l-4 border-yellow-500"><p class="text-[9px] font-bold text-slate-500 uppercase">D. Hoy</p><p id="st-d" class="text-xl font-black">0</p></div>
-          <div class="card p-4 border-l-4 border-yellow-500"><p class="text-[9px] font-bold text-slate-500 uppercase">A. Hoy</p><p id="st-a" class="text-xl font-black">0</p></div>
-          <div class="card p-4 border-l-4 border-green-500"><p class="text-[9px] font-bold text-slate-500 uppercase">Fondo L.</p><p id="st-money" class="text-xl font-black text-green-500">L. 0</p></div>
-          <div class="card p-4 border-l-4 border-red-500"><p class="text-[9px] font-bold text-slate-500 uppercase">Alertas</p><p id="st-fail" class="text-xl font-black text-red-500">0</p></div>
-        </div>
-
-        <!-- Vista: Control -->
-        <div id="view-control" class="card overflow-hidden">
-          <div class="p-4 bg-slate-800/50 border-b border-slate-700 flex justify-between items-center">
-            <h3 class="text-[10px] font-black uppercase tracking-widest italic">Movimientos Recientes (Hoy)</h3>
-            <button onclick="exportJSON()" class="text-[10px] font-black uppercase px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-yellow-500">Exportar JSON</button>
-          </div>
-          <div class="overflow-x-auto max-h-[500px]">
-            <table class="w-full text-left text-xs">
-              <thead class="sticky top-0 bg-slate-800 text-[9px] font-black uppercase text-slate-500 border-b border-slate-700">
-                <tr><th class="p-4">Hora</th><th class="p-4">Suboficial</th><th class="p-4">Ración</th><th class="p-4 text-right">L.</th><th class="p-4 text-center">Estatus</th></tr>
-              </thead>
-              <tbody id="log-body" class="divide-y divide-slate-700/50"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Vista: Recarga -->
-        <div id="view-recarga" class="hidden card p-8 border-t-4 border-green-500">
-          <h3 class="text-xl font-black uppercase italic mb-6">Acreditar Saldo</h3>
-          <div class="grid md:grid-cols-2 gap-8">
-            <div class="space-y-4">
-              <label class="text-[10px] font-black text-slate-500 uppercase">Escanee carnet o digite DNI</label>
-              <input type="text" id="rec-dni" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-yellow-500" placeholder="BUSCAR DNI...">
-              <input type="number" id="rec-monto" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-2xl text-green-500" placeholder="MONTO L.">
-            </div>
-            <div class="space-y-4">
-              <label class="text-[10px] font-black text-slate-500 uppercase">Comprobante de Depósito</label>
-              <div class="border-4 border-dashed border-slate-700 rounded-2xl p-6 flex flex-col items-center justify-center bg-slate-900/50 cursor-pointer hover:border-yellow-500 transition-all" onclick="document.getElementById('file-in').click()">
-                <p id="file-label" class="text-[10px] font-black text-slate-500 uppercase">Adjuntar Foto Recibo</p>
-                <input type="file" id="file-in" class="hidden" accept="image/*" onchange="handleFile(this)">
-              </div>
-              <button onclick="doRecarga()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase text-[11px] hover:bg-green-500 shadow-xl transition-all">Aplicar Lempiras</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Vista: Base de Datos -->
-        <div id="view-personal" class="hidden space-y-4">
-          <div class="card p-6 border-t-4 border-blue-500">
-            <div class="flex justify-between items-center mb-6">
-              <h3 class="text-xl font-black uppercase italic">Archivo de Personal</h3>
-              <button onclick="openUserModal({})" class="bg-blue-600 text-white px-5 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg">Nuevo Manual</button>
-            </div>
-
-            <div class="mb-4 grid md:grid-cols-2 gap-3">
-              <input id="user-search" type="text" placeholder="Buscar por DNI o nombre..." class="w-full bg-slate-900 p-3 border border-slate-700 rounded-xl font-black text-white uppercase" oninput="renderPersonal()">
-              <button onclick="resetAll()" class="w-full bg-red-600 text-white py-3 rounded-xl font-black uppercase text-[11px] hover:bg-red-500 shadow-xl transition-all">Borrar Todo (Local)</button>
-            </div>
-
-            <div class="overflow-x-auto max-h-[400px]">
-              <table class="w-full text-left text-xs">
-                <thead class="bg-slate-900/50 font-black text-[9px] uppercase text-slate-500">
-                  <tr><th class="p-4">DNI</th><th class="p-4">Nombre</th><th class="p-4">Rango</th><th class="p-4 text-right">Saldo</th><th class="p-4 text-center">Opciones</th></tr>
-                </thead>
-                <tbody id="user-body" class="divide-y divide-slate-700/50"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- Vista: Historial Día por Día -->
-        <div id="view-historial" class="hidden space-y-4">
-          <div class="card p-6 border-t-4 border-yellow-500">
-            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
-              <div>
-                <h3 class="text-xl font-black uppercase italic">Historial Día por Día</h3>
-                <p class="text-[10px] font-bold uppercase text-slate-500">Filtra por fecha y exporta si lo necesitas</p>
-              </div>
-              <div class="grid grid-cols-2 gap-2">
-                <input id="his-date" type="date" class="bg-slate-900 p-3 border border-slate-700 rounded-xl font-black text-white" onchange="renderHistorial()">
-                <button onclick="exportDayCSV()" class="bg-white text-black py-3 rounded-xl font-black uppercase text-[11px] hover:bg-yellow-500 transition-all">Exportar CSV (Día)</button>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              <div class="card p-3 border border-slate-700">
-                <p class="text-[9px] font-bold text-slate-500 uppercase">OK</p>
-                <p id="his-ok" class="text-xl font-black text-green-500">0</p>
-              </div>
-              <div class="card p-3 border border-slate-700">
-                <p class="text-[9px] font-bold text-slate-500 uppercase">Duplicados</p>
-                <p id="his-dup" class="text-xl font-black text-red-500">0</p>
-              </div>
-              <div class="card p-3 border border-slate-700">
-                <p class="text-[9px] font-bold text-slate-500 uppercase">Sin saldo</p>
-                <p id="his-nosaldo" class="text-xl font-black text-red-500">0</p>
-              </div>
-              <div class="card p-3 border border-slate-700">
-                <p class="text-[9px] font-bold text-slate-500 uppercase">Recaudado L.</p>
-                <p id="his-sum" class="text-xl font-black text-yellow-500">0</p>
-              </div>
-            </div>
-
-            <div class="overflow-x-auto max-h-[520px]">
-              <table class="w-full text-left text-xs">
-                <thead class="sticky top-0 bg-slate-800 text-[9px] font-black uppercase text-slate-500 border-b border-slate-700">
-                  <tr>
-                    <th class="p-4">Fecha</th>
-                    <th class="p-4">Hora</th>
-                    <th class="p-4">DNI</th>
-                    <th class="p-4">Nombre</th>
-                    <th class="p-4">Ración</th>
-                    <th class="p-4 text-right">L.</th>
-                    <th class="p-4 text-center">Estado</th>
-                  </tr>
-                </thead>
-                <tbody id="his-body" class="divide-y divide-slate-700/50"></tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-      </div>
     </div>
-  </div>
 
-  <!-- MODAL: REGISTRO / EDICIÓN -->
-  <div id="modal-user" class="hidden fixed inset-0 bg-black/90 backdrop-blur-md z-50 flex items-center justify-center p-6">
-    <div class="card max-w-sm w-full p-8 border-t-8 border-blue-600">
-      <h3 class="text-2xl font-black uppercase italic mb-6 text-white" id="mu-title">Alta de Personal</h3>
-      <div class="space-y-4 text-slate-400">
-       <div>
-  <label class="text-[9px] font-bold uppercase">ID Escaneado (Código de barras)</label>
-  <input type="text" id="mu-idscan" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-yellow-500 uppercase" disabled>
-</div>
-
-<div>
-  <label class="text-[9px] font-bold uppercase">Número de Identidad (13 dígitos)</label>
-  <input type="text" id="mu-dni13" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-white uppercase" placeholder="SE LLENA SI VIENE EN EL CÓDIGO">
-</div>
-
-          <label class="text-[9px] font-bold uppercase">Nombre Completo</label>
-          <input type="text" id="mu-nombre" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-white uppercase">
-        </div>
-        <div>
-          <label class="text-[9px] font-bold uppercase">Rango / Grado</label>
-          <input type="text" id="mu-rango" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-white uppercase" placeholder="EJ: SARGENTO / CABO / ...">
-        </div>
-
-        <div class="grid grid-cols-2 gap-3 pt-2">
-          <div>
-            <label class="text-[9px] font-bold uppercase">Saldo Inicial (L.)</label>
-            <input type="number" id="mu-saldo" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-green-500" value="0">
-          </div>
-          <div class="flex items-end">
-            <button onclick="toggleEdit()" id="mu-editbtn" class="w-full bg-slate-900 border border-slate-700 py-4 rounded-xl font-black text-[10px] uppercase hover:border-yellow-500">Modo Editar</button>
-          </div>
-        </div>
-
-        <div class="flex gap-4 pt-4">
-          <button onclick="closeUserModal()" class="flex-1 font-black text-[10px] uppercase">Cancelar</button>
-          <button onclick="saveUser()" class="flex-1 bg-blue-600 text-white py-4 rounded-xl font-black text-[10px] uppercase shadow-lg">Guardar Registro</button>
-        </div>
-      </div>
+    <!-- UI Notification -->
+    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 translate-y-20 transition-all duration-300 bg-black text-white px-6 py-3 rounded-full shadow-2xl z-50 opacity-0 pointer-events-none">
+        Mensaje aquí
     </div>
-  </div>
 
-  <!-- Toast -->
-  <div id="toast" class="hidden fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-white text-black p-6 rounded-2xl shadow-2xl border-l-8 min-w-[300px]">
-    <h4 id="toast-title" class="font-black uppercase text-xl"></h4>
-    <p id="toast-msg" class="text-sm font-bold opacity-60"></p>
-  </div>
-
-  <script>
-    /**********************
-     *  UTILIDADES FECHA
-     **********************/
-    function todayISO() {
-      const d = new Date();
-      const tz = new Date(d.getTime() - d.getTimezoneOffset()*60000);
-      return tz.toISOString().slice(0,10);
-    }
-    function dateES() { return new Date().toLocaleDateString('es-HN'); }
-    function timeES() { return new Date().toLocaleTimeString('es-HN', {hour12:false, hour:'2-digit', minute:'2-digit'}); }
-    function round2(n){ return Math.round((Number(n)||0)*100)/100; }
-
-    /**********************
-     *  PARSER DNI HN (CLAVE)
-     *  - Acepta lecturas PDF417/QR/MRZ
-     *  - Devuelve: { dni13, nombre, raw }
-     **********************/
-    function parseHNDFromScan(rawText){
-      const raw = String(rawText ?? '').trim();
-      const clean = raw.replace(/\s+/g,' ').toUpperCase();
-
-      // 1) Buscar DNI 13 dígitos (0501200204417) esté como esté (con espacios o junto)
-      //    - típico impreso: "0501 2002 04417" => lo normalizamos a 13.
-      const digits = clean.replace(/\D/g,'');
-      // buscar cualquier ventana de 13 dígitos dentro del string
-      let dni13 = null;
-      for(let i=0;i+13<=digits.length;i++){
-        const cand = digits.slice(i,i+13);
-        // regla mínima: no todo ceros
-        if(cand !== '0000000000000'){
-          dni13 = cand;
-          break;
-        }
-      }
-
-      // 2) Si no salió 13, intentar MRZ primera línea: I<HND0036825073<<<< => (10 dígitos doc)
-      //    (Se usa solo como fallback si tu lector no trae el 13 dígitos)
-      let doc10 = null;
-      const mrz1 = clean.match(/I<\s*HND\s*([0-9]{8,12})/);
-      if(mrz1) doc10 = mrz1[1];
-
-      // 3) Nombre desde MRZ tercera línea: APELLIDO1<APELLIDO2<NOMBRE1<NOMBRE2<<<
-      let nombre = '';
-      const mrzName = clean.match(/[A-ZÑ]+<[^<]+<[^<]+/); // aproximación robusta
-      // mejor: detectar la línea con muchos "<" y sin "HND"
-      const lines = raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-      const mrzLine = lines.find(l => l.includes('<') && /[A-Z]/i.test(l) && !l.toUpperCase().includes('HND') && l.length > 10);
-      if(mrzLine){
-        const parts = mrzLine.toUpperCase().split('<<');
-        // parts[0] = APELLIDOS (con <), parts[1] = NOMBRES (con <)
-        const apellidos = (parts[0] || '').replaceAll('<',' ').replace(/\s+/g,' ').trim();
-        const nombres   = (parts[1] || '').replaceAll('<',' ').replace(/\s+/g,' ').trim();
-        const full = `${nombres} ${apellidos}`.replace(/\s+/g,' ').trim();
-        if(full.length >= 3) nombre = full;
-      } else if(mrzName){
-        // fallback muy simple (no perfecto)
-        nombre = mrzName[0].replaceAll('<',' ').replace(/\s+/g,' ').trim();
-      }
-
-      return {
-        dni13: dni13 || null,
-        doc10: doc10 || null,
-        nombre: nombre || '',
-        raw
-      };
-    }
-
-    // Normaliza lo que se usará como "DNI" en tu base
-    // Preferencia: DNI 13 dígitos. Si no existe, usa doc10.
-    function resolveKeyFromScan(rawText){
-      const parsed = parseHNDFromScan(rawText);
-      const key = parsed.dni13 || parsed.doc10 || '';
-      return { key, parsed };
-    }
-
-    /**********************
-     *  DB (CON MIGRACIÓN)
-     **********************/
-    const LS_KEYS = {
-      preciosDay: 'm_precios_day_hn',
-      personal:   'm_personal_hn',
-      log:        'm_log_hn',
-      recargas:   'm_recargas_hn'
-    };
-    const DEFAULT_PRECIOS = { Desayuno: 50, Almuerzo: 100, Cena: 70 };
-
-    let DB = {
-      preciosDay: JSON.parse(localStorage.getItem(LS_KEYS.preciosDay)) || {},
-      personal:   JSON.parse(localStorage.getItem(LS_KEYS.personal))   || [],
-      log:        JSON.parse(localStorage.getItem(LS_KEYS.log))        || [],
-      recargas:   JSON.parse(localStorage.getItem(LS_KEYS.recargas))   || []
-    };
-
-    (function migrateOldPrices(){
-      const old = localStorage.getItem('m_precios_hn');
-      if(old){
-        try {
-          const obj = JSON.parse(old);
-          if(obj && typeof obj === 'object'){
-            const iso = todayISO();
-            if(!DB.preciosDay[iso]) DB.preciosDay[iso] = { ...DEFAULT_PRECIOS };
-            DB.preciosDay[iso] = { ...DB.preciosDay[iso], ...obj };
-            localStorage.setItem(LS_KEYS.preciosDay, JSON.stringify(DB.preciosDay));
-          }
-        } catch(e){}
-        localStorage.removeItem('m_precios_hn');
-      }
-    })();
-
-    function saveDB() {
-      localStorage.setItem(LS_KEYS.preciosDay, JSON.stringify(DB.preciosDay));
-      localStorage.setItem(LS_KEYS.personal,   JSON.stringify(DB.personal));
-      localStorage.setItem(LS_KEYS.log,        JSON.stringify(DB.log));
-      localStorage.setItem(LS_KEYS.recargas,   JSON.stringify(DB.recargas));
-    }
-
-    /**********************
-     *  ESTADO UI
-     **********************/
-    let currentTab = 'control';
-    let currentMeal = 'Desayuno';
-    let scanner;
-    let scanLock = false;
-    let lastImg = null;
-    let editMode = false;
-
-    /**********************
-     *  INIT
-     **********************/
-    function init() {
-      ensureTodayPrices();
-      loadPricesToInputs();
-      document.getElementById('his-date').value = todayISO();
-      startScanner();
-      renderAll();
-    }
-
-    function ensureTodayPrices(){
-      const iso = todayISO();
-      if(!DB.preciosDay[iso]) DB.preciosDay[iso] = { ...DEFAULT_PRECIOS };
-      ['Desayuno','Almuerzo','Cena'].forEach(k=>{
-        const v = Number(DB.preciosDay[iso][k]);
-        DB.preciosDay[iso][k] = isFinite(v) ? v : DEFAULT_PRECIOS[k];
-      });
-      saveDB();
-    }
-
-    function loadPricesToInputs(){
-      const iso = todayISO();
-      const p = DB.preciosDay[iso] || DEFAULT_PRECIOS;
-      document.getElementById('p-Desayuno').value = p.Desayuno;
-      document.getElementById('p-Almuerzo').value = p.Almuerzo;
-      document.getElementById('p-Cena').value = p.Cena;
-    }
-
-    /**********************
-     *  SCANNER
-     **********************/
-    function startScanner() {
-      try {
-        scanner = new Html5Qrcode("reader");
-        const config = {
-          fps: 20,
-          qrbox: { width: 320, height: 180 },
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.PDF417,
-            Html5QrcodeSupportedFormats.QR_CODE,
-            Html5QrcodeSupportedFormats.CODE_128
-          ]
-        };
-
-        scanner.start({ facingMode: "environment" }, config, (text) => {
-          if (scanLock) return;
-          const raw = String(text || '').trim();
-          if (!raw) return;
-          handleSmartScan(raw);
-        }).catch(() => notify("Lector Offline", "No se pudo iniciar la cámara. Use entrada manual.", "yellow"));
-      } catch(e) {
-        notify("Lector Offline", "Navegador no soporta el lector. Use entrada manual.", "yellow");
-      }
-    }
-
-    // AQUÍ está la mejora: se interpreta el escaneo (PDF417/MRZ/QR) y se extrae DNI + nombre.
-   function handleSmartScan(rawScan) {
-  scanLock = true;
-  document.getElementById('reader').classList.add('scanner-highlight');
-
-  const parsed = parseFromScan(rawScan);
-  const idScan = parsed.idScan;
-
-  if(!idScan){
-    notify("Lectura Inválida", "No se pudo leer el código de barras.", "red");
-    return unlockScan();
-  }
-
-  if(currentTab === 'control') {
-    document.getElementById('dni-input').value = idScan;
-
-    const p = findPersonByScan(idScan);
-    if(p){
-      processAccess(idScan);
-    } else {
-      notify("Nuevo Ingreso", "No existe en base. Registre el personal.", "yellow");
-      openUserModal({ idScan, dni13: parsed.dni13, nombre: parsed.nombre });
-    }
-  }
-
-  else if(currentTab === 'recarga') {
-    document.getElementById('rec-dni').value = idScan;
-    const p = findPersonByScan(idScan);
-    if(p) notify("Personal Identificado", "Ingrese el monto a recargar.", "yellow");
-    else {
-      notify("No Registrado", "Primero regístrelo en Base de Datos.", "red");
-      openUserModal({ idScan, dni13: parsed.dni13, nombre: parsed.nombre });
-    }
-  }
-
-  else if(currentTab === 'personal') {
-    const p = findPersonByScan(idScan);
-    if(p) notify("Localizado", `${p.rango}: ${p.nombre}`, "blue");
-    else openUserModal({ idScan, dni13: parsed.dni13, nombre: parsed.nombre });
-  }
-
-  unlockScan();
-}
-
-
-    function unlockScan(){
-      setTimeout(() => {
-        scanLock = false;
-        document.getElementById('reader').classList.remove('scanner-highlight');
-      }, 1200);
-    }
-
-    /**********************
-     *  NEGOCIO
-     **********************/
-   function findPersonByScan(idScan){
-  return DB.personal.find(u => u.idScan === idScan);
-}
-
-function parseFromScan(rawText){
-  const raw = String(rawText ?? '').trim();
-  const up  = raw.toUpperCase();
-
-  // ID principal: lo que devuelve el escáner (código de barras suele ser esto)
-  const idScan = raw.trim();
-
-  // Intentar sacar DNI 13 si viene dentro del texto (con o sin espacios)
-  const digits = up.replace(/\D/g,'');
-  let dni13 = '';
-  for(let i=0;i+13<=digits.length;i++){
-    const cand = digits.slice(i,i+13);
-    if(cand !== '0000000000000'){ dni13 = cand; break; }
-  }
-
-  // Intentar nombre desde MRZ si el texto trae "<" (solo funcionará si el escaneo trae MRZ/QR con datos)
-  let nombre = '';
-  const lines = raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  const mrzLine = lines.find(l => l.includes('<') && !l.toUpperCase().includes('HND') && l.length > 12);
-  if(mrzLine){
-    const parts = mrzLine.toUpperCase().split('<<');
-    const apellidos = (parts[0] || '').replaceAll('<',' ').replace(/\s+/g,' ').trim();
-    const nombres   = (parts[1] || '').replaceAll('<',' ').replace(/\s+/g,' ').trim();
-    const full = `${nombres} ${apellidos}`.replace(/\s+/g,' ').trim();
-    if(full.length >= 3) nombre = full;
-  }
-
-  return { idScan, dni13, nombre, raw };
-}
-
-
-
-
-    function getTodayCost(meal){
-      const iso = todayISO();
-      ensureTodayPrices();
-      return Number(DB.preciosDay[iso][meal] || 0);
-    }
-
-    function processAccess(idScan) {
-  const p = findPersonByScan(idScan);
-  if(!p) return;
-
-  const hoyISO = todayISO();
-  const costo = getTodayCost(currentMeal);
-
-  if(DB.log.some(l => l.idScan === idScan && l.fechaISO === hoyISO && l.servicio === currentMeal && l.estado === 'OK')) {
-    notify("Ya Consumido", `${p.nombre} ya recibió su ${currentMeal} hoy.`, "red");
-    saveLog(p, 'DUPLICADO', 0);
-    saveDB(); renderAll();
-    return;
-  }
-
-  if(p.saldo < costo) {
-    notify("Saldo Insuficiente", `Saldo: L. ${p.saldo.toFixed(2)} | Costo: L. ${costo.toFixed(2)}`, "red");
-    saveLog(p, 'SIN SALDO', 0);
-    saveDB(); renderAll();
-    return;
-  }
-
-  p.saldo = round2(p.saldo - costo);
-  saveLog(p, 'OK', costo);
-
-  notify("Autorizado", `Buen provecho, ${p.rango}.`, "green");
-  saveDB();
-  renderAll();
-}
-
-function saveLog(p, estado, costo) {
-  DB.log.push({
-    idScan: p.idScan,
-    dni13: p.dni13 || "",
-    nombre: p.nombre,
-    rango: p.rango,
-    servicio: currentMeal,
-    estado,
-    costo: round2(Number(costo || 0)),
-    fechaISO: todayISO(),
-    fecha: dateES(),
-    hora: timeES()
-  });
-}
-
-    function doRecarga() {
-      const dni = document.getElementById('rec-dni').value.toUpperCase().trim();
-      const monto = Number(document.getElementById('rec-monto').value);
-      const p = findPerson(dni);
-
-      if (!p) return notify("Error", "DNI no está registrado.", "red");
-      if (!isFinite(monto) || monto <= 0) return notify("Error", "Monto inválido.", "red");
-      if (!lastImg) return notify("Error", "Adjunte foto del comprobante.", "red");
-
-      p.saldo = round2(p.saldo + monto);
-
-      DB.recargas.push({
-        dni: p.dni,
-        nombre: p.nombre,
-        rango: p.rango,
-        monto: round2(monto),
-        fechaISO: todayISO(),
-        fecha: dateES(),
-        hora: timeES(),
-        comprobante: lastImg
-      });
-
-      document.getElementById('rec-dni').value = "";
-      document.getElementById('rec-monto').value = "";
-      lastImg = null;
-      document.getElementById('file-label').innerText = "Adjuntar Foto Recibo";
-
-      saveDB();
-      notify("Carga Exitosa", `L. ${monto.toFixed(2)} acreditados a ${p.nombre}`, "green");
-      renderAll();
-    }
-
-    /**********************
-     *  PERSONAL (CRUD)
-     **********************/
-    function toggleEdit(){
-      editMode = !editMode;
-      document.getElementById('mu-editbtn').innerText = editMode ? "Modo Lectura" : "Modo Editar";
-      notify("Modo", editMode ? "Edición habilitada." : "Edición deshabilitada.", editMode ? "yellow" : "blue");
-    }
-
- function saveUser() {
-  const idScan = document.getElementById('mu-idscan').value.trim();
-  const dni13  = document.getElementById('mu-dni13').value.replace(/\D/g,'').slice(0,13);
-  const nom    = document.getElementById('mu-nombre').value.toUpperCase().trim();
-  const ran    = document.getElementById('mu-rango').value.toUpperCase().trim();
-  const saldo  = Number(document.getElementById('mu-saldo').value);
-
-  if(!idScan) return notify("Error", "Falta ID (código de barras). Escanee el carnet.", "red");
-  if(!nom)    return notify("Error", "Nombre es obligatorio.", "red");
-
-  const idx = DB.personal.findIndex(u => u.idScan === idScan);
-
-  if(idx > -1) {
-    if(!editMode) return notify("Bloqueado", "Active 'Modo Editar' para modificar.", "red");
-    DB.personal[idx].dni13  = dni13 || DB.personal[idx].dni13 || "";
-    DB.personal[idx].nombre = nom;
-    DB.personal[idx].rango  = ran;
-    if(isFinite(saldo) && saldo >= 0) DB.personal[idx].saldo = round2(saldo);
-  } else {
-    DB.personal.push({
-      idScan,
-      dni13: dni13 || "",
-      nombre: nom,
-      rango: ran,
-      saldo: round2(isFinite(saldo) ? saldo : 0)
-    });
-  }
-
-  saveDB();
-  closeUserModal();
-  renderAll();
-  notify("Guardado", "Registro actualizado con éxito.", "green");
-}
-
-
-    function deleteUser(dni) {
-      if (!confirm("¿Eliminar suboficial? Esto borrará su saldo (local).")) return;
-      DB.personal = DB.personal.filter(u => u.dni !== dni);
-      saveDB();
-      renderAll();
-      notify("Eliminado", "Registro removido.", "red");
-    }
-
-    function resetAll(){
-      if(!confirm("¿Borrar TODO el sistema local (personal, logs, recargas, precios)?")) return;
-      DB = { preciosDay:{}, personal:[], log:[], recargas:[] };
-      saveDB();
-      ensureTodayPrices();
-      loadPricesToInputs();
-      renderAll();
-      notify("Listo", "Datos locales borrados.", "yellow");
-    }
-
-    /**********************
-     *  PREVIEW USUARIO
-     **********************/
-    function previewUser(dni){
-      const p = findPerson(dni);
-      const pv = document.getElementById('preview-user');
-      if(!p){
-        pv.classList.add('hidden');
-        return;
-      }
-      document.getElementById('pv-nombre').innerText = p.nombre;
-      document.getElementById('pv-rango').innerText = p.rango || '';
-      document.getElementById('pv-saldo').innerText = `L. ${Number(p.saldo||0).toFixed(2)}`;
-      pv.classList.remove('hidden');
-      setTimeout(()=>pv.classList.add('hidden'), 2500);
-    }
-
-    /**********************
-     *  PRECIOS POR DÍA
-     **********************/
-    function savePrice(k, v) {
-      ensureTodayPrices();
-      const iso = todayISO();
-      DB.preciosDay[iso][k] = round2(Number(v) || 0);
-      saveDB();
-      notify("Precio Guardado", `${k}: L. ${DB.preciosDay[iso][k].toFixed(2)} (Hoy)`, "yellow");
-    }
-
-    /**********************
-     *  RENDER
-     **********************/
-    function renderAll() {
-      renderControlToday();
-      renderPersonal();
-      renderHistorial();
-    }
-
-    function renderControlToday() {
-      const hoyISO = todayISO();
-      const logBody = document.getElementById('log-body');
-      let stats = { d:0, a:0, f:0, t:0 };
-
-      DB.personal.forEach(p => stats.t += Number(p.saldo||0));
-
-      const todayLogs = DB.log.filter(l => l.fechaISO === hoyISO).slice().reverse();
-      logBody.innerHTML = "";
-
-      todayLogs.forEach(l => {
-        if (l.estado === 'OK') {
-          if (l.servicio === 'Desayuno') stats.d++;
-          else stats.a++;
-        } else {
-          stats.f++;
+    <script>
+        const apiKey = ""; // La clave se inyecta automáticamente
+        const video = document.getElementById('video-preview');
+        const canvas = document.getElementById('canvas-capture');
+        const btnScan = document.getElementById('btn-scan');
+        const btnSave = document.getElementById('btn-save');
+        const loader = document.getElementById('loader');
+        const resultFields = document.getElementById('result-fields');
+        const idInput = document.getElementById('id-number');
+        const nameInput = document.getElementById('full-name');
+        const mealSelect = document.getElementById('meal-type');
+        const historyBody = document.getElementById('history-body');
+        const emptyState = document.getElementById('empty-state');
+        const counterEl = document.getElementById('counter');
+        const toastEl = document.getElementById('toast');
+
+        let records = [];
+
+        // Clock
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('currentTime').innerText = now.toLocaleTimeString();
+        }, 1000);
+
+        // Access Camera
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" },
+                    audio: false 
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                showToast("Error al acceder a la cámara: " + err.message);
+            }
         }
 
-        logBody.innerHTML += `
-          <tr class="border-b border-slate-700/50">
-            <td class="p-4 text-slate-500 font-mono">${escapeHTML(l.hora)}</td>
-            <td class="p-4 font-black uppercase text-white">${escapeHTML(l.nombre)}</td>
-            <td class="p-4 font-bold text-slate-400">${escapeHTML(l.servicio)}</td>
-            <td class="p-4 text-right font-black">L. ${Number(l.costo||0).toFixed(2)}</td>
-            <td class="p-4 text-center">
-              <span class="px-2 py-1 rounded-full text-[8px] font-black uppercase ${l.estado==='OK' ? 'bg-green-500/10 text-green-500':'bg-red-500/10 text-red-500'}">${escapeHTML(l.estado)}</span>
-            </td>
-          </tr>
-        `;
-      });
+        function showToast(msg) {
+            toastEl.innerText = msg;
+            toastEl.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toastEl.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
 
-      document.getElementById('st-d').innerText = stats.d;
-      document.getElementById('st-a').innerText = stats.a;
-      document.getElementById('st-fail').innerText = stats.f;
-      document.getElementById('st-money').innerText = `L. ${round2(stats.t).toFixed(2)}`;
-    }
+        // Capture Frame and Analyze with Gemini
+        btnScan.addEventListener('click', async () => {
+            // UI Switch
+            loader.classList.remove('hidden');
+            resultFields.classList.add('opacity-50', 'pointer-events-none');
 
-    function renderPersonal() {
-      const userBody = document.getElementById('user-body');
-      const q = (document.getElementById('user-search')?.value || '').toUpperCase().trim();
+            // Draw to canvas
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
 
-      const rows = DB.personal
-        .slice()
-        .sort((a,b)=> (a.nombre||'').localeCompare((b.nombre||'')))
-        .filter(p => !q || (p.dni||'').includes(q) || (p.nombre||'').includes(q) || (p.rango||'').includes(q))
-        .map(p => `
-          <tr class="border-b border-slate-700/50 hover:bg-slate-800/50">
-            <td class="p-4 font-mono text-yellow-500">${escapeHTML(p.dni)}</td>
-            <td class="p-4 font-black uppercase text-white">${escapeHTML(p.nombre)}</td>
-            <td class="p-4 font-bold text-slate-500 uppercase">${escapeHTML(p.rango||'')}</td>
-            <td class="p-4 text-right font-black text-green-500">L. ${Number(p.saldo||0).toFixed(2)}</td>
-            <td class="p-4 text-center">
-              <button onclick="openUserModal({dni:'${escapeAttr(p.dni)}'})" class="text-yellow-500 opacity-70 hover:opacity-100 text-[10px] font-black mr-3">EDITAR</button>
-              <button onclick="deleteUser('${escapeAttr(p.dni)}')" class="text-red-500 opacity-50 hover:opacity-100 text-[10px] font-black">ELIMINAR</button>
-            </td>
-          </tr>
-        `).join('');
+            const prompt = "Actúa como un extractor de datos de documentos oficiales de Honduras. De la imagen proporcionada, extrae exclusivamente el 'Número de Identidad' y el 'Nombre Completo'. Responde únicamente en formato JSON con los campos: { \"identidad\": \"...\", \"nombre\": \"...\" }. Si no encuentras alguno, deja el campo vacío.";
 
-      userBody.innerHTML = rows || `<tr><td class="p-6 text-slate-500 font-bold" colspan="5">Sin registros.</td></tr>`;
-    }
+            try {
+                const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: prompt },
+                                { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+                            ]
+                        }]
+                    })
+                });
 
-    function renderHistorial() {
-      const iso = document.getElementById('his-date')?.value || todayISO();
-      const body = document.getElementById('his-body');
-      if(!body) return;
+                const data = await response.json();
+                const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                // Cleanup JSON response (Gemini sometimes adds markdown blocks)
+                const jsonStr = textResult.replace(/```json/g, '').replace(/```/g, '').trim();
+                const result = JSON.parse(jsonStr);
 
-      const logs = DB.log.filter(l => l.fechaISO === iso).slice().reverse();
+                idInput.value = result.identidad || "No detectado";
+                nameInput.value = result.nombre || "No detectado";
+                
+                showToast("Escaneo completado");
+            } catch (error) {
+                console.error(error);
+                showToast("No se pudo extraer la información. Intente de nuevo.");
+            } finally {
+                loader.classList.add('hidden');
+                resultFields.classList.remove('opacity-50', 'pointer-events-none');
+            }
+        });
 
-      let ok=0, dup=0, nos=0, sum=0;
-      logs.forEach(l=>{
-        if(l.estado === 'OK'){ ok++; sum += Number(l.costo||0); }
-        else if(l.estado === 'DUPLICADO'){ dup++; }
-        else if(l.estado === 'SIN SALDO'){ nos++; }
-      });
+        // Retry logic for API
+        async function fetchWithRetry(url, options, retries = 5, backoff = 1000) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok && retries > 0) throw new Error(response.status);
+                return response;
+            } catch (err) {
+                if (retries <= 0) throw err;
+                await new Promise(resolve => setTimeout(resolve, backoff));
+                return fetchWithRetry(url, options, retries - 1, backoff * 2);
+            }
+        }
 
-      document.getElementById('his-ok').innerText = ok;
-      document.getElementById('his-dup').innerText = dup;
-      document.getElementById('his-nosaldo').innerText = nos;
-      document.getElementById('his-sum').innerText = round2(sum).toFixed(2);
+        // Save Record
+        btnSave.addEventListener('click', () => {
+            const id = idInput.value;
+            const name = nameInput.value;
+            const meal = mealSelect.value;
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      body.innerHTML = logs.map(l=>`
-        <tr class="border-b border-slate-700/50">
-          <td class="p-4 text-slate-400 font-mono">${escapeHTML(l.fechaISO)}</td>
-          <td class="p-4 text-slate-500 font-mono">${escapeHTML(l.hora)}</td>
-          <td class="p-4 font-mono text-yellow-500">${escapeHTML(l.dni)}</td>
-          <td class="p-4 font-black uppercase text-white">${escapeHTML(l.nombre)}</td>
-          <td class="p-4 font-bold text-slate-400">${escapeHTML(l.servicio)}</td>
-          <td class="p-4 text-right font-black">L. ${Number(l.costo||0).toFixed(2)}</td>
-          <td class="p-4 text-center">
-            <span class="px-2 py-1 rounded-full text-[8px] font-black uppercase ${l.estado==='OK' ? 'bg-green-500/10 text-green-500':'bg-red-500/10 text-red-500'}">${escapeHTML(l.estado)}</span>
-          </td>
-        </tr>
-      `).join('') || `<tr><td class="p-6 text-slate-500 font-bold" colspan="7">Sin movimientos en esta fecha.</td></tr>`;
-    }
+            if (id === "" || name === "" || id === "No detectado") {
+                showToast("Por favor complete los datos primero.");
+                return;
+            }
 
-    /**********************
-     *  TABS / UI
-     **********************/
-    function switchTab(t) {
-      currentTab = t;
-      ['control','recarga','personal','historial'].forEach(tab => {
-        document.getElementById('view-'+tab).classList.toggle('hidden', tab !== t);
-        document.getElementById('nav-'+tab).classList.toggle('tab-active', tab === t);
-        document.getElementById('nav-'+tab).classList.toggle('text-slate-400', tab !== t);
-      });
-      document.getElementById('side-meal-select').classList.toggle('hidden', t !== 'control');
-      document.getElementById('side-prices').classList.toggle('hidden', t !== 'control');
-    }
+            const newRecord = { id, name, meal, time };
+            records.unshift(newRecord);
+            updateTable();
+            
+            // Clear fields
+            idInput.value = "";
+            nameInput.value = "";
+            showToast("Registro guardado con éxito");
+        });
 
-    function setMeal(m) {
-      currentMeal = m;
-      document.querySelectorAll('.meal-btn').forEach(b => b.classList.remove('meal-active'));
-      document.getElementById('btn-'+m).classList.add('meal-active');
-    }
+        function updateTable() {
+            if (records.length > 0) {
+                emptyState.classList.add('hidden');
+            }
+            
+            historyBody.innerHTML = records.map(r => `
+                <tr class="border-b hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 text-gray-500">${r.time}</td>
+                    <td class="px-6 py-4 font-mono font-medium">${r.id}</td>
+                    <td class="px-6 py-4 text-gray-900">${r.name}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 rounded text-xs font-bold ${
+                            r.meal === 'Desayuno' ? 'bg-orange-100 text-orange-700' : 
+                            r.meal === 'Almuerzo' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'
+                        }">${r.meal}</span>
+                    </td>
+                </tr>
+            `).join('');
+            
+            counterEl.innerText = `Total: ${records.length}`;
+        }
 
-    // MODAL recibe objeto: {dni, nombre}
-   function openUserModal(payload) {
-  const idScan = (payload?.idScan || '').trim();
-  const existing = idScan ? findPersonByScan(idScan) : null;
-
-  editMode = false;
-  document.getElementById('mu-editbtn').innerText = "Modo Editar";
-
-  document.getElementById('mu-title').innerText = existing ? "Editar Personal" : "Alta de Personal";
-
-  document.getElementById('mu-idscan').value = idScan || (existing?.idScan || "");
-  document.getElementById('mu-dni13').value  = existing?.dni13 || (payload?.dni13 || "");
-  document.getElementById('mu-nombre').value = existing?.nombre || (payload?.nombre || "");
-  document.getElementById('mu-rango').value  = existing?.rango  || "";
-  document.getElementById('mu-saldo').value  = existing ? Number(existing.saldo||0) : 0;
-
-  document.getElementById('modal-user').classList.remove('hidden');
-}
-
-
-    function closeUserModal() {
-      document.getElementById('modal-user').classList.add('hidden');
-      document.getElementById('mu-dni').disabled = false;
-      document.getElementById('mu-nombre').value = "";
-      document.getElementById('mu-rango').value = "";
-      document.getElementById('mu-saldo').value = 0;
-      editMode = false;
-    }
-
-    function handleFile(input) {
-      const file = input.files && input.files[0];
-      if (!file) return;
-      document.getElementById('file-label').innerText = "LISTO: " + file.name;
-      const r = new FileReader();
-      r.onload = (e) => lastImg = e.target.result;
-      r.readAsDataURL(file);
-    }
-
-    function notify(t, m, c) {
-      const toast = document.getElementById('toast');
-      const color = (c === 'red') ? '#ef4444' : (c === 'yellow') ? '#fbbf24' : (c === 'blue') ? '#3b82f6' : '#22c55e';
-      document.getElementById('toast-title').innerText = t;
-      document.getElementById('toast-title').style.color = color;
-      document.getElementById('toast-msg').innerText = m;
-      toast.style.borderLeftColor = color;
-      toast.classList.remove('hidden');
-      clearTimeout(window.__toastTimer);
-      window.__toastTimer = setTimeout(() => toast.classList.add('hidden'), 3500);
-    }
-
-    /**********************
-     *  EXPORTS
-     **********************/
-    function exportJSON(){
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        preciosDay: DB.preciosDay,
-        personal: DB.personal,
-        log: DB.log,
-        recargas: DB.recargas
-      };
-      downloadBlob(JSON.stringify(payload, null, 2), `milcom_backup_${todayISO()}.json`, 'application/json');
-      notify("Exportado", "Respaldo JSON generado.", "green");
-    }
-
-    function exportDayCSV(){
-      const iso = document.getElementById('his-date').value || todayISO();
-      const logs = DB.log.filter(l => l.fechaISO === iso);
-
-      const header = ['fechaISO','hora','dni','nombre','rango','servicio','estado','costo'];
-      const lines = [header.join(',')].concat(
-        logs.map(l => header.map(k => csvCell(l[k])).join(','))
-      );
-
-      downloadBlob(lines.join('\n'), `milcom_historial_${iso}.csv`, 'text/csv');
-      notify("Exportado", `CSV generado para ${iso}.`, "green");
-    }
-
-    function csvCell(v){
-      const s = String(v ?? '');
-      const needs = /[",\n]/.test(s);
-      const esc = s.replaceAll('"','""');
-      return needs ? `"${esc}"` : esc;
-    }
-
-    function downloadBlob(content, filename, mime){
-      const blob = new Blob([content], {type: mime});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url), 500);
-    }
-
-    /**********************
-     *  SEGURIDAD BÁSICA (HTML)
-     **********************/
-    function escapeHTML(str){
-      return String(str ?? '')
-        .replaceAll('&','&amp;')
-        .replaceAll('<','&lt;')
-        .replaceAll('>','&gt;')
-        .replaceAll('"','&quot;')
-        .replaceAll("'","&#039;");
-    }
-    function escapeAttr(str){ return escapeHTML(str).replaceAll('`','&#096;'); }
-
-    /**********************
-     *  CLOCK
-     **********************/
-    setInterval(() => {
-      document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-HN', {hour12:false});
-    }, 1000);
-
-    window.onload = init;
-  </script>
+        // Init
+        window.onload = setupCamera;
+    </script>
 </body>
 </html>
