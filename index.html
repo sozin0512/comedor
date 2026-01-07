@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIL-COM |</title>
+    <title>MIL-COM | Gestión y Reportes</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
@@ -12,28 +12,36 @@
         .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
         .btn-active { background-color: #f2994a !important; color: #000 !important; font-weight: 900; }
         .tab-btn-active { border-bottom: 3px solid #f2994a; color: #f2994a; }
-        #reader { border-radius: 12px; overflow: hidden; }
+        #reader { border-radius: 12px; overflow: hidden; border: 2px solid #30363d; }
         .status-ok { color: #238636; background: rgba(35, 134, 54, 0.1); }
         .status-error { color: #f85149; background: rgba(248, 81, 73, 0.1); }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
-        .scanner-active { outline: 4px solid #f2994a; outline-offset: -4px; }
+        .scanner-active { border-color: #f2994a !important; box-shadow: 0 0 20px rgba(242, 153, 74, 0.2); }
+        
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; color: black; }
+            .card { border: none; background: white; }
+            .print-only { display: block !important; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; color: black !important; }
+        }
+        .print-only { display: none; }
     </style>
 </head>
 <body class="p-2 md:p-6">
 
-    <div class="max-w-7xl mx-auto space-y-4">
-        <!-- HEADER MILITAR -->
+    <div class="max-w-7xl mx-auto space-y-4 no-print">
+        <!-- HEADER -->
         <header class="card p-4 flex flex-col md:flex-row justify-between items-center border-b-4 border-orange-500">
             <div class="flex items-center gap-4">
                 <div class="text-orange-500">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.99 7.99 0 0120 13a7.98 7.98 0 01-2.343 5.657z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                     </svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-black uppercase tracking-tighter">Control de Comedor - Mil-Com</h1>
-                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Unidad de Gestión de Raciones | Honduras (Lempiras)</p>
+                    <h1 class="text-xl font-black uppercase tracking-tighter">MIL-COM | Control de Raciones</h1>
+                    <p class="text-[10px] font-bold text-slate-500 uppercase">Sistema de Registro de Comedor Militar</p>
                 </div>
             </div>
             <div id="clock" class="text-2xl font-mono font-bold text-orange-500 mt-2 md:mt-0">00:00:00</div>
@@ -41,86 +49,67 @@
 
         <!-- NAVEGACIÓN -->
         <nav class="flex bg-[#161b22] rounded-xl border border-[#30363d] overflow-hidden">
-            <button onclick="changeTab('scan')" id="tab-scan" class="flex-1 py-3 text-[11px] font-black uppercase tab-btn-active">Panel de Control</button>
-            <button onclick="changeTab('users')" id="tab-users" class="flex-1 py-3 text-[11px] font-black uppercase text-slate-500">Base de Datos</button>
-            <button onclick="changeTab('funds')" id="tab-funds" class="flex-1 py-3 text-[11px] font-black uppercase text-slate-500">Recargas L.</button>
+            <button onclick="changeTab('scan')" id="tab-scan" class="flex-1 py-3 text-[11px] font-black uppercase tab-btn-active">Escanear</button>
+            <button onclick="changeTab('users')" id="tab-users" class="flex-1 py-3 text-[11px] font-black uppercase text-slate-500">Personal</button>
+            <button onclick="changeTab('funds')" id="tab-funds" class="flex-1 py-3 text-[11px] font-black uppercase text-slate-500">Recargas</button>
+            <button onclick="changeTab('reports')" id="tab-reports" class="flex-1 py-3 text-[11px] font-black uppercase text-slate-500">Reportes</button>
         </nav>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
             
-            <!-- PANEL IZQUIERDO: SCANNER Y ACCIONES (SIEMPRE VISIBLE) -->
+            <!-- PANEL IZQUIERDO: SCANNER -->
             <div class="lg:col-span-4 space-y-4">
                 <div class="card p-4">
-                    <div id="reader" class="w-full aspect-video bg-black mb-4"></div>
+                    <div class="mb-2 flex justify-between items-center">
+                        <span class="text-[9px] font-black text-orange-500 uppercase tracking-widest">Lector de Códigos</span>
+                        <span id="scan-status" class="text-[9px] font-bold text-green-500 uppercase">● Activo</span>
+                    </div>
+                    <div id="reader" class="w-full aspect-square bg-black mb-4"></div>
                     
-                    <div id="control-actions" class="space-y-4">
-                        <!-- SELECTOR DE COMIDA -->
-                        <div class="flex gap-1 bg-black/50 p-1 rounded-lg mb-4">
+                    <div class="space-y-4">
+                        <div class="flex gap-1 bg-black/50 p-1 rounded-lg">
                             <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded btn-active">Desayuno</button>
                             <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded text-slate-500">Almuerzo</button>
                             <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn flex-1 py-2 text-[10px] font-black uppercase rounded text-slate-500">Cena</button>
                         </div>
-
-                        <div class="space-y-3">
-                            <input type="text" id="dni-main" placeholder="ESPERANDO ESCANEO..." class="w-full bg-[#0d1117] border border-[#30363d] p-4 text-xl font-mono text-center text-orange-500 font-bold rounded-xl focus:border-orange-500 outline-none uppercase">
-                            
-                            <!-- PRECIO ACTUAL -->
-                            <div class="flex justify-between items-center bg-black/30 p-3 rounded-lg border border-white/5">
-                                <span class="text-[10px] font-bold text-slate-500 uppercase">Costo Ración:</span>
-                                <span id="display-price" class="text-lg font-black text-white">L. 0.00</span>
-                            </div>
-                        </div>
+                        <input type="text" id="dni-main" readonly placeholder="ESCANEANDO..." class="w-full bg-[#0d1117] border border-[#30363d] p-4 text-xl font-mono text-center text-orange-500 font-bold rounded-xl outline-none">
                     </div>
                 </div>
 
-                <!-- CONFIGURACIÓN DE PRECIOS -->
-                <div id="price-config" class="card p-4">
-                    <h3 class="text-[9px] font-black uppercase text-slate-500 mb-3 tracking-widest">Ajuste de Precios (L.)</h3>
+                <!-- PRECIOS -->
+                <div class="card p-4">
+                    <h3 class="text-[9px] font-black uppercase text-slate-500 mb-3">Costos del Servicio</h3>
                     <div class="grid grid-cols-3 gap-2">
-                        <div class="space-y-1">
-                            <label class="text-[8px] text-slate-500 uppercase font-bold">Des.</label>
-                            <input type="number" id="inp-Desayuno" onchange="updatePrice('Desayuno', this.value)" class="w-full bg-black border border-[#30363d] p-2 text-xs rounded font-bold text-center">
+                        <div class="text-center p-2 bg-black/30 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase">D.</p>
+                            <p id="p-des" class="font-bold text-xs">L. 0</p>
                         </div>
-                        <div class="space-y-1">
-                            <label class="text-[8px] text-slate-500 uppercase font-bold">Alm.</label>
-                            <input type="number" id="inp-Almuerzo" onchange="updatePrice('Almuerzo', this.value)" class="w-full bg-black border border-[#30363d] p-2 text-xs rounded font-bold text-center">
+                        <div class="text-center p-2 bg-black/30 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase">A.</p>
+                            <p id="p-alm" class="font-bold text-xs">L. 0</p>
                         </div>
-                        <div class="space-y-1">
-                            <label class="text-[8px] text-slate-500 uppercase font-bold">Cen.</label>
-                            <input type="number" id="inp-Cena" onchange="updatePrice('Cena', this.value)" class="w-full bg-black border border-[#30363d] p-2 text-xs rounded font-bold text-center">
+                        <div class="text-center p-2 bg-black/30 rounded">
+                            <p class="text-[8px] text-slate-500 uppercase">C.</p>
+                            <p id="p-cen" class="font-bold text-xs">L. 0</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- PANEL DERECHO: VISTAS Y HISTORIAL -->
+            <!-- PANEL DERECHO: VISTAS -->
             <div class="lg:col-span-8 space-y-4">
                 
-                <!-- ESTADÍSTICAS RÁPIDAS -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div class="card p-3 border-l-4 border-orange-500"><p class="text-[9px] font-bold text-slate-500 uppercase">D. Hoy</p><p id="count-d" class="text-xl font-black">0</p></div>
-                    <div class="card p-3 border-l-4 border-orange-500"><p class="text-[9px] font-bold text-slate-500 uppercase">A. Hoy</p><p id="count-a" class="text-xl font-black">0</p></div>
-                    <div class="card p-3 border-l-4 border-green-600"><p class="text-[9px] font-bold text-slate-500 uppercase">Fondo Total</p><p id="count-cash" class="text-xl font-black text-green-500">L. 0</p></div>
-                    <div class="card p-3 border-l-4 border-red-600"><p class="text-[9px] font-bold text-slate-500 uppercase">Alertas</p><p id="count-err" class="text-xl font-black text-red-500">0</p></div>
-                </div>
-
-                <!-- VISTA: PANEL DE CONTROL -->
+                <!-- VISTA: ESCANEO / HISTORIAL HOY -->
                 <div id="view-scan" class="space-y-4">
                     <div class="card overflow-hidden">
-                        <div class="p-4 border-b border-[#30363d] bg-[#1c2128] flex justify-between items-center">
-                            <h2 class="text-[11px] font-black uppercase italic tracking-widest">Bitácora de Raciones (Hoy)</h2>
-                            <button onclick="clearHistory()" class="text-[9px] text-red-400 font-bold hover:underline">BORRAR LOG</button>
+                        <div class="p-4 border-b border-[#30363d] flex justify-between items-center">
+                            <h2 class="text-[11px] font-black uppercase">Consumo del Día</h2>
+                            <span id="today-date" class="text-[10px] font-mono text-slate-500"></span>
                         </div>
-                        <div class="overflow-x-auto max-h-[500px]">
+                        <div class="max-h-[550px] overflow-y-auto">
                             <table class="w-full text-left text-[11px]">
-                                <thead class="bg-black/50 text-slate-500 uppercase font-black sticky top-0">
-                                    <tr>
-                                        <th class="p-3">Hora</th>
-                                        <th class="p-3">Personal</th>
-                                        <th class="p-3">Servicio</th>
-                                        <th class="p-3 text-right">Costo</th>
-                                        <th class="p-3 text-center">Estado</th>
-                                    </tr>
+                                <thead class="bg-black/50 text-slate-500 uppercase sticky top-0">
+                                    <tr><th class="p-3">Hora</th><th class="p-3">Personal</th><th class="p-3">Estado</th></tr>
                                 </thead>
                                 <tbody id="history-body" class="divide-y divide-[#30363d]"></tbody>
                             </table>
@@ -130,41 +119,50 @@
 
                 <!-- VISTA: BASE DE DATOS -->
                 <div id="view-users" class="hidden card p-6">
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                        <div>
-                            <h2 class="text-lg font-black uppercase italic">Archivo de Personal</h2>
-                            <p class="text-[10px] text-orange-500 font-bold uppercase">Escanee un carnet para buscar o registrar</p>
-                        </div>
-                        <button onclick="openRegisterModal()" class="bg-orange-500 text-black px-4 py-2 rounded font-black text-[10px] uppercase shadow-lg">Registro Manual</button>
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-black uppercase italic">Base de Datos Personal</h2>
+                        <button onclick="openRegisterModal()" class="bg-orange-500 text-black px-4 py-2 rounded font-black text-[10px] uppercase">Nuevo Registro</button>
                     </div>
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs">
                             <thead class="text-slate-500 uppercase font-bold border-b border-[#30363d]">
-                                <tr><th class="p-3">DNI</th><th class="p-3">Nombre</th><th class="p-3">Rango</th><th class="p-3 text-right">Saldo (L.)</th><th class="p-3 text-center">Acción</th></tr>
+                                <tr><th class="p-3">DNI</th><th class="p-3">Nombre</th><th class="p-3">Rango</th><th class="p-3 text-right">Saldo</th><th class="p-3 text-center">X</th></tr>
                             </thead>
                             <tbody id="users-body" class="divide-y divide-[#30363d]"></tbody>
                         </table>
                     </div>
                 </div>
 
-                <!-- VISTA: RECARGAS -->
-                <div id="view-funds" class="hidden card p-6 border-t-4 border-green-600">
-                    <h2 class="text-lg font-black uppercase italic mb-6">Acreditar Saldo a Personal</h2>
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <div class="space-y-4">
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">1. Identifique al Personal (Escaner o DNI)</p>
-                            <input type="text" id="fund-dni" placeholder="DNI DEL PERSONAL" class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-orange-500 font-bold">
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">2. Ingrese el Monto</p>
-                            <input type="number" id="fund-amount" placeholder="MONTO EN LEMPIRAS" class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-green-500 font-black text-2xl">
+                <!-- VISTA: REPORTES -->
+                <div id="view-reports" class="hidden card p-6">
+                    <h2 class="text-lg font-black uppercase italic mb-6">Generador de Reportes</h2>
+                    <div class="grid md:grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Desde</label>
+                            <input type="date" id="rep-start" class="w-full bg-black border border-[#30363d] p-2 rounded text-xs">
                         </div>
-                        <div class="flex flex-col gap-4">
-                            <p class="text-[10px] font-bold text-slate-500 uppercase">3. Comprobante de Depósito</p>
-                            <div class="border-2 border-dashed border-[#30363d] rounded-xl p-8 text-center cursor-pointer hover:border-orange-500 bg-black/20" onclick="document.getElementById('receipt-img').click()">
-                                <p id="receipt-label" class="text-[10px] font-black text-slate-500 uppercase">Adjuntar Foto Recibo</p>
-                                <input type="file" id="receipt-img" class="hidden" accept="image/*" onchange="previewFile(this)">
-                            </div>
-                            <button onclick="processDeposit()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase text-xs shadow-lg hover:bg-green-500 transition-all">Confirmar Recarga</button>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase">Hasta</label>
+                            <input type="date" id="rep-end" class="w-full bg-black border border-[#30363d] p-2 rounded text-xs">
                         </div>
+                        <div class="flex items-end gap-2">
+                            <button onclick="generateReport()" class="flex-1 bg-orange-500 text-black py-2 rounded font-black text-[10px] uppercase">Filtrar</button>
+                            <button onclick="window.print()" class="flex-1 bg-white text-black py-2 rounded font-black text-[10px] uppercase">Imprimir</button>
+                        </div>
+                    </div>
+                    <div id="report-results" class="space-y-4">
+                        <!-- Resultados de reporte aquí -->
+                        <p class="text-center text-slate-500 py-10 text-xs italic">Seleccione un rango de fechas para generar el reporte analítico.</p>
+                    </div>
+                </div>
+
+                <!-- VISTA: RECARGAS (Mismo anterior simplificado) -->
+                <div id="view-funds" class="hidden card p-6">
+                    <h2 class="text-lg font-black uppercase italic mb-6">Recarga de Saldo</h2>
+                    <div class="max-w-md mx-auto space-y-4">
+                        <input type="text" id="fund-dni" placeholder="DNI DEL SOLDADO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-orange-500 font-bold text-center">
+                        <input type="number" id="fund-amount" placeholder="CANTIDAD L." class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-green-500 font-black text-2xl text-center">
+                        <button onclick="processDeposit()" class="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase shadow-lg">Confirmar Recarga</button>
                     </div>
                 </div>
 
@@ -172,70 +170,74 @@
         </div>
     </div>
 
-    <!-- MODAL DE REGISTRO -->
+    <!-- AREA DE IMPRESIÓN (Solo visible al imprimir) -->
+    <div class="print-only">
+        <center>
+            <h1 style="font-size: 20px; text-transform: uppercase; font-weight: bold;">Fuerzas Armadas de Honduras</h1>
+            <h2 style="font-size: 16px; text-transform: uppercase;">Reporte de Consumo de Raciones - MIL-COM</h2>
+            <hr style="margin: 20px 0;">
+        </center>
+        <div id="print-content"></div>
+        <div style="margin-top: 50px; display: flex; justify-content: space-around;">
+            <div style="text-align: center; border-top: 1px solid black; width: 200px; padding-top: 5px;">Oficial de Guardia</div>
+            <div style="text-align: center; border-top: 1px solid black; width: 200px; padding-top: 5px;">Encargado de Comedor</div>
+        </div>
+    </div>
+
+    <!-- MODALES Y ALERTAS (Igual que antes) -->
     <div id="reg-modal" class="hidden fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="card max-w-sm w-full p-8 border-t-8 border-orange-500">
             <h3 class="text-xl font-black uppercase italic mb-6">Alta de Personal</h3>
             <div class="space-y-4">
-                <div>
-                    <label class="text-[9px] font-black text-slate-500 uppercase ml-2">Identidad (DNI)</label>
-                    <input type="text" id="nu-dni" placeholder="DNI" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase text-orange-500">
-                </div>
-                <div>
-                    <label class="text-[9px] font-black text-slate-500 uppercase ml-2">Nombre Completo</label>
-                    <input type="text" id="nu-name" placeholder="NOMBRES Y APELLIDOS" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
-                </div>
-                <div>
-                    <label class="text-[9px] font-black text-slate-500 uppercase ml-2">Grado / Rango</label>
-                    <input type="text" id="nu-rank" placeholder="EJ. SUBOFICIAL III" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
-                </div>
+                <input type="text" id="nu-dni" placeholder="DNI" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase text-orange-500">
+                <input type="text" id="nu-name" placeholder="NOMBRES Y APELLIDOS" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
+                <input type="text" id="nu-rank" placeholder="RANGO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
                 <div class="flex gap-4 pt-4">
                     <button onclick="closeRegisterModal()" class="flex-1 text-slate-500 font-black uppercase text-[10px]">Cancelar</button>
-                    <button onclick="saveNewUser()" class="flex-1 bg-orange-500 text-black py-4 rounded-xl font-black uppercase text-[10px]">Guardar Registro</button>
+                    <button onclick="saveNewUser()" class="flex-1 bg-orange-500 text-black py-4 rounded-xl font-black uppercase text-[10px]">Guardar</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- NOTIFICADOR -->
-    <div id="alert" class="hidden fixed top-10 right-10 z-[100] p-6 rounded-xl shadow-2xl border-l-8 min-w-[300px] animate-pulse">
+    <div id="alert" class="hidden fixed top-10 right-10 z-[100] p-6 rounded-xl shadow-2xl border-l-8 min-w-[300px]">
         <h4 id="alert-title" class="font-black uppercase text-lg"></h4>
         <p id="alert-msg" class="text-sm font-bold opacity-80"></p>
     </div>
 
     <script>
-        // ESTADO DE DATOS
+        // DATA CENTRALIZADA
         let APP_DATA = {
-            prices: JSON.parse(localStorage.getItem('m_v3_prices')) || { Desayuno: 50, Almuerzo: 100, Cena: 70 },
-            users: JSON.parse(localStorage.getItem('m_v3_users')) || [],
-            history: JSON.parse(localStorage.getItem('m_v3_history')) || []
+            prices: JSON.parse(localStorage.getItem('m_v4_prices')) || { Desayuno: 50, Almuerzo: 100, Cena: 70 },
+            users: JSON.parse(localStorage.getItem('m_v4_users')) || [],
+            history: JSON.parse(localStorage.getItem('m_v4_history')) || []
         };
 
         let currentService = 'Desayuno';
         let currentTab = 'scan';
         let scanner = null;
         let isLocked = false;
-        let receiptData = null;
 
         function init() {
-            Object.keys(APP_DATA.prices).forEach(k => {
-                if(document.getElementById('inp-'+k)) document.getElementById('inp-'+k).value = APP_DATA.prices[k];
-            });
-            updateServiceUI();
+            updatePricesUI();
             startScanner();
             renderAll();
+            document.getElementById('today-date').innerText = new Date().toLocaleDateString();
         }
 
-        // SCANNER INTELIGENTE MULTI-MODO
+        // SCANNER OPTIMIZADO PARA CÓDIGO DE BARRAS
         function startScanner() {
             scanner = new Html5Qrcode("reader");
             const config = { 
-                fps: 20, 
-                qrbox: { width: 300, height: 180 },
+                fps: 25, 
+                qrbox: { width: 280, height: 150 }, // Caja rectangular para códigos de barras
+                aspectRatio: 1.0,
                 formatsToSupport: [ 
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.CODE_39,
                     Html5QrcodeSupportedFormats.PDF417, 
-                    Html5QrcodeSupportedFormats.QR_CODE, 
-                    Html5QrcodeSupportedFormats.CODE_128 
+                    Html5QrcodeSupportedFormats.QR_CODE 
                 ]
             };
             
@@ -243,266 +245,226 @@
                 if(isLocked) return;
                 const dni = decodedText.trim().toUpperCase();
                 handleScanAction(dni);
-            }).catch(e => console.warn("Cámara offline"));
+            }).catch(e => console.warn("Error cámara"));
         }
 
         function handleScanAction(dni) {
             isLocked = true;
             document.getElementById('reader').classList.add('scanner-active');
-            
-            // Actualizar visual de DNI en el panel principal siempre
             document.getElementById('dni-main').value = dni;
 
-            if(currentTab === 'scan') {
-                processAccess(dni);
-            } 
-            else if(currentTab === 'funds') {
-                document.getElementById('fund-dni').value = dni;
-                const user = APP_DATA.users.find(u => u.dni === dni);
-                if(user) showAlert("Personal Identificado", `${user.rank} ${user.name}`, "orange");
-                else showAlert("DNI Escaneado", "Personal no registrado. Regístrelo antes de recargar.", "red");
-            } 
-            else if(currentTab === 'users') {
-                const user = APP_DATA.users.find(u => u.dni === dni);
-                if(user) {
-                    showAlert("Personal Localizado", `${user.rank}: ${user.name}`, "blue");
-                    // Opcional: Podrías resaltar la fila en la tabla aquí
-                } else {
-                    showAlert("Nuevo Personal", "DNI no encontrado. Abriendo alta...", "orange");
-                    setTimeout(() => openRegisterModal(dni), 1000);
-                }
-            }
+            if(currentTab === 'scan') processAccess(dni);
+            else if(currentTab === 'funds') document.getElementById('fund-dni').value = dni;
+            else if(currentTab === 'users') checkUserDB(dni);
 
+            // LIMPIEZA AUTOMÁTICA DESPUÉS DE 2 SEGUNDOS
             setTimeout(() => {
                 isLocked = false;
                 document.getElementById('reader').classList.remove('scanner-active');
-            }, 3000);
+                document.getElementById('dni-main').value = ""; 
+            }, 2000);
         }
 
-        // LÓGICA DE ACCESO
         function processAccess(dni) {
             const user = APP_DATA.users.find(u => u.dni === dni);
             const today = new Date().toLocaleDateString();
             const cost = APP_DATA.prices[currentService];
 
             if(!user) {
-                showAlert("DNI NO REGISTRADO", "El suboficial debe ser dado de alta primero", "red");
+                showAlert("DNI NO REGISTRADO", "Proceda a registro manual", "red");
+                logAction(dni, 'DESCONOCIDO', '---', 'ERROR: NO REGISTRADO', 0);
                 return;
             }
 
-            if(APP_DATA.history.some(h => h.dni === dni && h.date === today && h.service === currentService && h.status === 'AUTORIZADO')) {
-                showAlert("RACIÓN DUPLICADA", `${user.name} ya consumió hoy.`, "red");
-                logHistory(user, 'DENEGADO (DUPLICADO)', 0);
-                return;
+            // Validar si ya comió este servicio hoy
+            const yaComio = APP_DATA.history.find(h => h.dni === dni && h.date === today && h.service === currentService && h.status === 'AUTORIZADO');
+            
+            if(yaComio) {
+                showAlert("ACCESO DENEGADO", "Ración ya entregada hoy", "red");
+                logAction(user.dni, user.name, user.rank, 'DENEGADO (DUPLICADO)', 0);
+            } else if(user.balance < cost) {
+                showAlert("SALDO INSUFICIENTE", `Saldo actual: L. ${user.balance}`, "red");
+                logAction(user.dni, user.name, user.rank, 'DENEGADO (SIN SALDO)', 0);
+            } else {
+                user.balance -= cost;
+                showAlert("ACCESO AUTORIZADO", `${user.rank} ${user.name}`, "green");
+                logAction(user.dni, user.name, user.rank, 'AUTORIZADO', cost);
+                saveData();
             }
-
-            if(user.balance < cost) {
-                showAlert("SALDO INSUFICIENTE", `L. ${user.balance.toFixed(2)} | Falta recargar.`, "red");
-                logHistory(user, 'DENEGADO (SIN SALDO)', 0);
-                return;
-            }
-
-            user.balance -= cost;
-            logHistory(user, 'AUTORIZADO', cost);
-            saveData();
-            showAlert("ACCESO AUTORIZADO", `Buen provecho, ${user.rank} ${user.name.split(' ')[0]}`, "green");
         }
 
-        function logHistory(user, status, cost) {
+        function logAction(dni, name, rank, status, cost) {
             APP_DATA.history.push({
-                dni: user.dni,
-                name: user.name,
-                rank: user.rank,
+                dni, name, rank, status, cost,
                 service: currentService,
-                status: status,
-                cost: cost,
                 date: new Date().toLocaleDateString(),
+                isoDate: new Date().toISOString().split('T')[0], // Para filtros de reporte
                 time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
             });
             saveData();
             renderAll();
         }
 
-        // RECARGAS
-        function processDeposit() {
-            const dni = document.getElementById('fund-dni').value.toUpperCase();
-            const amount = parseFloat(document.getElementById('fund-amount').value);
-            const user = APP_DATA.users.find(u => u.dni === dni);
-
-            if(!user || isNaN(amount) || amount <= 0 || !receiptData) {
-                alert("Verifique DNI registrado, monto y que haya subido el recibo.");
+        // REPORTES ANALÍTICOS
+        function generateReport() {
+            const start = document.getElementById('rep-start').value;
+            const end = document.getElementById('rep-end').value;
+            
+            if(!start || !end) {
+                alert("Seleccione ambas fechas");
                 return;
             }
 
-            user.balance += amount;
-            saveData();
-            
-            document.getElementById('fund-dni').value = "";
-            document.getElementById('fund-amount').value = "";
-            receiptData = null;
-            document.getElementById('receipt-label').innerText = "Adjuntar Foto Recibo";
-            
-            showAlert("RECARGA EXITOSA", `L. ${amount} acreditados a ${user.name}`, "green");
-            renderAll();
+            const filtered = APP_DATA.history.filter(h => h.isoDate >= start && h.isoDate <= end);
+            const totalRaciones = filtered.filter(f => f.status === 'AUTORIZADO').length;
+            const totalLempiras = filtered.reduce((acc, curr) => acc + curr.cost, 0);
+
+            let html = `
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-black/50 p-4 rounded border border-orange-500/30">
+                        <p class="text-[10px] uppercase text-slate-500">Total Raciones</p>
+                        <p class="text-2xl font-black">${totalRaciones}</p>
+                    </div>
+                    <div class="bg-black/50 p-4 rounded border border-green-500/30">
+                        <p class="text-[10px] uppercase text-slate-500">Recaudación</p>
+                        <p class="text-2xl font-black text-green-500">L. ${totalLempiras.toFixed(2)}</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto card">
+                    <table class="w-full text-[10px] text-left">
+                        <thead class="bg-white/5 text-slate-500 uppercase">
+                            <tr><th class="p-2">Fecha</th><th class="p-2">Hora</th><th class="p-2">Personal</th><th class="p-2">Servicio</th><th class="p-2">Estado</th><th class="p-2 text-right">L.</th></tr>
+                        </thead>
+                        <tbody>
+                            ${filtered.map(f => `
+                                <tr class="border-t border-white/5">
+                                    <td class="p-2">${f.date}</td>
+                                    <td class="p-2">${f.time}</td>
+                                    <td class="p-2 font-bold">${f.name}</td>
+                                    <td class="p-2">${f.service}</td>
+                                    <td class="p-2 ${f.status.includes('AUTORIZADO') ? 'text-green-500' : 'text-red-500'}">${f.status}</td>
+                                    <td class="p-2 text-right">${f.cost}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            document.getElementById('report-results').innerHTML = html;
+            // Preparar contenido de impresión
+            document.getElementById('print-content').innerHTML = `
+                <p><b>Periodo:</b> ${start} al ${end}</p>
+                <p><b>Total Raciones Autorizadas:</b> ${totalRaciones}</p>
+                <p><b>Total Recaudado:</b> L. ${totalLempiras.toFixed(2)}</p>
+                <br>
+                ${html}
+            `;
         }
 
-        // UI RENDERERS
+        // UTILS
         function renderAll() {
             const today = new Date().toLocaleDateString();
             const historyBody = document.getElementById('history-body');
             const usersBody = document.getElementById('users-body');
-            let stats = { d:0, a:0, cash:0, err:0 };
 
-            // Render Historial
-            historyBody.innerHTML = "";
-            APP_DATA.history.filter(h => h.date === today).reverse().forEach(h => {
-                if(h.status === 'AUTORIZADO') {
-                    if(h.service === 'Desayuno') stats.d++; else stats.a++;
-                } else {
-                    stats.err++;
-                }
+            // Historial de hoy
+            historyBody.innerHTML = APP_DATA.history.filter(h => h.date === today).reverse().map(h => `
+                <tr class="border-b border-white/5">
+                    <td class="p-3 text-slate-500 font-mono">${h.time}</td>
+                    <td class="p-3">
+                        <div class="font-bold uppercase">${h.name}</div>
+                        <div class="text-[9px] text-slate-500">${h.rank} | ${h.service}</div>
+                    </td>
+                    <td class="p-3">
+                        <span class="px-2 py-1 rounded text-[8px] font-black ${h.status === 'AUTORIZADO' ? 'status-ok' : 'status-error'}">
+                            ${h.status}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
 
-                historyBody.innerHTML += `
-                    <tr>
-                        <td class="p-3 font-mono text-slate-500">${h.time}</td>
-                        <td class="p-3"><p class="font-bold uppercase">${h.name}</p><p class="text-[9px] text-slate-500">${h.rank}</p></td>
-                        <td class="p-3 font-bold text-slate-400 uppercase">${h.service}</td>
-                        <td class="p-3 text-right font-black">L. ${h.cost.toFixed(2)}</td>
-                        <td class="p-3 text-center">
-                            <span class="px-2 py-1 rounded text-[8px] font-black ${h.status === 'AUTORIZADO' ? 'status-ok' : 'status-error'}">${h.status}</span>
-                        </td>
-                    </tr>
-                `;
-            });
-
-            // Render Usuarios
-            usersBody.innerHTML = APP_DATA.users.map(u => {
-                stats.cash += u.balance;
-                return `
-                    <tr class="hover:bg-white/5 transition-colors">
-                        <td class="p-3 font-mono text-orange-500">${u.dni}</td>
-                        <td class="p-3 font-bold uppercase">${u.name}</td>
-                        <td class="p-3 font-bold text-slate-500 uppercase">${u.rank}</td>
-                        <td class="p-3 text-right font-black text-green-500">L. ${u.balance.toFixed(2)}</td>
-                        <td class="p-3 text-center"><button onclick="deleteUser('${u.dni}')" class="text-red-500 hover:scale-125 transition-transform">✕</button></td>
-                    </tr>
-                `;
-            }).join('');
-
-            document.getElementById('count-d').innerText = stats.d;
-            document.getElementById('count-a').innerText = stats.a;
-            document.getElementById('count-err').innerText = stats.err;
-            document.getElementById('count-cash').innerText = `L. ${stats.cash.toFixed(2)}`;
+            // Usuarios
+            usersBody.innerHTML = APP_DATA.users.map(u => `
+                <tr class="hover:bg-white/5">
+                    <td class="p-3 font-mono text-orange-500">${u.dni}</td>
+                    <td class="p-3 font-bold uppercase">${u.name}</td>
+                    <td class="p-3 text-slate-500 font-bold">${u.rank}</td>
+                    <td class="p-3 text-right font-black text-green-500">L. ${u.balance.toFixed(2)}</td>
+                    <td class="p-3 text-center"><button onclick="deleteUser('${u.dni}')" class="text-red-500">✕</button></td>
+                </tr>
+            `).join('');
         }
 
         function changeTab(tab) {
             currentTab = tab;
-            ['scan', 'users', 'funds'].forEach(t => {
+            ['scan', 'users', 'funds', 'reports'].forEach(t => {
                 document.getElementById('view-'+t).classList.toggle('hidden', t !== tab);
                 document.getElementById('tab-'+t).classList.toggle('tab-btn-active', t === tab);
                 document.getElementById('tab-'+t).classList.toggle('text-slate-500', t !== tab);
             });
-            // Mostrar/Ocultar controles laterales según contexto
-            document.getElementById('control-actions').classList.toggle('hidden', tab === 'funds');
-            document.getElementById('price-config').classList.toggle('hidden', tab !== 'scan');
-
-            if(tab === 'users') renderAll();
         }
 
         function setService(s) {
             currentService = s;
             document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('btn-active'));
             document.getElementById('svc-'+s).classList.add('btn-active');
-            updateServiceUI();
         }
 
-        function updateServiceUI() {
-            document.getElementById('display-price').innerText = `L. ${APP_DATA.prices[currentService].toFixed(2)}`;
+        function updatePricesUI() {
+            document.getElementById('p-des').innerText = `L. ${APP_DATA.prices.Desayuno}`;
+            document.getElementById('p-alm').innerText = `L. ${APP_DATA.prices.Almuerzo}`;
+            document.getElementById('p-cen').innerText = `L. ${APP_DATA.prices.Cena}`;
         }
 
-        function updatePrice(key, val) {
-            APP_DATA.prices[key] = parseFloat(val) || 0;
-            saveData();
-            updateServiceUI();
-        }
-
-        function openRegisterModal(dni = '') {
-            document.getElementById('nu-dni').value = dni;
-            document.getElementById('reg-modal').classList.remove('hidden');
-            if(!dni) document.getElementById('nu-dni').focus();
-            else document.getElementById('nu-name').focus();
-        }
-
-        function closeRegisterModal() {
-            document.getElementById('reg-modal').classList.add('hidden');
-            document.getElementById('nu-dni').value = "";
-            document.getElementById('nu-name').value = "";
-            document.getElementById('nu-rank').value = "";
-        }
+        function openRegisterModal() { document.getElementById('reg-modal').classList.remove('hidden'); }
+        function closeRegisterModal() { document.getElementById('reg-modal').classList.add('hidden'); }
 
         function saveNewUser() {
             const dni = document.getElementById('nu-dni').value.toUpperCase();
             const name = document.getElementById('nu-name').value.toUpperCase();
             const rank = document.getElementById('nu-rank').value.toUpperCase();
-            if(!dni || !name) {
-                alert("DNI y Nombre son obligatorios.");
-                return;
-            }
-
-            if(APP_DATA.users.find(u => u.dni === dni)) {
-                alert("Este DNI ya existe en la base de datos.");
-                return;
-            }
-
+            if(!dni || !name) return;
             APP_DATA.users.push({ dni, name, rank, balance: 0 });
-            saveData();
-            closeRegisterModal();
-            renderAll();
-            showAlert("REGISTRO EXITOSO", `${name} ha sido dado de alta.`, "green");
+            saveData(); renderAll(); closeRegisterModal();
+            showAlert("EXITO", "Soldado registrado", "green");
+        }
+
+        function processDeposit() {
+            const dni = document.getElementById('fund-dni').value.toUpperCase();
+            const amount = parseFloat(document.getElementById('fund-amount').value);
+            const user = APP_DATA.users.find(u => u.dni === dni);
+            if(!user || !amount) { alert("DNI no hallado o monto inválido"); return; }
+            user.balance += amount;
+            saveData(); renderAll();
+            document.getElementById('fund-dni').value = "";
+            document.getElementById('fund-amount').value = "";
+            showAlert("RECARGA OK", `L. ${amount} a ${user.name}`, "green");
         }
 
         function deleteUser(dni) {
-            if(confirm("¿Eliminar este registro de personal permanentemente?")) {
+            if(confirm("¿Eliminar registro?")) {
                 APP_DATA.users = APP_DATA.users.filter(u => u.dni !== dni);
-                saveData();
-                renderAll();
-            }
-        }
-
-        function clearHistory() {
-            if(confirm("¿Borrar historial de hoy?")) {
-                APP_DATA.history = [];
-                saveData();
-                renderAll();
-            }
-        }
-
-        function previewFile(input) {
-            const f = input.files[0];
-            if(f) {
-                document.getElementById('receipt-label').innerText = "DOC: " + f.name;
-                const r = new FileReader();
-                r.onload = (e) => receiptData = e.target.result;
-                r.readAsDataURL(f);
+                saveData(); renderAll();
             }
         }
 
         function showAlert(t, m, c) {
             const el = document.getElementById('alert');
-            const color = c === 'red' ? '#f85149' : (c === 'green' ? '#238636' : (c === 'blue' ? '#58a6ff' : '#f2994a'));
+            const color = c === 'red' ? '#f85149' : '#238636';
             document.getElementById('alert-title').innerText = t;
             document.getElementById('alert-title').style.color = color;
             document.getElementById('alert-msg').innerText = m;
             el.style.backgroundColor = '#161b22';
-            el.style.borderLeftColor = color;
+            el.style.borderLeft = `8px solid ${color}`;
             el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 4000);
+            setTimeout(() => el.classList.add('hidden'), 3000);
         }
 
         function saveData() {
-            localStorage.setItem('m_v3_prices', JSON.stringify(APP_DATA.prices));
-            localStorage.setItem('m_v3_users', JSON.stringify(APP_DATA.users));
-            localStorage.setItem('m_v3_history', JSON.stringify(APP_DATA.history));
+            localStorage.setItem('m_v4_prices', JSON.stringify(APP_DATA.prices));
+            localStorage.setItem('m_v4_users', JSON.stringify(APP_DATA.users));
+            localStorage.setItem('m_v4_history', JSON.stringify(APP_DATA.history));
         }
 
         setInterval(() => {
