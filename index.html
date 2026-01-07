@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Acceso Seguro - Comedor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Librería para escaneo de códigos de barras/QR -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .input-focus {
+            transition: all 0.2s;
+            border: 2px solid #e2e8f0;
+        }
+
+        .input-focus:focus {
+            border-color: #1e40af;
+            box-shadow: 0 0 0 4px rgba(30, 64, 175, 0.1);
+            outline: none;
+        }
+
+        .access-denied {
+            animation: shake 0.5s core linear;
+            border-color: #ef4444 !important;
+            background-color: #fef2f2;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        /* Estilos para el contenedor del escáner */
+        #reader {
+            border: none !important;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        #reader__dashboard_section_csr button {
+            background-color: #1e40af !important;
+            color: white !important;
+            padding: 8px 16px !important;
+            border-radius: 8px !important;
+            cursor: pointer !important;
+            font-weight: bold !important;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="mb-6 flex flex-col md:flex-row justify-between items-center bg-blue-900 p-6 rounded-xl shadow-lg text-white">
+            <div>
+                <h1 class="text-2xl font-black uppercase tracking-widest">Control Biográfico de Comedor</h1>
+                <p class="text-blue-200 text-sm">Prevención de Suplantación e Ingresos Duplicados</p>
+            </div>
+            <div class="flex items-center gap-4 mt-4 md:mt-0">
+                <div id="current-time" class="text-2xl font-mono font-bold bg-blue-800 px-4 py-2 rounded border border-blue-700">00:00:00</div>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Panel de Registro y Escaneo -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- Escáner de Cámara -->
+                <div class="card p-4 border-t-4 border-green-600">
+                    <h2 class="text-lg font-bold text-gray-800 mb-3 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        Escáner de Identificación
+                    </h2>
+                    <div id="reader" class="bg-gray-100 min-h-[250px]"></div>
+                    <p class="text-[10px] text-center text-gray-500 mt-2 italic">Coloque el código de barras o QR frente a la cámara</p>
+                </div>
+
+                <div class="card p-6 border-t-4 border-blue-600">
+                    <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                        Datos del Comensal
+                    </h2>
+
+                    <div class="mb-6">
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Servicio Actual</label>
+                        <div class="flex gap-2">
+                            <button onclick="setMeal('Desayuno')" id="btn-Desayuno" class="meal-btn flex-1 py-2 rounded-md border-2 font-bold text-xs transition-all border-orange-200 text-orange-700 bg-orange-50">DESAYUNO</button>
+                            <button onclick="setMeal('Almuerzo')" id="btn-Almuerzo" class="meal-btn flex-1 py-2 rounded-md border-2 font-bold text-xs transition-all border-gray-200 text-gray-400">ALMUERZO</button>
+                            <button onclick="setMeal('Cena')" id="btn-Cena" class="meal-btn flex-1 py-2 rounded-md border-2 font-bold text-xs transition-all border-gray-200 text-gray-400">CENA</button>
+                        </div>
+                    </div>
+
+                    <form id="registro-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">DNI (Manual o Escaneado)</label>
+                            <input type="text" id="dni-input" autocomplete="off" placeholder="Esperando DNI..." class="w-full p-4 text-2xl font-mono font-bold rounded-lg input-focus border-2" required>
+                        </div>
+
+                        <div id="info-preview" class="hidden p-4 bg-blue-50 rounded-lg border border-blue-100">
+                            <p class="text-xs text-blue-600 font-bold uppercase">Datos Encontrados:</p>
+                            <p id="preview-nombre" class="text-lg font-black text-blue-900 leading-tight"></p>
+                            <p id="preview-rango" class="text-sm text-blue-700"></p>
+                        </div>
+
+                        <button type="submit" id="submit-btn" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-4 rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50">
+                            CONFIRMAR INGRESO
+                        </button>
+                    </form>
+                </div>
+
+                <div id="alerta-fraude" class="hidden card p-4 bg-red-600 text-white animate-bounce">
+                    <div class="flex items-center">
+                        <svg class="w-10 h-10 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        <div>
+                            <p class="font-black text-lg underline uppercase">¡ALERTA DE SEGURIDAD!</p>
+                            <p class="text-sm opacity-90" id="fraude-msg"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel de Monitoreo -->
+            <div class="lg:col-span-7 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="card p-4 bg-white border-l-4 border-orange-500">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase">Desayunos</p>
+                        <p id="stat-desayuno" class="text-2xl font-black">0</p>
+                    </div>
+                    <div class="card p-4 bg-white border-l-4 border-blue-500">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase">Almuerzos</p>
+                        <p id="stat-almuerzo" class="text-2xl font-black">0</p>
+                    </div>
+                    <div class="card p-4 bg-white border-l-4 border-indigo-500">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase">Cenas</p>
+                        <p id="stat-cena" class="text-2xl font-black">0</p>
+                    </div>
+                    <div class="card p-4 bg-red-50 border-l-4 border-red-600">
+                        <p class="text-[10px] font-bold text-red-600 uppercase">Rechazados</p>
+                        <p id="stat-rechazados" class="text-2xl font-black text-red-700">0</p>
+                    </div>
+                </div>
+
+                <div class="card overflow-hidden">
+                    <div class="p-4 border-b bg-gray-50 flex justify-between items-center">
+                        <h3 class="font-bold text-gray-700 uppercase text-sm tracking-widest">Historial Diario</h3>
+                        <div class="flex gap-2">
+                            <button id="btn-export" class="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold hover:bg-green-700">EXPORTAR EXCEL</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto h-[500px]">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-100 text-gray-600 text-[10px] uppercase sticky top-0">
+                                <tr>
+                                    <th class="p-4">Hora</th>
+                                    <th class="p-4">Suboficial</th>
+                                    <th class="p-4">DNI</th>
+                                    <th class="p-4">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="log-body" class="divide-y text-xs">
+                                <!-- Filas -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // PADRÓN OFICIAL (Base de datos de 200 personas aproximadas)
+        const PADRON_OFICIAL = [
+            { dni: "1010", nombre: "JUAN PEREZ", rango: "SUBOFICIAL MAYOR" },
+            { dni: "2020", nombre: "MARIA GARCIA", rango: "SUBOFICIAL AUXILIAR" },
+            { dni: "3030", nombre: "CARLOS RUIZ", rango: "CABO PRIMERO" },
+            { dni: "4040", nombre: "LUIS LOPEZ", rango: "SUBOFICIAL SEGUNDO" },
+            { dni: "5050", nombre: "ANA MARTINEZ", rango: "SUBOFICIAL PRINCIPAL" },
+            { dni: "6060", nombre: "ROBERTO SOSA", rango: "CABO" },
+            { dni: "7070", nombre: "ELENA PEÑA", rango: "SUBOFICIAL PRIMERO" }
+        ];
+
+        let registros = JSON.parse(localStorage.getItem('comedor_v4_data')) || [];
+        let mealActual = 'Desayuno';
+        let html5QrCode;
+
+        const dniInput = document.getElementById('dni-input');
+        const infoPreview = document.getElementById('info-preview');
+        const previewNombre = document.getElementById('preview-nombre');
+        const previewRango = document.getElementById('preview-rango');
+        const form = document.getElementById('registro-form');
+        const alertaFraude = document.getElementById('alerta-fraude');
+
+        // INICIALIZACIÓN DEL ESCÁNER
+        function onScanSuccess(decodedText, decodedResult) {
+            // El texto decodificado es el DNI
+            dniInput.value = decodedText;
+            validarDNI(decodedText);
+            
+            // Pausar brevemente para evitar múltiples lecturas del mismo código
+            html5QrCode.pause();
+            setTimeout(() => { html5QrCode.resume(); }, 2000);
+        }
+
+        function initScanner() {
+            html5QrCode = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+            
+            // Iniciar con la cámara trasera por defecto
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+            .catch(err => {
+                console.error("Error iniciando cámara", err);
+                document.getElementById('reader').innerHTML = `<p class="p-4 text-red-500 text-xs">Cámara no detectada o permiso denegado.</p>`;
+            });
+        }
+
+        // Reloj
+        setInterval(() => {
+            document.getElementById('current-time').innerText = new Date().toLocaleTimeString('es-ES', {hour12: false});
+        }, 1000);
+
+        function setMeal(meal) {
+            mealActual = meal;
+            document.querySelectorAll('.meal-btn').forEach(btn => {
+                btn.classList.remove('border-orange-200', 'text-orange-700', 'bg-orange-50', 'border-blue-200', 'text-blue-700', 'bg-blue-50', 'border-indigo-200', 'text-indigo-700', 'bg-indigo-50');
+                btn.classList.add('border-gray-200', 'text-gray-400');
+            });
+            const activeBtn = document.getElementById(`btn-${meal}`);
+            activeBtn.classList.remove('border-gray-200', 'text-gray-400');
+            if(meal === 'Desayuno') activeBtn.classList.add('border-orange-200', 'text-orange-700', 'bg-orange-50');
+            if(meal === 'Almuerzo') activeBtn.classList.add('border-blue-200', 'text-blue-700', 'bg-blue-50');
+            if(meal === 'Cena') activeBtn.classList.add('border-indigo-200', 'text-indigo-700', 'bg-indigo-50');
+            renderAll();
+        }
+
+        function validarDNI(val) {
+            alertaFraude.classList.add('hidden');
+            dniInput.classList.remove('access-denied');
+            const persona = PADRON_OFICIAL.find(p => p.dni === val);
+            if(persona) {
+                infoPreview.classList.remove('hidden');
+                previewNombre.innerText = persona.nombre;
+                previewRango.innerText = persona.rango;
+                return persona;
+            } else {
+                infoPreview.classList.add('hidden');
+                return null;
+            }
+        }
+
+        dniInput.addEventListener('input', (e) => validarDNI(e.target.value));
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const dni = dniInput.value;
+            const hoy = new Date().toLocaleDateString();
+            const persona = validarDNI(dni);
+
+            if(!persona) {
+                showError("EL DNI NO EXISTE EN EL PADRÓN OFICIAL");
+                registrarAccion(dni, "DESCONOCIDO", "N/A", `RECHAZADO (NO EN PADRÓN)`);
+                return;
+            }
+
+            const yaComio = registros.find(r => r.dni === dni && r.fecha === hoy && r.servicio === mealActual && r.estado === 'AUTORIZADO');
+            if(yaComio) {
+                showError(`INTENTO DE FRAUDE: ${persona.nombre} YA COMIÓ ${mealActual.toUpperCase()} A LAS ${yaComio.hora}`);
+                registrarAccion(dni, persona.nombre, persona.rango, `FRAUDE: DUPLICADO ${mealActual}`);
+                return;
+            }
+
+            registrarAccion(dni, persona.nombre, persona.rango, 'AUTORIZADO');
+            dniInput.value = '';
+            infoPreview.classList.add('hidden');
+        });
+
+        function registrarAccion(dni, nombre, rango, estado) {
+            const reg = {
+                id: Date.now(),
+                dni, nombre, rango, 
+                servicio: mealActual,
+                fecha: new Date().toLocaleDateString(),
+                hora: new Date().toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}),
+                estado
+            };
+            registros.push(reg);
+            localStorage.setItem('comedor_v4_data', JSON.stringify(registros));
+            renderAll();
+        }
+
+        function showError(msg) {
+            alertaFraude.classList.remove('hidden');
+            document.getElementById('fraude-msg').innerText = msg;
+            dniInput.classList.add('access-denied');
+            // Sonido opcional o vibración podría ir aquí
+        }
+
+        function renderAll() {
+            const hoy = new Date().toLocaleDateString();
+            const tbody = document.getElementById('log-body');
+            tbody.innerHTML = '';
+            let stats = { Desayuno: 0, Almuerzo: 0, Cena: 0, Rechazado: 0 };
+
+            registros.filter(r => r.fecha === hoy).reverse().forEach(r => {
+                if(r.estado === 'AUTORIZADO') stats[r.servicio]++;
+                else stats.Rechazado++;
+
+                const row = document.createElement('tr');
+                row.className = r.estado.includes('AUTORIZADO') ? "" : "bg-red-50 text-red-600";
+                row.innerHTML = `
+                    <td class="p-4 font-mono font-bold">${r.hora}</td>
+                    <td class="p-4"><b>${r.nombre}</b><br><span class="opacity-60">${r.rango}</span></td>
+                    <td class="p-4 font-mono">${r.dni}</td>
+                    <td class="p-4">
+                        <span class="status-badge ${r.estado === 'AUTORIZADO' ? 'bg-green-100 text-green-700' : 'bg-red-600 text-white'}">
+                            ${r.estado}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('stat-desayuno').innerText = stats.Desayuno;
+            document.getElementById('stat-almuerzo').innerText = stats.Almuerzo;
+            document.getElementById('stat-cena').innerText = stats.Cena;
+            document.getElementById('stat-rechazados').innerText = stats.Rechazado;
+        }
+
+        document.getElementById('btn-export').addEventListener('click', () => {
+            let csv = "Fecha;Hora;DNI;Nombre;Rango;Servicio;Estado\n";
+            registros.forEach(r => { csv += `${r.fecha};${r.hora};${r.dni};${r.nombre};${r.rango};${r.servicio};${r.estado}\n`; });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "comedor_reporte.csv";
+            a.click();
+        });
+
+        // Iniciar escáner al cargar
+        window.onload = () => {
+            initScanner();
+            renderAll();
+        };
+    </script>
+</body>
+</html>
