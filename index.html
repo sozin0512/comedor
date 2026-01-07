@@ -152,7 +152,7 @@
           <div class="card p-6 border-t-4 border-blue-500">
             <div class="flex justify-between items-center mb-6">
               <h3 class="text-xl font-black uppercase italic">Archivo de Personal</h3>
-              <button onclick="openUserModal('')" class="bg-blue-600 text-white px-5 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg">Nuevo Manual</button>
+              <button onclick="openUserModal({})" class="bg-blue-600 text-white px-5 py-2 rounded-xl font-black text-[10px] uppercase shadow-lg">Nuevo Manual</button>
             </div>
 
             <div class="mb-4 grid md:grid-cols-2 gap-3">
@@ -242,7 +242,7 @@
         </div>
         <div>
           <label class="text-[9px] font-bold uppercase">Rango / Grado</label>
-          <input type="text" id="mu-rango" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-white uppercase">
+          <input type="text" id="mu-rango" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-white uppercase" placeholder="EJ: SARGENTO / CABO / ...">
         </div>
 
         <div class="grid grid-cols-2 gap-3 pt-2">
@@ -276,35 +276,93 @@
     function todayISO() {
       const d = new Date();
       const tz = new Date(d.getTime() - d.getTimezoneOffset()*60000);
-      return tz.toISOString().slice(0,10); // YYYY-MM-DD
+      return tz.toISOString().slice(0,10);
     }
-    function dateES() {
-      return new Date().toLocaleDateString('es-HN');
+    function dateES() { return new Date().toLocaleDateString('es-HN'); }
+    function timeES() { return new Date().toLocaleTimeString('es-HN', {hour12:false, hour:'2-digit', minute:'2-digit'}); }
+    function round2(n){ return Math.round((Number(n)||0)*100)/100; }
+
+    /**********************
+     *  PARSER DNI HN (CLAVE)
+     *  - Acepta lecturas PDF417/QR/MRZ
+     *  - Devuelve: { dni13, nombre, raw }
+     **********************/
+    function parseHNDFromScan(rawText){
+      const raw = String(rawText ?? '').trim();
+      const clean = raw.replace(/\s+/g,' ').toUpperCase();
+
+      // 1) Buscar DNI 13 dígitos (0501200204417) esté como esté (con espacios o junto)
+      //    - típico impreso: "0501 2002 04417" => lo normalizamos a 13.
+      const digits = clean.replace(/\D/g,'');
+      // buscar cualquier ventana de 13 dígitos dentro del string
+      let dni13 = null;
+      for(let i=0;i+13<=digits.length;i++){
+        const cand = digits.slice(i,i+13);
+        // regla mínima: no todo ceros
+        if(cand !== '0000000000000'){
+          dni13 = cand;
+          break;
+        }
+      }
+
+      // 2) Si no salió 13, intentar MRZ primera línea: I<HND0036825073<<<< => (10 dígitos doc)
+      //    (Se usa solo como fallback si tu lector no trae el 13 dígitos)
+      let doc10 = null;
+      const mrz1 = clean.match(/I<\s*HND\s*([0-9]{8,12})/);
+      if(mrz1) doc10 = mrz1[1];
+
+      // 3) Nombre desde MRZ tercera línea: APELLIDO1<APELLIDO2<NOMBRE1<NOMBRE2<<<
+      let nombre = '';
+      const mrzName = clean.match(/[A-ZÑ]+<[^<]+<[^<]+/); // aproximación robusta
+      // mejor: detectar la línea con muchos "<" y sin "HND"
+      const lines = raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      const mrzLine = lines.find(l => l.includes('<') && /[A-Z]/i.test(l) && !l.toUpperCase().includes('HND') && l.length > 10);
+      if(mrzLine){
+        const parts = mrzLine.toUpperCase().split('<<');
+        // parts[0] = APELLIDOS (con <), parts[1] = NOMBRES (con <)
+        const apellidos = (parts[0] || '').replaceAll('<',' ').replace(/\s+/g,' ').trim();
+        const nombres   = (parts[1] || '').replaceAll('<',' ').replace(/\s+/g,' ').trim();
+        const full = `${nombres} ${apellidos}`.replace(/\s+/g,' ').trim();
+        if(full.length >= 3) nombre = full;
+      } else if(mrzName){
+        // fallback muy simple (no perfecto)
+        nombre = mrzName[0].replaceAll('<',' ').replace(/\s+/g,' ').trim();
+      }
+
+      return {
+        dni13: dni13 || null,
+        doc10: doc10 || null,
+        nombre: nombre || '',
+        raw
+      };
     }
-    function timeES() {
-      return new Date().toLocaleTimeString('es-HN', {hour12:false, hour:'2-digit', minute:'2-digit'});
+
+    // Normaliza lo que se usará como "DNI" en tu base
+    // Preferencia: DNI 13 dígitos. Si no existe, usa doc10.
+    function resolveKeyFromScan(rawText){
+      const parsed = parseHNDFromScan(rawText);
+      const key = parsed.dni13 || parsed.doc10 || '';
+      return { key, parsed };
     }
 
     /**********************
      *  DB (CON MIGRACIÓN)
      **********************/
     const LS_KEYS = {
-      preciosDay: 'm_precios_day_hn',     // NUEVO: precios por día (ISO)
+      preciosDay: 'm_precios_day_hn',
       personal:   'm_personal_hn',
       log:        'm_log_hn',
-      recargas:   'm_recargas_hn'         // NUEVO: historial recargas
+      recargas:   'm_recargas_hn'
     };
-
     const DEFAULT_PRECIOS = { Desayuno: 50, Almuerzo: 100, Cena: 70 };
 
     let DB = {
-      preciosDay: JSON.parse(localStorage.getItem(LS_KEYS.preciosDay)) || {},  // { '2026-01-07': {Desayuno:..} }
+      preciosDay: JSON.parse(localStorage.getItem(LS_KEYS.preciosDay)) || {},
       personal:   JSON.parse(localStorage.getItem(LS_KEYS.personal))   || [],
       log:        JSON.parse(localStorage.getItem(LS_KEYS.log))        || [],
       recargas:   JSON.parse(localStorage.getItem(LS_KEYS.recargas))   || []
     };
 
-    // Migración: si existía m_precios_hn (viejo), lo pasamos al día de hoy
     (function migrateOldPrices(){
       const old = localStorage.getItem('m_precios_hn');
       if(old){
@@ -342,14 +400,9 @@
      *  INIT
      **********************/
     function init() {
-      // precios del día
       ensureTodayPrices();
       loadPricesToInputs();
-
-      // set date default en historial
-      const his = document.getElementById('his-date');
-      his.value = todayISO();
-
+      document.getElementById('his-date').value = todayISO();
       startScanner();
       renderAll();
     }
@@ -357,7 +410,6 @@
     function ensureTodayPrices(){
       const iso = todayISO();
       if(!DB.preciosDay[iso]) DB.preciosDay[iso] = { ...DEFAULT_PRECIOS };
-      // sanitizar
       ['Desayuno','Almuerzo','Cena'].forEach(k=>{
         const v = Number(DB.preciosDay[iso][k]);
         DB.preciosDay[iso][k] = isFinite(v) ? v : DEFAULT_PRECIOS[k];
@@ -391,43 +443,69 @@
 
         scanner.start({ facingMode: "environment" }, config, (text) => {
           if (scanLock) return;
-          const dni = (text || '').trim().toUpperCase();
-          if (!dni) return;
-          handleSmartScan(dni);
+          const raw = String(text || '').trim();
+          if (!raw) return;
+          handleSmartScan(raw);
         }).catch(() => notify("Lector Offline", "No se pudo iniciar la cámara. Use entrada manual.", "yellow"));
       } catch(e) {
         notify("Lector Offline", "Navegador no soporta el lector. Use entrada manual.", "yellow");
       }
     }
 
-    function handleSmartScan(dni) {
+    // AQUÍ está la mejora: se interpreta el escaneo (PDF417/MRZ/QR) y se extrae DNI + nombre.
+    function handleSmartScan(rawScan) {
       scanLock = true;
       document.getElementById('reader').classList.add('scanner-highlight');
 
+      const { key, parsed } = resolveKeyFromScan(rawScan);
+      if(!key){
+        notify("Lectura Inválida", "No se pudo extraer DNI del código. Pruebe de nuevo.", "red");
+        unlockScan();
+        return;
+      }
+
       if (currentTab === 'control') {
-        document.getElementById('dni-input').value = dni;
-        previewUser(dni);
-        const p = findPerson(dni);
-        if (p) processAccess(dni);
-        else {
-          notify("No Registrado", `El DNI ${dni} no está en la base de datos.`, "red");
-          setTimeout(() => openUserModal(dni), 800);
+        document.getElementById('dni-input').value = key;
+        previewUser(key);
+
+        const p = findPerson(key);
+        if (p) {
+          processAccess(key);
+        } else {
+          // NUEVO INGRESO: abre modal con DNI y nombre (si venía en MRZ/PDF417)
+          notify("Nuevo Ingreso", "Registro no encontrado. Complete y guarde el ingreso.", "yellow");
+          openUserModal({ dni: key, nombre: parsed.nombre || '' });
         }
-      } else if (currentTab === 'recarga') {
-        document.getElementById('rec-dni').value = dni;
-        notify("Personal Identificado", "Ingrese el monto a recargar.", "yellow");
-      } else if (currentTab === 'personal') {
-        const p = findPerson(dni);
-        if (p) notify("Localizado", `${p.rango}: ${p.nombre}`, "blue");
-        else openUserModal(dni);
-      } else if (currentTab === 'historial') {
+      }
+      else if (currentTab === 'recarga') {
+        document.getElementById('rec-dni').value = key;
+        const p = findPerson(key);
+        if(p) notify("Personal Identificado", "Ingrese el monto a recargar.", "yellow");
+        else {
+          notify("No Registrado", "Primero regístrelo en Base de Datos.", "red");
+          openUserModal({ dni: key, nombre: parsed.nombre || '' });
+        }
+      }
+      else if (currentTab === 'personal') {
+        const p = findPerson(key);
+        if (p) {
+          notify("Localizado", `${p.rango}: ${p.nombre}`, "blue");
+        } else {
+          openUserModal({ dni: key, nombre: parsed.nombre || '' });
+        }
+      }
+      else if (currentTab === 'historial') {
         notify("Info", "Historial no usa escaneo. Cambie a Control/Recarga.", "yellow");
       }
 
+      unlockScan();
+    }
+
+    function unlockScan(){
       setTimeout(() => {
         scanLock = false;
         document.getElementById('reader').classList.remove('scanner-highlight');
-      }, 1500);
+      }, 1200);
     }
 
     /**********************
@@ -450,16 +528,19 @@
       const hoyISO = todayISO();
       const costo = getTodayCost(currentMeal);
 
-      // Duplicado OK mismo día/servicio
       if (DB.log.some(l => l.dni === dni && l.fechaISO === hoyISO && l.servicio === currentMeal && l.estado === 'OK')) {
         notify("Ya Consumido", `${p.nombre} ya recibió su ${currentMeal} hoy.`, "red");
         saveLog(p, 'DUPLICADO', 0);
+        saveDB();
+        renderAll();
         return;
       }
 
       if (p.saldo < costo) {
         notify("Saldo Insuficiente", `Saldo: L. ${p.saldo.toFixed(2)} | Costo: L. ${costo.toFixed(2)}`, "red");
         saveLog(p, 'SIN SALDO', 0);
+        saveDB();
+        renderAll();
         return;
       }
 
@@ -479,11 +560,10 @@
         servicio: currentMeal,
         estado,
         costo: round2(Number(costo || 0)),
-        fechaISO: todayISO(),       // clave para historial día por día
-        fecha: dateES(),            // visual
+        fechaISO: todayISO(),
+        fecha: dateES(),
         hora: timeES()
       });
-      saveDB();
     }
 
     function doRecarga() {
@@ -505,10 +585,9 @@
         fechaISO: todayISO(),
         fecha: dateES(),
         hora: timeES(),
-        comprobante: lastImg // base64 (queda guardado localmente)
+        comprobante: lastImg
       });
 
-      // Reset
       document.getElementById('rec-dni').value = "";
       document.getElementById('rec-monto').value = "";
       lastImg = null;
@@ -518,8 +597,6 @@
       notify("Carga Exitosa", `L. ${monto.toFixed(2)} acreditados a ${p.nombre}`, "green");
       renderAll();
     }
-
-    function round2(n){ return Math.round((Number(n)||0)*100)/100; }
 
     /**********************
      *  PERSONAL (CRUD)
@@ -585,7 +662,7 @@
       }
       document.getElementById('pv-nombre').innerText = p.nombre;
       document.getElementById('pv-rango').innerText = p.rango || '';
-      document.getElementById('pv-saldo').innerText = `L. ${p.saldo.toFixed(2)}`;
+      document.getElementById('pv-saldo').innerText = `L. ${Number(p.saldo||0).toFixed(2)}`;
       pv.classList.remove('hidden');
       setTimeout(()=>pv.classList.add('hidden'), 2500);
     }
@@ -623,15 +700,14 @@
       todayLogs.forEach(l => {
         if (l.estado === 'OK') {
           if (l.servicio === 'Desayuno') stats.d++;
-          else if (l.servicio === 'Almuerzo') stats.a++;
-          else if (l.servicio === 'Cena') stats.a++; // se mantiene A. Hoy como almuerzo/cena (si desea separar, lo hago)
+          else stats.a++;
         } else {
           stats.f++;
         }
 
         logBody.innerHTML += `
           <tr class="border-b border-slate-700/50">
-            <td class="p-4 text-slate-500 font-mono">${l.hora}</td>
+            <td class="p-4 text-slate-500 font-mono">${escapeHTML(l.hora)}</td>
             <td class="p-4 font-black uppercase text-white">${escapeHTML(l.nombre)}</td>
             <td class="p-4 font-bold text-slate-400">${escapeHTML(l.servicio)}</td>
             <td class="p-4 text-right font-black">L. ${Number(l.costo||0).toFixed(2)}</td>
@@ -663,7 +739,7 @@
             <td class="p-4 font-bold text-slate-500 uppercase">${escapeHTML(p.rango||'')}</td>
             <td class="p-4 text-right font-black text-green-500">L. ${Number(p.saldo||0).toFixed(2)}</td>
             <td class="p-4 text-center">
-              <button onclick="openUserModal('${escapeAttr(p.dni)}')" class="text-yellow-500 opacity-70 hover:opacity-100 text-[10px] font-black mr-3">EDITAR</button>
+              <button onclick="openUserModal({dni:'${escapeAttr(p.dni)}'})" class="text-yellow-500 opacity-70 hover:opacity-100 text-[10px] font-black mr-3">EDITAR</button>
               <button onclick="deleteUser('${escapeAttr(p.dni)}')" class="text-red-500 opacity-50 hover:opacity-100 text-[10px] font-black">ELIMINAR</button>
             </td>
           </tr>
@@ -726,20 +802,21 @@
       document.getElementById('btn-'+m).classList.add('meal-active');
     }
 
-    function openUserModal(dni) {
-      const isEdit = !!dni && !!findPerson(dni);
+    // MODAL recibe objeto: {dni, nombre}
+    function openUserModal(payload) {
+      const dni = (payload?.dni || '').toUpperCase().trim();
+      const existing = dni ? findPerson(dni) : null;
+
       editMode = false;
       document.getElementById('mu-editbtn').innerText = "Modo Editar";
 
-      document.getElementById('mu-title').innerText = isEdit ? "Editar Personal" : "Alta de Personal";
+      document.getElementById('mu-title').innerText = existing ? "Editar Personal" : "Alta de Personal";
       document.getElementById('mu-dni').value = dni || "";
-      const p = dni ? findPerson(dni) : null;
-      document.getElementById('mu-nombre').value = p ? p.nombre : "";
-      document.getElementById('mu-rango').value = p ? (p.rango||"") : "";
-      document.getElementById('mu-saldo').value = p ? Number(p.saldo||0) : 0;
+      document.getElementById('mu-nombre').value = existing ? existing.nombre : (payload?.nombre || "");
+      document.getElementById('mu-rango').value = existing ? (existing.rango||"") : "";
+      document.getElementById('mu-saldo').value = existing ? Number(existing.saldo||0) : 0;
 
-      // DNI no editable si ya existe
-      document.getElementById('mu-dni').disabled = isEdit;
+      document.getElementById('mu-dni').disabled = !!existing;
       document.getElementById('modal-user').classList.remove('hidden');
     }
 
