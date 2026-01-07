@@ -232,11 +232,16 @@
     <div class="card max-w-sm w-full p-8 border-t-8 border-blue-600">
       <h3 class="text-2xl font-black uppercase italic mb-6 text-white" id="mu-title">Alta de Personal</h3>
       <div class="space-y-4 text-slate-400">
-        <div>
-          <label class="text-[9px] font-bold uppercase">DNI Identificado</label>
-          <input type="text" id="mu-dni" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-yellow-500 uppercase">
-        </div>
-        <div>
+       <div>
+  <label class="text-[9px] font-bold uppercase">ID Escaneado (Código de barras)</label>
+  <input type="text" id="mu-idscan" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-yellow-500 uppercase" disabled>
+</div>
+
+<div>
+  <label class="text-[9px] font-bold uppercase">Número de Identidad (13 dígitos)</label>
+  <input type="text" id="mu-dni13" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-white uppercase" placeholder="SE LLENA SI VIENE EN EL CÓDIGO">
+</div>
+
           <label class="text-[9px] font-bold uppercase">Nombre Completo</label>
           <input type="text" id="mu-nombre" class="w-full bg-slate-900 p-4 border border-slate-700 rounded-xl font-black text-white uppercase">
         </div>
@@ -453,53 +458,49 @@
     }
 
     // AQUÍ está la mejora: se interpreta el escaneo (PDF417/MRZ/QR) y se extrae DNI + nombre.
-    function handleSmartScan(rawScan) {
-      scanLock = true;
-      document.getElementById('reader').classList.add('scanner-highlight');
+   function handleSmartScan(rawScan) {
+  scanLock = true;
+  document.getElementById('reader').classList.add('scanner-highlight');
 
-      const { key, parsed } = resolveKeyFromScan(rawScan);
-      if(!key){
-        notify("Lectura Inválida", "No se pudo extraer DNI del código. Pruebe de nuevo.", "red");
-        unlockScan();
-        return;
-      }
+  const parsed = parseFromScan(rawScan);
+  const idScan = parsed.idScan;
 
-      if (currentTab === 'control') {
-        document.getElementById('dni-input').value = key;
-        previewUser(key);
+  if(!idScan){
+    notify("Lectura Inválida", "No se pudo leer el código de barras.", "red");
+    return unlockScan();
+  }
 
-        const p = findPerson(key);
-        if (p) {
-          processAccess(key);
-        } else {
-          // NUEVO INGRESO: abre modal con DNI y nombre (si venía en MRZ/PDF417)
-          notify("Nuevo Ingreso", "Registro no encontrado. Complete y guarde el ingreso.", "yellow");
-          openUserModal({ dni: key, nombre: parsed.nombre || '' });
-        }
-      }
-      else if (currentTab === 'recarga') {
-        document.getElementById('rec-dni').value = key;
-        const p = findPerson(key);
-        if(p) notify("Personal Identificado", "Ingrese el monto a recargar.", "yellow");
-        else {
-          notify("No Registrado", "Primero regístrelo en Base de Datos.", "red");
-          openUserModal({ dni: key, nombre: parsed.nombre || '' });
-        }
-      }
-      else if (currentTab === 'personal') {
-        const p = findPerson(key);
-        if (p) {
-          notify("Localizado", `${p.rango}: ${p.nombre}`, "blue");
-        } else {
-          openUserModal({ dni: key, nombre: parsed.nombre || '' });
-        }
-      }
-      else if (currentTab === 'historial') {
-        notify("Info", "Historial no usa escaneo. Cambie a Control/Recarga.", "yellow");
-      }
+  if(currentTab === 'control') {
+    document.getElementById('dni-input').value = idScan;
 
-      unlockScan();
+    const p = findPersonByScan(idScan);
+    if(p){
+      processAccess(idScan);
+    } else {
+      notify("Nuevo Ingreso", "No existe en base. Registre el personal.", "yellow");
+      openUserModal({ idScan, dni13: parsed.dni13, nombre: parsed.nombre });
     }
+  }
+
+  else if(currentTab === 'recarga') {
+    document.getElementById('rec-dni').value = idScan;
+    const p = findPersonByScan(idScan);
+    if(p) notify("Personal Identificado", "Ingrese el monto a recargar.", "yellow");
+    else {
+      notify("No Registrado", "Primero regístrelo en Base de Datos.", "red");
+      openUserModal({ idScan, dni13: parsed.dni13, nombre: parsed.nombre });
+    }
+  }
+
+  else if(currentTab === 'personal') {
+    const p = findPersonByScan(idScan);
+    if(p) notify("Localizado", `${p.rango}: ${p.nombre}`, "blue");
+    else openUserModal({ idScan, dni13: parsed.dni13, nombre: parsed.nombre });
+  }
+
+  unlockScan();
+}
+
 
     function unlockScan(){
       setTimeout(() => {
@@ -511,9 +512,42 @@
     /**********************
      *  NEGOCIO
      **********************/
-    function findPerson(dni){
-      return DB.personal.find(u => u.dni === dni);
-    }
+   function findPersonByScan(idScan){
+  return DB.personal.find(u => u.idScan === idScan);
+}
+
+function parseFromScan(rawText){
+  const raw = String(rawText ?? '').trim();
+  const up  = raw.toUpperCase();
+
+  // ID principal: lo que devuelve el escáner (código de barras suele ser esto)
+  const idScan = raw.trim();
+
+  // Intentar sacar DNI 13 si viene dentro del texto (con o sin espacios)
+  const digits = up.replace(/\D/g,'');
+  let dni13 = '';
+  for(let i=0;i+13<=digits.length;i++){
+    const cand = digits.slice(i,i+13);
+    if(cand !== '0000000000000'){ dni13 = cand; break; }
+  }
+
+  // Intentar nombre desde MRZ si el texto trae "<" (solo funcionará si el escaneo trae MRZ/QR con datos)
+  let nombre = '';
+  const lines = raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const mrzLine = lines.find(l => l.includes('<') && !l.toUpperCase().includes('HND') && l.length > 12);
+  if(mrzLine){
+    const parts = mrzLine.toUpperCase().split('<<');
+    const apellidos = (parts[0] || '').replaceAll('<',' ').replace(/\s+/g,' ').trim();
+    const nombres   = (parts[1] || '').replaceAll('<',' ').replace(/\s+/g,' ').trim();
+    const full = `${nombres} ${apellidos}`.replace(/\s+/g,' ').trim();
+    if(full.length >= 3) nombre = full;
+  }
+
+  return { idScan, dni13, nombre, raw };
+}
+
+
+
 
     function getTodayCost(meal){
       const iso = todayISO();
@@ -521,50 +555,49 @@
       return Number(DB.preciosDay[iso][meal] || 0);
     }
 
-    function processAccess(dni) {
-      const p = findPerson(dni);
-      if (!p) return;
+    function processAccess(idScan) {
+  const p = findPersonByScan(idScan);
+  if(!p) return;
 
-      const hoyISO = todayISO();
-      const costo = getTodayCost(currentMeal);
+  const hoyISO = todayISO();
+  const costo = getTodayCost(currentMeal);
 
-      if (DB.log.some(l => l.dni === dni && l.fechaISO === hoyISO && l.servicio === currentMeal && l.estado === 'OK')) {
-        notify("Ya Consumido", `${p.nombre} ya recibió su ${currentMeal} hoy.`, "red");
-        saveLog(p, 'DUPLICADO', 0);
-        saveDB();
-        renderAll();
-        return;
-      }
+  if(DB.log.some(l => l.idScan === idScan && l.fechaISO === hoyISO && l.servicio === currentMeal && l.estado === 'OK')) {
+    notify("Ya Consumido", `${p.nombre} ya recibió su ${currentMeal} hoy.`, "red");
+    saveLog(p, 'DUPLICADO', 0);
+    saveDB(); renderAll();
+    return;
+  }
 
-      if (p.saldo < costo) {
-        notify("Saldo Insuficiente", `Saldo: L. ${p.saldo.toFixed(2)} | Costo: L. ${costo.toFixed(2)}`, "red");
-        saveLog(p, 'SIN SALDO', 0);
-        saveDB();
-        renderAll();
-        return;
-      }
+  if(p.saldo < costo) {
+    notify("Saldo Insuficiente", `Saldo: L. ${p.saldo.toFixed(2)} | Costo: L. ${costo.toFixed(2)}`, "red");
+    saveLog(p, 'SIN SALDO', 0);
+    saveDB(); renderAll();
+    return;
+  }
 
-      p.saldo = round2(p.saldo - costo);
-      saveLog(p, 'OK', costo);
+  p.saldo = round2(p.saldo - costo);
+  saveLog(p, 'OK', costo);
 
-      notify("Autorizado", `Buen provecho, ${p.rango}.`, "green");
-      saveDB();
-      renderAll();
-    }
+  notify("Autorizado", `Buen provecho, ${p.rango}.`, "green");
+  saveDB();
+  renderAll();
+}
 
-    function saveLog(p, estado, costo) {
-      DB.log.push({
-        dni: p.dni,
-        nombre: p.nombre,
-        rango: p.rango,
-        servicio: currentMeal,
-        estado,
-        costo: round2(Number(costo || 0)),
-        fechaISO: todayISO(),
-        fecha: dateES(),
-        hora: timeES()
-      });
-    }
+function saveLog(p, estado, costo) {
+  DB.log.push({
+    idScan: p.idScan,
+    dni13: p.dni13 || "",
+    nombre: p.nombre,
+    rango: p.rango,
+    servicio: currentMeal,
+    estado,
+    costo: round2(Number(costo || 0)),
+    fechaISO: todayISO(),
+    fecha: dateES(),
+    hora: timeES()
+  });
+}
 
     function doRecarga() {
       const dni = document.getElementById('rec-dni').value.toUpperCase().trim();
@@ -607,30 +640,40 @@
       notify("Modo", editMode ? "Edición habilitada." : "Edición deshabilitada.", editMode ? "yellow" : "blue");
     }
 
-    function saveUser() {
-      const dni = document.getElementById('mu-dni').value.toUpperCase().trim();
-      const nom = document.getElementById('mu-nombre').value.toUpperCase().trim();
-      const ran = document.getElementById('mu-rango').value.toUpperCase().trim();
-      const saldo = Number(document.getElementById('mu-saldo').value);
+ function saveUser() {
+  const idScan = document.getElementById('mu-idscan').value.trim();
+  const dni13  = document.getElementById('mu-dni13').value.replace(/\D/g,'').slice(0,13);
+  const nom    = document.getElementById('mu-nombre').value.toUpperCase().trim();
+  const ran    = document.getElementById('mu-rango').value.toUpperCase().trim();
+  const saldo  = Number(document.getElementById('mu-saldo').value);
 
-      if (!dni || !nom) return notify("Error", "DNI y Nombre son obligatorios.", "red");
+  if(!idScan) return notify("Error", "Falta ID (código de barras). Escanee el carnet.", "red");
+  if(!nom)    return notify("Error", "Nombre es obligatorio.", "red");
 
-      const idx = DB.personal.findIndex(u => u.dni === dni);
+  const idx = DB.personal.findIndex(u => u.idScan === idScan);
 
-      if (idx > -1) {
-        if (!editMode) return notify("Bloqueado", "Active 'Modo Editar' para modificar registros.", "red");
-        DB.personal[idx].nombre = nom;
-        DB.personal[idx].rango = ran;
-        if (isFinite(saldo) && saldo >= 0) DB.personal[idx].saldo = round2(saldo);
-      } else {
-        DB.personal.push({ dni, nombre: nom, rango: ran, saldo: round2(isFinite(saldo) ? saldo : 0) });
-      }
+  if(idx > -1) {
+    if(!editMode) return notify("Bloqueado", "Active 'Modo Editar' para modificar.", "red");
+    DB.personal[idx].dni13  = dni13 || DB.personal[idx].dni13 || "";
+    DB.personal[idx].nombre = nom;
+    DB.personal[idx].rango  = ran;
+    if(isFinite(saldo) && saldo >= 0) DB.personal[idx].saldo = round2(saldo);
+  } else {
+    DB.personal.push({
+      idScan,
+      dni13: dni13 || "",
+      nombre: nom,
+      rango: ran,
+      saldo: round2(isFinite(saldo) ? saldo : 0)
+    });
+  }
 
-      saveDB();
-      closeUserModal();
-      renderAll();
-      notify("Guardado", "Registro actualizado con éxito.", "green");
-    }
+  saveDB();
+  closeUserModal();
+  renderAll();
+  notify("Guardado", "Registro actualizado con éxito.", "green");
+}
+
 
     function deleteUser(dni) {
       if (!confirm("¿Eliminar suboficial? Esto borrará su saldo (local).")) return;
@@ -803,22 +846,24 @@
     }
 
     // MODAL recibe objeto: {dni, nombre}
-    function openUserModal(payload) {
-      const dni = (payload?.dni || '').toUpperCase().trim();
-      const existing = dni ? findPerson(dni) : null;
+   function openUserModal(payload) {
+  const idScan = (payload?.idScan || '').trim();
+  const existing = idScan ? findPersonByScan(idScan) : null;
 
-      editMode = false;
-      document.getElementById('mu-editbtn').innerText = "Modo Editar";
+  editMode = false;
+  document.getElementById('mu-editbtn').innerText = "Modo Editar";
 
-      document.getElementById('mu-title').innerText = existing ? "Editar Personal" : "Alta de Personal";
-      document.getElementById('mu-dni').value = dni || "";
-      document.getElementById('mu-nombre').value = existing ? existing.nombre : (payload?.nombre || "");
-      document.getElementById('mu-rango').value = existing ? (existing.rango||"") : "";
-      document.getElementById('mu-saldo').value = existing ? Number(existing.saldo||0) : 0;
+  document.getElementById('mu-title').innerText = existing ? "Editar Personal" : "Alta de Personal";
 
-      document.getElementById('mu-dni').disabled = !!existing;
-      document.getElementById('modal-user').classList.remove('hidden');
-    }
+  document.getElementById('mu-idscan').value = idScan || (existing?.idScan || "");
+  document.getElementById('mu-dni13').value  = existing?.dni13 || (payload?.dni13 || "");
+  document.getElementById('mu-nombre').value = existing?.nombre || (payload?.nombre || "");
+  document.getElementById('mu-rango').value  = existing?.rango  || "";
+  document.getElementById('mu-saldo').value  = existing ? Number(existing.saldo||0) : 0;
+
+  document.getElementById('modal-user').classList.remove('hidden');
+}
+
 
     function closeUserModal() {
       document.getElementById('modal-user').classList.add('hidden');
