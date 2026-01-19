@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIL-COM V14 | Gestión de Saldo</title>
+    <title>MIL-COM V11 | Firebase Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
+    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBwaRzw2R1DCFOSn-YtfM5tRLdN7p4dpk8",
@@ -19,15 +20,14 @@
             projectId: "comedor-86278",
             storageBucket: "comedor-86278.firebasestorage.app",
             messagingSenderId: "1081425728323",
-            appId: "1:1081425728323:web:f7fabcacc19a8f0daf15f6"
+            appId: "1:1081425728323:web:f7fabcacc19a8f0daf15f6",
+            measurementId: "G-G43E4ZBE6H"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = "comedor-86278";
-
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'mainState');
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'comedor-86278';
 
         window.STATE = {
             prices: { Desayuno: 50, Almuerzo: 100, Cena: 70 },
@@ -41,369 +41,549 @@
             }
         };
 
-        async function startSync() {
-            try {
-                await signInAnonymously(auth);
-                onSnapshot(docRef, (snapshot) => {
-                    if (snapshot.exists()) {
-                        window.STATE = { ...window.STATE, ...snapshot.data() };
-                        renderAll();
-                        if (window.activeTab === 'vote') syncVoteUI();
-                    } else {
-                        setDoc(docRef, window.STATE);
-                    }
-                });
-            } catch (error) {
-                console.error("Firebase Auth Error:", error.message);
-            }
-        }
+        const syncFirebase = async () => {
+            await signInAnonymously(auth);
+            const dataDoc = doc(db, 'artifacts', appId, 'public', 'data', 'mainState');
+            
+            onSnapshot(dataDoc, (snapshot) => {
+                if (snapshot.exists()) {
+                    const cloudData = snapshot.data();
+                    window.STATE = { ...window.STATE, ...cloudData };
+                    window.renderAll();
+                    // Si estamos en la pestaña de votación, refrescar gráficos
+                    if (window.activeTab === 'vote') window.renderVoteView();
+                } else {
+                    setDoc(dataDoc, window.STATE);
+                }
+            }, (err) => console.error("Firestore Error:", err));
+        };
 
         window.saveToCloud = async () => {
-            if (!auth.currentUser) return;
-            await setDoc(docRef, window.STATE).catch(e => console.error("Error al guardar:", e));
+            const dataDoc = doc(db, 'artifacts', appId, 'public', 'data', 'mainState');
+            await setDoc(dataDoc, window.STATE);
         };
 
         window.onload = () => {
-            startSync();
-            initClock();
-            startScanner();
+            syncFirebase();
+            window.initApp();
         };
-
-        window.renderAll = renderAll;
     </script>
 
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800;900&display=swap');
         :root { --primary: #f2994a; --bg-dark: #0d1117; --card-dark: #161b22; --border-dark: #30363d; }
-        body { font-family: 'Inter', sans-serif; background-color: var(--bg-dark); color: #e2e8f0; overflow-x: hidden; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-dark); color: #e2e8f0; }
         .card { background: var(--card-dark); border: 1px solid var(--border-dark); border-radius: 16px; }
         .btn-active { background-color: var(--primary) !important; color: #000 !important; }
         .tab-btn-active { border-bottom: 4px solid var(--primary); color: var(--primary); background: rgba(242, 153, 74, 0.08); }
-        .vote-opt-btn.selected { border-color: var(--primary); background: rgba(242, 153, 74, 0.2); }
+        .vote-opt-btn.selected { border-color: var(--primary); background: rgba(242, 153, 74, 0.2); box-shadow: 0 0 10px rgba(242, 153, 74, 0.3); }
+        .user-active-glow { box-shadow: 0 0 15px rgba(34, 197, 94, 0.2); border-color: #22c55e !important; }
+        .chart-container { position: relative; height: 140px; width: 140px; }
         .hidden { display: none; }
     </style>
 </head>
-<body class="p-4 md:p-8">
+<body class="p-2 md:p-6 lg:p-8">
 
-<div class="max-w-7xl mx-auto space-y-6">
-    <!-- HEADER -->
-    <header class="card p-6 flex flex-col md:flex-row justify-between items-center border-b-4 border-orange-500 shadow-2xl">
-        <div class="flex items-center gap-5">
-            <div class="p-3 bg-orange-500/10 rounded-2xl border border-orange-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            </div>
-            <div>
-                <h1 class="text-2xl font-black uppercase italic">MIL-COM <span class="text-orange-500">V14</span></h1>
-                <p id="logged-name" class="text-[10px] font-bold text-slate-500 uppercase italic">Esperando identificación...</p>
-            </div>
-        </div>
-        <div class="text-right">
-            <div id="clock" class="text-3xl font-mono font-black text-orange-500">00:00:00</div>
-            <p id="today-date" class="text-[10px] font-bold text-slate-500 uppercase"></p>
-        </div>
-    </header>
-
-    <!-- NAVIGATION -->
-    <nav class="flex bg-[#161b22] rounded-2xl border border-[#30363d] overflow-hidden p-1 gap-1">
-        <button onclick="changeTab('scan')" id="tab-scan" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl tab-btn-active">Escaneo</button>
-        <button onclick="changeTab('vote')" id="tab-vote" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl text-slate-500">Votación</button>
-        <button onclick="changeTab('users')" id="tab-users" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl text-slate-500">Personal</button>
-        <button onclick="changeTab('settings')" id="tab-settings" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl text-slate-500">Ajustes</button>
-    </nav>
-
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- COLUMNA ESCANER -->
-        <div class="lg:col-span-4">
-            <div class="card p-5 sticky top-6 space-y-4">
-                <div id="reader" class="w-full aspect-square bg-black rounded-xl overflow-hidden border border-[#30363d]"></div>
-                <div class="p-4 bg-black/40 rounded-xl border border-dashed border-[#30363d] text-center">
-                    <p id="dni-display" class="text-3xl font-mono text-orange-500 font-black">---</p>
+    <div class="max-w-7xl mx-auto space-y-6">
+        <!-- HEADER -->
+        <header class="card p-5 flex flex-col md:flex-row justify-between items-center border-b-4 border-orange-500 shadow-2xl">
+            <div class="flex items-center gap-5">
+                <div class="p-3 bg-orange-500/10 rounded-2xl border border-orange-500/20">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
                 </div>
-                <input type="text" id="quick-dni" placeholder="ID MANUAL + ENTER" 
-                       onkeypress="if(event.key === 'Enter') handleScan(this.value.toUpperCase())"
-                       class="w-full bg-black border border-[#30363d] p-3 rounded-xl text-center font-mono text-sm text-orange-400">
-                <div class="grid grid-cols-2 gap-2">
-                    <button onclick="openManualReg()" class="bg-blue-600/10 text-blue-500 py-3 rounded-xl text-[10px] font-black uppercase">Nuevo</button>
-                    <button onclick="logout()" class="bg-red-500/10 text-red-500 py-3 rounded-xl text-[10px] font-black uppercase">Cerrar</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- COLUMNA PRINCIPAL -->
-        <div class="lg:col-span-8">
-            <!-- VIEW: SCAN -->
-            <div id="view-scan" class="space-y-6">
-                <div class="card p-6">
-                    <div class="grid grid-cols-3 gap-3">
-                        <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn py-4 text-[10px] font-black rounded-xl border border-[#30363d] btn-active">DESAYUNO</button>
-                        <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn py-4 text-[10px] font-black rounded-xl border border-[#30363d] text-slate-400">ALMUERZO</button>
-                        <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn py-4 text-[10px] font-black rounded-xl border border-[#30363d] text-slate-400">CENA</button>
+                <div>
+                    <h1 class="text-2xl font-black uppercase leading-none italic">MIL-COM <span class="text-orange-500">V11</span></h1>
+                    <div id="logged-badge" class="mt-1 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-slate-600 animate-pulse"></span>
+                        <span id="logged-name" class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Esperando ID</span>
                     </div>
                 </div>
-                <div class="card overflow-hidden">
-                    <div class="p-4 bg-white/5 font-black uppercase text-[10px] italic border-b border-[#30363d]">Actividad Reciente</div>
-                    <div class="max-h-[400px] overflow-y-auto">
-                        <table class="w-full text-left text-xs">
-                            <tbody id="history-body" class="divide-y divide-[#30363d]"></tbody>
+            </div>
+            <div class="mt-4 md:mt-0 flex flex-col items-end">
+                <div id="clock" class="text-3xl font-mono font-black text-orange-500">00:00:00</div>
+                <p id="today-date" class="text-[10px] font-bold text-slate-500 uppercase italic"></p>
+            </div>
+        </header>
+
+        <!-- NAVEGACIÓN -->
+        <nav class="flex flex-wrap bg-[#161b22] rounded-2xl border border-[#30363d] overflow-hidden p-1 gap-1 shadow-lg">
+            <button onclick="changeTab('scan')" id="tab-scan" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all tab-btn-active">Escaneo</button>
+            <button onclick="changeTab('vote')" id="tab-vote" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Votación</button>
+            <button onclick="changeTab('users')" id="tab-users" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Personal</button>
+            <button onclick="changeTab('funds')" id="tab-funds" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Recargas</button>
+            <button onclick="changeTab('settings')" id="tab-settings" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Ajustes</button>
+        </nav>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- PANEL IZQUIERDO -->
+            <div class="lg:col-span-4 space-y-6">
+                <div id="scanner-card" class="card p-5 sticky top-6">
+                    <div id="reader" class="w-full aspect-square bg-black rounded-xl overflow-hidden"></div>
+                    <div class="mt-5 p-4 bg-black/40 rounded-xl border border-dashed border-[#30363d] text-center">
+                        <p id="dni-display" class="text-3xl font-mono text-orange-500 font-black tracking-widest">---</p>
+                        <p id="scan-label" class="text-[9px] text-slate-500 font-black uppercase mt-1">Aproxime su carnet</p>
+                    </div>
+                    <div class="mt-6 grid grid-cols-2 gap-2">
+                        <button onclick="openManualReg()" class="bg-blue-600/10 border border-blue-600/20 text-blue-500 py-3 rounded-xl text-[10px] font-black uppercase">Manual</button>
+                        <button onclick="logout()" class="bg-red-500/10 border border-red-500/20 text-red-500 py-3 rounded-xl text-[10px] font-black uppercase">Salir</button>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-[#30363d]">
+                        <input type="text" id="quick-dni" placeholder="ID + ENTER" 
+                               onkeypress="if(event.key === 'Enter') handleScan(this.value.toUpperCase())"
+                               class="w-full bg-black border border-[#30363d] p-3 rounded-xl text-center font-mono text-sm text-orange-400 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL DERECHO -->
+            <div class="lg:col-span-8">
+                <!-- SCAN VIEW -->
+                <div id="view-scan" class="space-y-6">
+                    <div class="card p-6 border-l-4 border-orange-500">
+                        <div class="grid grid-cols-3 gap-3">
+                            <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn py-4 text-[10px] font-black rounded-xl border border-[#30363d] btn-active">DESAYUNO</button>
+                            <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn py-4 text-[10px] font-black rounded-xl border border-[#30363d] text-slate-400">ALMUERZO</button>
+                            <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn py-4 text-[10px] font-black rounded-xl border border-[#30363d] text-slate-400">CENA</button>
+                        </div>
+                    </div>
+                    <div class="card overflow-hidden">
+                        <div class="p-4 border-b border-[#30363d] bg-white/5 font-black uppercase text-xs italic">Últimas Raciones</div>
+                        <div class="max-h-[400px] overflow-y-auto">
+                            <table class="w-full text-left text-xs">
+                                <tbody id="history-body" class="divide-y divide-[#30363d]"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VOTE VIEW -->
+                <div id="view-vote" class="hidden space-y-6">
+                    <div class="card p-6 text-center">
+                        <div class="flex flex-col md:flex-row justify-between items-center mb-6 px-4">
+                            <div class="text-left">
+                                <h2 class="text-2xl font-black uppercase italic text-orange-500 leading-none">Votación del Menú</h2>
+                                <p id="vote-status-msg" class="text-[10px] text-slate-500 font-bold uppercase mt-1 italic">Identifíquese para votar</p>
+                            </div>
+                            <div class="mt-4 md:mt-0 p-3 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                                <p class="text-[9px] font-black uppercase text-orange-500">Participación Hoy</p>
+                                <p id="total-voters-count" class="text-xl font-black italic">0 Personas</p>
+                            </div>
+                        </div>
+
+                        <div id="vote-container" class="opacity-30 pointer-events-none mt-4 space-y-10">
+                            <div id="vote-options-grid" class="space-y-6"></div>
+                            <button onclick="submitVotes()" class="w-full bg-orange-500 text-black py-5 rounded-2xl font-black uppercase text-lg shadow-xl active:scale-95 transition-transform">Enviar Votos</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- USERS VIEW -->
+                <div id="view-users" class="hidden card p-4">
+                    <input type="text" id="user-search" oninput="renderAll()" placeholder="Filtrar personal..." class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-xs font-bold mb-4 outline-none">
+                    <div class="max-h-[500px] overflow-y-auto">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-black text-slate-500 font-black uppercase">
+                                <tr><th class="p-4">ID</th><th class="p-4">Nombre</th><th class="p-4 text-right">Saldo</th><th class="p-4">Acción</th></tr>
+                            </thead>
+                            <tbody id="users-body" class="divide-y divide-[#30363d]"></tbody>
                         </table>
                     </div>
                 </div>
-            </div>
 
-            <!-- VIEW: VOTE -->
-            <div id="view-vote" class="hidden card p-6 space-y-6">
-                <div class="flex justify-between items-end">
-                    <h2 class="text-xl font-black uppercase italic text-orange-500">Encuesta de Menú</h2>
-                    <p id="total-voters-count" class="text-xs font-bold text-slate-500 uppercase">0 Votos</p>
-                </div>
-                <div id="vote-container" class="opacity-30 pointer-events-none space-y-6">
-                    <div id="vote-options-grid" class="space-y-4"></div>
-                    <button onclick="submitVotes()" class="w-full bg-orange-500 text-black py-4 rounded-xl font-black uppercase">Confirmar Selección</button>
-                </div>
-            </div>
-
-            <!-- VIEW: USERS (RECARGAS AQUÍ) -->
-            <div id="view-users" class="hidden card p-4">
-                <input type="text" id="user-search" oninput="renderAll()" placeholder="Filtrar por nombre o ID..." class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-xs font-bold mb-4 outline-none focus:border-orange-500">
-                <div class="max-h-[500px] overflow-y-auto">
-                    <table class="w-full text-xs text-left">
-                        <thead class="bg-black text-slate-500 font-black uppercase text-[9px]">
-                            <tr>
-                                <th class="p-4">Identidad</th>
-                                <th class="p-4">Nombre Completo</th>
-                                <th class="p-4 text-center">Saldo Actual</th>
-                                <th class="p-4 text-center">Gestión</th>
-                            </tr>
-                        </thead>
-                        <tbody id="users-body" class="divide-y divide-[#30363d]"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- VIEW: SETTINGS -->
-            <div id="view-settings" class="hidden card p-8 space-y-6">
-                <h3 class="text-lg font-black uppercase italic text-orange-500 border-b border-[#30363d] pb-4">Ajustes del Sistema</h3>
-                <div class="grid grid-cols-3 gap-4">
-                    <div class="space-y-2">
-                        <label class="text-[9px] font-black uppercase text-slate-500">Precio Desayuno</label>
-                        <input type="number" id="set-p-des" class="w-full bg-black border border-[#30363d] p-3 rounded-xl font-bold text-orange-500">
+                <!-- FUNDS VIEW -->
+                <div id="view-funds" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card p-4">
+                        <div id="fund-select-list" class="max-h-[400px] overflow-y-auto divide-y divide-[#30363d]"></div>
                     </div>
-                    <div class="space-y-2">
-                        <label class="text-[9px] font-black uppercase text-slate-500">Precio Almuerzo</label>
-                        <input type="number" id="set-p-alm" class="w-full bg-black border border-[#30363d] p-3 rounded-xl font-bold text-orange-500">
-                    </div>
-                    <div class="space-y-2">
-                        <label class="text-[9px] font-black uppercase text-slate-500">Precio Cena</label>
-                        <input type="number" id="set-p-cen" class="w-full bg-black border border-[#30363d] p-3 rounded-xl font-bold text-orange-500">
+                    <div class="card p-8 flex flex-col justify-center gap-6">
+                        <input type="number" id="mass-amt" placeholder="Lps 0.00" class="bg-black border-2 border-orange-500/30 p-8 rounded-2xl text-5xl font-black text-center text-orange-500 outline-none">
+                        <button onclick="executeMassFund()" class="bg-green-600 py-5 rounded-2xl font-black uppercase">Aplicar Recarga</button>
                     </div>
                 </div>
-                <div id="settings-menu-editor" class="space-y-4 pt-4 border-t border-[#30363d]"></div>
-                <button onclick="saveSettings()" class="w-full bg-blue-600 py-4 rounded-xl font-black uppercase">Guardar Configuración</button>
+
+                <!-- SETTINGS VIEW -->
+                <div id="view-settings" class="hidden card p-8 space-y-6">
+                    <h3 class="text-lg font-black uppercase italic text-orange-500 border-b border-[#30363d] pb-4">Edición de Menú y Precios</h3>
+                    <div id="settings-menu-editor" class="space-y-4"></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-6 border-t border-[#30363d]">
+                        <div class="grid grid-cols-3 gap-2">
+                            <input type="number" id="set-p-des" class="bg-black border border-[#30363d] p-3 rounded-lg text-xs text-center font-bold">
+                            <input type="number" id="set-p-alm" class="bg-black border border-[#30363d] p-3 rounded-lg text-xs text-center font-bold">
+                            <input type="number" id="set-p-cen" class="bg-black border border-[#30363d] p-3 rounded-lg text-xs text-center font-bold">
+                        </div>
+                        <button onclick="saveSettings()" class="bg-blue-600 py-3 rounded-xl font-black uppercase text-xs">Guardar Cambios Nube</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
-<!-- MODALES -->
-<div id="login-modal" class="hidden fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4">
-    <div class="card max-w-sm w-full p-8 text-center space-y-6">
-        <h3 class="text-xl font-black italic">ADMIN PIN</h3>
-        <input type="password" id="admin-pin" class="w-full bg-black border border-orange-500 p-4 rounded-xl text-center text-4xl tracking-[0.5em] outline-none">
-        <button onclick="checkAdmin()" class="w-full bg-white text-black py-4 rounded-xl font-black">ENTRAR</button>
-    </div>
-</div>
 
-<div id="reg-modal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
-    <div class="card max-w-sm w-full p-8">
-        <h3 class="text-xl font-black uppercase text-center mb-6">Nuevo Personal</h3>
-        <div class="space-y-4">
-            <input type="text" id="nu-dni" placeholder="ID / DNI" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-mono text-orange-500 text-center uppercase">
-            <input type="text" id="nu-name" placeholder="NOMBRE COMPLETO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
-            <button onclick="saveNewUser()" class="w-full bg-orange-500 text-black py-4 rounded-xl font-black">CREAR CUENTA</button>
-            <button onclick="document.getElementById('reg-modal').classList.add('hidden')" class="w-full text-slate-500 text-[10px] font-black uppercase">Cancelar</button>
+    <!-- MODALES -->
+    <div id="reg-modal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+        <div class="card max-w-sm w-full p-8 border-t-8 border-orange-500">
+            <h3 class="text-xl font-black uppercase text-center mb-6 italic">Nuevo Registro</h3>
+            <div class="space-y-4">
+                <input type="text" id="nu-dni" placeholder="ID / CARNET" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-mono text-orange-500 text-center">
+                <input type="text" id="nu-name" placeholder="NOMBRE COMPLETO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
+                <input type="text" id="nu-rank" placeholder="RANGO / CARGO" class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-bold uppercase">
+                <div class="flex gap-2">
+                    <button onclick="document.getElementById('reg-modal').classList.add('hidden')" class="flex-1 text-[10px] font-black uppercase text-slate-500">Cancelar</button>
+                    <button onclick="saveNewUser()" class="flex-[2] bg-orange-500 text-black py-4 rounded-xl font-black uppercase">Registrar en Nube</button>
+                </div>
+            </div>
         </div>
     </div>
-</div>
 
-<div id="toast" class="hidden fixed bottom-6 right-6 z-[200] p-6 rounded-2xl border-l-8 bg-[#1a202c] shadow-2xl min-w-[300px]">
-    <h4 id="toast-title" class="font-black uppercase text-sm mb-1"></h4>
-    <p id="toast-msg" class="text-[11px] font-bold opacity-70"></p>
-</div>
+    <div id="login-modal" class="hidden fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4">
+        <div class="card max-w-sm w-full p-10 text-center space-y-6">
+            <h3 class="text-xl font-black uppercase italic tracking-widest">ADMIN PIN</h3>
+            <input type="password" id="admin-pin" class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-center text-4xl tracking-[0.5em] outline-none border-orange-500/50">
+            <button onclick="checkAdmin()" class="w-full bg-white text-black py-4 rounded-xl font-black uppercase">Acceder</button>
+        </div>
+    </div>
 
-<script>
-    const PIN_ADMIN = "1234";
-    let charts = {};
-    let currentSvc = 'Desayuno';
-    let loggedUser = null; 
-    let scanner = null;
-    window.activeTab = 'scan';
+    <div id="toast" class="hidden fixed bottom-6 right-6 z-[200] p-6 rounded-2xl border-l-8 bg-[#1a202c] shadow-2xl min-w-[350px]">
+        <h4 id="toast-title" class="font-black uppercase text-sm mb-1"></h4>
+        <p id="toast-msg" class="text-[11px] opacity-70 uppercase font-bold"></p>
+    </div>
 
-    function initClock() {
-        setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-HN', { hour12: false }), 1000);
-        document.getElementById('today-date').innerText = new Date().toLocaleDateString('es-HN', { weekday: 'long', day: 'numeric', month: 'long' });
-    }
+    <script>
+        const PIN_ADMIN = "1234";
+        let charts = {};
+        let pendingTab = 'scan';
+        let currentSvc = 'Desayuno';
+        let loggedUser = null; 
+        let scanner = null;
+        window.activeTab = 'scan';
+        let voteBuffer = {};
+        let selectedUsers = new Set();
 
-    function startScanner() {
-        scanner = new Html5Qrcode("reader");
-        scanner.start({ facingMode: "environment" }, { fps: 30, qrbox: 250 }, (text) => handleScan(text.trim().toUpperCase())).catch(() => {});
-    }
+        window.initApp = () => {
+            startClock();
+            startScanner();
+            document.getElementById('today-date').innerText = new Date().toLocaleDateString('es-HN', { weekday: 'long', day: 'numeric', month: 'long' });
+        };
 
-    window.handleScan = (dni) => {
-        if(!dni) return;
-        const user = STATE.users.find(u => u.dni === dni);
-        if (user) {
-            loggedUser = user;
+        function startClock() { setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-HN', { hour12: false }), 1000); }
+
+        function startScanner() {
+            scanner = new Html5Qrcode("reader");
+            scanner.start({ facingMode: "environment" }, { fps: 30, qrbox: 250 }, (text) => handleScan(text.trim().toUpperCase())).catch(() => {});
+        }
+
+        window.handleScan = (dni) => {
+            if(!dni) return;
             document.getElementById('dni-display').innerText = dni;
-            document.getElementById('logged-name').innerText = user.name;
-            document.getElementById('logged-name').classList.add('text-green-500');
-            if (window.activeTab === 'scan') processMeal(user);
-            if (window.activeTab === 'vote') syncVoteUI();
-        } else {
-            openManualReg(dni);
+            const user = STATE.users.find(u => u.dni === dni);
+            if (user) {
+                loggedUser = user;
+                updateUserBadge();
+                document.getElementById('scanner-card').classList.add('user-active-glow');
+                document.getElementById('quick-dni').value = "";
+                if (window.activeTab === 'scan') processMeal(user);
+                if (window.activeTab === 'vote') syncVoteUI();
+                setTimeout(() => {
+                    document.getElementById('scanner-card').classList.remove('user-active-glow');
+                    document.getElementById('dni-display').innerText = "---";
+                }, 1500);
+            } else {
+                openManualReg(dni);
+            }
+        };
+
+        function updateUserBadge() {
+            const badge = document.getElementById('logged-badge');
+            const nameEl = document.getElementById('logged-name');
+            if (loggedUser) {
+                badge.querySelector('span').className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]";
+                nameEl.innerText = `${loggedUser.rank} ${loggedUser.name}`;
+                nameEl.classList.add('text-green-500');
+            } else {
+                badge.querySelector('span').className = "w-2 h-2 rounded-full bg-slate-600 animate-pulse";
+                nameEl.innerText = "Esperando ID";
+                nameEl.classList.remove('text-green-500');
+            }
         }
-    };
 
-    function processMeal(user) {
-        const cost = STATE.prices[currentSvc];
-        const today = new Date().toLocaleDateString();
-        if (user.balance < cost) { notify("SALDO INSUFICIENTE", "SALDO: L. " + user.balance, "error"); return; }
-        user.balance -= cost;
-        STATE.history.unshift({ dni: user.dni, name: user.name, svc: currentSvc, date: today, price: cost });
-        saveToCloud();
-        renderAll();
-        notify("REGISTRO EXITOSO", `${user.name} consumió ${currentSvc} - L.${cost}`, "success");
-    }
+        window.setService = (svc) => {
+            currentSvc = svc;
+            document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('btn-active', 'text-slate-400'));
+            document.getElementById(`svc-${svc}`).classList.add('btn-active');
+            notify("SERVICIO", svc.toUpperCase(), "blue");
+        };
 
-    window.changeTab = (tab) => {
-        window.activeTab = tab;
-        ['scan','vote','users','settings'].forEach(t => document.getElementById('view-'+t).classList.add('hidden'));
-        document.getElementById('view-'+tab).classList.remove('hidden');
-        ['tab-scan','tab-vote','tab-users','tab-settings'].forEach(id => document.getElementById(id).classList.remove('tab-btn-active'));
-        document.getElementById('tab-'+tab).classList.add('tab-btn-active');
-        if(tab === 'vote') syncVoteUI();
-        renderAll();
-    };
-
-    window.setService = (svc) => {
-        currentSvc = svc;
-        document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('btn-active', 'text-slate-400'));
-        document.getElementById('svc-'+svc).classList.add('btn-active');
-        renderAll();
-        if(window.activeTab === 'vote') syncVoteUI();
-    };
-
-    window.renderAll = () => {
-        // Render history
-        const histBody = document.getElementById('history-body');
-        histBody.innerHTML = STATE.history.map(h => `<tr class="text-[10px]"><td class="p-2">${h.date}</td><td class="p-2">${h.name}</td><td class="p-2">${h.svc}</td><td class="p-2 text-right">L.${h.price}</td></tr>`).join('');
-        // Users
-        const search = document.getElementById('user-search')?.value.toUpperCase() || '';
-        const usersBody = document.getElementById('users-body');
-        if(usersBody){
-            usersBody.innerHTML = STATE.users.filter(u => u.name.toUpperCase().includes(search) || u.dni.includes(search))
-            .map(u => `<tr class="text-[10px]">
-                <td class="p-2">${u.dni}</td>
-                <td class="p-2">${u.name}</td>
-                <td class="p-2 text-center">L.${u.balance}</td>
-                <td class="p-2 text-center space-x-2">
-                    <button onclick="creditUser('${u.dni}')" class="text-green-500 font-black text-[10px]">+RECARGA</button>
-                    <button onclick="deleteUser('${u.dni}')" class="text-red-500 font-black text-[10px]">BORRAR</button>
-                </td>
-            </tr>`).join('');
-        }
-        // Votantes
-        document.getElementById('total-voters-count').innerText = `${STATE.votes.length} Votos`;
-    };
-
-    window.creditUser = (dni) => {
-        const amt = prompt("Monto a recargar:");
-        if(!amt) return;
-        const user = STATE.users.find(u=>u.dni===dni);
-        if(user){ user.balance += parseFloat(amt); saveToCloud(); renderAll(); }
-    };
-
-    // Función para borrar usuario
-    window.deleteUser = (dni) => {
-        const user = STATE.users.find(u => u.dni === dni);
-        if(!user) return;
-        if(confirm(`¿Deseas eliminar al usuario ${user.name} (${dni})? Esta acción no se puede deshacer.`)){
-            STATE.users = STATE.users.filter(u => u.dni !== dni);
+        function processMeal(user) {
+            const cost = STATE.prices[currentSvc];
+            const today = new Date().toLocaleDateString();
+            const alreadyServed = STATE.history.find(h => h.dni === user.dni && h.date === today && h.service === currentSvc);
+            
+            if (alreadyServed) { notify("DENEGADO", "YA CONSUMIÓ ESTE TIEMPO", "red"); return; }
+            if (user.balance < cost) { notify("SALDO BAJO", `TIENE L. ${user.balance}`, "red"); return; }
+            
+            user.balance -= cost;
+            STATE.history.push({ 
+                dni: user.dni, 
+                name: user.name, 
+                service: currentSvc, 
+                cost, date: today, 
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) 
+            });
             saveToCloud();
-            renderAll();
-            notify("USUARIO ELIMINADO", `${user.name} ha sido eliminado`, "success");
+            notify("AUTORIZADO", `DISFRUTE SU ${currentSvc.toUpperCase()}`, "green");
         }
-    };
 
-    function openManualReg(dni='') {
-        document.getElementById('nu-dni').value = dni;
-        document.getElementById('nu-name').value = '';
-        document.getElementById('reg-modal').classList.remove('hidden');
-    }
+        function syncVoteUI() {
+            const container = document.getElementById('vote-container');
+            const msg = document.getElementById('vote-status-msg');
+            if (!loggedUser) { 
+                container.classList.add('opacity-30', 'pointer-events-none'); 
+                msg.innerText = "Identifíquese para votar"; 
+                renderVoteView(); // Renderizar solo para ver tendencias
+                return; 
+            }
+            
+            const today = new Date().toLocaleDateString();
+            const alreadyVoted = STATE.votes.find(v => v.dni === loggedUser.dni && v.date === today);
+            
+            if (alreadyVoted) {
+                container.classList.add('opacity-30', 'pointer-events-none');
+                msg.innerText = "Gracias por su voto de hoy";
+                msg.className = "text-[10px] text-green-500 font-black uppercase mt-1 italic";
+                renderVoteView();
+            } else {
+                container.classList.remove('opacity-30', 'pointer-events-none');
+                msg.innerText = "Elija el menú de mañana";
+                msg.className = "text-[10px] text-orange-400 font-black uppercase mt-1 italic";
+                renderVoteView();
+            }
+        }
 
-    function saveNewUser() {
-        const dni = document.getElementById('nu-dni').value.toUpperCase();
-        const name = document.getElementById('nu-name').value.toUpperCase();
-        if(!dni || !name){ alert("Completa los campos"); return; }
-        STATE.users.push({ dni, name, balance: 0 });
-        saveToCloud();
-        document.getElementById('reg-modal').classList.add('hidden');
-        renderAll();
-    }
+        window.renderVoteView = () => {
+            const grid = document.getElementById('vote-options-grid');
+            const today = new Date().toLocaleDateString();
+            const todayVotes = STATE.votes.filter(v => v.date === today);
+            
+            document.getElementById('total-voters-count').innerText = `${todayVotes.length} Personas`;
 
-    function logout() {
-        loggedUser = null;
-        document.getElementById('dni-display').innerText = '---';
-        document.getElementById('logged-name').innerText = 'Esperando identificación...';
-        document.getElementById('logged-name').classList.remove('text-green-500');
-    }
+            grid.innerHTML = Object.keys(STATE.menu).map(svc => {
+                const counts = [0, 0, 0];
+                todayVotes.forEach(v => { if(v.choices[svc] !== undefined) counts[v.choices[svc]]++; });
 
-    window.notify = (title,msg,type="info") => {
-        const toast = document.getElementById('toast');
-        document.getElementById('toast-title').innerText = title;
-        document.getElementById('toast-msg').innerText = msg;
-        toast.classList.remove('hidden');
-        setTimeout(()=>toast.classList.add('hidden'),3000);
-    };
+                return `
+                    <div class="flex flex-col md:flex-row gap-6 bg-black/40 p-5 rounded-3xl border border-[#30363d] items-center">
+                        <div class="flex flex-col items-center gap-2">
+                            <div class="chart-container"><canvas id="chart-vote-${svc}"></canvas></div>
+                            <span class="text-[9px] font-black uppercase text-slate-500 tracking-widest">${svc}</span>
+                        </div>
+                        <div class="flex-1 w-full grid grid-cols-1 md:grid-cols-3 gap-3">
+                            ${STATE.menu[svc].map((opt, i) => `
+                                <button onclick="pickVote('${svc}', ${i})" id="v-${svc}-${i}" 
+                                        class="vote-opt-btn card p-4 text-[10px] font-black uppercase flex flex-col items-center justify-center text-center gap-1">
+                                    <span class="opacity-50 text-[7px] mb-1">OPCIÓN ${i+1}</span>
+                                    <span class="leading-tight">${opt}</span>
+                                    <span class="mt-2 text-xs text-orange-500/80 font-mono">${counts[i]} vts</span>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
-    // Votación dinámica
-    window.syncVoteUI = () => {
-        if(!loggedUser) return;
-        const container = document.getElementById('vote-options-grid');
-        container.innerHTML = "";
-        const comidas = STATE.menu[currentSvc] || [];
-        comidas.forEach(c => {
-            const btn = document.createElement('button');
-            btn.className = "vote-opt-btn w-full py-3 rounded-xl border border-[#30363d] text-slate-200 font-black uppercase text-[10px]";
-            btn.innerText = c;
-            btn.onclick = () => {
-                container.querySelectorAll('.vote-opt-btn').forEach(b=>b.classList.remove('selected'));
-                btn.classList.add('selected');
-            };
-            container.appendChild(btn);
-        });
-        container.parentElement.classList.remove('opacity-30','pointer-events-none');
-    };
+            setTimeout(() => {
+                Object.keys(STATE.menu).forEach(svc => {
+                    const counts = [0, 0, 0];
+                    todayVotes.forEach(v => { if(v.choices[svc] !== undefined) counts[v.choices[svc]]++; });
+                    createMiniChart(`chart-vote-${svc}`, counts, STATE.menu[svc]);
+                });
+            }, 50);
+        };
 
-    window.submitVotes = () => {
-        const selected = document.querySelector('.vote-opt-btn.selected');
-        if(!selected){ alert("Selecciona una opción"); return; }
-        const choice = selected.innerText;
-        STATE.votes.push({ dni: loggedUser.dni, name: loggedUser.name, svc: currentSvc, vote: choice, date: new Date().toLocaleDateString() });
-        saveToCloud();
-        notify("VOTO REGISTRADO", `Has votado por "${choice}"`, "success");
-        syncVoteUI();
-    };
+        function createMiniChart(id, data, labels) {
+            const ctx = document.getElementById(id);
+            if(!ctx) return;
+            if(charts[id]) charts[id].destroy();
+            
+            // Si no hay datos, mostrar gris
+            const hasVotes = data.some(v => v > 0);
+            const chartData = hasVotes ? data : [1, 1, 1];
+            const colors = hasVotes ? ['#f2994a', '#3b82f6', '#10b981'] : ['#30363d', '#30363d', '#30363d'];
 
-    function saveSettings() {
-        const des = parseFloat(document.getElementById('set-p-des').value);
-        const alm = parseFloat(document.getElementById('set-p-alm').value);
-        const cen = parseFloat(document.getElementById('set-p-cen').value);
-        if(!isNaN(des)) STATE.prices.Desayuno = des;
-        if(!isNaN(alm)) STATE.prices.Almuerzo = alm;
-        if(!isNaN(cen)) STATE.prices.Cena = cen;
-        saveToCloud();
-        notify("CONFIGURACIÓN GUARDADA","Precios actualizados correctamente","success");
-    }
-</script>
+            charts[id] = new Chart(ctx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{ 
+                        data: chartData, 
+                        backgroundColor: colors, 
+                        borderWidth: 2,
+                        borderColor: '#161b22',
+                        hoverOffset: 4
+                    }]
+                },
+                options: { 
+                    cutout: '75%', 
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: { enabled: hasVotes }
+                    }, 
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
 
+        window.pickVote = (svc, idx) => {
+            voteBuffer[svc] = idx;
+            document.querySelectorAll(`[id^="v-${svc}"]`).forEach(b => b.classList.remove('selected'));
+            document.getElementById(`v-${svc}-${idx}`).classList.add('selected');
+        };
+
+        window.submitVotes = () => {
+            if (Object.keys(voteBuffer).length < 3) { notify("AVISO", "ELIJA LOS 3 PLATOS", "orange"); return; }
+            STATE.votes.push({ 
+                dni: loggedUser.dni, 
+                date: new Date().toLocaleDateString(), 
+                choices: {...voteBuffer} 
+            });
+            saveToCloud();
+            notify("ÉXITO", "VOTO ENVIADO A LA NUBE", "green");
+            voteBuffer = {};
+            syncVoteUI();
+        };
+
+        window.renderAll = () => {
+            const today = new Date().toLocaleDateString();
+            const hItems = (STATE.history || []).filter(h => h.date === today).reverse().slice(0, 15);
+            document.getElementById('history-body').innerHTML = hItems.map(h => `
+                <tr class="bg-white/5">
+                    <td class="p-4 font-mono text-orange-500 font-bold">${h.time}</td>
+                    <td class="p-4 uppercase font-black">${h.name}</td>
+                    <td class="p-4 text-right opacity-60 font-black italic">${h.service}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="3" class="p-8 text-center opacity-30 italic">Sin actividad</td></tr>';
+
+            const q = document.getElementById('user-search').value.toUpperCase();
+            document.getElementById('users-body').innerHTML = STATE.users.filter(u => u.name.includes(q) || u.dni.includes(q)).map(u => `
+                <tr>
+                    <td class="p-4 font-mono text-orange-400 font-bold">${u.dni}</td>
+                    <td class="p-4 uppercase font-black">${u.name}</td>
+                    <td class="p-4 text-right font-black ${u.balance > 0 ? 'text-green-500' : 'text-red-500'}">L. ${u.balance}</td>
+                    <td class="p-4"><button onclick="delUser('${u.dni}')" class="text-red-600 font-black">BORRAR</button></td>
+                </tr>
+            `).join('');
+
+            document.getElementById('fund-select-list').innerHTML = STATE.users.map(u => `
+                <div onclick="toggleFundSelection('${u.dni}')" class="p-4 flex justify-between items-center cursor-pointer hover:bg-white/5 ${selectedUsers.has(u.dni) ? 'bg-orange-500/10 border-r-4 border-orange-500' : ''}">
+                    <span class="text-[10px] font-black uppercase">${u.name}</span>
+                    <span class="text-[10px] font-mono text-slate-500">L. ${u.balance}</span>
+                </div>
+            `).join('');
+
+            loadSettingsInputs();
+        };
+
+        function loadSettingsInputs() {
+            document.getElementById('set-p-des').value = STATE.prices.Desayuno;
+            document.getElementById('set-p-alm').value = STATE.prices.Almuerzo;
+            document.getElementById('set-p-cen').value = STATE.prices.Cena;
+            
+            const container = document.getElementById('settings-menu-editor');
+            container.innerHTML = Object.keys(STATE.menu).map(svc => `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    ${STATE.menu[svc].map((opt, i) => `
+                        <input type="text" id="edit-m-${svc}-${i}" value="${opt}" class="bg-black border border-[#30363d] p-3 rounded-xl text-[10px] font-bold uppercase outline-none focus:border-orange-500">
+                    `).join('')}
+                </div>
+            `).join('');
+        }
+
+        window.saveSettings = () => {
+            STATE.prices.Desayuno = parseInt(document.getElementById('set-p-des').value);
+            STATE.prices.Almuerzo = parseInt(document.getElementById('set-p-alm').value);
+            STATE.prices.Cena = parseInt(document.getElementById('set-p-cen').value);
+            Object.keys(STATE.menu).forEach(svc => { 
+                for(let i=0; i<3; i++) STATE.menu[svc][i] = document.getElementById(`edit-m-${svc}-${i}`).value; 
+            });
+            saveToCloud();
+            notify("NUBE", "MENÚ ACTUALIZADO", "blue");
+        };
+
+        window.changeTab = (tab) => {
+            if (['users', 'funds', 'settings'].includes(tab)) {
+                pendingTab = tab;
+                document.getElementById('login-modal').classList.remove('hidden');
+                setTimeout(() => document.getElementById('admin-pin').focus(), 100);
+            } else go(tab);
+        };
+
+        function go(tab) {
+            window.activeTab = tab;
+            document.querySelectorAll('nav button').forEach(b => b.className = "flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500");
+            document.getElementById(`tab-${tab}`).className = "flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all tab-btn-active";
+            ['scan', 'vote', 'users', 'funds', 'settings'].forEach(v => document.getElementById(`view-${v}`).classList.toggle('hidden', v !== tab));
+            if (tab === 'vote') syncVoteUI();
+            renderAll();
+        }
+
+        window.checkAdmin = () => {
+            if (document.getElementById('admin-pin').value === PIN_ADMIN) { 
+                document.getElementById('login-modal').classList.add('hidden'); 
+                go(pendingTab); 
+            } else notify("ERROR", "PIN INCORRECTO", "red");
+            document.getElementById('admin-pin').value = "";
+        };
+
+        window.toggleFundSelection = (dni) => { if(selectedUsers.has(dni)) selectedUsers.delete(dni); else selectedUsers.add(dni); renderAll(); };
+        
+        window.executeMassFund = () => { 
+            const val = parseInt(document.getElementById('mass-amt').value); 
+            if(!val || selectedUsers.size === 0) return; 
+            STATE.users.forEach(u => { if(selectedUsers.has(u.dni)) u.balance += val; }); 
+            selectedUsers.clear(); 
+            document.getElementById('mass-amt').value = ""; 
+            saveToCloud(); 
+            notify("RECARGA", "SALDOS ACTUALIZADOS EN NUBE", "green"); 
+        };
+
+        window.delUser = (dni) => { 
+            if(confirm("¿Eliminar de la base de datos?")) { 
+                STATE.users = STATE.users.filter(u => u.dni !== dni); 
+                saveToCloud(); 
+            } 
+        };
+
+        window.logout = () => { loggedUser = null; updateUserBadge(); syncVoteUI(); notify("SESIÓN", "FINALIZADA", "blue"); };
+        
+        window.openManualReg = (dni = "") => { 
+            document.getElementById('nu-dni').value = dni; 
+            document.getElementById('reg-modal').classList.remove('hidden'); 
+        };
+
+        window.saveNewUser = () => { 
+            const dni = document.getElementById('nu-dni').value.toUpperCase(); 
+            const name = document.getElementById('nu-name').value.toUpperCase(); 
+            if(!dni || !name) return; 
+            STATE.users.push({ 
+                dni, name, 
+                rank: document.getElementById('nu-rank').value.toUpperCase() || 'CIVIL', 
+                balance: 0 
+            }); 
+            saveToCloud(); 
+            document.getElementById('reg-modal').classList.add('hidden'); 
+            handleScan(dni); 
+        };
+
+        window.notify = (title, msg, color) => {
+            const t = document.getElementById('toast');
+            t.className = `fixed bottom-6 right-6 z-[200] p-6 rounded-2xl border-l-8 bg-[#1a202c] shadow-2xl min-w-[350px] border-${color}-500`;
+            document.getElementById('toast-title').innerText = title;
+            document.getElementById('toast-title').className = `font-black uppercase text-sm mb-1 text-${color}-500`;
+            document.getElementById('toast-msg').innerText = msg;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 3500);
+        };
+    </script>
 </body>
 </html>
