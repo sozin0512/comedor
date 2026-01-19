@@ -3,13 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIL-COM V7 | Sistema de Gestión Militar</title>
+    <title>MIL-COM V7 PRO | Gestión y Votación</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js" type="module"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js" type="module"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js" type="module"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;800;900&display=swap');
@@ -25,22 +22,17 @@
             font-family: 'Inter', sans-serif; 
             background-color: var(--bg-dark); 
             color: #e2e8f0; 
-            overflow-x: hidden;
         }
-
-        .font-mono { font-family: 'JetBrains Mono', monospace; }
 
         .card { 
             background: var(--card-dark); 
             border: 1px solid var(--border-dark); 
             border-radius: 16px;
-            transition: all 0.2s ease;
         }
 
         .btn-active { 
             background-color: var(--primary) !important; 
             color: #000 !important; 
-            box-shadow: 0 0 15px rgba(242, 153, 74, 0.4);
         }
 
         .tab-btn-active { 
@@ -52,37 +44,23 @@
         #reader { 
             border-radius: 16px; 
             overflow: hidden; 
-            border: 2px solid var(--border-dark); 
             background: #000; 
         }
 
-        .scanner-active { border-color: var(--primary) !important; box-shadow: 0 0 25px rgba(242, 153, 74, 0.4); }
-        .scanner-error { border-color: #ef4444 !important; box-shadow: 0 0 25px rgba(239, 68, 68, 0.4); }
-        .scanner-success { border-color: #22c55e !important; box-shadow: 0 0 25px rgba(34, 197, 94, 0.4); }
+        .scanner-success { border: 4px solid #22c55e !important; }
+        .scanner-error { border: 4px solid #ef4444 !important; }
 
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg-dark); }
-        ::-webkit-scrollbar-thumb { background: var(--border-dark); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
-
-        .loading-shimmer {
-            background: linear-gradient(90deg, #161b22 25%, #21262d 50%, #161b22 75%);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
+        .vote-opt-btn.selected {
+            border-color: var(--primary);
+            background: rgba(242, 153, 74, 0.2);
+            box-shadow: 0 0 10px rgba(242, 153, 74, 0.3);
         }
-
-        @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-
-        input:focus { border-color: var(--primary) !important; outline: none; }
     </style>
 </head>
 <body class="p-2 md:p-6 lg:p-8">
 
     <div class="max-w-7xl mx-auto space-y-6">
-        <!-- HEADER SUPERIOR -->
+        <!-- HEADER -->
         <header class="card p-5 flex flex-col md:flex-row justify-between items-center border-b-4 border-orange-500 shadow-2xl">
             <div class="flex items-center gap-5">
                 <div class="p-3 bg-orange-500/10 rounded-2xl border border-orange-500/20">
@@ -91,170 +69,152 @@
                     </svg>
                 </div>
                 <div>
-                    <h1 class="text-2xl font-black tracking-tighter uppercase leading-none">MIL-COM <span class="text-orange-500">V7</span></h1>
-                    <div class="flex items-center gap-2 mt-1">
-                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                        <p id="current-mode-title" class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CONTROL ACCESO</p>
-                    </div>
+                    <h1 class="text-2xl font-black uppercase leading-none italic">MIL-COM <span class="text-orange-500">V7 PRO</span></h1>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">SISTEMA DE GESTIÓN Y VOTACIÓN</p>
                 </div>
             </div>
             <div class="mt-4 md:mt-0 flex flex-col items-end">
-                <div id="clock" class="text-3xl font-mono font-black text-orange-500 drop-shadow-sm">00:00:00</div>
-                <p id="today-date-top" class="text-[10px] font-bold text-slate-500 uppercase italic"></p>
+                <div id="clock" class="text-3xl font-mono font-black text-orange-500">00:00:00</div>
+                <p id="today-date" class="text-[10px] font-bold text-slate-500 uppercase italic"></p>
             </div>
         </header>
 
-        <!-- NAVEGACIÓN PRINCIPAL -->
-        <nav class="flex bg-[#161b22] rounded-2xl border border-[#30363d] overflow-hidden p-1 gap-1 shadow-lg">
-            <button onclick="changeTab('scan')" id="tab-scan" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all tab-btn-active">1. Escaneo</button>
-            <button onclick="changeTab('users')" id="tab-users" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500 hover:bg-white/5">2. Personal</button>
-            <button onclick="changeTab('funds')" id="tab-funds" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500 hover:bg-white/5">3. Recargas</button>
-            <button onclick="changeTab('reports')" id="tab-reports" class="flex-1 py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500 hover:bg-white/5">4. Reportes</button>
+        <!-- NAVEGACIÓN -->
+        <nav class="flex flex-wrap bg-[#161b22] rounded-2xl border border-[#30363d] overflow-hidden p-1 gap-1 shadow-lg">
+            <button onclick="changeTab('scan')" id="tab-scan" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all tab-btn-active">Escaneo</button>
+            <button onclick="changeTab('vote')" id="tab-vote" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Votación</button>
+            <button onclick="changeTab('users')" id="tab-users" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Personal</button>
+            <button onclick="changeTab('funds')" id="tab-funds" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Recargas</button>
+            <button onclick="changeTab('reports')" id="tab-reports" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Reportes</button>
+            <button onclick="changeTab('settings')" id="tab-settings" class="flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500">Ajustes</button>
         </nav>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <!-- PANEL IZQUIERDO: SCANNER E INFO -->
+            <!-- SCANNER -->
             <div class="lg:col-span-4 space-y-6">
                 <div class="card p-5 sticky top-6">
-                    <div id="reader-container" class="relative">
-                        <div id="reader" class="w-full aspect-square"></div>
-                        <div id="scan-overlay" class="absolute inset-0 pointer-events-none flex items-center justify-center opacity-0 transition-opacity">
-                             <div class="w-1/2 h-1/2 border-2 border-dashed border-white/30 rounded-full animate-ping"></div>
-                        </div>
-                    </div>
-
+                    <div id="reader" class="w-full aspect-square bg-black"></div>
                     <div id="scan-feedback" class="mt-5 p-4 bg-black/40 rounded-xl border border-dashed border-[#30363d] text-center">
                         <p id="dni-display" class="text-3xl font-mono text-orange-500 font-black tracking-widest">---</p>
-                        <p id="scan-context" class="text-[9px] text-slate-500 font-black uppercase mt-1 tracking-tighter">Esperando identificación...</p>
+                        <p id="scan-label" class="text-[9px] text-slate-500 font-black uppercase mt-1">Esperando Identificación...</p>
                     </div>
 
-                    <div class="mt-6 space-y-3">
-                        <p class="text-[10px] font-black text-slate-500 uppercase ml-1">Servicio Activo:</p>
+                    <div id="service-selector" class="mt-6 space-y-3">
+                        <p class="text-[10px] font-black text-slate-500 uppercase ml-1">Tiempo de Comida:</p>
                         <div class="grid grid-cols-3 gap-2">
-                            <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn py-3 text-[11px] font-black rounded-xl border border-[#30363d] btn-active">DESAYUNO</button>
-                            <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn py-3 text-[11px] font-black rounded-xl border border-[#30363d] text-slate-400">ALMUERZO</button>
-                            <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn py-3 text-[11px] font-black rounded-xl border border-[#30363d] text-slate-400">CENA</button>
+                            <button onclick="setService('Desayuno')" id="svc-Desayuno" class="svc-btn py-3 text-[9px] font-black rounded-xl border border-[#30363d] btn-active">DESAYUNO</button>
+                            <button onclick="setService('Almuerzo')" id="svc-Almuerzo" class="svc-btn py-3 text-[9px] font-black rounded-xl border border-[#30363d] text-slate-400">ALMUERZO</button>
+                            <button onclick="setService('Cena')" id="svc-Cena" class="svc-btn py-3 text-[9px] font-black rounded-xl border border-[#30363d] text-slate-400">CENA</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- PANEL DERECHO: VISTAS -->
+            <!-- VISTAS -->
             <div class="lg:col-span-8">
                 
-                <!-- VISTA 1: HISTORIAL ACCESO -->
+                <!-- VIEW: SCAN (HISTORIAL) -->
                 <div id="view-scan" class="space-y-6">
                     <div class="card overflow-hidden">
-                        <div class="p-5 border-b border-[#30363d] bg-black/20 flex justify-between items-center">
-                            <div>
-                                <h2 class="text-sm font-black uppercase italic">Registro de Actividad</h2>
-                                <p class="text-[9px] text-slate-500 font-bold">Tiempo real • Últimas 50 transacciones</p>
+                        <div class="p-4 border-b border-[#30363d] flex justify-between items-center bg-white/5">
+                            <h2 class="text-xs font-black uppercase italic">Historial Reciente</h2>
+                        </div>
+                        <div class="max-h-[500px] overflow-y-auto">
+                            <table class="w-full text-left text-xs">
+                                <tbody id="history-body" class="divide-y divide-[#30363d]"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: VOTACIÓN -->
+                <div id="view-vote" class="hidden space-y-6">
+                    <div class="card p-6">
+                        <div class="text-center mb-8">
+                            <h2 class="text-xl font-black uppercase italic text-orange-500">Votación de Menú</h2>
+                            <p class="text-xs text-slate-500 font-bold uppercase">Escanea tu DNI para habilitar tu voto</p>
+                        </div>
+                        <div id="vote-container" class="opacity-30 pointer-events-none space-y-8">
+                            <div id="vote-options-grid" class="space-y-6">
+                                <!-- Dinámico -->
                             </div>
-                            <div class="flex gap-2">
-                                <div class="bg-orange-500/10 text-orange-500 px-3 py-1 rounded-full text-[10px] font-black border border-orange-500/20">
-                                    HOY: <span id="stats-today">0</span>
+                            <button onclick="submitVotes()" class="w-full bg-orange-500 text-black py-4 rounded-xl font-black uppercase shadow-lg">Registrar Votos</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: AJUSTES (GESTIÓN DE OPCIONES) -->
+                <div id="view-settings" class="hidden space-y-6">
+                    <div class="card p-6 space-y-8">
+                        <div>
+                            <h3 class="text-sm font-black uppercase italic text-orange-500 border-b border-[#30363d] pb-2 mb-4">Configurar Menú para Votación</h3>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase mb-6">Ingresa las 3 opciones que aparecerán mañana para el personal.</p>
+                            
+                            <div id="settings-menu-editor" class="space-y-6">
+                                <!-- Generado dinámicamente: Campos para Desayuno, Almuerzo, Cena -->
+                            </div>
+                        </div>
+
+                        <div class="pt-4 border-t border-[#30363d]">
+                            <h3 class="text-sm font-black uppercase italic text-orange-500 mb-4">Configuración de Precios (Lps)</h3>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div class="space-y-2">
+                                    <label class="text-[9px] font-black text-slate-500 uppercase">Desayuno</label>
+                                    <input type="number" id="set-p-des" class="w-full bg-black border border-[#30363d] p-3 rounded-lg font-bold">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-[9px] font-black text-slate-500 uppercase">Almuerzo</label>
+                                    <input type="number" id="set-p-alm" class="w-full bg-black border border-[#30363d] p-3 rounded-lg font-bold">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="text-[9px] font-black text-slate-500 uppercase">Cena</label>
+                                    <input type="number" id="set-p-cen" class="w-full bg-black border border-[#30363d] p-3 rounded-lg font-bold">
                                 </div>
                             </div>
                         </div>
-                        <div class="max-h-[600px] overflow-y-auto">
-                            <table class="w-full text-left">
-                                <tbody id="history-body" class="divide-y divide-[#30363d]">
-                                    <!-- Dinámico -->
-                                </tbody>
-                            </table>
-                        </div>
+
+                        <button onclick="saveSettings()" class="w-full bg-blue-600 py-4 rounded-xl font-black uppercase text-xs">Guardar Todo</button>
                     </div>
                 </div>
 
-                <!-- VISTA 2: BASE DE PERSONAL -->
-                <div id="view-users" class="hidden space-y-6">
-                    <div class="card p-5">
-                        <div class="flex flex-col md:flex-row gap-4 mb-6">
-                            <div class="relative flex-1">
-                                <input type="text" id="user-search" oninput="renderUsers()" placeholder="BUSCAR POR NOMBRE O DNI..." class="w-full bg-black border border-[#30363d] p-4 pl-12 rounded-xl text-xs font-bold uppercase">
-                                <svg class="w-5 h-5 absolute left-4 top-3.5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                            </div>
-                            <div class="bg-black border border-[#30363d] px-6 rounded-xl flex items-center justify-between min-w-[200px]">
-                                <span class="text-[10px] font-black text-slate-500 uppercase">Personal:</span>
-                                <span id="total-count" class="text-lg font-black text-orange-500 ml-4">0</span>
-                            </div>
-                        </div>
-                        <div class="max-h-[600px] overflow-y-auto rounded-xl border border-[#30363d]">
-                            <table class="w-full text-left text-xs">
-                                <thead class="text-slate-500 uppercase font-black bg-black/40 sticky top-0 z-10">
-                                    <tr>
-                                        <th class="p-4 border-b border-[#30363d]">Identificación</th>
-                                        <th class="p-4 border-b border-[#30363d]">Grado y Nombre</th>
-                                        <th class="p-4 border-b border-[#30363d] text-right">Saldo Disponible</th>
-                                        <th class="p-4 border-b border-[#30363d] text-center">Gestión</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="users-body" class="divide-y divide-[#30363d]"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- VISTA 3: RECARGAS MASIVAS -->
-                <div id="view-funds" class="hidden space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="card p-5 flex flex-col">
-                            <h2 class="text-xs font-black uppercase mb-4 text-orange-500">1. Listado de Selección</h2>
-                            <input type="text" id="fund-search" oninput="renderFundList()" placeholder="FILTRAR..." class="bg-black border border-[#30363d] p-3 rounded-lg text-[10px] uppercase mb-4">
-                            <div class="flex gap-4 mb-3 border-b border-[#30363d] pb-2">
-                                <button onclick="toggleAllCheckboxes(true)" class="text-[9px] font-black text-blue-400 uppercase hover:underline">Seleccionar Todo</button>
-                                <button onclick="toggleAllCheckboxes(false)" class="text-[9px] font-black text-slate-500 uppercase hover:underline">Limpiar</button>
-                            </div>
-                            <div class="flex-1 max-h-[400px] overflow-y-auto bg-black/20 rounded-xl">
-                                <table class="w-full text-[10px]">
-                                    <tbody id="fund-list-body" class="divide-y divide-[#30363d]"></tbody>
-                                </table>
-                            </div>
-                        </div>
-                        <div class="card p-8 flex flex-col items-center justify-center text-center space-y-6 bg-gradient-to-b from-transparent to-green-500/5">
-                            <div class="p-6 bg-green-500/10 rounded-full border border-green-500/20 text-green-500 shadow-lg">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h3 class="text-2xl font-black uppercase tracking-tight italic">Carga de Fondos</h3>
-                                <p class="text-[10px] text-slate-500 font-bold uppercase mt-1">Efectivos marcados: <span id="selected-count" class="text-white bg-green-600 px-2 py-0.5 rounded ml-1">0</span></p>
-                            </div>
-                            <div class="w-full">
-                                <label class="text-[10px] font-black text-slate-500 uppercase block mb-2">Valor de Recarga (Lps)</label>
-                                <input type="number" id="mass-fund-amount" placeholder="0.00" class="w-full bg-black border-2 border-[#30363d] p-5 rounded-2xl text-4xl font-black text-center text-green-500 shadow-inner">
-                            </div>
-                            <button onclick="executeMassFund()" class="w-full bg-green-600 hover:bg-green-500 text-white py-5 rounded-2xl font-black uppercase text-sm shadow-xl transform active:scale-95 transition-all">PROCESAR ACREDITACIÓN</button>
-                            <p class="text-[9px] text-slate-600 font-bold uppercase tracking-widest">SISTEMA MILITAR SEGURO</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- VISTA 4: REPORTES -->
+                <!-- VIEW: REPORTES -->
                 <div id="view-reports" class="hidden space-y-6">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div class="card p-6 text-center">
-                            <p class="text-[10px] font-black text-slate-500 uppercase">Recaudado Hoy</p>
-                            <p id="rep-income" class="text-2xl font-black text-green-500 mt-1">L. 0.00</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="card p-6">
+                            <h3 class="text-xs font-black uppercase text-orange-500 mb-4">Consumo Semanal</h3>
+                            <canvas id="mainChart" class="h-48"></canvas>
                         </div>
-                        <div class="card p-6 text-center border-orange-500/30">
-                            <p class="text-[10px] font-black text-slate-500 uppercase">Raciones Hoy</p>
-                            <p id="rep-rations" class="text-2xl font-black text-orange-500 mt-1">0</p>
-                        </div>
-                        <div class="card p-6 text-center">
-                            <p class="text-[10px] font-black text-slate-500 uppercase">Saldo en Sistema</p>
-                            <p id="rep-balance" class="text-2xl font-black text-blue-500 mt-1">L. 0.00</p>
+                        <div class="card p-6">
+                            <h3 class="text-xs font-black uppercase text-orange-500 mb-4">Tendencia de Votos (Hoy)</h3>
+                            <div id="vote-stats" class="space-y-4"></div>
                         </div>
                     </div>
-                    <div class="card p-10 flex flex-col items-center justify-center">
-                        <div class="mb-6 opacity-20">
-                            <svg class="w-20 h-20" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm2 10a1 1 0 10-2 0v3a1 1 0 102 0v-3zm2-3a1 1 0 011 1v5a1 1 0 11-2 0v-5a1 1 0 011-1zm4-1a1 1 0 10-2 0v7a1 1 0 102 0V8z" clip-rule="evenodd"></path></svg>
-                        </div>
-                        <h2 class="text-xl font-black uppercase italic mb-2">Exportación de Datos</h2>
-                        <p class="text-xs text-slate-500 mb-6 text-center max-w-xs">Genere un archivo CSV compatible con Excel con todo el historial de transacciones.</p>
-                        <button onclick="exportCSV()" class="bg-orange-500 hover:bg-orange-600 text-black px-10 py-4 rounded-xl font-black uppercase text-xs transition-colors shadow-lg shadow-orange-500/20">Descargar Reporte General (.CSV)</button>
+                </div>
+
+                <!-- VIEW: PERSONAL -->
+                <div id="view-users" class="hidden card p-4">
+                    <input type="text" id="user-search" oninput="renderUsers()" placeholder="BUSCAR PERSONAL..." class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-xs font-bold uppercase mb-4">
+                    <div class="max-h-[500px] overflow-y-auto border border-[#30363d] rounded-xl">
+                        <table class="w-full text-xs text-left">
+                            <thead class="bg-black text-slate-500 font-black uppercase">
+                                <tr><th class="p-4">DNI</th><th class="p-4">Nombre</th><th class="p-4 text-right">Saldo</th><th class="p-4">Acción</th></tr>
+                            </thead>
+                            <tbody id="users-body" class="divide-y divide-[#30363d]"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- VIEW: RECARGAS -->
+                <div id="view-funds" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card p-4">
+                        <p class="text-[10px] font-black text-slate-500 uppercase mb-4">Selección</p>
+                        <div id="fund-select-list" class="max-h-[400px] overflow-y-auto divide-y divide-[#30363d]"></div>
+                    </div>
+                    <div class="card p-6 flex flex-col justify-center gap-4 text-center">
+                        <p class="text-xs font-black uppercase text-slate-500">Monto a Cargar</p>
+                        <input type="number" id="mass-amt" class="bg-black border-2 border-[#30363d] p-6 rounded-xl text-4xl font-black text-center text-green-500">
+                        <button onclick="executeMassFund()" class="bg-green-600 p-4 rounded-xl font-black uppercase">Aplicar Carga</button>
                     </div>
                 </div>
 
@@ -262,409 +222,390 @@
         </div>
     </div>
 
-    <!-- MODAL REGISTRO -->
-    <div id="reg-modal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="card max-w-sm w-full p-8 border-t-8 border-orange-500 shadow-2xl">
-            <h3 class="text-2xl font-black uppercase italic text-center mb-2">Alta de Personal</h3>
-            <p class="text-center text-[10px] text-slate-500 mb-6 font-bold uppercase tracking-widest">Nuevo registro detectado</p>
+    <!-- MODALES -->
+    <div id="login-modal" class="hidden fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4">
+        <div class="card max-w-sm w-full p-8 text-center space-y-6 border-t-4 border-red-500">
+            <h3 class="text-xl font-black uppercase italic">Administrador</h3>
+            <input type="password" id="admin-pin" placeholder="PIN" class="w-full bg-black border border-[#30363d] p-4 rounded-xl text-center text-2xl tracking-[0.5em]">
+            <div class="flex gap-2">
+                <button onclick="closeLogin()" class="flex-1 text-xs font-black text-slate-500">VOLVER</button>
+                <button onclick="checkAdmin()" class="flex-[2] bg-white text-black py-3 rounded-xl font-black">ENTRAR</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="reg-modal" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+        <div class="card max-w-sm w-full p-8 border-t-8 border-orange-500">
+            <h3 class="text-xl font-black uppercase text-center mb-6 italic">Nuevo Ingreso</h3>
             <div class="space-y-4">
-                <div class="space-y-1">
-                    <label class="text-[9px] font-black text-slate-500 uppercase ml-1">DNI Escaneado</label>
-                    <input type="text" id="nu-dni" readonly class="w-full bg-black border border-[#30363d] p-4 rounded-xl font-mono text-orange-500 text-center text-lg">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[9px] font-black text-slate-500 uppercase ml-1">Nombres Completos</label>
-                    <input type="text" id="nu-name" placeholder="EJ: JUAN PEREZ" class="w-full bg-[#0d1117] border border-[#30363d] p-4 rounded-xl font-bold uppercase focus:ring-2 ring-orange-500/20">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[9px] font-black text-slate-500 uppercase ml-1">Rango / Grado</label>
-                    <input type="text" id="nu-rank" placeholder="EJ: CABO" class="w-full bg-[#0d1117] border border-[#30363d] p-4 rounded-xl font-bold uppercase focus:ring-2 ring-orange-500/20">
-                </div>
-                <div class="flex gap-3 pt-4">
-                    <button onclick="closeRegisterModal()" class="flex-1 py-4 font-black text-slate-500 text-xs uppercase hover:bg-white/5 rounded-xl">CERRAR</button>
-                    <button onclick="saveNewUser()" class="flex-2 bg-orange-500 text-black py-4 px-6 rounded-xl font-black uppercase text-xs shadow-lg shadow-orange-500/20">REGISTRAR</button>
-                </div>
+                <input type="text" id="nu-dni" readonly class="w-full bg-black p-4 rounded-xl text-center font-mono text-orange-500">
+                <input type="text" id="nu-name" placeholder="NOMBRE COMPLETO" class="w-full bg-[#0d1117] border border-[#30363d] p-4 rounded-xl font-bold uppercase">
+                <input type="text" id="nu-rank" placeholder="RANGO" class="w-full bg-[#0d1117] border border-[#30363d] p-4 rounded-xl font-bold uppercase">
+                <button onclick="saveNewUser()" class="w-full bg-orange-500 text-black py-4 rounded-xl font-black uppercase">Registrar</button>
             </div>
         </div>
     </div>
 
-    <!-- ALERTAS FLOTANTES -->
-    <div id="alert" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 z-[100] p-6 rounded-2xl shadow-2xl border-l-8 min-w-[320px] transition-all transform animate-bounce">
-        <div class="flex items-start gap-4">
-            <div id="alert-icon" class="mt-1"></div>
-            <div>
-                <h4 id="alert-title" class="font-black uppercase text-lg leading-tight tracking-tighter"></h4>
-                <p id="alert-msg" class="text-sm font-medium opacity-80 mt-0.5"></p>
-            </div>
-        </div>
+    <div id="toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] p-5 rounded-xl border-l-8 bg-[#161b22] shadow-2xl min-w-[320px]">
+        <h4 id="toast-title" class="font-black uppercase text-xs"></h4>
+        <p id="toast-msg" class="text-[10px] opacity-80 uppercase font-bold mt-1"></p>
     </div>
 
-    <script type="module">
-        // Se usaría in-memory por defecto a menos que pidas Firestore. 
-        // Implementamos lógica robusta en memoria con persistencia en LocalStorage 
-        // pero preparada para sincronizar.
-
+    <script>
+        const PIN_CORRECTO = "1234";
+        
         let STATE = {
-            prices: { Desayuno: 50, Almuerzo: 100, Cena: 70 },
-            users: JSON.parse(localStorage.getItem('milcom_v7_users')) || [],
-            history: JSON.parse(localStorage.getItem('milcom_v7_history')) || []
+            prices: JSON.parse(localStorage.getItem('m_p')) || { Desayuno: 50, Almuerzo: 100, Cena: 70 },
+            users: JSON.parse(localStorage.getItem('m_u')) || [],
+            history: JSON.parse(localStorage.getItem('m_h')) || [],
+            votes: JSON.parse(localStorage.getItem('m_v')) || [],
+            menu: JSON.parse(localStorage.getItem('m_m')) || {
+                Desayuno: ["Baleadas", "Huevos", "Plátano"],
+                Almuerzo: ["Pollo", "Res", "Cerdo"],
+                Cena: ["Tacos", "Sopa", "Pasta"]
+            }
         };
 
-        let currentService = 'Desayuno';
-        let currentTab = 'scan';
-        let selectedForMass = new Set();
+        let currentSvc = 'Desayuno';
+        let loggedUser = null;
+        let selectedUsers = new Set();
         let scanner = null;
-        let scanLock = false;
+        let activeTab = 'scan';
+        let pendingTab = null;
+        let currentChart = null;
+        let voteBuffer = {};
 
         function init() {
             startClock();
             startScanner();
             renderAll();
-            document.getElementById('today-date-top').innerText = new Date().toLocaleDateString('es-HN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            loadSettingsInputs();
+            document.getElementById('today-date').innerText = new Date().toLocaleDateString('es-HN', { weekday: 'long', day: 'numeric', month: 'long' });
         }
 
-        // --- SCANNER ---
-        function startScanner() {
-            scanner = new Html5Qrcode("reader");
-            const config = { fps: 60, qrbox: { width: 250, height: 250 } };
-            
-            scanner.start({ facingMode: "environment" }, config, (text) => {
-                if(scanLock) return;
-                handleScan(text.trim().toUpperCase());
-            }).catch(err => {
-                console.error("Scanner error:", err);
-                document.getElementById('reader').innerHTML = `
-                    <div class="p-8 text-center text-xs text-red-500 font-bold uppercase">
-                        Error de Cámara<br>Verifique permisos
-                    </div>
-                `;
-            });
-        }
-
-        async function handleScan(dni) {
-            scanLock = true;
-            const readerEl = document.getElementById('reader');
-            document.getElementById('dni-display').innerText = dni;
-            
-            const user = STATE.users.find(u => u.dni === dni);
-
-            if (currentTab === 'scan') {
-                if (!user) {
-                    feedbackUI('error');
-                    showNotice("NO REGISTRADO", `DNI ${dni} no figura en la base.`, "red");
-                } else {
-                    processAccess(user);
-                }
-            } else if (currentTab === 'users') {
-                if (!user) {
-                    feedbackUI('success');
-                    openRegisterModal(dni);
-                } else {
-                    feedbackUI('error');
-                    showNotice("EXISTE", `${user.name} ya está registrado.`, "blue");
-                }
-            } else if (currentTab === 'funds') {
-                if (user) {
-                    feedbackUI('success');
-                    toggleUserSelection(user.dni);
-                    showNotice("SELECCIONADO", `${user.rank} marcado para recarga.`, "green");
-                } else {
-                    feedbackUI('error');
-                    showNotice("ERROR", "Personal no registrado.", "red");
-                }
-            }
-
-            setTimeout(() => {
-                scanLock = false;
-                readerEl.classList.remove('scanner-active', 'scanner-success', 'scanner-error');
-                document.getElementById('dni-display').innerText = "---";
-            }, 1500);
-        }
-
-        function feedbackUI(type) {
-            const el = document.getElementById('reader');
-            el.classList.add(type === 'success' ? 'scanner-success' : 'scanner-error');
-        }
-
-        // --- LOGICA DE NEGOCIO ---
-        function processAccess(user) {
-            const today = new Date().toLocaleDateString();
-            const cost = STATE.prices[currentService];
-            
-            // Verificar si ya consumió hoy este servicio
-            const duplicate = STATE.history.find(h => 
-                h.dni === user.dni && 
-                h.date === today && 
-                h.service === currentService && 
-                h.status === 'AUTORIZADO'
-            );
-
-            if(duplicate) {
-                feedbackUI('error');
-                showNotice("DENEGADO", "RACIÓN YA ENTREGADA HOY", "red");
-                logHistory(user, 'DENEGADO (DUPLICADO)', 0);
-            } else if(user.balance < cost) {
-                feedbackUI('error');
-                showNotice("SALDO INSUFICIENTE", `L. ${user.balance.toFixed(2)} de L. ${cost} necesarios`, "red");
-                logHistory(user, 'DENEGADO (SIN SALDO)', 0);
-            } else {
-                feedbackUI('success');
-                user.balance -= cost;
-                showNotice("AUTORIZADO", `${user.rank} ${user.name}`, "green");
-                logHistory(user, 'AUTORIZADO', cost);
-                saveAndSync();
-            }
-        }
-
-        // --- RENDERIZADO ---
-        function renderAll() {
-            renderHistory();
-            renderUsers();
-            renderFundList();
-            updateReportStats();
-        }
-
-        function renderHistory() {
-            const today = new Date().toLocaleDateString();
-            const history = [...STATE.history].reverse().slice(0, 50);
-            const body = document.getElementById('history-body');
-            
-            document.getElementById('stats-today').innerText = STATE.history.filter(h => h.date === today && h.status === 'AUTORIZADO').length;
-
-            if (history.length === 0) {
-                body.innerHTML = `<tr><td class="p-10 text-center text-slate-600 text-[10px] font-black uppercase italic tracking-widest">Sin actividad reciente</td></tr>`;
-                return;
-            }
-
-            body.innerHTML = history.map(h => `
-                <tr class="hover:bg-white/5 transition-colors border-l-4 ${h.status.includes('AUTORIZADO') ? 'border-green-500' : 'border-red-500'}">
-                    <td class="p-4">
-                        <div class="text-[10px] font-mono text-slate-500">${h.time}</div>
-                        <div class="text-[11px] font-black uppercase text-orange-500">${h.dni}</div>
-                    </td>
-                    <td class="p-4">
-                        <div class="text-xs font-black uppercase tracking-tight">${h.name}</div>
-                        <div class="text-[9px] text-slate-500 font-bold uppercase">${h.rank} <span class="mx-1 text-slate-700">•</span> ${h.service}</div>
-                    </td>
-                    <td class="p-4 text-right">
-                        <div class="text-[10px] font-black uppercase ${h.status.includes('AUTORIZADO') ? 'text-green-500' : 'text-red-500'} italic">
-                            ${h.status}
-                        </div>
-                        <div class="text-[9px] text-slate-600 font-bold">L. ${h.cost.toFixed(2)}</div>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        function renderUsers() {
-            const query = document.getElementById('user-search').value.toUpperCase();
-            const filtered = STATE.users.filter(u => u.name.includes(query) || u.dni.includes(query));
-            document.getElementById('total-count').innerText = STATE.users.length;
-            
-            const body = document.getElementById('users-body');
-            body.innerHTML = filtered.map(u => `
-                <tr class="hover:bg-white/5 transition-colors group">
-                    <td class="p-4 font-mono text-orange-500 font-bold">${u.dni}</td>
-                    <td class="p-4">
-                        <div class="font-black uppercase text-slate-200">${u.name}</div>
-                        <div class="text-[9px] text-slate-500 font-bold">${u.rank}</div>
-                    </td>
-                    <td class="p-4 text-right">
-                        <span class="font-black ${u.balance > 0 ? 'text-green-500' : 'text-red-500'} text-sm">L. ${u.balance.toFixed(2)}</span>
-                    </td>
-                    <td class="p-4 text-center">
-                        <button onclick="deleteUser('${u.dni}')" class="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg text-[10px] font-black hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 uppercase">Eliminar</button>
-                    </td>
-                </tr>
-            `).join('');
-        }
-
-        function renderFundList() {
-            const query = document.getElementById('fund-search').value.toUpperCase();
-            const filtered = STATE.users.filter(u => u.name.includes(query) || u.dni.includes(query));
-            
-            document.getElementById('fund-list-body').innerHTML = filtered.map(u => `
-                <tr class="hover:bg-white/5 cursor-pointer" onclick="toggleUserSelection('${u.dni}')">
-                    <td class="p-3 w-10 text-center">
-                        <div class="w-5 h-5 border-2 rounded ${selectedForMass.has(u.dni) ? 'bg-orange-500 border-orange-500' : 'border-[#30363d]'} flex items-center justify-center transition-all">
-                            ${selectedForMass.has(u.dni) ? '✓' : ''}
-                        </div>
-                    </td>
-                    <td class="p-3">
-                        <div class="font-black uppercase text-slate-300">${u.name}</div>
-                        <div class="text-[8px] text-slate-500 font-bold uppercase italic">Saldo Actual: L. ${u.balance.toFixed(2)}</div>
-                    </td>
-                </tr>
-            `).join('');
-            document.getElementById('selected-count').innerText = selectedForMass.size;
-        }
-
-        // --- ACCIONES MASIVAS ---
-        window.toggleUserSelection = function(dni) {
-            if (selectedForMass.has(dni)) selectedForMass.delete(dni);
-            else selectedForMass.add(dni);
-            renderFundList();
-        }
-
-        window.toggleAllCheckboxes = function(val) {
-            if (val) STATE.users.forEach(u => selectedForMass.add(u.dni));
-            else selectedForMass.clear();
-            renderFundList();
-        }
-
-        window.executeMassFund = function() {
-            const amount = parseFloat(document.getElementById('mass-fund-amount').value);
-            if (isNaN(amount) || amount <= 0) { showNotice("VALOR INVÁLIDO", "Ingrese un monto mayor a 0.", "red"); return; }
-            if (selectedForMass.size === 0) { showNotice("SIN SELECCIÓN", "Marque al menos una persona.", "red"); return; }
-
-            const confirmMsg = `¿Acreditar L. ${amount.toFixed(2)} a ${selectedForMass.size} efectivos?\nTotal a depositar: L. ${(amount * selectedForMass.size).toFixed(2)}`;
-            if (!confirm(confirmMsg)) return;
-
-            STATE.users.forEach(u => {
-                if (selectedForMass.has(u.dni)) u.balance += amount;
-            });
-
-            showNotice("ACREDITACIÓN ÉXITOSA", `Se procesaron ${selectedForMass.size} recargas.`, "green");
-            selectedForMass.clear();
-            document.getElementById('mass-fund-amount').value = "";
-            saveAndSync();
-        }
-
-        // --- NAVEGACIÓN Y MODALES ---
-        window.changeTab = function(tab) {
-            currentTab = tab;
-            const titles = { scan: 'CONTROL ACCESO', users: 'BASE PERSONAL', funds: 'RECARGAS MASIVAS', reports: 'REPORTES' };
-            document.getElementById('current-mode-title').innerText = titles[tab];
-            document.getElementById('scan-context').innerText = tab === 'funds' ? 'ESCANEÉ PARA SELECCIONAR...' : 'ESPERANDO IDENTIFICACIÓN...';
-            
-            ['scan', 'users', 'funds', 'reports'].forEach(t => {
-                document.getElementById('view-'+t).classList.toggle('hidden', t !== tab);
-                document.getElementById('tab-'+t).classList.toggle('tab-btn-active', t === tab);
-                document.getElementById('tab-'+t).classList.toggle('text-slate-500', t !== tab);
-            });
-            renderAll();
-        }
-
-        window.openRegisterModal = function(dni) {
-            document.getElementById('nu-dni').value = dni;
-            document.getElementById('reg-modal').classList.remove('hidden');
-            document.getElementById('nu-name').focus();
-        }
-
-        window.closeRegisterModal = function() { 
-            document.getElementById('reg-modal').classList.add('hidden');
-            document.getElementById('nu-name').value = "";
-            document.getElementById('nu-rank').value = "";
-        }
-
-        window.saveNewUser = function() {
-            const dni = document.getElementById('nu-dni').value;
-            const name = document.getElementById('nu-name').value.trim().toUpperCase();
-            const rank = document.getElementById('nu-rank').value.trim().toUpperCase();
-            
-            if(!name || !rank) { showNotice("DATOS INCOMPLETOS", "Rellene todos los campos.", "red"); return; }
-            
-            STATE.users.push({ dni, name, rank, balance: 0 });
-            saveAndSync();
-            closeRegisterModal();
-            showNotice("REGISTRO ÉXITOSO", `${rank} agregado a la base.`, "green");
-        }
-
-        window.deleteUser = function(dni) {
-            if(confirm("¿Eliminar este registro permanentemente? Esta acción no se puede deshacer.")) {
-                STATE.users = STATE.users.filter(u => u.dni !== dni);
-                saveAndSync();
-            }
-        }
-
-        // --- UTILIDADES ---
         function startClock() {
             setInterval(() => {
-                document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-HN', {hour12:false});
+                document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-HN', { hour12: false });
             }, 1000);
         }
 
-        function logHistory(user, status, cost) {
-            STATE.history.push({
-                dni: user.dni, 
-                name: user.name, 
-                rank: user.rank,
-                status, 
-                cost, 
-                service: currentService,
+        function startScanner() {
+            scanner = new Html5Qrcode("reader");
+            scanner.start({ facingMode: "environment" }, { fps: 30, qrbox: 250 }, (text) => handleScan(text.trim().toUpperCase()));
+        }
+
+        function handleScan(dni) {
+            document.getElementById('dni-display').innerText = dni;
+            const user = STATE.users.find(u => u.dni === dni);
+            const readerEl = document.getElementById('reader');
+
+            if (user) {
+                loggedUser = user;
+                readerEl.className = "w-full aspect-square bg-black scanner-success";
+                
+                if (activeTab === 'scan') processMeal(user);
+                else if (activeTab === 'vote') enableVoteUI(user);
+                else if (activeTab === 'funds') toggleFundSelection(dni);
+
+                setTimeout(() => {
+                    readerEl.className = "w-full aspect-square bg-black";
+                    document.getElementById('dni-display').innerText = "---";
+                }, 2000);
+            } else {
+                readerEl.className = "w-full aspect-square bg-black scanner-error";
+                openReg(dni);
+            }
+        }
+
+        function processMeal(user) {
+            const cost = STATE.prices[currentSvc];
+            const today = new Date().toLocaleDateString();
+            const exists = STATE.history.find(h => h.dni === user.dni && h.date === today && h.service === currentSvc && h.status === 'AUTORIZADO');
+
+            if (exists) {
+                notify("ERROR", "RACIÓN YA ENTREGADA HOY", "red");
+            } else if (user.balance < cost) {
+                notify("SALDO INSUFICIENTE", `NECESITA L. ${cost}`, "red");
+            } else {
+                user.balance -= cost;
+                STATE.history.push({
+                    dni: user.dni, name: user.name, rank: user.rank,
+                    service: currentSvc, status: 'AUTORIZADO', cost,
+                    date: today, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+                });
+                notify("AUTORIZADO", `${user.name} - ${currentSvc}`, "green");
+                save();
+            }
+        }
+
+        // --- VOTACIÓN ---
+        function enableVoteUI(user) {
+            const today = new Date().toLocaleDateString();
+            const voted = STATE.votes.find(v => v.dni === user.dni && v.date === today);
+            
+            if (voted) {
+                notify("INFO", "YA HAS REGISTRADO TU VOTO HOY", "blue");
+                return;
+            }
+
+            document.getElementById('vote-container').style.opacity = "1";
+            document.getElementById('vote-container').style.pointerEvents = "all";
+            renderVoteOptions();
+            notify("VOTACIÓN ACTIVA", `PERSONA: ${user.name}`, "orange");
+        }
+
+        function renderVoteOptions() {
+            const container = document.getElementById('vote-options-grid');
+            container.innerHTML = Object.keys(STATE.menu).map(svc => `
+                <div class="space-y-3">
+                    <p class="text-[10px] font-black text-orange-500 uppercase">${svc} de Mañana</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        ${STATE.menu[svc].map((opt, i) => `
+                            <button onclick="pickVote('${svc}', ${i})" id="v-${svc}-${i}" class="vote-opt-btn p-4 card text-[10px] font-bold uppercase transition-all">
+                                ${opt}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.pickVote = (svc, idx) => {
+            voteBuffer[svc] = idx;
+            document.querySelectorAll(`[id^="v-${svc}"]`).forEach(b => b.classList.remove('selected'));
+            document.getElementById(`v-${svc}-${idx}`).classList.add('selected');
+        }
+
+        window.submitVotes = () => {
+            if (Object.keys(voteBuffer).length < 3) return notify("ERROR", "ELIJA UNA OPCIÓN POR TIEMPO", "red");
+            
+            STATE.votes.push({
+                dni: loggedUser.dni,
                 date: new Date().toLocaleDateString(),
-                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second: '2-digit'})
+                choices: {...voteBuffer}
             });
-            saveAndSync();
+            save();
+            notify("ÉXITO", "VOTOS REGISTRADOS CORRECTAMENTE", "green");
+            document.getElementById('vote-container').style.opacity = "0.3";
+            document.getElementById('vote-container').style.pointerEvents = "none";
+            voteBuffer = {};
         }
 
-        window.setService = function(s) {
-            currentService = s;
-            document.querySelectorAll('.svc-btn').forEach(b => {
-                b.classList.remove('btn-active');
-                b.classList.add('text-slate-400');
+        // --- AJUSTES Y GESTIÓN DE MENÚ ---
+        function loadSettingsInputs() {
+            // Cargar Precios
+            document.getElementById('set-p-des').value = STATE.prices.Desayuno;
+            document.getElementById('set-p-alm').value = STATE.prices.Almuerzo;
+            document.getElementById('set-p-cen').value = STATE.prices.Cena;
+
+            // Cargar Editor de Menú
+            const container = document.getElementById('settings-menu-editor');
+            container.innerHTML = Object.keys(STATE.menu).map(svc => `
+                <div class="p-4 bg-black/40 border border-[#30363d] rounded-xl space-y-3">
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">${svc}</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                        ${STATE.menu[svc].map((opt, i) => `
+                            <input type="text" id="edit-m-${svc}-${i}" value="${opt}" 
+                            class="bg-black border border-[#30363d] p-3 rounded-lg text-xs font-bold uppercase text-orange-400">
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.saveSettings = () => {
+            // Guardar Precios
+            STATE.prices.Desayuno = parseInt(document.getElementById('set-p-des').value);
+            STATE.prices.Almuerzo = parseInt(document.getElementById('set-p-alm').value);
+            STATE.prices.Cena = parseInt(document.getElementById('set-p-cen').value);
+
+            // Guardar Opciones de Menú
+            Object.keys(STATE.menu).forEach(svc => {
+                for(let i=0; i<3; i++) {
+                    const val = document.getElementById(`edit-m-${svc}-${i}`).value;
+                    STATE.menu[svc][i] = val || `Opción ${i+1}`;
+                }
             });
-            const btn = document.getElementById('svc-'+s);
-            btn.classList.add('btn-active');
-            btn.classList.remove('text-slate-400');
-        }
 
-        function showNotice(t, m, color) {
-            const el = document.getElementById('alert');
-            const icon = document.getElementById('alert-icon');
-            const c = color === 'red' ? '#ef4444' : (color === 'blue' ? '#3b82f6' : '#22c55e');
-            
-            document.getElementById('alert-title').innerText = t;
-            document.getElementById('alert-title').style.color = c;
-            document.getElementById('alert-msg').innerText = m;
-            
-            el.style.backgroundColor = '#1c2128';
-            el.style.borderLeft = `8px solid ${c}`;
-            
-            icon.innerHTML = color === 'red' ? '<svg class="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>' : '<svg class="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>';
-
-            el.classList.remove('hidden');
-            setTimeout(() => el.classList.add('hidden'), 4000);
-        }
-
-        function saveAndSync() {
-            localStorage.setItem('milcom_v7_users', JSON.stringify(STATE.users));
-            localStorage.setItem('milcom_v7_history', JSON.stringify(STATE.history));
+            localStorage.setItem('m_p', JSON.stringify(STATE.prices));
+            localStorage.setItem('m_m', JSON.stringify(STATE.menu));
+            notify("GUARDADO", "CONFIGURACIÓN ACTUALIZADA", "blue");
             renderAll();
         }
 
-        function updateReportStats() {
-            const today = new Date().toLocaleDateString();
-            const todayData = STATE.history.filter(h => h.date === today && h.status === 'AUTORIZADO');
-            
-            const income = todayData.reduce((acc, curr) => acc + curr.cost, 0);
-            const totalSystemBalance = STATE.users.reduce((acc, curr) => acc + curr.balance, 0);
-
-            document.getElementById('rep-income').innerText = `L. ${income.toFixed(2)}`;
-            document.getElementById('rep-rations').innerText = todayData.length;
-            document.getElementById('rep-balance').innerText = `L. ${totalSystemBalance.toFixed(2)}`;
+        // --- NAVEGACIÓN Y SEGURIDAD ---
+        window.changeTab = (tab) => {
+            const private = ['users', 'funds', 'settings'];
+            if (private.includes(tab)) {
+                pendingTab = tab;
+                document.getElementById('login-modal').classList.remove('hidden');
+            } else {
+                go(tab);
+            }
         }
 
-        window.exportCSV = function() {
-            let csv = "\uFEFF"; // BOM para Excel
-            csv += "Fecha,Hora,DNI,Nombre,Rango,Servicio,Estado,Costo\n";
-            STATE.history.forEach(h => {
-                csv += `${h.date},${h.time},${h.dni},"${h.name}","${h.rank}",${h.service},${h.status},${h.cost}\n`;
+        window.checkAdmin = () => {
+            if (document.getElementById('admin-pin').value === PIN_CORRECTO) {
+                closeLogin();
+                go(pendingTab);
+            } else {
+                notify("ERROR", "PIN INCORRECTO", "red");
+            }
+            document.getElementById('admin-pin').value = "";
+        }
+
+        function go(tab) {
+            activeTab = tab;
+            document.querySelectorAll('nav button').forEach(b => b.className = "flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all text-slate-500");
+            document.getElementById(`tab-${tab}`).className = "flex-1 min-w-[100px] py-3 text-[10px] font-black uppercase rounded-xl transition-all tab-btn-active";
+            
+            ['scan', 'vote', 'users', 'funds', 'reports', 'settings'].forEach(v => {
+                document.getElementById(`view-${v}`).classList.toggle('hidden', v !== tab);
             });
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `MILCOM_REPORTE_${new Date().toISOString().split('T')[0]}.csv`;
-            a.click();
+
+            if (tab === 'reports') drawCharts();
+            renderAll();
+        }
+
+        window.closeLogin = () => document.getElementById('login-modal').classList.add('hidden');
+
+        // --- AUXILIARES ---
+        function renderAll() {
+            // Historial
+            const hItems = [...STATE.history].reverse().slice(0, 15);
+            document.getElementById('history-body').innerHTML = hItems.map(h => `
+                <tr class="border-l-4 ${h.status === 'AUTORIZADO' ? 'border-green-500' : 'border-red-500'} bg-white/5">
+                    <td class="p-4 font-mono text-orange-500">${h.time}</td>
+                    <td class="p-4 font-black uppercase">${h.name}</td>
+                    <td class="p-4 text-right opacity-50 font-bold">${h.service}</td>
+                </tr>
+            `).join('');
+
+            // Personal
+            const q = document.getElementById('user-search').value.toUpperCase();
+            document.getElementById('users-body').innerHTML = STATE.users.filter(u => u.name.includes(q) || u.dni.includes(q)).map(u => `
+                <tr>
+                    <td class="p-4 font-mono text-orange-500">${u.dni}</td>
+                    <td class="p-4 uppercase font-black">${u.name}</td>
+                    <td class="p-4 text-right font-black ${u.balance > 0 ? 'text-green-500' : 'text-red-500'}">L. ${u.balance}</td>
+                    <td class="p-4"><button onclick="delUser('${u.dni}')" class="text-red-500 font-black">X</button></td>
+                </tr>
+            `).join('');
+
+            // Recargas
+            document.getElementById('fund-select-list').innerHTML = STATE.users.map(u => `
+                <div onclick="toggleFundSelection('${u.dni}')" class="p-4 flex justify-between items-center cursor-pointer ${selectedUsers.has(u.dni) ? 'bg-orange-500/20' : ''}">
+                    <span class="text-[10px] font-black uppercase">${u.name}</span>
+                    <span class="text-[10px] font-mono text-slate-500">L. ${u.balance}</span>
+                </div>
+            `).join('');
+        }
+
+        function drawCharts() {
+            const ctx = document.getElementById('mainChart').getContext('2d');
+            if (currentChart) currentChart.destroy();
+            
+            const days = [...Array(7)].map((_, i) => {
+                const d = new Date(); d.setDate(d.getDate() - i);
+                return d.toLocaleDateString();
+            }).reverse();
+
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: days.map(d => d.split('/')[0]),
+                    datasets: [{
+                        data: days.map(d => STATE.history.filter(h => h.date === d).length),
+                        borderColor: '#f2994a', tension: 0.4, fill: true, backgroundColor: 'rgba(242, 153, 74, 0.1)'
+                    }]
+                },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+            });
+
+            // Stats de Votos
+            const today = new Date().toLocaleDateString();
+            const todayVotes = STATE.votes.filter(v => v.date === today);
+            const statsCont = document.getElementById('vote-stats');
+            
+            statsCont.innerHTML = Object.keys(STATE.menu).map(svc => {
+                const counts = [0, 0, 0];
+                todayVotes.forEach(v => counts[v.choices[svc]]++);
+                const max = Math.max(...counts) || 1;
+
+                return `
+                    <div class="space-y-2">
+                        <p class="text-[9px] font-black uppercase text-slate-500">${svc}</p>
+                        ${STATE.menu[svc].map((opt, i) => `
+                            <div class="flex items-center gap-2">
+                                <div class="flex-1 bg-black h-4 rounded-full overflow-hidden border border-[#30363d]">
+                                    <div class="bg-orange-500 h-full" style="width: ${(counts[i]/max)*100}%"></div>
+                                </div>
+                                <span class="text-[9px] font-black w-4 text-orange-500">${counts[i]}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.notify = (title, msg, color) => {
+            const t = document.getElementById('toast');
+            t.className = `fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] p-5 rounded-xl border-l-8 bg-[#161b22] shadow-2xl min-w-[320px] border-${color}-500`;
+            document.getElementById('toast-title').innerText = title;
+            document.getElementById('toast-title').className = `font-black uppercase text-xs text-${color}-500`;
+            document.getElementById('toast-msg').innerText = msg;
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 3500);
+        }
+
+        window.setService = (s) => {
+            currentSvc = s;
+            document.querySelectorAll('.svc-btn').forEach(b => b.className = "svc-btn py-3 text-[9px] font-black rounded-xl border border-[#30363d] text-slate-400");
+            document.getElementById(`svc-${s}`).className = "svc-btn py-3 text-[9px] font-black rounded-xl border border-[#30363d] btn-active";
+        }
+
+        window.openReg = (dni) => {
+            document.getElementById('nu-dni').value = dni;
+            document.getElementById('reg-modal').classList.remove('hidden');
+        }
+
+        window.saveNewUser = () => {
+            const dni = document.getElementById('nu-dni').value;
+            const name = document.getElementById('nu-name').value.toUpperCase();
+            const rank = document.getElementById('nu-rank').value.toUpperCase();
+            if(!name) return;
+            STATE.users.push({ dni, name, rank, balance: 0 });
+            save();
+            document.getElementById('reg-modal').classList.add('hidden');
+            notify("ÉXITO", "PERSONAL REGISTRADO", "green");
+        }
+
+        window.toggleFundSelection = (dni) => {
+            if(selectedUsers.has(dni)) selectedUsers.delete(dni);
+            else selectedUsers.add(dni);
+            renderAll();
+        }
+
+        window.executeMassFund = () => {
+            const val = parseInt(document.getElementById('mass-amt').value);
+            if(!val || selectedUsers.size === 0) return;
+            STATE.users.forEach(u => { if(selectedUsers.has(u.dni)) u.balance += val; });
+            selectedUsers.clear();
+            document.getElementById('mass-amt').value = "";
+            save();
+            notify("ÉXITO", "CARGA PROCESADA", "green");
+        }
+
+        window.delUser = (dni) => { if(confirm("¿Eliminar?")) { STATE.users = STATE.users.filter(u => u.dni !== dni); save(); } }
+
+        function save() {
+            localStorage.setItem('m_u', JSON.stringify(STATE.users));
+            localStorage.setItem('m_h', JSON.stringify(STATE.history));
+            localStorage.setItem('m_v', JSON.stringify(STATE.votes));
+            renderAll();
         }
 
         window.onload = init;
-        
-        // Exponer funciones necesarias al scope global (necesario por ser type="module")
-        window.renderUsers = renderUsers;
-        window.renderFundList = renderFundList;
-        window.renderAll = renderAll;
     </script>
 </body>
 </html>
