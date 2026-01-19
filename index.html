@@ -40,28 +40,34 @@
                 Cena: ["Tacos Mexicanos", "Sopa de Frijol", "Pasta Alfredo"]
             }
         };
+const syncFirebase = async () => {
+    await signInAnonymously(auth);
 
-        const syncFirebase = async () => {
-            await signInAnonymously(auth);
-            const dataDoc = doc(db, 'artifacts', appId, 'public', 'data', 'mainState');
-            
-            onSnapshot(dataDoc, (snapshot) => {
-                if (snapshot.exists()) {
-                    const cloudData = snapshot.data();
-                    window.STATE = { ...window.STATE, ...cloudData };
-                    window.renderAll();
-                    // Si estamos en la pestaña de votación, refrescar gráficos
-                    if (window.activeTab === 'vote') window.renderVoteView();
-                } else {
-                    setDoc(dataDoc, window.STATE);
+    const dataDoc = doc(db, "artifacts", "mainState");
+
+    onSnapshot(
+        dataDoc,
+        async (snapshot) => {
+            if (snapshot.exists()) {
+                window.STATE = snapshot.data();
+                window.renderAll();
+                if (window.activeTab === 'vote') {
+                    window.renderVoteView();
                 }
-            }, (err) => console.error("Firestore Error:", err));
-        };
+            } else {
+                await setDoc(dataDoc, window.STATE);
+            }
+        },
+        (err) => console.error("Firestore Error:", err)
+    );
+};
 
-        window.saveToCloud = async () => {
-            const dataDoc = doc(db, 'artifacts', appId, 'public', 'data', 'mainState');
-            await setDoc(dataDoc, window.STATE);
-        };
+
+window.saveToCloud = async () => {
+    const dataDoc = doc(db, "artifacts", "mainState");
+    await setDoc(dataDoc, window.STATE);
+};
+
 
         window.onload = () => {
             syncFirebase();
@@ -214,6 +220,8 @@
                             <input type="number" id="set-p-cen" class="bg-black border border-[#30363d] p-3 rounded-lg text-xs text-center font-bold">
                         </div>
                         <button onclick="saveSettings()" class="bg-blue-600 py-3 rounded-xl font-black uppercase text-xs">Guardar Cambios Nube</button>
+                        <button onclick="tryResetVotes()" class="bg-red-600 text-white py-2 px-4 rounded font-bold mt-4 hover:bg-red-700">Reiniciar Votación</button>
+
                     </div>
                 </div>
             </div>
@@ -268,6 +276,21 @@
 
         function startClock() { setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-HN', { hour12: false }), 1000); }
 
+function tryResetVotes(){
+  const pin = prompt("Ingrese PIN de administrador para reiniciar la votación:");
+  if(pin !== PIN_ADMIN){
+    alert("PIN incorrecto");
+    return;
+  }
+  if(confirm("¿Seguro que quieres reiniciar TODA la votación? Esta acción no se puede deshacer.")){
+    STATE.votes = [];
+    saveToCloud();
+    notify("VOTACIÓN REINICIADA", "Todos los votos han sido borrados.", "success");
+    if(window.activeTab === 'vote') syncVoteUI();
+  }
+}
+
+
         function startScanner() {
             scanner = new Html5Qrcode("reader");
             scanner.start({ facingMode: "environment" }, { fps: 30, qrbox: 250 }, (text) => handleScan(text.trim().toUpperCase())).catch(() => {});
@@ -306,6 +329,24 @@
                 nameEl.classList.remove('text-green-500');
             }
         }
+function isVoteOpenForNextDay() {
+    if (!loggedUser) return false;
+
+    const now = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(now.getDate() + 1);
+
+    const voteDateStr = `${tomorrow.getFullYear()}-${(tomorrow.getMonth()+1).toString().padStart(2,'0')}-${tomorrow.getDate().toString().padStart(2,'0')}`;
+
+    // Revisar si el usuario ya votó para este servicio y fecha
+    const alreadyVoted = STATE.votes.some(v =>
+        v.dni === loggedUser.dni &&
+        v.svc === currentSvc &&
+        v.date === voteDateStr
+    );
+
+    return !alreadyVoted; // true = puede votar
+}
 
         window.setService = (svc) => {
             currentSvc = svc;
@@ -333,32 +374,70 @@
             saveToCloud();
             notify("AUTORIZADO", `DISFRUTE SU ${currentSvc.toUpperCase()}`, "green");
         }
+window.syncVoteUI = () => {
+  if (!loggedUser) return;
+  const container = document.getElementById('vote-options-grid');
+  container.innerHTML = "";
 
-        function syncVoteUI() {
-            const container = document.getElementById('vote-container');
-            const msg = document.getElementById('vote-status-msg');
-            if (!loggedUser) { 
-                container.classList.add('opacity-30', 'pointer-events-none'); 
-                msg.innerText = "Identifíquese para votar"; 
-                renderVoteView(); // Renderizar solo para ver tendencias
-                return; 
-            }
-            
-            const today = new Date().toLocaleDateString();
-            const alreadyVoted = STATE.votes.find(v => v.dni === loggedUser.dni && v.date === today);
-            
-            if (alreadyVoted) {
-                container.classList.add('opacity-30', 'pointer-events-none');
-                msg.innerText = "Gracias por su voto de hoy";
-                msg.className = "text-[10px] text-green-500 font-black uppercase mt-1 italic";
-                renderVoteView();
-            } else {
-                container.classList.remove('opacity-30', 'pointer-events-none');
-                msg.innerText = "Elija el menú de mañana";
-                msg.className = "text-[10px] text-orange-400 font-black uppercase mt-1 italic";
-                renderVoteView();
-            }
-        }
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const voteDateStr = `${tomorrow.getFullYear()}-${(tomorrow.getMonth()+1).toString().padStart(2,'0')}-${tomorrow.getDate().toString().padStart(2,'0')}`;
+
+  const servicios = ['Desayuno', 'Almuerzo', 'Cena'];
+
+  servicios.forEach(svc => {
+    const header = document.createElement('h3');
+    header.innerText = svc;
+    header.className = "font-bold mt-4 mb-2 text-orange-500";
+    container.appendChild(header);
+
+    const timeContainer = document.createElement('div');
+    timeContainer.className = "flex flex-col gap-1 mb-4";
+
+    // Revisar si el usuario ya votó en este tiempo
+    const alreadyVoted = STATE.votes.some(v => v.dni === loggedUser.dni && v.svc === svc && v.date === voteDateStr);
+
+    (STATE.menu[svc] || []).forEach(c => {
+      const btn = document.createElement('button');
+      btn.className = "vote-opt-btn w-full py-3 rounded-xl border border-[#30363d] text-slate-200 font-black uppercase text-[10px] flex justify-between items-center";
+      btn.innerText = c;
+
+      // Mostrar porcentaje si hay votos
+      const votesForTomorrow = STATE.votes.filter(v => v.date === voteDateStr);
+      const votesForOption = votesForTomorrow.filter(v => v.svc === svc && v.vote === c).length;
+      const totalVotesForTime = votesForTomorrow.filter(v => v.svc === svc).length;
+
+      if (totalVotesForTime > 0) {
+        const percent = ((votesForOption / totalVotesForTime) * 100).toFixed(0);
+        const pctSpan = document.createElement('span');
+        pctSpan.innerText = `${percent}%`;
+        pctSpan.className = "ml-2 text-sm font-bold text-orange-400";
+        btn.appendChild(pctSpan);
+      }
+
+      // Solo bloquear botones si YA VOTÓ
+      if (alreadyVoted) {
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+      } else {
+        // Toggle selección solo si no ha votado
+        btn.onclick = () => {
+          timeContainer.querySelectorAll('.vote-opt-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+        };
+      }
+
+      timeContainer.appendChild(btn);
+    });
+
+    container.appendChild(timeContainer);
+  });
+
+  container.parentElement.classList.remove('opacity-30','pointer-events-none');
+};
+
+
+
 
         window.renderVoteView = () => {
             const grid = document.getElementById('vote-options-grid');
@@ -439,19 +518,59 @@
             document.querySelectorAll(`[id^="v-${svc}"]`).forEach(b => b.classList.remove('selected'));
             document.getElementById(`v-${svc}-${idx}`).classList.add('selected');
         };
+window.submitVotes = () => {
+  if (!loggedUser) {
+    alert("Identifícate para votar");
+    return;
+  }
 
-        window.submitVotes = () => {
-            if (Object.keys(voteBuffer).length < 3) { notify("AVISO", "ELIJA LOS 3 PLATOS", "orange"); return; }
-            STATE.votes.push({ 
-                dni: loggedUser.dni, 
-                date: new Date().toLocaleDateString(), 
-                choices: {...voteBuffer} 
-            });
-            saveToCloud();
-            notify("ÉXITO", "VOTO ENVIADO A LA NUBE", "green");
-            voteBuffer = {};
-            syncVoteUI();
-        };
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const voteDateStr = `${tomorrow.getFullYear()}-${(tomorrow.getMonth()+1).toString().padStart(2,'0')}-${tomorrow.getDate().toString().padStart(2,'0')}`;
+
+  const servicios = ['Desayuno','Almuerzo','Cena'];
+  let anySelected = false;
+
+  servicios.forEach(svc => {
+    const timeContainer = Array.from(document.getElementById('vote-options-grid').children)
+      .filter(el => el.tagName === 'DIV')[servicios.indexOf(svc)];
+    if (!timeContainer) return;
+
+    const selected = timeContainer.querySelector('.vote-opt-btn.selected');
+    if (selected) {
+      anySelected = true;
+
+      // Revisar si ya votó
+      const alreadyVoted = STATE.votes.some(v => v.dni === loggedUser.dni && v.svc === svc && v.date === voteDateStr);
+      if (alreadyVoted) {
+        notify("YA VOTASTE", `Ya registraste tu voto para ${svc}`, "error");
+      } else {
+        STATE.votes.push({
+          dni: loggedUser.dni,
+          name: loggedUser.name,
+          svc: svc,
+          vote: selected.innerText,
+          date: voteDateStr
+        });
+      }
+    }
+  });
+
+  if (!anySelected) {
+    alert("Selecciona al menos una opción antes de enviar");
+    return;
+  }
+
+  saveToCloud();
+  notify("VOTOS REGISTRADOS", "Tus selecciones han sido guardadas", "success");
+
+  // Refrescar UI para bloquear botones y mostrar porcentajes actualizados
+  syncVoteUI();
+};
+
+
+
+
 
         window.renderAll = () => {
             const today = new Date().toLocaleDateString();
@@ -484,31 +603,51 @@
             loadSettingsInputs();
         };
 
-        function loadSettingsInputs() {
-            document.getElementById('set-p-des').value = STATE.prices.Desayuno;
-            document.getElementById('set-p-alm').value = STATE.prices.Almuerzo;
-            document.getElementById('set-p-cen').value = STATE.prices.Cena;
-            
-            const container = document.getElementById('settings-menu-editor');
-            container.innerHTML = Object.keys(STATE.menu).map(svc => `
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    ${STATE.menu[svc].map((opt, i) => `
-                        <input type="text" id="edit-m-${svc}-${i}" value="${opt}" class="bg-black border border-[#30363d] p-3 rounded-xl text-[10px] font-bold uppercase outline-none focus:border-orange-500">
-                    `).join('')}
-                </div>
-            `).join('');
-        }
+      function loadSettingsInputs() {
+    document.getElementById('set-p-des').value = STATE.prices.Desayuno;
+    document.getElementById('set-p-alm').value = STATE.prices.Almuerzo;
+    document.getElementById('set-p-cen').value = STATE.prices.Cena;
 
-        window.saveSettings = () => {
-            STATE.prices.Desayuno = parseInt(document.getElementById('set-p-des').value);
-            STATE.prices.Almuerzo = parseInt(document.getElementById('set-p-alm').value);
-            STATE.prices.Cena = parseInt(document.getElementById('set-p-cen').value);
-            Object.keys(STATE.menu).forEach(svc => { 
-                for(let i=0; i<3; i++) STATE.menu[svc][i] = document.getElementById(`edit-m-${svc}-${i}`).value; 
-            });
-            saveToCloud();
-            notify("NUBE", "MENÚ ACTUALIZADO", "blue");
-        };
+    const container = document.getElementById('settings-menu-editor');
+
+    container.innerHTML = ['Desayuno','Almuerzo','Cena'].map(svc => `
+        <div class="space-y-2">
+            <h4 class="text-[10px] font-black uppercase text-orange-400">${svc}</h4>
+            <div class="grid grid-cols-3 gap-2">
+                <input type="text" id="edit-m-${svc}-0"
+                       value="${STATE.menu[svc][0] || ''}"
+                       class="bg-black border border-[#30363d] p-3 rounded-xl text-[10px] font-bold uppercase">
+
+                <input type="text" id="edit-m-${svc}-1"
+                       value="${STATE.menu[svc][1] || ''}"
+                       class="bg-black border border-[#30363d] p-3 rounded-xl text-[10px] font-bold uppercase">
+
+                <input type="text" id="edit-m-${svc}-2"
+                       value="${STATE.menu[svc][2] || ''}"
+                       class="bg-black border border-[#30363d] p-3 rounded-xl text-[10px] font-bold uppercase">
+            </div>
+        </div>
+    `).join('');
+}
+
+
+      window.saveSettings = () => {
+    STATE.prices.Desayuno = parseInt(document.getElementById('set-p-des').value);
+    STATE.prices.Almuerzo = parseInt(document.getElementById('set-p-alm').value);
+    STATE.prices.Cena = parseInt(document.getElementById('set-p-cen').value);
+
+    ['Desayuno','Almuerzo','Cena'].forEach(svc => {
+        STATE.menu[svc] = [
+            document.getElementById(`edit-m-${svc}-0`).value.trim(),
+            document.getElementById(`edit-m-${svc}-1`).value.trim(),
+            document.getElementById(`edit-m-${svc}-2`).value.trim()
+        ];
+    });
+
+    saveToCloud();
+    notify("MENÚ", "COMIDAS ACTUALIZADAS Y GUARDADAS", "green");
+};
+
 
         window.changeTab = (tab) => {
             if (['users', 'funds', 'settings'].includes(tab)) {
