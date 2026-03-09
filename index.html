@@ -1097,6 +1097,21 @@
             } catch (e) { showToast("Error Cloud", "error"); }
         };
 
+        window.deleteProduct = async (id, name) => {
+            const canEdit = (window.appState.isSupremeAdmin || window.appState.userRole === 'supervisor');
+            if (!canEdit) return showToast("Sin permisos para eliminar", "error");
+
+            if (confirm(`⚠️ ATENCIÓN ⚠️\n\n¿Estás seguro de que deseas eliminar completamente el producto "${name}"?\nEsta acción no se puede deshacer.`)) {
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id));
+                    await logActivity(`ELIMINADO: PRODUCTO ${name}`);
+                    showToast("Producto eliminado con éxito", "success");
+                } catch (e) {
+                    showToast("Error al eliminar de Cloud", "error");
+                }
+            }
+        };
+
         // --- CLIENTES ---
         window.openCustomerModal = () => document.getElementById('modal-customer').classList.remove('hidden');
         
@@ -1301,6 +1316,8 @@
         };
 
         // --- FIREBASE SYNC ---
+        window.appInitialized = false; // Variable de control para evitar escuchas duplicadas
+
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 if (user.isAnonymous) {
@@ -1346,11 +1363,16 @@
                 document.getElementById('btn-reset-counter').classList.toggle('hidden', !canSeeSecurity);
                 document.getElementById('no-edit-warning').classList.toggle('hidden', canSeeSecurity);
 
-                setupListeners();
-                setupScanner();
+                // IMPORTANTE: Solo arrancar los escáneres y bases de datos UNA SOLA VEZ
+                if (!window.appInitialized) {
+                    setupListeners();
+                    setupScanner();
+                    window.appInitialized = true;
+                }
             } else {
                 document.getElementById('auth-screen').classList.remove('hidden');
                 document.getElementById('app-container').classList.add('hidden');
+                window.appInitialized = false; // Reiniciar si cerramos sesión
             }
             lucide.createIcons();
         });
@@ -1560,6 +1582,8 @@
             const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
             table.innerHTML = '';
             let count = 0;
+            
+            const canEdit = (window.appState.isSupremeAdmin || window.appState.userRole === 'supervisor');
 
             window.appState.inventory.forEach(item => {
                 // Filtro de búsqueda
@@ -1600,7 +1624,10 @@
                         ${combosHTML}
                     </td>
                     <td class="px-6 py-4 md:px-8 md:py-6 text-center">
-                        <button onclick="window.openProductModal('${item.id}')" class="p-2 md:p-3 bg-white border border-gray-200 shadow-sm rounded-lg md:rounded-xl hover:bg-gray-50 transition active:scale-95 group"><i data-lucide="edit-3" class="w-4 h-4 text-amber-500 group-hover:scale-110 transition"></i></button>
+                        <div class="flex items-center justify-center gap-2">
+                            ${canEdit ? `<button onclick="window.deleteProduct('${item.id}', '${item.name.replace(/'/g, "\\'")}')" class="p-2 md:p-3 bg-white border border-red-200 shadow-sm rounded-lg md:rounded-xl hover:bg-red-50 text-red-500 transition active:scale-95" title="Eliminar Producto"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
+                            <button onclick="window.openProductModal('${item.id}')" class="p-2 md:p-3 bg-white border border-gray-200 shadow-sm rounded-lg md:rounded-xl hover:bg-gray-50 transition active:scale-95 group" title="Editar Producto"><i data-lucide="edit-3" class="w-4 h-4 text-amber-500 group-hover:scale-110 transition"></i></button>
+                        </div>
                     </td>
                 `;
                 table.appendChild(row);
