@@ -1427,20 +1427,56 @@
         };
 
         const setupScanner = () => {
-            const input = document.getElementById('scanner-input');
-            input.addEventListener('keypress', (e) => {
+            let barcodeBuffer = '';
+            let barcodeTimeout = null;
+
+            document.addEventListener('keydown', (e) => {
+                // 1. Verificar que estamos en la vista de POS y no hay modales abiertos
+                if (!document.getElementById('tab-pos').classList.contains('active')) return;
+                if (!document.getElementById('modal-product').classList.contains('hidden') || 
+                    !document.getElementById('modal-customer').classList.contains('hidden') ||
+                    !document.getElementById('modal-camera-scanner').classList.contains('hidden')) return;
+
+                const activeEl = document.activeElement;
+                const isInput = activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA';
+
+                // Si se presiona Enter, procesar el buffer
                 if (e.key === 'Enter') {
-                    const code = input.value.trim();
-                    window.processBarcode(code);
-                    
-                    // Actualizar el buscador para que muestre lo que se acaba de escanear
-                    const searchInput = document.getElementById('pos-search-input');
-                    if (searchInput) {
-                        searchInput.value = code;
-                        window.renderPOS();
+                    if (barcodeBuffer.length >= 3) {
+                        // El escáner envió una cadena completa de texto muy rápido
+                        window.processBarcode(barcodeBuffer);
+                        
+                        // Si el escáner "escribió" basura accidentalmente en un input, lo limpiamos
+                        if (isInput && activeEl.id !== 'manual-discount-input' && activeEl.id !== 'cash-received-input') {
+                            activeEl.value = '';
+                            if (activeEl.id === 'pos-search-input') window.renderPOS();
+                        }
+                        
+                        barcodeBuffer = '';
+                        e.preventDefault(); // Evitar que el enter haga un "submit" en algún lado
+                    } else if (activeEl.id === 'scanner-input') {
+                        // Si el usuario escribió a mano en la caja de escáner y dio Enter
+                        const code = activeEl.value.trim();
+                        if (code) {
+                            window.processBarcode(code);
+                            activeEl.value = '';
+                        }
+                        barcodeBuffer = '';
+                    } else {
+                        barcodeBuffer = '';
                     }
+                } 
+                // Acumular letras (ignorando Shift, Ctrl, etc.)
+                else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                    barcodeBuffer += e.key;
                     
-                    input.value = '';
+                    if (barcodeTimeout) clearTimeout(barcodeTimeout);
+                    
+                    // Un escáner envía letras con milisegundos de diferencia.
+                    // Si pasan 50ms sin presionar una tecla, asumimos que es una persona escribiendo y limpiamos el buffer.
+                    barcodeTimeout = setTimeout(() => {
+                        barcodeBuffer = ''; 
+                    }, 50);
                 }
             });
         };
