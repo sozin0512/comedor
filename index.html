@@ -755,6 +755,13 @@
                     const cleanCode = decodedText.trim();
                     if (window.scannerMode === 'pos') {
                         window.processBarcode(cleanCode);
+                        
+                        // Nuevo: Si escanea un código en POS, actualizar la búsqueda para mostrar el producto
+                        const searchInput = document.getElementById('pos-search-input');
+                        if (searchInput) {
+                            searchInput.value = cleanCode;
+                            window.renderPOS();
+                        }
                     } else if (window.scannerMode === 'inventory-unit') {
                         document.getElementById('prod-barcode').value = cleanCode;
                         showToast("Código Unidad Capturado", "success");
@@ -884,6 +891,13 @@
         // Botón toggle de Catálogo
         window.toggleCatalog = () => {
             window.showFullCatalog = !window.showFullCatalog;
+            
+            // Limpiar la búsqueda al cambiar el modo para que no interfiera
+            const searchInput = document.getElementById('pos-search-input');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+
             const btn = document.getElementById('btn-toggle-catalog');
             if (window.showFullCatalog) {
                 btn.innerHTML = '<i data-lucide="eye-off" class="w-3 h-3"></i> Ocultar Todo';
@@ -1417,7 +1431,15 @@
             input.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     const code = input.value.trim();
-                    window.processBarcode(code); 
+                    window.processBarcode(code);
+                    
+                    // Actualizar el buscador para que muestre lo que se acaba de escanear
+                    const searchInput = document.getElementById('pos-search-input');
+                    if (searchInput) {
+                        searchInput.value = code;
+                        window.renderPOS();
+                    }
+                    
                     input.value = '';
                 }
             });
@@ -1427,9 +1449,11 @@
         window.renderPOS = () => {
             const grid = document.getElementById('pos-grid');
             if (!grid) return;
-            const search = document.getElementById('pos-search-input').value.toLowerCase().trim();
+            const searchInput = document.getElementById('pos-search-input');
+            const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
             grid.innerHTML = '';
             
+            // Si el buscador está vacío Y no estamos en modo "Mostrar Todo", mostramos el estado vacío
             if (search === '' && !window.showFullCatalog) {
                 grid.innerHTML = `
                     <div class="col-span-full flex flex-col items-center justify-center py-16 opacity-50">
@@ -1446,7 +1470,7 @@
                 const matchCombo = (inv.combos || []).some(c => c.barcode && c.barcode.includes(search));
                 const isMatch = inv.name.toLowerCase().includes(search) || (inv.barcode && inv.barcode.includes(search)) || matchCombo;
                 
-                // Si la búsqueda está vacía (y showFullCatalog es true) o hace match, renderizamos.
+                // Renderizar si hace match (la condición search === '' && window.showFullCatalog está implícita porque si search es '' y showFullCatalog es true, pasará a ejecutar esto y isMatch será true para todo)
                 if ((search === '' || isMatch) && inv.stock > 0) {
                     // 1. TARJETA DE UNIDAD BASE (Siempre se muestra)
                     const cardUnit = document.createElement('div');
