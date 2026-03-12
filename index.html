@@ -400,8 +400,11 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-10 gap-4">
                     <h2 class="text-2xl md:text-4xl font-black text-slate-800 tracking-tighter uppercase italic">Historial de Facturas</h2>
                     <div class="flex items-center gap-3 w-full sm:w-auto">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">Fecha:</label>
-                        <input type="date" id="invoice-date-filter" onchange="window.renderInvoices()" class="bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-black text-slate-700 outline-none focus:ring-4 focus:ring-amber-100">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">Filtro:</label>
+                        <div class="flex gap-2 w-full sm:w-auto">
+                            <input type="date" id="invoice-date-filter" onchange="window.renderInvoices()" class="bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-black text-slate-700 outline-none focus:ring-4 focus:ring-amber-100 flex-1">
+                            <button onclick="document.getElementById('invoice-date-filter').value=''; window.renderInvoices()" class="bg-gray-100 text-gray-500 hover:bg-slate-900 hover:text-white px-3 py-2 rounded-xl transition active:scale-95 flex items-center justify-center shadow-sm border border-gray-200" title="Ver Todas las Facturas"><i data-lucide="refresh-ccw" class="w-4 h-4"></i></button>
+                        </div>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6" id="invoices-list">
@@ -701,6 +704,7 @@
         window.scannerMode = 'pos';
         window.scannerTargetId = null;
         window.appInitialized = false;
+        let syncTimeout = null;
 
         // --- 1. UTILIDADES BÁSICAS ---
         window.showToast = (m, t) => {
@@ -726,6 +730,23 @@
                 });
             } catch (e) {}
         };
+        
+        // Manejo de fechas seguro para la zona horaria local
+        window.getLocalYYYYMMDD = (d = new Date()) => {
+            const pad = (n) => n.toString().padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        };
+
+        window.isSameDate = (sale, targetDate) => {
+            if (!targetDate) return true; // Si está vacío, mostrar todas
+            if (sale.timestamp) {
+                try {
+                    const d = new Date(sale.timestamp);
+                    return window.getLocalYYYYMMDD(d) === targetDate;
+                } catch(e) {}
+            }
+            return sale.date === targetDate;
+        };
 
         window.updateTicketFormat = () => {
             const pad = (num, size) => ('0000' + num).slice(-size);
@@ -744,6 +765,30 @@
             if (!document.getElementById('modal-camera-scanner').classList.contains('hidden')) {
                 window.stopCameraScanner();
             }
+        };
+        
+        // --- FUNCIÓN DE SINCRONIZACIÓN FALTANTE PARA EL RADAR ---
+        window.syncCartToCloud = () => {
+            if (!window.appState.user) return;
+            if (syncTimeout) clearTimeout(syncTimeout);
+            
+            syncTimeout = setTimeout(async () => {
+                const sub = window.appState.cart.reduce((s, i) => s + (i.price * i.quantity), 0);
+                try {
+                    const cartRef = doc(db, 'artifacts', appId, 'public', 'data', 'active_carts', window.appState.user.uid);
+                    if (window.appState.cart.length === 0) {
+                        await deleteDoc(cartRef);
+                    } else {
+                        await setDoc(cartRef, {
+                            userEmail: window.appState.user.email,
+                            userName: window.appState.currentUserName || window.appState.user.displayName || window.appState.user.email || 'Usuario POS',
+                            cart: window.appState.cart,
+                            total: sub,
+                            updatedAt: new Date().toISOString()
+                        });
+                    }
+                } catch (e) { console.error("Error sincronizando radar:", e); }
+            }, 800);
         };
 
         // --- 2. FUNCIONES DE RENDERIZADO (UI) ---
@@ -961,12 +1006,15 @@
             select.value = val;
         };
 
+        // --- CORRECCIÓN EN EL RENDERIZADO DE LOS REPORTES ---
         window.renderReports = () => {
-            const list = document.getElementById('daily-invoices-list');
+            // El ID aquí estaba mal en el código original, ahora coincide con el HTML (-report)
+            const list = document.getElementById('daily-invoices-list-report');
             const net = document.getElementById('daily-net');
             if (!list || !net) return;
-            const today = new Date().toISOString().split('T')[0];
-            const tsales = window.appState.sales.filter(s => s.date === today);
+            
+            const today = window.getLocalYYYYMMDD();
+            const tsales = window.appState.sales.filter(s => window.isSameDate(s, today));
             
             list.innerHTML = '';
             let totalNet = 0;
@@ -990,8 +1038,14 @@
             const labelCont = document.getElementById('chart-labels');
             if (!chartCont) return;
             chartCont.innerHTML = ''; labelCont.innerHTML = '';
-            const last7 = [...Array(7)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return d.toISOString().split('T')[0]; });
-            const totals = last7.map(date => window.appState.sales.filter(s => s.date === date).reduce((acc, curr) => acc + curr.total, 0));
+            
+            const last7 = [...Array(7)].map((_, i) => { 
+                const d = new Date(); 
+                d.setDate(d.getDate() - (6 - i)); 
+                return window.getLocalYYYYMMDD(d); 
+            });
+            
+            const totals = last7.map(date => window.appState.sales.filter(s => window.isSameDate(s, date)).reduce((acc, curr) => acc + curr.total, 0));
             const max = Math.max(...totals, 1000);
             
             totals.forEach((t, i) => {
@@ -1001,8 +1055,10 @@
                 bar.style.height = `${Math.max(5, h)}%`;
                 bar.innerHTML = `<div class="absolute -top-8 md:-top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[8px] md:text-[9px] font-black px-2 py-1 md:px-3 md:py-2 rounded-lg md:rounded-xl opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-20">L ${t.toLocaleString()}</div>`;
                 chartCont.appendChild(bar);
-                const l = document.createElement('span'); 
-                l.innerText = new Date(last7[i]).toLocaleDateString('es-HN', { weekday: 'short' }).toUpperCase();
+                const l = document.createElement('span');
+                const parts = last7[i].split('-');
+                const dObj = new Date(parts[0], parts[1]-1, parts[2]); 
+                l.innerText = dObj.toLocaleDateString('es-HN', { weekday: 'short' }).toUpperCase();
                 labelCont.appendChild(l);
             });
         };
@@ -1061,11 +1117,6 @@
             const dateFilterInput = document.getElementById('invoice-date-filter');
             let targetDate = dateFilterInput.value;
 
-            if (!targetDate) {
-                targetDate = new Date().toISOString().split('T')[0];
-                dateFilterInput.value = targetDate;
-            }
-
             container.innerHTML = '';
 
             const role = window.appState.userRole;
@@ -1073,7 +1124,12 @@
             const userName = window.appState.user?.displayName || '';
             const userUid = window.appState.user?.uid;
 
-            let filteredSales = window.appState.sales.filter(s => s.date === targetDate);
+            let filteredSales = window.appState.sales;
+            
+            // Si hay fecha aplicamos filtro, si no, lo mostramos todo
+            if (targetDate) {
+                filteredSales = filteredSales.filter(s => window.isSameDate(s, targetDate));
+            }
 
             if (role === 'vendedor') {
                 filteredSales = filteredSales.filter(s => 
@@ -1087,13 +1143,13 @@
                 container.innerHTML = `
                     <div class="col-span-full py-10 flex flex-col items-center justify-center opacity-50">
                         <i data-lucide="receipt" class="w-12 h-12 mb-4 text-slate-400"></i>
-                        <p class="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 text-center">No hay facturas registradas en esta fecha</p>
+                        <p class="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 text-center">No hay facturas para mostrar</p>
                     </div>`;
                 lucide.createIcons();
                 return;
             }
 
-            filteredSales.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            filteredSales.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
             
             const canEdit = ['admin', 'supervisor'].includes(window.appState.userRole) || window.appState.isSupremeAdmin;
 
@@ -1132,62 +1188,6 @@
             });
 
             lucide.createIcons();
-        };
-
-        // Función para compartir factura como texto (ideal para WhatsApp en celular)
-        window.shareInvoice = async (saleId) => {
-            const sale = window.appState.sales.find(s => s.id === saleId);
-            if (!sale) return window.showToast("Factura no encontrada", "error");
-
-            const cartToPrint = sale.cart && sale.cart.length > 0 ? sale.cart : [{name: 'COMPRA (HISTÓRICA SIN DETALLE)', quantity: 1, price: sale.total}];
-            const settings = window.appState.settings;
-
-            let itemsText = cartToPrint.map(i => `${i.quantity}x ${i.name}\n   L ${(i.price * i.quantity).toLocaleString('es-HN', {minimumFractionDigits: 2})}`).join('\n');
-
-            let ticketText = `*${settings.businessName}*\n`;
-            ticketText += `------------------------\n`;
-            ticketText += `Factura: ${sale.ticketNum}\n`;
-            ticketText += `Fecha: ${new Date(sale.timestamp).toLocaleString('es-HN')}\n`;
-            ticketText += `Cajero: ${sale.sellerName}\n`;
-            ticketText += `Cliente: ${sale.customerName}\n`;
-            ticketText += `------------------------\n`;
-            ticketText += `${itemsText}\n`;
-            ticketText += `------------------------\n`;
-            ticketText += `Subtotal: L ${sale.subtotal.toLocaleString('es-HN', {minimumFractionDigits: 2})}\n`;
-            if (sale.discount > 0) ticketText += `Descuento: - L ${sale.discount.toLocaleString('es-HN', {minimumFractionDigits: 2})}\n`;
-            ticketText += `*TOTAL: L ${sale.total.toLocaleString('es-HN', {minimumFractionDigits: 2})}*\n`;
-            ticketText += `------------------------\n`;
-            ticketText += `Efectivo: L ${sale.cashReceived.toLocaleString('es-HN', {minimumFractionDigits: 2})}\n`;
-            ticketText += `Cambio: L ${sale.change.toLocaleString('es-HN', {minimumFractionDigits: 2})}\n`;
-            ticketText += `------------------------\n`;
-            if(settings.invoiceFooter) {
-                ticketText += `${settings.invoiceFooter}\n`;
-            }
-            ticketText += `S.O.Z.I.N - Creado por Josue Soza\nContrataciones: +504 8933-3462`;
-
-            if (navigator.share) {
-                try {
-                    await navigator.share({
-                        title: `Factura ${sale.ticketNum}`,
-                        text: ticketText
-                    });
-                } catch (err) {
-                    console.log("Compartir cancelado o no soportado");
-                }
-            } else {
-                // Fallback para computadoras (copiar al portapapeles)
-                const textArea = document.createElement("textarea");
-                textArea.value = ticketText;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    window.showToast("Copiado al portapapeles para compartir", "success");
-                } catch (err) {
-                    window.showToast("No se pudo copiar", "error");
-                }
-                document.body.removeChild(textArea);
-            }
         };
 
         window.renderActiveCarts = () => {
@@ -1510,6 +1510,9 @@
             if (tabId === 'monitor') {
                 window.renderActiveCarts();
             }
+            if (tabId === 'reports') {
+                window.renderReports();
+            }
         };
 
         window.toggleCatalog = () => {
@@ -1713,7 +1716,7 @@
 
             try {
                 const ticketId = window.updateTicketFormat();
-                const sellerName = window.appState.user.displayName || window.appState.user.email;
+                const sellerName = window.appState.currentUserName || window.appState.user.displayName || window.appState.user.email;
                 const customer = window.appState.customers.find(c => c.id === window.appState.selectedCustomerId) || { name: 'CONSUMIDOR FINAL', id: "0" };
                 const timestamp = new Date().toISOString();
 
@@ -2143,16 +2146,21 @@
                 const prof = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid));
                 
                 let userPhoto = user.photoURL;
+                let actualName = user.displayName || user.email;
+
                 if (prof.exists()) {
                     window.appState.userRole = prof.data().role || 'vendedor';
                     if (prof.data().photo) userPhoto = prof.data().photo;
+                    if (prof.data().name) actualName = prof.data().name;
                 }
+                
+                window.appState.currentUserName = actualName;
                 
                 if (window.appState.isSupremeAdmin) window.appState.userRole = 'admin';
 
                 document.getElementById('auth-screen').classList.add('hidden');
                 document.getElementById('app-container').classList.remove('hidden');
-                document.getElementById('user-display-name').innerText = user.displayName || user.email || "Usuario Cloud";
+                document.getElementById('user-display-name').innerText = actualName || "Usuario Cloud";
                 document.getElementById('user-avatar').src = userPhoto || 'https://placehold.co/100?text=U';
                 
                 const roles = { 'vendedor': 'Vendedor', 'supervisor': 'Supervisor', 'admin': 'Admin Supremo' };
