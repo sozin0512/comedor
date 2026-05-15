@@ -2,2216 +2,666 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>S.O.Z.I.N - Sistema Operativo de Zonas e Inventarios</title>
-    <!-- La advertencia de Tailwind en consola es normal en archivos únicos, no afecta el sistema -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Comayagua Express VIP</title>
+    <!-- Frameworks Externos -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; overflow: hidden; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .low-stock { animation: pulse 2s infinite; }
-        @keyframes pulse {
-            0% { background-color: rgba(239, 68, 68, 0.05); }
-            50% { background-color: rgba(239, 68, 68, 0.15); }
-            100% { background-color: rgba(239, 68, 68, 0.05); }
+        :root {
+            --app-height: 100%;
         }
-        #auth-screen { z-index: 100; }
-        .custom-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
-        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-        #reader video { border-radius: 1rem; object-fit: cover; }
+        html, body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f8fafc; 
+            overflow: hidden; 
+            height: 100dvh;
+            width: 100%;
+            position: fixed; /* Evita el rebote de scroll en iOS */
+        }
+        
+        #map { 
+            height: 100%; 
+            width: 100%; 
+            position: absolute; 
+            inset: 0; 
+            transition: opacity 0.5s ease; 
+        }
 
-        /* ESTILOS ESPECÍFICOS PARA IMPRESORA TÉRMICA 80MM */
-        @media screen {
-            #print-area { display: none; }
+        .login-screen, .setup-screen, .rating-screen { 
+            background: linear-gradient(135deg, #020617 0%, #0f172a 100%); 
+            z-index: 1000; 
+            position: fixed;
+            inset: 0;
+            overflow-y: auto;
         }
-        @media print {
-            @page { 
-                size: 80mm auto; /* Esto evita saltos de página y que gaste papel de más */
-                margin: 0; 
-            } 
-            body, html { 
-                margin: 0 !important; 
-                padding: 0 !important; 
-                width: 80mm !important; 
-                background: white !important; 
-            }
-            #app-container, #auth-screen, div[id^="modal-"], #toast-container, nav.md\:hidden { 
-                display: none !important; 
-            }
-            #print-area { 
-                display: block !important; 
-                width: 80mm !important; 
-                margin: 0 !important; 
-                padding: 2mm !important; /* Padding reducido para aprovechar el rollo */
-                color: black;
-                background: white;
-                font-family: monospace; 
-                overflow: visible !important;
-            }
-            #print-area * { visibility: visible; }
+
+        .glass-panel { 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(10px); 
         }
+        
+        @keyframes pulse-blue {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(37, 99, 235, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        }
+        .searching-pulse { animation: pulse-blue 2s infinite; }
+        
+        #app-interface, #setup-screen, #rating-screen { display: none; }
+        
+        /* Ajuste de paneles para móviles */
+        @media (max-width: 768px) {
+            #control-panel {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                max-height: 70%;
+                border-radius: 2rem 2rem 0 0;
+                border-right: none;
+                border-top: 1px solid #e2e8f0;
+            }
+            #map-container {
+                height: 40%;
+            }
+        }
+
+        .chat-msg { max-width: 85%; padding: 10px 14px; border-radius: 18px; margin-bottom: 8px; font-size: 14px; }
+        .msg-mine { background: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .msg-theirs { background: #f1f5f9; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 4px; }
+        
+        input, button { font-size: 16px !important; } /* Evita zoom automático en iOS al enfocar */
     </style>
-</head>
-<body class="bg-gray-50 text-gray-900">
 
-    <!-- Pantalla de Autenticación -->
-    <div id="auth-screen" class="fixed inset-0 bg-slate-900 flex items-center justify-center p-4">
-        <div class="bg-white rounded-[2.5rem] p-6 md:p-10 max-w-md w-full shadow-2xl border-t-8 border-amber-500 relative overflow-hidden mx-4">
-            <div class="text-center mb-8 relative z-10">
-                <div id="login-logo-container" class="w-20 h-20 md:w-24 md:h-24 bg-amber-500 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-xl rotate-3 overflow-hidden">
-                    <i id="default-login-icon" data-lucide="layout-dashboard" class="text-white w-10 h-10 md:w-12 md:h-12"></i>
-                    <img id="custom-login-logo" src="" class="hidden w-full h-full object-cover">
-                </div>
-                <h1 id="business-name-display" class="text-3xl md:text-4xl font-black tracking-tighter text-slate-900 uppercase leading-none">S.O.Z.I.N</h1>
-                <p class="text-slate-400 text-[8px] md:text-[9px] font-bold uppercase tracking-[0.2em] mt-3 leading-tight">Sistema Operativo de Zonas e Inventarios para Negocios</p>
-            </div>
+    <script>
+        window.gMap = null;
+        window.directionsService = null;
+        window.directionsRenderer = null;
+        window.geocoder = null;
+        window.mapLoaded = false;
+        window.driverMarkers = {};
 
-            <div id="login-form" class="space-y-5 relative z-10">
-                <h2 class="font-black text-[10px] text-slate-400 uppercase tracking-widest text-center">Inicie Sesión</h2>
-                <input type="email" id="login-email" placeholder="CORREO ELECTRÓNICO" class="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 font-bold transition text-xs uppercase">
-                <input type="password" id="login-pass" placeholder="CONTRASEÑA" class="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 font-bold transition text-xs">
-                <button onclick="window.handleLogin()" class="w-full py-4 bg-slate-900 text-white rounded-2xl font-black hover:bg-slate-800 transition shadow-xl text-xs uppercase tracking-widest border-b-4 border-slate-700 active:scale-95">Entrar al Sistema</button>
-                <p class="text-center text-[10px] text-gray-400 font-black uppercase tracking-widest">¿Sin cuenta? <button onclick="window.toggleAuth(true)" class="text-amber-600 hover:underline">Registrar Empleado</button></p>
-            </div>
+        window.initMap = function() {
+            try {
+                window.directionsService = new google.maps.DirectionsService();
+                window.geocoder = new google.maps.Geocoder();
+                window.directionsRenderer = new google.maps.DirectionsRenderer({
+                    polylineOptions: { strokeColor: "#2563eb", strokeWeight: 5 },
+                    suppressMarkers: false
+                });
 
-            <div id="register-form" class="space-y-4 hidden text-xs font-bold relative z-10">
-                <div class="flex items-center gap-2 mb-4">
-                    <button onclick="window.toggleAuth(false)" class="p-2 hover:bg-gray-100 rounded-xl transition"><i data-lucide="arrow-left" class="w-5 h-5 text-gray-400"></i></button>
-                    <h2 class="font-black text-lg text-slate-800 uppercase tracking-tighter leading-none">Nuevo Registro</h2>
-                </div>
-                <input type="text" id="reg-name" placeholder="NOMBRE COMPLETO" class="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 uppercase font-bold">
-                <input type="email" id="reg-email" placeholder="EMAIL DE TRABAJO" class="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 uppercase font-bold">
-                <input type="password" id="reg-pass" placeholder="CONTRASEÑA" class="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 font-bold">
+                const comayaguaCoords = { lat: 14.4513, lng: -87.6374 };
+                window.gMap = new google.maps.Map(document.getElementById("map"), {
+                    center: comayaguaCoords,
+                    zoom: 15,
+                    disableDefaultUI: true,
+                    zoomControl: false, // Mejor control manual en móviles
+                    styles: [
+                        { "featureType": "poi", "stylers": [{ "visibility": "off" }] },
+                        { "featureType": "transit", "stylers": [{ "visibility": "off" }] }
+                    ]
+                });
+
+                window.directionsRenderer.setMap(window.gMap);
+                window.mapLoaded = true;
                 
-                <!-- Subida de Foto de Perfil en Base64 -->
-                <div class="flex gap-3 items-center w-full">
-                    <img id="reg-photo-preview" src="" class="w-12 h-12 rounded-xl object-cover border border-gray-200 hidden shadow-sm">
-                    <input type="hidden" id="reg-photo">
-                    <label class="flex-1 bg-gray-50 hover:bg-gray-100 border border-gray-100 text-slate-500 p-4 rounded-2xl cursor-pointer transition flex items-center justify-center shadow-inner font-bold uppercase text-xs active:scale-95">
-                        <i data-lucide="upload-cloud" class="w-5 h-5 text-amber-500 mr-2"></i> Subir Foto Perfil
-                        <input type="file" class="hidden" accept="image/*" onchange="window.handleImageUpload(event, 'reg-photo', 'reg-photo-preview')">
-                    </label>
-                </div>
+                const options = { componentRestrictions: { country: "hn" } };
+                const originInput = document.getElementById('origin-input');
+                const destInput = document.getElementById('destination-input');
+                
+                if (originInput && destInput) {
+                    const originAuto = new google.maps.places.Autocomplete(originInput, options);
+                    const destAuto = new google.maps.places.Autocomplete(destInput, options);
 
-                <button onclick="window.handleRegister()" class="w-full py-4 bg-amber-600 text-white rounded-2xl font-black uppercase tracking-widest shadow-xl hover:bg-amber-700 transition active:scale-95">Crear Cuenta Cloud</button>
-            </div>
+                    originAuto.addListener('place_changed', () => window.dispatchEvent(new CustomEvent('map-route-trigger')));
+                    destAuto.addListener('place_changed', () => window.dispatchEvent(new CustomEvent('map-route-trigger')));
+                }
+            } catch (error) {
+                console.error("Error cargando el mapa:", error);
+            }
+        };
 
-            <!-- CRÉDITOS Y CONTACTO -->
-            <div class="mt-8 pt-6 border-t border-gray-100 text-center relative z-10">
-                <p class="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Desarrollado por Josue Soza</p>
-                <div class="flex flex-col items-center gap-1 text-[10px] font-black text-slate-700 uppercase tracking-widest">
-                    <span class="flex items-center gap-1"><i data-lucide="phone" class="w-3 h-3 text-amber-500"></i> +504 8933-3462</span>
-                    <span class="flex items-center gap-1"><i data-lucide="mail" class="w-3 h-3 text-amber-500"></i> JOSUESOZA0505@GMAIL.COM</span>
-                </div>
+        window.updateDriverMarker = (driverId, lat, lng, isSelf) => {
+            if (!window.mapLoaded) return;
+            const pos = { lat, lng };
+            if (window.driverMarkers[driverId]) {
+                window.driverMarkers[driverId].setPosition(pos);
+            } else {
+                window.driverMarkers[driverId] = new google.maps.Marker({
+                    position: pos,
+                    map: window.gMap,
+                    icon: {
+                        path: "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z",
+                        fillColor: isSelf ? "#10b981" : "#2563eb",
+                        fillOpacity: 1,
+                        strokeWeight: 1,
+                        strokeColor: "#ffffff",
+                        scale: 1.2,
+                        anchor: new google.maps.Point(12, 12)
+                    }
+                });
+            }
+        };
+
+        window.useCurrentLocation = function() {
+            if (navigator.geolocation) {
+                const btn = document.getElementById('btn-current-loc');
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
+                        window.geocoder.geocode({ location: pos }, (results, status) => {
+                            if (status === "OK" && results[0]) {
+                                document.getElementById('origin-input').value = results[0].formatted_address;
+                                window.gMap.setCenter(pos);
+                                window.gMap.setZoom(17);
+                                window.dispatchEvent(new CustomEvent('map-route-trigger'));
+                            }
+                            btn.innerHTML = '<i class="fas fa-crosshairs text-blue-600"></i>';
+                        });
+                    },
+                    () => {
+                        alert("Activa el GPS y da permisos para ubicarte.");
+                        btn.innerHTML = '<i class="fas fa-crosshairs text-blue-600"></i>';
+                    }
+                );
+            }
+        };
+    </script>
+</head>
+<body class="flex flex-col">
+
+    <!-- PANTALLA DE CALIFICACIÓN -->
+    <div id="rating-screen" class="rating-screen fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-sm text-center">
+            <h2 class="text-xl font-black mb-1">Viaje Finalizado</h2>
+            <p id="rating-title" class="text-gray-500 text-xs mb-6">¿Cómo calificarías el servicio?</p>
+            
+            <div class="flex justify-center gap-3 mb-6 text-4xl text-gray-200">
+                <i onclick="window.setRating(1)" class="fas fa-star cursor-pointer star-btn" data-index="1"></i>
+                <i onclick="window.setRating(2)" class="fas fa-star cursor-pointer star-btn" data-index="2"></i>
+                <i onclick="window.setRating(3)" class="fas fa-star cursor-pointer star-btn" data-index="3"></i>
+                <i onclick="window.setRating(4)" class="fas fa-star cursor-pointer star-btn" data-index="4"></i>
+                <i onclick="window.setRating(5)" class="fas fa-star cursor-pointer star-btn" data-index="5"></i>
             </div>
             
-            <i data-lucide="box" class="w-64 h-64 absolute -right-20 -bottom-20 text-slate-50 rotate-12 z-0"></i>
+            <div id="vehicle-rating-section" class="hidden border-t pt-4 mt-4">
+                <p class="text-[10px] font-bold text-gray-400 uppercase mb-3 tracking-widest text-center">Estado del vehículo</p>
+                <div class="flex justify-center gap-3 text-3xl text-gray-200">
+                    <i onclick="window.setVehicleRating(1)" class="fas fa-car cursor-pointer v-star-btn" data-index="1"></i>
+                    <i onclick="window.setVehicleRating(2)" class="fas fa-car cursor-pointer v-star-btn" data-index="2"></i>
+                    <i onclick="window.setVehicleRating(3)" class="fas fa-car cursor-pointer v-star-btn" data-index="3"></i>
+                    <i onclick="window.setVehicleRating(4)" class="fas fa-car cursor-pointer v-star-btn" data-index="4"></i>
+                    <i onclick="window.setVehicleRating(5)" class="fas fa-car cursor-pointer v-star-btn" data-index="5"></i>
+                </div>
+            </div>
+
+            <button onclick="window.submitRating()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl mt-8 shadow-lg active:scale-95 transition-transform">ENVIAR CALIFICACIÓN</button>
         </div>
     </div>
 
-    <!-- Contenedor App Principal -->
-    <div id="app-container" class="flex h-screen overflow-hidden hidden text-slate-900">
-        
-        <!-- Navegación Lateral (Solo Desktop) -->
-        <aside class="w-64 bg-slate-900 text-white flex-shrink-0 hidden md:flex flex-col border-r border-slate-800">
-            <div class="p-8">
-                <h1 id="sidebar-business-name" class="text-3xl font-black flex items-center gap-2 tracking-tighter uppercase leading-none text-white italic">
-                    <i data-lucide="layout-dashboard" class="text-amber-500"></i> S.O.Z.I.N
-                </h1>
-                <p class="text-[9px] text-slate-500 mt-2 font-black uppercase tracking-[0.3em]">Honduras • Lps</p>
+    <!-- LOGIN & SETUP -->
+    <div id="login-screen" class="login-screen flex items-center justify-center p-6">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-2xl mb-4 shadow-xl">
+                    <i class="fas fa-car-side text-3xl"></i>
+                </div>
+                <h1 class="text-2xl font-black text-gray-900 tracking-tight">Comayagua Express</h1>
+                <p class="text-gray-400 font-medium text-sm">Transporte VIP en la Ciudad Colonial</p>
             </div>
-            <nav class="flex-1 px-4 space-y-2 mt-6 overflow-y-auto custom-scroll">
-                <button onclick="window.showTab('pos')" class="nav-link w-full flex items-center gap-4 px-5 py-4 rounded-2xl hover:bg-slate-800 transition font-black text-[10px] uppercase tracking-widest" id="btn-pos">
-                    <i data-lucide="shopping-cart" class="w-4 h-4"></i> Punto de Venta
-                </button>
-                <button onclick="window.showTab('inventory')" class="nav-link w-full flex items-center gap-4 px-5 py-4 rounded-2xl hover:bg-slate-800 transition font-black text-[10px] uppercase tracking-widest" id="btn-inventory">
-                    <i data-lucide="package" class="w-4 h-4"></i> Inventario
-                </button>
-                <button onclick="window.showTab('customers')" class="nav-link w-full flex items-center gap-4 px-5 py-4 rounded-2xl hover:bg-slate-800 transition font-black text-[10px] uppercase tracking-widest" id="btn-customers">
-                    <i data-lucide="users" class="w-4 h-4"></i> Clientes
-                </button>
-                <button onclick="window.showTab('invoices')" class="nav-link w-full flex items-center gap-4 px-5 py-4 rounded-2xl hover:bg-slate-800 transition font-black text-[10px] uppercase tracking-widest" id="btn-invoices">
-                    <i data-lucide="receipt" class="w-4 h-4"></i> Facturas
-                </button>
-                <button onclick="window.showTab('reports')" class="nav-link w-full flex items-center gap-4 px-5 py-4 rounded-2xl hover:bg-slate-800 transition font-black text-[10px] uppercase tracking-widest" id="btn-reports">
-                    <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Reportes
-                </button>
+            <div class="flex bg-gray-100 p-1 rounded-2xl mb-6">
+                <button onclick="window.updateRole('client')" id="role-client" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600">PASAJERO</button>
+                <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400">CONDUCTOR</button>
+            </div>
+            <div class="space-y-4">
+                <input id="email-field" type="email" placeholder="Correo electrónico" class="w-full px-5 py-4 rounded-2xl border bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500">
+                <input id="pass-field" type="password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="window.executeAuth()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all">ACCEDER AHORA</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-lg">
+            <h2 class="text-xl font-black text-gray-900 mb-6 text-center">Finaliza tu Registro</h2>
+            <div class="space-y-4">
+                <div class="flex flex-col items-center mb-4">
+                    <div id="photo-preview" class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center border-4 border-white shadow-md overflow-hidden">
+                        <i class="fas fa-user text-2xl text-gray-300"></i>
+                    </div>
+                    <label class="mt-2 cursor-pointer text-blue-600 text-[10px] font-black uppercase">
+                        Subir Foto <span id="photo-req-label" class="text-red-500">*</span>
+                        <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="window.previewPhoto(this)">
+                    </label>
+                </div>
+                <div class="grid grid-cols-1 gap-3">
+                    <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                    <input id="phone-number" type="tel" placeholder="Teléfono de contacto" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                </div>
+                <div id="driver-fields" class="hidden space-y-3 pt-4 border-t">
+                    <input id="car-model" type="text" placeholder="Vehículo (Marca/Modelo/Año)" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                    <input id="car-plate" type="text" placeholder="Placa" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none uppercase">
+                    <input id="driver-license" type="text" placeholder="Número de Licencia" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                </div>
+                <button onclick="window.saveProfile()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl mt-4">EMPEZAR A VIAJAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- APP INTERFACE -->
+    <div id="app-interface" class="flex-1 flex flex-col relative h-full">
+        <header class="glass-panel border-b border-gray-100 px-4 py-3 flex justify-between items-center z-50">
+            <div class="flex items-center gap-3">
+                <img id="user-avatar-img" src="" class="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm hidden">
+                <div class="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm" id="avatar-placeholder">C</div>
+                <div class="flex flex-col">
+                    <h2 class="font-black text-gray-900 text-sm leading-none truncate max-w-[100px]" id="user-name-display">USUARIO</h2>
+                    <div class="flex items-center gap-1 mt-0.5">
+                        <span id="user-rating-val" class="text-[10px] font-bold text-amber-500"><i class="fas fa-star"></i> 5.0</span>
+                        <span class="text-gray-300">|</span>
+                        <span id="role-badge" class="text-[8px] font-bold text-blue-600 uppercase tracking-tighter">PASAJERO</span>
+                    </div>
+                </div>
+            </div>
+            <button onclick="window.processLogout()" class="w-10 h-10 rounded-xl bg-gray-50 text-gray-400 hover:text-red-500 transition-colors flex items-center justify-center">
+                <i class="fas fa-power-off"></i>
+            </button>
+        </header>
+
+        <main class="flex-1 relative flex flex-col md:flex-row overflow-hidden">
+            <div id="map-container" class="flex-1 relative order-1 md:order-2">
+                <div id="map"></div>
+            </div>
+
+            <div id="control-panel" class="w-full md:w-[400px] bg-white z-40 shadow-2xl overflow-y-auto border-r border-gray-100 p-6 flex flex-col order-2 md:order-1 glass-panel">
                 
-                <!-- NUEVO BOTÓN: MONITOREO EN VIVO -->
-                <button id="nav-monitor" onclick="window.showTab('monitor')" class="nav-link w-full hidden items-center gap-4 px-5 py-4 rounded-2xl hover:bg-slate-800 transition font-black text-[10px] uppercase tracking-widest border-l-4 border-cyan-500">
-                    <i data-lucide="radar" class="w-4 h-4 text-cyan-500"></i> En Vivo
-                </button>
-
-                <button id="nav-security" onclick="window.showTab('security')" class="nav-link w-full hidden items-center gap-4 px-5 py-4 rounded-2xl hover:bg-slate-800 transition font-black text-[10px] uppercase tracking-widest border-l-4 border-amber-500">
-                    <i data-lucide="shield-check" class="w-4 h-4 text-amber-500"></i> Seguridad
-                </button>
-            </nav>
-            <div class="p-6 border-t border-slate-800">
-                <div class="flex items-center gap-4 p-4 bg-slate-800/40 rounded-[1.5rem] border border-slate-700/50">
-                    <img id="user-avatar" src="" class="w-10 h-10 rounded-xl bg-amber-500 object-cover border border-slate-600 shadow-md" alt="Avatar">
-                    <div class="text-xs flex-1 min-w-0">
-                        <p id="user-display-name" class="font-black truncate text-white uppercase tracking-tighter leading-none">Usuario</p>
-                        <p id="user-role-label" class="text-[8px] text-slate-500 font-black uppercase tracking-widest mt-1 italic">Cargando...</p>
-                    </div>
-                    <button onclick="window.handleLogout()" class="text-slate-500 hover:text-red-400 transition p-1"><i data-lucide="log-out" class="w-4 h-4"></i></button>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Navegación Inferior (Solo Móvil) -->
-        <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900 text-gray-400 flex items-center h-16 z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] overflow-x-auto custom-scroll px-2 gap-1">
-            <button onclick="window.showTab('pos')" class="flex flex-col items-center justify-center min-w-[60px] h-full hover:text-amber-500 transition" id="mobile-btn-pos">
-                <i data-lucide="shopping-cart" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                <span class="text-[7px] sm:text-[8px] font-black uppercase mt-1">POS</span>
-            </button>
-            <button onclick="window.showTab('inventory')" class="flex flex-col items-center justify-center min-w-[60px] h-full hover:text-amber-500 transition" id="mobile-btn-inventory">
-                <i data-lucide="package" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                <span class="text-[7px] sm:text-[8px] font-black uppercase mt-1">Inv</span>
-            </button>
-            <button onclick="window.showTab('customers')" class="flex flex-col items-center justify-center min-w-[60px] h-full hover:text-amber-500 transition" id="mobile-btn-customers">
-                <i data-lucide="users" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                <span class="text-[7px] sm:text-[8px] font-black uppercase mt-1">CRM</span>
-            </button>
-            <button onclick="window.showTab('invoices')" class="flex flex-col items-center justify-center min-w-[60px] h-full hover:text-amber-500 transition" id="mobile-btn-invoices">
-                <i data-lucide="receipt" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                <span class="text-[7px] sm:text-[8px] font-black uppercase mt-1">Docs</span>
-            </button>
-            <button onclick="window.showTab('reports')" class="flex flex-col items-center justify-center min-w-[60px] h-full hover:text-amber-500 transition" id="mobile-btn-reports">
-                <i data-lucide="bar-chart-3" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                <span class="text-[7px] sm:text-[8px] font-black uppercase mt-1">Caja</span>
-            </button>
-            <button id="mobile-nav-monitor" onclick="window.showTab('monitor')" class="hidden flex-col items-center justify-center min-w-[60px] h-full hover:text-cyan-500 transition">
-                <i data-lucide="radar" class="w-4 h-4 sm:w-5 sm:h-5 text-cyan-500"></i>
-                <span class="text-[7px] sm:text-[8px] font-black uppercase mt-1 text-cyan-500">Vivo</span>
-            </button>
-            <button id="mobile-nav-security" onclick="window.showTab('security')" class="hidden flex-col items-center justify-center min-w-[60px] h-full hover:text-amber-500 transition">
-                <i data-lucide="shield-check" class="w-4 h-4 sm:w-5 sm:h-5 text-amber-500"></i>
-                <span class="text-[7px] sm:text-[8px] font-black uppercase mt-1 text-amber-500">Admin</span>
-            </button>
-            <button onclick="window.handleLogout()" class="flex flex-col items-center justify-center min-w-[60px] h-full text-red-400 hover:text-red-300 transition border-l border-slate-800 ml-auto">
-                <i data-lucide="log-out" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                <span class="text-[7px] sm:text-[8px] font-black uppercase mt-1">Salir</span>
-            </button>
-        </nav>
-
-        <!-- Contenido Principal -->
-        <main class="flex-1 flex flex-col overflow-auto bg-gray-50/50 pb-16 md:pb-0">
-            <header class="bg-white border-b h-16 md:h-20 flex items-center justify-between px-4 md:px-10 sticky top-0 z-10 shadow-sm backdrop-blur-md">
-                <div class="flex items-center gap-3 md:gap-6">
-                    <span class="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] hidden sm:block">MONEDA: <strong class="text-slate-900 ml-1">HN LEMPIRAS (L)</strong></span>
-                    <span id="cloud-status" class="flex items-center gap-2 text-[8px] md:text-[9px] px-2 md:px-3 py-1.5 bg-green-50 text-green-700 rounded-full font-black uppercase border border-green-100">
-                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Cloud Activo
-                    </span>
-                </div>
-                <div class="flex items-center gap-10">
-                    <div id="current-day-label" class="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest text-right"></div>
-                </div>
-            </header>
-
-            <!-- VISTA: PUNTO DE VENTA (POS) -->
-            <section id="tab-pos" class="tab-content active p-4 md:p-10">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10">
-                    <div class="lg:col-span-2 flex flex-col h-full">
-                        <div class="flex flex-col md:flex-row gap-3 md:gap-5 mb-4 md:mb-6">
-                            <div class="flex-1 relative group">
-                                <i data-lucide="search" class="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-amber-500 transition"></i>
-                                <input type="text" id="pos-search-input" oninput="window.renderPOS()" placeholder="BUSCAR PRODUCTOS O CÓDIGO..." class="w-full pl-12 pr-4 py-4 md:pl-14 md:pr-6 md:py-5 bg-white border border-gray-100 rounded-[1.25rem] md:rounded-[1.5rem] outline-none focus:ring-4 focus:ring-amber-100 font-black text-[10px] md:text-[11px] uppercase tracking-widest shadow-sm transition">
-                            </div>
-                            <div class="w-full md:w-72 flex gap-3">
-                                <div class="relative flex-1 group">
-                                    <i data-lucide="scan-barcode" class="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500 transition scale-110"></i>
-                                    <input type="text" id="scanner-input" placeholder="LECTOR..." class="w-full pl-12 pr-4 py-4 md:pl-14 md:pr-6 md:py-5 bg-slate-900 text-white rounded-[1.25rem] md:rounded-[1.5rem] outline-none border border-slate-800 font-black text-[10px] tracking-widest uppercase focus:ring-4 focus:ring-slate-200 transition" autocomplete="off">
-                                </div>
-                                <button onclick="window.startCameraScanner('pos')" class="bg-amber-500 hover:bg-amber-600 text-white px-5 rounded-[1.25rem] md:rounded-[1.5rem] shadow-xl transition active:scale-95 flex items-center justify-center" title="Escanear con Cámara">
-                                    <i data-lucide="camera" class="w-6 h-6"></i>
-                                </button>
-                            </div>
+                <!-- VISTA PASAJERO -->
+                <div id="client-view" class="flex-1">
+                    <h3 class="text-lg font-black text-gray-900 mb-4">¿A dónde vamos hoy?</h3>
+                    <div class="space-y-3">
+                        <div class="relative">
+                            <input id="origin-input" type="text" placeholder="Punto de recogida" class="w-full pl-5 pr-12 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-200">
+                            <button onclick="window.useCurrentLocation()" id="btn-current-loc" class="absolute right-3 top-3 w-10 h-10 flex items-center justify-center hover:bg-blue-100 rounded-xl transition-colors">
+                                <i class="fas fa-crosshairs text-blue-600 text-lg"></i>
+                            </button>
                         </div>
+                        <input id="destination-input" type="text" placeholder="Destino" class="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-red-200">
+                    </div>
 
-                        <!-- Botón Desplegable para Mostrar Todo -->
+                    <div id="fare-card" class="mt-6 p-6 bg-blue-600 rounded-3xl text-white hidden shadow-xl">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="font-black text-slate-800 text-[10px] md:text-xs uppercase tracking-widest">Resultados</h3>
-                            <button onclick="window.toggleCatalog()" id="btn-toggle-catalog" class="text-[9px] md:text-[10px] font-black uppercase tracking-widest text-amber-600 hover:text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-100 transition flex items-center gap-1 active:scale-95">
-                                <i data-lucide="eye" class="w-3 h-3"></i> Mostrar Todo
-                            </button>
+                            <span class="text-xl font-black" id="price-display">L. 0.00</span>
+                            <span class="text-[10px] bg-white/20 px-3 py-1 rounded-full font-bold uppercase">Estimado</span>
                         </div>
-
-                        <!-- Cuadrícula responsive de productos -->
-                        <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 custom-scroll pb-6" id="pos-grid"></div>
+                        <button onclick="window.sendTripRequest()" class="w-full bg-white text-blue-700 font-black py-4 rounded-2xl active:scale-95 transition-transform">SOLICITAR AHORA</button>
                     </div>
 
-                    <!-- PANEL DE COBRO (FACTURA INAMOVIBLE EN ESCRITORIO) -->
-                    <div class="bg-white rounded-[2rem] md:rounded-[3rem] shadow-xl border border-gray-100 p-5 md:p-6 lg:p-8 flex flex-col h-fit md:h-[calc(100vh-7.5rem)] md:sticky md:top-[5.5rem] self-start ring-4 md:ring-8 ring-gray-50/50 w-full">
-                        <h2 class="text-lg md:text-xl font-black mb-6 flex items-center justify-between uppercase tracking-tighter text-center italic">Factura <span id="ticket-number-display" class="text-[9px] md:text-[10px] text-gray-400 font-mono font-bold tracking-normal block mt-1">----</span></h2>
-                        
-                        <div class="mb-5 md:mb-6 p-4 md:p-5 bg-gray-50 rounded-2xl md:rounded-[2rem] border border-dashed border-gray-300">
-                            <div class="flex justify-between items-center mb-3">
-                                <label class="text-[9px] md:text-[10px] font-black uppercase text-gray-400 tracking-widest">Cliente / Registro</label>
-                                <button onclick="window.openCustomerModal()" class="text-amber-600 hover:text-amber-700 text-[10px] md:text-[11px] font-black flex items-center gap-1.5 transition leading-none">
-                                    <i data-lucide="plus-circle" class="w-4 h-4"></i> NUEVO
-                                </button>
-                            </div>
-                            <select id="customer-select" onchange="window.selectCustomer(this.value)" class="w-full bg-transparent text-xs md:text-sm font-black outline-none cursor-pointer appearance-none uppercase">
-                                <option value="0">CONSUMIDOR FINAL</option>
-                            </select>
-                            <div id="customer-points-badge" class="mt-3 text-[9px] md:text-[10px] text-amber-700 font-black hidden bg-amber-100/50 px-2 py-1.5 rounded-lg border border-amber-200 text-center uppercase tracking-widest">
-                                <i data-lucide="award" class="w-3 h-3 inline mr-1"></i> Puntos: <span id="current-customer-points">0</span> Lps.
+                    <div id="searching-state" class="mt-8 text-center hidden">
+                        <div class="flex justify-center mb-4">
+                            <div class="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center searching-pulse">
+                                <i class="fas fa-satellite-dish text-blue-600 text-3xl"></i>
                             </div>
                         </div>
-
-                        <!-- Lista de items con scroll interno -->
-                        <div class="flex-1 space-y-2 md:space-y-3 mb-6 min-h-[150px] overflow-y-auto pr-2 custom-scroll" id="cart-items">
-                            <div class="text-center py-10 opacity-30 flex flex-col items-center">
-                                <i data-lucide="shopping-bag" class="w-10 h-10 mb-2"></i>
-                                <p class="text-[10px] font-black uppercase tracking-widest">Carrito Vacío</p>
-                            </div>
-                        </div>
-                        
-                        <div class="border-t-2 border-slate-50 pt-4 space-y-4">
-                            <div class="flex justify-between text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest px-1">
-                                <span>Subtotal Bruto</span>
-                                <span id="cart-subtotal">L 0.00</span>
-                            </div>
-                            
-                            <div class="p-4 bg-slate-900 rounded-2xl md:rounded-[2rem] space-y-3 md:space-y-4 shadow-inner">
-                                <div class="flex justify-between items-center">
-                                    <label class="text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-widest">Descuento Lps</label>
-                                    <input type="number" id="manual-discount-input" oninput="window.updateCartUI()" value="0" class="w-20 md:w-24 p-2 bg-slate-800 border border-slate-700 rounded-xl text-right text-xs md:text-sm outline-none font-black text-red-400">
-                                </div>
-                                <div class="flex justify-between items-center border-t border-slate-800 pt-3">
-                                    <label class="text-[9px] md:text-[10px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1.5 md:gap-2 leading-none"><i data-lucide="banknote" class="w-3 h-3"></i> Efectivo Recibido</label>
-                                    <input type="number" id="cash-received-input" oninput="window.updateCartUI()" placeholder="0.00" class="w-20 md:w-24 p-2 bg-slate-800 border border-slate-700 rounded-xl text-right text-xs md:text-sm outline-none font-black text-white focus:ring-1 focus:ring-amber-500 transition">
-                                </div>
-                            </div>
-
-                            <div class="px-2 space-y-2 md:space-y-3">
-                                <div class="flex justify-between text-2xl md:text-3xl font-black text-slate-900 tracking-tighter leading-none">
-                                    <span>TOTAL</span>
-                                    <span id="cart-total">L 0.00</span>
-                                </div>
-                                <div id="change-display" class="flex justify-between items-center text-[9px] md:text-[10px] font-black uppercase tracking-widest py-2 md:py-3 px-4 md:px-5 rounded-xl md:rounded-2xl bg-amber-100 text-amber-800 hidden border-b-4 border-amber-200">
-                                    <span class="flex items-center gap-1.5 md:gap-2 font-black leading-none"><i data-lucide="hand-coins" class="w-3 h-3 md:w-4 md:h-4"></i> Vuelto:</span>
-                                    <span id="change-value" class="text-xs md:text-sm font-black tracking-tighter leading-none">L 0.00</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-3 md:gap-4 mt-6">
-                            <button class="py-4 bg-gray-50 text-slate-400 rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-widest hover:bg-red-50 hover:text-red-600 transition border border-gray-100" onclick="window.clearCart()">Anular</button>
-                            <button class="py-4 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 md:gap-3 hover:bg-slate-800 transition shadow-2xl border-b-4 border-slate-700 active:scale-95" onclick="window.handleCheckout()">
-                                <i data-lucide="printer" class="w-4 h-4 md:w-5 md:h-5"></i> Facturar
-                            </button>
-                        </div>
+                        <h4 class="font-black text-gray-800">Conectando con unidades...</h4>
+                        <p class="text-gray-400 text-[10px] mt-1 px-4">Los conductores VIP están revisando tu solicitud.</p>
+                        <button onclick="window.cancelOrder()" class="mt-6 text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline">Cancelar viaje</button>
                     </div>
                 </div>
-            </section>
 
-            <!-- VISTA: INVENTARIO -->
-            <section id="tab-inventory" class="tab-content p-4 md:p-10">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-10 gap-4">
-                    <h2 class="text-2xl md:text-4xl font-black text-slate-800 tracking-tighter uppercase italic">Inventario Maestro</h2>
-                    <button onclick="window.openProductModal()" class="w-full sm:w-auto bg-slate-900 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-[1.5rem] flex items-center justify-center gap-2 md:gap-3 font-black uppercase text-[10px] md:text-[11px] tracking-widest shadow-2xl hover:bg-slate-800 transition active:scale-95">
-                        <i data-lucide="plus" class="w-4 h-4 md:w-5 md:h-5 text-amber-500"></i> Nuevo Producto
-                    </button>
+                <!-- VISTA CONDUCTOR -->
+                <div id="driver-view" class="hidden flex-1">
+                    <h3 class="text-lg font-black text-gray-900 mb-4">Viajes Pendientes</h3>
+                    <div id="requests-list" class="space-y-4"></div>
                 </div>
 
-                <!-- BUSCADOR DE INVENTARIO -->
-                <div class="flex flex-col md:flex-row gap-3 md:gap-5 mb-6">
-                    <div class="flex-1 relative group">
-                        <i data-lucide="search" class="absolute left-4 md:left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-amber-500 transition"></i>
-                        <input type="text" id="inventory-search-input" oninput="window.renderInventory()" placeholder="BUSCAR PRODUCTOS POR NOMBRE O CÓDIGO..." class="w-full pl-12 pr-4 py-4 md:pl-14 md:pr-6 md:py-4 bg-white border border-gray-100 rounded-[1.25rem] md:rounded-[1.5rem] outline-none focus:ring-4 focus:ring-amber-100 font-black text-[10px] md:text-[11px] uppercase tracking-widest shadow-sm transition">
+                <!-- CHAT COMPONENTE -->
+                <div id="active-trip-panel" class="hidden mt-auto border-t pt-4 bg-white/50">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs">
+                                <i class="fas fa-comment"></i>
+                            </div>
+                            <span class="font-bold text-xs">Coordinar viaje</span>
+                        </div>
+                        <button id="finish-trip-btn" class="hidden text-[8px] font-black bg-red-600 text-white px-4 py-2 rounded-full uppercase shadow-sm">Terminar Viaje</button>
                     </div>
-                    <div class="w-full md:w-auto">
-                        <button onclick="window.startCameraScanner('inventory-search')" class="w-full md:w-auto bg-amber-500 hover:bg-amber-600 text-white px-6 py-4 rounded-[1.25rem] md:rounded-[1.5rem] shadow-xl transition active:scale-95 flex items-center justify-center gap-2 font-black uppercase text-[10px] md:text-[11px] tracking-widest" title="Escanear con Cámara">
-                            <i data-lucide="camera" class="w-5 h-5"></i> <span class="md:hidden">Escanear Cód.</span>
+                    <div id="chat-messages" class="h-40 md:h-48 overflow-y-auto mb-3 flex flex-col p-2 bg-gray-50/50 rounded-2xl"></div>
+                    <div class="flex gap-2">
+                        <input id="chat-input" type="text" placeholder="Escribe al cliente..." class="flex-1 px-4 py-3 bg-white border rounded-xl outline-none text-sm">
+                        <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-12 h-12 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform">
+                            <i class="fas fa-paper-plane"></i>
                         </button>
                     </div>
                 </div>
-
-                <div class="bg-white rounded-2xl md:rounded-[3rem] border border-gray-100 shadow-sm overflow-hidden overflow-x-auto">
-                    <table class="w-full text-left border-collapse min-w-[800px]">
-                        <thead class="bg-gray-50/50 border-b">
-                            <tr>
-                                <th class="px-6 py-4 md:px-8 md:py-6 text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest">Producto / Scanner</th>
-                                <th class="px-6 py-4 md:px-8 md:py-6 text-center text-[9px] md:text-[10px] font-black text-gray-400 tracking-widest">Stock Total (Uds)</th>
-                                <th class="px-6 py-4 md:px-8 md:py-6 text-center text-[9px] md:text-[10px] font-black text-gray-400 tracking-widest">Alerta</th>
-                                <th class="px-6 py-4 md:px-8 md:py-6 text-left text-[9px] md:text-[10px] font-black text-gray-400 tracking-widest">Presentaciones (Combos/Cajas)</th>
-                                <th class="px-6 py-4 md:px-8 md:py-6 text-center text-[9px] md:text-[10px] font-black text-gray-400 tracking-widest">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="inventory-table" class="divide-y divide-gray-50 font-bold"></tbody>
-                    </table>
-                </div>
-                <div id="no-edit-warning" class="mt-6 md:mt-8 p-4 md:p-5 bg-slate-900 text-amber-500 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-2xl md:rounded-3xl border-l-8 border-amber-500 flex items-center gap-3 md:gap-4 hidden shadow-xl">
-                    <i data-lucide="lock" class="w-5 h-5 md:w-6 md:h-6"></i>
-                    <p>Solo Supervisores y Admin Supremo pueden editar productos maestros.</p>
-                </div>
-            </section>
-
-            <!-- VISTA: CLIENTES -->
-            <section id="tab-customers" class="tab-content p-4 md:p-10">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 md:mb-10 gap-4">
-                    <h2 class="text-2xl md:text-4xl font-black text-slate-900 tracking-tighter uppercase italic">Clientes CRM</h2>
-                    <button onclick="window.openCustomerModal()" class="w-full sm:w-auto bg-amber-600 text-white px-6 md:px-8 py-3 md:py-4 rounded-xl md:rounded-[1.5rem] flex items-center justify-center gap-2 md:gap-3 font-black uppercase text-[10px] md:text-[11px] shadow-xl transition active:scale-95">
-                        <i data-lucide="user-plus" class="w-4 h-4 md:w-5 md:h-5"></i> Registrar
-                    </button>
-                </div>
-                <div id="customers-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"></div>
-            </section>
-
-            <!-- VISTA: REPORTES -->
-            <section id="tab-reports" class="tab-content p-4 md:p-10">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 md:mb-10 gap-4">
-                    <div>
-                        <h2 class="text-2xl md:text-4xl font-black text-slate-800 tracking-tighter uppercase italic">Finanzas</h2>
-                        <p class="text-slate-400 text-[10px] md:text-xs font-bold uppercase mt-1 md:mt-2 tracking-widest">Ingresos y cierres de caja cloud.</p>
-                    </div>
-                    <div class="flex flex-col sm:flex-row w-full md:w-auto gap-3 md:gap-4"> 
-                        <button onclick="window.resetInvoiceCounter()" id="btn-reset-counter" class="bg-red-50 text-red-600 px-6 py-3 md:py-4 rounded-xl md:rounded-[1.5rem] flex items-center justify-center gap-2 md:gap-3 font-black uppercase text-[9px] md:text-[10px] tracking-widest border border-red-100 hover:bg-red-100 transition hidden active:scale-95"> <i data-lucide="refresh-ccw" class="w-4 h-4"></i> Reiniciar Correlativo </button> 
-                        <button onclick="window.closeDayProcedure()" class="bg-slate-900 text-white px-6 py-3 md:py-4 rounded-xl md:rounded-[1.5rem] flex items-center justify-center gap-2 md:gap-3 font-black uppercase text-[10px] md:text-[11px] shadow-2xl hover:bg-red-600 transition active:scale-95 leading-none"> <i data-lucide="check-circle" class="w-4 h-4 md:w-5 md:h-5 text-amber-500"></i> Cerrar Caja </button> 
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-6 md:mb-10">
-                    <div class="bg-white p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border shadow-sm text-center border-b-8 border-slate-900 shadow-xl">
-                        <p class="text-[9px] md:text-[10px] font-black text-gray-400 uppercase mb-2 tracking-widest">Ventas de Hoy</p>
-                        <h3 class="text-3xl md:text-4xl font-black text-slate-900 tracking-tighter" id="daily-net">L 0.00</h3>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10">
-                    <div class="bg-white p-6 md:p-10 rounded-2xl md:rounded-[3rem] border border-gray-100 shadow-sm h-[400px] md:h-[500px] flex flex-col">
-                        <h3 class="font-black text-[10px] md:text-xs uppercase text-slate-800 mb-6 md:mb-10 flex items-center gap-2 md:gap-3"><i data-lucide="bar-chart" class="w-4 h-4 md:w-5 md:h-5 text-amber-500"></i> Movimiento Semanal</h3>
-                        <div class="flex-1 flex items-end justify-between gap-2 md:gap-5 px-2 md:px-6 pb-6 border-b border-gray-50" id="daily-chart-container"></div>
-                        <div class="flex justify-between mt-4 md:mt-5 px-2 md:px-6 text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest" id="chart-labels"></div>
-                    </div>
-                    <div class="bg-white p-6 md:p-10 rounded-2xl md:rounded-[3rem] border border-gray-100 shadow-sm h-[400px] md:h-[500px] flex flex-col">
-                        <h3 class="font-black text-[10px] md:text-xs uppercase text-slate-800 mb-6 md:mb-8 flex items-center gap-2 md:gap-3"><i data-lucide="file-text" class="w-4 h-4 md:w-5 md:h-5 text-amber-500"></i> Facturas Emitidas</h3>
-                        <div class="flex-1 overflow-y-auto pr-2 md:pr-3 space-y-3 md:space-y-4 custom-scroll font-bold" id="daily-invoices-list-report"></div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- VISTA: FACTURAS Y REIMPRESIONES -->
-            <section id="tab-invoices" class="tab-content p-4 md:p-10">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-10 gap-4">
-                    <h2 class="text-2xl md:text-4xl font-black text-slate-800 tracking-tighter uppercase italic">Historial de Facturas</h2>
-                    <div class="flex items-center gap-3 w-full sm:w-auto">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-400">Filtro:</label>
-                        <div class="flex gap-2 w-full sm:w-auto">
-                            <input type="date" id="invoice-date-filter" onchange="window.renderInvoices()" class="bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-black text-slate-700 outline-none focus:ring-4 focus:ring-amber-100 flex-1">
-                            <button onclick="document.getElementById('invoice-date-filter').value=''; window.renderInvoices()" class="bg-gray-100 text-gray-500 hover:bg-slate-900 hover:text-white px-3 py-2 rounded-xl transition active:scale-95 flex items-center justify-center shadow-sm border border-gray-200" title="Ver Todas las Facturas"><i data-lucide="refresh-ccw" class="w-4 h-4"></i></button>
-                        </div>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6" id="invoices-list">
-                    <!-- Facturas aquí -->
-                </div>
-            </section>
-
-            <!-- VISTA: MONITOREO DE CARRITOS EN VIVO -->
-            <section id="tab-monitor" class="tab-content p-4 md:p-10">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-10 gap-4">
-                    <div>
-                        <h2 class="text-2xl md:text-4xl font-black text-slate-800 tracking-tighter uppercase italic text-cyan-600 flex items-center gap-3">
-                            <i data-lucide="radar" class="w-8 h-8 md:w-10 md:h-10 animate-spin-slow"></i> En Vivo
-                        </h2>
-                        <p class="text-slate-400 text-[10px] md:text-xs font-bold uppercase mt-1 md:mt-2 tracking-widest">Monitoreo de Puntos de Venta Activos</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6" id="active-carts-container">
-                    <!-- Carritos en vivo aquí -->
-                </div>
-            </section>
-
-            <!-- VISTA: SEGURIDAD Y AJUSTES -->
-            <section id="tab-security" class="tab-content p-4 md:p-10">
-                <div class="max-w-6xl mx-auto space-y-6 md:space-y-10">
-                    <div class="bg-slate-900 p-8 md:p-12 rounded-2xl md:rounded-[3.5rem] text-white shadow-2xl flex items-center justify-between border-b-[8px] md:border-b-[12px] border-amber-500 relative overflow-hidden">
-                        <div class="relative z-10">
-                            <h2 class="text-2xl md:text-4xl font-black flex items-center gap-3 md:gap-4 tracking-tighter uppercase leading-none">Gestión &<br>Seguridad</h2>
-                            <p class="opacity-60 mt-3 md:mt-4 font-black uppercase text-[8px] md:text-[10px] tracking-widest">Módulo de Auditoría Cloud</p>
-                        </div>
-                        <i data-lucide="shield-check" class="w-32 h-32 md:w-40 md:h-40 absolute -right-10 -bottom-10 text-white/5 rotate-12"></i>
-                    </div>
-
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10">
-                        <div class="bg-white p-6 md:p-10 rounded-2xl md:rounded-[3rem] border border-gray-100 shadow-sm space-y-6 md:space-y-8">
-                            <h3 class="font-black text-slate-800 uppercase text-[10px] md:text-xs tracking-widest flex items-center gap-2">
-                                <i data-lucide="settings" class="w-4 h-4 md:w-5 md:h-5 text-amber-500"></i> Ajustes de Sistema
-                            </h3>
-                            <div class="space-y-5 md:space-y-6">
-                                <div>
-                                    <label class="text-[9px] md:text-[10px] font-black uppercase text-gray-400 mb-2 block tracking-widest">Nombre de la Empresa</label>
-                                    <input type="text" id="config-biz-name" class="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 font-bold uppercase text-[10px] md:text-xs tracking-widest">
-                                </div>
-                                <div>
-                                    <label class="text-[9px] md:text-[10px] font-black uppercase text-gray-400 mb-2 block tracking-widest">URL Imagen Login Principal</label>
-                                    <input type="text" id="config-biz-logo" class="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 font-bold text-[10px] md:text-xs">
-                                </div>
-
-                                <!-- PERSONALIZACIÓN DE FACTURA TÉRMICA -->
-                                <div class="mt-6 md:mt-8 border-t border-gray-100 pt-5 md:pt-6 space-y-5 md:space-y-6">
-                                    <h4 class="font-black text-[10px] md:text-xs text-slate-800 uppercase tracking-widest flex items-center gap-2"><i data-lucide="printer" class="w-4 h-4 text-amber-500"></i> Personalización de Factura</h4>
-                                    
-                                    <div>
-                                        <label class="text-[9px] md:text-[10px] font-black uppercase text-gray-400 mb-2 block tracking-widest">Logo Factura (Se imprimirá B/N)</label>
-                                        <div class="flex flex-col sm:flex-row gap-3 items-center">
-                                            <img id="config-invoice-logo-preview" src="" class="w-14 h-14 object-contain hidden border border-gray-200 p-1">
-                                            <input type="hidden" id="config-invoice-logo">
-                                            <label class="w-full bg-slate-900 hover:bg-slate-800 text-white p-3 md:p-4 rounded-xl md:rounded-2xl cursor-pointer transition flex items-center justify-center shadow-lg active:scale-95 font-bold uppercase text-[10px]" title="Subir Imagen de Factura">
-                                                <i data-lucide="upload-cloud" class="w-4 h-4 md:w-5 md:h-5 text-amber-500 mr-2"></i> Subir Logo
-                                                <input type="file" id="config-invoice-logo-file" class="hidden" accept="image/*" onchange="window.handleInvoiceLogoUpload(event)">
-                                            </label>
-                                        </div>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="text-[9px] md:text-[10px] font-black uppercase text-gray-400 mb-2 block tracking-widest">Encabezado (RTN, Dirección, Tel)</label>
-                                        <textarea id="config-invoice-header" rows="3" class="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 font-bold text-[10px] md:text-xs text-center uppercase placeholder:normal-case" placeholder="Ej: RTN 0801...\nPlaza Principal...\nTel: 2222-2222"></textarea>
-                                    </div>
-                                    
-                                    <div>
-                                        <label class="text-[9px] md:text-[10px] font-black uppercase text-gray-400 mb-2 block tracking-widest">Pie de Página (Agradecimiento, etc)</label>
-                                        <textarea id="config-invoice-footer" rows="2" class="w-full p-3 md:p-4 bg-gray-50 border border-gray-100 rounded-xl md:rounded-2xl outline-none focus:ring-4 focus:ring-amber-100 font-bold text-[10px] md:text-xs text-center uppercase placeholder:normal-case" placeholder="¡Gracias por su compra!"></textarea>
-                                    </div>
-                                </div>
-
-                                <button onclick="window.saveBusinessConfig()" class="w-full py-4 md:py-5 bg-slate-900 text-white rounded-xl md:rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest hover:bg-slate-800 shadow-xl border-b-4 border-slate-700 active:scale-95 transition">Guardar Ajustes Globales</button>
-                            </div>
-                        </div>
-
-                        <div class="bg-white p-6 md:p-10 rounded-2xl md:rounded-[3rem] border border-gray-100 shadow-sm">
-                            <h3 class="font-black text-slate-800 uppercase text-[10px] md:text-xs tracking-widest flex items-center gap-2">
-                                <i data-lucide="users" class="w-4 h-4 md:w-5 md:h-5 text-amber-500"></i> Personal & Cargos
-                            </h3>
-                            <div class="max-h-[400px] overflow-x-auto overflow-y-auto custom-scroll mt-4 md:mt-6">
-                                <table class="w-full text-left border-collapse min-w-[300px]">
-                                    <thead class="bg-gray-50/50 sticky top-0">
-                                        <tr>
-                                            <th class="px-4 py-3 md:py-4 text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest">Personal</th>
-                                            <th class="px-4 py-3 md:py-4 text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest text-center">Rol</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="users-roles-table" class="divide-y divide-gray-50 text-slate-800 font-bold"></tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="bg-white p-6 md:p-10 rounded-2xl md:rounded-[3rem] border border-gray-100 shadow-sm">
-                        <h3 class="font-black mb-6 md:mb-8 text-slate-800 uppercase text-[10px] md:text-xs tracking-widest flex items-center gap-2">
-                            <i data-lucide="history" class="w-4 h-4 md:w-5 md:h-5 text-amber-500"></i> Bitácora de Auditoría Cloud
-                        </h3>
-                        <div id="activity-log" class="space-y-3 md:space-y-4 max-h-[500px] overflow-y-auto pr-2 md:pr-3 custom-scroll font-bold text-[9px] md:text-[10px] text-slate-500"></div>
-                    </div>
-                </div>
-            </section>
+            </div>
         </main>
     </div>
 
-    <!-- MODAL PRODUCTO CON SISTEMA DE COMBOS DINÁMICOS -->
-    <div id="modal-product" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-[2rem] md:rounded-[4rem] p-6 md:p-12 max-w-4xl w-full shadow-2xl max-h-[90vh] overflow-y-auto border-t-[8px] md:border-t-[12px] border-slate-900 custom-scroll">
-            <h2 id="product-modal-title" class="text-2xl md:text-3xl font-black mb-6 md:mb-8 uppercase tracking-tighter italic border-b pb-4 md:pb-6 text-slate-800">Producto Cloud</h2>
-            <input type="hidden" id="prod-id">
-            
-            <div class="grid grid-cols-1 gap-6 md:gap-8">
-                <!-- SECCIÓN: DATOS GENERALES -->
-                <div class="p-4 md:p-6 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-200">
-                    <h3 class="font-black text-[10px] md:text-xs text-slate-800 uppercase tracking-widest mb-4 flex items-center gap-2"><i data-lucide="file-text" class="w-4 h-4 text-amber-500"></i> Datos Básicos & Stock Global</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="sm:col-span-2"> 
-                            <label class="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mb-2 block">Nombre Comercial</label> 
-                            <input type="text" id="prod-name" class="w-full p-3 md:p-4 bg-white border border-gray-200 rounded-xl md:rounded-2xl font-bold uppercase text-xs md:text-sm"> 
-                        </div>
-                        <div>
-                            <label class="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mb-2 block">Stock Total (Unidades)</label>
-                            <input type="number" id="prod-stock" class="w-full p-3 md:p-4 bg-white border border-gray-200 rounded-xl md:rounded-2xl font-black text-base md:text-lg text-slate-900" placeholder="Ej: 384">
-                        </div> 
-                        <div>
-                            <label class="text-[9px] md:text-[10px] font-black uppercase text-red-400 mb-2 block">Alerta Stock Bajo</label>
-                            <input type="number" id="prod-threshold" class="w-full p-3 md:p-4 bg-white border border-gray-200 rounded-xl md:rounded-2xl font-black text-red-500 text-sm md:text-base" placeholder="Ej: 24">
-                        </div>
-                        <div class="sm:col-span-2">
-                            <label class="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mb-2 block">Imagen Producto</label>
-                            <div class="flex flex-col sm:flex-row gap-3 items-center">
-                                <img id="prod-img-preview" src="https://placehold.co/100" class="w-14 h-14 rounded-xl object-cover border border-gray-200 hidden shadow-sm">
-                                <input type="hidden" id="prod-img">
-                                <label class="w-full bg-slate-900 hover:bg-slate-800 text-white p-3 md:p-4 rounded-xl md:rounded-2xl cursor-pointer transition flex items-center justify-center shadow-lg active:scale-95 font-bold uppercase text-[10px]" title="Subir Imagen Local">
-                                    <i data-lucide="upload-cloud" class="w-4 h-4 md:w-5 md:h-5 text-amber-500 mr-2"></i> Elegir Foto
-                                    <input type="file" id="prod-img-file" class="hidden" accept="image/*" onchange="window.handleImageUpload(event, 'prod-img', 'prod-img-preview')">
-                                </label>
-                            </div>
-                        </div> 
-                    </div>
-                </div>
-
-                <!-- SECCIÓN: VENTA POR UNIDAD BASE -->
-                <div class="p-4 md:p-6 bg-gray-50 rounded-2xl md:rounded-3xl border border-gray-200 shadow-sm relative overflow-hidden">
-                    <div class="absolute top-0 right-0 w-12 h-12 md:w-16 h-16 md:bg-slate-200 rounded-bl-full flex items-start justify-end p-2 md:p-3"><i data-lucide="package" class="w-4 h-4 md:w-5 md:h-5 text-slate-500"></i></div>
-                    <h3 class="font-black text-[10px] md:text-xs text-slate-800 uppercase tracking-widest mb-4 md:mb-6">Venta Individual (Unidad Base)</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
-                        <div> 
-                            <label class="text-[9px] md:text-[10px] font-black uppercase text-slate-400 tracking-[0.1em] mb-2 block">Código Scanner (Unidad)</label> 
-                            <div class="flex gap-2">
-                                <input type="text" id="prod-barcode" class="flex-1 p-3 bg-white border border-gray-200 rounded-xl md:rounded-2xl font-black text-slate-900 text-xs text-center uppercase" placeholder="Ej: 7421111111"> 
-                                <button onclick="window.startCameraScanner('inventory-unit')" class="bg-slate-800 hover:bg-slate-900 text-white px-3 md:px-4 rounded-xl md:rounded-2xl shadow-md transition active:scale-95 flex items-center justify-center">
-                                    <i data-lucide="camera" class="w-4 h-4 md:w-5 md:h-5"></i>
-                                </button>
-                            </div>
-                        </div> 
-                        <div> 
-                            <label class="text-[9px] md:text-[10px] font-black uppercase text-amber-500 tracking-[0.1em] mb-2 block">Precio Unidad (Lps)</label> 
-                            <input type="number" id="prod-price" class="w-full p-3 bg-amber-50 border border-amber-100 rounded-xl md:rounded-2xl font-black text-amber-700 text-lg md:text-xl text-center"> 
-                        </div> 
-                    </div>
-                </div>
-
-                <!-- SECCIÓN: COMBOS DINÁMICOS -->
-                <div class="p-4 md:p-6 bg-amber-50 rounded-2xl md:rounded-3xl border border-amber-200 shadow-sm relative overflow-hidden ring-4 ring-amber-50">
-                    <div class="absolute top-0 right-0 w-12 h-12 md:w-16 md:h-16 bg-amber-200 rounded-bl-full flex items-start justify-end p-2 md:p-3"><i data-lucide="package-plus" class="w-4 h-4 md:w-5 md:h-5 text-amber-700"></i></div>
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-6 gap-3">
-                        <h3 class="font-black text-[10px] md:text-xs text-slate-800 uppercase tracking-widest">Presentaciones y Combos</h3>
-                        <button onclick="window.addComboRow()" class="w-full sm:w-auto bg-amber-500 text-white px-4 py-2 md:py-3 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition shadow-md flex items-center justify-center gap-2 active:scale-95"><i data-lucide="plus" class="w-3 h-3 md:w-4 md:h-4"></i> Añadir Combo</button>
-                    </div>
-                    
-                    <!-- Contenedor dinámico de combos -->
-                    <div id="combos-container" class="space-y-4">
-                        <!-- Las filas de combos se generan aquí mediante JS -->
-                    </div>
-                </div>
-            </div> 
-
-            <div class="pt-6 md:pt-10 flex flex-col sm:flex-row gap-3 md:gap-5 mt-4 border-t border-gray-100"> 
-                <button class="w-full sm:flex-1 py-4 md:py-6 bg-slate-900 text-white rounded-xl md:rounded-[2rem] font-black uppercase text-[10px] md:text-xs tracking-widest shadow-2xl border-b-4 border-slate-700 active:scale-95 transition" onclick="window.saveProduct()">Guardar Producto Maestro</button> 
-                <button class="w-full sm:px-10 py-4 md:py-6 bg-gray-100 text-gray-400 rounded-xl md:rounded-[2rem] font-black uppercase text-[10px]" onclick="window.closeModals()">Cancelar</button> 
-            </div>
-        </div>
-    </div>
-    
-    <!-- MODAL CLIENTE -->
-    <div id="modal-customer" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-2xl md:rounded-[3.5rem] p-6 md:p-12 max-w-md w-full shadow-2xl border-b-[8px] md:border-b-[10px] border-amber-500">
-            <h2 class="text-2xl md:text-3xl font-black mb-6 md:mb-10 uppercase tracking-tighter italic">Registrar Cliente</h2>
-            <div class="space-y-4 md:space-y-6">
-                <input type="text" id="cust-name" placeholder="NOMBRE COMPLETO (Ej: JUAN PEREZ - FIADO)" class="w-full p-4 md:p-5 bg-gray-50 border border-gray-100 rounded-xl md:rounded-3xl font-black uppercase outline-none focus:ring-4 focus:ring-amber-100 text-xs md:text-sm">
-                <input type="text" id="cust-phone" placeholder="TELÉFONO" class="w-full p-4 md:p-5 bg-gray-50 border border-gray-100 rounded-xl md:rounded-3xl font-black outline-none focus:ring-4 focus:ring-amber-100 text-xs md:text-sm">
-            </div>
-            <div class="pt-8 md:pt-12 flex flex-col sm:flex-row gap-3 md:gap-4"> 
-                <button class="w-full sm:flex-1 py-4 md:py-6 bg-amber-600 text-white rounded-xl md:rounded-[2rem] font-black uppercase text-[10px] md:text-xs tracking-widest hover:bg-amber-700 transition shadow-xl active:scale-95" onclick="window.saveCustomer()">Finalizar</button> 
-                <button class="w-full sm:px-8 py-4 md:py-6 bg-gray-100 text-gray-400 rounded-xl md:rounded-[2rem] font-black uppercase text-[10px] active:scale-95" onclick="window.closeModals()">Volver</button> 
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL EDITAR FACTURA -->
-    <div id="modal-edit-invoice" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-2xl md:rounded-[3.5rem] p-6 md:p-12 max-w-md w-full shadow-2xl border-t-[8px] md:border-t-[10px] border-amber-500">
-            <h2 class="text-2xl md:text-3xl font-black mb-6 md:mb-10 uppercase tracking-tighter italic">Editar Factura</h2>
-            <input type="hidden" id="edit-inv-id">
-            <div class="space-y-4 md:space-y-6">
-                <div>
-                    <label class="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Nombre Cliente (Quitar FIADO al pagar)</label>
-                    <input type="text" id="edit-inv-customer" class="w-full p-4 md:p-5 bg-gray-50 border border-gray-100 rounded-xl md:rounded-3xl font-black uppercase outline-none focus:ring-4 focus:ring-amber-100 text-xs md:text-sm">
-                </div>
-                <div>
-                    <label class="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Descuento Aplicado (Lps)</label>
-                    <input type="number" id="edit-inv-discount" class="w-full p-4 md:p-5 bg-gray-50 border border-gray-100 rounded-xl md:rounded-3xl font-black outline-none focus:ring-4 focus:ring-amber-100 text-xs md:text-sm">
-                </div>
-                <div>
-                    <label class="text-[9px] md:text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Efectivo Recibido (Lps)</label>
-                    <input type="number" id="edit-inv-cash" class="w-full p-4 md:p-5 bg-gray-50 border border-gray-100 rounded-xl md:rounded-3xl font-black outline-none focus:ring-4 focus:ring-amber-100 text-xs md:text-sm">
-                </div>
-            </div>
-            <div class="pt-8 md:pt-12 flex flex-col sm:flex-row gap-3 md:gap-4"> 
-                <button class="w-full sm:flex-1 py-4 md:py-6 bg-slate-900 text-white rounded-xl md:rounded-[2rem] font-black uppercase text-[10px] md:text-xs tracking-widest hover:bg-slate-800 transition shadow-xl active:scale-95" onclick="window.saveEditedInvoice()">Guardar Cambios</button> 
-                <button class="w-full sm:px-8 py-4 md:py-6 bg-gray-100 text-gray-400 rounded-xl md:rounded-[2rem] font-black uppercase text-[10px] active:scale-95" onclick="window.closeModals()">Cancelar</button> 
-            </div>
-        </div>
-    </div>
-
-    <!-- MODAL ESCÁNER CÁMARA -->
-    <div id="modal-camera-scanner" class="fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[70] flex items-center justify-center hidden p-4">
-        <div class="bg-white rounded-[2rem] md:rounded-[3rem] p-6 md:p-8 max-w-md w-full shadow-2xl flex flex-col relative border-t-[8px] md:border-t-[10px] border-amber-500">
-            <button onclick="window.stopCameraScanner()" class="absolute top-4 right-4 md:top-6 md:right-6 p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition">
-                <i data-lucide="x" class="w-4 h-4 md:w-5 md:h-5"></i>
-            </button>
-            <h2 class="text-xl md:text-2xl font-black mb-4 md:mb-6 uppercase tracking-tighter italic text-center text-slate-800">Escanear Código</h2>
-            <div id="reader" class="w-full bg-slate-50 rounded-xl md:rounded-2xl overflow-hidden shadow-inner min-h-[250px] md:min-h-[300px] flex items-center justify-center border-2 border-dashed border-gray-300">
-                <!-- Aquí se inyecta el video de la cámara -->
-            </div>
-            <p class="text-[9px] md:text-[10px] text-gray-400 font-bold uppercase tracking-widest text-center mt-4 md:mt-6 flex justify-center items-center gap-2">
-                <i data-lucide="smartphone" class="w-3 h-3 md:w-4 md:h-4"></i> Apunta la cámara al código
-            </p>
-        </div>
-    </div>
-
-    <!-- AREA DE IMPRESIÓN OCULTA EN PANTALLA, VISIBLE AL IMPRIMIR -->
-    <div id="print-area"></div>
-
-    <div id="toast-container" class="fixed bottom-10 right-4 md:right-10 space-y-4 z-[60] w-64 md:w-auto"></div>
-
+    <!-- FIREBASE MODULE -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, updateDoc, onSnapshot, addDoc, getDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = {
-            apiKey: "AIzaSyCrV3s3uuEiWx_u959j70Tt3JhM_G44sck",
-            authDomain: "ubicacion-50569.firebaseapp.com",
-            databaseURL: "https://ubicacion-50569-default-rtdb.firebaseio.com",
-            projectId: "ubicacion-50569",
-            storageBucket: "ubicacion-50569.firebasestorage.app",
-            messagingSenderId: "275356453292",
-            appId: "1:275356453292:web:d049541c92083167659209",
-            measurementId: "G-QSY3PPZQP3"
+            apiKey: "AIzaSyBwaRzw2R1DCFOSn-YtfM5tRLdN7p4dpk8",
+            authDomain: "comedor-86278.firebaseapp.com",
+            projectId: "comedor-86278",
+            storageBucket: "comedor-86278.firebasestorage.app",
+            messagingSenderId: "1081425728323",
+            appId: "1:1081425728323:web:f7fabcacc19a8f0daf15f6"
         };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        
-        const appId = 'default-licores-v2';
+        const appId = "comayagua-vip-pro-v4";
 
-        window.appState = {
-            inventory: [],
-            customers: [],
-            sales: [],
-            users: [],
-            logs: [],
-            cart: [],
-            activeCarts: [],
-            ticketCounter: 1,
-            user: null,
-            isSupremeAdmin: false,
-            userRole: 'vendedor',
-            selectedCustomerId: "0",
-            settings: { 
-                businessName: "S.O.Z.I.N", 
-                businessLogo: "",
-                invoiceHeader: "",
-                invoiceFooter: "",
-                invoiceLogo: ""
-            }
+        let userRole = 'client';
+        let currentUser = null;
+        let activeTrip = null;
+        let profilePhotoBase64 = null;
+        let selectedStars = 0;
+        let selectedVehicleStars = 0;
+
+        window.updateRole = (role) => {
+            userRole = role;
+            document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('bg-white', 'text-blue-600'));
+            document.getElementById(`role-${role}`).classList.add('bg-white', 'text-blue-600');
+            document.getElementById('driver-fields').classList.toggle('hidden', role !== 'driver');
+            document.getElementById('photo-req-label').classList.toggle('hidden', role !== 'driver');
         };
 
-        window.showFullCatalog = false;
-        let html5QrCode = null;
-        window.scannerMode = 'pos';
-        window.scannerTargetId = null;
-        window.appInitialized = false;
-        let syncTimeout = null;
-
-        // --- 1. UTILIDADES BÁSICAS ---
-        window.showToast = (m, t) => {
-            const c = document.getElementById('toast-container');
-            const d = document.createElement('div');
-            d.className = `${t === 'success' ? 'bg-green-600' : 'bg-red-600'} text-white px-6 md:px-8 py-4 md:py-5 rounded-2xl md:rounded-3xl text-[9px] md:text-[11px] font-black shadow-2xl flex items-center gap-3 md:gap-4 animate-bounce border-b-[4px] md:border-b-[6px] border-black/10 uppercase tracking-widest`;
-            d.innerHTML = `<i data-lucide="${t==='success'?'check-circle':'alert-circle'}" class="w-5 h-5 md:w-6 md:h-6"></i> ${m}`;
-            c.appendChild(d);
-            lucide.createIcons();
-            setTimeout(() => {
-                d.style.opacity = '0';
-                d.style.transition = '0.5s';
-                setTimeout(() => d.remove(), 500);
-            }, 3000);
-        };
-
-        window.logActivity = async (msg) => {
-            if (!auth.currentUser) return;
-            try {
-                const userEmail = auth.currentUser.email ? auth.currentUser.email : 'SISTEMA';
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'logs'), {
-                    msg, timestamp: new Date().toISOString(), user: userEmail
-                });
-            } catch (e) {}
-        };
-        
-        // Manejo de fechas seguro para la zona horaria local
-        window.getLocalYYYYMMDD = (d = new Date()) => {
-            const pad = (n) => n.toString().padStart(2, '0');
-            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-        };
-
-        window.isSameDate = (sale, targetDate) => {
-            if (!targetDate) return true; // Si está vacío, mostrar todas
-            if (sale.timestamp) {
-                try {
-                    const d = new Date(sale.timestamp);
-                    return window.getLocalYYYYMMDD(d) === targetDate;
-                } catch(e) {}
-            }
-            return sale.date === targetDate;
-        };
-
-        window.updateTicketFormat = () => {
-            const pad = (num, size) => ('0000' + num).slice(-size);
-            const now = new Date();
-            const datePart = `${pad(now.getDate(),2)}${pad(now.getMonth()+1,2)}${now.getFullYear().toString().slice(-2)}`;
-            const formatted = `HN-${datePart}-${pad(window.appState.ticketCounter, 4)}`;
-            const el = document.getElementById('ticket-number-display');
-            if (el) el.innerText = formatted;
-            return formatted;
-        };
-
-        window.closeModals = () => {
-            document.getElementById('modal-product').classList.add('hidden');
-            document.getElementById('modal-customer').classList.add('hidden');
-            document.getElementById('modal-edit-invoice').classList.add('hidden');
-            if (!document.getElementById('modal-camera-scanner').classList.contains('hidden')) {
-                window.stopCameraScanner();
-            }
-        };
-        
-        // --- FUNCIÓN DE SINCRONIZACIÓN FALTANTE PARA EL RADAR ---
-        window.syncCartToCloud = () => {
-            if (!window.appState.user) return;
-            if (syncTimeout) clearTimeout(syncTimeout);
-            
-            syncTimeout = setTimeout(async () => {
-                const sub = window.appState.cart.reduce((s, i) => s + (i.price * i.quantity), 0);
-                try {
-                    const cartRef = doc(db, 'artifacts', appId, 'public', 'data', 'active_carts', window.appState.user.uid);
-                    if (window.appState.cart.length === 0) {
-                        await deleteDoc(cartRef);
-                    } else {
-                        await setDoc(cartRef, {
-                            userEmail: window.appState.user.email,
-                            userName: window.appState.currentUserName || window.appState.user.displayName || window.appState.user.email || 'Usuario POS',
-                            cart: window.appState.cart,
-                            total: sub,
-                            updatedAt: new Date().toISOString()
-                        });
-                    }
-                } catch (e) { console.error("Error sincronizando radar:", e); }
-            }, 800);
-        };
-
-        // --- 2. FUNCIONES DE RENDERIZADO (UI) ---
-        window.updateCartUI = () => {
-            const container = document.getElementById('cart-items');
-            if (!container) return;
-            
-            if (window.appState.cart.length === 0) {
-                container.innerHTML = `<div class="text-center py-10 opacity-30 flex flex-col items-center"><i data-lucide="shopping-bag" class="w-10 h-10 mb-2"></i><p class="text-[10px] font-black uppercase tracking-widest">Carrito Vacío</p></div>`;
-                lucide.createIcons();
-            } else {
-                container.innerHTML = '';
-                window.appState.cart.forEach((i, idx) => {
-                    const div = document.createElement('div');
-                    div.className = "flex justify-between items-center py-2 md:py-3 border-b border-gray-50 group px-2 md:px-3 hover:bg-gray-50 rounded-xl transition";
-                    div.innerHTML = `
-                        <div class="flex-1 min-w-0 pr-2">
-                            <p class="font-black text-slate-800 uppercase text-[10px] md:text-xs leading-none truncate" title="${i.name}">${i.name}</p>
-                            <p class="text-[8px] md:text-[9px] text-gray-400 font-black uppercase mt-1 tracking-widest">L ${i.price.toLocaleString('es-HN', {minimumFractionDigits: 2})} c/u</p>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <div class="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-1">
-                                <button onclick="window.removeFromCart(${idx})" class="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-red-500 transition hover:bg-white rounded-md shadow-sm active:scale-95"><i data-lucide="minus" class="w-3 h-3"></i></button>
-                                <span class="w-6 text-center text-[10px] md:text-xs font-black text-slate-800">${i.quantity}</span>
-                                <button onclick="window.addOneToCart(${idx})" class="w-6 h-6 flex items-center justify-center text-slate-400 hover:text-green-500 transition hover:bg-white rounded-md shadow-sm active:scale-95"><i data-lucide="plus" class="w-3 h-3"></i></button>
-                            </div>
-                            <span class="font-black text-slate-900 tracking-tighter text-sm md:text-base w-14 text-right">L ${(i.price * i.quantity).toLocaleString('es-HN', {minimumFractionDigits: 2})}</span>
-                        </div>
-                    `;
-                    container.appendChild(div);
-                });
-                lucide.createIcons();
-            }
-
-            const sub = window.appState.cart.reduce((s, i) => s + (i.price * i.quantity), 0);
-            const disc = parseFloat(document.getElementById('manual-discount-input').value) || 0;
-            const cash = parseFloat(document.getElementById('cash-received-input').value) || 0;
-            const total = Math.max(0, sub - disc);
-            const change = cash - total;
-
-            document.getElementById('cart-subtotal').innerText = `L ${sub.toLocaleString('es-HN', {minimumFractionDigits: 2})}`;
-            document.getElementById('cart-total').innerText = `L ${total.toLocaleString('es-HN', {minimumFractionDigits: 2})}`;
-            
-            const chgEl = document.getElementById('change-display');
-            if (cash > 0) {
-                chgEl.classList.remove('hidden');
-                document.getElementById('change-value').innerText = change >= 0 ? `L ${change.toLocaleString('es-HN', {minimumFractionDigits: 2})}` : `FALTAN L ${Math.abs(change).toLocaleString('es-HN', {minimumFractionDigits: 2})}`;
-                chgEl.className = change >= 0 ? "flex justify-between items-center text-[9px] md:text-[10px] font-black uppercase tracking-widest py-2 md:py-3 px-4 md:px-5 rounded-xl md:rounded-2xl bg-amber-100 text-amber-800 border-b-4 border-amber-200" : "flex justify-between items-center text-[9px] md:text-[10px] font-black uppercase tracking-widest py-2 md:py-3 px-4 md:px-5 rounded-xl md:rounded-2xl bg-red-100 text-red-800 border-b-4 border-red-200";
-            } else {
-                chgEl.classList.add('hidden');
-            }
-
-            window.syncCartToCloud();
-        };
-
-        window.renderPOS = () => {
-            const grid = document.getElementById('pos-grid');
-            if (!grid) return;
-            const searchInput = document.getElementById('pos-search-input');
-            const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
-            grid.innerHTML = '';
-            
-            if (search === '' && !window.showFullCatalog) {
-                grid.innerHTML = `
-                    <div class="col-span-full flex flex-col items-center justify-center py-16 opacity-50">
-                        <i data-lucide="search" class="w-12 h-12 mb-4 text-slate-400"></i>
-                        <p class="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 text-center">Busque un producto o use el escáner.<br><span class="text-[8px] mt-2 block">O haga clic en "Mostrar Todo"</span></p>
-                    </div>
-                `;
-                lucide.createIcons();
-                return;
-            }
-            
-            window.appState.inventory.forEach(inv => {
-                const matchCombo = (inv.combos || []).some(c => c.barcode && c.barcode.includes(search));
-                const isMatch = inv.name.toLowerCase().includes(search) || (inv.barcode && inv.barcode.includes(search)) || matchCombo;
-                
-                if ((search === '' || isMatch) && inv.stock > 0) {
-                    const cardUnit = document.createElement('div');
-                    cardUnit.className = "bg-white p-4 md:p-6 rounded-2xl md:rounded-[3rem] border border-gray-100 shadow-sm cursor-pointer hover:shadow-2xl transition group relative overflow-hidden active:scale-95 flex flex-col";
-                    cardUnit.onclick = () => window.addToCart({ id: inv.id + '-unit', baseId: inv.id, name: inv.name + (inv.combos?.length > 0 ? ' (UNIDAD)' : ''), price: inv.price, sellQty: 1 });
-                    cardUnit.innerHTML = `
-                        <div class="h-24 md:h-32 bg-gray-50 rounded-xl md:rounded-[2.25rem] mb-3 md:mb-4 overflow-hidden relative">
-                            ${inv.combos?.length > 0 ? `<span class="absolute top-2 left-2 bg-slate-900 text-white text-[7px] md:text-[8px] font-black px-2 py-1 md:px-3 md:py-1 rounded-full z-10 uppercase">Unidad</span>` : ''}
-                            <img src="${inv.imgUrl || 'https://placehold.co/200?text=Caja'}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500">
-                        </div>
-                        <h3 class="font-black text-[10px] md:text-[12px] text-slate-700 uppercase italic truncate leading-tight">${inv.name}</h3>
-                        <div class="mt-auto pt-2 flex items-center justify-between">
-                            <p class="font-black text-amber-600 text-base md:text-lg tracking-tighter italic leading-none">L ${inv.price.toLocaleString()}</p>
-                            <div class="w-8 h-8 md:w-10 md:h-10 bg-slate-900 text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg"><i data-lucide="plus" class="w-4 h-4 md:w-5 md:h-5"></i></div>
-                        </div>
-                    `;
-                    grid.appendChild(cardUnit);
-
-                    if (inv.combos && Array.isArray(inv.combos)) {
-                        inv.combos.forEach((combo, idx) => {
-                            if (inv.stock >= combo.qty) { 
-                                const cardCombo = document.createElement('div');
-                                cardCombo.className = "bg-amber-50 p-4 md:p-6 rounded-2xl md:rounded-[3rem] border-2 border-amber-200 shadow-sm cursor-pointer hover:shadow-2xl transition group relative overflow-hidden active:scale-95 flex flex-col";
-                                cardCombo.onclick = () => window.addToCart({ id: `${inv.id}-combo-${idx}`, baseId: inv.id, name: `${inv.name} (${combo.name})`, price: combo.price, sellQty: combo.qty });
-                                cardCombo.innerHTML = `
-                                    <div class="h-24 md:h-32 bg-white rounded-xl md:rounded-[2.25rem] mb-3 md:mb-4 overflow-hidden relative shadow-inner">
-                                        <span class="absolute top-2 left-2 bg-amber-500 text-white text-[7px] md:text-[8px] font-black px-2 py-1 md:px-3 md:py-1 rounded-full z-10 uppercase shadow-md flex items-center gap-1"><i data-lucide="package-plus" class="w-2 h-2 md:w-3 md:h-3"></i> ${combo.name}</span>
-                                        <img src="${inv.imgUrl || 'https://placehold.co/200?text=Caja'}" class="w-full h-full object-cover group-hover:scale-110 transition duration-500 opacity-90">
-                                    </div>
-                                    <h3 class="font-black text-[10px] md:text-[12px] text-amber-900 uppercase italic truncate leading-tight">${inv.name}</h3>
-                                    <div class="mt-auto pt-2 flex items-center justify-between">
-                                        <p class="font-black text-amber-600 text-base md:text-lg tracking-tighter italic leading-none">L ${combo.price.toLocaleString()}</p>
-                                        <div class="w-8 h-8 md:w-10 md:h-10 bg-amber-500 text-white rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg"><i data-lucide="plus" class="w-4 h-4 md:w-5 md:h-5"></i></div>
-                                    </div>
-                                `;
-                                grid.appendChild(cardCombo);
-                            }
-                        });
-                    }
-                }
-            });
-            lucide.createIcons();
-        };
-
-        window.renderInventory = () => {
-            const table = document.getElementById('inventory-table');
-            const searchInput = document.getElementById('inventory-search-input');
-            if (!table) return;
-            
-            const search = searchInput ? searchInput.value.toLowerCase().trim() : '';
-            table.innerHTML = '';
-            let count = 0;
-            
-            const canEdit = ['admin', 'supervisor'].includes(window.appState.userRole) || window.appState.isSupremeAdmin;
-
-            window.appState.inventory.forEach(item => {
-                const matchCombo = (item.combos || []).some(c => c.barcode && c.barcode.includes(search));
-                const isMatch = item.name.toLowerCase().includes(search) || (item.barcode && item.barcode.includes(search)) || matchCombo;
-                
-                if (!isMatch && search !== '') return;
-
-                count++;
-                const isLow = item.stock <= (item.threshold || 0);
-                
-                let combosHTML = '';
-                if (item.combos && item.combos.length > 0) {
-                    combosHTML = item.combos.map(c => `<span class="text-[8px] bg-amber-50 text-amber-700 px-2 py-1 rounded-md font-black uppercase tracking-widest border border-amber-200 block mb-1 w-max">${c.name}: L ${c.price.toLocaleString()} (S/N: ${c.barcode || '---'})</span>`).join('');
-                } else {
-                    combosHTML = `<span class="text-[8px] text-gray-400 italic uppercase">Sin combos configurados</span>`;
-                }
-
-                const row = document.createElement('tr');
-                row.className = isLow ? 'low-stock bg-red-50/30' : 'hover:bg-gray-50 transition';
-                row.innerHTML = `
-                    <td class="px-6 py-4 md:px-8 md:py-6">
-                        <div class="flex items-center gap-3 md:gap-5">
-                            <img src="${item.imgUrl || 'https://placehold.co/100?text=?'}" class="w-10 h-10 md:w-16 md:h-16 rounded-lg md:rounded-[1.25rem] object-cover border shadow-sm">
-                            <div class="flex flex-col">
-                                <span class="text-slate-800 font-black text-[10px] md:text-[13px] tracking-tighter uppercase leading-tight">${item.name}</span>
-                                <span class="text-[7px] md:text-[8px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-black uppercase tracking-widest border border-slate-200 mt-1 md:mt-2 w-max">Ud: ${item.barcode || 'S/N'}</span>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 md:px-8 md:py-6 text-center">
-                        <span class="text-slate-800 font-black text-base md:text-lg">${item.stock}</span><span class="text-[8px] md:text-[10px] text-gray-400 font-bold ml-1 uppercase">uds</span>
-                    </td>
-                    <td class="px-6 py-4 md:px-8 md:py-6 text-center text-red-500 font-black text-[10px] md:text-xs">${item.threshold || 0} uds</td>
-                    <td class="px-6 py-4 md:px-8 md:py-6 text-left leading-tight">
-                        <span class="text-slate-900 font-black block mb-2 text-xs md:text-sm border-b border-gray-100 pb-2 w-max">Ud. Base: L ${item.price.toLocaleString()}</span>
-                        ${combosHTML}
-                    </td>
-                    <td class="px-6 py-4 md:px-8 md:py-6 text-center">
-                        <div class="flex items-center justify-center gap-2">
-                            ${canEdit ? `<button onclick="window.deleteProduct('${item.id}', '${item.name.replace(/'/g, "\\'")}')" class="p-2 md:p-3 bg-white border border-red-200 shadow-sm rounded-lg md:rounded-xl hover:bg-red-50 text-red-500 transition active:scale-95" title="Eliminar Producto"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
-                            <button onclick="window.openProductModal('${item.id}')" class="p-2 md:p-3 bg-white border border-gray-200 shadow-sm rounded-lg md:rounded-xl hover:bg-gray-50 transition active:scale-95 group" title="Editar Producto"><i data-lucide="edit-3" class="w-4 h-4 text-amber-500 group-hover:scale-110 transition"></i></button>
-                        </div>
-                    </td>
-                `;
-                table.appendChild(row);
-            });
-
-            if (count === 0) {
-                table.innerHTML = `<tr><td colspan="5" class="px-8 py-10 text-center text-gray-400 font-black uppercase text-[10px] tracking-widest"><i data-lucide="package-x" class="w-10 h-10 mx-auto mb-3 opacity-50"></i> No se encontraron productos</td></tr>`;
-            }
-            
-            lucide.createIcons();
-        };
-
-        window.renderCustomers = () => {
-            const grid = document.getElementById('customers-list');
-            if (!grid) return;
-            grid.innerHTML = '';
-            window.appState.customers.forEach(c => {
-                const div = document.createElement('div');
-                div.className = "bg-white p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border shadow-sm border-gray-100 hover:shadow-xl transition";
-                div.innerHTML = `
-                    <h4 class="font-black text-slate-800 uppercase text-lg md:text-xl italic tracking-tighter">${c.name}</h4>
-                    <p class="text-[9px] md:text-[10px] text-gray-400 uppercase mt-2">${c.phone || 'Sin teléfono'}</p>
-                    <div class="mt-6 md:mt-8 flex items-center justify-between font-black">
-                        <span class="text-[8px] md:text-[9px] uppercase text-gray-400">Puntos Fidelidad</span>
-                        <span class="text-amber-600 bg-amber-50 px-3 md:px-4 py-1.5 md:py-2 rounded-xl md:rounded-2xl border border-amber-100">L ${c.points || 0}</span>
-                    </div>
-                `;
-                grid.appendChild(div);
-            });
-        };
-
-        window.renderCustomerSelect = () => {
-            const select = document.getElementById('customer-select');
-            if (!select) return;
-            const val = select.value;
-            select.innerHTML = '<option value="0">CONSUMIDOR FINAL</option>';
-            window.appState.customers.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c.id;
-                opt.innerText = c.name;
-                select.appendChild(opt);
-            });
-            select.value = val;
-        };
-
-        // --- CORRECCIÓN EN EL RENDERIZADO DE LOS REPORTES ---
-        window.renderReports = () => {
-            // El ID aquí estaba mal en el código original, ahora coincide con el HTML (-report)
-            const list = document.getElementById('daily-invoices-list-report');
-            const net = document.getElementById('daily-net');
-            if (!list || !net) return;
-            
-            const today = window.getLocalYYYYMMDD();
-            const tsales = window.appState.sales.filter(s => window.isSameDate(s, today));
-            
-            list.innerHTML = '';
-            let totalNet = 0;
-            tsales.forEach(s => {
-                totalNet += s.total;
-                const d = document.createElement('div');
-                d.className = "p-4 md:p-5 bg-gray-50 rounded-xl md:rounded-[1.5rem] border border-gray-100 flex justify-between items-center";
-                d.innerHTML = `
-                    <div>
-                        <p class="text-[8px] md:text-[9px] font-black text-gray-400 uppercase mb-1">#${s.ticketNum}</p>
-                        <h4 class="text-[10px] md:text-xs text-slate-800 uppercase">${s.customerName}</h4>
-                    </div>
-                    <p class="font-black text-slate-900 text-sm md:text-base italic">L ${s.total.toLocaleString()}</p>
-                `;
-                list.appendChild(d);
-            });
-            net.innerText = `L ${totalNet.toLocaleString()}`;
-
-            // Chart
-            const chartCont = document.getElementById('daily-chart-container');
-            const labelCont = document.getElementById('chart-labels');
-            if (!chartCont) return;
-            chartCont.innerHTML = ''; labelCont.innerHTML = '';
-            
-            const last7 = [...Array(7)].map((_, i) => { 
-                const d = new Date(); 
-                d.setDate(d.getDate() - (6 - i)); 
-                return window.getLocalYYYYMMDD(d); 
-            });
-            
-            const totals = last7.map(date => window.appState.sales.filter(s => window.isSameDate(s, date)).reduce((acc, curr) => acc + curr.total, 0));
-            const max = Math.max(...totals, 1000);
-            
-            totals.forEach((t, i) => {
-                const h = (t / max) * 100;
-                const bar = document.createElement('div');
-                bar.className = "flex-1 bg-amber-200 rounded-t-xl md:rounded-t-2xl relative group hover:bg-slate-900 transition-all duration-500";
-                bar.style.height = `${Math.max(5, h)}%`;
-                bar.innerHTML = `<div class="absolute -top-8 md:-top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[8px] md:text-[9px] font-black px-2 py-1 md:px-3 md:py-2 rounded-lg md:rounded-xl opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-20">L ${t.toLocaleString()}</div>`;
-                chartCont.appendChild(bar);
-                const l = document.createElement('span');
-                const parts = last7[i].split('-');
-                const dObj = new Date(parts[0], parts[1]-1, parts[2]); 
-                l.innerText = dObj.toLocaleDateString('es-HN', { weekday: 'short' }).toUpperCase();
-                labelCont.appendChild(l);
-            });
-        };
-
-        window.renderSecurityUsers = () => {
-            const container = document.getElementById('users-roles-table');
-            if (!container) return;
-            container.innerHTML = '';
-            window.appState.users.forEach(u => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="px-4 py-3 md:px-6 md:py-5">
-                        <div class="flex items-center gap-3 md:gap-4">
-                            <img src="${u.photo || 'https://placehold.co/100?text=U'}" class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl object-cover border">
-                            <div>
-                                <p class="font-black text-slate-800 text-[9px] md:text-[11px] uppercase">${u.name}</p>
-                                <p class="text-[7px] md:text-[8px] text-slate-400 font-bold uppercase mt-0.5 md:mt-1">${u.email}</p>
-                            </div>
-                        </div>
-                    </td>
-                    <td class="px-4 py-3 md:px-6 md:py-5 text-center">
-                        <select onchange="window.updateUserRole('${u.uid}', this.value)" class="p-1.5 md:p-2 bg-gray-50 border rounded-xl md:rounded-2xl text-[8px] md:text-[9px] font-black uppercase outline-none" ${window.appState.isSupremeAdmin ? '' : 'disabled'}>
-                            <option value="vendedor" ${u.role==='vendedor'?'selected':''}>Vendedor</option>
-                            <option value="supervisor" ${u.role==='supervisor'?'selected':''}>Supervisor</option>
-                            <option value="admin" ${u.role==='admin'?'selected':''}>Admin Supremo</option>
-                        </select>
-                    </td>
-                `;
-                container.appendChild(row);
-            });
-        };
-
-        window.renderSecurityLog = () => {
-            const container = document.getElementById('activity-log');
-            if (!container) return;
-            container.innerHTML = '';
-            const sorted = [...window.appState.logs].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            sorted.slice(0, 50).forEach(s => {
-                const div = document.createElement('div');
-                div.className = "p-3 md:p-4 bg-gray-50 rounded-xl md:rounded-[1.5rem] flex flex-col sm:flex-row justify-between items-start sm:items-center border border-gray-100 gap-2 sm:gap-0";
-                div.innerHTML = `
-                    <div class="flex items-center gap-3 md:gap-4">
-                        <div class="w-1.5 h-1.5 md:w-2 md:h-2 ${s.msg.includes('CIERRE')?'bg-red-400':'bg-green-500'} rounded-full"></div>
-                        <p class="font-black text-slate-700 uppercase tracking-widest text-[8px] md:text-[9px]">${s.msg}</p>
-                    </div>
-                    <p class="text-slate-400 font-black uppercase text-[7px] md:text-[8px] tracking-widest ml-4 sm:ml-0">${new Date(s.timestamp).toLocaleString('es-HN')}</p>
-                `;
-                container.appendChild(div);
-            });
-        };
-
-        window.renderInvoices = () => {
-            const container = document.getElementById('invoices-list');
-            if (!container) return;
-
-            const dateFilterInput = document.getElementById('invoice-date-filter');
-            let targetDate = dateFilterInput.value;
-
-            container.innerHTML = '';
-
-            const role = window.appState.userRole;
-            const userEmail = window.appState.user?.email || '';
-            const userName = window.appState.user?.displayName || '';
-            const userUid = window.appState.user?.uid;
-
-            let filteredSales = window.appState.sales;
-            
-            // Si hay fecha aplicamos filtro, si no, lo mostramos todo
-            if (targetDate) {
-                filteredSales = filteredSales.filter(s => window.isSameDate(s, targetDate));
-            }
-
-            if (role === 'vendedor') {
-                filteredSales = filteredSales.filter(s => 
-                    s.sellerUid === userUid || 
-                    s.sellerName === userName || 
-                    s.sellerName === userEmail
-                );
-            }
-
-            if (filteredSales.length === 0) {
-                container.innerHTML = `
-                    <div class="col-span-full py-10 flex flex-col items-center justify-center opacity-50">
-                        <i data-lucide="receipt" class="w-12 h-12 mb-4 text-slate-400"></i>
-                        <p class="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 text-center">No hay facturas para mostrar</p>
-                    </div>`;
-                lucide.createIcons();
-                return;
-            }
-
-            filteredSales.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-            
-            const canEdit = ['admin', 'supervisor'].includes(window.appState.userRole) || window.appState.isSupremeAdmin;
-
-            filteredSales.forEach(s => {
-                const customerLower = (s.customerName || '').toLowerCase();
-                const isFiado = customerLower.includes('fiado') || customerLower.includes('p.pago');
-
-                const bgClass = isFiado ? 'bg-red-50 border-red-200' : 'bg-white border-gray-100';
-                const textClass = isFiado ? 'text-red-800' : 'text-slate-800';
-                const badgeFiado = isFiado ? `<span class="absolute top-4 right-4 bg-red-500 text-white text-[8px] md:text-[9px] font-black px-2 py-1 rounded-md uppercase tracking-widest animate-pulse shadow-sm">Pendiente / Fiado</span>` : '';
-                
-                const editBtn = canEdit ? `<button onclick="window.openEditInvoiceModal('${s.id}')" class="bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-200 px-3 md:px-4 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition flex items-center gap-2 active:scale-95 shadow-sm"><i data-lucide="edit" class="w-3 h-3 md:w-4 md:h-4"></i> Editar</button>` : '';
-                const shareBtn = `<button onclick="window.shareInvoice('${s.id}')" class="bg-green-100 text-green-700 hover:bg-green-200 border border-green-200 px-3 md:px-4 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition flex items-center gap-2 active:scale-95 shadow-sm"><i data-lucide="share-2" class="w-3 h-3 md:w-4 md:h-4"></i> Compartir</button>`;
-
-                const div = document.createElement('div');
-                div.className = `p-5 md:p-6 rounded-2xl md:rounded-[2rem] border shadow-sm relative ${bgClass} hover:shadow-md transition flex flex-col`;
-                div.innerHTML = `
-                    ${badgeFiado}
-                    <div class="mb-4 md:mb-6 pr-24">
-                        <p class="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 md:mb-2">Factura #${s.ticketNum}</p>
-                        <h4 class="text-xs md:text-sm font-black uppercase truncate ${textClass}" title="${s.customerName}">${s.customerName}</h4>
-                        <p class="text-[9px] md:text-[10px] text-gray-500 font-bold uppercase mt-1">Cajero: ${s.sellerName}</p>
-                    </div>
-                    <div class="mt-auto flex flex-col gap-3 border-t ${isFiado ? 'border-red-100' : 'border-gray-100'} pt-4">
-                        <h3 class="text-lg md:text-2xl font-black ${textClass} tracking-tighter">L ${s.total.toLocaleString('es-HN', {minimumFractionDigits:2})}</h3>
-                        <div class="flex items-center gap-2 justify-end flex-wrap">
-                            ${editBtn}
-                            ${shareBtn}
-                            <button onclick="window.reprintInvoice('${s.id}')" class="${isFiado ? 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'} px-3 md:px-4 py-2 rounded-xl text-[9px] md:text-[10px] font-black uppercase tracking-widest transition flex items-center gap-2 active:scale-95 shadow-sm">
-                                <i data-lucide="printer" class="w-3 h-3 md:w-4 md:h-4"></i> Copia
-                            </button>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-
-            lucide.createIcons();
-        };
-
-        window.renderActiveCarts = () => {
-            const container = document.getElementById('active-carts-container');
-            if (!container) return;
-            container.innerHTML = '';
-
-            const activeCartsWithItems = window.appState.activeCarts.filter(c => c.cart && c.cart.length > 0);
-
-            if (activeCartsWithItems.length === 0) {
-                container.innerHTML = `
-                    <div class="col-span-full py-16 flex flex-col items-center justify-center opacity-50">
-                        <i data-lucide="shopping-cart" class="w-12 h-12 mb-4 text-slate-400"></i>
-                        <p class="text-[10px] md:text-xs font-black uppercase tracking-widest text-slate-400 text-center">No hay carritos activos en este momento</p>
-                    </div>`;
-                lucide.createIcons();
-                return;
-            }
-
-            activeCartsWithItems.forEach(c => {
-                const div = document.createElement('div');
-                div.className = "bg-white p-5 md:p-6 rounded-2xl md:rounded-[2rem] shadow-sm border border-gray-100 flex flex-col h-full";
-                
-                let cartItemsHtml = c.cart.map(item => `
-                    <div class="flex justify-between items-center py-2 border-b border-gray-50 text-[10px] md:text-[11px]">
-                        <span class="font-bold text-slate-700 truncate pr-2" title="${item.name}">${item.quantity}x ${item.name}</span>
-                        <span class="font-black text-slate-900 whitespace-nowrap">L ${(item.price * item.quantity).toLocaleString('es-HN', {minimumFractionDigits: 2})}</span>
-                    </div>
-                `).join('');
-
-                div.innerHTML = `
-                    <div class="flex items-center gap-3 md:gap-4 mb-4 md:mb-5 border-b border-gray-100 pb-3 md:pb-4">
-                        <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 shadow-inner">
-                            <i data-lucide="shopping-cart" class="w-5 h-5 md:w-6 md:h-6"></i>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <p class="font-black text-xs md:text-sm uppercase text-slate-800 leading-none truncate" title="${c.userName}">${c.userName}</p>
-                            <p class="text-[8px] md:text-[9px] uppercase text-slate-400 font-bold mt-1 md:mt-2 tracking-widest leading-none">Actualizado: ${new Date(c.updatedAt).toLocaleTimeString('es-HN')}</p>
-                        </div>
-                    </div>
-                    <div class="flex-1 overflow-y-auto max-h-40 md:max-h-48 custom-scroll pr-2 mb-4">
-                        ${cartItemsHtml}
-                    </div>
-                    <div class="mt-auto pt-3 md:pt-4 border-t border-gray-100 flex justify-between items-center">
-                        <span class="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Parcial:</span>
-                        <span class="text-lg md:text-xl font-black text-cyan-600">L ${c.total.toLocaleString('es-HN', {minimumFractionDigits: 2})}</span>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-            lucide.createIcons();
-        };
-
-        // --- 3. LÓGICA DE NEGOCIO Y ACCIONES ---
-        window.handleImageUpload = (event, targetInputId, targetPreviewId) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    const MAX_WIDTH = 300; 
-                    const MAX_HEIGHT = 300;
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width;
-                            width = MAX_WIDTH;
-                        }
-                    } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height;
-                            height = MAX_HEIGHT;
-                        }
-                    }
-                    canvas.width = width;
-                    canvas.height = height;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    
-                    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                    
-                    document.getElementById(targetInputId).value = dataUrl;
-                    const preview = document.getElementById(targetPreviewId);
-                    if(preview) {
-                        preview.src = dataUrl;
-                        preview.classList.remove('hidden');
-                    }
+        window.previewPhoto = (input) => {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    profilePhotoBase64 = e.target.result;
+                    document.getElementById('photo-preview').innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
                 };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        };
-
-        window.handleInvoiceLogoUpload = (event) => {
-            window.handleImageUpload(event, 'config-invoice-logo', 'config-invoice-logo-preview');
-        };
-
-        window.addComboRow = (comboData = null) => {
-            const container = document.getElementById('combos-container');
-            const rowId = 'combo-barcode-' + Date.now() + Math.floor(Math.random() * 1000);
-            const div = document.createElement('div');
-            div.className = "combo-row flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-end bg-white p-4 sm:p-5 rounded-2xl border border-amber-100 relative shadow-sm hover:shadow-md transition";
-            div.innerHTML = `
-                <button onclick="this.parentElement.remove()" class="absolute -top-2 -right-2 sm:-top-3 sm:-right-3 bg-red-100 hover:bg-red-200 text-red-600 rounded-full p-1.5 sm:p-2 transition shadow-sm z-10" title="Eliminar Combo"><i data-lucide="x" class="w-3 h-3 sm:w-4 sm:h-4"></i></button>
-                <div class="w-full sm:flex-1">
-                    <label class="text-[9px] font-black uppercase text-slate-400 block mb-1">Nombre (Ej: Six-Pack)</label>
-                    <input type="text" class="combo-name w-full p-2.5 sm:p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-xs uppercase" placeholder="Nombre" value="${comboData ? comboData.name : ''}">
-                </div>
-                <div class="w-full sm:w-24">
-                    <label class="text-[9px] font-black uppercase text-slate-400 block mb-1">Uds Extrae</label>
-                    <input type="number" class="combo-qty w-full p-2.5 sm:p-3 bg-gray-50 border border-gray-200 rounded-xl font-black text-xs text-center" placeholder="Ej: 6" value="${comboData ? comboData.qty : ''}">
-                </div>
-                <div class="w-full sm:flex-1">
-                    <label class="text-[9px] font-black uppercase text-slate-400 block mb-1">Código Scanner Combo</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="${rowId}" class="combo-barcode flex-1 p-2.5 sm:p-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-xs uppercase text-center" placeholder="Código" value="${comboData ? (comboData.barcode || '') : ''}">
-                        <button onclick="window.startCameraScanner('combo', '${rowId}')" class="bg-amber-500 hover:bg-amber-600 text-white px-3 rounded-xl shadow-sm transition active:scale-95 flex items-center justify-center">
-                            <i data-lucide="camera" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="w-full sm:w-32">
-                    <label class="text-[9px] font-black uppercase text-amber-500 block mb-1">Precio (Lps)</label>
-                    <input type="number" class="combo-price w-full p-2.5 sm:p-3 bg-amber-50 border border-amber-200 rounded-xl font-black text-xs text-amber-700 text-center" placeholder="Lps" value="${comboData ? comboData.price : ''}">
-                </div>
-            `;
-            container.appendChild(div);
-            lucide.createIcons();
-        };
-
-        window.processBarcode = (code) => {
-            let found = false;
-            
-            window.appState.inventory.forEach(item => {
-                if (item.barcode === code) {
-                    window.addToCart({ id: item.id + '-unit', baseId: item.id, name: item.name + (item.combos?.length > 0 ? ' (UNIDAD)' : ''), price: item.price, sellQty: 1 });
-                    window.showToast(`Agregado: ${item.name} (UNIDAD)`, "success");
-                    found = true;
-                    return;
-                }
-
-                if (item.combos && Array.isArray(item.combos)) {
-                    item.combos.forEach((combo, idx) => {
-                        if (combo.barcode === code) {
-                            if (item.stock < combo.qty) {
-                                window.showToast(`Stock insuficiente para ${combo.name}`, "error");
-                                found = true;
-                                return;
-                            }
-                            window.addToCart({ id: `${item.id}-combo-${idx}`, baseId: item.id, name: `${item.name} (${combo.name})`, price: combo.price, sellQty: combo.qty });
-                            window.showToast(`Agregado: ${item.name} (${combo.name})`, "success");
-                            found = true;
-                            return;
-                        }
-                    });
-                }
-            });
-
-            if (!found && code !== "") window.showToast("Producto no encontrado", "error");
-        };
-
-        window.startCameraScanner = (mode = 'pos', targetId = null) => {
-            window.scannerMode = mode;
-            window.scannerTargetId = targetId;
-            document.getElementById('modal-camera-scanner').classList.remove('hidden');
-            
-            if (!html5QrCode) { html5QrCode = new Html5Qrcode("reader"); }
-            
-            html5QrCode.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 150 } },
-                (decodedText) => {
-                    const cleanCode = decodedText.trim();
-                    if (window.scannerMode === 'pos') {
-                        window.processBarcode(cleanCode);
-                        const searchInput = document.getElementById('pos-search-input');
-                        if (searchInput) {
-                            searchInput.value = cleanCode;
-                            window.renderPOS();
-                        }
-                    } else if (window.scannerMode === 'inventory-unit') {
-                        document.getElementById('prod-barcode').value = cleanCode;
-                        window.showToast("Código Unidad Capturado", "success");
-                    } else if (window.scannerMode === 'combo' && window.scannerTargetId) {
-                        document.getElementById(window.scannerTargetId).value = cleanCode;
-                        window.showToast("Código Combo Capturado", "success");
-                    } else if (window.scannerMode === 'inventory-search') {
-                        const searchInput = document.getElementById('inventory-search-input');
-                        if (searchInput) {
-                            searchInput.value = cleanCode;
-                            window.renderInventory();
-                            window.showToast("Búsqueda aplicada", "success");
-                        }
-                    }
-                    window.stopCameraScanner(); 
-                },
-                (errorMessage) => {}
-            ).catch(err => {
-                window.showToast("Error al acceder a la cámara. Revisa los permisos.", "error");
-                window.stopCameraScanner();
-            });
-        };
-
-        window.stopCameraScanner = () => {
-            document.getElementById('modal-camera-scanner').classList.add('hidden');
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().then(() => { html5QrCode.clear(); }).catch(e => {});
+                reader.readAsDataURL(input.files[0]);
             }
         };
 
-        window.handleLogin = async () => {
-            const emailInput = document.getElementById('login-email').value.trim();
-            const pass = document.getElementById('login-pass').value;
-            if (!emailInput || !pass) return window.showToast("Faltan datos", "error");
-            
-            const email = emailInput.toLowerCase(); 
-
-            try { 
+        window.executeAuth = async () => {
+            const email = document.getElementById('email-field').value;
+            const pass = document.getElementById('pass-field').value;
+            if (!email || !pass) return alert("Ingresa tus credenciales.");
+            try {
                 await signInWithEmailAndPassword(auth, email, pass);
-                await window.logActivity(`ACCESO: INICIO SESIÓN ${email.toUpperCase()}`);
-            } catch (e) { 
-                if (e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password') {
-                    window.showToast("Usuario o contraseña incorrectos", "error"); 
-                } else if (e.code === 'auth/too-many-requests') {
-                    window.showToast("Demasiados intentos. Intenta más tarde.", "error"); 
-                } else {
-                    window.showToast("Error: " + e.message, "error");
-                }
+            } catch (err) {
+                try { await createUserWithEmailAndPassword(auth, email, pass); }
+                catch (e) { alert("Error: " + e.message); }
             }
         };
 
-        window.handleRegister = async () => {
-            const name = document.getElementById('reg-name').value.trim();
-            const emailInput = document.getElementById('reg-email').value.trim();
-            const pass = document.getElementById('reg-pass').value;
-            const photoInput = document.getElementById('reg-photo');
-            let photo = photoInput.value.trim();
-
-            if (!emailInput || !pass || !name) return window.showToast("Nombre y Email obligatorios", "error");
-
-            if (photo.length > 500000) { 
-                return window.showToast("La imagen sigue siendo muy pesada.", "error");
-            }
-
-            const email = emailInput.toLowerCase();
-
-            try {
-                const cred = await createUserWithEmailAndPassword(auth, email, pass);
-                await updateProfile(cred.user, { displayName: name, photoURL: photo });
-                
-                const initialRole = (email === 'josuesoza0513@gmail.com') ? 'admin' : 'vendedor';
-                const profileData = { name, photo, email: email, role: initialRole, uid: cred.user.uid, createdAt: new Date().toISOString() };
-                
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', cred.user.uid), profileData);
-                await window.logActivity(`REGISTRO: NUEVO EMPLEADO ${name.toUpperCase()}`);
-                
-                window.showToast("Cuenta Cloud creada con éxito", "success");
-                window.toggleAuth(false);
-            } catch (e) { 
-                if (e.code === 'auth/email-already-in-use') {
-                    window.showToast("Este correo YA ESTÁ REGISTRADO", "error");
-                } else if (e.code === 'auth/weak-password') {
-                    window.showToast("La contraseña debe tener mínimo 6 caracteres", "error");
-                } else {
-                    window.showToast("Error de Firebase: " + e.message, "error");
-                }
-            }
-        };
-
-        window.handleLogout = async () => {
-            try {
-                if (auth.currentUser) {
-                    const userEmail = (auth.currentUser.email || 'SISTEMA').toUpperCase();
-                    await window.logActivity(`SALIDA: CIERRE SESIÓN ${userEmail}`);
-                    
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'active_carts', auth.currentUser.uid), { 
-                        cart: [], 
-                        total: 0, 
-                        updatedAt: new Date().toISOString() 
-                    }, { merge: true });
-                }
-                await signOut(auth);
-                window.appState.user = null;
-                window.appState.userRole = 'vendedor';
-                window.appState.isSupremeAdmin = false;
-                window.appInitialized = false;
-            } catch (error) {}
-        };
-
-        window.toggleAuth = (isReg) => {
-            document.getElementById('login-form').classList.toggle('hidden', isReg);
-            document.getElementById('register-form').classList.toggle('hidden', !isReg);
-        };
-
-        window.showTab = (tabId) => {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.getElementById(`tab-${tabId}`).classList.add('active');
-            
-            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('bg-slate-800', 'shadow-lg'));
-            const activeLink = document.getElementById(`btn-${tabId}`) || document.getElementById(`nav-${tabId}`);
-            if (activeLink) activeLink.classList.add('bg-slate-800', 'shadow-lg');
-
-            document.querySelectorAll('[id^="mobile-btn-"], #mobile-nav-security, #mobile-nav-monitor').forEach(l => l.classList.remove('text-amber-500'));
-            const activeMobile = document.getElementById(`mobile-btn-${tabId}`) || (tabId === 'security' ? document.getElementById('mobile-nav-security') : (tabId === 'monitor' ? document.getElementById('mobile-nav-monitor') : null));
-            if (activeMobile) activeMobile.classList.add('text-amber-500');
-            
-            if (tabId === 'pos') {
-                const searchInput = document.getElementById('pos-search-input');
-                if(searchInput) { searchInput.value = ''; window.renderPOS(); }
-                setTimeout(() => document.getElementById('scanner-input')?.focus(), 100);
-            }
-            if (tabId === 'invoices') {
-                window.renderInvoices();
-            }
-            if (tabId === 'monitor') {
-                window.renderActiveCarts();
-            }
-            if (tabId === 'reports') {
-                window.renderReports();
-            }
-        };
-
-        window.toggleCatalog = () => {
-            window.showFullCatalog = !window.showFullCatalog;
-            
-            const searchInput = document.getElementById('pos-search-input');
-            if (searchInput) {
-                searchInput.value = '';
-            }
-
-            const btn = document.getElementById('btn-toggle-catalog');
-            if (window.showFullCatalog) {
-                btn.innerHTML = '<i data-lucide="eye-off" class="w-3 h-3"></i> Ocultar Todo';
-                btn.classList.add('bg-amber-100', 'text-amber-800');
-                btn.classList.remove('bg-amber-50', 'text-amber-600');
-            } else {
-                btn.innerHTML = '<i data-lucide="eye" class="w-3 h-3"></i> Mostrar Todo';
-                btn.classList.remove('bg-amber-100', 'text-amber-800');
-                btn.classList.add('bg-amber-50', 'text-amber-600');
-            }
-            lucide.createIcons();
-            window.renderPOS();
-        };
-
-        window.addToCart = (item) => {
-            const existing = window.appState.cart.find(i => i.id === item.id);
-            if (existing) {
-                existing.quantity++;
-            } else {
-                window.appState.cart.push({ ...item, quantity: 1 });
-            }
-            window.updateCartUI();
-        };
-
-        window.addOneToCart = (idx) => {
-            window.appState.cart[idx].quantity++;
-            window.updateCartUI();
-        };
-
-        window.removeFromCart = (idx) => {
-            if (window.appState.cart[idx].quantity > 1) {
-                window.appState.cart[idx].quantity--;
-            } else {
-                window.appState.cart.splice(idx, 1);
-            }
-            window.updateCartUI();
-        };
-
-        window.clearCart = () => {
-            window.appState.cart = [];
-            document.getElementById('manual-discount-input').value = 0;
-            document.getElementById('cash-received-input').value = '';
-            window.updateCartUI();
-        };
-
-        window.openProductModal = (id = null) => {
-            const canEdit = ['admin', 'supervisor'].includes(window.appState.userRole) || window.appState.isSupremeAdmin;
-            if (id && !canEdit) return window.showToast("Sin permisos para editar", "error");
-
-            document.getElementById('modal-product').classList.remove('hidden');
-            const preview = document.getElementById('prod-img-preview');
-            const combosContainer = document.getElementById('combos-container');
-            combosContainer.innerHTML = '';
-
-            if (id) {
-                const item = window.appState.inventory.find(i => i.id === id);
-                document.getElementById('prod-id').value = id;
-                document.getElementById('prod-name').value = item.name;
-                document.getElementById('prod-stock').value = item.stock;
-                document.getElementById('prod-threshold').value = item.threshold || 0;
-                document.getElementById('prod-img').value = item.imgUrl || '';
-                
-                if(item.imgUrl) {
-                    preview.src = item.imgUrl;
-                    preview.classList.remove('hidden');
-                } else {
-                    preview.classList.add('hidden');
-                }
-                
-                document.getElementById('prod-barcode').value = item.barcode || '';
-                document.getElementById('prod-price').value = item.price || '';
-                
-                if (item.combos && Array.isArray(item.combos)) {
-                    item.combos.forEach(c => window.addComboRow(c));
-                }
-                
-                document.getElementById('product-modal-title').innerText = "Editar Producto Maestro";
-            } else {
-                document.getElementById('prod-id').value = '';
-                document.getElementById('prod-name').value = '';
-                document.getElementById('prod-stock').value = '';
-                document.getElementById('prod-threshold').value = '24';
-                document.getElementById('prod-img').value = '';
-                document.getElementById('prod-barcode').value = '';
-                document.getElementById('prod-price').value = '';
-                preview.classList.add('hidden');
-
-                document.getElementById('product-modal-title').innerText = "Nuevo Producto Maestro";
-            }
-        };
-
-        window.saveProduct = async () => {
-            if (!window.appState.user) return;
-            const id = document.getElementById('prod-id').value;
-            let photoUrl = document.getElementById('prod-img').value.trim();
-
-            if (photoUrl.length > 2000000) {
-                photoUrl = '';
-                window.showToast("Se eliminó la imagen por ser muy pesada.", "error");
-            }
-
-            const combosArray = [];
-            document.querySelectorAll('.combo-row').forEach(row => {
-                const cName = row.querySelector('.combo-name').value.trim().toUpperCase();
-                const cQty = parseInt(row.querySelector('.combo-qty').value) || 0;
-                const cBarcode = row.querySelector('.combo-barcode').value.trim();
-                const cPrice = parseFloat(row.querySelector('.combo-price').value) || 0;
-                
-                if (cName && cQty > 0 && cPrice > 0) {
-                    combosArray.push({ name: cName, qty: cQty, barcode: cBarcode, price: cPrice });
-                }
-            });
+        window.saveProfile = async () => {
+            const name = document.getElementById('full-name').value;
+            const phone = document.getElementById('phone-number').value;
+            if (!name || !phone) return alert("Completa los datos requeridos.");
+            if (userRole === 'driver' && !profilePhotoBase64) return alert("La foto es obligatoria para conductores.");
 
             const data = {
-                name: document.getElementById('prod-name').value.trim().toUpperCase(),
-                stock: parseInt(document.getElementById('prod-stock').value) || 0,
-                threshold: parseInt(document.getElementById('prod-threshold').value) || 0,
-                imgUrl: photoUrl,
-                barcode: document.getElementById('prod-barcode').value.trim(),
-                price: parseFloat(document.getElementById('prod-price').value) || 0,
-                combos: combosArray,
-                updatedAt: new Date().toISOString()
+                uid: currentUser.uid,
+                name, phone, role: userRole,
+                photo: profilePhotoBase64,
+                totalTrips: 0,
+                ratingSum: 5,
+                ratingCount: 1,
+                setupComplete: true
             };
-
-            if (!data.name || data.price <= 0) return window.showToast("Nombre y Precio de Unidad Base requeridos", "error");
-
-            try {
-                if (id) {
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id), data, { merge: true });
-                    await window.logActivity(`EDITADO: PRODUCTO ${data.name}`);
-                } else {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'inventory'), data);
-                    await window.logActivity(`CREADO: PRODUCTO ${data.name}`);
-                }
-                window.closeModals();
-                window.showToast("Sincronizado con Cloud", "success");
-            } catch (e) { window.showToast("Error Cloud", "error"); }
-        };
-
-        window.deleteProduct = async (id, name) => {
-            const canEdit = ['admin', 'supervisor'].includes(window.appState.userRole) || window.appState.isSupremeAdmin;
-            if (!canEdit) return window.showToast("Sin permisos para eliminar", "error");
-
-            if (confirm(`⚠️ ATENCIÓN ⚠️\n\n¿Estás seguro de que deseas eliminar completamente el producto "${name}"?\nEsta acción no se puede deshacer.`)) {
-                try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', id));
-                    await window.logActivity(`ELIMINADO: PRODUCTO ${name}`);
-                    window.showToast("Producto eliminado con éxito", "success");
-                } catch (e) {
-                    window.showToast("Error al eliminar de Cloud", "error");
-                }
+            if (userRole === 'driver') {
+                data.vehicle = {
+                    model: document.getElementById('car-model').value,
+                    plate: document.getElementById('car-plate').value,
+                    license: document.getElementById('driver-license').value
+                };
             }
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), data);
+            location.reload();
         };
 
-        window.openCustomerModal = () => document.getElementById('modal-customer').classList.remove('hidden');
-        
-        window.saveCustomer = async () => {
-            if (!window.appState.user) return;
-            const name = document.getElementById('cust-name').value.trim().toUpperCase();
-            const phone = document.getElementById('cust-phone').value.trim();
-            if (!name) return window.showToast("Nombre obligatorio", "error");
-            try {
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'customers'), { name, phone, points: 0, createdAt: new Date().toISOString() });
-                window.closeModals();
-                window.showToast("Cliente Registrado", "success");
-            } catch (e) { window.showToast("Error al guardar", "error"); }
-        };
-
-        window.selectCustomer = (id) => {
-            window.appState.selectedCustomerId = id;
-            const customer = window.appState.customers.find(c => c.id === id);
-            const badge = document.getElementById('customer-points-badge');
-            if (customer && id !== "0") {
-                badge.classList.remove('hidden');
-                document.getElementById('current-customer-points').innerText = (customer.points || 0).toLocaleString();
-            } else {
-                badge.classList.add('hidden');
-            }
-        };
-
-        window.handleCheckout = async () => {
-            if (!window.appState.user || window.appState.cart.length === 0) return window.showToast("Carrito vacío", "error");
-            
-            const subtotal = window.appState.cart.reduce((s, i) => s + (i.price * i.quantity), 0);
-            const disc = parseFloat(document.getElementById('manual-discount-input').value) || 0;
-            const cash = parseFloat(document.getElementById('cash-received-input').value) || 0;
-            const total = Math.max(0, subtotal - disc);
-            const change = cash - total;
-
-            if (cash < total) return window.showToast("Efectivo insuficiente", "error");
-
-            try {
-                const ticketId = window.updateTicketFormat();
-                const sellerName = window.appState.currentUserName || window.appState.user.displayName || window.appState.user.email;
-                const customer = window.appState.customers.find(c => c.id === window.appState.selectedCustomerId) || { name: 'CONSUMIDOR FINAL', id: "0" };
-                const timestamp = new Date().toISOString();
-
-                // Asegurar que el carrito se guarda correctamente para la reimpresión
-                const savedCart = window.appState.cart.map(item => ({
-                    id: item.id || '',
-                    name: item.name || '',
-                    price: item.price || 0,
-                    quantity: item.quantity || 1,
-                    baseId: item.baseId || '',
-                    sellQty: item.sellQty || 1
-                }));
-
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'sales'), {
-                    ticketNum: ticketId,
-                    timestamp,
-                    date: timestamp.split('T')[0],
-                    sellerName,
-                    sellerUid: window.appState.user.uid,
-                    customerName: customer.name,
-                    subtotal, discount: disc, total, cashReceived: cash, change: change,
-                    cart: savedCart 
-                });
-
-                for (const item of window.appState.cart) {
-                    const invItem = window.appState.inventory.find(inv => inv.id === item.baseId);
-                    if (invItem) {
-                        const sellAmountMultiplier = item.sellQty || 1;
-                        const unitsToDeduct = item.quantity * sellAmountMultiplier;
-
-                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'inventory', invItem.id), {
-                            stock: invItem.stock - unitsToDeduct
-                        }, { merge: true });
-                    }
-                }
-
-                if (customer.id !== "0") {
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'customers', customer.id), {
-                        points: (customer.points || 0) + Math.floor(total / 100)
-                    }, { merge: true });
-                }
-
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'counters'), { 
-                    ticketNum: window.appState.ticketCounter + 1 
-                }, { merge: true });
-
-                window.printTicket(window.appState.cart, ticketId, customer, total, cash, change, sellerName, subtotal, disc);
-                
-                window.showToast("Factura Generada", "success");
-                window.clearCart(); 
-            } catch (e) { window.showToast("Error en proceso de pago", "error"); }
-        };
-
-        window.openEditInvoiceModal = (id) => {
-            const sale = window.appState.sales.find(s => s.id === id);
-            if (!sale) return;
-            document.getElementById('edit-inv-id').value = id;
-            document.getElementById('edit-inv-customer').value = sale.customerName;
-            document.getElementById('edit-inv-discount').value = sale.discount || 0;
-            document.getElementById('edit-inv-cash').value = sale.cashReceived || 0;
-            document.getElementById('modal-edit-invoice').classList.remove('hidden');
-        };
-
-        window.saveEditedInvoice = async () => {
-            const id = document.getElementById('edit-inv-id').value;
-            const customerName = document.getElementById('edit-inv-customer').value.trim().toUpperCase();
-            const discount = parseFloat(document.getElementById('edit-inv-discount').value) || 0;
-            const cashReceived = parseFloat(document.getElementById('edit-inv-cash').value) || 0;
-
-            const sale = window.appState.sales.find(s => s.id === id);
-            if(!sale) return;
-
-            const subtotal = sale.subtotal;
-            const total = Math.max(0, subtotal - discount);
-            const change = cashReceived - total;
-
-            try {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sales', id), {
-                    customerName,
-                    discount,
-                    total,
-                    cashReceived,
-                    change
-                });
-                await window.logActivity(`FACTURA EDITADA: #${sale.ticketNum}`);
-                window.closeModals();
-                window.showToast("Factura actualizada", "success");
-            } catch (e) {
-                window.showToast("Error al editar factura", "error");
-            }
-        };
-
-        window.reprintInvoice = (saleId) => {
-            const sale = window.appState.sales.find(s => s.id === saleId);
-            if (!sale) return window.showToast("Factura no encontrada", "error");
-
-            const cartToPrint = sale.cart && sale.cart.length > 0 ? sale.cart : [{name: 'COMPRA (HISTÓRICA SIN DETALLE)', quantity: 1, price: sale.total}];
-            const mockCustomer = { name: sale.customerName, phone: '', id: '0' }; 
-
-            window.printTicket(
-                cartToPrint,
-                sale.ticketNum + " (COPIA)",
-                mockCustomer,
-                sale.total,
-                sale.cashReceived,
-                sale.change,
-                sale.sellerName,
-                sale.subtotal,
-                sale.discount
-            );
-        };
-
-        window.printTicket = (cart, ticketId, customer, total, cash, change, seller, subtotal, disc) => {
-            const area = document.getElementById('print-area');
-            const now = new Date().toLocaleString('es-HN');
-            const settings = window.appState.settings;
-
-            let logoHtml = '';
-            if (settings.invoiceLogo) {
-                logoHtml = `<img src="${settings.invoiceLogo}" style="max-width: 150px; margin: 0 auto 10px auto; display: block; filter: grayscale(100%);">`;
-            }
-
-            let headerHtml = settings.invoiceHeader ? `<div style="white-space: pre-wrap; font-size: 10px; margin-bottom: 10px;">${settings.invoiceHeader}</div>` : '';
-            let footerHtml = settings.invoiceFooter ? `<div style="white-space: pre-wrap; font-size: 10px; margin-top: 10px;">${settings.invoiceFooter}</div>` : '';
-
-            area.innerHTML = `
-                <div style="text-align: center; margin-bottom: 10px;">
-                    ${logoHtml}
-                    <h2 style="margin: 0 0 5px 0; font-size: 16px;">${settings.businessName}</h2>
-                    ${headerHtml}
-                </div>
-                
-                <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 5px 0; margin-bottom: 10px;">
-                    <div style="display: flex; justify-content: space-between;"><span>Factura:</span> <strong>${ticketId}</strong></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Fecha:</span> <span>${now}</span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Cajero:</span> <span>${seller}</span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Cliente:</span> <span>${customer.name}</span></div>
-                    ${customer.id !== "0" && customer.phone ? `<div style="display: flex; justify-content: space-between;"><span>RTN/Tel:</span> <span>${customer.phone}</span></div>` : ''}
-                </div>
-
-                <table style="width: 100%; text-align: left; border-collapse: collapse; margin-bottom: 10px;">
-                    <thead>
-                        <tr style="border-bottom: 1px solid #000;">
-                            <th style="padding-bottom: 2px;">CANT</th>
-                            <th style="padding-bottom: 2px;">DESC</th>
-                            <th style="text-align: right; padding-bottom: 2px;">TOT</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${cart.map(i => `
-                        <tr>
-                            <td style="vertical-align: top; padding-top: 4px;">${i.quantity}</td>
-                            <td style="vertical-align: top; padding-top: 4px; padding-right: 5px;">${i.name}</td>
-                            <td style="vertical-align: top; text-align: right; padding-top: 4px;">L ${(i.price * i.quantity).toLocaleString('es-HN', {minimumFractionDigits: 2})}</td>
-                        </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-
-                <div style="border-top: 1px dashed #000; padding-top: 5px; margin-bottom: 10px;">
-                    <div style="display: flex; justify-content: space-between;"><span>Subtotal:</span> <span>L ${subtotal.toLocaleString('es-HN', {minimumFractionDigits: 2})}</span></div>
-                    ${disc > 0 ? `<div style="display: flex; justify-content: space-between;"><span>Descuento:</span> <span>- L ${disc.toLocaleString('es-HN', {minimumFractionDigits: 2})}</span></div>` : ''}
-                    <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin-top: 5px;"><span>TOTAL:</span> <span>L ${total.toLocaleString('es-HN', {minimumFractionDigits: 2})}</span></div>
-                </div>
-
-                <div style="margin-bottom: 10px;">
-                    <div style="display: flex; justify-content: space-between;"><span>Efectivo:</span> <span>L ${cash.toLocaleString('es-HN', {minimumFractionDigits: 2})}</span></div>
-                    <div style="display: flex; justify-content: space-between;"><span>Cambio:</span> <span>L ${change.toLocaleString('es-HN', {minimumFractionDigits: 2})}</span></div>
-                </div>
-
-                <div style="text-align: center; border-top: 1px dashed #000; padding-top: 10px;">
-                    ${footerHtml}
-                    <div style="font-size: 9px; margin-top: 10px; color: #000; text-align: center;">
-                        <p style="margin: 2px 0; font-weight: bold;">S.O.Z.I.N - Creado por Josue Soza</p>
-                        <p style="margin: 2px 0;">Contrataciones: +504 8933-3462</p>
-                        <p style="margin: 2px 0;">josuesoza0505@gmail.com</p>
-                    </div>
-                </div>
-            `;
-            
-            setTimeout(() => {
-                window.print();
-            }, 250);
-        };
-
-        window.shareInvoice = async (saleId) => {
-            const sale = window.appState.sales.find(s => s.id === saleId);
-            if (!sale) return window.showToast("Factura no encontrada", "error");
-
-            const cartToPrint = sale.cart && sale.cart.length > 0 ? sale.cart : [{name: 'COMPRA (HISTÓRICA SIN DETALLE)', quantity: 1, price: sale.total}];
-            const settings = window.appState.settings;
-
-            let itemsText = cartToPrint.map(i => `${i.quantity}x ${i.name}\n   L ${(i.price * i.quantity).toLocaleString('es-HN', {minimumFractionDigits: 2})}`).join('\n');
-
-            let ticketText = `*${settings.businessName}*\n`;
-            ticketText += `------------------------\n`;
-            ticketText += `Factura: ${sale.ticketNum}\n`;
-            ticketText += `Fecha: ${new Date(sale.timestamp).toLocaleString('es-HN')}\n`;
-            ticketText += `Cajero: ${sale.sellerName}\n`;
-            ticketText += `Cliente: ${sale.customerName}\n`;
-            ticketText += `------------------------\n`;
-            ticketText += `${itemsText}\n`;
-            ticketText += `------------------------\n`;
-            ticketText += `Subtotal: L ${sale.subtotal.toLocaleString('es-HN', {minimumFractionDigits: 2})}\n`;
-            if (sale.discount > 0) ticketText += `Descuento: - L ${sale.discount.toLocaleString('es-HN', {minimumFractionDigits: 2})}\n`;
-            ticketText += `*TOTAL: L ${sale.total.toLocaleString('es-HN', {minimumFractionDigits: 2})}*\n`;
-            ticketText += `------------------------\n`;
-            ticketText += `Efectivo: L ${sale.cashReceived.toLocaleString('es-HN', {minimumFractionDigits: 2})}\n`;
-            ticketText += `Cambio: L ${sale.change.toLocaleString('es-HN', {minimumFractionDigits: 2})}\n`;
-            ticketText += `------------------------\n`;
-            if(settings.invoiceFooter) {
-                ticketText += `${settings.invoiceFooter}\n`;
-            }
-            ticketText += `S.O.Z.I.N - Creado por Josue Soza\nContrataciones: +504 8933-3462`;
-
-            if (navigator.share) {
-                try {
-                    await navigator.share({
-                        title: `Factura ${sale.ticketNum}`,
-                        text: ticketText
-                    });
-                } catch (err) {
-                    console.log("Compartir cancelado o no soportado");
-                }
-            } else {
-                // Fallback para computadoras (copiar al portapapeles)
-                const textArea = document.createElement("textarea");
-                textArea.value = ticketText;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try {
-                    document.execCommand('copy');
-                    window.showToast("Copiado al portapapeles para compartir", "success");
-                } catch (err) {
-                    window.showToast("No se pudo copiar", "error");
-                }
-                document.body.removeChild(textArea);
-            }
-        };
-
-        window.updateUserRole = async (targetUid, newRole) => {
-            if (!window.appState.isSupremeAdmin) return window.showToast("Solo Josue Soza puede cambiar roles", "error");
-            try {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', targetUid), { role: newRole });
-                window.showToast("Rol actualizado", "success");
-            } catch (e) { window.showToast("Error al actualizar", "error"); }
-        };
-
-        window.saveBusinessConfig = async () => {
-            if (!window.appState.isSupremeAdmin) return window.showToast("Sin permisos", "error");
-            
-            const businessName = document.getElementById('config-biz-name').value;
-            const businessLogo = document.getElementById('config-biz-logo').value;
-            
-            const invoiceHeader = document.getElementById('config-invoice-header').value;
-            const invoiceFooter = document.getElementById('config-invoice-footer').value;
-            let invoiceLogo = document.getElementById('config-invoice-logo').value;
-
-            try {
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), { 
-                    businessName, 
-                    businessLogo,
-                    invoiceHeader,
-                    invoiceFooter,
-                    invoiceLogo
-                }, { merge: true });
-                window.showToast("Ajustes y Diseño de Factura Guardados", "success");
-            } catch (e) { window.showToast("Error al guardar", "error"); }
-        };
-
-        window.resetInvoiceCounter = async () => {
-            if (!confirm("¿Reiniciar contador de facturas a 1?")) return;
-            try {
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'counters'), { ticketNum: 1 });
-                window.showToast("Contador Reiniciado", "success");
-            } catch (e) { window.showToast("Error", "error"); }
-        };
-
-        window.closeDayProcedure = async () => {
-            const totalStr = document.getElementById('daily-net').innerText.replace('L ', '').replace(',', '');
-            const total = parseFloat(totalStr) || 0;
-            if (confirm(`¿CERRAR CAJA HOY?\nTotal Recaudado: L ${total.toLocaleString()}`)) {
-                await window.logActivity(`CIERRE DE CAJA: TOTAL L ${total.toLocaleString()}`);
-                window.showToast("Cierre de Caja Guardado", "success");
-            }
-        };
-
-        const setupListeners = () => {
-            if (!auth.currentUser) return;
-            const path = (c) => collection(db, 'artifacts', appId, 'public', 'data', c);
-            
-            onSnapshot(path('inventory'), (snap) => {
-                window.appState.inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.renderInventory();
-                window.renderPOS();
-            }, (err) => console.error("Error inventario:", err));
-
-            onSnapshot(path('customers'), (snap) => {
-                window.appState.customers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.renderCustomers();
-                window.renderCustomerSelect();
-            }, (err) => console.error("Error clientes:", err));
-
-            onSnapshot(path('sales'), (snap) => {
-                window.appState.sales = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.renderReports();
-                window.renderInvoices();
-            }, (err) => console.error("Error ventas:", err));
-
-            onSnapshot(path('users'), (snap) => {
-                window.appState.users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.renderSecurityUsers();
-            }, (err) => console.error("Error usuarios:", err));
-
-            onSnapshot(path('logs'), (snap) => {
-                window.appState.logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                window.renderSecurityLog();
-            }, (err) => console.error("Error logs:", err));
-
-            onSnapshot(path('active_carts'), (snap) => {
-                window.appState.activeCarts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                
-                const canSeeSecurity = ['admin', 'supervisor'].includes(window.appState.userRole) || window.appState.isSupremeAdmin;
-                if(canSeeSecurity && document.getElementById('tab-monitor').classList.contains('active')) {
-                    window.renderActiveCarts();
-                }
-            }, (err) => console.error("Error active carts:", err));
-
-            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'counters'), (docSnap) => {
-                if (docSnap.exists()) window.appState.ticketCounter = docSnap.data().ticketNum || 1;
-                window.updateTicketFormat();
-            });
-
-            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'config'), (docSnap) => {
-                if (docSnap.exists()) {
-                    window.appState.settings = { ...window.appState.settings, ...docSnap.data() };
-                    
-                    document.getElementById('sidebar-business-name').innerHTML = `<i data-lucide="layout-dashboard" class="text-amber-500"></i> ${window.appState.settings.businessName}`;
-                    document.getElementById('business-name-display').innerText = window.appState.settings.businessName;
-                    
-                    if (window.appState.settings.businessLogo) {
-                        document.getElementById('custom-login-logo').src = window.appState.settings.businessLogo;
-                        document.getElementById('custom-login-logo').classList.remove('hidden');
-                        document.getElementById('default-login-icon').classList.add('hidden');
-                    }
-                    
-                    const headInput = document.getElementById('config-invoice-header');
-                    if(headInput && !headInput.value) headInput.value = window.appState.settings.invoiceHeader || '';
-                    
-                    const footInput = document.getElementById('config-invoice-footer');
-                    if(footInput && !footInput.value) footInput.value = window.appState.settings.invoiceFooter || '';
-                    
-                    const logoInput = document.getElementById('config-invoice-logo');
-                    if(logoInput && !logoInput.value) {
-                        logoInput.value = window.appState.settings.invoiceLogo || '';
-                        if(window.appState.settings.invoiceLogo) {
-                            const preview = document.getElementById('config-invoice-logo-preview');
-                            preview.src = window.appState.settings.invoiceLogo;
-                            preview.classList.remove('hidden');
-                        }
-                    }
-
-                    lucide.createIcons();
-                }
-            });
-        };
-
-        const setupScanner = () => {
-            let barcodeBuffer = '';
-            let barcodeTimeout = null;
-
-            document.addEventListener('keydown', (e) => {
-                if (!document.getElementById('tab-pos').classList.contains('active')) return;
-                if (!document.getElementById('modal-product').classList.contains('hidden') || 
-                    !document.getElementById('modal-customer').classList.contains('hidden') ||
-                    !document.getElementById('modal-edit-invoice').classList.contains('hidden') ||
-                    !document.getElementById('modal-camera-scanner').classList.contains('hidden')) return;
-
-                const activeEl = document.activeElement;
-                const isInput = activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA';
-
-                if (e.key === 'Enter') {
-                    if (barcodeBuffer.length >= 3) {
-                        window.processBarcode(barcodeBuffer);
-                        
-                        if (isInput && activeEl.id !== 'manual-discount-input' && activeEl.id !== 'cash-received-input') {
-                            activeEl.value = '';
-                            if (activeEl.id === 'pos-search-input') window.renderPOS();
-                        }
-                        
-                        barcodeBuffer = '';
-                        e.preventDefault(); 
-                    } else if (activeEl.id === 'scanner-input') {
-                        const code = activeEl.value.trim();
-                        if (code) {
-                            window.processBarcode(code);
-                            activeEl.value = '';
-                        }
-                        barcodeBuffer = '';
-                    } else {
-                        barcodeBuffer = '';
-                    }
-                } 
-                else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
-                    barcodeBuffer += e.key;
-                    
-                    if (barcodeTimeout) clearTimeout(barcodeTimeout);
-                    
-                    barcodeTimeout = setTimeout(() => {
-                        barcodeBuffer = ''; 
-                    }, 50);
-                }
-            });
-        };
-
-        // --- 6. INICIALIZACIÓN ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
-                if (user.isAnonymous) {
-                    await signOut(auth);
-                    return;
-                }
+                currentUser = user;
+                const profileRef = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'));
+                if (!profileRef.exists()) {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('setup-screen').style.display = 'flex';
+                } else {
+                    const profile = profileRef.data();
+                    window.userProfile = profile;
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('setup-screen').style.display = 'none';
+                    document.getElementById('app-interface').style.display = 'flex';
+                    document.getElementById('user-name-display').innerText = profile.name;
+                    document.getElementById('role-badge').innerText = profile.role === 'client' ? 'PASAJERO' : 'CONDUCTOR VIP';
+                    document.getElementById('user-rating-val').innerHTML = `<i class="fas fa-star"></i> ${(profile.ratingSum / profile.ratingCount).toFixed(1)}`;
+                    
+                    if (profile.photo) {
+                        document.getElementById('user-avatar-img').src = profile.photo;
+                        document.getElementById('user-avatar-img').classList.remove('hidden');
+                        document.getElementById('avatar-placeholder').classList.add('hidden');
+                    }
 
-                window.appState.user = user;
-                window.appState.isSupremeAdmin = (user.email && user.email.toLowerCase() === 'josuesoza0513@gmail.com');
-                
-                const prof = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', user.uid));
-                
-                let userPhoto = user.photoURL;
-                let actualName = user.displayName || user.email;
-
-                if (prof.exists()) {
-                    window.appState.userRole = prof.data().role || 'vendedor';
-                    if (prof.data().photo) userPhoto = prof.data().photo;
-                    if (prof.data().name) actualName = prof.data().name;
+                    if (profile.role === 'driver') {
+                        document.getElementById('client-view').classList.add('hidden');
+                        document.getElementById('driver-view').classList.remove('hidden');
+                        document.getElementById('finish-trip-btn').classList.remove('hidden');
+                        startDriverListener();
+                    } else {
+                        document.getElementById('client-view').classList.remove('hidden');
+                    }
+                    listenForNearbyDrivers();
+                    listenToMyActiveTrip();
                 }
-                
-                window.appState.currentUserName = actualName;
-                
-                if (window.appState.isSupremeAdmin) window.appState.userRole = 'admin';
-
-                document.getElementById('auth-screen').classList.add('hidden');
-                document.getElementById('app-container').classList.remove('hidden');
-                document.getElementById('user-display-name').innerText = actualName || "Usuario Cloud";
-                document.getElementById('user-avatar').src = userPhoto || 'https://placehold.co/100?text=U';
-                
-                const roles = { 'vendedor': 'Vendedor', 'supervisor': 'Supervisor', 'admin': 'Admin Supremo' };
-                document.getElementById('user-role-label').innerText = roles[window.appState.userRole] || 'Vendedor';
-                
-                const canSeeSecurity = ['admin', 'supervisor'].includes(window.appState.userRole) || window.appState.isSupremeAdmin;
-                
-                document.getElementById('nav-security').classList.toggle('hidden', !canSeeSecurity);
-                document.getElementById('nav-security').classList.toggle('md:flex', canSeeSecurity);
-                
-                const navMonitor = document.getElementById('nav-monitor');
-                if(navMonitor) {
-                    navMonitor.classList.toggle('hidden', !canSeeSecurity);
-                    navMonitor.classList.toggle('flex', canSeeSecurity);
-                }
-                
-                const mobileSecurity = document.getElementById('mobile-nav-security');
-                if(mobileSecurity) {
-                    mobileSecurity.classList.toggle('hidden', !canSeeSecurity);
-                    mobileSecurity.classList.toggle('flex', canSeeSecurity);
-                }
-
-                const mobileMonitor = document.getElementById('mobile-nav-monitor');
-                if(mobileMonitor) {
-                    mobileMonitor.classList.toggle('hidden', !canSeeSecurity);
-                    mobileMonitor.classList.toggle('flex', canSeeSecurity);
-                }
-
-                document.getElementById('btn-reset-counter').classList.toggle('hidden', !canSeeSecurity);
-                document.getElementById('no-edit-warning').classList.toggle('hidden', canSeeSecurity);
-
-                if (!window.appInitialized) {
-                    setupListeners();
-                    setupScanner();
-                    window.appInitialized = true;
-                }
-            } else {
-                document.getElementById('auth-screen').classList.remove('hidden');
-                document.getElementById('app-container').classList.add('hidden');
-                window.appInitialized = false;
             }
-            lucide.createIcons();
         });
 
-        window.onload = () => {
-            const dayLabel = document.getElementById('current-day-label');
-            if(dayLabel) dayLabel.innerText = new Date().toLocaleDateString('es-HN', { weekday:'long', day:'numeric', month:'long' }).toUpperCase();
-            lucide.createIcons();
-            window.showTab('pos');
+        // --- MAPS ---
+        window.addEventListener('map-route-trigger', () => {
+            const origin = document.getElementById('origin-input').value;
+            const dest = document.getElementById('destination-input').value;
+            if (!origin || !dest) return;
+            window.directionsService.route({
+                origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING
+            }, (res, status) => {
+                if (status === "OK") {
+                    window.directionsRenderer.setDirections(res);
+                    const km = res.routes[0].legs[0].distance.value / 1000;
+                    document.getElementById('fare-card').classList.remove('hidden');
+                    document.getElementById('price-display').innerText = `L. ${(40 + km * 18).toFixed(2)}`;
+                }
+            });
+        });
+
+        function listenForNearbyDrivers() {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
+                snap.forEach(d => {
+                    const loc = d.data();
+                    window.updateDriverMarker(d.id, loc.lat, loc.lng, d.id === currentUser.uid);
+                });
+            });
+
+            if (window.userProfile?.role === 'driver') {
+                navigator.geolocation.watchPosition((pos) => {
+                    setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid), {
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                        updatedAt: Date.now()
+                    });
+                }, null, { enableHighAccuracy: true });
+            }
+        }
+
+        // --- TRIPS ---
+        function startDriverListener() {
+            onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), where("status", "==", "pending")), async (snap) => {
+                const container = document.getElementById('requests-list');
+                container.innerHTML = snap.empty ? '<div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase">Buscando pasajeros...</p></div>' : '';
+                
+                for (const d of snap.docs) {
+                    const t = d.data();
+                    const cRef = await getDoc(doc(db, 'artifacts', appId, 'users', t.clientId, 'profile', 'data'));
+                    const c = cRef.exists() ? cRef.data() : { name: "Cliente", ratingSum: 5, ratingCount: 1, totalTrips: 0 };
+                    
+                    const card = document.createElement('div');
+                    card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600";
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <p class="text-[10px] font-black text-blue-600 uppercase mb-0.5">${c.name}</p>
+                                <div class="flex gap-2 text-[9px] font-bold text-gray-400">
+                                    <span><i class="fas fa-star text-amber-500"></i> ${(c.ratingSum/c.ratingCount).toFixed(1)}</span>
+                                    <span><i class="fas fa-history"></i> ${c.totalTrips} viajes</span>
+                                </div>
+                            </div>
+                            <span class="font-black text-sm">${t.price}</span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 mb-4 space-y-2">
+                            <p class="truncate"><i class="fas fa-map-pin text-blue-500 mr-2"></i>${t.origin}</p>
+                            <p class="truncate"><i class="fas fa-flag-checkered text-red-500 mr-2"></i>${t.destination}</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="window.acceptTrip('${d.id}')" class="flex-1 bg-blue-600 text-white font-black py-3 rounded-2xl text-[10px] uppercase shadow-md active:scale-95 transition-all">ACEPTAR</button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                }
+            });
+        }
+
+        window.sendTripRequest = async () => {
+            const data = {
+                clientId: currentUser.uid,
+                origin: document.getElementById('origin-input').value,
+                destination: document.getElementById('destination-input').value,
+                price: document.getElementById('price-display').innerText,
+                status: 'pending',
+                chat: [],
+                createdAt: serverTimestamp()
+            };
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), data);
+            document.getElementById('searching-state').classList.remove('hidden');
+            document.getElementById('fare-card').classList.add('hidden');
         };
 
+        window.acceptTrip = async (id) => {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { 
+                status: 'accepted', 
+                driverId: currentUser.uid 
+            });
+            alert("¡Viaje aceptado! Dirígete al cliente.");
+        };
+
+        function listenToMyActiveTrip() {
+            const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), where("status", "in", ["accepted", "completed"]));
+            onSnapshot(q, (snap) => {
+                const trip = snap.docs.find(d => d.data().clientId === currentUser.uid || d.data().driverId === currentUser.uid);
+                if (trip) {
+                    const data = trip.data();
+                    activeTrip = { id: trip.id, ...data };
+
+                    if (data.status === 'accepted') {
+                        document.getElementById('searching-state').classList.add('hidden');
+                        document.getElementById('active-trip-panel').classList.remove('hidden');
+                        renderChat(data.chat);
+                    } else if (data.status === 'completed' && !data[`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]) {
+                        showRatingScreen();
+                    }
+                }
+            });
+        }
+
+        window.sendChatMessage = async () => {
+            const input = document.getElementById('chat-input');
+            const text = input.value;
+            if (!text || !activeTrip) return;
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), {
+                chat: arrayUnion({ sender: currentUser.uid, text, time: Date.now() })
+            });
+            input.value = "";
+        };
+
+        function renderChat(messages) {
+            const container = document.getElementById('chat-messages');
+            container.innerHTML = "";
+            if (!messages) return;
+            messages.forEach(m => {
+                const div = document.createElement('div');
+                div.className = `chat-msg ${m.sender === currentUser.uid ? 'msg-mine' : 'msg-theirs'}`;
+                div.innerText = m.text;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        document.getElementById('finish-trip-btn').onclick = async () => {
+            if (activeTrip) {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'completed' });
+            }
+        };
+
+        function showRatingScreen() {
+            document.getElementById('rating-screen').style.display = 'flex';
+            if (window.userProfile.role === 'client') {
+                document.getElementById('vehicle-rating-section').classList.remove('hidden');
+                document.getElementById('rating-title').innerText = "Califica a tu conductor VIP";
+            } else {
+                document.getElementById('vehicle-rating-section').classList.add('hidden');
+                document.getElementById('rating-title').innerText = "Califica al pasajero";
+            }
+        }
+
+        window.setRating = (stars) => {
+            selectedStars = stars;
+            document.querySelectorAll('.star-btn').forEach(b => {
+                b.classList.toggle('text-amber-500', parseInt(b.dataset.index) <= stars);
+            });
+        };
+
+        window.setVehicleRating = (stars) => {
+            selectedVehicleStars = stars;
+            document.querySelectorAll('.v-star-btn').forEach(b => {
+                b.classList.toggle('text-amber-500', parseInt(b.dataset.index) <= stars);
+            });
+        };
+
+        window.submitRating = async () => {
+            if (selectedStars === 0) return alert("Elige una puntuación.");
+            const isClient = window.userProfile.role === 'client';
+            const targetUserId = isClient ? activeTrip.driverId : activeTrip.clientId;
+            
+            const tRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'profile', 'data');
+            const tSnap = await getDoc(tRef);
+            if (tSnap.exists()) {
+                const tData = tSnap.data();
+                await updateDoc(tRef, {
+                    ratingSum: (tData.ratingSum || 0) + selectedStars,
+                    ratingCount: (tData.ratingCount || 0) + 1,
+                    totalTrips: (tData.totalTrips || 0) + 1
+                });
+            }
+
+            const updateObj = {};
+            updateObj[`ratedBy${isClient ? 'Client' : 'Driver'}`] = true;
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), updateObj);
+            
+            alert("¡Gracias por tu reseña!");
+            location.reload();
+        };
+
+        window.processLogout = () => signOut(auth).then(() => location.reload());
+        window.cancelOrder = async () => { if(activeTrip) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id)); location.reload(); };
+
     </script>
+
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places&callback=initMap"></script>
 </body>
 </html>
