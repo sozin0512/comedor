@@ -30,7 +30,7 @@
             overflow-y: auto;
         }
 
-        /* --- INTERFAZ DE NAVEGACIÓN PROFESIONAL --- */
+        /* --- NAVEGACIÓN PROFESIONAL --- */
         #nav-hud-top {
             position: absolute;
             top: 20px;
@@ -81,7 +81,6 @@
 
         #fab-center { bottom: 210px; left: 15px; width: auto; border-radius: 30px; padding: 0 20px; font-weight: 800; font-size: 12px; gap: 8px; color: #2563eb; }
 
-        /* Estilos de Chat y Paneles Desplegables */
         .collapsible-panel { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .panel-collapsed { transform: translateY(calc(100% - 60px)); }
         
@@ -305,7 +304,7 @@
 
     <!-- SETUP PERFIL -->
     <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
-        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-white/10">
+        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-white/10">
             <h2 class="text-xl font-black mb-6 text-center text-gray-900">Finaliza tu Perfil</h2>
             <div class="space-y-4">
                 <div class="flex flex-col items-center mb-4">
@@ -314,12 +313,12 @@
                     </div>
                     <label class="mt-2 cursor-pointer text-blue-600 text-[10px] font-black uppercase">Subir Foto <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="window.previewPhoto(this)"></label>
                 </div>
-                <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
-                <input id="phone-number" type="tel" placeholder="Teléfono" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
+                <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                <input id="phone-number" type="tel" placeholder="Teléfono" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
                 <div id="driver-fields" class="hidden space-y-3 pt-4 border-t">
-                    <input id="car-model" type="text" placeholder="Vehículo" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
-                    <input id="car-plate" type="text" placeholder="Placa" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none uppercase font-bold">
-                    <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
+                    <input id="car-model" type="text" placeholder="Vehículo" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                    <input id="car-plate" type="text" placeholder="Placa" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none uppercase font-bold">
+                    <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
                 </div>
                 <button onclick="window.saveProfile()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl mt-4 active:scale-95 transition-transform">EMPEZAR A VIAJAR</button>
             </div>
@@ -538,11 +537,15 @@
             }
         });
 
+        // --- GPS NAVEGACIÓN PROFESIONAL ---
         function updateNavigation(dest) {
             if (navigationInterval) clearInterval(navigationInterval);
             const render = () => {
                 if (!window.currentDriverPos || !window.mapLoaded) return;
-                window.directionsRenderer.setOptions({ preserveViewport: true });
+                // Forzar el renderer a usar el mapa actual
+                window.directionsRenderer.setMap(window.gMap);
+                window.directionsRenderer.setOptions({ preserveViewport: true }); // Bloquear alejamiento de Google
+                
                 window.directionsService.route({
                     origin: window.currentDriverPos, destination: dest, travelMode: google.maps.TravelMode.DRIVING
                 }, (res, status) => {
@@ -552,18 +555,21 @@
                         document.getElementById('nav-hud-top').style.display = 'flex';
                         document.getElementById('nav-hud-bottom').style.display = 'block';
                         document.body.classList.add('is-navigating');
+                        
                         const step = leg.steps[0];
                         document.getElementById('nav-step-text').innerText = step.instructions.replace(/<[^>]*>?/gm, '');
                         document.getElementById('nav-step-dist').innerText = "En " + step.distance.text;
                         document.getElementById('nav-total-time').innerText = leg.duration.text;
                         document.getElementById('nav-total-dist').innerText = leg.distance.text;
+                        
                         const arrivalDate = new Date(Date.now() + leg.duration.value * 1000);
                         document.getElementById('nav-total-eta').innerText = arrivalDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " p.m.";
+                        
                         window.gMap.setMapTypeId('hybrid');
                         if(window.autoCenter) {
                             window.gMap.panTo(window.currentDriverPos);
-                            window.gMap.setZoom(18);
-                            window.gMap.setTilt(45);
+                            window.gMap.setZoom(18); // Zoom alto para navegación real
+                            window.gMap.setTilt(45); // Vista 3D
                             window.updateDriverMarker(currentUser.uid, window.currentDriverPos.lat, window.currentDriverPos.lng, true, step.start_location.heading || 0);
                         }
                     }
@@ -573,9 +579,11 @@
             navigationInterval = setInterval(render, 5000);
         }
 
+        // --- MAP LOGIC CLIENTE ---
         function updateMapRoute(dest) {
             if (!window.mapLoaded) return;
-            window.directionsRenderer.setOptions({ preserveViewport: false });
+            window.directionsRenderer.setMap(window.gMap);
+            window.directionsRenderer.setOptions({ preserveViewport: false }); // Permitir ver ruta completa
             navigator.geolocation.getCurrentPosition((pos) => {
                 window.directionsService.route({
                     origin: { lat: pos.coords.latitude, lng: pos.coords.longitude },
@@ -588,6 +596,7 @@
             const dSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
             if (dSnap.exists() && window.mapLoaded) {
                 const dPos = dSnap.data();
+                window.directionsRenderer.setMap(window.gMap);
                 window.directionsRenderer.setOptions({ preserveViewport: false });
                 window.directionsService.route({
                     origin: { lat: dPos.lat, lng: dPos.lng },
@@ -596,11 +605,10 @@
             }
         }
 
+        // --- LISTENER DE VIAJES ---
         function startDriverListener() {
             if (!currentUser) return;
-            // ESCUCHADOR PRINCIPAL DE LA COLECCIÓN PARA EL CONDUCTOR
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
-                // Si el conductor tiene un viaje activo que no sea finalizado/cancelado, no muestra la lista de pendientes
                 if (activeTrip && (activeTrip.status === 'accepted' || activeTrip.status === 'in_progress')) {
                     document.getElementById('requests-list').innerHTML = '';
                     return;
@@ -674,7 +682,7 @@
                             if (data.status === 'accepted' && !data.driverArrived) {
                                 document.getElementById('btn-driver-arrived').classList.remove('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
-                                updateNavigation(data.origin);
+                                updateNavigation(data.origin); // RUTA AL CLIENTE
                             } else if (data.driverArrived && data.status === 'accepted') {
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.remove('hidden');
@@ -685,7 +693,7 @@
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
                                 document.getElementById('finish-trip-btn').classList.remove('hidden');
-                                updateNavigation(data.destination);
+                                updateNavigation(data.destination); // RUTA AL DESTINO
                             }
                         } else {
                             document.getElementById('client-pin-display').classList.remove('hidden');
@@ -693,10 +701,10 @@
                             if (data.status === 'accepted') {
                                 document.getElementById('eta-indicator').classList.remove('hidden');
                                 updateETA(data.driverId, data.origin);
-                                updateMapRouteFromDriver(data.driverId, data.origin);
+                                updateMapRouteFromDriver(data.driverId, data.origin); // CLIENTE VE RUTA DEL CONDUCTOR
                             } else { 
                                 document.getElementById('eta-indicator').classList.add('hidden'); 
-                                updateMapRoute(data.destination);
+                                updateMapRoute(data.destination); // CLIENTE VE RUTA AL DESTINO
                             }
                         }
                     } else if (data.status === 'cancelled') {
@@ -784,6 +792,7 @@
             const origin = document.getElementById('origin-input').value;
             const dest = document.getElementById('destination-input').value;
             if (!origin || !dest) return;
+            window.directionsRenderer.setMap(window.gMap);
             window.directionsRenderer.setOptions({ preserveViewport: false });
             window.directionsService.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
                 if (status === "OK") {
