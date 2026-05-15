@@ -40,37 +40,32 @@
 
         /* --- SOLUCIÓN CRÍTICA PARA EL BUSCADOR EN MÓVILES --- */
         .pac-container {
-            z-index: 100000 !important; /* Prioridad máxima absoluta */
-            border-radius: 1.5rem !important;
+            z-index: 100000 !important; 
+            border-radius: 1rem !important;
             border: none !important;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1) !important;
-            margin-top: 8px !important;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3) !important;
+            margin-top: 12px !important;
             font-family: 'Inter', sans-serif !important;
-            padding-bottom: 10px !important;
         }
         .pac-item {
-            padding: 16px 20px !important;
+            padding: 18px 20px !important;
             cursor: pointer;
-            font-size: 15px !important;
-            line-height: 1.5 !important;
+            font-size: 16px !important;
             display: flex;
             align-items: center;
-            border-top: 1px solid #f1f5f9 !important;
         }
-        .pac-item:first-child { border-top: none !important; }
-        .pac-icon { margin-right: 12px !important; }
-        .pac-item-query { font-size: 15px !important; color: #1e293b !important; }
+        .pac-item-query { font-size: 16px !important; color: #1e293b !important; }
         
         @keyframes pulse-blue {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
             70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(37, 99, 235, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
         }
         .searching-pulse { animation: pulse-blue 2s infinite; }
         
         #app-interface, #setup-screen, #rating-screen { display: none; }
 
-        /* Ajuste de paneles para móviles */
+        /* Ajuste de paneles para móviles - FIX TECLADO */
         @media (max-width: 768px) {
             #control-panel {
                 position: absolute;
@@ -78,24 +73,25 @@
                 left: 0;
                 width: 100%;
                 height: auto;
-                max-height: 400px;
+                max-height: 420px;
                 border-radius: 2.5rem 2.5rem 0 0;
                 border-top: 1px solid #e2e8f0;
-                transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 z-index: 50;
-                padding-bottom: constant(safe-area-inset-bottom);
-                padding-bottom: env(safe-area-inset-bottom);
+                padding-bottom: 20px;
             }
             
-            /* Estado cuando el usuario está escribiendo una dirección */
+            /* --- EL CAMBIO CLAVE: CUANDO BUSCAS, EL PANEL SE VA AL TOPE --- */
             body.is-searching #control-panel {
-                max-height: 95dvh;
-                transform: translateY(0);
+                bottom: auto;
+                top: 0;
+                max-height: 100dvh;
                 border-radius: 0;
+                padding-top: 40px; /* Espacio para el status bar */
             }
             
             body.is-searching #map-container {
-                opacity: 0.1;
+                opacity: 0.05;
                 pointer-events: none;
             }
 
@@ -152,29 +148,31 @@
                     const originAuto = new google.maps.places.Autocomplete(originInput, options);
                     const destAuto = new google.maps.places.Autocomplete(destInput, options);
 
-                    // --- MANEJO DE ENFOQUE EN MÓVILES ---
+                    // --- LOGICA DE TRANSFORMACION DE VISTA ---
                     const toggleSearchMode = (active) => {
                         if (window.innerWidth <= 768) {
-                            document.body.classList.toggle('is-searching', active);
+                            if (active) {
+                                document.body.classList.add('is-searching');
+                            } else {
+                                // Pequeño retraso para dejar que el click en la sugerencia se procese
+                                setTimeout(() => {
+                                    document.body.classList.remove('is-searching');
+                                }, 300);
+                            }
                         }
                     };
 
                     [originInput, destInput].forEach(input => {
                         input.addEventListener('focus', () => toggleSearchMode(true));
-                        input.addEventListener('blur', () => {
-                            // Pequeño delay para permitir que el clic en la sugerencia ocurra antes de bajar el panel
-                            setTimeout(() => toggleSearchMode(false), 200);
-                        });
+                        input.addEventListener('blur', () => toggleSearchMode(false));
                     });
 
                     originAuto.addListener('place_changed', () => {
                         window.dispatchEvent(new CustomEvent('map-route-trigger'));
-                        toggleSearchMode(false);
                         originInput.blur();
                     });
                     destAuto.addListener('place_changed', () => {
                         window.dispatchEvent(new CustomEvent('map-route-trigger'));
-                        toggleSearchMode(false);
                         destInput.blur();
                     });
                 }
@@ -208,7 +206,8 @@
         window.useCurrentLocation = function() {
             if (navigator.geolocation) {
                 const btn = document.getElementById('btn-current-loc');
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                const oldContent = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin text-blue-600"></i>';
                 
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
@@ -220,12 +219,12 @@
                                 window.gMap.setZoom(17);
                                 window.dispatchEvent(new CustomEvent('map-route-trigger'));
                             }
-                            btn.innerHTML = '<i class="fas fa-crosshairs text-blue-600"></i>';
+                            btn.innerHTML = oldContent;
                         });
                     },
                     () => {
                         alert("Activa el GPS y da permisos para ubicarte.");
-                        btn.innerHTML = '<i class="fas fa-crosshairs text-blue-600"></i>';
+                        btn.innerHTML = oldContent;
                     }
                 );
             }
@@ -368,8 +367,8 @@
                             </div>
                         </div>
                         <h4 class="font-black text-gray-800">Conectando con unidades...</h4>
-                        <p class="text-gray-400 text-[10px] mt-1 px-4">Los conductores VIP están revisando tu solicitud.</p>
-                        <button onclick="window.cancelOrder()" class="mt-6 text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline">Cancelar viaje</button>
+                        <p class="text-gray-400 text-[10px] mt-1 px-4 text-center">Los conductores VIP están revisando tu solicitud.</p>
+                        <button onclick="window.cancelOrder()" class="mt-6 text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline mx-auto block">Cancelar viaje</button>
                     </div>
                 </div>
 
