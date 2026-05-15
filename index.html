@@ -30,7 +30,7 @@
             overflow-y: auto;
         }
 
-        /* --- NAVEGACIÓN PROFESIONAL --- */
+        /* --- INTERFAZ DE NAVEGACIÓN PROFESIONAL --- */
         #nav-hud-top {
             position: absolute;
             top: 20px;
@@ -114,7 +114,7 @@
             body.is-searching #control-panel { bottom: auto; top: 0; max-height: 100dvh; border-radius: 0; padding-top: 20px; }
             body.is-searching #map-container { opacity: 0.05; pointer-events: none; }
             #map-container { height: 100%; transition: opacity 0.3s ease; }
-            body.is-navigating #control-panel, body.is-navigating #app-header { display: none !important; }
+            body.is-navigating #app-header { display: none !important; }
         }
 
         .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 4px; font-size: 13px; display: flex; flex-direction: column; }
@@ -246,11 +246,11 @@
                 <i onclick="window.setRating(4)" class="fas fa-star cursor-pointer star-btn" data-index="4"></i>
                 <i onclick="window.setRating(5)" class="fas fa-star cursor-pointer star-btn" data-index="5"></i>
             </div>
-            <button onclick="window.submitRating()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all">ENVIAR CALIFICACIÓN</button>
+            <button onclick="window.submitRating()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg">ENVIAR CALIFICACIÓN</button>
         </div>
     </div>
 
-    <!-- HUD NAVEGACIÓN TOP (SOLO CONDUCTOR) -->
+    <!-- HUD NAVEGACIÓN TOP (SOLO CONDUCTOR EN RUTA) -->
     <div id="nav-hud-top">
         <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
             <i class="fas fa-location-arrow text-2xl text-white" id="nav-step-icon"></i>
@@ -316,9 +316,9 @@
                 <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
                 <input id="phone-number" type="tel" placeholder="Teléfono" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
                 <div id="driver-fields" class="hidden space-y-3 pt-4 border-t">
-                    <input id="car-model" type="text" placeholder="Vehículo" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                    <input id="car-model" type="text" placeholder="Vehículo" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                     <input id="car-plate" type="text" placeholder="Placa" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none uppercase font-bold">
-                    <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                    <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                 </div>
                 <button onclick="window.saveProfile()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl mt-4 active:scale-95 transition-transform">EMPEZAR A VIAJAR</button>
             </div>
@@ -371,7 +371,7 @@
                     </div>
                 </div>
 
-                <!-- VISTA CONDUCTOR -->
+                <!-- CONDUCTOR (LISTA DE VIAJES) -->
                 <div id="driver-view" class="hidden flex-1">
                     <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter uppercase">Viajes Disponibles</h3>
                     <div id="requests-list" class="space-y-4 pb-4">
@@ -379,7 +379,7 @@
                     </div>
                 </div>
 
-                <!-- PANEL VIAJE ACTIVO -->
+                <!-- PANEL VIAJE ACTIVO (PARA AMBOS) -->
                 <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full">
                     <div onclick="window.toggleActivePanel()" class="flex justify-center py-2 cursor-pointer border-b border-gray-100 mb-4">
                         <div class="w-12 h-1 bg-gray-300 rounded-full shadow-sm"></div>
@@ -485,7 +485,7 @@
         window.executeAuth = async () => {
             const email = document.getElementById('email-field').value;
             const pass = document.getElementById('pass-field').value;
-            if (!email || !pass) return alert("Ingresa tus credenciales.");
+            if (!email || !pass) return alert("Completa tus credenciales.");
             try { await signInWithEmailAndPassword(auth, email, pass); }
             catch (err) { try { await createUserWithEmailAndPassword(auth, email, pass); } catch (e) { console.error(e); } }
         };
@@ -542,7 +542,7 @@
             if (navigationInterval) clearInterval(navigationInterval);
             const render = () => {
                 if (!window.currentDriverPos || !window.mapLoaded) return;
-                // Forzar el renderer a usar el mapa actual
+                // FORZAR MODO NAVEGACIÓN PROFESIONAL
                 window.directionsRenderer.setMap(window.gMap);
                 window.directionsRenderer.setOptions({ preserveViewport: true }); // Bloquear alejamiento de Google
                 
@@ -568,8 +568,8 @@
                         window.gMap.setMapTypeId('hybrid');
                         if(window.autoCenter) {
                             window.gMap.panTo(window.currentDriverPos);
-                            window.gMap.setZoom(18); // Zoom alto para navegación real
-                            window.gMap.setTilt(45); // Vista 3D
+                            window.gMap.setZoom(18); // ZOOM NIVEL CALLE GARANTIZADO
+                            window.gMap.setTilt(45); // VISTA 3D
                             window.updateDriverMarker(currentUser.uid, window.currentDriverPos.lat, window.currentDriverPos.lng, true, step.start_location.heading || 0);
                         }
                     }
@@ -579,36 +579,11 @@
             navigationInterval = setInterval(render, 5000);
         }
 
-        // --- MAP LOGIC CLIENTE ---
-        function updateMapRoute(dest) {
-            if (!window.mapLoaded) return;
-            window.directionsRenderer.setMap(window.gMap);
-            window.directionsRenderer.setOptions({ preserveViewport: false }); // Permitir ver ruta completa
-            navigator.geolocation.getCurrentPosition((pos) => {
-                window.directionsService.route({
-                    origin: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-                    destination: dest, travelMode: google.maps.TravelMode.DRIVING
-                }, (res, status) => { if (status === "OK") window.directionsRenderer.setDirections(res); });
-            });
-        }
-
-        async function updateMapRouteFromDriver(driverId, dest) {
-            const dSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
-            if (dSnap.exists() && window.mapLoaded) {
-                const dPos = dSnap.data();
-                window.directionsRenderer.setMap(window.gMap);
-                window.directionsRenderer.setOptions({ preserveViewport: false });
-                window.directionsService.route({
-                    origin: { lat: dPos.lat, lng: dPos.lng },
-                    destination: dest, travelMode: google.maps.TravelMode.DRIVING
-                }, (res, status) => { if (status === "OK") window.directionsRenderer.setDirections(res); });
-            }
-        }
-
-        // --- LISTENER DE VIAJES ---
+        // --- LÓGICA DE VIAJES PARA EL CONDUCTOR (CLIENTES PIDIENDO) ---
         function startDriverListener() {
             if (!currentUser) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
+                // Si el conductor tiene un viaje activo que no sea finalizado/cancelado, no muestra la lista de pendientes
                 if (activeTrip && (activeTrip.status === 'accepted' || activeTrip.status === 'in_progress')) {
                     document.getElementById('requests-list').innerHTML = '';
                     return;
@@ -682,7 +657,7 @@
                             if (data.status === 'accepted' && !data.driverArrived) {
                                 document.getElementById('btn-driver-arrived').classList.remove('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
-                                updateNavigation(data.origin); // RUTA AL CLIENTE
+                                updateNavigation(data.origin); // NAVEGACIÓN DE CALLE HACIA EL CLIENTE
                             } else if (data.driverArrived && data.status === 'accepted') {
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.remove('hidden');
@@ -693,7 +668,7 @@
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
                                 document.getElementById('finish-trip-btn').classList.remove('hidden');
-                                updateNavigation(data.destination); // RUTA AL DESTINO
+                                updateNavigation(data.destination); // NAVEGACIÓN DE CALLE AL DESTINO FINAL
                             }
                         } else {
                             document.getElementById('client-pin-display').classList.remove('hidden');
@@ -701,10 +676,10 @@
                             if (data.status === 'accepted') {
                                 document.getElementById('eta-indicator').classList.remove('hidden');
                                 updateETA(data.driverId, data.origin);
-                                updateMapRouteFromDriver(data.driverId, data.origin); // CLIENTE VE RUTA DEL CONDUCTOR
+                                updateMapRouteFromDriver(data.driverId, data.origin);
                             } else { 
                                 document.getElementById('eta-indicator').classList.add('hidden'); 
-                                updateMapRoute(data.destination); // CLIENTE VE RUTA AL DESTINO
+                                updateMapRoute(data.destination);
                             }
                         }
                     } else if (data.status === 'cancelled') {
@@ -720,6 +695,7 @@
                         showRatingScreen();
                     }
                 } else {
+                    // RESETEO DE ESTADO SI NO HAY VIAJE ACTIVO
                     activeTrip = null;
                     document.getElementById('active-trip-panel').classList.add('hidden');
                     document.getElementById('nav-hud-top').style.display = 'none';
@@ -749,7 +725,7 @@
         window.sendTripRequest = async () => {
             const origin = document.getElementById('origin-input').value;
             const dest = document.getElementById('destination-input').value;
-            if(!origin || !dest) return alert("Define ruta.");
+            if(!origin || !dest) return alert("Define origen y destino.");
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
                 clientId: currentUser.uid, clientName: window.userProfile.name, clientPhone: window.userProfile.phone,
                 origin, destination: dest, price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
@@ -803,6 +779,41 @@
                 }
             });
         });
+
+        function updateMapRoute(dest) {
+            if (!window.mapLoaded) return;
+            window.directionsRenderer.setMap(window.gMap);
+            window.directionsRenderer.setOptions({ preserveViewport: false });
+            navigator.geolocation.getCurrentPosition((pos) => {
+                window.directionsService.route({
+                    origin: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+                    destination: dest, travelMode: google.maps.TravelMode.DRIVING
+                }, (res, status) => { if (status === "OK") window.directionsRenderer.setDirections(res); });
+            });
+        }
+
+        async function updateMapRouteFromDriver(driverId, dest) {
+            const dSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
+            if (dSnap.exists() && window.mapLoaded) {
+                const dPos = dSnap.data();
+                window.directionsRenderer.setMap(window.gMap);
+                window.directionsRenderer.setOptions({ preserveViewport: false });
+                window.directionsService.route({
+                    origin: { lat: dPos.lat, lng: dPos.lng },
+                    destination: dest, travelMode: google.maps.TravelMode.DRIVING
+                }, (res, status) => { if (status === "OK") window.directionsRenderer.setDirections(res); });
+            }
+        }
+
+        window.centerMap = () => {
+            window.autoCenter = true;
+            document.getElementById('fab-center').classList.add('hidden');
+            if(window.currentDriverPos) {
+                window.gMap.panTo(window.currentDriverPos);
+                window.gMap.setZoom(18);
+                window.gMap.setTilt(45);
+            }
+        };
 
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
