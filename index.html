@@ -38,7 +38,7 @@
             transform: translateX(-50%);
             width: 92%;
             max-width: 400px;
-            background: #004d40; /* Verde Google Nav */
+            background: #004d40;
             color: white;
             padding: 16px;
             border-radius: 1.2rem;
@@ -112,6 +112,8 @@
                 z-index: 50;
             }
             body.is-searching #control-panel { bottom: auto; top: 0; max-height: 100dvh; border-radius: 0; padding-top: 20px; }
+            body.is-searching #map-container { opacity: 0.05; pointer-events: none; }
+            #map-container { height: 100%; transition: opacity 0.3s ease; }
             body.is-navigating #control-panel, body.is-navigating #app-header { display: none !important; }
         }
 
@@ -137,7 +139,7 @@
                 window.directionsRenderer = new google.maps.DirectionsRenderer({
                     polylineOptions: { strokeColor: "#3b82f6", strokeWeight: 8, strokeOpacity: 0.9 },
                     suppressMarkers: false,
-                    preserveViewport: true // CLAVE: No dejar que Google aleje el mapa solo
+                    preserveViewport: true
                 });
 
                 const comayaguaCoords = { lat: 14.4513, lng: -87.6374 };
@@ -149,9 +151,7 @@
                     gestureHandling: 'greedy'
                 });
 
-                // Detectar si el usuario mueve el mapa manualmente
                 window.gMap.addListener('dragstart', () => { window.autoCenter = false; document.getElementById('fab-center').classList.remove('hidden'); });
-
                 window.directionsRenderer.setMap(window.gMap);
                 window.mapLoaded = true;
                 
@@ -162,19 +162,16 @@
                 if (originInput && destInput) {
                     const originAuto = new google.maps.places.Autocomplete(originInput, options);
                     const destAuto = new google.maps.places.Autocomplete(destInput, options);
-
                     const toggleSearchMode = (active) => {
                         if (window.innerWidth <= 768) {
                             if (active) document.body.classList.add('is-searching');
                             else setTimeout(() => document.body.classList.remove('is-searching'), 300);
                         }
                     };
-
                     [originInput, destInput].forEach(input => {
                         input.addEventListener('focus', () => toggleSearchMode(true));
                         input.addEventListener('blur', () => toggleSearchMode(false));
                     });
-
                     originAuto.addListener('place_changed', () => { window.dispatchEvent(new CustomEvent('map-route-trigger')); originInput.blur(); });
                     destAuto.addListener('place_changed', () => { window.dispatchEvent(new CustomEvent('map-route-trigger')); destInput.blur(); });
                 }
@@ -185,7 +182,6 @@
             if (!window.mapLoaded) return;
             const pos = { lat, lng };
             if (isSelf) window.currentDriverPos = pos;
-
             if (window.driverMarkers[driverId]) {
                 window.driverMarkers[driverId].setPosition(pos);
             } else {
@@ -193,7 +189,7 @@
                     position: pos,
                     map: window.gMap,
                     icon: {
-                        path: isSelf ? google.maps.SymbolPath.FORWARD_CLOSED_ARROW : "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z",
+                        path: isSelf ? google.maps.SymbolPath.FORWARD_CLOSED_ARROW : "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z",
                         fillColor: isSelf ? "#2563eb" : "#475569",
                         fillOpacity: 1,
                         strokeWeight: 2,
@@ -207,7 +203,7 @@
         window.useCurrentLocation = function() {
             if (navigator.geolocation) {
                 const btn = document.getElementById('btn-current-loc');
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin text-blue-600"></i>';
                 navigator.geolocation.getCurrentPosition((position) => {
                     const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
                     window.geocoder.geocode({ location: pos }, (results, status) => {
@@ -265,8 +261,8 @@
             <i class="fas fa-location-arrow text-2xl text-white" id="nav-step-icon"></i>
         </div>
         <div class="flex-1">
-            <p id="nav-step-text" class="text-lg font-bold leading-tight">Calculando...</p>
-            <p id="nav-step-dist" class="text-sm opacity-80 font-medium">Sigue la ruta azul</p>
+            <p id="nav-step-text" class="text-lg font-bold leading-tight">En camino...</p>
+            <p id="nav-step-dist" class="text-sm opacity-80 font-medium">Gire a la izquierda</p>
         </div>
         <i class="fas fa-sparkles text-blue-200 animate-pulse"></i>
     </div>
@@ -283,7 +279,7 @@
                     <span id="nav-total-dist">-- km</span> • <span id="nav-total-eta">--:-- p.m.</span>
                 </div>
             </div>
-            <button onclick="window.cancelOrder()" class="px-8 py-3 rounded-full bg-red-600 text-white font-black text-sm uppercase shadow-lg active:scale-95 transition-transform">Salir</button>
+            <button onclick="window.cancelOrder()" class="px-8 py-3 rounded-full bg-red-600 text-white font-black text-sm uppercase shadow-lg">Salir</button>
         </div>
     </div>
 
@@ -306,7 +302,7 @@
             <div class="space-y-4">
                 <input id="email-field" type="email" placeholder="Correo electrónico" class="w-full px-5 py-4 rounded-2xl border bg-gray-50 outline-none">
                 <input id="pass-field" type="password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border bg-gray-50 outline-none">
-                <button onclick="window.executeAuth()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all">ACCEDER / REGISTRARSE</button>
+                <button onclick="window.executeAuth()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg">ACCEDER</button>
             </div>
         </div>
     </div>
@@ -325,7 +321,7 @@
                 <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                 <input id="phone-number" type="tel" placeholder="Teléfono" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                 <div id="driver-fields" class="hidden space-y-3 pt-4 border-t">
-                    <input id="car-model" type="text" placeholder="Vehículo (Marca/Modelo/Año)" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
+                    <input id="car-model" type="text" placeholder="Vehículo" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                     <input id="car-plate" type="text" placeholder="Placa" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none uppercase font-bold">
                     <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                 </div>
@@ -350,7 +346,7 @@
             <div id="map-container" class="flex-1 relative order-1 md:order-2">
                 <div id="map"></div>
                 <div id="eta-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-white px-5 py-2 rounded-full shadow-2xl border border-blue-100 z-40 min-w-[180px]">
-                    <p class="text-[9px] font-black text-blue-600 uppercase text-center leading-tight">Conductor en camino</p>
+                    <p class="text-[9px] font-black text-blue-600 uppercase text-center leading-tight tracking-wider">Conductor llegando</p>
                     <p id="eta-text" class="text-xs font-bold text-gray-800 text-center">...</p>
                 </div>
             </div>
@@ -383,25 +379,25 @@
                 <!-- CONDUCTOR -->
                 <div id="driver-view" class="hidden flex-1">
                     <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter uppercase">Viajes Disponibles</h3>
-                    <div id="requests-list" class="space-y-4">
-                        <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase">Escaneando ciudad...</p></div>
+                    <div id="requests-list" class="space-y-4 pb-4">
+                        <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase tracking-widest">Escaneando ciudad...</p></div>
                     </div>
                 </div>
 
-                <!-- ACTIVE TRIP PANEL -->
+                <!-- PANEL VIAJE ACTIVO -->
                 <div id="active-trip-panel" class="hidden mt-auto pt-4 border-t">
                     <div class="mb-4 p-3 bg-blue-50 rounded-2xl border border-blue-100 shadow-inner">
-                         <p class="text-[10px] text-gray-600 leading-tight mb-2 uppercase"><b>Origen:</b> <span id="active-origin-text">...</span></p>
-                         <p class="text-[10px] text-gray-600 leading-tight uppercase"><b>Destino:</b> <span id="active-dest-text">...</span></p>
+                         <p class="text-[10px] text-gray-600 leading-tight mb-2 uppercase"><b>Origen:</b> <span id="active-origin-text" class="font-semibold text-gray-900">...</span></p>
+                         <p class="text-[10px] text-gray-600 leading-tight uppercase"><b>Destino:</b> <span id="active-dest-text" class="font-semibold text-gray-900">...</span></p>
                     </div>
 
                     <div id="pin-area" class="mb-4">
                         <div id="driver-pin-controls" class="hidden space-y-2">
                              <div id="driver-target-address" class="p-2 bg-blue-600 text-white rounded-xl mb-2 text-center shadow-md animate-pulse">
-                                <p class="text-[8px] font-black uppercase opacity-80">Recoge al cliente en:</p>
+                                <p class="text-[8px] font-black uppercase opacity-80 tracking-tighter">Recoge al cliente en:</p>
                                 <p id="driver-pickup-display" class="text-xs font-bold leading-tight mt-0.5">...</p>
                             </div>
-                            <button id="btn-driver-arrived" onclick="window.markArrival()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-xs uppercase">¡HE LLEGADO!</button>
+                            <button id="btn-driver-arrived" onclick="window.markArrival()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg">¡HE LLEGADO!</button>
                             <div id="pin-input-group" class="hidden flex gap-2">
                                 <input id="driver-pin-input" type="number" placeholder="PIN" class="flex-1 px-4 py-3 border-2 border-blue-100 rounded-xl outline-none text-center font-black text-lg tracking-[0.4em]">
                                 <button onclick="window.verifyPin()" class="bg-blue-600 text-white px-5 rounded-xl font-black text-xs uppercase">OK</button>
@@ -409,7 +405,7 @@
                             <button id="finish-trip-btn" class="hidden w-full bg-red-600 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg">FINALIZAR VIAJE</button>
                         </div>
                         <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-2xl text-center shadow-inner">
-                            <p class="text-[9px] font-black text-amber-600 uppercase mb-1">Tu PIN VIP de Seguridad</p>
+                            <p class="text-[9px] font-black text-amber-600 uppercase mb-1 tracking-wider">Tu PIN VIP de Seguridad</p>
                             <p id="client-pin-code" class="text-3xl font-black text-amber-900 tracking-[0.4em]">----</p>
                         </div>
                     </div>
@@ -422,7 +418,7 @@
                     <div id="chat-body" class="collapsed border-t pt-4">
                         <div id="chat-messages" class="h-32 overflow-y-auto mb-3 flex flex-col p-1"></div>
                         <div class="flex gap-2">
-                            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-gray-50 rounded-xl outline-none text-xs border border-transparent focus:border-blue-100 transition-all">
+                            <input id="chat-input" type="text" placeholder="Mensaje..." class="flex-1 px-4 py-3 bg-gray-50 rounded-xl outline-none text-xs border border-transparent focus:border-blue-100">
                             <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform"><i class="fas fa-paper-plane text-sm"></i></button>
                         </div>
                     </div>
@@ -481,7 +477,7 @@
         window.executeAuth = async () => {
             const email = document.getElementById('email-field').value;
             const pass = document.getElementById('pass-field').value;
-            if (!email || !pass) return alert("Completa tus datos.");
+            if (!email || !pass) return alert("Ingresa correo y contraseña.");
             try { await signInWithEmailAndPassword(auth, email, pass); }
             catch (err) { try { await createUserWithEmailAndPassword(auth, email, pass); } catch (e) { alert("Error: " + e.message); } }
         };
@@ -535,7 +531,7 @@
             }
         });
 
-        // --- GPS NAVEGACIÓN PROFESIONAL (ZOOM SEGMENTADO) ---
+        // --- GPS NAVEGACIÓN PROFESIONAL ---
         function updateNavigation(dest) {
             if (navigationInterval) clearInterval(navigationInterval);
             const render = () => {
@@ -546,7 +542,6 @@
                     if (status === "OK") {
                         window.directionsRenderer.setDirections(res);
                         const leg = res.routes[0].legs[0];
-                        
                         document.getElementById('nav-hud-top').style.display = 'flex';
                         document.getElementById('nav-hud-bottom').style.display = 'block';
                         document.body.classList.add('is-navigating');
@@ -556,17 +551,15 @@
                         document.getElementById('nav-step-dist').innerText = "En " + step.distance.text;
                         document.getElementById('nav-total-time').innerText = leg.duration.text;
                         document.getElementById('nav-total-dist').innerText = leg.distance.text;
-                        
                         const arrivalDate = new Date(Date.now() + leg.duration.value * 1000);
                         document.getElementById('nav-total-eta').innerText = arrivalDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " p.m.";
 
-                        // VISTA DE NAVEGACIÓN: Pegada al conductor
-                        window.gMap.setMapTypeId('hybrid'); // Satélite
+                        window.gMap.setMapTypeId('hybrid');
                         if(window.autoCenter) {
                             window.gMap.panTo(window.currentDriverPos);
-                            window.gMap.setZoom(18); // Zoom alto para ver calles
-                            window.gMap.setTilt(45); // Perspectiva 3D
-                            window.gMap.setHeading(leg.steps[0].start_location.heading || 0); // Orientar cámara
+                            window.gMap.setZoom(18);
+                            window.gMap.setTilt(45);
+                            window.gMap.setHeading(leg.steps[0].start_location.heading || 0);
                         }
                     }
                 });
@@ -575,38 +568,58 @@
             navigationInterval = setInterval(render, 5000);
         }
 
-        // --- LÓGICA DE VIAJES ---
+        // --- LISTENER DE VIAJES (CONDUCTOR) ---
         function startDriverListener() {
+            if (!currentUser) return; // REGLA 3
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
-                const container = document.getElementById('requests-list');
-                const pendingTrips = snap.docs.filter(d => d.data().status === 'pending');
-                if (pendingTrips.length === 0) {
-                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-bold text-xs uppercase text-gray-400 tracking-widest">Buscando VIPs...</p></div>';
+                // Si el conductor ya tiene un viaje activo, no mostramos la lista de búsqueda
+                if (activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status)) {
+                    document.getElementById('requests-list').innerHTML = '';
+                    document.getElementById('driver-view').classList.add('hidden');
                     return;
                 }
+
+                const container = document.getElementById('requests-list');
+                const pendingTrips = snap.docs.filter(d => d.data().status === 'pending');
+                
+                if (pendingTrips.length === 0) {
+                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-bold text-[10px] uppercase tracking-widest text-gray-400">Buscando pasajeros VIP...</p></div>';
+                    document.getElementById('driver-view').classList.remove('hidden');
+                    return;
+                }
+
+                document.getElementById('driver-view').classList.remove('hidden');
                 container.innerHTML = '';
                 for (const d of pendingTrips) {
                     const t = d.data();
                     const card = document.createElement('div');
-                    card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600 transition-all mb-3";
+                    card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600 transition-all mb-3 animate-pulse-slow";
                     card.innerHTML = `
-                        <div class="flex justify-between items-start mb-2"><p class="text-[11px] font-black text-blue-600 uppercase">${t.clientName || 'Usuario'}</p><span class="font-black text-sm">${t.price}</span></div>
+                        <div class="flex justify-between items-start mb-2"><p class="text-[11px] font-black text-blue-600 uppercase client-name-${d.id}">Cargando...</p><span class="font-black text-sm">${t.price}</span></div>
                         <p class="text-[10px] text-gray-500 mb-4 line-clamp-2"><b>Origen:</b> ${t.origin}</p>
                         <button onclick="window.acceptTrip('${d.id}')" class="w-full bg-blue-600 text-white font-black py-3 rounded-2xl text-[10px] shadow-lg uppercase tracking-tighter active:scale-95 transition-all">ACEPTAR VIAJE</button>`;
                     container.appendChild(card);
+                    
+                    const cRef = await getDoc(doc(db, 'artifacts', appId, 'users', t.clientId, 'profile', 'data'));
+                    if (cRef.exists()) document.querySelector(`.client-name-${d.id}`).innerText = cRef.data().name.toUpperCase();
                 }
+            }, (err) => {
+                document.getElementById('requests-list').innerHTML = `<div class="p-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-bold text-center uppercase tracking-widest">Error de permisos en Firebase</div>`;
             });
         }
 
         window.acceptTrip = async (id) => {
             const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { 
-                status: 'accepted', driverId: currentUser.uid, driverName: window.userProfile.name,
-                driverPhone: window.userProfile.phone, pin: randomPin, driverArrived: false
-            });
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { 
+                    status: 'accepted', driverId: currentUser.uid, driverName: window.userProfile.name,
+                    driverPhone: window.userProfile.phone, pin: randomPin, driverArrived: false
+                });
+            } catch(e) { alert("Error al aceptar. Es posible que el viaje ya no esté disponible."); }
         };
 
         function listenToMyActiveTrip() {
+            if (!currentUser) return; // REGLA 3
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
                 const trip = snap.docs.find(d => {
                     const data = d.data();
@@ -619,6 +632,7 @@
                     activeTrip = { id: trip.id, ...data };
 
                     if (data.status === 'accepted' || data.status === 'in_progress') {
+                        document.getElementById('searching-state').classList.add('hidden');
                         document.getElementById('active-trip-panel').classList.remove('hidden');
                         document.getElementById('active-origin-text').innerText = data.origin;
                         document.getElementById('active-dest-text').innerText = data.destination;
@@ -634,7 +648,7 @@
                             if (data.status === 'accepted' && !data.driverArrived) {
                                 document.getElementById('btn-driver-arrived').classList.remove('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
-                                updateNavigation(data.origin); // Navegación Segmentada al cliente
+                                updateNavigation(data.origin);
                             } else if (data.driverArrived && data.status === 'accepted') {
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.remove('hidden');
@@ -645,7 +659,7 @@
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
                                 document.getElementById('finish-trip-btn').classList.remove('hidden');
-                                updateNavigation(data.destination); // Navegación Segmentada al destino
+                                updateNavigation(data.destination);
                             }
                         } else {
                             document.getElementById('client-pin-display').classList.remove('hidden');
@@ -658,15 +672,14 @@
                     } else if (data.status === 'cancelled') {
                         alert("Servicio Cancelado");
                         deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id)).then(() => {
-                            if (window.userProfile.role === 'client') { window.sendTripRequest(); }
-                            else { location.reload(); }
+                            if (window.userProfile.role === 'client') window.sendTripRequest(); 
+                            else location.reload();
                         });
                     }
                 } else {
                     document.getElementById('active-trip-panel').classList.add('hidden');
                     document.getElementById('nav-hud-top').style.display = 'none';
                     document.getElementById('nav-hud-bottom').style.display = 'none';
-                    document.getElementById('fab-center').classList.add('hidden');
                     document.body.classList.remove('is-navigating');
                     if (navigationInterval) clearInterval(navigationInterval);
                     if (window.gMap) { window.gMap.setMapTypeId('roadmap'); window.gMap.setTilt(0); }
@@ -679,8 +692,8 @@
         window.verifyPin = async () => {
             if (document.getElementById('driver-pin-input').value === activeTrip.pin) {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'in_progress' });
-                alert("PIN VÁLIDO. Iniciando viaje...");
-            } else { alert("PIN Incorrecto."); }
+                alert("VIAJE INICIADO");
+            } else { alert("PIN Incorrecto"); }
         };
 
         window.sendTripRequest = async () => {
@@ -719,7 +732,7 @@
         }
 
         window.processLogout = () => signOut(auth).then(() => location.reload());
-        window.cancelOrder = async () => { if (confirm("¿Estás seguro de cancelar?")) { if(activeTrip) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled' }); location.reload(); } };
+        window.cancelOrder = async () => { if (confirm("¿Confirmas la cancelación?")) { if(activeTrip) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled' }); location.reload(); } };
 
         window.addEventListener('map-route-trigger', () => {
             const origin = document.getElementById('origin-input').value;
@@ -746,6 +759,7 @@
         }
 
         function listenForNearbyDrivers() {
+            if (!currentUser) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
                 snap.forEach(d => { window.updateDriverMarker(d.id, d.data().lat, d.data().lng, d.id === currentUser.uid); });
             });
@@ -757,7 +771,7 @@
                 const dLoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
                 if (dLoc.exists()) {
                     new google.maps.DistanceMatrixService().getDistanceMatrix({ origins: [dLoc.data()], destinations: [origin], travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
-                        if (status === "OK") { document.getElementById('eta-text').innerText = "Llegada en " + res.rows[0].elements[0].duration.text; }
+                        if (status === "OK") { document.getElementById('eta-text').innerText = "Llegada estimada: " + res.rows[0].elements[0].duration.text; }
                     });
                 }
             };
@@ -770,7 +784,7 @@
         };
 
         window.submitRating = async () => {
-            if (selectedStars === 0) return alert("Por favor califica.");
+            if (selectedStars === 0) return alert("Selecciona estrellas.");
             const targetUserId = window.userProfile.role === 'client' ? activeTrip.driverId : activeTrip.clientId;
             const tRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'profile', 'data');
             const tSnap = await getDoc(tRef);
