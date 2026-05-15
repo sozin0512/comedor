@@ -56,7 +56,7 @@
             width: 100%;
             background: white;
             padding: 20px 24px;
-            border-radius: 2rem 2.5rem 0 0;
+            border-radius: 2rem 2rem 0 0;
             box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
             z-index: 2000;
             display: none;
@@ -82,6 +82,7 @@
         #fab-center { bottom: 210px; left: 15px; width: auto; border-radius: 30px; padding: 0 20px; font-weight: 800; font-size: 12px; gap: 8px; color: #2563eb; }
 
         .collapsible-panel { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        /* Ajuste: ya no ocultamos todo el panel, solo lo bajamos un poco */
         .panel-collapsed { transform: translateY(calc(100% - 60px)); }
         
         #chat-section { transition: max-height 0.4s ease, opacity 0.3s ease; overflow: hidden; }
@@ -108,13 +109,16 @@
                 max-height: 85dvh;
                 border-radius: 2.5rem 2.5rem 0 0;
                 border-top: 1px solid #e2e8f0;
-                z-index: 100;
+                z-index: 5000; /* Asegurar que esté por encima de casi todo */
                 overflow: hidden;
             }
             body.is-searching #control-panel { bottom: auto; top: 0; max-height: 100dvh; border-radius: 0; padding-top: 20px; }
             body.is-searching #map-container { opacity: 0.05; pointer-events: none; }
             #map-container { height: 100%; transition: opacity 0.3s ease; }
-            body.is-navigating #control-panel, body.is-navigating #app-header { display: none !important; }
+            
+            /* CORRECCIÓN: No ocultar el control panel en navegación para ver el chat */
+            body.is-navigating #app-header { display: none !important; }
+            body.is-navigating #control-panel { z-index: 5000; }
         }
 
         .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 8px; font-size: 13px; display: flex; flex-direction: column; }
@@ -243,7 +247,7 @@
 
     <!-- PANTALLA DE CALIFICACIÓN -->
     <div id="rating-screen" class="rating-screen fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-sm text-center">
+        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-sm text-center border border-white/20">
             <h2 class="text-xl font-black mb-1 text-gray-900">Viaje Finalizado</h2>
             <p id="rating-title" class="text-gray-500 text-xs mb-6 font-medium">¿Cómo fue tu experiencia VIP?</p>
             <div class="flex justify-center gap-3 mb-6 text-4xl text-gray-200">
@@ -269,16 +273,15 @@
         <i class="fas fa-sparkles text-blue-200 animate-pulse"></i>
     </div>
 
-    <!-- HUD NAVEGACIÓN BOTTOM -->
+    <!-- HUD NAVEGACIÓN BOTTOM (COEXISTE CON PANEL DESPLEGABLE) -->
     <div id="nav-hud-bottom">
         <div class="flex items-center justify-between">
             <div class="flex flex-col">
                 <div class="flex items-center gap-2">
                     <span id="nav-total-time" class="text-3xl font-black text-green-600">-- min</span>
-                    <i class="fas fa-leaf text-green-500 text-sm"></i>
                 </div>
                 <div class="flex items-center gap-2 text-gray-500 font-bold text-xs uppercase tracking-widest">
-                    <span id="nav-total-dist">-- km</span> • <span id="nav-total-eta">--:-- p.m.</span>
+                    <span id="nav-total-dist">-- km</span> • <span id="nav-total-eta">--:--</span>
                 </div>
             </div>
             <button onclick="window.cancelOrder()" class="px-8 py-3 rounded-full bg-red-600 text-white font-black text-sm uppercase shadow-lg">Salir</button>
@@ -289,7 +292,7 @@
 
     <!-- PANTALLA LOGIN -->
     <div id="login-screen" class="login-screen flex items-center justify-center p-6">
-        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-gray-100">
             <div class="text-center mb-8">
                 <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-2xl mb-4 shadow-xl shadow-blue-200">
                     <i class="fas fa-car-side text-3xl"></i>
@@ -334,7 +337,7 @@
 
     <!-- APP INTERFACE -->
     <div id="app-interface" class="flex-1 flex flex-col relative h-full">
-        <header id="app-header" class="glass-panel border-b border-gray-100 px-4 py-3 flex justify-between items-center z-50 shadow-sm">
+        <header id="app-header" class="glass-panel border-b border-gray-100 px-4 py-3 flex justify-between items-center z-50 shadow-sm bg-white">
             <div class="flex items-center gap-3">
                 <div class="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm" id="avatar-placeholder">C</div>
                 <h2 class="font-black text-gray-900 text-sm leading-none" id="user-name-display">USUARIO</h2>
@@ -378,7 +381,7 @@
                     </div>
                 </div>
 
-                <!-- CONDUCTOR (LISTA DE VIAJES) -->
+                <!-- CONDUCTOR (LISTA DE VIAJES DISPONIBLES) -->
                 <div id="driver-view" class="hidden flex-1">
                     <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter uppercase text-center md:text-left font-black">Viajes Disponibles</h3>
                     <div id="requests-list" class="space-y-4 pb-4">
@@ -386,16 +389,18 @@
                     </div>
                 </div>
 
-                <!-- PANEL VIAJE ACTIVO -->
+                <!-- PANEL VIAJE ACTIVO (CHAT Y PANEL CLIENTE/CONDUCTOR) -->
                 <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full">
-                    <div onclick="window.toggleActivePanel()" class="flex justify-center py-2 cursor-pointer border-b border-gray-100 mb-4">
+                    <!-- Barra de arrastre (Grabber) -->
+                    <div onclick="window.toggleActivePanel()" class="flex justify-center py-2 cursor-pointer border-b border-gray-100 mb-4 hover:bg-gray-50 transition-colors">
                         <div class="w-12 h-1 bg-gray-300 rounded-full shadow-sm"></div>
                     </div>
 
+                    <!-- Cuadro de Direcciones Principal -->
                     <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100 shadow-sm mb-4">
                          <div class="flex items-start gap-2 mb-3">
                              <div class="w-2 h-2 rounded-full bg-blue-600 mt-1.5 flex-shrink-0"></div>
-                             <p class="text-[10px] text-gray-600 leading-tight uppercase font-medium"><b>Origen:</b> <span id="active-origin-text" class="font-bold text-gray-900">...</span></p>
+                             <p class="text-[10px] text-gray-600 leading-tight uppercase font-medium"><b>Recogida:</b> <span id="active-origin-text" class="font-bold text-gray-900">...</span></p>
                          </div>
                          <div class="flex items-start gap-2">
                              <div class="w-2 h-2 rounded bg-red-600 mt-1.5 flex-shrink-0"></div>
@@ -403,6 +408,7 @@
                          </div>
                     </div>
 
+                    <!-- ÁREA DE PIN / BOTÓN LLEGADA -->
                     <div id="pin-area" class="mb-4">
                         <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-4 rounded-2xl text-center shadow-inner">
                             <p class="text-[10px] font-black text-amber-600 uppercase mb-2 tracking-widest">Tu PIN VIP de Seguridad</p>
@@ -410,13 +416,13 @@
                         </div>
 
                         <div id="driver-pin-controls" class="hidden space-y-2">
-                             <!-- LINK DE ORIGEN / RECOGIDA CLICKABLE -->
+                             <!-- LINK DINÁMICO DE RUTA PARA CONDUCTOR -->
                              <button onclick="window.manualRouteRefresh()" id="driver-target-address" class="w-full p-3 bg-blue-600 text-white rounded-xl mb-3 text-center shadow-md active:scale-95 transition-all">
                                 <div class="flex items-center justify-center gap-2">
                                     <i class="fas fa-map-marked-alt text-lg"></i>
                                     <div class="text-left">
                                         <p class="text-[8px] font-black uppercase opacity-80 leading-none">VER RUTA HACIA:</p>
-                                        <p id="driver-pickup-display" class="text-[11px] font-bold leading-tight mt-0.5 truncate max-w-[250px]">Cargando dirección...</p>
+                                        <p id="driver-pickup-display" class="text-[11px] font-bold leading-tight mt-0.5 truncate max-w-[200px]">Cargando...</p>
                                     </div>
                                 </div>
                             </button>
@@ -430,6 +436,7 @@
                         </div>
                     </div>
 
+                    <!-- Botones de Acción (Llamada / Chat) -->
                     <div class="flex gap-3 mb-4">
                         <a id="call-btn" href="#" class="flex-[2] bg-green-600 text-white py-4 rounded-2xl text-[12px] font-black uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform">
                             <i class="fas fa-phone"></i> LLAMAR
@@ -441,10 +448,11 @@
 
                     <button onclick="window.cancelOrder()" class="w-full py-3 text-[10px] font-black text-red-500 uppercase tracking-widest border border-red-100 rounded-xl mb-4 hover:bg-red-50 active:scale-95 transition-all text-center">Cancelar Servicio</button>
 
+                    <!-- SECCIÓN DE CHAT EN TIEMPO REAL -->
                     <div id="chat-section" class="collapsed border-t pt-4 h-full overflow-y-auto">
-                        <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-gray-50/50 rounded-xl"></div>
+                        <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-gray-50/50 rounded-xl border border-gray-100"></div>
                         <div class="flex gap-2 pb-10">
-                            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-xs">
+                            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-xs focus:ring-2 focus:ring-blue-100 transition-all">
                             <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform"><i class="fas fa-paper-plane text-sm"></i></button>
                         </div>
                     </div>
@@ -480,7 +488,6 @@
         let selectedStars = 0;
         let etaInterval = null;
         let navigationInterval = null;
-        let tripListenerUnsubscribe = null;
 
         window.updateRole = (role) => {
             userRole = role;
@@ -542,15 +549,8 @@
                     document.getElementById('setup-screen').style.display = 'none';
                     document.getElementById('app-interface').style.display = 'flex';
                     document.getElementById('user-name-display').innerText = profile.name.toUpperCase();
-                    if (profile.role === 'driver') {
-                        document.getElementById('driver-view').classList.remove('hidden');
-                        document.getElementById('client-view').classList.add('hidden');
-                        startDriverListener();
-                    } else {
-                        document.getElementById('driver-view').classList.add('hidden');
-                        document.getElementById('client-view').classList.remove('hidden');
-                        listenForNearbyDrivers();
-                    }
+                    if (profile.role === 'driver') startDriverListener();
+                    else listenForNearbyDrivers();
                     listenToMyActiveTrip();
                 }
             }
@@ -586,8 +586,8 @@
                         window.gMap.setMapTypeId('hybrid');
                         if(window.autoCenter) {
                             window.gMap.panTo(window.currentDriverPos);
-                            window.gMap.setZoom(18);
-                            window.gMap.setTilt(45);
+                            window.gMap.setZoom(18); // ZOOM NIVEL CALLE
+                            window.gMap.setTilt(45); // VISTA 3D
                             window.updateDriverMarker(currentUser.uid, window.currentDriverPos.lat, window.currentDriverPos.lng, true, step.start_location.heading || 0);
                         }
                     }
@@ -597,31 +597,6 @@
             navigationInterval = setInterval(render, 5000);
         };
 
-        function updateMapRoute(dest) {
-            if (!window.mapLoaded) return;
-            window.directionsRenderer.setMap(window.gMap);
-            window.directionsRenderer.setOptions({ preserveViewport: false });
-            navigator.geolocation.getCurrentPosition((pos) => {
-                window.directionsService.route({
-                    origin: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-                    destination: dest, travelMode: google.maps.TravelMode.DRIVING
-                }, (res, status) => { if (status === "OK") window.directionsRenderer.setDirections(res); });
-            });
-        }
-
-        async function updateMapRouteFromDriver(driverId, dest) {
-            const dSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
-            if (dSnap.exists() && window.mapLoaded) {
-                const dPos = dSnap.data();
-                window.directionsRenderer.setMap(window.gMap);
-                window.directionsRenderer.setOptions({ preserveViewport: false });
-                window.directionsService.route({
-                    origin: { lat: dPos.lat, lng: dPos.lng },
-                    destination: dest, travelMode: google.maps.TravelMode.DRIVING
-                }, (res, status) => { if (status === "OK") window.directionsRenderer.setDirections(res); });
-            }
-        }
-
         function startDriverListener() {
             if (!currentUser) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
@@ -629,15 +604,12 @@
                     document.getElementById('requests-list').innerHTML = '';
                     return;
                 }
-
                 const container = document.getElementById('requests-list');
                 const pendingTrips = snap.docs.filter(d => d.data().status === 'pending');
-                
                 if (pendingTrips.length === 0) {
-                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-bold text-[10px] uppercase tracking-widest text-gray-400 text-center">Buscando pasajeros VIP...</p></div>';
+                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>';
                     return;
                 }
-
                 container.innerHTML = '';
                 for (const d of pendingTrips) {
                     const t = d.data();
@@ -645,15 +617,9 @@
                     card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600 mb-3 animate-pulse-slow";
                     card.innerHTML = `<div class="flex justify-between items-start mb-2"><p class="text-[11px] font-black text-blue-600 uppercase client-name-${d.id}">Cargando...</p><span class="font-black text-sm">${t.price}</span></div><p class="text-[10px] text-gray-500 mb-4 line-clamp-2 uppercase font-medium"><b>Origen:</b> ${t.origin}</p><button onclick="window.acceptTrip('${d.id}')" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-[10px] shadow-lg uppercase tracking-widest active:scale-95 transition-all">ACEPTAR VIAJE VIP</button>`;
                     container.appendChild(card);
-                    
                     const cRef = await getDoc(doc(db, 'artifacts', appId, 'users', t.clientId, 'profile', 'data'));
-                    if (cRef.exists()) {
-                        const nameEl = document.querySelector(`.client-name-${d.id}`);
-                        if (nameEl) nameEl.innerText = cRef.data().name.toUpperCase();
-                    }
+                    if (cRef.exists()) document.querySelector(`.client-name-${d.id}`).innerText = cRef.data().name.toUpperCase();
                 }
-            }, (err) => {
-                document.getElementById('requests-list').innerHTML = `<div class="p-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-bold text-center uppercase tracking-widest text-center">Error de permisos en Firebase</div>`;
             });
         }
 
@@ -692,7 +658,6 @@
                         document.getElementById('active-dest-text').innerText = data.destination;
                         document.getElementById('call-btn').href = `tel:${window.userProfile.role === 'client' ? data.driverPhone : data.clientPhone}`;
                         
-                        // RENDERIZADO DEL CHAT EN TIEMPO REAL
                         renderChat(data.chat);
 
                         if (window.userProfile.role === 'driver') {
@@ -750,11 +715,8 @@
                         window.gMap.setMapTypeId('roadmap'); window.gMap.setTilt(0); 
                         window.directionsRenderer.setDirections({routes: []});
                     }
-                    if (window.userProfile?.role === 'driver') {
-                        document.getElementById('driver-view').classList.remove('hidden');
-                    } else {
-                        document.getElementById('client-view').classList.remove('hidden');
-                    }
+                    if (window.userProfile?.role === 'driver') document.getElementById('driver-view').classList.remove('hidden');
+                    else document.getElementById('client-view').classList.remove('hidden');
                 }
             });
         }
@@ -803,7 +765,6 @@
                 const isMine = m.sender === currentUser.uid;
                 const div = document.createElement('div');
                 div.className = `chat-msg ${isMine ? 'msg-mine' : 'msg-theirs'}`;
-                
                 div.innerHTML = `
                     <div class="flex items-center gap-2 mb-1">
                         ${!isMine && m.senderPhoto ? `<img src="${m.senderPhoto}" class="w-3.5 h-3.5 rounded-full object-cover">` : ''}
@@ -813,13 +774,12 @@
                 `;
                 container.appendChild(div);
             });
-            // Scroll al fondo para ver los mensajes nuevos
             container.scrollTop = container.scrollHeight;
         }
 
         window.processLogout = () => signOut(auth).then(() => location.reload());
         window.cancelOrder = async () => { 
-            if (confirm("¿Estás seguro de cancelar el servicio VIP?")) { 
+            if (confirm("¿Confirmas la cancelación?")) { 
                 if(activeTrip) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled', cancelledBy: currentUser.uid });
                 location.reload(); 
             } 
@@ -879,6 +839,18 @@
                 }
             };
             calc(); etaInterval = setInterval(calc, 15000);
+        }
+
+        function updateMapRoute(dest) {
+            if (!window.mapLoaded) return;
+            window.directionsRenderer.setMap(window.gMap);
+            window.directionsRenderer.setOptions({ preserveViewport: false });
+            navigator.geolocation.getCurrentPosition((pos) => {
+                window.directionsService.route({
+                    origin: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+                    destination: dest, travelMode: google.maps.TravelMode.DRIVING
+                }, (res, status) => { if (status === "OK") window.directionsRenderer.setDirections(res); });
+            });
         }
 
         window.setRating = (stars) => {
