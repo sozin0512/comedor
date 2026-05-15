@@ -56,7 +56,7 @@
             width: 100%;
             background: white;
             padding: 20px 24px;
-            border-radius: 2rem 2rem 0 0;
+            border-radius: 2rem 2.5rem 0 0;
             box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
             z-index: 2000;
             display: none;
@@ -422,9 +422,9 @@
                         </button>
                     </div>
 
-                    <button onclick="window.cancelOrder()" class="w-full py-3 text-[10px] font-black text-red-500 uppercase tracking-widest border border-red-100 rounded-xl mb-4 hover:bg-red-50 active:scale-95 transition-all">Cancelar Servicio</button>
+                    <button onclick="window.cancelOrder()" class="w-full py-3 text-[10px] font-black text-red-500 uppercase tracking-widest border border-red-100 rounded-xl mb-4 hover:bg-red-50 active:scale-95 transition-all text-center">Cancelar Servicio</button>
 
-                    <div id="chat-section" class="collapsed border-t pt-4">
+                    <div id="chat-section" class="collapsed border-t pt-4 h-full overflow-y-auto">
                         <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-gray-50/50 rounded-xl"></div>
                         <div class="flex gap-2">
                             <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-xs">
@@ -486,7 +486,7 @@
         window.executeAuth = async () => {
             const email = document.getElementById('email-field').value;
             const pass = document.getElementById('pass-field').value;
-            if (!email || !pass) return;
+            if (!email || !pass) return alert("Ingresa tus credenciales.");
             try { await signInWithEmailAndPassword(auth, email, pass); }
             catch (err) { try { await createUserWithEmailAndPassword(auth, email, pass); } catch (e) { console.error(e); } }
         };
@@ -494,7 +494,7 @@
         window.saveProfile = async () => {
             const name = document.getElementById('full-name').value;
             const phone = document.getElementById('phone-number').value;
-            if (!name || !phone) return;
+            if (!name || !phone) return alert("Nombre y teléfono requeridos.");
             const data = {
                 uid: currentUser.uid, name, phone, role: userRole, photo: profilePhotoBase64 || null,
                 totalTrips: 0, ratingSum: 5, ratingCount: 1, setupComplete: true
@@ -524,19 +524,25 @@
                     document.getElementById('setup-screen').style.display = 'none';
                     document.getElementById('app-interface').style.display = 'flex';
                     document.getElementById('user-name-display').innerText = profile.name.toUpperCase();
-                    if (profile.role === 'driver') startDriverListener();
-                    else listenForNearbyDrivers();
+                    if (profile.role === 'driver') {
+                        document.getElementById('driver-view').classList.remove('hidden');
+                        document.getElementById('client-view').classList.add('hidden');
+                        startDriverListener();
+                    } else {
+                        document.getElementById('driver-view').classList.add('hidden');
+                        document.getElementById('client-view').classList.remove('hidden');
+                        listenForNearbyDrivers();
+                    }
                     listenToMyActiveTrip();
                 }
             }
         });
 
-        // --- GPS NAVEGACIÓN PROFESIONAL ---
         function updateNavigation(dest) {
             if (navigationInterval) clearInterval(navigationInterval);
             const render = () => {
                 if (!window.currentDriverPos || !window.mapLoaded) return;
-                window.directionsRenderer.setOptions({ preserveViewport: true }); // BLOQUEAR ZOOM MANUAL
+                window.directionsRenderer.setOptions({ preserveViewport: true });
                 window.directionsService.route({
                     origin: window.currentDriverPos, destination: dest, travelMode: google.maps.TravelMode.DRIVING
                 }, (res, status) => {
@@ -567,10 +573,9 @@
             navigationInterval = setInterval(render, 5000);
         }
 
-        // --- MAP LOGIC CLIENTE / SELECCION ---
         function updateMapRoute(dest) {
             if (!window.mapLoaded) return;
-            window.directionsRenderer.setOptions({ preserveViewport: false }); // VISTA TOTAL
+            window.directionsRenderer.setOptions({ preserveViewport: false });
             navigator.geolocation.getCurrentPosition((pos) => {
                 window.directionsService.route({
                     origin: { lat: pos.coords.latitude, lng: pos.coords.longitude },
@@ -583,7 +588,7 @@
             const dSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
             if (dSnap.exists() && window.mapLoaded) {
                 const dPos = dSnap.data();
-                window.directionsRenderer.setOptions({ preserveViewport: false }); // VISTA TOTAL
+                window.directionsRenderer.setOptions({ preserveViewport: false });
                 window.directionsService.route({
                     origin: { lat: dPos.lat, lng: dPos.lng },
                     destination: dest, travelMode: google.maps.TravelMode.DRIVING
@@ -591,17 +596,24 @@
             }
         }
 
-        // --- LISTENER DE VIAJES ---
         function startDriverListener() {
             if (!currentUser) return;
+            // ESCUCHADOR PRINCIPAL DE LA COLECCIÓN PARA EL CONDUCTOR
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
-                if (activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status)) return;
-                const container = document.getElementById('requests-list');
-                const pendingTrips = snap.docs.filter(d => d.data().status === 'pending');
-                if (pendingTrips.length === 0) {
-                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-bold text-[10px] uppercase">Buscando VIPs...</p></div>';
+                // Si el conductor tiene un viaje activo que no sea finalizado/cancelado, no muestra la lista de pendientes
+                if (activeTrip && (activeTrip.status === 'accepted' || activeTrip.status === 'in_progress')) {
+                    document.getElementById('requests-list').innerHTML = '';
                     return;
                 }
+
+                const container = document.getElementById('requests-list');
+                const pendingTrips = snap.docs.filter(d => d.data().status === 'pending');
+                
+                if (pendingTrips.length === 0) {
+                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-bold text-[10px] uppercase tracking-widest text-gray-400">Buscando pasajeros VIP...</p></div>';
+                    return;
+                }
+
                 container.innerHTML = '';
                 for (const d of pendingTrips) {
                     const t = d.data();
@@ -609,18 +621,26 @@
                     card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600 mb-3 animate-pulse-slow";
                     card.innerHTML = `<div class="flex justify-between items-start mb-2"><p class="text-[11px] font-black text-blue-600 uppercase client-name-${d.id}">Cargando...</p><span class="font-black text-sm">${t.price}</span></div><p class="text-[10px] text-gray-500 mb-4 line-clamp-2 uppercase font-medium"><b>Origen:</b> ${t.origin}</p><button onclick="window.acceptTrip('${d.id}')" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-[10px] shadow-lg uppercase tracking-widest active:scale-95 transition-all">ACEPTAR VIAJE VIP</button>`;
                     container.appendChild(card);
+                    
                     const cRef = await getDoc(doc(db, 'artifacts', appId, 'users', t.clientId, 'profile', 'data'));
-                    if (cRef.exists()) document.querySelector(`.client-name-${d.id}`).innerText = cRef.data().name.toUpperCase();
+                    if (cRef.exists()) {
+                        const nameEl = document.querySelector(`.client-name-${d.id}`);
+                        if (nameEl) nameEl.innerText = cRef.data().name.toUpperCase();
+                    }
                 }
+            }, (err) => {
+                document.getElementById('requests-list').innerHTML = `<div class="p-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-bold text-center uppercase tracking-widest">Error de permisos en Firebase</div>`;
             });
         }
 
         window.acceptTrip = async (id) => {
             const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { 
-                status: 'accepted', driverId: currentUser.uid, driverName: window.userProfile.name,
-                driverPhone: window.userProfile.phone, pin: randomPin, driverArrived: false
-            });
+            try {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { 
+                    status: 'accepted', driverId: currentUser.uid, driverName: window.userProfile.name,
+                    driverPhone: window.userProfile.phone, pin: randomPin, driverArrived: false
+                });
+            } catch(e) { alert("Error al aceptar viaje."); }
         };
 
         function listenToMyActiveTrip() {
@@ -638,6 +658,10 @@
 
                     if (data.status === 'accepted' || data.status === 'in_progress') {
                         document.getElementById('active-trip-panel').classList.remove('hidden');
+                        document.getElementById('client-view').classList.add('hidden');
+                        document.getElementById('driver-view').classList.add('hidden');
+                        document.getElementById('searching-state').classList.add('hidden');
+                        
                         document.getElementById('active-origin-text').innerText = data.origin;
                         document.getElementById('active-dest-text').innerText = data.destination;
                         document.getElementById('call-btn').href = `tel:${window.userProfile.role === 'client' ? data.driverPhone : data.clientPhone}`;
@@ -650,7 +674,7 @@
                             if (data.status === 'accepted' && !data.driverArrived) {
                                 document.getElementById('btn-driver-arrived').classList.remove('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
-                                updateNavigation(data.origin); // HACIA CLIENTE
+                                updateNavigation(data.origin);
                             } else if (data.driverArrived && data.status === 'accepted') {
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.remove('hidden');
@@ -661,7 +685,7 @@
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
                                 document.getElementById('finish-trip-btn').classList.remove('hidden');
-                                updateNavigation(data.destination); // HACIA DESTINO
+                                updateNavigation(data.destination);
                             }
                         } else {
                             document.getElementById('client-pin-display').classList.remove('hidden');
@@ -669,21 +693,26 @@
                             if (data.status === 'accepted') {
                                 document.getElementById('eta-indicator').classList.remove('hidden');
                                 updateETA(data.driverId, data.origin);
-                                updateMapRouteFromDriver(data.driverId, data.origin); // VER LLEGADA
+                                updateMapRouteFromDriver(data.driverId, data.origin);
                             } else { 
-                                document.getElementById('eta-indicator').classList.add('hidden');
-                                updateMapRoute(data.destination); // VER RUTA DESTINO
+                                document.getElementById('eta-indicator').classList.add('hidden'); 
+                                updateMapRoute(data.destination);
                             }
                         }
                     } else if (data.status === 'cancelled') {
-                        const wasDriver = data.cancelledBy === data.driverId;
+                        const wasDriverCancellation = data.cancelledBy === data.driverId;
                         alert("Servicio VIP Cancelado por la otra parte.");
                         deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id)).then(() => {
-                            if (window.userProfile.role === 'client' && wasDriver) window.sendTripRequest(); 
-                            else location.reload();
+                            if (window.userProfile.role === 'client' && wasDriverCancellation) {
+                                window.sendTripRequest(); 
+                            } else { location.reload(); }
                         });
+                        activeTrip = null;
+                    } else if (data.status === 'completed' && !data[`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]) {
+                        showRatingScreen();
                     }
                 } else {
+                    activeTrip = null;
                     document.getElementById('active-trip-panel').classList.add('hidden');
                     document.getElementById('nav-hud-top').style.display = 'none';
                     document.getElementById('nav-hud-bottom').style.display = 'none';
@@ -691,7 +720,12 @@
                     if (navigationInterval) clearInterval(navigationInterval);
                     if (window.gMap) { 
                         window.gMap.setMapTypeId('roadmap'); window.gMap.setTilt(0); 
-                        window.directionsRenderer.setDirections({routes: []}); // LIMPIAR RUTA
+                        window.directionsRenderer.setDirections({routes: []});
+                    }
+                    if (window.userProfile?.role === 'driver') {
+                        document.getElementById('driver-view').classList.remove('hidden');
+                    } else {
+                        document.getElementById('client-view').classList.remove('hidden');
                     }
                 }
             });
@@ -703,6 +737,7 @@
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'in_progress' });
             } else { alert("PIN Incorrecto"); }
         };
+        
         window.sendTripRequest = async () => {
             const origin = document.getElementById('origin-input').value;
             const dest = document.getElementById('destination-input').value;
@@ -739,7 +774,7 @@
 
         window.processLogout = () => signOut(auth).then(() => location.reload());
         window.cancelOrder = async () => { 
-            if (confirm("¿Estás seguro de cancelar?")) { 
+            if (confirm("¿Estás seguro de cancelar el servicio VIP?")) { 
                 if(activeTrip) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled', cancelledBy: currentUser.uid });
                 location.reload(); 
             } 
@@ -783,12 +818,30 @@
                 const dLoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
                 if (dLoc.exists()) {
                     new google.maps.DistanceMatrixService().getDistanceMatrix({ origins: [dLoc.data()], destinations: [origin], travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
-                        if (status === "OK") { document.getElementById('eta-text').innerText = res.rows[0].elements[0].duration.text; }
+                        if (status === "OK") { document.getElementById('eta-text').innerText = "Estimado: " + res.rows[0].elements[0].duration.text; }
                     });
                 }
             };
             calc(); etaInterval = setInterval(calc, 15000);
         }
+
+        window.setRating = (stars) => {
+            selectedStars = stars;
+            document.querySelectorAll('.star-btn').forEach(b => b.classList.toggle('text-amber-500', parseInt(b.dataset.index) <= stars));
+        };
+
+        window.submitRating = async () => {
+            if (selectedStars === 0) return alert("Califica con estrellas.");
+            const targetUserId = window.userProfile.role === 'client' ? activeTrip.driverId : activeTrip.clientId;
+            const tRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'profile', 'data');
+            const tSnap = await getDoc(tRef);
+            if (tSnap.exists()) {
+                const tData = tSnap.data();
+                await updateDoc(tRef, { ratingSum: (tData.ratingSum || 0) + selectedStars, ratingCount: (tData.ratingCount || 0) + 1, totalTrips: (tData.totalTrips || 0) + 1 });
+            }
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { [`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]: true });
+            location.reload();
+        };
 
     </script>
     <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places&callback=initMap"></script>
