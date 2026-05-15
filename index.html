@@ -54,7 +54,7 @@
                 left: 0;
                 width: 100%;
                 height: auto;
-                max-height: 550px;
+                max-height: 600px;
                 border-radius: 2.5rem 2.5rem 0 0;
                 border-top: 1px solid #e2e8f0;
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -75,6 +75,13 @@
         .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 4px; font-size: 13px; display: flex; flex-direction: column; }
         .msg-mine { background: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
         .msg-theirs { background: #f1f5f9; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 2px; }
+        
+        /* Efecto Retráctil del Chat */
+        #chat-body { transition: max-height 0.4s ease, opacity 0.3s ease; overflow: hidden; }
+        #chat-body.collapsed { max-height: 0; opacity: 0; margin-top: 0; }
+        #chat-toggle-icon { transition: transform 0.3s ease; }
+        #chat-toggle-icon.rotated { transform: rotate(180deg); }
+
         input { font-size: 16px !important; } 
     </style>
 
@@ -191,15 +198,23 @@
                 );
             }
         };
+
+        // Función para contraer/expandir el chat
+        window.toggleChat = function() {
+            const body = document.getElementById('chat-body');
+            const icon = document.getElementById('chat-toggle-icon');
+            body.classList.toggle('collapsed');
+            icon.classList.toggle('rotated');
+        };
     </script>
 </head>
 <body class="flex flex-col">
 
     <!-- PANTALLA DE CALIFICACIÓN -->
     <div id="rating-screen" class="rating-screen fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-sm text-center">
-            <h2 class="text-xl font-black mb-1">Viaje Finalizado</h2>
-            <p id="rating-title" class="text-gray-500 text-xs mb-6">¿Cómo calificarías el servicio?</p>
+        <div class="bg-white p-6 rounded-[2rem] shadow-2xl w-full max-w-sm text-center border border-white/20">
+            <h2 class="text-xl font-black mb-1 text-gray-900">Viaje Finalizado</h2>
+            <p id="rating-title" class="text-gray-500 text-xs mb-6 font-medium">¿Cómo calificarías el servicio VIP?</p>
             
             <div class="flex justify-center gap-3 mb-6 text-4xl text-gray-200">
                 <i onclick="window.setRating(1)" class="fas fa-star cursor-pointer star-btn" data-index="1"></i>
@@ -210,7 +225,7 @@
             </div>
             
             <div id="vehicle-rating-section" class="hidden border-t pt-4 mt-4">
-                <p class="text-[10px] font-bold text-gray-400 uppercase mb-3 tracking-widest text-center">Estado del vehículo</p>
+                <p class="text-[10px] font-black text-gray-400 uppercase mb-3 tracking-widest text-center">Estado del vehículo</p>
                 <div class="flex justify-center gap-3 text-3xl text-gray-200">
                     <i onclick="window.setVehicleRating(1)" class="fas fa-car cursor-pointer v-star-btn" data-index="1"></i>
                     <i onclick="window.setVehicleRating(2)" class="fas fa-car cursor-pointer v-star-btn" data-index="2"></i>
@@ -235,24 +250,24 @@
                 <p class="text-gray-400 font-medium text-sm text-center">VIP Comayagua</p>
             </div>
             <div class="flex bg-gray-100 p-1 rounded-2xl mb-6">
-                <button onclick="window.updateRole('client')" id="role-client" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600">PASAJERO</button>
-                <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400">CONDUCTOR</button>
+                <button onclick="window.updateRole('client')" id="role-client" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600 uppercase">Pasajero</button>
+                <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase">Conductor</button>
             </div>
             <div class="space-y-4">
-                <input id="email-field" type="email" placeholder="Correo electrónico" class="w-full px-5 py-4 rounded-2xl border bg-gray-50 outline-none">
-                <input id="pass-field" type="password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border bg-gray-50 outline-none">
-                <button onclick="window.executeAuth()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all">ACCEDER AHORA</button>
+                <input id="email-field" type="email" placeholder="Correo electrónico" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500">
+                <input id="pass-field" type="password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="window.executeAuth()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all">ACCEDER / REGISTRARSE</button>
             </div>
         </div>
     </div>
 
     <!-- SETUP SCREEN -->
     <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
-        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-lg">
+        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-lg border border-white/10">
             <h2 class="text-xl font-black text-gray-900 mb-6 text-center">Finaliza tu Registro</h2>
             <div class="space-y-4">
                 <div class="flex flex-col items-center mb-4">
-                    <div id="photo-preview" class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center border-4 border-white shadow-md overflow-hidden">
+                    <div id="photo-preview" class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center border-4 border-white shadow-md overflow-hidden relative">
                         <i class="fas fa-user text-2xl text-gray-300"></i>
                     </div>
                     <label class="mt-2 cursor-pointer text-blue-600 text-[10px] font-black uppercase">
@@ -261,15 +276,15 @@
                     </label>
                 </div>
                 <div class="grid grid-cols-1 gap-3">
-                    <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
-                    <input id="phone-number" type="tel" placeholder="Teléfono de contacto" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                    <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-4 py-3 rounded-xl border border-gray-100 bg-gray-50 outline-none">
+                    <input id="phone-number" type="tel" placeholder="Teléfono de contacto" class="w-full px-4 py-3 rounded-xl border border-gray-100 bg-gray-50 outline-none">
                 </div>
-                <div id="driver-fields" class="hidden space-y-3 pt-4 border-t">
-                    <input id="car-model" type="text" placeholder="Vehículo (Marca/Modelo/Año)" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
-                    <input id="car-plate" type="text" placeholder="Placa" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none uppercase">
-                    <input id="driver-license" type="text" placeholder="Número de Licencia" class="w-full px-4 py-3 rounded-xl border bg-gray-50 outline-none">
+                <div id="driver-fields" class="hidden space-y-3 pt-4 border-t border-gray-100">
+                    <input id="car-model" type="text" placeholder="Vehículo (Marca/Modelo/Año)" class="w-full px-4 py-3 rounded-xl border border-gray-100 bg-gray-50 outline-none">
+                    <input id="car-plate" type="text" placeholder="Placa" class="w-full px-4 py-3 rounded-xl border border-gray-100 bg-gray-50 outline-none uppercase font-bold">
+                    <input id="driver-license" type="text" placeholder="Número de Licencia" class="w-full px-4 py-3 rounded-xl border border-gray-100 bg-gray-50 outline-none">
                 </div>
-                <button onclick="window.saveProfile()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl mt-4">EMPEZAR</button>
+                <button onclick="window.saveProfile()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl mt-4 active:scale-95 transition-transform">GUARDAR Y EMPEZAR</button>
             </div>
         </div>
     </div>
@@ -279,17 +294,17 @@
         <header class="glass-panel border-b border-gray-100 px-4 py-3 flex justify-between items-center z-50">
             <div class="flex items-center gap-3">
                 <img id="user-avatar-img" src="" class="w-9 h-9 rounded-full object-cover border-2 border-white shadow-sm hidden">
-                <div class="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm" id="avatar-placeholder">C</div>
+                <div class="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm" id="avatar-placeholder">C</div>
                 <div class="flex flex-col">
                     <h2 class="font-black text-gray-900 text-sm leading-none truncate max-w-[120px]" id="user-name-display">USUARIO</h2>
                     <div class="flex items-center gap-1 mt-0.5">
                         <span id="user-rating-val" class="text-[10px] font-bold text-amber-500"><i class="fas fa-star"></i> 5.0</span>
                         <span class="text-gray-300">|</span>
-                        <span id="role-badge" class="text-[8px] font-bold text-blue-600 uppercase tracking-tighter">PASAJERO</span>
+                        <span id="role-badge" class="text-[8px] font-bold text-blue-600 uppercase tracking-tighter">VIP</span>
                     </div>
                 </div>
             </div>
-            <button onclick="window.processLogout()" class="w-10 h-10 rounded-xl bg-gray-50 text-gray-400 hover:text-red-500 transition-colors flex items-center justify-center">
+            <button onclick="window.processLogout()" class="w-10 h-10 rounded-xl bg-gray-50 text-gray-400 hover:text-red-500 transition-colors flex items-center justify-center shadow-sm">
                 <i class="fas fa-power-off"></i>
             </button>
         </header>
@@ -298,9 +313,9 @@
             <div id="map-container" class="flex-1 relative order-1 md:order-2">
                 <div id="map"></div>
                 <!-- INDICADOR ETA PARA CLIENTE -->
-                <div id="eta-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-lg border border-blue-50 z-40">
-                    <p class="text-[10px] font-black text-blue-600 uppercase text-center leading-tight">Conductor en camino</p>
-                    <p id="eta-text" class="text-xs font-bold text-gray-800 text-center">Calculando tiempo...</p>
+                <div id="eta-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-white px-5 py-2 rounded-full shadow-2xl border border-blue-100 z-40">
+                    <p class="text-[9px] font-black text-blue-600 uppercase text-center leading-tight tracking-wider">Tu VIP viene en camino</p>
+                    <p id="eta-text" class="text-xs font-bold text-gray-800 text-center">...</p>
                 </div>
             </div>
 
@@ -312,92 +327,100 @@
                         <h3 class="text-lg font-black text-gray-900 mb-4">¿A dónde vamos hoy?</h3>
                         <div class="space-y-3">
                             <div class="relative">
-                                <input id="origin-input" type="text" placeholder="Punto de recogida" class="w-full pl-5 pr-12 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-200 shadow-sm">
+                                <input id="origin-input" type="text" placeholder="¿Dónde te recogemos?" class="w-full pl-5 pr-12 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-blue-200 shadow-sm transition-all">
                                 <button onclick="window.useCurrentLocation()" id="btn-current-loc" class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center hover:bg-blue-100 rounded-xl transition-colors">
                                     <i class="fas fa-crosshairs text-blue-600 text-lg"></i>
                                 </button>
                             </div>
-                            <input id="destination-input" type="text" placeholder="Destino final" class="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-red-200 shadow-sm">
+                            <input id="destination-input" type="text" placeholder="¿A dónde quieres ir?" class="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none border border-transparent focus:border-red-200 shadow-sm transition-all">
                         </div>
                     </div>
 
-                    <div id="fare-card" class="mt-6 p-6 bg-blue-600 rounded-3xl text-white hidden shadow-xl">
+                    <div id="fare-card" class="mt-6 p-6 bg-blue-600 rounded-3xl text-white hidden shadow-2xl">
                         <div class="flex justify-between items-center mb-4">
-                            <span class="text-xl font-black" id="price-display">L. 0.00</span>
+                            <div>
+                                <p class="text-blue-100 text-[10px] font-bold uppercase tracking-widest">Precio Estimado</p>
+                                <span class="text-2xl font-black" id="price-display">L. 0.00</span>
+                            </div>
+                            <i class="fas fa-tags text-2xl opacity-50"></i>
                         </div>
-                        <button onclick="window.sendTripRequest()" class="w-full bg-white text-blue-700 font-black py-4 rounded-2xl active:scale-95 transition-transform">PEDIR VIP</button>
+                        <button onclick="window.sendTripRequest()" class="w-full bg-white text-blue-700 font-black py-4 rounded-2xl active:scale-95 transition-transform shadow-lg uppercase tracking-tighter">SOLICITAR AHORA</button>
                     </div>
 
                     <div id="searching-state" class="mt-8 text-center hidden">
-                        <div class="flex justify-center mb-4"><div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center searching-pulse"><i class="fas fa-satellite-dish text-blue-600 text-2xl"></i></div></div>
+                        <div class="flex justify-center mb-4"><div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center searching-pulse"><i class="fas fa-radar text-blue-600 text-2xl"></i></div></div>
                         <h4 class="font-black text-gray-800 text-sm">Esperando conductores...</h4>
-                        <button onclick="window.cancelOrder()" class="mt-6 text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline mx-auto block">Cancelar</button>
+                        <p class="text-gray-400 text-[10px] mt-1 px-4">Tu solicitud está visible para todas las unidades VIP en Comayagua.</p>
+                        <button onclick="window.cancelOrder()" class="mt-6 text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline mx-auto block">Cancelar búsqueda</button>
                     </div>
                 </div>
 
                 <!-- VISTA CONDUCTOR -->
                 <div id="driver-view" class="hidden flex-1 overflow-y-auto">
-                    <h3 class="text-lg font-black text-gray-900 mb-4">Viajes Pendientes</h3>
+                    <h3 class="text-lg font-black text-gray-900 mb-4">Viajes en Comayagua</h3>
                     <div id="requests-list" class="space-y-4 pb-4">
-                        <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase">Buscando pasajeros...</p></div>
+                        <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase tracking-widest">Buscando pasajeros...</p></div>
                     </div>
                 </div>
 
-                <!-- PANEL DE VIAJE ACTIVO (DIRECCIONES + CHAT + PIN) -->
+                <!-- PANEL DE VIAJE ACTIVO -->
                 <div id="active-trip-panel" class="hidden mt-auto border-t pt-4 bg-white">
-                    <!-- Resumen de Direcciones para ambos -->
-                    <div class="mb-4 p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                    <!-- Resumen de Direcciones (Visible para ambos) -->
+                    <div class="mb-4 p-3 bg-blue-50/50 rounded-2xl border border-blue-100 shadow-inner">
                          <div class="flex items-start gap-2 mb-2">
-                             <i class="fas fa-circle text-[8px] text-blue-500 mt-1.5"></i>
-                             <p class="text-[10px] text-gray-500 leading-tight"><b class="text-gray-800">Recogida:</b> <span id="active-origin-text">...</span></p>
+                             <div class="w-2 h-2 rounded-full bg-blue-600 mt-1.5 flex-shrink-0 border border-white"></div>
+                             <p class="text-[10px] text-gray-600 leading-tight"><b class="text-blue-900 uppercase font-black text-[9px] mr-1">Recogida:</b> <span id="active-origin-text">...</span></p>
                          </div>
                          <div class="flex items-start gap-2">
-                             <i class="fas fa-flag-checkered text-[8px] text-red-500 mt-1.5"></i>
-                             <p class="text-[10px] text-gray-500 leading-tight"><b class="text-gray-800">Destino:</b> <span id="active-dest-text">...</span></p>
+                             <div class="w-2 h-2 bg-red-600 mt-1.5 flex-shrink-0 border border-white"></div>
+                             <p class="text-[10px] text-gray-600 leading-tight"><b class="text-red-900 uppercase font-black text-[9px] mr-1">Destino:</b> <span id="active-dest-text">...</span></p>
                          </div>
                     </div>
 
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-2">
-                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xs">
-                                <i class="fas fa-comment"></i>
-                            </div>
-                            <span class="font-bold text-xs">Chat y Seguridad</span>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="window.cancelOrder()" class="text-[8px] font-black bg-gray-100 text-gray-500 px-3 py-2 rounded-full uppercase">Cancelar</button>
-                            <button id="finish-trip-btn" class="hidden text-[8px] font-black bg-red-600 text-white px-4 py-2 rounded-full uppercase shadow-sm">Finalizar</button>
-                        </div>
+                    <!-- Botones de Acción Rápida -->
+                    <div class="flex gap-2 mb-3">
+                        <a id="call-btn" href="#" class="flex-1 bg-green-600 text-white py-2.5 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform">
+                            <i class="fas fa-phone-alt"></i> LLAMAR AHORA
+                        </a>
+                        <button onclick="window.cancelOrder()" class="bg-gray-100 text-gray-500 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-red-50 hover:text-red-500 transition-colors shadow-sm">Cancelar</button>
                     </div>
                     
                     <!-- AREA DE PIN / ESTADOS -->
                     <div id="pin-area" class="mb-3">
-                        <!-- Conductor: Botón de llegada e input PIN -->
                         <div id="driver-pin-controls" class="hidden space-y-2">
-                            <button id="btn-driver-arrived" onclick="window.markArrival()" class="w-full bg-blue-600 text-white py-3 rounded-xl text-xs font-black uppercase">¡HE LLEGADO!</button>
+                            <button id="btn-driver-arrived" onclick="window.markArrival()" class="w-full bg-blue-600 text-white py-3 rounded-xl text-[11px] font-black uppercase shadow-lg shadow-blue-100">¡YA ESTOY EN EL PUNTO!</button>
                             <div id="pin-input-group" class="hidden flex gap-2">
-                                <input id="driver-pin-input" type="number" placeholder="Ingresa el PIN del cliente" class="flex-1 px-4 py-3 bg-white border border-blue-200 rounded-xl outline-none text-center font-black tracking-widest">
-                                <button onclick="window.verifyPin()" class="bg-green-500 text-white px-4 rounded-xl font-bold text-xs uppercase shadow-md">Iniciar</button>
+                                <input id="driver-pin-input" type="number" placeholder="Ingresa PIN del cliente" class="flex-1 px-4 py-3 bg-white border-2 border-blue-100 rounded-xl outline-none text-center font-black tracking-[1em] text-lg">
+                                <button onclick="window.verifyPin()" class="bg-blue-600 text-white px-5 rounded-xl font-black text-[10px] uppercase shadow-md active:scale-95 transition-transform">Iniciar</button>
+                            </div>
+                            <button id="finish-trip-btn" class="hidden w-full bg-red-600 text-white py-3 rounded-xl text-[11px] font-black uppercase shadow-lg shadow-red-100">TERMINAR VIAJE VIP</button>
+                        </div>
+                        <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-2xl text-center shadow-inner">
+                            <p class="text-[9px] font-black text-amber-600 uppercase mb-1 tracking-wider">Tu PIN de Seguridad</p>
+                            <p id="client-pin-code" class="text-3xl font-black text-amber-900 tracking-[0.4em]">----</p>
+                            <p class="text-[8px] text-amber-500 mt-1 uppercase font-bold">Entrégalo al subir al vehículo</p>
+                        </div>
+                    </div>
+
+                    <!-- CHAT RETRÁCTIL -->
+                    <div class="border border-gray-100 rounded-2xl overflow-hidden bg-gray-50/30">
+                        <div onclick="window.toggleChat()" class="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-100/50 transition-colors">
+                            <div class="flex items-center gap-2">
+                                <div class="w-7 h-7 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-[10px]">
+                                    <i class="fas fa-comments"></i>
+                                </div>
+                                <span class="font-black text-[10px] text-gray-800 uppercase tracking-tighter">Chat de Coordinación</span>
+                            </div>
+                            <i id="chat-toggle-icon" class="fas fa-chevron-up text-gray-400 text-xs"></i>
+                        </div>
+                        
+                        <div id="chat-body" class="p-3 bg-white border-t border-gray-100">
+                            <div id="chat-messages" class="h-32 overflow-y-auto mb-3 flex flex-col p-1"></div>
+                            <div class="flex gap-2">
+                                <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-gray-50 rounded-xl outline-none text-xs border border-transparent focus:border-blue-100">
+                                <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform"><i class="fas fa-paper-plane text-sm"></i></button>
                             </div>
                         </div>
-                        <!-- Cliente: Muestra el PIN -->
-                        <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-xl text-center">
-                            <p class="text-[10px] font-black text-amber-600 uppercase mb-1">Tu PIN de seguridad</p>
-                            <p id="client-pin-code" class="text-2xl font-black text-amber-800 tracking-[0.5em]">----</p>
-                            <p class="text-[8px] text-amber-500 mt-1 uppercase font-bold italic">No compartas el PIN hasta subir al vehículo</p>
-                        </div>
-                    </div>
-
-                    <div class="flex gap-2 mb-3">
-                        <a id="call-btn" href="#" class="flex-1 bg-green-500 text-white py-2 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm">
-                            <i class="fas fa-phone"></i> LLAMAR
-                        </a>
-                    </div>
-
-                    <div id="chat-messages" class="h-32 overflow-y-auto mb-3 flex flex-col p-2 bg-gray-50 rounded-2xl"></div>
-                    <div class="flex gap-2">
-                        <input id="chat-input" type="text" placeholder="Mensaje..." class="flex-1 px-4 py-3 bg-white border rounded-xl outline-none text-sm">
-                        <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-12 h-12 rounded-xl flex items-center justify-center"><i class="fas fa-paper-plane"></i></button>
                     </div>
                 </div>
             </div>
@@ -434,8 +457,8 @@
 
         window.updateRole = (role) => {
             userRole = role;
-            document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('bg-white', 'text-blue-600'));
-            document.getElementById(`role-${role}`).classList.add('bg-white', 'text-blue-600');
+            document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('bg-white', 'text-blue-600', 'shadow-sm'));
+            document.getElementById(`role-${role}`).classList.add('bg-white', 'text-blue-600', 'shadow-sm');
             document.getElementById('driver-fields').classList.toggle('hidden', role !== 'driver');
             document.getElementById('photo-req-label').classList.toggle('hidden', role !== 'driver');
         };
@@ -454,7 +477,7 @@
         window.executeAuth = async () => {
             const email = document.getElementById('email-field').value;
             const pass = document.getElementById('pass-field').value;
-            if (!email || !pass) return alert("Ingresa tus credenciales.");
+            if (!email || !pass) return alert("Completa tus credenciales.");
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
             } catch (err) {
@@ -466,8 +489,8 @@
         window.saveProfile = async () => {
             const name = document.getElementById('full-name').value;
             const phone = document.getElementById('phone-number').value;
-            if (!name || !phone) return alert("Completa los datos.");
-            if (userRole === 'driver' && !profilePhotoBase64) return alert("Foto obligatoria para conductores.");
+            if (!name || !phone) return alert("Nombre y teléfono son obligatorios.");
+            if (userRole === 'driver' && !profilePhotoBase64) return alert("La foto es obligatoria para conductores.");
 
             const data = {
                 uid: currentUser.uid,
@@ -502,9 +525,9 @@
                     document.getElementById('login-screen').style.display = 'none';
                     document.getElementById('setup-screen').style.display = 'none';
                     document.getElementById('app-interface').style.display = 'flex';
-                    document.getElementById('user-name-display').innerText = profile.name;
+                    document.getElementById('user-name-display').innerText = profile.name.toUpperCase();
                     document.getElementById('role-badge').innerText = profile.role === 'client' ? 'PASAJERO' : 'CONDUCTOR VIP';
-                    document.getElementById('user-rating-val').innerHTML = `<i class="fas fa-star"></i> ${(profile.ratingSum / profile.ratingCount).toFixed(1)}`;
+                    document.getElementById('user-rating-val').innerHTML = `<i class="fas fa-star"></i> ${(profile.ratingSum / profile.ratingCount || 5).toFixed(1)}`;
                     
                     if (profile.photo) {
                         document.getElementById('user-avatar-img').src = profile.photo;
@@ -515,7 +538,6 @@
                     if (profile.role === 'driver') {
                         document.getElementById('client-view').classList.add('hidden');
                         document.getElementById('driver-view').classList.remove('hidden');
-                        document.getElementById('finish-trip-btn').classList.remove('hidden');
                         startDriverListener();
                     } else {
                         document.getElementById('client-view').classList.remove('hidden');
@@ -526,7 +548,7 @@
             }
         });
 
-        // --- LOGICA DE RUTAS ---
+        // --- RUTAS Y MAPAS ---
         window.addEventListener('map-route-trigger', () => {
             const origin = document.getElementById('origin-input').value;
             const dest = document.getElementById('destination-input').value;
@@ -561,26 +583,26 @@
                         updatedAt: Date.now()
                     });
                 }
-            });
+            }, null, { enableHighAccuracy: true });
         }
 
-        // --- TRIPS ---
+        // --- LISTENER DE VIAJES PARA CONDUCTORES ---
         function startDriverListener() {
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
                 const container = document.getElementById('requests-list');
                 const pendingTrips = snap.docs.filter(d => d.data().status === 'pending');
                 if (pendingTrips.length === 0) {
-                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase">Buscando pasajeros...</p></div>';
+                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-black text-[10px] uppercase tracking-widest text-gray-400">Buscando pasajeros VIP...</p></div>';
                     return;
                 }
                 container.innerHTML = '';
                 for (const d of pendingTrips) {
                     const t = d.data();
                     const card = document.createElement('div');
-                    card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600 transition-all";
+                    card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600";
                     card.innerHTML = `
                         <div class="flex justify-between items-start mb-3">
-                            <div><p class="text-[10px] font-black text-blue-600 uppercase mb-0.5 client-name-slot">Cargando...</p>
+                            <div><p class="text-[10px] font-black text-blue-600 uppercase client-name-slot">Cargando...</p>
                                 <div class="flex gap-2 text-[9px] font-bold text-gray-400 client-rating-slot"><span><i class="fas fa-spinner fa-spin"></i></span></div>
                             </div><span class="font-black text-sm">${t.price}</span>
                         </div>
@@ -630,7 +652,7 @@
                 pin: randomPin,
                 driverArrived: false
             });
-            alert("¡Viaje aceptado! Dirígete al cliente.");
+            alert("¡Viaje aceptado! Recoge al cliente.");
         };
 
         function listenToMyActiveTrip() {
@@ -649,17 +671,14 @@
                         document.getElementById('searching-state').classList.add('hidden');
                         document.getElementById('active-trip-panel').classList.remove('hidden');
                         
-                        // Direcciones en panel
                         document.getElementById('active-origin-text').innerText = data.origin;
                         document.getElementById('active-dest-text').innerText = data.destination;
 
-                        // Configurar botones de llamada
                         const otherPhone = (window.userProfile.role === 'client') ? data.driverPhone : data.clientPhone;
                         document.getElementById('call-btn').href = `tel:${otherPhone}`;
                         
                         renderChat(data.chat);
 
-                        // Lógica de Conductor
                         if (window.userProfile.role === 'driver') {
                             document.getElementById('driver-pin-controls').classList.remove('hidden');
                             document.getElementById('client-pin-display').classList.add('hidden');
@@ -667,18 +686,19 @@
                             if (data.status === 'accepted' && !data.driverArrived) {
                                 document.getElementById('btn-driver-arrived').classList.remove('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
-                                updateMapRoute(data.origin); // Ruta hacia el cliente
+                                document.getElementById('finish-trip-btn').classList.add('hidden');
+                                updateMapRoute(data.origin); // Ir a recoger
                             } else if (data.driverArrived && data.status === 'accepted') {
                                 document.getElementById('btn-driver-arrived').classList.add('hidden');
                                 document.getElementById('pin-input-group').classList.remove('hidden');
+                                document.getElementById('finish-trip-btn').classList.add('hidden');
                             } else if (data.status === 'in_progress') {
-                                document.getElementById('driver-pin-controls').classList.add('hidden');
+                                document.getElementById('btn-driver-arrived').classList.add('hidden');
+                                document.getElementById('pin-input-group').classList.add('hidden');
                                 document.getElementById('finish-trip-btn').classList.remove('hidden');
-                                updateMapRoute(data.destination); // Ruta hacia el destino final
+                                updateMapRoute(data.destination); // Ir al destino
                             }
-                        } 
-                        // Lógica de Cliente
-                        else {
+                        } else {
                             document.getElementById('driver-pin-controls').classList.add('hidden');
                             document.getElementById('client-pin-display').classList.remove('hidden');
                             document.getElementById('client-pin-code').innerText = data.pin;
@@ -686,19 +706,19 @@
                             if (data.status === 'accepted') {
                                 document.getElementById('eta-indicator').classList.remove('hidden');
                                 updateETA(data.driverId, data.origin);
-                                updateMapRouteFromDriver(data.driverId, data.origin); // Ver ruta del conductor llegando
+                                updateMapRouteFromDriver(data.driverId, data.origin); 
                             } else {
                                 document.getElementById('eta-indicator').classList.add('hidden');
-                                updateMapRoute(data.destination); // Ver mi ruta al destino
+                                updateMapRoute(data.destination); 
                             }
                         }
                     } else if (data.status === 'completed' && !data[`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]) {
                         showRatingScreen();
                     } else if (data.status === 'cancelled') {
-                        alert("Viaje Cancelado por la otra parte.");
+                        alert("El servicio fue cancelado.");
                         deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id)).then(() => {
                             if (window.userProfile.role === 'client') {
-                                alert("Buscando otro conductor automáticamente...");
+                                alert("Buscando un nuevo conductor VIP...");
                                 window.sendTripRequest(); 
                             } else { location.reload(); }
                         });
@@ -706,11 +726,12 @@
                 } else {
                     document.getElementById('active-trip-panel').classList.add('hidden');
                     document.getElementById('eta-indicator').classList.add('hidden');
+                    if (etaInterval) clearInterval(etaInterval);
                 }
             });
         }
 
-        // --- MAP LOGIC ---
+        // --- LOGICA DE MAPA PARA RECOGIDA Y VIAJE ---
         function updateMapRoute(dest) {
             if (!window.mapLoaded) return;
             navigator.geolocation.getCurrentPosition((pos) => {
@@ -721,7 +742,7 @@
                 }, (res, status) => {
                     if (status === "OK") window.directionsRenderer.setDirections(res);
                 });
-            });
+            }, null, { enableHighAccuracy: true });
         }
 
         async function updateMapRouteFromDriver(driverId, dest) {
@@ -738,23 +759,20 @@
             }
         }
 
-        // --- PIN LOGIC ---
+        // --- PIN Y LLEGADA ---
         window.markArrival = async () => {
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { driverArrived: true });
-            alert("Has llegado. Solicita el PIN al cliente.");
         };
 
         window.verifyPin = async () => {
             const inputPin = document.getElementById('driver-pin-input').value;
             if (inputPin === activeTrip.pin) {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'in_progress' });
-                alert("PIN Correcto. Iniciando viaje...");
-            } else {
-                alert("PIN Incorrecto. Verifica con el cliente.");
-            }
+                alert("¡VIP INICIADO! Sigue la ruta al destino.");
+            } else { alert("PIN incorrecto."); }
         };
 
-        // --- ETA LOGIC ---
+        // --- ETA ---
         function updateETA(driverId, origin) {
             if (etaInterval) clearInterval(etaInterval);
             const calculate = async () => {
@@ -778,7 +796,7 @@
             etaInterval = setInterval(calculate, 15000);
         }
 
-        // --- CHAT ---
+        // --- CHAT LOGIC ---
         window.sendChatMessage = async () => {
             const input = document.getElementById('chat-input');
             const text = input.value;
@@ -804,9 +822,9 @@
                 const div = document.createElement('div');
                 div.className = `chat-msg ${isMine ? 'msg-mine' : 'msg-theirs'}`;
                 div.innerHTML = `
-                    <div class="flex items-center gap-2 mb-1">
-                        ${!isMine && m.senderPhoto ? `<img src="${m.senderPhoto}" class="w-3 h-3 rounded-full">` : ''}
-                        <span class="text-[8px] font-black uppercase opacity-70">${isMine ? 'Tú' : m.senderName}</span>
+                    <div class="flex items-center gap-1.5 mb-0.5">
+                        ${!isMine && m.senderPhoto ? `<img src="${m.senderPhoto}" class="w-3 h-3 rounded-full object-cover">` : ''}
+                        <span class="text-[7px] font-black uppercase opacity-60">${isMine ? 'Tú' : m.senderName}</span>
                     </div>
                     <p class="leading-tight">${m.text}</p>
                 `;
@@ -835,7 +853,7 @@
         };
 
         window.submitRating = async () => {
-            if (selectedStars === 0) return alert("Elige estrellas.");
+            if (selectedStars === 0) return alert("Por favor califica con estrellas.");
             const isClient = window.userProfile.role === 'client';
             const targetUserId = isClient ? activeTrip.driverId : activeTrip.clientId;
             const tRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'profile', 'data');
@@ -862,7 +880,9 @@
                     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id));
                     location.reload();
                 } else {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled' });
+                    if(confirm("¿Estás seguro de cancelar el viaje?")) {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled' });
+                    }
                 }
             } else { location.reload(); }
         };
