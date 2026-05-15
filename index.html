@@ -52,6 +52,24 @@
         
         #app-interface, #setup-screen, #rating-screen { display: none; }
         
+        /* FIX: Resultados de Google Maps por encima de todo */
+        .pac-container {
+            z-index: 10000 !important;
+            border-radius: 1rem;
+            border: none !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
+            margin-top: 5px !important;
+            font-family: 'Inter', sans-serif;
+        }
+        .pac-item {
+            padding: 12px 15px !important;
+            cursor: pointer;
+            font-size: 14px !important;
+            display: flex;
+            align-items: center;
+        }
+        .pac-item:hover { background-color: #f1f5f9 !important; }
+
         /* Ajuste de paneles para móviles */
         @media (max-width: 768px) {
             #control-panel {
@@ -59,13 +77,18 @@
                 bottom: 0;
                 left: 0;
                 width: 100%;
-                max-height: 70%;
+                max-height: 85%; /* Aumentado para ver más resultados */
                 border-radius: 2rem 2rem 0 0;
                 border-right: none;
                 border-top: 1px solid #e2e8f0;
+                transition: transform 0.3s ease;
+            }
+            /* Cuando el teclado se activa, subimos un poco más el panel o permitimos scroll */
+            #control-panel:focus-within {
+                max-height: 90%;
             }
             #map-container {
-                height: 40%;
+                height: 35%;
             }
         }
 
@@ -73,7 +96,8 @@
         .msg-mine { background: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
         .msg-theirs { background: #f1f5f9; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 4px; }
         
-        input, button { font-size: 16px !important; } /* Evita zoom automático en iOS al enfocar */
+        /* Evita zoom automático en móviles al enfocar inputs */
+        input { font-size: 16px !important; } 
     </style>
 
     <script>
@@ -98,7 +122,7 @@
                     center: comayaguaCoords,
                     zoom: 15,
                     disableDefaultUI: true,
-                    zoomControl: false, // Mejor control manual en móviles
+                    zoomControl: false,
                     styles: [
                         { "featureType": "poi", "stylers": [{ "visibility": "off" }] },
                         { "featureType": "transit", "stylers": [{ "visibility": "off" }] }
