@@ -117,7 +117,7 @@
             body.is-navigating #control-panel, body.is-navigating #app-header { display: none !important; }
         }
 
-        .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 4px; font-size: 13px; display: flex; flex-direction: column; }
+        .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 8px; font-size: 13px; display: flex; flex-direction: column; }
         .msg-mine { background: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
         .msg-theirs { background: #f1f5f9; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 2px; }
         
@@ -231,11 +231,10 @@
             chat.classList.toggle('collapsed');
         };
 
-        // Función manual para trazar ruta desde el link
         window.manualRouteRefresh = () => {
-            if (activeTrip) {
-                const target = activeTrip.status === 'accepted' && !activeTrip.driverArrived ? activeTrip.origin : activeTrip.destination;
-                updateNavigation(target);
+            if (window.currentActiveTripData) {
+                const target = window.currentActiveTripData.status === 'accepted' && !window.currentActiveTripData.driverArrived ? window.currentActiveTripData.origin : window.currentActiveTripData.destination;
+                window.updateNavigation(target);
             }
         };
     </script>
@@ -258,7 +257,7 @@
         </div>
     </div>
 
-    <!-- HUD NAVEGACIÓN TOP (SOLO CONDUCTOR EN RUTA) -->
+    <!-- HUD NAVEGACIÓN TOP -->
     <div id="nav-hud-top">
         <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
             <i class="fas fa-location-arrow text-2xl text-white" id="nav-step-icon"></i>
@@ -282,7 +281,7 @@
                     <span id="nav-total-dist">-- km</span> • <span id="nav-total-eta">--:-- p.m.</span>
                 </div>
             </div>
-            <button onclick="window.cancelOrder()" class="px-8 py-3 rounded-full bg-red-600 text-white font-black text-sm uppercase shadow-lg active:scale-95 transition-all">Salir</button>
+            <button onclick="window.cancelOrder()" class="px-8 py-3 rounded-full bg-red-600 text-white font-black text-sm uppercase shadow-lg">Salir</button>
         </div>
     </div>
 
@@ -312,7 +311,7 @@
 
     <!-- SETUP PERFIL -->
     <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
-        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-white/10">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-white/10">
             <h2 class="text-xl font-black mb-6 text-center text-gray-900">Finaliza tu Perfil</h2>
             <div class="space-y-4">
                 <div class="flex flex-col items-center mb-4">
@@ -381,9 +380,9 @@
 
                 <!-- CONDUCTOR (LISTA DE VIAJES) -->
                 <div id="driver-view" class="hidden flex-1">
-                    <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter uppercase text-center md:text-left">Viajes Disponibles</h3>
+                    <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter uppercase text-center md:text-left font-black">Viajes Disponibles</h3>
                     <div id="requests-list" class="space-y-4 pb-4">
-                        <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase tracking-widest text-gray-400">Escaneando ciudad...</p></div>
+                        <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>
                     </div>
                 </div>
 
@@ -444,7 +443,7 @@
 
                     <div id="chat-section" class="collapsed border-t pt-4 h-full overflow-y-auto">
                         <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-gray-50/50 rounded-xl"></div>
-                        <div class="flex gap-2">
+                        <div class="flex gap-2 pb-10">
                             <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-xs">
                             <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform"><i class="fas fa-paper-plane text-sm"></i></button>
                         </div>
@@ -481,6 +480,7 @@
         let selectedStars = 0;
         let etaInterval = null;
         let navigationInterval = null;
+        let tripListenerUnsubscribe = null;
 
         window.updateRole = (role) => {
             userRole = role;
@@ -653,7 +653,7 @@
                     }
                 }
             }, (err) => {
-                document.getElementById('requests-list').innerHTML = `<div class="p-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-bold text-center uppercase tracking-widest">Error de permisos en Firebase</div>`;
+                document.getElementById('requests-list').innerHTML = `<div class="p-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-bold text-center uppercase tracking-widest text-center">Error de permisos en Firebase</div>`;
             });
         }
 
@@ -662,6 +662,7 @@
             try {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { 
                     status: 'accepted', driverId: currentUser.uid, driverName: window.userProfile.name,
+                    driverPhoto: window.userProfile.photo || null,
                     driverPhone: window.userProfile.phone, pin: randomPin, driverArrived: false
                 });
             } catch(e) { alert("Error al aceptar viaje."); }
@@ -679,6 +680,7 @@
                 if (trip) {
                     const data = trip.data();
                     activeTrip = { id: trip.id, ...data };
+                    window.currentActiveTripData = data;
 
                     if (data.status === 'accepted' || data.status === 'in_progress') {
                         document.getElementById('active-trip-panel').classList.remove('hidden');
@@ -689,6 +691,8 @@
                         document.getElementById('active-origin-text').innerText = data.origin;
                         document.getElementById('active-dest-text').innerText = data.destination;
                         document.getElementById('call-btn').href = `tel:${window.userProfile.role === 'client' ? data.driverPhone : data.clientPhone}`;
+                        
+                        // RENDERIZADO DEL CHAT EN TIEMPO REAL
                         renderChat(data.chat);
 
                         if (window.userProfile.role === 'driver') {
@@ -765,9 +769,11 @@
         window.sendTripRequest = async () => {
             const origin = document.getElementById('origin-input').value;
             const dest = document.getElementById('destination-input').value;
-            if(!origin || !dest) return alert("Define origen y destino.");
+            if(!origin || !dest) return alert("Define ruta.");
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
-                clientId: currentUser.uid, clientName: window.userProfile.name, clientPhone: window.userProfile.phone,
+                clientId: currentUser.uid, clientName: window.userProfile.name,
+                clientPhoto: window.userProfile.photo || null,
+                clientPhone: window.userProfile.phone,
                 origin, destination: dest, price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
             });
             document.getElementById('searching-state').classList.remove('hidden');
@@ -778,7 +784,13 @@
             const text = document.getElementById('chat-input').value;
             if (!text || !activeTrip) return;
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), {
-                chat: arrayUnion({ sender: currentUser.uid, senderName: window.userProfile.name, text, time: Date.now() })
+                chat: arrayUnion({ 
+                    sender: currentUser.uid, 
+                    senderName: window.userProfile.name, 
+                    senderPhoto: window.userProfile.photo || null,
+                    text, 
+                    time: Date.now() 
+                })
             });
             document.getElementById('chat-input').value = "";
         };
@@ -788,11 +800,20 @@
             container.innerHTML = "";
             if (!messages) return;
             messages.forEach(m => {
+                const isMine = m.sender === currentUser.uid;
                 const div = document.createElement('div');
-                div.className = `chat-msg ${m.sender === currentUser.uid ? 'msg-mine' : 'msg-theirs'}`;
-                div.innerHTML = `<p class="leading-tight">${m.text}</p>`;
+                div.className = `chat-msg ${isMine ? 'msg-mine' : 'msg-theirs'}`;
+                
+                div.innerHTML = `
+                    <div class="flex items-center gap-2 mb-1">
+                        ${!isMine && m.senderPhoto ? `<img src="${m.senderPhoto}" class="w-3.5 h-3.5 rounded-full object-cover">` : ''}
+                        <span class="text-[8px] font-black uppercase opacity-60">${isMine ? 'Tú' : m.senderName}</span>
+                    </div>
+                    <p class="leading-tight">${m.text}</p>
+                `;
                 container.appendChild(div);
             });
+            // Scroll al fondo para ver los mensajes nuevos
             container.scrollTop = container.scrollHeight;
         }
 
