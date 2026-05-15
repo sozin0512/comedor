@@ -56,7 +56,7 @@
             width: 100%;
             background: white;
             padding: 20px 24px;
-            border-radius: 2rem 2.5rem 0 0;
+            border-radius: 2rem 2rem 0 0;
             box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
             z-index: 2000;
             display: none;
@@ -79,13 +79,14 @@
             border: 1px solid #f1f5f9;
         }
 
-        #fab-center { bottom: 180px; left: 15px; width: auto; border-radius: 30px; padding: 0 20px; font-weight: 800; font-size: 12px; gap: 8px; color: #2563eb; }
+        #fab-center { bottom: 210px; left: 15px; width: auto; border-radius: 30px; padding: 0 20px; font-weight: 800; font-size: 12px; gap: 8px; color: #2563eb; }
 
-        /* Estilos de Chat y Otros */
-        #chat-body { transition: max-height 0.4s ease, opacity 0.3s ease; overflow: hidden; }
-        #chat-body.collapsed { max-height: 0; opacity: 0; }
-        #chat-toggle-icon { transition: transform 0.3s ease; }
-        #chat-toggle-icon.rotated { transform: rotate(180deg); }
+        /* Estilos de Chat y Paneles Desplegables */
+        .collapsible-panel { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        .panel-collapsed { transform: translateY(calc(100% - 60px)); }
+        
+        #chat-section { transition: max-height 0.4s ease, opacity 0.3s ease; overflow: hidden; }
+        #chat-section.collapsed { max-height: 0; opacity: 0; padding: 0; }
 
         .pac-container { z-index: 100000 !important; border-radius: 1rem !important; border: none !important; }
         
@@ -105,21 +106,23 @@
                 left: 0;
                 width: 100%;
                 height: auto;
-                max-height: 550px;
+                max-height: 85dvh;
                 border-radius: 2.5rem 2.5rem 0 0;
                 border-top: 1px solid #e2e8f0;
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                z-index: 50;
+                z-index: 100;
+                overflow: hidden;
             }
             body.is-searching #control-panel { bottom: auto; top: 0; max-height: 100dvh; border-radius: 0; padding-top: 20px; }
             body.is-searching #map-container { opacity: 0.05; pointer-events: none; }
             #map-container { height: 100%; transition: opacity 0.3s ease; }
-            body.is-navigating #control-panel, body.is-navigating #app-header { display: none !important; }
+            body.is-navigating #app-header { display: none !important; }
         }
 
-        .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 4px; font-size: 13px; }
+        .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 4px; font-size: 13px; display: flex; flex-direction: column; }
         .msg-mine { background: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
         .msg-theirs { background: #f1f5f9; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 2px; }
+        
+        input { font-size: 16px !important; } 
     </style>
 
     <script>
@@ -178,62 +181,51 @@
             } catch (error) { console.error("Error cargando el mapa:", error); }
         };
 
-        window.updateDriverMarker = (driverId, lat, lng, isSelf) => {
+        window.updateDriverMarker = (driverId, lat, lng, isSelf, heading = 0) => {
             if (!window.mapLoaded) return;
             const pos = { lat, lng };
             if (isSelf) window.currentDriverPos = pos;
+            
             if (window.driverMarkers[driverId]) {
                 window.driverMarkers[driverId].setPosition(pos);
+                if (isSelf) {
+                    const icon = window.driverMarkers[driverId].getIcon();
+                    icon.rotation = heading; // Rotar flecha azul
+                    window.driverMarkers[driverId].setIcon(icon);
+                }
             } else {
                 window.driverMarkers[driverId] = new google.maps.Marker({
                     position: pos,
                     map: window.gMap,
-                    icon: {
-                        path: isSelf ? google.maps.SymbolPath.FORWARD_CLOSED_ARROW : "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z",
-                        fillColor: isSelf ? "#2563eb" : "#475569",
+                    icon: isSelf ? {
+                        path: "M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z", // Triángulo de navegación Google
+                        fillColor: "#3b82f6",
                         fillOpacity: 1,
                         strokeWeight: 2,
                         strokeColor: "#ffffff",
-                        scale: isSelf ? 6 : 1.2
+                        scale: 1.5,
+                        rotation: heading,
+                        anchor: new google.maps.Point(12, 12)
+                    } : {
+                        path: "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z",
+                        fillColor: "#475569",
+                        fillOpacity: 1,
+                        strokeWeight: 2,
+                        strokeColor: "#ffffff",
+                        scale: 1.2
                     }
                 });
             }
         };
 
-        window.useCurrentLocation = function() {
-            if (navigator.geolocation) {
-                const btn = document.getElementById('btn-current-loc');
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin text-blue-600"></i>';
-                navigator.geolocation.getCurrentPosition((position) => {
-                    const pos = { lat: position.coords.latitude, lng: position.coords.longitude };
-                    window.geocoder.geocode({ location: pos }, (results, status) => {
-                        if (status === "OK" && results[0]) {
-                            document.getElementById('origin-input').value = results[0].formatted_address;
-                            window.gMap.setCenter(pos);
-                            window.gMap.setZoom(17);
-                            window.dispatchEvent(new CustomEvent('map-route-trigger'));
-                        }
-                        btn.innerHTML = '<i class="fas fa-crosshairs"></i>';
-                    });
-                }, () => { btn.innerHTML = '<i class="fas fa-crosshairs"></i>'; });
-            }
-        };
-
-        window.centerMap = () => {
-            window.autoCenter = true;
-            document.getElementById('fab-center').classList.add('hidden');
-            if(window.currentDriverPos) {
-                window.gMap.panTo(window.currentDriverPos);
-                window.gMap.setZoom(18);
-                window.gMap.setTilt(45);
-            }
+        window.toggleActivePanel = () => {
+            const panel = document.getElementById('control-panel');
+            panel.classList.toggle('panel-collapsed');
         };
 
         window.toggleChat = () => {
-            const body = document.getElementById('chat-body');
-            const icon = document.getElementById('chat-toggle-icon');
-            body.classList.toggle('collapsed');
-            icon.classList.toggle('rotated');
+            const chat = document.getElementById('chat-section');
+            chat.classList.toggle('collapsed');
         };
     </script>
 </head>
@@ -255,7 +247,7 @@
         </div>
     </div>
 
-    <!-- HUD NAVEGACIÓN TOP (ESTILO GOOGLE) -->
+    <!-- HUD NAVEGACIÓN TOP (SOLO CONDUCTOR) -->
     <div id="nav-hud-top">
         <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
             <i class="fas fa-location-arrow text-2xl text-white" id="nav-step-icon"></i>
@@ -289,27 +281,27 @@
     <div id="login-screen" class="login-screen flex items-center justify-center p-6">
         <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md">
             <div class="text-center mb-8">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-2xl mb-4 shadow-xl">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-2xl mb-4 shadow-xl shadow-blue-200">
                     <i class="fas fa-car-side text-3xl"></i>
                 </div>
                 <h1 class="text-2xl font-black text-gray-900 tracking-tight">Comayagua Express</h1>
-                <p class="text-gray-400 font-medium text-sm text-center">VIP Comayagua</p>
+                <p class="text-gray-400 font-medium text-sm text-center tracking-widest uppercase">VIP Comayagua</p>
             </div>
             <div class="flex bg-gray-100 p-1 rounded-2xl mb-6">
                 <button onclick="window.updateRole('client')" id="role-client" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600 uppercase">Pasajero</button>
                 <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase">Conductor</button>
             </div>
             <div class="space-y-4">
-                <input id="email-field" type="email" placeholder="Correo electrónico" class="w-full px-5 py-4 rounded-2xl border bg-gray-50 outline-none">
-                <input id="pass-field" type="password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border bg-gray-50 outline-none">
-                <button onclick="window.executeAuth()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg">ACCEDER</button>
+                <input id="email-field" type="email" placeholder="Correo electrónico" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <input id="pass-field" type="password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
+                <button onclick="window.executeAuth()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all">ACCEDER / REGISTRARSE</button>
             </div>
         </div>
     </div>
 
     <!-- SETUP PERFIL -->
     <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
-        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-white/10">
             <h2 class="text-xl font-black mb-6 text-center">Finaliza tu Perfil</h2>
             <div class="space-y-4">
                 <div class="flex flex-col items-center mb-4">
@@ -351,15 +343,15 @@
                 </div>
             </div>
 
-            <div id="control-panel" class="w-full md:w-[400px] bg-white z-40 shadow-2xl border-r border-gray-100 p-6 flex flex-col order-2 md:order-1 glass-panel overflow-y-auto">
+            <div id="control-panel" class="collapsible-panel w-full md:w-[400px] bg-white z-40 shadow-2xl border-r border-gray-100 p-6 flex flex-col order-2 md:order-1 glass-panel overflow-y-auto">
                 
-                <!-- CLIENTE -->
+                <!-- VISTA PASAJERO -->
                 <div id="client-view" class="flex-1">
                     <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter">¿A dónde vamos hoy?</h3>
                     <div class="space-y-3">
                         <div class="relative">
                             <input id="origin-input" type="text" placeholder="Origen" class="w-full pl-5 pr-12 py-4 bg-gray-50 rounded-2xl outline-none shadow-sm">
-                            <button onclick="window.useCurrentLocation()" id="btn-current-loc" class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-blue-600"><i class="fas fa-crosshairs"></i></button>
+                            <button onclick="window.useCurrentLocation()" id="btn-current-loc" class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-blue-600"><i class="fas fa-crosshairs text-lg"></i></button>
                         </div>
                         <input id="destination-input" type="text" placeholder="Destino final" class="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none shadow-sm">
                     </div>
@@ -384,42 +376,60 @@
                     </div>
                 </div>
 
-                <!-- PANEL VIAJE ACTIVO -->
-                <div id="active-trip-panel" class="hidden mt-auto pt-4 border-t">
-                    <div class="mb-4 p-3 bg-blue-50 rounded-2xl border border-blue-100 shadow-inner">
-                         <p class="text-[10px] text-gray-600 leading-tight mb-2 uppercase"><b>Origen:</b> <span id="active-origin-text" class="font-semibold text-gray-900">...</span></p>
-                         <p class="text-[10px] text-gray-600 leading-tight uppercase"><b>Destino:</b> <span id="active-dest-text" class="font-semibold text-gray-900">...</span></p>
+                <!-- PANEL VIAJE ACTIVO (DISEÑO IGUAL A LA IMAGEN image_cfa0b9.png) -->
+                <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full">
+                    <!-- Grabber para hacerlo plegable -->
+                    <div onclick="window.toggleActivePanel()" class="flex justify-center py-2 cursor-pointer border-b border-gray-100 mb-4">
+                        <div class="w-12 h-1 bg-gray-300 rounded-full"></div>
                     </div>
 
+                    <!-- Cuadro de Direcciones (Origen/Destino) -->
+                    <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100 shadow-sm mb-4">
+                         <div class="flex items-start gap-2 mb-3">
+                             <div class="w-2 h-2 rounded-full bg-blue-600 mt-1.5 flex-shrink-0"></div>
+                             <p class="text-[10px] text-gray-600 leading-tight uppercase"><b>Origen:</b> <span id="active-origin-text" class="font-semibold text-gray-900">...</span></p>
+                         </div>
+                         <div class="flex items-start gap-2">
+                             <div class="w-2 h-2 rounded bg-red-600 mt-1.5 flex-shrink-0"></div>
+                             <p class="text-[10px] text-gray-600 leading-tight uppercase"><b>Destino:</b> <span id="active-dest-text" class="font-semibold text-gray-900">...</span></p>
+                         </div>
+                    </div>
+
+                    <!-- PIN DE SEGURIDAD VIP -->
                     <div id="pin-area" class="mb-4">
+                        <!-- Mismo diseño que image_cfa0b9.png -->
+                        <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-4 rounded-2xl text-center shadow-inner">
+                            <p class="text-[10px] font-black text-amber-600 uppercase mb-2 tracking-widest">Tu PIN VIP de Seguridad</p>
+                            <p id="client-pin-code" class="text-4xl font-black text-amber-900 tracking-[0.4em]">----</p>
+                        </div>
+
+                        <!-- Sección específica para conductor al llegar -->
                         <div id="driver-pin-controls" class="hidden space-y-2">
-                             <div id="driver-target-address" class="p-2 bg-blue-600 text-white rounded-xl mb-2 text-center shadow-md animate-pulse">
-                                <p class="text-[8px] font-black uppercase opacity-80 tracking-tighter">Recoge al cliente en:</p>
-                                <p id="driver-pickup-display" class="text-xs font-bold leading-tight mt-0.5">...</p>
-                            </div>
-                            <button id="btn-driver-arrived" onclick="window.markArrival()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg">¡HE LLEGADO!</button>
+                            <button id="btn-driver-arrived" onclick="window.markArrival()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg">¡HE LLEGADO!</button>
                             <div id="pin-input-group" class="hidden flex gap-2">
-                                <input id="driver-pin-input" type="number" placeholder="PIN" class="flex-1 px-4 py-3 border-2 border-blue-100 rounded-xl outline-none text-center font-black text-lg tracking-[0.4em]">
-                                <button onclick="window.verifyPin()" class="bg-blue-600 text-white px-5 rounded-xl font-black text-xs uppercase">OK</button>
+                                <input id="driver-pin-input" type="number" placeholder="Ingresa PIN" class="flex-1 px-4 py-4 border-2 border-blue-100 rounded-2xl outline-none text-center font-black text-xl tracking-[0.2em]">
+                                <button onclick="window.verifyPin()" class="bg-blue-600 text-white px-6 rounded-2xl font-black text-xs uppercase">OK</button>
                             </div>
-                            <button id="finish-trip-btn" class="hidden w-full bg-red-600 text-white py-3 rounded-xl font-black text-xs uppercase shadow-lg">FINALIZAR VIAJE</button>
-                        </div>
-                        <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-3 rounded-2xl text-center shadow-inner">
-                            <p class="text-[9px] font-black text-amber-600 uppercase mb-1 tracking-wider">Tu PIN VIP de Seguridad</p>
-                            <p id="client-pin-code" class="text-3xl font-black text-amber-900 tracking-[0.4em]">----</p>
+                            <button id="finish-trip-btn" class="hidden w-full bg-red-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg">FINALIZAR VIAJE VIP</button>
                         </div>
                     </div>
 
-                    <div class="flex gap-2 mb-4">
-                        <a id="call-btn" href="#" class="flex-1 bg-green-600 text-white py-2.5 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-md"><i class="fas fa-phone"></i> Llamar</a>
-                        <button onclick="window.toggleChat()" class="bg-gray-100 text-gray-500 px-4 py-2.5 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 shadow-sm"><i class="fas fa-comments"></i> Chat</button>
+                    <!-- Botones de Acción image_cfa0b9.png -->
+                    <div class="flex gap-3 mb-4">
+                        <a id="call-btn" href="#" class="flex-[2] bg-green-600 text-white py-4 rounded-2xl text-[12px] font-black uppercase flex items-center justify-center gap-2 shadow-md">
+                            <i class="fas fa-phone"></i> LLAMAR
+                        </a>
+                        <button onclick="window.toggleChat()" class="flex-1 bg-gray-100 text-gray-600 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm">
+                            <i class="fas fa-comments text-lg"></i> CHAT
+                        </button>
                     </div>
 
-                    <div id="chat-body" class="collapsed border-t pt-4">
-                        <div id="chat-messages" class="h-32 overflow-y-auto mb-3 flex flex-col p-1"></div>
+                    <!-- Sección de Chat -->
+                    <div id="chat-section" class="collapsed border-t pt-4">
+                        <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-gray-50/50 rounded-xl"></div>
                         <div class="flex gap-2">
-                            <input id="chat-input" type="text" placeholder="Mensaje..." class="flex-1 px-4 py-3 bg-gray-50 rounded-xl outline-none text-xs border border-transparent focus:border-blue-100">
-                            <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform"><i class="fas fa-paper-plane text-sm"></i></button>
+                            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-xs">
+                            <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"><i class="fas fa-paper-plane"></i></button>
                         </div>
                     </div>
                 </div>
@@ -486,7 +496,7 @@
             const name = document.getElementById('full-name').value;
             const phone = document.getElementById('phone-number').value;
             if (!name || !phone) return alert("Nombre y teléfono requeridos.");
-            if (userRole === 'driver' && !profilePhotoBase64) return alert("Foto obligatoria para conductores.");
+            if (userRole === 'driver' && !profilePhotoBase64) return alert("Foto obligatoria.");
 
             const data = {
                 uid: currentUser.uid, name, phone, role: userRole, photo: profilePhotoBase64 || null,
@@ -559,7 +569,9 @@
                             window.gMap.panTo(window.currentDriverPos);
                             window.gMap.setZoom(18);
                             window.gMap.setTilt(45);
-                            window.gMap.setHeading(leg.steps[0].start_location.heading || 0);
+                            
+                            // Rotar marcador azul del conductor
+                            window.updateDriverMarker(currentUser.uid, window.currentDriverPos.lat, window.currentDriverPos.lng, true, leg.steps[0].start_location.heading || 0);
                         }
                     }
                 });
@@ -570,9 +582,8 @@
 
         // --- LISTENER DE VIAJES (CONDUCTOR) ---
         function startDriverListener() {
-            if (!currentUser) return; // REGLA 3
+            if (!currentUser) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
-                // Si el conductor ya tiene un viaje activo, no mostramos la lista de búsqueda
                 if (activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status)) {
                     document.getElementById('requests-list').innerHTML = '';
                     document.getElementById('driver-view').classList.add('hidden');
@@ -593,18 +604,18 @@
                 for (const d of pendingTrips) {
                     const t = d.data();
                     const card = document.createElement('div');
-                    card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600 transition-all mb-3 animate-pulse-slow";
+                    card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600 mb-3";
                     card.innerHTML = `
                         <div class="flex justify-between items-start mb-2"><p class="text-[11px] font-black text-blue-600 uppercase client-name-${d.id}">Cargando...</p><span class="font-black text-sm">${t.price}</span></div>
-                        <p class="text-[10px] text-gray-500 mb-4 line-clamp-2"><b>Origen:</b> ${t.origin}</p>
-                        <button onclick="window.acceptTrip('${d.id}')" class="w-full bg-blue-600 text-white font-black py-3 rounded-2xl text-[10px] shadow-lg uppercase tracking-tighter active:scale-95 transition-all">ACEPTAR VIAJE</button>`;
+                        <p class="text-[10px] text-gray-500 mb-4 line-clamp-2 uppercase"><b>Origen:</b> ${t.origin}</p>
+                        <button onclick="window.acceptTrip('${d.id}')" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-[10px] shadow-lg uppercase tracking-widest active:scale-95 transition-all">ACEPTAR VIAJE VIP</button>`;
                     container.appendChild(card);
                     
                     const cRef = await getDoc(doc(db, 'artifacts', appId, 'users', t.clientId, 'profile', 'data'));
                     if (cRef.exists()) document.querySelector(`.client-name-${d.id}`).innerText = cRef.data().name.toUpperCase();
                 }
             }, (err) => {
-                document.getElementById('requests-list').innerHTML = `<div class="p-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-bold text-center uppercase tracking-widest">Error de permisos en Firebase</div>`;
+                document.getElementById('requests-list').innerHTML = `<div class="p-4 bg-red-50 text-red-600 rounded-2xl text-[10px] font-bold text-center">ERROR DE FIREBASE</div>`;
             });
         }
 
@@ -615,11 +626,11 @@
                     status: 'accepted', driverId: currentUser.uid, driverName: window.userProfile.name,
                     driverPhone: window.userProfile.phone, pin: randomPin, driverArrived: false
                 });
-            } catch(e) { alert("Error al aceptar. Es posible que el viaje ya no esté disponible."); }
+            } catch(e) { alert("Error al aceptar."); }
         };
 
         function listenToMyActiveTrip() {
-            if (!currentUser) return; // REGLA 3
+            if (!currentUser) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
                 const trip = snap.docs.find(d => {
                     const data = d.data();
@@ -632,8 +643,11 @@
                     activeTrip = { id: trip.id, ...data };
 
                     if (data.status === 'accepted' || data.status === 'in_progress') {
+                        document.getElementById('client-view').classList.add('hidden');
+                        document.getElementById('driver-view').classList.add('hidden');
                         document.getElementById('searching-state').classList.add('hidden');
                         document.getElementById('active-trip-panel').classList.remove('hidden');
+                        
                         document.getElementById('active-origin-text').innerText = data.origin;
                         document.getElementById('active-dest-text').innerText = data.destination;
                         
@@ -670,7 +684,7 @@
                             } else { document.getElementById('eta-indicator').classList.add('hidden'); }
                         }
                     } else if (data.status === 'cancelled') {
-                        alert("Servicio Cancelado");
+                        alert("Servicio VIP Cancelado");
                         deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id)).then(() => {
                             if (window.userProfile.role === 'client') window.sendTripRequest(); 
                             else location.reload();
@@ -692,14 +706,14 @@
         window.verifyPin = async () => {
             if (document.getElementById('driver-pin-input').value === activeTrip.pin) {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'in_progress' });
-                alert("VIAJE INICIADO");
+                alert("VIAJE VIP INICIADO");
             } else { alert("PIN Incorrecto"); }
         };
 
         window.sendTripRequest = async () => {
             const origin = document.getElementById('origin-input').value;
             const dest = document.getElementById('destination-input').value;
-            if(!origin || !dest) return alert("Define origen y destino.");
+            if(!origin || !dest) return alert("Ingresa ruta.");
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
                 clientId: currentUser.uid, clientName: window.userProfile.name, clientPhone: window.userProfile.phone,
                 origin, destination: dest, price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
@@ -712,7 +726,7 @@
             const text = document.getElementById('chat-input').value;
             if (!text || !activeTrip) return;
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), {
-                chat: arrayUnion({ sender: currentUser.uid, senderName: window.userProfile.name, text, time: Date.now() })
+                chat: arrayUnion({ sender: currentUser.uid, text, time: Date.now() })
             });
             document.getElementById('chat-input').value = "";
         };
@@ -732,7 +746,7 @@
         }
 
         window.processLogout = () => signOut(auth).then(() => location.reload());
-        window.cancelOrder = async () => { if (confirm("¿Confirmas la cancelación?")) { if(activeTrip) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled' }); location.reload(); } };
+        window.cancelOrder = async () => { if (confirm("¿Cancelar?")) { if(activeTrip) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled' }); location.reload(); } };
 
         window.addEventListener('map-route-trigger', () => {
             const origin = document.getElementById('origin-input').value;
@@ -771,7 +785,7 @@
                 const dLoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
                 if (dLoc.exists()) {
                     new google.maps.DistanceMatrixService().getDistanceMatrix({ origins: [dLoc.data()], destinations: [origin], travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
-                        if (status === "OK") { document.getElementById('eta-text').innerText = "Llegada estimada: " + res.rows[0].elements[0].duration.text; }
+                        if (status === "OK") { document.getElementById('eta-text').innerText = "Estimado: " + res.rows[0].elements[0].duration.text; }
                     });
                 }
             };
@@ -784,7 +798,7 @@
         };
 
         window.submitRating = async () => {
-            if (selectedStars === 0) return alert("Selecciona estrellas.");
+            if (selectedStars === 0) return alert("Califica con estrellas.");
             const targetUserId = window.userProfile.role === 'client' ? activeTrip.driverId : activeTrip.clientId;
             const tRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'profile', 'data');
             const tSnap = await getDoc(tRef);
