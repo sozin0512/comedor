@@ -233,8 +233,10 @@
                 window.driverMarkers[driverId].setPosition(pos);
                 if (isSelf) {
                     const icon = window.driverMarkers[driverId].getIcon();
-                    icon.rotation = heading;
-                    window.driverMarkers[driverId].setIcon(icon);
+                    if (icon) {
+                        icon.rotation = heading;
+                        window.driverMarkers[driverId].setIcon(icon);
+                    }
                 }
             } else {
                 window.driverMarkers[driverId] = new google.maps.Marker({
@@ -583,7 +585,7 @@
 
                     <!-- ÁREA DE PIN / BOTÓN LLEGADA -->
                     <div id="pin-area" class="mb-4">
-                        <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-4 rounded-2xl text-center shadow-inner">
+                        <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-4 rounded-2xl text-center shadow-inner animate-pulse">
                             <p class="text-[10px] font-black text-amber-600 uppercase mb-2 tracking-widest">Tu PIN VIP de Seguridad</p>
                             <p id="client-pin-code" class="text-4xl font-black text-amber-900 tracking-[0.4em]">----</p>
                         </div>
@@ -1059,37 +1061,45 @@
                     driverPhoto: window.userProfile.photo || null,
                     driverPhone: window.userProfile.phone, pin: randomPin, driverArrived: false
                 });
-                window.showToast("Viaje aceptado con éxito.", "success");
+                window.showToast("Viaje aceptado con éxito. ¡Ve a recoger al cliente!", "success");
             } catch(e) { window.showToast("Error al aceptar viaje.", "error"); }
         };
 
         // --- FUNCIÓN DE RUTA EN TIEMPO REAL DESDE COORDENADAS ---
         window.updateMapRouteFromCoords = (originCoords, destinationCoordsOrText) => {
             if (!window.mapLoaded) return;
-            window.directionsRenderer.setMap(window.gMap);
-            window.directionsRenderer.setOptions({ preserveViewport: false });
-            window.directionsService.route({
-                origin: originCoords,
-                destination: destinationCoordsOrText,
-                travelMode: google.maps.TravelMode.DRIVING
-            }, (res, status) => {
-                if (status === "OK") {
-                    window.directionsRenderer.setDirections(res);
-                }
-            });
+            try {
+                window.directionsRenderer.setMap(window.gMap);
+                window.directionsRenderer.setOptions({ preserveViewport: false });
+                window.directionsService.route({
+                    origin: originCoords,
+                    destination: destinationCoordsOrText,
+                    travelMode: google.maps.TravelMode.DRIVING
+                }, (res, status) => {
+                    if (status === "OK") {
+                        window.directionsRenderer.setDirections(res);
+                    }
+                });
+            } catch (err) {
+                console.error("Error al trazar ruta desde coordenadas:", err);
+            }
         };
 
         // --- CALCULAR ETA EN TIEMPO REAL EN LA APP DEL PASAJERO ---
         window.updateRealtimeETA = (driverLoc, clientOrigin) => {
-            new google.maps.DistanceMatrixService().getDistanceMatrix({
-                origins: [driverLoc],
-                destinations: [clientOrigin],
-                travelMode: google.maps.TravelMode.DRIVING
-            }, (res, status) => {
-                if (status === "OK" && res.rows[0].elements[0].status === "OK") {
-                    document.getElementById('eta-text').innerText = "Estimado: " + res.rows[0].elements[0].duration.text;
-                }
-            });
+            try {
+                new google.maps.DistanceMatrixService().getDistanceMatrix({
+                    origins: [driverLoc],
+                    destinations: [clientOrigin],
+                    travelMode: google.maps.TravelMode.DRIVING
+                }, (res, status) => {
+                    if (status === "OK" && res.rows[0].elements[0].status === "OK") {
+                        document.getElementById('eta-text').innerText = "Estimado: " + res.rows[0].elements[0].duration.text;
+                    }
+                });
+            } catch (err) {
+                console.error("Error al calcular ETA en tiempo real:", err);
+            }
         };
 
         // --- ESCUCHADOR DE VIAJE ACTIVO EN TIEMPO REAL ---
@@ -1180,12 +1190,13 @@
                                 window.updateNavigation(data.destination);
                             }
 
-                        // --- MODO PASAJERO (MOVIMIENTO DEL CHOFER EN TIEMPO REAL) ---
+                        // --- MODO PASAJERO (MOVIMIENTO DEL CHOFER EN TIEMPO REAL Y PIN VIP) ---
                         } else if (window.userProfile.role === 'client') {
-                            document.getElementById('client-pin-display').classList.remove('hidden');
-                            document.getElementById('client-pin-code').innerText = data.pin;
                             
+                            // GESTIÓN DE PIN VIP: SE EXTIENDE EXCLUSIVAMENTE EN ESTADO 'accepted'
                             if (data.status === 'accepted') {
+                                document.getElementById('client-pin-display').classList.remove('hidden');
+                                document.getElementById('client-pin-code').innerText = data.pin || "----";
                                 document.getElementById('eta-indicator').classList.remove('hidden');
                                 
                                 // Detener anterior escucha si existiese
@@ -1193,21 +1204,27 @@
                                 
                                 // Escucha del movimiento por GPS del conductor asignado en vivo
                                 activeDriverDocListener = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', data.driverId), (driverSnap) => {
-                                    if (driverSnap.exists()) {
-                                        const driverLoc = driverSnap.data();
-                                        
-                                        // Mover marcador del chofer en tiempo real
-                                        window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
-                                        
-                                        // Trazar ruta dinámica desde la posición del conductor hacia el cliente
-                                        window.updateMapRouteFromCoords(driverLoc, data.originCoords || data.origin);
-                                        
-                                        // Actualizar estimador ETA
-                                        window.updateRealtimeETA(driverLoc, data.originCoords || data.origin);
+                                    try {
+                                        if (driverSnap.exists()) {
+                                            const driverLoc = driverSnap.data();
+                                            
+                                            // Mover marcador del chofer en tiempo real
+                                            window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
+                                            
+                                            // Trazar ruta dinámica desde la posición del conductor hacia el cliente
+                                            window.updateMapRouteFromCoords(driverLoc, data.originCoords || data.origin);
+                                            
+                                            // Actualizar estimador ETA
+                                            window.updateRealtimeETA(driverLoc, data.originCoords || data.origin);
+                                        }
+                                    } catch (err) {
+                                        console.error("Error en tracker dinámico de pasajero:", err);
                                     }
                                 });
 
                             } else if (data.status === 'in_progress') {
+                                // Ocultar el PIN cuando el viaje ya está verificado y en curso
+                                document.getElementById('client-pin-display').classList.add('hidden');
                                 document.getElementById('eta-indicator').classList.add('hidden');
                                 
                                 // Detener anterior escucha si existiese
@@ -1215,12 +1232,16 @@
                                 
                                 // Escucha para trazar la "ruta real" conjunta hacia el destino final del viaje
                                 activeDriverDocListener = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', data.driverId), (driverSnap) => {
-                                    if (driverSnap.exists()) {
-                                        const driverLoc = driverSnap.data();
-                                        window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
-                                        
-                                        // Trazar la ruta final hacia el destino
-                                        window.updateMapRouteFromCoords(driverLoc, data.destCoords || data.destination);
+                                    try {
+                                        if (driverSnap.exists()) {
+                                            const driverLoc = driverSnap.data();
+                                            window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
+                                            
+                                            // Trazar la ruta final hacia el destino
+                                            window.updateMapRouteFromCoords(driverLoc, data.destCoords || data.destination);
+                                        }
+                                    } catch (err) {
+                                        console.error("Error en ruta final del viaje:", err);
                                     }
                                 });
                             }
