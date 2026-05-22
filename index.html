@@ -148,6 +148,8 @@
         window.driverMarkers = {};
         window.currentDriverPos = null;
         window.autoCenter = true;
+        window.currentClientCoords = null; // Guardará coordenadas de recogida
+        window.currentDestCoords = null;   // Guardará coordenadas de destino
 
         window.initMap = function() {
             try {
@@ -183,6 +185,7 @@
                 if (originInput && destInput) {
                     const originAuto = new google.maps.places.Autocomplete(originInput, options);
                     const destAuto = new google.maps.places.Autocomplete(destInput, options);
+                    
                     const toggleSearchMode = (active) => {
                         if (window.innerWidth <= 768) {
                             if (active) document.body.classList.add('is-searching');
@@ -193,8 +196,30 @@
                         input.addEventListener('focus', () => toggleSearchMode(true));
                         input.addEventListener('blur', () => toggleSearchMode(false));
                     });
-                    originAuto.addListener('place_changed', () => { window.dispatchEvent(new CustomEvent('map-route-trigger')); originInput.blur(); });
-                    destAuto.addListener('place_changed', () => { window.dispatchEvent(new CustomEvent('map-route-trigger')); destInput.blur(); });
+
+                    originAuto.addListener('place_changed', () => { 
+                        const place = originAuto.getPlace();
+                        if (place && place.geometry) {
+                            window.currentClientCoords = {
+                                lat: place.geometry.location.lat(),
+                                lng: place.geometry.location.lng()
+                            };
+                        }
+                        window.dispatchEvent(new CustomEvent('map-route-trigger')); 
+                        originInput.blur(); 
+                    });
+
+                    destAuto.addListener('place_changed', () => { 
+                        const place = destAuto.getPlace();
+                        if (place && place.geometry) {
+                            window.currentDestCoords = {
+                                lat: place.geometry.location.lat(),
+                                lng: place.geometry.location.lng()
+                            };
+                        }
+                        window.dispatchEvent(new CustomEvent('map-route-trigger')); 
+                        destInput.blur(); 
+                    });
                 }
             } catch (error) { console.error("Error cargando el mapa:", error); }
         };
@@ -259,7 +284,22 @@
     <!-- CONTENEDOR DE TOASTS -->
     <div id="toast-container"></div>
 
-    <!-- PANTALLA ROJA DE USUARIOS VETADOS (SISTEMA DE SEGURIDAD VIP) -->
+    <!-- MODAL CONFIRMACIÓN VIP -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-slate-100 transform transition-transform duration-300 scale-95">
+            <div class="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-100">
+                <i class="fas fa-exclamation-triangle text-2xl"></i>
+            </div>
+            <h3 id="confirm-title" class="text-md font-black text-slate-900 uppercase tracking-tight">¿Estás seguro?</h3>
+            <p id="confirm-desc" class="text-xs text-slate-500 mt-2 font-medium leading-relaxed">Esta acción requiere autorización y se aplicará de inmediato.</p>
+            <div class="flex gap-3 mt-6">
+                <button id="confirm-cancel-btn" class="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600 font-black rounded-2xl text-xs uppercase tracking-wider">Cancelar</button>
+                <button id="confirm-ok-btn" class="flex-1 py-3.5 bg-red-600 hover:bg-red-700 transition-colors text-white font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANTALLA ROJA DE USUARIOS VETADOS -->
     <div id="banned-screen" class="hidden fixed inset-0 bg-red-950 flex flex-col items-center justify-center p-6 z-[11000] text-center">
         <div class="w-24 h-24 rounded-full bg-red-900 flex items-center justify-center text-white mb-6 shadow-2xl animate-bounce">
             <i class="fas fa-user-slash text-4xl"></i>
@@ -297,7 +337,7 @@
         <i class="fas fa-sparkles text-blue-200 animate-pulse"></i>
     </div>
 
-    <!-- HUD NAVEGACIÓN BOTTOM (COEXISTE CON PANEL DESPLEGABLE) -->
+    <!-- HUD NAVEGACIÓN BOTTOM -->
     <div id="nav-hud-bottom">
         <div class="flex items-center justify-between">
             <div class="flex flex-col">
@@ -363,7 +403,7 @@
                 <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                 <input id="phone-number" type="tel" placeholder="Teléfono" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                 <div id="driver-fields" class="hidden space-y-3 pt-4 border-t">
-                    <input id="car-model" type="text" placeholder="Vehículo" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
+                    <input id="car-model" type="text" placeholder="Vehículo (Ej: Toyota Corolla 2018)" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                     <input id="car-plate" type="text" placeholder="Placa" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none uppercase font-bold">
                     <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
                 </div>
@@ -429,11 +469,23 @@
                     </div>
                 </div>
 
-                <!-- CONDUCTOR (LISTA DE VIAJES DISPONIBLES) -->
+                <!-- CONDUCTOR (LISTA DE VIAJES DISPONIBLES O COMPROBACIÓN DE APROBACIÓN) -->
                 <div id="driver-view" class="hidden flex-1">
-                    <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter uppercase text-center md:text-left font-black">Viajes Disponibles</h3>
-                    <div id="requests-list" class="space-y-4 pb-4">
-                        <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>
+                    <!-- VISTA DE REVISIÓN SI NO ESTÁ APROBADO POR EL ADMIN SUPREMO -->
+                    <div id="driver-pending-approval" class="hidden flex flex-col items-center justify-center py-16 text-center px-4">
+                        <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center border-4 border-amber-200 shadow-lg text-amber-500 mb-6 animate-pulse">
+                            <i class="fas fa-id-card text-3xl"></i>
+                        </div>
+                        <h3 class="text-lg font-black text-slate-800 tracking-tight uppercase">Licencia en Evaluación</h3>
+                        <p class="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed font-semibold">Tu cuenta de conductor VIP se encuentra en proceso de aprobación por el Administrador Supremo. Podrás recibir viajes en cuanto sea aprobada.</p>
+                    </div>
+                    
+                    <!-- VISTA COMPLETA DE VIAJES -->
+                    <div id="driver-active-view">
+                        <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter uppercase text-center md:text-left font-black">Viajes Disponibles</h3>
+                        <div id="requests-list" class="space-y-4 pb-4">
+                            <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>
+                        </div>
                     </div>
                 </div>
 
@@ -470,12 +522,21 @@
                         </div>
                     </div>
 
-                    <!-- TAB CONTENIDO: SOCIOS / BUSCADOR / VETADOS -->
+                    <!-- TAB CONTENIDO: SOCIOS / BUSCADOR / VETADOS Y APROBACIÓN DE CHOFERES -->
                     <div id="admin-content-users" class="admin-tab-content hidden space-y-3">
                         <div class="relative">
                             <input id="admin-user-search" type="text" oninput="window.filterAdminUsers(this.value)" placeholder="Buscar socio por nombre o tel..." class="w-full px-4 py-3 bg-gray-50 border rounded-2xl outline-none text-xs focus:ring-2 focus:ring-amber-200">
                             <i class="fas fa-search absolute right-4 top-3.5 text-gray-400 text-xs"></i>
                         </div>
+                        
+                        <!-- FILTROS DE SOCIO DEBIDO A RESTRICCIONES DE CONDUCTOR -->
+                        <div class="flex gap-1.5 overflow-x-auto pb-1">
+                            <button onclick="window.setAdminUserFilter('all')" id="filter-user-all" class="admin-user-filter-btn px-3 py-1.5 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Todos</button>
+                            <button onclick="window.setAdminUserFilter('client')" id="filter-user-client" class="admin-user-filter-btn px-3 py-1.5 bg-gray-100 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Pasajeros</button>
+                            <button onclick="window.setAdminUserFilter('driver')" id="filter-user-driver" class="admin-user-filter-btn px-3 py-1.5 bg-gray-100 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Conductores</button>
+                            <button onclick="window.setAdminUserFilter('pending_driver')" id="filter-user-pending_driver" class="admin-user-filter-btn px-3 py-1.5 bg-gray-100 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Por Aprobar ⏳</button>
+                        </div>
+
                         <div id="admin-users-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
                             <!-- Inyectado dinámicamente -->
                         </div>
@@ -579,7 +640,7 @@
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, initializeAuth, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuración de credenciales seguras de Firebase
+        // Configuración de credenciales de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBwaRzw2R1DCFOSn-YtfM5tRLdN7p4dpk8",
             authDomain: "comedor-86278.firebaseapp.com",
@@ -591,7 +652,6 @@
 
         const app = initializeApp(firebaseConfig);
         
-        // Inicializar persistencia segura frente a Tracking Prevention del navegador
         let auth;
         try {
             auth = initializeAuth(app, { persistence: browserLocalPersistence });
@@ -611,6 +671,8 @@
         let navigationInterval = null;
         let authMode = 'login'; // 'login' o 'register'
         let cachedProfilesList = []; // Para filtros rápidos locales
+        let activeUserFilter = 'all'; // Filtro de socios activo para el Admin Supremo
+        let activeDriverDocListener = null; // Escuchador de ubicación del chofer asignado en tiempo real
 
         // --- SISTEMA DE TOASTS FLOTANTES ---
         window.showToast = (message, type = "info") => {
@@ -633,6 +695,36 @@
                 toast.classList.add('translate-y-4', 'opacity-0');
                 setTimeout(() => toast.remove(), 300);
             }, 4000);
+        };
+
+        // --- SISTEMA DE MODAL DE CONFIRMACIÓN VIP (NUNCA USA CONFIRM NATIVO) ---
+        window.showConfirm = (title, description, onConfirm) => {
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-desc').innerText = description;
+            
+            modal.classList.remove('hidden');
+            const innerDiv = modal.querySelector('div');
+            setTimeout(() => innerDiv.classList.remove('scale-95'), 10);
+
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+            const okBtn = document.getElementById('confirm-ok-btn');
+
+            const closeConfirm = () => {
+                innerDiv.classList.add('scale-95');
+                modal.classList.add('hidden');
+                cancelBtn.onclick = null;
+                okBtn.onclick = null;
+            };
+
+            cancelBtn.onclick = () => {
+                closeConfirm();
+            };
+
+            okBtn.onclick = () => {
+                closeConfirm();
+                onConfirm();
+            };
         };
 
         // --- MANEJO DE VISTA DE INGRESO ---
@@ -691,7 +783,6 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando el control de perfiles de clientes y conductores... -->
         // --- CONTROLADOR DE EDICIÓN DE PERFIL ---
         let isEditingProfile = false;
 
@@ -747,10 +838,14 @@
             const existingTrips = window.userProfile?.totalTrips || 0;
             const existingRatingSum = window.userProfile?.ratingSum || 5;
             const existingRatingCount = window.userProfile?.ratingCount || 1;
+            
+            // Los pasajeros se aprueban automáticamente, los conductores inician desaprobados hasta la evaluación del Admin Supremo
+            const existingApproval = window.userProfile?.isApproved !== undefined ? window.userProfile.isApproved : (userRole === 'client');
 
             const data = {
                 uid: currentUser.uid, name, phone, role: userRole, photo: profilePhotoBase64 || null,
-                totalTrips: existingTrips, ratingSum: existingRatingSum, ratingCount: existingRatingCount, setupComplete: true
+                totalTrips: existingTrips, ratingSum: existingRatingSum, ratingCount: existingRatingCount, setupComplete: true,
+                isApproved: existingApproval
             };
             if (userRole === 'driver') {
                 data.vehicle = {
@@ -782,7 +877,7 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Cambios de Estado del Auth de Firebase y Detección de Admin Supremo... -->
+        // --- CONTROLADOR DEL AUTHESTADO ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
@@ -801,7 +896,8 @@
                                 role: 'admin',
                                 photo: null,
                                 setupComplete: true,
-                                isBanned: false
+                                isBanned: false,
+                                isApproved: true
                             };
                             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), adminData);
                             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), adminData);
@@ -858,7 +954,16 @@
                     } else if (profile.role === 'driver') {
                         document.getElementById('client-view').classList.add('hidden');
                         document.getElementById('driver-view').classList.remove('hidden');
-                        startDriverListener();
+                        
+                        // Control de pantalla de aprobación del conductor
+                        if (profile.isApproved === false) {
+                            document.getElementById('driver-pending-approval').classList.remove('hidden');
+                            document.getElementById('driver-active-view').classList.add('hidden');
+                        } else {
+                            document.getElementById('driver-pending-approval').classList.add('hidden');
+                            document.getElementById('driver-active-view').classList.remove('hidden');
+                            startDriverListener();
+                        }
                     } else {
                         document.getElementById('client-view').classList.remove('hidden');
                         document.getElementById('driver-view').classList.add('hidden');
@@ -880,8 +985,14 @@
                 window.directionsRenderer.setMap(window.gMap);
                 window.directionsRenderer.setOptions({ preserveViewport: true }); 
                 
+                // Si hay un viaje activo, usar coordenadas exactas para trazar la ruta de forma óptima
+                const destinationParam = (activeTrip && activeTrip.status === 'accepted' && activeTrip.originCoords) ? activeTrip.originCoords : 
+                                         ((activeTrip && activeTrip.status === 'in_progress' && activeTrip.destCoords) ? activeTrip.destCoords : dest);
+                
                 window.directionsService.route({
-                    origin: window.currentDriverPos, destination: dest, travelMode: google.maps.TravelMode.DRIVING
+                    origin: window.currentDriverPos, 
+                    destination: destinationParam, 
+                    travelMode: google.maps.TravelMode.DRIVING
                 }, (res, status) => {
                     if (status === "OK") {
                         window.directionsRenderer.setDirections(res);
@@ -913,7 +1024,7 @@
             navigationInterval = setInterval(render, 5000);
         };
 
-        // --- STREAMING_CHUNK: Creando el escuchador de solicitudes para conductores... -->
+        // --- CONDUCTOR (LISTA DE VIAJES DISPONIBLES) ---
         function startDriverListener() {
             if (!currentUser) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
@@ -952,6 +1063,35 @@
             } catch(e) { window.showToast("Error al aceptar viaje.", "error"); }
         };
 
+        // --- FUNCIÓN DE RUTA EN TIEMPO REAL DESDE COORDENADAS ---
+        window.updateMapRouteFromCoords = (originCoords, destinationCoordsOrText) => {
+            if (!window.mapLoaded) return;
+            window.directionsRenderer.setMap(window.gMap);
+            window.directionsRenderer.setOptions({ preserveViewport: false });
+            window.directionsService.route({
+                origin: originCoords,
+                destination: destinationCoordsOrText,
+                travelMode: google.maps.TravelMode.DRIVING
+            }, (res, status) => {
+                if (status === "OK") {
+                    window.directionsRenderer.setDirections(res);
+                }
+            });
+        };
+
+        // --- CALCULAR ETA EN TIEMPO REAL EN LA APP DEL PASAJERO ---
+        window.updateRealtimeETA = (driverLoc, clientOrigin) => {
+            new google.maps.DistanceMatrixService().getDistanceMatrix({
+                origins: [driverLoc],
+                destinations: [clientOrigin],
+                travelMode: google.maps.TravelMode.DRIVING
+            }, (res, status) => {
+                if (status === "OK" && res.rows[0].elements[0].status === "OK") {
+                    document.getElementById('eta-text').innerText = "Estimado: " + res.rows[0].elements[0].duration.text;
+                }
+            });
+        };
+
         // --- ESCUCHADOR DE VIAJE ACTIVO EN TIEMPO REAL ---
         function listenToMyActiveTrip() {
             if (!currentUser) return;
@@ -979,10 +1119,50 @@
                         
                         renderChat(data.chat);
 
+                        // --- MODO CONDUCTOR ---
                         if (window.userProfile.role === 'driver') {
                             document.getElementById('driver-pin-controls').classList.remove('hidden');
                             document.getElementById('client-pin-display').classList.add('hidden');
                             document.getElementById('driver-pickup-display').innerText = data.origin;
+                            
+                            // Mostrar marcador verde del cliente en el mapa
+                            if (!window.clientPickupMarker) {
+                                const clientPos = data.originCoords || data.origin;
+                                if (data.originCoords) {
+                                    window.clientPickupMarker = new google.maps.Marker({
+                                        position: data.originCoords,
+                                        map: window.gMap,
+                                        title: "Pasajero VIP",
+                                        icon: {
+                                            path: google.maps.SymbolPath.CIRCLE,
+                                            fillColor: "#10b981", // Color esmeralda distintivo para el cliente
+                                            fillOpacity: 1,
+                                            strokeWeight: 3,
+                                            strokeColor: "#ffffff",
+                                            scale: 10
+                                        }
+                                    });
+                                } else {
+                                    window.geocoder.geocode({ address: data.origin }, (results, status) => {
+                                        if (status === "OK" && results[0]) {
+                                            window.clientPickupMarker = new google.maps.Marker({
+                                                position: results[0].geometry.location,
+                                                map: window.gMap,
+                                                title: "Pasajero VIP",
+                                                icon: {
+                                                    path: google.maps.SymbolPath.CIRCLE,
+                                                    fillColor: "#10b981",
+                                                    fillOpacity: 1,
+                                                    strokeWeight: 3,
+                                                    strokeColor: "#ffffff",
+                                                    scale: 10
+                                                }
+                                            });
+                                        }
+                                    });
+                                }
+                            }
+
                             if (data.status === 'accepted' && !data.driverArrived) {
                                 document.getElementById('btn-driver-arrived').classList.remove('hidden');
                                 document.getElementById('pin-input-group').classList.add('hidden');
@@ -999,16 +1179,50 @@
                                 document.getElementById('finish-trip-btn').classList.remove('hidden');
                                 window.updateNavigation(data.destination);
                             }
+
+                        // --- MODO PASAJERO (MOVIMIENTO DEL CHOFER EN TIEMPO REAL) ---
                         } else if (window.userProfile.role === 'client') {
                             document.getElementById('client-pin-display').classList.remove('hidden');
                             document.getElementById('client-pin-code').innerText = data.pin;
+                            
                             if (data.status === 'accepted') {
                                 document.getElementById('eta-indicator').classList.remove('hidden');
-                                updateETA(data.driverId, data.origin);
-                                window.updateMapRouteFromDriver(data.driverId, data.origin);
-                            } else { 
-                                document.getElementById('eta-indicator').classList.add('hidden'); 
-                                window.updateMapRoute(data.destination);
+                                
+                                // Detener anterior escucha si existiese
+                                if (activeDriverDocListener) activeDriverDocListener();
+                                
+                                // Escucha del movimiento por GPS del conductor asignado en vivo
+                                activeDriverDocListener = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', data.driverId), (driverSnap) => {
+                                    if (driverSnap.exists()) {
+                                        const driverLoc = driverSnap.data();
+                                        
+                                        // Mover marcador del chofer en tiempo real
+                                        window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
+                                        
+                                        // Trazar ruta dinámica desde la posición del conductor hacia el cliente
+                                        window.updateMapRouteFromCoords(driverLoc, data.originCoords || data.origin);
+                                        
+                                        // Actualizar estimador ETA
+                                        window.updateRealtimeETA(driverLoc, data.originCoords || data.origin);
+                                    }
+                                });
+
+                            } else if (data.status === 'in_progress') {
+                                document.getElementById('eta-indicator').classList.add('hidden');
+                                
+                                // Detener anterior escucha si existiese
+                                if (activeDriverDocListener) activeDriverDocListener();
+                                
+                                // Escucha para trazar la "ruta real" conjunta hacia el destino final del viaje
+                                activeDriverDocListener = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', data.driverId), (driverSnap) => {
+                                    if (driverSnap.exists()) {
+                                        const driverLoc = driverSnap.data();
+                                        window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
+                                        
+                                        // Trazar la ruta final hacia el destino
+                                        window.updateMapRouteFromCoords(driverLoc, data.destCoords || data.destination);
+                                    }
+                                });
                             }
                         }
                     } else if (data.status === 'cancelled') {
@@ -1029,18 +1243,29 @@
                     document.getElementById('nav-hud-top').style.display = 'none';
                     document.getElementById('nav-hud-bottom').style.display = 'none';
                     document.body.classList.remove('is-navigating');
+                    
                     if (navigationInterval) clearInterval(navigationInterval);
+                    if (activeDriverDocListener) {
+                        activeDriverDocListener();
+                        activeDriverDocListener = null;
+                    }
+                    if (window.clientPickupMarker) {
+                        window.clientPickupMarker.setMap(null);
+                        window.clientPickupMarker = null;
+                    }
                     if (window.gMap) { 
                         window.gMap.setMapTypeId('roadmap'); window.gMap.setTilt(0); 
                         window.directionsRenderer.setDirections({routes: []});
                     }
-                    if (window.userProfile?.role === 'driver') document.getElementById('driver-view').classList.remove('hidden');
-                    else if (window.userProfile?.role === 'client') document.getElementById('client-view').classList.remove('hidden');
+                    if (window.userProfile?.role === 'driver') {
+                        document.getElementById('driver-view').classList.remove('hidden');
+                    } else if (window.userProfile?.role === 'client') {
+                        document.getElementById('client-view').classList.remove('hidden');
+                    }
                 }
             });
         }
 
-        // --- STREAMING_CHUNK: Creando funciones para finalización de viaje, llegada y GPS de clientes... -->
         window.markArrival = async () => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { driverArrived: true }); };
         
         window.verifyPin = async () => {
@@ -1065,6 +1290,7 @@
                 window.showToast("Localizando ubicación actual...", "info");
                 navigator.geolocation.getCurrentPosition((pos) => {
                     const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    window.currentClientCoords = coords; // Almacenar para trazo de ruta preciso
                     window.geocoder.geocode({ location: coords }, (results, status) => {
                         if (status === "OK" && results[0]) {
                             document.getElementById('origin-input').value = results[0].formatted_address;
@@ -1082,33 +1308,19 @@
             }
         };
 
-        window.updateMapRouteFromDriver = (driverId, origin) => {
-            if (!window.mapLoaded) return;
-            getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId)).then((snap) => {
-                if (snap.exists()) {
-                    const driverData = snap.data();
-                    window.directionsRenderer.setMap(window.gMap);
-                    window.directionsRenderer.setOptions({ preserveViewport: false });
-                    window.directionsService.route({
-                        origin: driverData,
-                        destination: origin,
-                        travelMode: google.maps.TravelMode.DRIVING
-                    }, (res, status) => {
-                        if (status === "OK") window.directionsRenderer.setDirections(res);
-                    });
-                }
-            });
-        };
-        
         window.sendTripRequest = async () => {
             const origin = document.getElementById('origin-input').value;
             const dest = document.getElementById('destination-input').value;
             if(!origin || !dest) return window.showToast("Define ruta.", "error");
+            
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
                 clientId: currentUser.uid, clientName: window.userProfile.name,
                 clientPhoto: window.userProfile.photo || null,
                 clientPhone: window.userProfile.phone,
-                origin, destination: dest, price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
+                origin, destination: dest,
+                originCoords: window.currentClientCoords || null,
+                destCoords: window.currentDestCoords || null,
+                price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
             });
             document.getElementById('searching-state').classList.remove('hidden');
             document.getElementById('fare-card').classList.add('hidden');
@@ -1152,26 +1364,30 @@
         window.processLogout = () => signOut(auth).then(() => location.reload());
         
         window.cancelOrder = async () => { 
-            if (confirm("¿Confirmas la cancelación del servicio VIP?")) { 
-                if(activeTrip) {
-                    const cancellationData = {
-                        tripId: activeTrip.id,
-                        origin: activeTrip.origin,
-                        destination: activeTrip.destination,
-                        price: activeTrip.price,
-                        clientId: activeTrip.clientId,
-                        clientName: activeTrip.clientName,
-                        clientPhone: activeTrip.clientPhone,
-                        driverId: activeTrip.driverId || null,
-                        driverName: activeTrip.driverName || "Ninguno",
-                        cancelledBy: window.userProfile.role === 'admin' ? 'Administrador Supremo' : window.userProfile.name,
-                        cancelledAt: Date.now()
-                    };
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', activeTrip.id), cancellationData);
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled', cancelledBy: currentUser.uid });
+            window.showConfirm(
+                "¿Cancelar servicio VIP?", 
+                "Esta acción detendrá y cancelará el viaje. El registro se enviará al historial de auditoría.", 
+                async () => {
+                    if(activeTrip) {
+                        const cancellationData = {
+                            tripId: activeTrip.id,
+                            origin: activeTrip.origin,
+                            destination: activeTrip.destination,
+                            price: activeTrip.price,
+                            clientId: activeTrip.clientId,
+                            clientName: activeTrip.clientName,
+                            clientPhone: activeTrip.clientPhone,
+                            driverId: activeTrip.driverId || null,
+                            driverName: activeTrip.driverName || "Ninguno",
+                            cancelledBy: window.userProfile.role === 'admin' ? 'Administrador Supremo' : window.userProfile.name,
+                            cancelledAt: Date.now()
+                        };
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', activeTrip.id), cancellationData);
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled', cancelledBy: currentUser.uid });
+                    }
+                    location.reload(); 
                 }
-                location.reload(); 
-            } 
+            );
         };
 
         // --- ESCUCHADOR DE SOLICITUD DE RUTA EN MAPA ---
@@ -1187,6 +1403,20 @@
                     const km = res.routes[0].legs[0].distance.value / 1000;
                     document.getElementById('fare-card').classList.remove('hidden');
                     document.getElementById('price-display').innerText = `L. ${(40 + km * 18).toFixed(2)}`;
+
+                    // Respaldar coordenadas del viaje si no se obtuvieron por PlaceAutocomplete
+                    if (!window.currentClientCoords) {
+                        window.currentClientCoords = {
+                            lat: res.routes[0].legs[0].start_location.lat(),
+                            lng: res.routes[0].legs[0].start_location.lng()
+                        };
+                    }
+                    if (!window.currentDestCoords) {
+                        window.currentDestCoords = {
+                            lat: res.routes[0].legs[0].end_location.lat(),
+                            lng: res.routes[0].legs[0].end_location.lng()
+                        };
+                    }
                 }
             });
         });
@@ -1219,31 +1449,6 @@
             });
         }
 
-        function updateETA(driverId, origin) {
-            if (etaInterval) clearInterval(etaInterval);
-            const calc = async () => {
-                const dLoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
-                if (dLoc.exists()) {
-                    new google.maps.DistanceMatrixService().getDistanceMatrix({ origins: [dLoc.data()], destinations: [origin], travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
-                        if (status === "OK") { document.getElementById('eta-text').innerText = "Estimado: " + res.rows[0].elements[0].duration.text; }
-                    });
-                }
-            };
-            calc(); etaInterval = setInterval(calc, 15000);
-        }
-
-        window.updateMapRoute = (dest) => {
-            if (!window.mapLoaded) return;
-            window.directionsRenderer.setMap(window.gMap);
-            window.directionsRenderer.setOptions({ preserveViewport: false });
-            navigator.geolocation.getCurrentPosition((pos) => {
-                window.directionsService.route({
-                    origin: { lat: pos.coords.latitude, lng: pos.coords.longitude },
-                    destination: dest, travelMode: google.maps.TravelMode.DRIVING
-                }, (res, status) => { if (status === "OK") window.directionsRenderer.setDirections(res); });
-            });
-        };
-
         // --- SISTEMA DE CALIFICACIONES ---
         function showRatingScreen() {
             document.getElementById('rating-screen').style.display = 'flex';
@@ -1267,7 +1472,6 @@
             location.reload();
         };
 
-        // --- STREAMING_CHUNK: Implementando la consola interactiva del Admin Supremo... -->
         // --- CONSOLA EXCLUSIVA DE ADMIN SUPREMO (VETADOS, TRÁFICO, CANCELADOS) ---
         let activeAdminTab = 'stats';
 
@@ -1298,7 +1502,6 @@
 
         // Escuchadores en tiempo real para datos administrativos
         function startAdminListeners() {
-            // Escucha total de perfiles de usuarios públicos
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snap) => {
                 cachedProfilesList = [];
                 snap.forEach(d => {
@@ -1308,31 +1511,49 @@
                 document.getElementById('stat-total-users').innerText = cachedProfilesList.length;
             });
 
-            // Escucha de ubicaciones de conductores activos
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
                 document.getElementById('stat-active-drivers').innerText = snap.size;
             });
 
-            // Escucha de todos los viajes activos en curso
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
                 const activeTripsList = snap.docs.filter(d => ['pending', 'accepted', 'in_progress'].includes(d.data().status));
                 document.getElementById('stat-active-trips').innerText = activeTripsList.length;
                 renderAdminTrips(activeTripsList);
             });
 
-            // Escucha histórica de cancelaciones
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips'), (snap) => {
                 renderAdminCancelledTrips(snap.docs);
             });
         }
 
-        // --- SISTEMA DE CONTROL DE VETADOS INTERACTIVO ---
+        window.setAdminUserFilter = (filter) => {
+            activeUserFilter = filter;
+            document.querySelectorAll('.admin-user-filter-btn').forEach(btn => {
+                btn.className = 'admin-user-filter-btn px-3 py-1.5 bg-gray-100 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
+            });
+            const selectedBtn = document.getElementById(`filter-user-${filter}`);
+            if (selectedBtn) {
+                selectedBtn.className = 'admin-user-filter-btn px-3 py-1.5 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
+            }
+            renderAdminUsers();
+        };
+
+        // --- SISTEMA DE CONTROL DE SOCIOS E INFORMACIÓN DE VEHÍCULOS ---
         function renderAdminUsers() {
             const listContainer = document.getElementById('admin-users-list');
             listContainer.innerHTML = '';
             
-            cachedProfilesList.forEach(u => {
-                if (u.uid === currentUser.uid) return; // Omitir tu propio perfil de administrador de la lista
+            let filteredList = cachedProfilesList;
+            if (activeUserFilter === 'client') {
+                filteredList = cachedProfilesList.filter(u => u.role === 'client');
+            } else if (activeUserFilter === 'driver') {
+                filteredList = cachedProfilesList.filter(u => u.role === 'driver');
+            } else if (activeUserFilter === 'pending_driver') {
+                filteredList = cachedProfilesList.filter(u => u.role === 'driver' && u.isApproved === false);
+            }
+
+            filteredList.forEach(u => {
+                if (u.uid === currentUser.uid) return; 
                 
                 const stars = u.ratingCount ? (u.ratingSum / u.ratingCount).toFixed(1) : "5.0";
                 const isBanned = u.isBanned === true;
@@ -1346,7 +1567,7 @@
                             ${u.photo ? `<img src="${u.photo}" class="w-8 h-8 rounded-full object-cover">` : `<div class="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs">${u.name.charAt(0).toUpperCase()}</div>`}
                             <div>
                                 <h5 class="text-xs font-black text-slate-900">${u.name.toUpperCase()}</h5>
-                                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">${isDriver ? `Conductor • Placa: ${u.vehicle?.plate || 'S/N'}` : 'Pasajero'}</p>
+                                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">${isDriver ? `Conductor` : 'Pasajero'}</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-1 text-amber-500 font-black text-[10px]">
@@ -1360,7 +1581,22 @@
                         <span>Viajes: ${u.totalTrips || 0}</span>
                     </div>
 
-                    <div class="flex items-center gap-2 mt-3 border-t pt-2 border-slate-100">
+                    ${isDriver ? `
+                        <div class="flex flex-col gap-1 bg-white p-2.5 rounded-xl border border-slate-100 text-[9px] text-slate-600 font-medium my-1.5">
+                            <p><b>Vehículo:</b> ${u.vehicle?.model || 'No registrado'}</p>
+                            <p><b>Placa:</b> <span class="uppercase font-bold text-slate-800">${u.vehicle?.plate || 'No registrado'}</span></p>
+                            <p><b>Licencia:</b> <span class="font-bold text-slate-800">${u.vehicle?.license || 'No registrado'}</span></p>
+                            <p class="mt-1">
+                                <b>Estado VIP:</b> 
+                                ${u.isApproved !== false ? 
+                                    '<span class="text-emerald-600 font-bold">Aprobado ✅</span>' : 
+                                    '<span class="text-amber-500 font-bold">Pendiente de Aprobación ⏳</span>'
+                                }
+                            </p>
+                        </div>
+                    ` : ''}
+
+                    <div class="flex flex-wrap items-center gap-2 mt-3 border-t pt-2 border-slate-100">
                         ${isBanned ? `
                             <span class="text-[9px] font-black text-rose-600 uppercase tracking-widest mr-auto"><i class="fas fa-user-slash"></i> Vetado 🚫</span>
                             <button onclick="window.setAdminVeto('${u.uid}', false)" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all">Desvetar</button>
@@ -1368,8 +1604,15 @@
                             <span class="text-[9px] font-black text-emerald-600 uppercase tracking-widest mr-auto"><i class="fas fa-check-circle"></i> Activo</span>
                             <button onclick="window.setAdminVeto('${u.uid}', true)" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all">Vetar</button>
                         `}
+                        
                         ${isDriver ? `
                             <button onclick="window.trackDriver('${u.uid}')" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><i class="fas fa-location-crosshairs"></i> Rastrear</button>
+                            
+                            ${u.isApproved !== false ? `
+                                <button onclick="window.setDriverApproval('${u.uid}', false)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-pause-circle"></i> Revocar Licencia</button>
+                            ` : `
+                                <button onclick="window.setDriverApproval('${u.uid}', true)" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-check-double"></i> Aprobar Licencia</button>
+                            `}
                         ` : ''}
                     </div>
                 `;
@@ -1377,7 +1620,6 @@
             });
         }
 
-        // Filtrado instantáneo de la lista de socios
         window.filterAdminUsers = (val) => {
             const queryClean = val.toLowerCase().trim();
             const listContainer = document.getElementById('admin-users-list');
@@ -1393,9 +1635,12 @@
             }
         };
 
+        // --- CONTROLADORES DE SEGURIDAD VETO Y APROBACIÓN DE LICENCIA ---
         window.setAdminVeto = async (uid, shouldBan) => {
-            const msg = shouldBan ? "¿Estás seguro de vetar a este usuario? Perderá el acceso de forma inmediata." : "¿Quieres restablecer el acceso VIP de este socio?";
-            if (confirm(msg)) {
+            const title = shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?";
+            const desc = shouldBan ? "El usuario perderá el acceso a la plataforma de inmediato y sus viajes activos serán forzados a cancelación." : "Se restablecerá el acceso de usuario de forma inmediata.";
+            
+            window.showConfirm(title, desc, async () => {
                 try {
                     await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isBanned: shouldBan });
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isBanned: shouldBan });
@@ -1403,7 +1648,22 @@
                 } catch(e) {
                     window.showToast("Error de conexión al procesar baneo.", "error");
                 }
-            }
+            });
+        };
+
+        window.setDriverApproval = async (uid, shouldApprove) => {
+            const title = shouldApprove ? "¿Aprobar Conductor VIP?" : "¿Revocar Licencia?";
+            const desc = shouldApprove ? "El conductor podrá recibir solicitudes de viaje y aparecerá en el mapa de pasajeros." : "El conductor quedará inactivo de inmediato y no podrá ver las solicitudes.";
+            
+            window.showConfirm(title, desc, async () => {
+                try {
+                    await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isApproved: shouldApprove });
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isApproved: shouldApprove });
+                    window.showToast(shouldApprove ? "Conductor aprobado con éxito." : "Licencia revocada del conductor.", "success");
+                } catch(e) {
+                    window.showToast("Error de conexión al actualizar aprobación.", "error");
+                }
+            });
         };
 
         window.trackDriver = async (uid) => {
@@ -1451,32 +1711,36 @@
         }
 
         window.forceAdminCancel = async (id) => {
-            if (confirm("¿Estás seguro de cancelar este viaje de forma suprema?")) {
-                try {
-                    const tSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
-                    if (tSnap.exists()) {
-                        const activeTripData = tSnap.data();
-                        const cancellationData = {
-                            tripId: id,
-                            origin: activeTripData.origin,
-                            destination: activeTripData.destination,
-                            price: activeTripData.price,
-                            clientId: activeTripData.clientId,
-                            clientName: activeTripData.clientName,
-                            clientPhone: activeTripData.clientPhone,
-                            driverId: activeTripData.driverId || null,
-                            driverName: activeTripData.driverName || "Ninguno",
-                            cancelledBy: "Administrador Supremo",
-                            cancelledAt: Date.now()
-                        };
-                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', id), cancellationData);
+            window.showConfirm(
+                "¿Fuerza de Cancelación?", 
+                "Esta acción detendrá el viaje administrativamente. Ambos usuarios serán notificados.", 
+                async () => {
+                    try {
+                        const tSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
+                        if (tSnap.exists()) {
+                            const activeTripData = tSnap.data();
+                            const cancellationData = {
+                                tripId: id,
+                                origin: activeTripData.origin,
+                                destination: activeTripData.destination,
+                                price: activeTripData.price,
+                                clientId: activeTripData.clientId,
+                                clientName: activeTripData.clientName,
+                                clientPhone: activeTripData.clientPhone,
+                                driverId: activeTripData.driverId || null,
+                                driverName: activeTripData.driverName || "Ninguno",
+                                cancelledBy: "Administrador Supremo",
+                                cancelledAt: Date.now()
+                            };
+                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', id), cancellationData);
+                        }
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { status: 'cancelled', cancelledBy: 'admin' });
+                        window.showToast("Viaje cancelado por la autoridad.", "success");
+                    } catch(e) {
+                        window.showToast("Error al forzar la cancelación.", "error");
                     }
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { status: 'cancelled', cancelledBy: 'admin' });
-                    window.showToast("Viaje cancelado por la autoridad.", "success");
-                } catch(e) {
-                    window.showToast("Error al forzar la cancelación.", "error");
                 }
-            }
+            );
         };
 
         // --- SISTEMA DE HISTORIAL DE CANCELADOS ---
@@ -1489,7 +1753,6 @@
                 return;
             }
 
-            // Ordenar por fecha de cancelación localmente
             const sorted = cancelledDocs.sort((a,b) => b.data().cancelledAt - a.data().cancelledAt);
 
             sorted.forEach(d => {
@@ -1514,21 +1777,24 @@
         }
 
         window.clearCancelledLogs = async () => {
-            if (confirm("¿Estás seguro de vaciar todo el registro de viajes cancelados?")) {
-                try {
-                    window.showToast("Iniciando vaciado del historial...", "info");
-                    // Consultamos todas las cancelaciones y las eliminamos secuencialmente
-                    const q = collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips');
-                    onSnapshot(q, (snap) => {
-                        snap.forEach(async (d) => {
-                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', d.id));
+            window.showConfirm(
+                "¿Vaciar Historial?", 
+                "Se eliminarán todos los registros históricos de cancelaciones permanentemente.", 
+                async () => {
+                    try {
+                        window.showToast("Iniciando vaciado del historial...", "info");
+                        const q = collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips');
+                        onSnapshot(q, (snap) => {
+                            snap.forEach(async (d) => {
+                                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', d.id));
+                            });
                         });
-                    });
-                    window.showToast("Historial vaciado correctamente.", "success");
-                } catch(e) {
-                    window.showToast("Error al borrar registros.", "error");
+                        window.showToast("Historial vaciado correctamente.", "success");
+                    } catch(e) {
+                        window.showToast("Error al borrar registros.", "error");
+                    }
                 }
-            }
+            );
         };
 
     </script>
