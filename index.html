@@ -3,32 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Comayagua Express VIP</title>
+    <title>SOZA — Soluciones de Transporte VIP</title>
     <!-- Frameworks Externos -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <!-- Configuración de Colores de Tailwind Personalizados para SOZA (Dorado y Negro Premium) -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        soza: {
+                            gold: '#d4af37',
+                            goldlight: '#f3e5ab',
+                            golddark: '#aa7c11',
+                            dark: '#0b0f19',
+                            darklight: '#1e293b',
+                            card: '#111827'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     
     <!-- Soporte PWA para evitar suspensión profunda en dispositivos móviles -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="SOZA VIP">
     
     <style>
         :root { --app-height: 100%; }
         html, body { 
             font-family: 'Inter', sans-serif; 
-            background-color: #f8fafc; 
+            background-color: #0b0f19; 
             overflow: hidden; 
             height: 100dvh;
             width: 100%;
             position: fixed;
+            color: #f8fafc;
         }
         
         #map { height: 100%; width: 100%; position: absolute; inset: 0; transition: opacity 0.5s ease; }
 
         .login-screen, .setup-screen, .rating-screen { 
-            background: linear-gradient(135deg, #020617 0%, #0f172a 100%); 
+            background: linear-gradient(135deg, #090d16 0%, #020408 100%); 
             z-index: 10000; 
             position: fixed;
             inset: 0;
@@ -59,12 +81,13 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            background: white;
+            background: #111827;
             padding: 20px 24px;
             border-radius: 2rem 2rem 0 0;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.4);
             z-index: 2000;
             display: none;
+            border-top: 2px solid #d4af37;
         }
 
         .nav-fab {
@@ -72,19 +95,19 @@
             right: 15px;
             width: 52px;
             height: 52px;
-            background: white;
+            background: #1e293b;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
             z-index: 1900;
-            color: #1e293b;
+            color: #d4af37;
             cursor: pointer;
-            border: 1px solid #f1f5f9;
+            border: 1px solid #d4af37/30;
         }
 
-        #fab-center { bottom: 210px; left: 15px; width: auto; border-radius: 30px; padding: 0 20px; font-weight: 800; font-size: 12px; gap: 8px; color: #2563eb; }
+        #fab-center { bottom: 210px; left: 15px; width: auto; border-radius: 30px; padding: 0 20px; font-weight: 800; font-size: 12px; gap: 8px; color: #d4af37; }
 
         .collapsible-panel { transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         .panel-collapsed { transform: translateY(calc(100% - 60px)); }
@@ -92,14 +115,17 @@
         #chat-section { transition: max-height 0.4s ease, opacity 0.3s ease; overflow: hidden; }
         #chat-section.collapsed { max-height: 0; opacity: 0; padding: 0; }
 
-        .pac-container { z-index: 100000 !important; border-radius: 1rem !important; border: none !important; box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important; }
+        .pac-container { z-index: 100000 !important; border-radius: 1rem !important; border: 1px solid #d4af37 !important; background-color: #111827 !important; color: white !important; box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important; }
+        .pac-item { color: #9ca3af !important; border-top: 1px solid #1f2937 !important; }
+        .pac-item:hover { background-color: #1f2937 !important; }
+        .pac-item-query { color: white !important; }
         
-        @keyframes pulse-blue {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(37, 99, 235, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+        @keyframes pulse-gold {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(212, 175, 55, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); }
         }
-        .searching-pulse { animation: pulse-blue 2s infinite; }
+        .searching-pulse { animation: pulse-gold 2s infinite; }
         
         #app-interface, #setup-screen, #rating-screen { display: none; }
 
@@ -125,9 +151,10 @@
                 height: auto;
                 max-height: 85dvh;
                 border-radius: 2.5rem 2.5rem 0 0;
-                border-top: 1px solid #e2e8f0;
+                border-top: 2px solid #d4af37;
                 z-index: 5000;
                 overflow: hidden;
+                background-color: #111827;
             }
             body.is-searching #control-panel { bottom: auto; top: 0; max-height: 100dvh; border-radius: 0; padding-top: 20px; }
             body.is-searching #map-container { opacity: 0.05; pointer-events: none; }
@@ -138,8 +165,8 @@
         }
 
         .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 8px; font-size: 13px; display: flex; flex-direction: column; }
-        .msg-mine { background: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
-        .msg-theirs { background: #f1f5f9; color: #1e293b; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .msg-mine { background: #d4af37; color: #0b0f19; font-weight: 600; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .msg-theirs { background: #1e293b; color: #f8fafc; align-self: flex-start; border-bottom-left-radius: 2px; }
         
         input { font-size: 16px !important; } 
     </style>
@@ -161,7 +188,7 @@
                 window.directionsService = new google.maps.DirectionsService();
                 window.geocoder = new google.maps.Geocoder();
                 window.directionsRenderer = new google.maps.DirectionsRenderer({
-                    polylineOptions: { strokeColor: "#2563eb", strokeWeight: 8, strokeOpacity: 0.9 },
+                    polylineOptions: { strokeColor: "#d4af37", strokeWeight: 8, strokeOpacity: 0.9 },
                     suppressMarkers: false,
                     preserveViewport: false
                 });
@@ -172,7 +199,17 @@
                     zoom: 16,
                     disableDefaultUI: true,
                     mapTypeId: 'roadmap',
-                    gestureHandling: 'greedy'
+                    gestureHandling: 'greedy',
+                    styles: [
+                        { "elementType": "geometry", "stylers": [{ "color": "#111827" }] },
+                        { "elementType": "labels.text.stroke", "stylers": [{ "color": "#111827" }] },
+                        { "elementType": "labels.text.fill", "stylers": [{ "color": "#9ca3af" }] },
+                        { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#d4af37" }] },
+                        { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1f2937" }] },
+                        { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#111827" }] },
+                        { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#e5e7eb" }] },
+                        { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0b0f19" }] }
+                    ]
                 });
 
                 window.gMap.addListener('dragstart', () => { 
@@ -249,7 +286,7 @@
                     map: window.gMap,
                     icon: isSelf ? {
                         path: "M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z",
-                        fillColor: "#3b82f6",
+                        fillColor: "#d4af37",
                         fillOpacity: 1,
                         strokeWeight: 2,
                         strokeColor: "#ffffff",
@@ -258,10 +295,10 @@
                         anchor: new google.maps.Point(12, 12)
                     } : {
                         path: "M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z",
-                        fillColor: "#475569",
+                        fillColor: "#ffffff",
                         fillOpacity: 1,
                         strokeWeight: 2,
-                        strokeColor: "#ffffff",
+                        strokeColor: "#d4af37",
                         scale: 1.2
                     }
                 });
@@ -277,7 +314,6 @@
             const chat = document.getElementById('chat-section');
             chat.classList.toggle('collapsed');
             
-            // Cuando se abre el chat, se quita la alerta visual de mensajes no leídos
             if (!chat.classList.contains('collapsed')) {
                 const badge = document.getElementById('chat-unread-badge');
                 if (badge) badge.classList.add('hidden');
@@ -297,17 +333,17 @@
     <!-- CONTENEDOR DE TOASTS -->
     <div id="toast-container"></div>
 
-    <!-- MODAL CONFIRMACIÓN VIP (Reemplazo total de confirm y alert nativos) -->
-    <div id="confirm-modal" class="hidden fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-slate-100 transform transition-transform duration-300 scale-95">
-            <div class="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-100">
+    <!-- MODAL CONFIRMACIÓN VIP -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-soza-card p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-soza-gold/30 transform transition-transform duration-300 scale-95 text-white">
+            <div class="w-16 h-16 rounded-full bg-rose-950/50 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-500/30">
                 <i class="fas fa-exclamation-triangle text-2xl"></i>
             </div>
-            <h3 id="confirm-title" class="text-md font-black text-slate-900 uppercase tracking-tight">¿Estás seguro?</h3>
-            <p id="confirm-desc" class="text-xs text-slate-500 mt-2 font-medium leading-relaxed">Esta acción requiere autorización y se aplicará de inmediato.</p>
+            <h3 id="confirm-title" class="text-md font-black text-white uppercase tracking-tight">¿Estás seguro?</h3>
+            <p id="confirm-desc" class="text-xs text-slate-300 mt-2 font-medium leading-relaxed">Esta acción requiere autorización y se aplicará de inmediato.</p>
             <div class="flex gap-3 mt-6">
-                <button id="confirm-cancel-btn" class="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600 font-black rounded-2xl text-xs uppercase tracking-wider">Cancelar</button>
-                <button id="confirm-ok-btn" class="flex-1 py-3.5 bg-red-600 hover:bg-red-700 transition-colors text-white font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg">Confirmar</button>
+                <button id="confirm-cancel-btn" class="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 transition-colors text-slate-300 font-black rounded-2xl text-xs uppercase tracking-wider">Cancelar</button>
+                <button id="confirm-ok-btn" class="flex-1 py-3.5 bg-rose-600 hover:bg-rose-700 transition-colors text-white font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg">Confirmar</button>
             </div>
         </div>
     </div>
@@ -324,45 +360,45 @@
 
     <!-- PANTALLA DE CALIFICACIÓN -->
     <div id="rating-screen" class="rating-screen fixed inset-0 flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-sm text-center border border-white/20">
-            <h2 class="text-xl font-black mb-1 text-gray-900">Viaje Finalizado</h2>
-            <p id="rating-title" class="text-gray-500 text-xs mb-6 font-medium">¿Cómo fue tu experiencia VIP?</p>
-            <div class="flex justify-center gap-3 mb-6 text-4xl text-gray-200">
+        <div class="bg-soza-card p-8 rounded-[2rem] shadow-2xl w-full max-w-sm text-center border border-soza-gold/30">
+            <h2 class="text-xl font-black mb-1 text-white">Viaje Finalizado</h2>
+            <p id="rating-title" class="text-gray-400 text-xs mb-6 font-medium">¿Cómo fue tu experiencia VIP?</p>
+            <div class="flex justify-center gap-3 mb-6 text-4xl text-gray-600">
                 <i onclick="window.setRating(1)" class="fas fa-star cursor-pointer star-btn" data-index="1"></i>
                 <i onclick="window.setRating(2)" class="fas fa-star cursor-pointer star-btn" data-index="2"></i>
                 <i onclick="window.setRating(3)" class="fas fa-star cursor-pointer star-btn" data-index="3"></i>
                 <i onclick="window.setRating(4)" class="fas fa-star cursor-pointer star-btn" data-index="4"></i>
                 <i onclick="window.setRating(5)" class="fas fa-star cursor-pointer star-btn" data-index="5"></i>
             </div>
-            <button onclick="window.submitRating()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg">ENVIAR CALIFICACIÓN</button>
+            <button onclick="window.submitRating()" class="w-full bg-soza-gold text-soza-dark font-black py-4 rounded-2xl shadow-lg">ENVIAR CALIFICACIÓN</button>
         </div>
     </div>
 
     <!-- PANEL DE TIEMPO DE ESPERA VIP OPTIMIZADO (PASAJERO) -->
-    <div id="eta-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md px-6 py-3.5 rounded-[1.5rem] shadow-2xl border border-blue-500/30 z-[6000] min-w-[240px] text-white">
+    <div id="eta-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-950/95 backdrop-blur-md px-6 py-3.5 rounded-[1.5rem] shadow-2xl border border-soza-gold/40 z-[6000] min-w-[240px] text-white">
         <div class="flex items-center gap-3">
             <div class="relative flex h-3 w-3">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-soza-gold opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3 w-3 bg-soza-gold"></span>
             </div>
             <div class="flex flex-col">
-                <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest leading-none mb-1">Tiempo de Espera VIP</p>
+                <p class="text-[9px] font-black text-soza-gold uppercase tracking-widest leading-none mb-1">Tiempo de Espera SOZA</p>
                 <p id="eta-text" class="text-sm font-extrabold tracking-tight leading-tight">Calculando tiempo...</p>
-                <p id="eta-distance" class="text-[10px] text-slate-300 font-medium mt-0.5">Midiendo distancia restante...</p>
+                <p id="eta-distance" class="text-[10px] text-slate-300 font-medium mt-0.5">Midiendo distancia...</p>
             </div>
         </div>
     </div>
 
     <!-- HUD NAVEGACIÓN TOP -->
-    <div id="nav-hud-top">
+    <div id="nav-hud-top" class="border border-soza-gold/20">
         <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
             <i class="fas fa-location-arrow text-2xl text-white" id="nav-step-icon"></i>
         </div>
         <div class="flex-1">
             <p id="nav-step-text" class="text-lg font-bold leading-tight">En camino...</p>
-            <p id="nav-step-dist" class="text-sm opacity-80 font-medium">Sigue la ruta azul</p>
+            <p id="nav-step-dist" class="text-sm opacity-80 font-medium">Sigue la ruta dorada</p>
         </div>
-        <i class="fas fa-sparkles text-blue-200 animate-pulse"></i>
+        <i class="fas fa-sparkles text-soza-goldlight animate-pulse"></i>
     </div>
 
     <!-- HUD NAVEGACIÓN BOTTOM -->
@@ -370,13 +406,13 @@
         <div class="flex items-center justify-between">
             <div class="flex flex-col">
                 <div class="flex items-center gap-2">
-                    <span id="nav-total-time" class="text-3xl font-black text-green-600">-- min</span>
+                    <span id="nav-total-time" class="text-3xl font-black text-soza-gold">-- min</span>
                 </div>
-                <div class="flex items-center gap-2 text-gray-500 font-bold text-xs uppercase tracking-widest">
+                <div class="flex items-center gap-2 text-gray-400 font-bold text-xs uppercase tracking-widest">
                     <span id="nav-total-dist">-- km</span> • <span id="nav-total-eta">--:--</span>
                 </div>
             </div>
-            <button onclick="window.cancelOrder()" class="px-8 py-3 rounded-full bg-red-600 text-white font-black text-sm uppercase shadow-lg">Salir</button>
+            <button onclick="window.cancelOrder()" class="px-8 py-3 rounded-full bg-red-600 text-white font-black text-sm uppercase shadow-lg hover:bg-red-700 transition-colors">Salir</button>
         </div>
     </div>
 
@@ -384,84 +420,115 @@
 
     <!-- PANTALLA LOGIN CON TABS DE INGRESO Y REGISTRO -->
     <div id="login-screen" class="login-screen flex items-center justify-center p-6">
-        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-gray-100">
+        <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-soza-gold/20 text-white">
+            
+            <!-- RECREACIÓN DEL LOGOTIPO "SOZA" MEDIANTE SVG PREMIUM -->
             <div class="text-center mb-6">
-                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-600 text-white rounded-2xl mb-4 shadow-xl shadow-blue-200">
-                    <i class="fas fa-car-side text-3xl"></i>
+                <div class="flex justify-center mb-2">
+                    <svg class="w-48 h-auto" viewBox="0 0 500 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Trazado de Carretera Dorada de Fondo -->
+                        <path d="M 230 140 C 350 140, 420 120, 450 70" stroke="url(#goldGradient)" stroke-width="8" stroke-linecap="round" />
+                        <path d="M 230 140 C 350 140, 420 120, 450 70" stroke="#000" stroke-width="1" stroke-dasharray="8 6" />
+                        
+                        <!-- Letra S (Blanco) -->
+                        <path d="M 70 85 C 70 65, 120 65, 120 75 C 120 85, 70 90, 70 105 C 70 120, 120 120, 120 100" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                        
+                        <!-- Pin de Mapa Dorado (O) -->
+                        <g transform="translate(135, 45)">
+                            <!-- Círculo Base Pin -->
+                            <path d="M 40 10 C 15 10, 0 25, 0 45 C 0 75, 40 110, 40 110 C 40 110, 80 75, 80 45 C 80 25, 65 10, 40 10 Z" fill="url(#goldGradient)" />
+                            <circle cx="40" cy="45" r="16" fill="#111827" />
+                        </g>
+                        
+                        <!-- Letra Z (Blanco) -->
+                        <path d="M 240 65 L 300 65 L 240 115 L 300 115" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                        
+                        <!-- Letra A (Blanco) -->
+                        <path d="M 315 115 L 340 65 L 365 115 M 325 98 L 355 98" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" fill="none" />
+                        
+                        <!-- Gradiente de Oro Metálico -->
+                        <defs>
+                            <linearGradient id="goldGradient" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#b8860b" />
+                                <stop offset="50%" stop-color="#e6ca65" />
+                                <stop offset="100%" stop-color="#996515" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
                 </div>
-                <h1 class="text-2xl font-black text-gray-900 tracking-tight">Comayagua Express</h1>
-                <p class="text-gray-400 font-medium text-sm text-center tracking-widest uppercase">VIP Comayagua</p>
+                <h2 class="text-xs font-black uppercase tracking-widest text-soza-gold">Soluciones de Transporte</h2>
+                <p class="text-[9px] text-gray-400 font-bold tracking-widest uppercase">Zona a Zona • VIP</p>
             </div>
 
             <!-- TABS DE ACCIÓN DE AUTH -->
-            <div class="flex bg-gray-100 p-1 rounded-2xl mb-4">
-                <button onclick="window.setAuthMode('login')" id="auth-tab-login" class="flex-1 py-2.5 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600 uppercase">Ingresar</button>
+            <div class="flex bg-slate-800/80 p-1 rounded-2xl mb-4 border border-slate-700">
+                <button onclick="window.setAuthMode('login')" id="auth-tab-login" class="flex-1 py-2.5 rounded-xl font-bold text-xs transition-all bg-soza-gold shadow-sm text-soza-dark uppercase">Ingresar</button>
                 <button onclick="window.setAuthMode('register')" id="auth-tab-register" class="flex-1 py-2.5 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase">Crear Cuenta</button>
             </div>
 
             <!-- SELECCIONADOR DE ROLES -->
-            <div class="flex bg-gray-100 p-1 rounded-2xl mb-6">
+            <div class="flex bg-slate-800/80 p-1 rounded-2xl mb-6 border border-slate-700">
                 <button onclick="window.updateRole('client')" id="role-client" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600 uppercase">Pasajero</button>
                 <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase">Conductor</button>
             </div>
 
             <div class="space-y-4">
-                <input id="email-field" type="email" placeholder="Correo electrónico" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                <input id="pass-field" type="password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all">
-                <button id="auth-submit-btn" onclick="window.executeAuth()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest text-xs">INGRESAR AL SISTEMA</button>
+                <input id="email-field" type="email" placeholder="Correo electrónico" class="w-full px-5 py-4 rounded-2xl border border-slate-700 bg-slate-900 text-white outline-none focus:ring-2 focus:ring-soza-gold transition-all">
+                <input id="pass-field" type="password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border border-slate-700 bg-slate-900 text-white outline-none focus:ring-2 focus:ring-soza-gold transition-all">
+                <button id="auth-submit-btn" onclick="window.executeAuth()" class="w-full bg-soza-gold text-soza-dark font-black py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest text-xs hover:bg-soza-goldlight">INGRESAR AL SISTEMA</button>
             </div>
         </div>
     </div>
 
     <!-- SETUP PERFIL -->
     <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
-        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-white/10">
-            <h2 id="setup-title" class="text-xl font-black mb-6 text-center text-gray-900">Finaliza tu Perfil</h2>
+        <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-soza-gold/30 text-white">
+            <h2 id="setup-title" class="text-xl font-black mb-6 text-center text-soza-gold">Finaliza tu Perfil</h2>
             <div class="space-y-4">
                 <div class="flex flex-col items-center mb-4">
-                    <div id="photo-preview" class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center border-4 border-white shadow-md overflow-hidden relative">
-                        <i class="fas fa-user text-2xl text-gray-300"></i>
+                    <div id="photo-preview" class="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center border-4 border-soza-gold shadow-md overflow-hidden relative">
+                        <i class="fas fa-user text-2xl text-slate-700"></i>
                     </div>
-                    <label class="mt-2 cursor-pointer text-blue-600 text-[10px] font-black uppercase">
+                    <label class="mt-2 cursor-pointer text-soza-gold text-[10px] font-black uppercase tracking-widest">
                         Subir Foto 
                         <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="window.previewPhoto(this)">
                     </label>
-                    <span id="photo-req-label" class="hidden text-xs text-red-500 font-bold mt-1">(Requerida para Conductor)</span>
+                    <span id="photo-req-label" class="hidden text-xs text-rose-500 font-bold mt-1">(Requerida para Conductor)</span>
                 </div>
-                <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
-                <input id="phone-number" type="tel" placeholder="Teléfono" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
-                <div id="driver-fields" class="hidden space-y-3 pt-4 border-t">
-                    <input id="car-model" type="text" placeholder="Vehículo (Ej: Toyota Corolla 2018)" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
-                    <input id="car-plate" type="text" placeholder="Placa" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none uppercase font-bold">
-                    <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-5 py-4 rounded-xl border bg-gray-50 outline-none">
+                <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
+                <input id="phone-number" type="tel" placeholder="Teléfono" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
+                <div id="driver-fields" class="hidden space-y-3 pt-4 border-t border-slate-800">
+                    <input id="car-model" type="text" placeholder="Vehículo (Ej: Toyota Corolla 2018)" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
+                    <input id="car-plate" type="text" placeholder="Placa" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none uppercase font-bold text-white">
+                    <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
                 </div>
-                <button id="btn-save-profile" onclick="window.saveProfile()" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-xl mt-4 active:scale-95 transition-transform">EMPEZAR A VIAJAR</button>
-                <button id="btn-cancel-profile" onclick="window.closeProfileEdit()" class="hidden w-full bg-gray-100 text-gray-700 font-bold py-4 rounded-2xl active:scale-95 transition-transform text-xs uppercase">Cerrar</button>
+                <button id="btn-save-profile" onclick="window.saveProfile()" class="w-full bg-soza-gold text-soza-dark font-black py-4 rounded-2xl shadow-xl mt-4 active:scale-95 transition-transform hover:bg-soza-goldlight">EMPEZAR A VIAJAR</button>
+                <button id="btn-cancel-profile" onclick="window.closeProfileEdit()" class="hidden w-full bg-slate-800 text-white font-bold py-4 rounded-2xl active:scale-95 transition-transform text-xs uppercase hover:bg-slate-700">Cerrar</button>
             </div>
         </div>
     </div>
 
     <!-- APP INTERFACE -->
     <div id="app-interface" class="flex-1 flex flex-col relative h-full">
-        <header id="app-header" class="glass-panel border-b border-gray-100 px-4 py-3 flex justify-between items-center z-50 shadow-sm bg-white">
-            <div onclick="window.openProfileEdit()" class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity" title="Gestionar mi perfil">
-                <div class="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-sm overflow-hidden" id="avatar-placeholder">C</div>
+        <header id="app-header" class="border-b border-slate-800 px-4 py-3 flex justify-between items-center z-50 shadow-sm bg-soza-card">
+            <div onclick="window.openProfileEdit()" class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity text-white" title="Gestionar mi perfil">
+                <div class="w-9 h-9 bg-soza-gold text-soza-dark rounded-full flex items-center justify-center font-bold text-sm shadow-sm overflow-hidden" id="avatar-placeholder">S</div>
                 <div class="flex flex-col">
-                    <h2 class="font-black text-gray-900 text-sm leading-none" id="user-name-display">USUARIO</h2>
-                    <span class="text-[9px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Editar Perfil <i class="fas fa-edit text-[8px] text-blue-600 ml-0.5"></i></span>
+                    <h2 class="font-black text-white text-sm leading-none" id="user-name-display">USUARIO</h2>
+                    <span class="text-[9px] text-soza-gold font-bold uppercase tracking-wider mt-0.5">Editar Perfil <i class="fas fa-edit text-[8px] ml-0.5"></i></span>
                 </div>
             </div>
             
             <div class="flex items-center gap-2">
                 <!-- NOTIFICACIONES DE NAVEGADOR SISTEMA -->
-                <button id="notif-bell-btn" onclick="window.requestNotificationPermission()" class="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 hover:text-amber-500 flex items-center justify-center shadow-sm border border-slate-100 transition-colors" title="Activar Notificaciones de Navegador">
+                <button id="notif-bell-btn" onclick="window.requestNotificationPermission()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-soza-gold flex items-center justify-center shadow-sm border border-slate-700 transition-colors" title="Activar Notificaciones de Navegador">
                     <i id="notif-bell-icon" class="fas fa-bell"></i>
                 </button>
                 <!-- BOTÓN EXCLUSIVO ADMIN SUPREMO -->
-                <button id="admin-toggle-btn" onclick="window.toggleAdminPanel()" class="hidden w-10 h-10 rounded-xl bg-amber-50 text-amber-500 hover:text-amber-600 flex items-center justify-center shadow-sm border border-amber-200">
+                <button id="admin-toggle-btn" onclick="window.toggleAdminPanel()" class="hidden w-10 h-10 rounded-xl bg-amber-950 text-soza-gold hover:text-soza-goldlight flex items-center justify-center shadow-sm border border-soza-gold/30">
                     <i class="fas fa-crown"></i>
                 </button>
-                <button onclick="window.processLogout()" class="w-10 h-10 rounded-xl bg-gray-50 text-gray-400 hover:text-red-500 flex items-center justify-center shadow-sm">
+                <button onclick="window.processLogout()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-red-500 flex items-center justify-center shadow-sm border border-slate-700 transition-colors">
                     <i class="fas fa-power-off"></i>
                 </button>
             </div>
@@ -470,63 +537,88 @@
         <main class="flex-1 relative flex flex-col md:flex-row overflow-hidden">
             <div id="map-container" class="flex-1 relative order-1 md:order-2">
                 <div id="map"></div>
+                
+                <!-- NUEVA CONSOLA DE DIAGNÓSTICO DE NOTIFICACIONES SOZA -->
+                <div class="absolute bottom-4 left-4 bg-slate-950/95 backdrop-blur-md p-3.5 rounded-2xl border border-soza-gold/20 text-[10px] space-y-1.5 shadow-2xl max-w-xs z-50 text-white">
+                    <div class="flex items-center gap-1.5 border-b border-slate-800 pb-1.5 mb-1.5">
+                        <i class="fas fa-microchip text-soza-gold"></i>
+                        <span class="font-black uppercase tracking-wider text-soza-gold">Diagnóstico de Alertas</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span>Permiso del Dispositivo:</span>
+                        <span id="diag-permission" class="font-bold">...</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span>Canal de Red Seguro (HTTPS):</span>
+                        <span id="diag-https" class="font-bold">...</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <span>Service Worker de Fondo:</span>
+                        <span id="diag-sw" class="font-bold">...</span>
+                    </div>
+                    <!-- BOTÓN DE PRUEBA EN SEGUNDO PLANO -->
+                    <button onclick="window.triggerDelayedNotifTest()" class="w-full mt-2 py-1.5 bg-soza-gold hover:bg-soza-goldlight text-soza-dark font-black rounded-lg uppercase tracking-wider text-[8px] shadow-md transition-transform active:scale-95">
+                        Probar Notificación en 5s 🔒
+                    </button>
+                    <p class="text-[7px] text-slate-400 italic text-center mt-1">Presiona, bloquea tu pantalla rápido y espera 5 segundos.</p>
+                </div>
             </div>
 
-            <div id="control-panel" class="collapsible-panel w-full md:w-[400px] bg-white z-40 shadow-2xl border-r border-gray-100 p-6 flex flex-col order-2 md:order-1 glass-panel overflow-y-auto">
+            <div id="control-panel" class="collapsible-panel w-full md:w-[400px] z-40 shadow-2xl border-r border-slate-800 p-6 flex flex-col order-2 md:order-1 overflow-y-auto bg-soza-card">
                 
                 <!-- VISTA PASAJERO -->
-                <div id="client-view" class="flex-1">
-                    <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter">¿A dónde vamos hoy?</h3>
+                <div id="client-view" class="flex-1 text-white">
+                    <h3 class="text-lg font-black text-white mb-4 tracking-tighter">¿A dónde vamos hoy?</h3>
                     <div class="space-y-3">
                         <div class="relative">
-                            <input id="origin-input" type="text" placeholder="Origen" class="w-full pl-5 pr-12 py-4 bg-gray-50 rounded-2xl outline-none shadow-sm">
-                            <button onclick="window.useCurrentLocation()" id="btn-current-loc" class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-blue-600" title="Usar ubicación actual"><i class="fas fa-crosshairs text-lg"></i></button>
+                            <input id="origin-input" type="text" placeholder="Origen" class="w-full pl-5 pr-12 py-4 bg-slate-900 border border-slate-800 text-white rounded-2xl outline-none shadow-sm focus:ring-2 focus:ring-soza-gold transition-all">
+                            <button onclick="window.useCurrentLocation()" id="btn-current-loc" class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-soza-gold" title="Usar ubicación actual"><i class="fas fa-crosshairs text-lg"></i></button>
                         </div>
-                        <input id="destination-input" type="text" placeholder="Destino final" class="w-full px-5 py-4 bg-gray-50 rounded-2xl outline-none shadow-sm">
+                        <input id="destination-input" type="text" placeholder="Destino final" class="w-full px-5 py-4 bg-slate-900 border border-slate-800 text-white rounded-2xl outline-none shadow-sm focus:ring-2 focus:ring-soza-gold transition-all">
                     </div>
 
-                    <div id="fare-card" class="mt-6 p-6 bg-blue-600 rounded-3xl text-white hidden shadow-2xl">
+                    <div id="fare-card" class="mt-6 p-6 bg-gradient-to-br from-soza-gold to-soza-golddark rounded-3xl text-soza-dark hidden shadow-2xl">
                         <span class="text-2xl font-black block mb-4" id="price-display">L. 0.00</span>
-                        <button onclick="window.sendTripRequest()" class="w-full bg-white text-blue-700 font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest text-xs active:scale-95 transition-transform">SOLICITAR AHORA</button>
+                        <button onclick="window.sendTripRequest()" class="w-full bg-white text-soza-dark font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest text-xs active:scale-95 transition-transform">SOLICITAR AHORA</button>
                     </div>
 
                     <div id="searching-state" class="mt-8 text-center hidden">
-                        <div class="flex justify-center mb-4"><div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center searching-pulse"><i class="fas fa-radar text-blue-600 text-2xl"></i></div></div>
-                        <h4 class="font-black text-gray-800 text-sm uppercase">Esperando conductores...</h4>
-                        <button onclick="window.cancelOrder()" class="mt-6 text-[10px] font-black text-red-500 uppercase underline block mx-auto active:scale-95 transition-all">Cancelar</button>
+                        <div class="flex justify-center mb-4"><div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center searching-pulse"><i class="fas fa-radar text-soza-gold text-2xl"></i></div></div>
+                        <h4 class="font-black text-white text-sm uppercase">Esperando conductores...</h4>
+                        <button onclick="window.cancelOrder()" class="mt-6 text-[10px] font-black text-rose-500 uppercase underline block mx-auto active:scale-95 transition-all">Cancelar</button>
                     </div>
                 </div>
 
                 <!-- CONDUCTOR (LISTA DE VIAJES DISPONIBLES O COMPROBACIÓN DE APROBACIÓN) -->
-                <div id="driver-view" class="hidden flex-1">
-                    <!-- VISTA DE REVISIÓN SI NO ESTÁ APROBADO POR EL ADMIN SUPREMO -->
+                <div id="driver-view" class="hidden flex-1 text-white">
+                    <!-- VISTA DE REVISIÓN SI NO ESTÁ APROBADO -->
                     <div id="driver-pending-approval" class="hidden flex flex-col items-center justify-center py-16 text-center px-4">
-                        <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center border-4 border-amber-200 shadow-lg text-amber-500 mb-6 animate-pulse">
+                        <div class="w-20 h-20 bg-amber-950/40 rounded-full flex items-center justify-center border-4 border-soza-gold shadow-lg text-soza-gold mb-6 animate-pulse">
                             <i class="fas fa-id-card text-3xl"></i>
                         </div>
-                        <h3 class="text-lg font-black text-slate-800 tracking-tight uppercase">Licencia en Evaluación</h3>
-                        <p class="text-xs text-slate-500 mt-2 max-w-xs leading-relaxed font-semibold">Tu cuenta de conductor VIP se encuentra en proceso de aprobación por el Administrador Supremo. Podrás recibir viajes en cuanto sea aprobada.</p>
+                        <h3 class="text-lg font-black text-white tracking-tight uppercase">Licencia en Evaluación</h3>
+                        <p class="text-xs text-slate-400 mt-2 max-w-xs leading-relaxed font-semibold">Tu cuenta de conductor VIP se encuentra en proceso de aprobación por el Administrador Supremo. Podrás recibir viajes en cuanto sea aprobada.</p>
                     </div>
                     
                     <!-- VISTA COMPLETA DE VIAJES -->
                     <div id="driver-active-view">
-                        <h3 class="text-lg font-black text-gray-900 mb-4 tracking-tighter uppercase text-center md:text-left font-black">Viajes Disponibles</h3>
+                        <h3 class="text-lg font-black text-white mb-4 tracking-tighter uppercase text-center md:text-left font-black">Viajes Disponibles</h3>
                         <div id="requests-list" class="space-y-4 pb-4">
-                            <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-blue-600"></i><p class="font-bold text-xs uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>
+                            <div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-soza-gold"></i><p class="font-bold text-xs uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>
                         </div>
                     </div>
                 </div>
 
                 <!-- NUEVO: PANEL ADMINISTRADOR SUPREMO EXCLUSIVO -->
-                <div id="admin-view" class="hidden flex-1 flex flex-col h-full">
+                <div id="admin-view" class="hidden flex-1 flex flex-col h-full text-white">
                     <div class="flex items-center gap-2 mb-4">
-                        <span class="text-amber-500 text-xl"><i class="fas fa-crown"></i></span>
-                        <h3 class="text-lg font-black text-gray-900 tracking-tighter uppercase">Consola de Control VIP</h3>
+                        <span class="text-soza-gold text-xl"><i class="fas fa-crown"></i></span>
+                        <h3 class="text-lg font-black text-white tracking-tighter uppercase">Consola de Control VIP</h3>
                     </div>
                     
                     <!-- ADMIN TABS -->
-                    <div class="flex bg-gray-100 p-1 rounded-xl mb-4 text-[10px] font-black uppercase">
-                        <button onclick="window.setAdminTab('stats')" id="tab-admin-stats" class="admin-tab-btn flex-1 py-2 rounded-lg transition-all bg-white text-amber-600 shadow-sm">Estadísticas</button>
+                    <div class="flex bg-slate-800 p-1 rounded-xl mb-4 text-[10px] font-black uppercase border border-slate-700">
+                        <button onclick="window.setAdminTab('stats')" id="tab-admin-stats" class="admin-tab-btn flex-1 py-2 rounded-lg transition-all bg-soza-gold text-soza-dark shadow-sm">Estadísticas</button>
                         <button onclick="window.setAdminTab('users')" id="tab-admin-users" class="admin-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400">Socios</button>
                         <button onclick="window.setAdminTab('trips')" id="tab-admin-trips" class="admin-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400">Viajes</button>
                         <button onclick="window.setAdminTab('cancelled')" id="tab-admin-cancelled" class="admin-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400">Cancelados</button>
@@ -535,17 +627,17 @@
                     <!-- TAB CONTENIDO: ESTADÍSTICAS -->
                     <div id="admin-content-stats" class="admin-tab-content space-y-3">
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="p-4 bg-blue-50 border border-blue-100 rounded-2xl text-center">
-                                <span class="text-2xl font-black text-blue-600 block" id="stat-total-users">0</span>
+                            <div class="p-4 bg-slate-800 border border-slate-700 rounded-2xl text-center">
+                                <span class="text-2xl font-black text-soza-gold block" id="stat-total-users">0</span>
                                 <span class="text-[9px] font-black text-gray-400 uppercase tracking-widest">SOCIOS</span>
                             </div>
-                            <div class="p-4 bg-green-50 border border-green-100 rounded-2xl text-center">
-                                <span class="text-2xl font-black text-green-600 block" id="stat-active-drivers">0</span>
+                            <div class="p-4 bg-slate-800 border border-slate-700 rounded-2xl text-center">
+                                <span class="text-2xl font-black text-emerald-500 block" id="stat-active-drivers">0</span>
                                 <span class="text-[9px] font-black text-gray-400 uppercase tracking-widest">EN LÍNEA</span>
                             </div>
                         </div>
-                        <div class="p-4 bg-purple-50 border border-purple-100 rounded-2xl text-center">
-                            <span class="text-2xl font-black text-purple-600 block" id="stat-active-trips">0</span>
+                        <div class="p-4 bg-slate-800 border border-slate-700 rounded-2xl text-center">
+                            <span class="text-2xl font-black text-purple-400 block" id="stat-active-trips">0</span>
                             <span class="text-[9px] font-black text-gray-400 uppercase tracking-widest">VIAJES ACTIVOS</span>
                         </div>
                     </div>
@@ -553,16 +645,16 @@
                     <!-- TAB CONTENIDO: SOCIOS / BUSCADOR / VETADOS Y APROBACIÓN DE CHOFERES -->
                     <div id="admin-content-users" class="admin-tab-content hidden space-y-3">
                         <div class="relative">
-                            <input id="admin-user-search" type="text" oninput="window.filterAdminUsers(this.value)" placeholder="Buscar socio por nombre o tel..." class="w-full px-4 py-3 bg-gray-50 border rounded-2xl outline-none text-xs focus:ring-2 focus:ring-amber-200">
+                            <input id="admin-user-search" type="text" oninput="window.filterAdminUsers(this.value)" placeholder="Buscar socio por nombre o tel..." class="w-full px-4 py-3 bg-slate-900 border border-slate-800 text-white rounded-2xl outline-none text-xs focus:ring-2 focus:ring-soza-gold">
                             <i class="fas fa-search absolute right-4 top-3.5 text-gray-400 text-xs"></i>
                         </div>
                         
                         <!-- FILTROS DE SOCIO DEBIDO A RESTRICCIONES DE CONDUCTOR -->
                         <div class="flex gap-1.5 overflow-x-auto pb-1">
-                            <button onclick="window.setAdminUserFilter('all')" id="filter-user-all" class="admin-user-filter-btn px-3 py-1.5 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Todos</button>
-                            <button onclick="window.setAdminUserFilter('client')" id="filter-user-client" class="admin-user-filter-btn px-3 py-1.5 bg-gray-100 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Pasajeros</button>
-                            <button onclick="window.setAdminUserFilter('driver')" id="filter-user-driver" class="admin-user-filter-btn px-3 py-1.5 bg-gray-100 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Conductores</button>
-                            <button onclick="window.setAdminUserFilter('pending_driver')" id="filter-user-pending_driver" class="admin-user-filter-btn px-3 py-1.5 bg-gray-100 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Por Aprobar ⏳</button>
+                            <button onclick="window.setAdminUserFilter('all')" id="filter-user-all" class="admin-user-filter-btn px-3 py-1.5 bg-soza-gold text-soza-dark rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Todos</button>
+                            <button onclick="window.setAdminUserFilter('client')" id="filter-user-client" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Pasajeros</button>
+                            <button onclick="window.setAdminUserFilter('driver')" id="filter-user-driver" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Conductores</button>
+                            <button onclick="window.setAdminUserFilter('pending_driver')" id="filter-user-pending_driver" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Por Aprobar ⏳</button>
                         </div>
 
                         <div id="admin-users-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
@@ -578,11 +670,11 @@
                         </div>
                     </div>
 
-                    <!-- TAB CONTENIDO: CANCELADOS (AUDITORÍA HISTÓRICA) -->
+                    <!-- TAB CONTENIDO: CANCELADOS -->
                     <div id="admin-content-cancelled" class="admin-tab-content hidden space-y-3">
                         <div class="flex justify-between items-center mb-1">
                             <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Historial de cancelaciones</h4>
-                            <button onclick="window.clearCancelledLogs()" class="text-[9px] font-black text-red-500 uppercase tracking-widest underline hover:text-red-600">Limpiar Registro</button>
+                            <button onclick="window.clearCancelledLogs()" class="text-[9px] font-black text-red-500 uppercase tracking-widest underline hover:text-red-400">Limpiar Registro</button>
                         </div>
                         <div id="admin-cancelled-list" class="space-y-3 max-h-[280px] overflow-y-auto pr-1">
                             <!-- Inyectado dinámicamente -->
@@ -591,34 +683,34 @@
                 </div>
 
                 <!-- PANEL VIAJE ACTIVO (CHAT Y PANEL CLIENTE/CONDUCTOR) -->
-                <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full">
-                    <!-- Barra de arrastre (Grabber) -->
-                    <div onclick="window.toggleActivePanel()" class="flex justify-center py-2 cursor-pointer border-b border-gray-100 mb-4 hover:bg-gray-50 transition-colors">
-                        <div class="w-12 h-1 bg-gray-300 rounded-full shadow-sm"></div>
+                <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full text-white">
+                    <!-- Barra de arrastre -->
+                    <div onclick="window.toggleActivePanel()" class="flex justify-center py-2 cursor-pointer border-b border-slate-800 mb-4 hover:bg-slate-800 transition-colors">
+                        <div class="w-12 h-1 bg-slate-700 rounded-full shadow-sm"></div>
                     </div>
 
                     <!-- Cuadro de Direcciones Principal -->
-                    <div class="p-4 bg-blue-50 rounded-2xl border border-blue-100 shadow-sm mb-4">
+                    <div class="p-4 bg-slate-900 rounded-2xl border border-slate-800 shadow-sm mb-4">
                          <div class="flex items-start gap-2 mb-3">
-                             <div class="w-2 h-2 rounded-full bg-blue-600 mt-1.5 flex-shrink-0"></div>
-                             <p class="text-[10px] text-gray-600 leading-tight uppercase font-medium"><b>Recogida:</b> <span id="active-origin-text" class="font-bold text-gray-900">...</span></p>
+                             <div class="w-2 h-2 rounded-full bg-soza-gold mt-1.5 flex-shrink-0"></div>
+                             <p class="text-[10px] text-gray-300 leading-tight uppercase font-medium"><b>Recogida:</b> <span id="active-origin-text" class="font-bold text-white">...</span></p>
                          </div>
                          <div class="flex items-start gap-2">
-                             <div class="w-2 h-2 rounded bg-red-600 mt-1.5 flex-shrink-0"></div>
-                             <p class="text-[10px] text-gray-600 leading-tight uppercase font-medium"><b>Destino:</b> <span id="active-dest-text" class="font-bold text-gray-900">...</span></p>
+                             <div class="w-2 h-2 rounded bg-rose-600 mt-1.5 flex-shrink-0"></div>
+                             <p class="text-[10px] text-gray-300 leading-tight uppercase font-medium"><b>Destino:</b> <span id="active-dest-text" class="font-bold text-white">...</span></p>
                          </div>
                     </div>
 
                     <!-- ÁREA DE PIN / BOTÓN LLEGADA -->
                     <div id="pin-area" class="mb-4">
-                        <div id="client-pin-display" class="hidden bg-amber-50 border border-amber-200 p-4 rounded-2xl text-center shadow-inner animate-pulse">
-                            <p class="text-[10px] font-black text-amber-600 uppercase mb-2 tracking-widest">Tu PIN VIP de Seguridad</p>
-                            <p id="client-pin-code" class="text-4xl font-black text-amber-900 tracking-[0.4em]">----</p>
+                        <div id="client-pin-display" class="hidden bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse">
+                            <p class="text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest">Tu PIN SOZA de Seguridad</p>
+                            <p id="client-pin-code" class="text-4xl font-black text-soza-goldlight tracking-[0.4em]">----</p>
                         </div>
 
                         <div id="driver-pin-controls" class="hidden space-y-2">
                              <!-- LINK DINÁMICO DE RUTA PARA CONDUCTOR -->
-                             <button onclick="window.manualRouteRefresh()" id="driver-target-address" class="w-full p-3 bg-blue-600 text-white rounded-xl mb-3 text-center shadow-md active:scale-95 transition-all">
+                             <button onclick="window.manualRouteRefresh()" id="driver-target-address" class="w-full p-3 bg-soza-gold text-soza-dark rounded-xl mb-3 text-center shadow-md active:scale-95 transition-all">
                                 <div class="flex items-center justify-center gap-2">
                                     <i class="fas fa-map-marked-alt text-lg"></i>
                                     <div class="text-left font-sans">
@@ -628,35 +720,35 @@
                                 </div>
                             </button>
 
-                            <button id="btn-driver-arrived" onclick="window.markArrival()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">¡HE LLEGADO!</button>
+                            <button id="btn-driver-arrived" onclick="window.markArrival()" class="w-full bg-soza-gold text-soza-dark py-4 rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">¡HE LLEGADO!</button>
                             <div id="pin-input-group" class="hidden flex gap-2">
-                                <input id="driver-pin-input" type="number" placeholder="Ingresa PIN" class="flex-1 px-4 py-4 border-2 border-blue-100 rounded-2xl outline-none text-center font-black text-xl tracking-[0.2em]">
-                                <button onclick="window.verifyPin()" class="bg-blue-600 text-white px-6 rounded-2xl font-black text-xs uppercase active:scale-95 transition-all">OK</button>
+                                <input id="driver-pin-input" type="number" placeholder="Ingresa PIN" class="flex-1 px-4 py-4 border border-slate-700 bg-slate-900 rounded-2xl outline-none text-center font-black text-white text-xl tracking-[0.2em] focus:border-soza-gold">
+                                <button onclick="window.verifyPin()" class="bg-soza-gold text-soza-dark px-6 rounded-2xl font-black text-xs uppercase active:scale-95 transition-all">OK</button>
                             </div>
-                            <button id="finish-trip-btn" onclick="window.finishTrip()" class="hidden w-full bg-red-600 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">FINALIZAR VIAJE VIP</button>
+                            <button id="finish-trip-btn" onclick="window.finishTrip()" class="hidden w-full bg-rose-600 hover:bg-rose-700 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg active:scale-95 transition-all">FINALIZAR VIAJE VIP</button>
                         </div>
                     </div>
 
-                    <!-- Botones de Acción (Llamada / Chat con Alerta Visual de No Leídos) -->
+                    <!-- Botones de Acción -->
                     <div class="flex gap-3 mb-4">
-                        <a id="call-btn" href="#" class="flex-[2] bg-green-600 text-white py-4 rounded-2xl text-[12px] font-black uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform">
+                        <a id="call-btn" href="#" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl text-[12px] font-black uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform">
                             <i class="fas fa-phone"></i> LLAMAR
                         </a>
-                        <button onclick="window.toggleChat()" class="relative flex-1 bg-gray-100 text-gray-600 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform">
+                        <button onclick="window.toggleChat()" class="relative flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform border border-slate-700">
                             <i class="fas fa-comments text-lg"></i> CHAT
                             <!-- FARO DE ALERTA DE MENSAJES NO LEÍDOS -->
-                            <span id="chat-unread-badge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+                            <span id="chat-unread-badge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-600 rounded-full border-2 border-soza-card animate-pulse"></span>
                         </button>
                     </div>
 
-                    <button onclick="window.cancelOrder()" class="w-full py-3 text-[10px] font-black text-red-500 uppercase tracking-widest border border-red-100 rounded-xl mb-4 hover:bg-red-50 active:scale-95 transition-all text-center">Cancelar Servicio</button>
+                    <button onclick="window.cancelOrder()" class="w-full py-3 text-[10px] font-black text-rose-500 uppercase tracking-widest border border-rose-950/40 rounded-xl mb-4 hover:bg-rose-950/20 active:scale-95 transition-all text-center">Cancelar Servicio</button>
 
                     <!-- SECCIÓN DE CHAT EN TIEMPO REAL -->
-                    <div id="chat-section" class="collapsed border-t pt-4 h-full overflow-y-auto">
-                        <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-gray-50/50 rounded-xl border border-gray-100"></div>
+                    <div id="chat-section" class="collapsed border-t border-slate-800 pt-4 h-full overflow-y-auto">
+                        <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-slate-900 rounded-xl border border-slate-800"></div>
                         <div class="flex gap-2 pb-10">
-                            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-xs focus:ring-2 focus:ring-blue-100 transition-all">
-                            <button onclick="window.sendChatMessage()" class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform"><i class="fas fa-paper-plane text-sm"></i></button>
+                            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 text-white rounded-xl outline-none text-xs focus:ring-2 focus:ring-soza-gold transition-all">
+                            <button onclick="window.sendChatMessage()" class="bg-soza-gold text-soza-dark w-10 h-10 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform"><i class="fas fa-paper-plane text-sm"></i></button>
                         </div>
                     </div>
                 </div>
@@ -670,7 +762,6 @@
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, initializeAuth, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, arrayUnion, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Configuración de credenciales de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBwaRzw2R1DCFOSn-YtfM5tRLdN7p4dpk8",
             authDomain: "comedor-86278.firebaseapp.com",
@@ -704,7 +795,6 @@
         let activeUserFilter = 'all'; 
         let activeDriverDocListener = null; 
 
-        // Variables de rastreo de estado para disparar alertas del sistema
         window.lastChatLength = 0;
         window.lastTripStatus = null;
         window.lastDriverArrived = false;
@@ -715,9 +805,9 @@
             if ('wakeLock' in navigator) {
                 try {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log("Wake Lock activado: Pantalla protegida de suspensión.");
+                    console.log("Wake Lock activo.");
                 } catch (err) {
-                    console.warn("Fallo al solicitar Wake Lock de pantalla:", err);
+                    console.warn("Wake Lock denegado:", err);
                 }
             }
         };
@@ -730,14 +820,72 @@
             }
         };
 
-        // Solicitar Wake Lock automáticamente ante interacciones táctiles si hay un viaje activo
         document.addEventListener('click', () => {
             if (currentUser && activeTrip && (activeTrip.status === 'accepted' || activeTrip.status === 'in_progress')) {
                 window.requestWakeLock();
             }
         });
 
-        // --- STREAMING_CHUNK: Inicializando sistema de notificaciones del navegador... ---
+        // --- SISTEMA DE DIAGNÓSTICO DE NOTIFICACIONES ---
+        function runNotificationDiagnostic() {
+            const isHttps = window.isSecureContext;
+            const permission = "Notification" in window ? Notification.permission : "No Soportado";
+            
+            const permissionSpan = document.getElementById('diag-permission');
+            const httpsSpan = document.getElementById('diag-https');
+            const swSpan = document.getElementById('diag-sw');
+
+            // Actualizar interfaz del diagnóstico
+            if (permissionSpan) {
+                permissionSpan.innerText = permission.toUpperCase();
+                permissionSpan.className = permission === "granted" ? "text-emerald-500 font-bold" : "text-rose-500 font-bold";
+            }
+            if (httpsSpan) {
+                httpsSpan.innerText = isHttps ? "SEGURO (OK)" : "INSEGURO (BLOQUEADO)";
+                httpsSpan.className = isHttps ? "text-emerald-500 font-bold" : "text-rose-500 font-bold";
+            }
+            if (swSpan) {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistration().then(reg => {
+                        if (reg) {
+                            swSpan.innerText = "ACTIVO ✅";
+                            swSpan.className = "text-emerald-500 font-bold";
+                        } else {
+                            swSpan.innerText = "INACTIVO (RECARGA/HTTPS)";
+                            swSpan.className = "text-amber-500 font-bold";
+                        }
+                    });
+                } else {
+                    swSpan.innerText = "NO COMPATIBLE";
+                    swSpan.className = "text-rose-500 font-bold";
+                }
+            }
+        }
+
+        // Ejecutar diagnóstico inicial
+        setTimeout(runNotificationDiagnostic, 2000);
+
+        // Prueba de Notificación demorada para bloqueo de pantalla
+        window.triggerDelayedNotifTest = () => {
+            if (!("Notification" in window)) {
+                return window.showToast("Las notificaciones no son compatibles con este navegador.", "error");
+            }
+            if (Notification.permission !== "granted") {
+                return window.showToast("Primero debes pulsar el botón 🔔 arriba para otorgar permisos.", "error");
+            }
+
+            window.showToast("Prueba iniciada. ¡Bloquea tu pantalla rápido!", "success");
+            
+            // Usamos un Service Worker en background si está disponible, o un setTimeout robusto
+            setTimeout(() => {
+                window.playNotificationSound();
+                window.sendBrowserNotification(
+                    "SOZA VIP — Prueba de Segundo Plano", 
+                    "¡Felicidades, Josué! Tu sistema de alertas está perfectamente activo incluso con el teléfono bloqueado."
+                );
+            }, 5000);
+        };
+
         window.requestNotificationPermission = async () => {
             if (!("Notification" in window)) {
                 window.showToast("Tu navegador no soporta notificaciones de sistema.", "error");
@@ -746,16 +894,16 @@
             try {
                 const permission = await Notification.requestPermission();
                 updateBellIconUI(permission);
+                runNotificationDiagnostic();
                 if (permission === "granted") {
-                    window.showToast("¡Notificaciones de navegador activadas! 🔔", "success");
-                    // Test de sonido y notificación inmediata
+                    window.showToast("¡Notificaciones de SOZA activadas! 🔔", "success");
                     window.playNotificationSound();
-                    window.sendBrowserNotification("Comayagua Express VIP", "Las alertas en segundo plano ya están activas y listas.");
+                    window.sendBrowserNotification("SOZA — Soluciones de Transporte VIP", "Las alertas en segundo plano ya están activas y listas.");
                 } else if (permission === "denied") {
-                    window.showToast("Permiso denegado. Actívalas en la configuración del navegador.", "error");
+                    window.showToast("Permiso denegado. Actívalas en la configuración.", "error");
                 }
             } catch (err) {
-                console.error("Error al solicitar permisos de notificación:", err);
+                console.error("Error solicitando permisos:", err);
             }
         };
 
@@ -765,28 +913,25 @@
             if (!bellIcon || !bellBtn) return;
             
             if (permission === "granted") {
-                bellIcon.className = "fas fa-bell text-emerald-500 animate-pulse";
-                bellBtn.className = "w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center shadow-sm border border-emerald-200 transition-colors";
-                bellBtn.title = "Notificaciones del Sistema Activas ✅";
+                bellIcon.className = "fas fa-bell text-soza-gold animate-pulse";
+                bellBtn.className = "w-10 h-10 rounded-xl bg-slate-900 text-soza-gold flex items-center justify-center shadow-sm border border-soza-gold/40 transition-colors";
+                bellBtn.title = "Notificaciones Activas ✅";
             } else if (permission === "denied") {
                 bellIcon.className = "fas fa-bell-slash text-rose-500";
-                bellBtn.className = "w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center shadow-sm border border-rose-200 transition-colors";
+                bellBtn.className = "w-10 h-10 rounded-xl bg-rose-950 text-rose-500 flex items-center justify-center shadow-sm border border-rose-500/30 transition-colors";
                 bellBtn.title = "Notificaciones Bloqueadas 🚫";
             } else {
                 bellIcon.className = "fas fa-bell text-slate-400";
-                bellBtn.className = "w-10 h-10 rounded-xl bg-slate-50 text-slate-400 hover:text-amber-500 flex items-center justify-center shadow-sm border border-slate-100 transition-colors";
-                bellBtn.title = "Activar Notificaciones de Navegador 🔔";
+                bellBtn.className = "w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-soza-gold flex items-center justify-center shadow-sm border border-slate-700 transition-colors";
+                bellBtn.title = "Activar Notificaciones 🔔";
             }
         }
 
-        // --- SISTEMA EMISOR DE NOTIFICACIONES DE SEGUNDO PLANO ---
         window.sendBrowserNotification = (title, body) => {
             if (!("Notification" in window)) return;
             if (Notification.permission === "granted") {
                 try {
-                    const iconUrl = 'https://cdn-icons-png.flaticon.com/512/854/854878.png'; // Taxi/Car VIP icon
-                    
-                    // Si el navegador tiene Service Worker listo lo canalizamos, de lo contrario usamos notificación directa
+                    const iconUrl = 'https://cdn-icons-png.flaticon.com/512/854/854878.png'; 
                     if (navigator.serviceWorker && navigator.serviceWorker.ready) {
                         navigator.serviceWorker.ready.then(reg => {
                             reg.showNotification(title, {
@@ -807,14 +952,12 @@
             }
         };
 
-        // --- SINTETIZADOR ACÚSTICO DE NOTIFICACIÓN VIP (Web Audio API) ---
         window.playNotificationSound = () => {
             try {
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 if (!AudioContext) return;
                 const ctx = new AudioContext();
                 
-                // Nota 1 (Campana inicial) - D5
                 const osc1 = ctx.createOscillator();
                 const gain1 = ctx.createGain();
                 osc1.type = 'sine';
@@ -822,7 +965,6 @@
                 gain1.gain.setValueAtTime(0.12, ctx.currentTime);
                 gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
                 
-                // Nota 2 (Campana armónica) - A5 (Se activa 0.08 segundos después)
                 const osc2 = ctx.createOscillator();
                 const gain2 = ctx.createGain();
                 osc2.type = 'sine';
@@ -840,20 +982,19 @@
                 osc2.start(ctx.currentTime + 0.08);
                 osc2.stop(ctx.currentTime + 0.45);
             } catch (err) {
-                console.warn("Fallo al reproducir el sonido (bloqueo de reproducción automática o falta de soporte):", err);
+                console.warn("Fallo al reproducir sonido:", err);
             }
         };
 
-        // --- SISTEMA DE TOASTS FLOTANTES ---
         window.showToast = (message, type = "info") => {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             
-            const bgClass = type === "success" ? "bg-emerald-600" : type === "error" ? "bg-rose-600" : "bg-slate-800";
+            const bgClass = type === "success" ? "bg-emerald-600" : type === "error" ? "bg-rose-600" : "bg-slate-800 border border-soza-gold/20";
             const iconClass = type === "success" ? "fa-circle-check" : type === "error" ? "fa-circle-exclamation" : "fa-circle-info";
 
             toast.className = `${bgClass} text-white px-5 py-4 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-black uppercase tracking-wider transition-all duration-300 transform translate-y-4 opacity-0`;
-            toast.innerHTML = `<i class="fas ${iconClass} text-lg"></i><span>${message}</span>`;
+            toast.innerHTML = `<i class="fas ${iconClass} text-lg ${type !== "success" && type !== "error" ? "text-soza-gold" : ""}"></i><span>${message}</span>`;
             
             container.appendChild(toast);
             
@@ -867,7 +1008,6 @@
             }, 4000);
         };
 
-        // --- SISTEMA DE MODAL DE CONFIRMACIÓN VIP (NUNCA USA CONFIRM NATIVO) ---
         window.showConfirm = (title, description, onConfirm) => {
             const modal = document.getElementById('confirm-modal');
             document.getElementById('confirm-title').innerText = title;
@@ -897,19 +1037,21 @@
             };
         };
 
-        // --- MANEJO DE VISTA DE INGRESO ---
         window.setAuthMode = (mode) => {
             authMode = mode;
             const isLogin = mode === 'login';
-            document.getElementById('auth-tab-login').className = `flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${isLogin ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'} uppercase`;
-            document.getElementById('auth-tab-register').className = `flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${!isLogin ? 'bg-white shadow-sm text-blue-600' : 'text-gray-400'} uppercase`;
+            document.getElementById('auth-tab-login').className = `flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${isLogin ? 'bg-soza-gold shadow-sm text-soza-dark' : 'text-gray-400'} uppercase`;
+            document.getElementById('auth-tab-register').className = `flex-1 py-2.5 rounded-xl font-bold text-xs transition-all ${!isLogin ? 'bg-soza-gold shadow-sm text-soza-dark' : 'text-gray-400'} uppercase`;
             document.getElementById('auth-submit-btn').innerText = isLogin ? "INGRESAR AL SISTEMA" : "REGISTRAR NUEVA CUENTA";
         };
 
         window.updateRole = (role) => {
             userRole = role;
-            document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('bg-white', 'text-blue-600', 'shadow-sm'));
-            document.getElementById(`role-${role}`).classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+            document.querySelectorAll('.role-btn').forEach(b => b.className = 'role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase');
+            
+            const btn = document.getElementById(`role-${role}`);
+            if (btn) btn.className = 'role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-slate-900 border border-soza-gold/30 text-soza-gold uppercase';
+            
             document.getElementById('driver-fields').classList.toggle('hidden', role !== 'driver');
             document.getElementById('photo-req-label').classList.toggle('hidden', role !== 'driver');
         };
@@ -925,13 +1067,11 @@
             }
         };
 
-        // --- AUTENTICACIÓN MEJORADA ---
         window.executeAuth = async () => {
             const email = document.getElementById('email-field').value.trim();
             const pass = document.getElementById('pass-field').value.trim();
             if (!email || !pass) return window.showToast("Ingresa tus credenciales.", "error");
             
-            // Auto-solicitar permisos de notificación durante el login de forma sutil
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission().then(permission => updateBellIconUI(permission));
             }
@@ -958,14 +1098,13 @@
             }
         };
 
-        // --- CONTROLADOR DE EDICIÓN DE PERFIL ---
         let isEditingProfile = false;
 
         window.openProfileEdit = () => {
             if (!window.userProfile) return;
             isEditingProfile = true;
             
-            document.getElementById('setup-title').innerText = "Mi Perfil VIP";
+            document.getElementById('setup-title').innerText = "Mi Perfil SOZA VIP";
             document.getElementById('btn-save-profile').innerText = "GUARDAR CAMBIOS";
             document.getElementById('btn-cancel-profile').classList.remove('hidden');
             
@@ -1057,7 +1196,6 @@
                 currentUser = user;
                 const isAdminEmail = user.email && user.email.toLowerCase() === 'josuesoza0513@gmail.com';
 
-                // Revisión inicial de permisos de notificación para actualizar la campana UI
                 if ("Notification" in window) {
                     updateBellIconUI(Notification.permission);
                 }
@@ -1143,6 +1281,7 @@
                         listenForNearbyDrivers();
                     }
                     listenToMyActiveTrip();
+                    runNotificationDiagnostic();
                 } catch(e) {
                     console.error("Error cargando perfil:", e);
                     window.showToast("Error de conexión al cargar perfil.", "error");
@@ -1217,15 +1356,15 @@
                 }
 
                 if (pendingTrips.length === 0) {
-                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>';
+                    container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-soza-gold animate-pulse"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>';
                     return;
                 }
                 container.innerHTML = '';
                 for (const d of pendingTrips) {
                     const t = d.data();
                     const card = document.createElement('div');
-                    card.className = "p-4 bg-white border border-gray-100 rounded-3xl shadow-sm border-l-[6px] border-l-blue-600 mb-3";
-                    card.innerHTML = `<div class="flex justify-between items-start mb-2"><p class="text-[11px] font-black text-blue-600 uppercase client-name-${d.id}">Cargando...</p><span class="font-black text-sm">${t.price}</span></div><p class="text-[10px] text-gray-500 mb-4 line-clamp-2 uppercase font-medium"><b>Origen:</b> ${t.origin}</p><button onclick="window.acceptTrip('${d.id}')" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-[10px] shadow-lg uppercase tracking-widest active:scale-95 transition-all">ACEPTAR VIAJE VIP</button>`;
+                    card.className = "p-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-sm border-l-[6px] border-l-soza-gold mb-3";
+                    card.innerHTML = `<div class="flex justify-between items-start mb-2"><p class="text-[11px] font-black text-soza-gold uppercase client-name-${d.id}">Cargando...</p><span class="font-black text-sm">${t.price}</span></div><p class="text-[10px] text-gray-400 mb-4 line-clamp-2 uppercase font-medium"><b>Origen:</b> ${t.origin}</p><button onclick="window.acceptTrip('${d.id}')" class="w-full bg-soza-gold text-soza-dark font-black py-4 rounded-2xl text-[10px] shadow-lg uppercase tracking-widest active:scale-95 transition-all hover:bg-soza-goldlight">ACEPTAR VIAJE VIP</button>`;
                     container.appendChild(card);
                     const cRef = await getDoc(doc(db, 'artifacts', appId, 'users', t.clientId, 'profile', 'data'));
                     if (cRef.exists()) document.querySelector(`.client-name-${d.id}`).innerText = cRef.data().name.toUpperCase();
@@ -1284,7 +1423,6 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Triggers de notificaciones de fondo para el pasajero y el conductor... ---
         function listenToMyActiveTrip() {
             if (!currentUser) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
@@ -1322,7 +1460,6 @@
                         document.getElementById('driver-view').classList.add('hidden');
                         document.getElementById('searching-state').classList.add('hidden');
                         
-                        // Activar Wake Lock para evitar que la pantalla se apague y corte la señal en el bolsillo
                         window.requestWakeLock();
                         
                         document.getElementById('active-origin-text').innerText = data.origin;
@@ -1516,7 +1653,6 @@
                     document.getElementById('nav-hud-bottom').style.display = 'none';
                     document.body.classList.remove('is-navigating');
                     
-                    // Liberar Wake Lock al terminar el viaje para ahorrar batería normalmente
                     window.releaseWakeLock();
                     
                     if (navigationInterval) clearInterval(navigationInterval);
@@ -1653,28 +1789,19 @@
             container.innerHTML = "";
             if (!messages) return;
 
-            // Alerta visual y auditiva cuando entra un mensaje nuevo
             const previousLength = window.lastChatLength || 0;
             window.lastChatLength = messages.length;
 
             if (messages.length > previousLength) {
                 const lastMsg = messages[messages.length - 1];
-                // Solo alertar si el mensaje es de la contraparte (no enviado por mí)
                 if (lastMsg && lastMsg.sender !== currentUser.uid) {
-                    // 1. Reproducir campana VIP
                     window.playNotificationSound();
-                    
-                    // 2. Notificación en segundo plano de sistema
                     window.sendBrowserNotification(`Mensaje de ${lastMsg.senderName.toUpperCase()}`, lastMsg.text);
 
                     const chatSection = document.getElementById('chat-section');
-                    // 3. Si el chat está colapsado, mostrar alerta visual en la interfaz
                     if (chatSection && chatSection.classList.contains('collapsed')) {
-                        // Mostrar badge rojo sobre el botón de CHAT
                         const badge = document.getElementById('chat-unread-badge');
                         if (badge) badge.classList.remove('hidden');
-
-                        // Lanzar Toast flotante de previsualización
                         window.showToast(`Nuevo mensaje de ${lastMsg.senderName.toUpperCase()}: "${lastMsg.text}"`, "info");
                     }
                 }
@@ -1765,7 +1892,7 @@
             }
         };
 
-        // --- LOCALIZACIÓN GPS DEL DISPOSITIVO EN TIEMPO REAL ---
+        // --- LOCALIZACIÓN GPS ---
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
                 const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -1783,14 +1910,13 @@
             });
         }
 
-        // --- SISTEMA DE CALIFICACIONES ---
         function showRatingScreen() {
             document.getElementById('rating-screen').style.display = 'flex';
         }
 
         window.setRating = (stars) => {
             selectedStars = stars;
-            document.querySelectorAll('.star-btn').forEach(b => b.classList.toggle('text-amber-500', parseInt(b.dataset.index) <= stars));
+            document.querySelectorAll('.star-btn').forEach(b => b.classList.toggle('text-soza-gold', parseInt(b.dataset.index) <= stars));
         };
 
         window.submitRating = async () => {
@@ -1806,7 +1932,7 @@
             location.reload();
         };
 
-        // --- CONSOLA EXCLUSIVA DE ADMIN SUPREMO (VETADOS, TRÁFICO, CANCELADOS) ---
+        // --- CONSOLA DE ADMIN SUPREMO ---
         let activeAdminTab = 'stats';
 
         window.toggleAdminPanel = () => {
@@ -1828,7 +1954,7 @@
         window.setAdminTab = (tab) => {
             activeAdminTab = tab;
             document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.className = 'admin-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400');
-            document.getElementById(`tab-admin-${tab}`).className = 'admin-tab-btn flex-1 py-2 rounded-lg transition-all bg-white text-amber-600 shadow-sm';
+            document.getElementById(`tab-admin-${tab}`).className = 'admin-tab-btn flex-1 py-2 rounded-lg transition-all bg-soza-gold text-soza-dark shadow-sm';
             
             document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.add('hidden'));
             document.getElementById(`admin-content-${tab}`).classList.remove('hidden');
@@ -1862,16 +1988,15 @@
         window.setAdminUserFilter = (filter) => {
             activeUserFilter = filter;
             document.querySelectorAll('.admin-user-filter-btn').forEach(btn => {
-                btn.className = 'admin-user-filter-btn px-3 py-1.5 bg-gray-100 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
+                btn.className = 'admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
             });
             const selectedBtn = document.getElementById(`filter-user-${filter}`);
             if (selectedBtn) {
-                selectedBtn.className = 'admin-user-filter-btn px-3 py-1.5 bg-amber-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
+                selectedBtn.className = 'admin-user-filter-btn px-3 py-1.5 bg-soza-gold text-soza-dark rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
             }
             renderAdminUsers();
         };
 
-        // --- SISTEMA DE CONTROL DE SOCIOS E INFORMACIÓN DE VEHÍCULOS ---
         function renderAdminUsers() {
             const listContainer = document.getElementById('admin-users-list');
             listContainer.innerHTML = '';
@@ -1893,58 +2018,58 @@
                 const isDriver = u.role === 'driver';
 
                 const card = document.createElement('div');
-                card.className = "p-4 bg-gray-50 border border-gray-100 rounded-2xl flex flex-col justify-between gap-2 shadow-sm relative";
+                card.className = "p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col justify-between gap-2 shadow-sm relative";
                 card.innerHTML = `
                     <div class="flex items-start justify-between">
                         <div class="flex items-center gap-2">
-                            ${u.photo ? `<img src="${u.photo}" class="w-8 h-8 rounded-full object-cover">` : `<div class="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs">${u.name.charAt(0).toUpperCase()}</div>`}
+                            ${u.photo ? `<img src="${u.photo}" class="w-8 h-8 rounded-full object-cover">` : `<div class="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs border border-soza-gold/20">${u.name.charAt(0).toUpperCase()}</div>`}
                             <div>
-                                <h5 class="text-xs font-black text-slate-900">${u.name.toUpperCase()}</h5>
-                                <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">${isDriver ? `Conductor` : 'Pasajero'}</p>
+                                <h5 class="text-xs font-black text-white">${u.name.toUpperCase()}</h5>
+                                <p class="text-[9px] text-soza-gold font-bold uppercase tracking-wider">${isDriver ? `Conductor` : 'Pasajero'}</p>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1 text-amber-500 font-black text-[10px]">
+                        <div class="flex items-center gap-1 text-soza-gold font-black text-[10px]">
                             <i class="fas fa-star"></i> <span>${stars}</span>
                         </div>
                     </div>
                     
-                    <div class="flex items-center gap-2 text-[9px] text-slate-500 font-bold mt-1">
+                    <div class="flex items-center gap-2 text-[9px] text-slate-400 font-bold mt-1">
                         <span><i class="fas fa-phone"></i> ${u.phone}</span>
                         <span>•</span>
                         <span>Viajes: ${u.totalTrips || 0}</span>
                     </div>
 
                     ${isDriver ? `
-                        <div class="flex flex-col gap-1 bg-white p-2.5 rounded-xl border border-slate-100 text-[9px] text-slate-600 font-medium my-1.5">
+                        <div class="flex flex-col gap-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-[9px] text-slate-300 font-medium my-1.5">
                             <p><b>Vehículo:</b> ${u.vehicle?.model || 'No registrado'}</p>
-                            <p><b>Placa:</b> <span class="uppercase font-bold text-slate-800">${u.vehicle?.plate || 'No registrado'}</span></p>
-                            <p><b>Licencia:</b> <span class="font-bold text-slate-800">${u.vehicle?.license || 'No registrado'}</span></p>
+                            <p><b>Placa:</b> <span class="uppercase font-bold text-white">${u.vehicle?.plate || 'No registrado'}</span></p>
+                            <p><b>Licencia:</b> <span class="font-bold text-white">${u.vehicle?.license || 'No registrado'}</span></p>
                             <p class="mt-1">
-                                <b>Estado VIP:</b> 
+                                <b>Estado SOZA:</b> 
                                 ${u.isApproved !== false ? 
-                                    '<span class="text-emerald-600 font-bold">Aprobado ✅</span>' : 
+                                    '<span class="text-emerald-400 font-bold">Aprobado ✅</span>' : 
                                     '<span class="text-amber-500 font-bold">Pendiente de Aprobación ⏳</span>'
                                 }
                             </p>
                         </div>
                     ` : ''}
 
-                    <div class="flex flex-wrap items-center gap-2 mt-3 border-t pt-2 border-slate-100">
+                    <div class="flex flex-wrap items-center gap-2 mt-3 border-t pt-2 border-slate-800">
                         ${isBanned ? `
-                            <span class="text-[9px] font-black text-rose-600 uppercase tracking-widest mr-auto"><i class="fas fa-user-slash"></i> Vetado 🚫</span>
+                            <span class="text-[9px] font-black text-rose-500 uppercase tracking-widest mr-auto"><i class="fas fa-user-slash"></i> Vetado 🚫</span>
                             <button onclick="window.setAdminVeto('${u.uid}', false)" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all">Desvetar</button>
                         ` : `
-                            <span class="text-[9px] font-black text-emerald-600 uppercase tracking-widest mr-auto"><i class="fas fa-check-circle"></i> Activo</span>
+                            <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest mr-auto"><i class="fas fa-check-circle"></i> Activo</span>
                             <button onclick="window.setAdminVeto('${u.uid}', true)" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all">Vetar</button>
                         `}
                         
                         ${isDriver ? `
-                            <button onclick="window.trackDriver('${u.uid}')" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all"><i class="fas fa-location-crosshairs"></i> Rastrear</button>
+                            <button onclick="window.trackDriver('${u.uid}')" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-slate-700"><i class="fas fa-location-crosshairs"></i> Rastrear</button>
                             
                             ${u.isApproved !== false ? `
-                                <button onclick="window.setDriverApproval('${u.uid}', false)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-pause-circle"></i> Revocar Licencia</button>
+                                <button onclick="window.setDriverApproval('${u.uid}', false)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-soza-dark rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-pause-circle"></i> Revocar</button>
                             ` : `
-                                <button onclick="window.setDriverApproval('${u.uid}', true)" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-check-double"></i> Aprobar Licencia</button>
+                                <button onclick="window.setDriverApproval('${u.uid}', true)" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-check-double"></i> Aprobar</button>
                             `}
                         ` : ''}
                     </div>
@@ -1968,7 +2093,6 @@
             }
         };
 
-        // --- CONTROLADORES DE SEGURIDAD VETO Y APROBACIÓN DE LICENCIA ---
         window.setAdminVeto = async (uid, shouldBan) => {
             const title = shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?";
             const desc = shouldBan ? "El usuario perderá el acceso a la plataforma de inmediato y sus viajes activos serán forzados a cancelación." : "Se restablecerá el acceso de usuario de forma inmediata.";
@@ -1994,7 +2118,7 @@
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isApproved: shouldApprove });
                     window.showToast(shouldApprove ? "Conductor aprobado con éxito." : "Licencia revocada del conductor.", "success");
                 } catch(e) {
-                    window.showToast("Error de conexión al actualizar aprobación.", "error");
+                    window.showToast("Error al actualizar aprobación.", "error");
                 }
             });
         };
@@ -2012,32 +2136,31 @@
             }
         };
 
-        // --- SISTEMA DE AUDITORÍA Y CANCELACIÓN DE VIAJES ---
         function renderAdminTrips(trips) {
             const container = document.getElementById('admin-trips-list');
             container.innerHTML = '';
             
             if (trips.length === 0) {
-                container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-route text-4xl mb-4 text-blue-600"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">No hay viajes en tránsito</p></div>';
+                container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-route text-4xl mb-4 text-soza-gold"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">No hay viajes en tránsito</p></div>';
                 return;
             }
 
             trips.forEach(d => {
                 const t = d.data();
                 const card = document.createElement('div');
-                card.className = "p-4 bg-gray-50 border border-gray-100 rounded-2xl flex flex-col gap-2 shadow-sm relative";
+                card.className = "p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col gap-2 shadow-sm relative text-white";
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div>
-                            <span class="text-[8px] font-black bg-blue-600 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">${t.status}</span>
-                            <h5 class="text-[10px] font-black text-slate-900 mt-1 uppercase">Cliente: ${t.clientName}</h5>
+                            <span class="text-[8px] font-black bg-soza-gold text-soza-dark px-2 py-0.5 rounded-full uppercase tracking-wider">${t.status}</span>
+                            <h5 class="text-[10px] font-black text-white mt-1 uppercase">Cliente: ${t.clientName}</h5>
                         </div>
-                        <span class="font-black text-sm text-slate-800">${t.price}</span>
+                        <span class="font-black text-sm text-soza-gold">${t.price}</span>
                     </div>
-                    <p class="text-[9px] text-slate-500 line-clamp-1"><b>R:</b> ${t.origin}</p>
-                    <p class="text-[9px] text-slate-500 line-clamp-1"><b>D:</b> ${t.destination}</p>
+                    <p class="text-[9px] text-slate-300 line-clamp-1"><b>R:</b> ${t.origin}</p>
+                    <p class="text-[9px] text-slate-300 line-clamp-1"><b>D:</b> ${t.destination}</p>
                     
-                    <button onclick="window.forceAdminCancel('${d.id}')" class="w-full mt-2 py-2 bg-rose-600 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-transform active:scale-95 shadow-md">Cancelar Viaje Administrativamente</button>
+                    <button onclick="window.forceAdminCancel('${d.id}')" class="w-full mt-2 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-transform active:scale-95 shadow-md">Cancelar Viaje Administrativamente</button>
                 `;
                 container.appendChild(card);
             });
@@ -2076,13 +2199,12 @@
             );
         };
 
-        // --- SISTEMA DE HISTORIAL DE CANCELADOS ---
         function renderAdminCancelledTrips(cancelledDocs) {
             const container = document.getElementById('admin-cancelled-list');
             container.innerHTML = '';
             
             if (cancelledDocs.length === 0) {
-                container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-trash-alt text-4xl mb-4 text-slate-300"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">Registro de cancelaciones vacío</p></div>';
+                container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-trash-alt text-4xl mb-4 text-slate-500"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">Registro de cancelaciones vacío</p></div>';
                 return;
             }
 
@@ -2093,17 +2215,17 @@
                 const cancelDate = new Date(t.cancelledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " - " + new Date(t.cancelledAt).toLocaleDateString();
                 
                 const card = document.createElement('div');
-                card.className = "p-4 bg-rose-50/50 border border-rose-100 rounded-2xl flex flex-col gap-1 text-[10px] relative shadow-sm";
+                card.className = "p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col gap-1 text-[10px] relative shadow-sm text-white";
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
-                        <span class="text-[8px] font-black bg-rose-600 text-white px-2 py-0.5 rounded-full uppercase">CANCELADO POR: ${t.cancelledBy.toUpperCase()}</span>
-                        <span class="font-bold text-slate-700">${t.price}</span>
+                        <span class="text-[8px] font-black bg-rose-950 border border-rose-800/40 text-rose-400 px-2 py-0.5 rounded-full uppercase">CANCELADO POR: ${t.cancelledBy.toUpperCase()}</span>
+                        <span class="font-bold text-soza-gold">${t.price}</span>
                     </div>
-                    <p class="text-slate-800 mt-1"><b>Cliente:</b> ${t.clientName} (${t.clientPhone})</p>
-                    <p class="text-slate-800"><b>Chofer asignado:</b> ${t.driverName}</p>
-                    <p class="text-slate-500 truncate mt-1"><b>O:</b> ${t.origin}</p>
-                    <p class="text-slate-500 truncate"><b>D:</b> ${t.destination}</p>
-                    <span class="text-[8px] font-bold text-slate-400 mt-2 block text-right">${cancelDate}</span>
+                    <p class="text-slate-200 mt-1"><b>Cliente:</b> ${t.clientName} (${t.clientPhone})</p>
+                    <p class="text-slate-200"><b>Chofer asignado:</b> ${t.driverName}</p>
+                    <p class="text-slate-400 truncate mt-1"><b>O:</b> ${t.origin}</p>
+                    <p class="text-slate-400 truncate"><b>D:</b> ${t.destination}</p>
+                    <span class="text-[8px] font-bold text-slate-500 mt-2 block text-right">${cancelDate}</span>
                 `;
                 container.appendChild(card);
             });
@@ -2130,11 +2252,8 @@
         };
 
         // --- REGISTRO DE SERVICE WORKER LOCAL ---
-        // Se autohabilita para permitir que los navegadores mantengan la app activa al bloquear pantalla
         if ('serviceWorker' in navigator) {
             try {
-                // Al usar un archivo HTML único, algunos navegadores restringen los Service Workers creados por Blob (protocolo blob:)
-                // Para producción real, se recomienda subir un archivo físico "sw.js" al servidor.
                 const swCode = `
                     self.addEventListener('install', (e) => self.skipWaiting());
                     self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
@@ -2153,7 +2272,7 @@
                 navigator.serviceWorker.register(swUrl).then(reg => {
                     console.log("Service Worker local registrado con éxito.");
                 }).catch((err) => {
-                    console.log("Service Worker por Blob restringido por el navegador (comportamiento normal en archivo local sin sw.js independiente):", err);
+                    console.log("Service Worker por Blob restringido en entorno local, pero listo para HTTPS.", err);
                 });
             } catch (err) {
                 console.log("Fallo al registrar worker local:", err);
