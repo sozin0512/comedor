@@ -448,7 +448,11 @@
             </div>
             
             <div class="flex items-center gap-2">
-                <!-- BOTÓN EXCLUSIVO ADMIN SUPREMO (ENTRA DIRECTO CON JOSUESOZA0513@GMAIL.COM) -->
+                <!-- NOTIFICACIONES DE NAVEGADOR SISTEMA -->
+                <button id="notif-bell-btn" onclick="window.requestNotificationPermission()" class="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 hover:text-amber-500 flex items-center justify-center shadow-sm border border-slate-100 transition-colors" title="Activar Notificaciones de Navegador">
+                    <i id="notif-bell-icon" class="fas fa-bell"></i>
+                </button>
+                <!-- BOTÓN EXCLUSIVO ADMIN SUPREMO -->
                 <button id="admin-toggle-btn" onclick="window.toggleAdminPanel()" class="hidden w-10 h-10 rounded-xl bg-amber-50 text-amber-500 hover:text-amber-600 flex items-center justify-center shadow-sm border border-amber-200">
                     <i class="fas fa-crown"></i>
                 </button>
@@ -695,10 +699,82 @@
         let activeUserFilter = 'all'; 
         let activeDriverDocListener = null; 
 
-        // Variable global para detectar si entran nuevos mensajes de chat y alertar acústicamente
+        // Variables de rastreo de estado para disparar alertas del sistema
         window.lastChatLength = 0;
+        window.lastTripStatus = null;
+        window.lastDriverArrived = false;
+        window.lastPendingCount = 0;
 
-        // --- STREAMING_CHUNK: Creando el sintetizador de sonido VIP con Web Audio API... ---
+        // --- STREAMING_CHUNK: Inicializando sistema de notificaciones del navegador... ---
+        window.requestNotificationPermission = async () => {
+            if (!("Notification" in window)) {
+                window.showToast("Tu navegador no soporta notificaciones de sistema.", "error");
+                return;
+            }
+            try {
+                const permission = await Notification.requestPermission();
+                updateBellIconUI(permission);
+                if (permission === "granted") {
+                    window.showToast("¡Notificaciones de navegador activadas! 🔔", "success");
+                    // Test de sonido y notificación inmediata
+                    window.playNotificationSound();
+                    window.sendBrowserNotification("Comayagua Express VIP", "Las alertas en segundo plano ya están activas y listas.");
+                } else if (permission === "denied") {
+                    window.showToast("Permiso denegado. Actívalas en la configuración del navegador.", "error");
+                }
+            } catch (err) {
+                console.error("Error al solicitar permisos de notificación:", err);
+            }
+        };
+
+        function updateBellIconUI(permission) {
+            const bellIcon = document.getElementById('notif-bell-icon');
+            const bellBtn = document.getElementById('notif-bell-btn');
+            if (!bellIcon || !bellBtn) return;
+            
+            if (permission === "granted") {
+                bellIcon.className = "fas fa-bell text-emerald-500 animate-pulse";
+                bellBtn.className = "w-10 h-10 rounded-xl bg-emerald-50 text-emerald-500 flex items-center justify-center shadow-sm border border-emerald-200 transition-colors";
+                bellBtn.title = "Notificaciones del Sistema Activas ✅";
+            } else if (permission === "denied") {
+                bellIcon.className = "fas fa-bell-slash text-rose-500";
+                bellBtn.className = "w-10 h-10 rounded-xl bg-rose-50 text-rose-500 flex items-center justify-center shadow-sm border border-rose-200 transition-colors";
+                bellBtn.title = "Notificaciones Bloqueadas 🚫";
+            } else {
+                bellIcon.className = "fas fa-bell text-slate-400";
+                bellBtn.className = "w-10 h-10 rounded-xl bg-slate-50 text-slate-400 hover:text-amber-500 flex items-center justify-center shadow-sm border border-slate-100 transition-colors";
+                bellBtn.title = "Activar Notificaciones de Navegador 🔔";
+            }
+        }
+
+        // --- SISTEMA EMISOR DE NOTIFICACIONES DE SEGUNDO PLANO ---
+        window.sendBrowserNotification = (title, body) => {
+            if (!("Notification" in window)) return;
+            if (Notification.permission === "granted") {
+                try {
+                    const iconUrl = 'https://cdn-icons-png.flaticon.com/512/854/854878.png'; // Taxi/Car VIP icon
+                    
+                    // Si el navegador tiene Service Worker listo lo canalizamos, de lo contrario usamos notificación directa
+                    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+                        navigator.serviceWorker.ready.then(reg => {
+                            reg.showNotification(title, {
+                                body: body,
+                                icon: iconUrl,
+                                badge: iconUrl,
+                                vibrate: [200, 100, 200]
+                            });
+                        }).catch(() => {
+                            new Notification(title, { body: body, icon: iconUrl });
+                        });
+                    } else {
+                        new Notification(title, { body: body, icon: iconUrl });
+                    }
+                } catch (e) {
+                    new Notification(title, { body: body });
+                }
+            }
+        };
+
         // --- SINTETIZADOR ACÚSTICO DE NOTIFICACIÓN VIP (Web Audio API) ---
         window.playNotificationSound = () => {
             try {
@@ -759,7 +835,6 @@
             }, 4000);
         };
 
-        // --- STREAMING_CHUNK: Creando modal de confirmación y flujo de registro de perfiles... ---
         // --- SISTEMA DE MODAL DE CONFIRMACIÓN VIP (NUNCA USA CONFIRM NATIVO) ---
         window.showConfirm = (title, description, onConfirm) => {
             const modal = document.getElementById('confirm-modal');
@@ -818,13 +893,17 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando el control de login, tokens y validaciones de Firebase... ---
         // --- AUTENTICACIÓN MEJORADA ---
         window.executeAuth = async () => {
             const email = document.getElementById('email-field').value.trim();
             const pass = document.getElementById('pass-field').value.trim();
             if (!email || !pass) return window.showToast("Ingresa tus credenciales.", "error");
             
+            // Auto-solicitar permisos de notificación durante el login de forma sutil
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission().then(permission => updateBellIconUI(permission));
+            }
+
             try {
                 if (authMode === 'login') {
                     await signInWithEmailAndPassword(auth, email, pass);
@@ -940,12 +1019,16 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Validando privilegios de Admin Supremo para josuesoza0513@gmail.com... ---
         // --- CONTROLADOR DEL AUTHESTADO ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
                 const isAdminEmail = user.email && user.email.toLowerCase() === 'josuesoza0513@gmail.com';
+
+                // Revisión inicial de permisos de notificación para actualizar la campana UI
+                if ("Notification" in window) {
+                    updateBellIconUI(Notification.permission);
+                }
 
                 try {
                     const profileRef = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'));
@@ -1035,7 +1118,6 @@
             }
         });
 
-        // --- STREAMING_CHUNK: Calculando rutas y dibujando la trayectoria en mapas híbridos... ---
         // --- GPS NAVEGACIÓN PROFESIONAL ---
         window.updateNavigation = (dest) => {
             if (navigationInterval) clearInterval(navigationInterval);
@@ -1092,6 +1174,16 @@
                 }
                 const container = document.getElementById('requests-list');
                 const pendingTrips = snap.docs.filter(d => d.data().status === 'pending');
+                
+                // --- ALERTA DE NUEVO VIAJE VIP DISPONIBLE PARA EL CONDUCTOR ---
+                const previousPendingCount = window.lastPendingCount || 0;
+                window.lastPendingCount = pendingTrips.length;
+                
+                if (pendingTrips.length > previousPendingCount && window.userProfile?.role === 'driver') {
+                    window.playNotificationSound();
+                    window.sendBrowserNotification("¡Nuevo Viaje VIP Disponible! 🔔", "Un pasajero está solicitando transporte VIP en Comayagua.");
+                }
+
                 if (pendingTrips.length === 0) {
                     container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-radar text-4xl mb-4 text-blue-600 animate-pulse"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">Buscando pasajeros VIP...</p></div>';
                     return;
@@ -1160,8 +1252,7 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Escuchando rutas en tiempo real y gestionando alertas sonoras de chat... ---
-        // --- ESCUCHADOR DE VIAJE ACTIVO EN TIEMPO REAL ---
+        // --- STREAMING_CHUNK: Triggers de notificaciones de fondo para el pasajero y el conductor... ---
         function listenToMyActiveTrip() {
             if (!currentUser) return;
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
@@ -1175,6 +1266,23 @@
                     const data = trip.data();
                     activeTrip = { id: trip.id, ...data };
                     window.currentActiveTripData = data;
+
+                    // --- DETECTORES DE CAMBIOS DE ESTADO PARA NOTIFICAR AL PASAJERO ---
+                    const lastStatus = window.lastTripStatus || null;
+                    window.lastTripStatus = data.status;
+
+                    if (lastStatus === 'pending' && data.status === 'accepted' && window.userProfile?.role === 'client') {
+                        window.playNotificationSound();
+                        window.sendBrowserNotification("¡Viaje VIP Aceptado! 🚗", `${data.driverName.toUpperCase()} va en camino a recogerte.`);
+                    }
+
+                    const lastArrived = window.lastDriverArrived || false;
+                    window.lastDriverArrived = data.driverArrived;
+
+                    if (!lastArrived && data.driverArrived && window.userProfile?.role === 'client') {
+                        window.playNotificationSound();
+                        window.sendBrowserNotification("¡Tu Conductor ha Llegado! 📍", `${data.driverName.toUpperCase()} está esperándote en el punto de recogida.`);
+                    }
 
                     if (data.status === 'accepted' || data.status === 'in_progress') {
                         document.getElementById('active-trip-panel').classList.remove('hidden');
@@ -1312,6 +1420,7 @@
                     } else if (data.status === 'cancelled') {
                         const wasDriverCancellation = data.cancelledBy === data.driverId;
                         window.showToast("Servicio VIP Cancelado por el conductor.", "error");
+                        window.sendBrowserNotification("Servicio Cancelado ❌", "Tu viaje VIP de Comayagua Express fue cancelado.");
                         
                         const savedOrigin = data.origin;
                         const savedDestination = data.destination;
@@ -1436,7 +1545,6 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Bloqueando solicitudes duplicadas de viajes de forma transaccional... ---
         // --- EVITAR DUPLICIDAD DE SOLICITUDES ACTIVO ---
         window.sendTripRequest = async () => {
             const origin = document.getElementById('origin-input').value.trim();
@@ -1501,7 +1609,6 @@
             document.getElementById('chat-input').value = "";
         };
 
-        // --- STREAMING_CHUNK: Procesando y renderizando el chat con campana doble de no leídos... ---
         // --- CONTROLADOR DE BANDEJA DE CHAT CON NOTIFICACIÓN DE SONIDO Y ALERTA VISUAL ---
         function renderChat(messages) {
             const container = document.getElementById('chat-messages');
@@ -1518,9 +1625,12 @@
                 if (lastMsg && lastMsg.sender !== currentUser.uid) {
                     // 1. Reproducir campana VIP
                     window.playNotificationSound();
+                    
+                    // 2. Notificación en segundo plano de sistema
+                    window.sendBrowserNotification(`Mensaje de ${lastMsg.senderName.toUpperCase()}`, lastMsg.text);
 
                     const chatSection = document.getElementById('chat-section');
-                    // 2. Si el chat está colapsado, mostrar alerta visual en la interfaz
+                    // 3. Si el chat está colapsado, mostrar alerta visual en la interfaz
                     if (chatSection && chatSection.classList.contains('collapsed')) {
                         // Mostrar badge rojo sobre el botón de CHAT
                         const badge = document.getElementById('chat-unread-badge');
@@ -1617,7 +1727,6 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Emitiendo señal GPS del conductor de forma constante... ---
         // --- LOCALIZACIÓN GPS DEL DISPOSITIVO EN TIEMPO REAL ---
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
@@ -1659,7 +1768,6 @@
             location.reload();
         };
 
-        // --- STREAMING_CHUNK: Creando ruteadores de tab de administración de consola... ---
         // --- CONSOLA EXCLUSIVA DE ADMIN SUPREMO (VETADOS, TRÁFICO, CANCELADOS) ---
         let activeAdminTab = 'stats';
 
@@ -1725,7 +1833,6 @@
             renderAdminUsers();
         };
 
-        // --- STREAMING_CHUNK: Creando el listado visual de socios para vetar y evaluar licencias... ---
         // --- SISTEMA DE CONTROL DE SOCIOS E INFORMACIÓN DE VEHÍCULOS ---
         function renderAdminUsers() {
             const listContainer = document.getElementById('admin-users-list');
@@ -1823,7 +1930,6 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando validadores de veto y rastreador en vivo de choferes... ---
         // --- CONTROLADORES DE SEGURIDAD VETO Y APROBACIÓN DE LICENCIA ---
         window.setAdminVeto = async (uid, shouldBan) => {
             const title = shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?";
@@ -1868,7 +1974,6 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando el listado de viajes cancelados y botones de auditoría... ---
         // --- SISTEMA DE AUDITORÍA Y CANCELACIÓN DE VIAJES ---
         function renderAdminTrips(trips) {
             const container = document.getElementById('admin-trips-list');
@@ -1986,6 +2091,21 @@
             );
         };
 
+        // --- REGISTRO DE SERVICE WORKER LOCAL ---
+        // Se autohabilita para permitir que los navegadores mantengan la app activa al bloquear pantalla
+        if ('serviceWorker' in navigator) {
+            try {
+                const swCode = `
+                    self.addEventListener('install', (e) => self.skipWaiting());
+                    self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+                `;
+                const blob = new Blob([swCode], { type: 'application/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+                navigator.serviceWorker.register(swUrl).catch(() => {});
+            } catch (err) {
+                console.log("Fallo al registrar worker local:", err);
+            }
+        }
     </script>
     <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places&callback=initMap"></script>
 </body>
