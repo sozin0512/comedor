@@ -537,31 +537,6 @@
         <main class="flex-1 relative flex flex-col md:flex-row overflow-hidden">
             <div id="map-container" class="flex-1 relative order-1 md:order-2">
                 <div id="map"></div>
-                
-                <!-- NUEVA CONSOLA DE DIAGNÓSTICO DE NOTIFICACIONES SOZA -->
-                <div class="absolute bottom-4 left-4 bg-slate-950/95 backdrop-blur-md p-3.5 rounded-2xl border border-soza-gold/20 text-[10px] space-y-1.5 shadow-2xl max-w-xs z-50 text-white">
-                    <div class="flex items-center gap-1.5 border-b border-slate-800 pb-1.5 mb-1.5">
-                        <i class="fas fa-microchip text-soza-gold"></i>
-                        <span class="font-black uppercase tracking-wider text-soza-gold">Diagnóstico de Alertas</span>
-                    </div>
-                    <div class="flex items-center justify-between gap-4">
-                        <span>Permiso del Dispositivo:</span>
-                        <span id="diag-permission" class="font-bold">...</span>
-                    </div>
-                    <div class="flex items-center justify-between gap-4">
-                        <span>Canal de Red Seguro (HTTPS):</span>
-                        <span id="diag-https" class="font-bold">...</span>
-                    </div>
-                    <div class="flex items-center justify-between gap-4">
-                        <span>Service Worker de Fondo:</span>
-                        <span id="diag-sw" class="font-bold">...</span>
-                    </div>
-                    <!-- BOTÓN DE PRUEBA EN SEGUNDO PLANO -->
-                    <button onclick="window.triggerDelayedNotifTest()" class="w-full mt-2 py-1.5 bg-soza-gold hover:bg-soza-goldlight text-soza-dark font-black rounded-lg uppercase tracking-wider text-[8px] shadow-md transition-transform active:scale-95">
-                        Probar Notificación en 5s 🔒
-                    </button>
-                    <p class="text-[7px] text-slate-400 italic text-center mt-1">Presiona, bloquea tu pantalla rápido y espera 5 segundos.</p>
-                </div>
             </div>
 
             <div id="control-panel" class="collapsible-panel w-full md:w-[400px] z-40 shadow-2xl border-r border-slate-800 p-6 flex flex-col order-2 md:order-1 overflow-y-auto bg-soza-card">
@@ -649,7 +624,7 @@
                             <i class="fas fa-search absolute right-4 top-3.5 text-gray-400 text-xs"></i>
                         </div>
                         
-                        <!-- FILTROS DE SOCIO DEBIDO A RESTRICCIONES DE CONDUCTOR -->
+                        <!-- FILTROS DE SOCIO DEB DUE A RESTRICCIONES DE CONDUCTOR -->
                         <div class="flex gap-1.5 overflow-x-auto pb-1">
                             <button onclick="window.setAdminUserFilter('all')" id="filter-user-all" class="admin-user-filter-btn px-3 py-1.5 bg-soza-gold text-soza-dark rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Todos</button>
                             <button onclick="window.setAdminUserFilter('client')" id="filter-user-client" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Pasajeros</button>
@@ -826,66 +801,6 @@
             }
         });
 
-        // --- SISTEMA DE DIAGNÓSTICO DE NOTIFICACIONES ---
-        function runNotificationDiagnostic() {
-            const isHttps = window.isSecureContext;
-            const permission = "Notification" in window ? Notification.permission : "No Soportado";
-            
-            const permissionSpan = document.getElementById('diag-permission');
-            const httpsSpan = document.getElementById('diag-https');
-            const swSpan = document.getElementById('diag-sw');
-
-            // Actualizar interfaz del diagnóstico
-            if (permissionSpan) {
-                permissionSpan.innerText = permission.toUpperCase();
-                permissionSpan.className = permission === "granted" ? "text-emerald-500 font-bold" : "text-rose-500 font-bold";
-            }
-            if (httpsSpan) {
-                httpsSpan.innerText = isHttps ? "SEGURO (OK)" : "INSEGURO (BLOQUEADO)";
-                httpsSpan.className = isHttps ? "text-emerald-500 font-bold" : "text-rose-500 font-bold";
-            }
-            if (swSpan) {
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistration().then(reg => {
-                        if (reg) {
-                            swSpan.innerText = "ACTIVO ✅";
-                            swSpan.className = "text-emerald-500 font-bold";
-                        } else {
-                            swSpan.innerText = "INACTIVO (RECARGA/HTTPS)";
-                            swSpan.className = "text-amber-500 font-bold";
-                        }
-                    });
-                } else {
-                    swSpan.innerText = "NO COMPATIBLE";
-                    swSpan.className = "text-rose-500 font-bold";
-                }
-            }
-        }
-
-        // Ejecutar diagnóstico inicial
-        setTimeout(runNotificationDiagnostic, 2000);
-
-        // Prueba de Notificación demorada para bloqueo de pantalla
-        window.triggerDelayedNotifTest = () => {
-            if (!("Notification" in window)) {
-                return window.showToast("Las notificaciones no son compatibles con este navegador.", "error");
-            }
-            if (Notification.permission !== "granted") {
-                return window.showToast("Primero debes pulsar el botón 🔔 arriba para otorgar permisos.", "error");
-            }
-
-            window.showToast("Prueba iniciada. ¡Bloquea tu pantalla rápido!", "success");
-            
-            // Usamos un Service Worker en background si está disponible, o un setTimeout robusto
-            setTimeout(() => {
-                window.playNotificationSound();
-                window.sendBrowserNotification(
-                    "SOZA VIP — Prueba de Segundo Plano", 
-                    "¡Felicidades, Josué! Tu sistema de alertas está perfectamente activo incluso con el teléfono bloqueado."
-                );
-            }, 5000);
-        };
-
         window.requestNotificationPermission = async () => {
             if (!("Notification" in window)) {
                 window.showToast("Tu navegador no soporta notificaciones de sistema.", "error");
@@ -894,7 +809,6 @@
             try {
                 const permission = await Notification.requestPermission();
                 updateBellIconUI(permission);
-                runNotificationDiagnostic();
                 if (permission === "granted") {
                     window.showToast("¡Notificaciones de SOZA activadas! 🔔", "success");
                     window.playNotificationSound();
@@ -1281,7 +1195,6 @@
                         listenForNearbyDrivers();
                     }
                     listenToMyActiveTrip();
-                    runNotificationDiagnostic();
                 } catch(e) {
                     console.error("Error cargando perfil:", e);
                     window.showToast("Error de conexión al cargar perfil.", "error");
@@ -1384,7 +1297,6 @@
             } catch(e) { window.showToast("Error al aceptar viaje.", "error"); }
         };
 
-        // --- FUNCIÓN DE RUTA EN TIEMPO REAL DESDE COORDENADAS (CONSUMO DE RUTA) ---
         window.updateMapRouteFromCoords = (originCoords, destinationCoordsOrText) => {
             if (!window.mapLoaded) return;
             try {
@@ -1404,7 +1316,6 @@
             }
         };
 
-        // --- CALCULAR ETA EN TIEMPO REAL EN LA APP DEL PASAJERO ---
         window.updateRealtimeETA = (driverLoc, clientOrigin) => {
             try {
                 new google.maps.DistanceMatrixService().getDistanceMatrix({
@@ -1719,7 +1630,6 @@
             }
         };
 
-        // --- EVITAR DUPLICIDAD DE SOLICITUDES ACTIVO ---
         window.sendTripRequest = async () => {
             const origin = document.getElementById('origin-input').value.trim();
             const dest = document.getElementById('destination-input').value.trim();
