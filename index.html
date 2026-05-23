@@ -29,7 +29,6 @@
         }
     </script>
     
-    
     <!-- Soporte PWA para evitar suspensión profunda en dispositivos móviles -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -57,7 +56,6 @@
             inset: 0;
             overflow-y: auto;
         }
-
 
         /* --- INTERFAZ DE NAVEGACIÓN PROFESIONAL --- */
         #nav-hud-top {
@@ -420,7 +418,6 @@
 
     <div id="fab-center" class="nav-fab hidden" onclick="window.centerMap()"><i class="fas fa-location-arrow"></i> CENTRAR</div>
 
-
     <!-- PANTALLA LOGIN CON TABS DE INGRESO Y REGISTRO -->
     <div id="login-screen" class="login-screen flex items-center justify-center p-6">
         <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-soza-gold/20 text-white">
@@ -627,7 +624,7 @@
                             <i class="fas fa-search absolute right-4 top-3.5 text-gray-400 text-xs"></i>
                         </div>
                         
-                        <!-- FILTROS DE SOCIO DEB DUE A RESTRICCIONES DE CONDUCTOR -->
+                        <!-- FILTROS DE SOCIO DEBIDO A RESTRICCIONES DE CONDUCTOR -->
                         <div class="flex gap-1.5 overflow-x-auto pb-1">
                             <button onclick="window.setAdminUserFilter('all')" id="filter-user-all" class="admin-user-filter-btn px-3 py-1.5 bg-soza-gold text-soza-dark rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Todos</button>
                             <button onclick="window.setAdminUserFilter('client')" id="filter-user-client" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Pasajeros</button>
@@ -722,7 +719,7 @@
                     <button onclick="window.cancelOrder()" class="w-full py-3 text-[10px] font-black text-rose-500 uppercase tracking-widest border border-rose-950/40 rounded-xl mb-4 hover:bg-rose-950/20 active:scale-95 transition-all text-center">Cancelar Servicio</button>
 
                     <!-- SECCIÓN DE CHAT EN TIEMPO REAL -->
-                    <div id="chat-section" class="collapsed border-t border-slate-800 pt-4 h-full overflow-y-auto">
+                    <div id="chat-section" class="collapsed border-t border-slate-800 pt-4 h-full overflow-y-auto font-sans">
                         <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-slate-900 rounded-xl border border-slate-800"></div>
                         <div class="flex gap-2 pb-10">
                             <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 text-white rounded-xl outline-none text-xs focus:ring-2 focus:ring-soza-gold transition-all">
@@ -807,7 +804,6 @@
             }
         });
 
-
         // --- SISTEMA DE DESBLOQUEO DE AUDIO MÓVIL (WEB AUDIO API EXCLUSIVO) ---
         let globalAudioCtx = null;
 
@@ -864,7 +860,6 @@
                 // Registro del Service Worker listo antes de pedir el token
                 const registration = await navigator.serviceWorker.ready;
                 
-                // NOTA: Para producción real, genera tu VAPID Key en Firebase Console -> Settings -> Cloud Messaging -> Web Push
                 const token = await getToken(messaging, { 
                     serviceWorkerRegistration: registration,
                     vapidKey: "BKe_n6NfUuN8p-K2E30h3758b9C_fdfVAPID_KEY_AQUI_OPCIONAL" 
@@ -879,10 +874,10 @@
                         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), tokenData, { merge: true });
                     }
                 } else {
-                    console.warn("No se pudo obtener el token de emparejamiento push.");
+                    console.warn("No se pudo obtener el token push de mensajería.");
                 }
             } catch (err) {
-                console.warn("Fallo al obtener el token FCM (es normal en entornos de sandbox locales):", err);
+                console.warn("Fallo al obtener el token FCM (esperado en entornos locales):", err);
             }
         }
 
@@ -917,7 +912,7 @@
                                 body: body,
                                 icon: iconUrl,
                                 badge: iconUrl,
-                                vibrate: [200, 100, 200]
+                                vibrate: [300, 100, 300]
                             });
                         }).catch(() => {
                             new Notification(title, { body: body, icon: iconUrl });
@@ -1291,7 +1286,6 @@
             }
         });
 
-
         // --- GPS NAVEGACIÓN PROFESIONAL ---
         window.updateNavigation = (dest) => {
             if (navigationInterval) clearInterval(navigationInterval);
@@ -1337,7 +1331,6 @@
             render();
             navigationInterval = setInterval(render, 5000);
         };
-
 
         // --- CONDUCTOR (LISTA DE VIAJES DISPONIBLES) ---
         function startDriverListener() {
@@ -1424,7 +1417,6 @@
                 console.error("Error al calcular ETA en tiempo real:", err);
             }
         };
-
 
         function listenToMyActiveTrip() {
             if (!currentUser) return;
@@ -1785,27 +1777,32 @@
             document.getElementById('chat-input').value = "";
         };
 
-
         // --- CONTROLADOR DE BANDEJA DE CHAT CON NOTIFICACIÓN DE SONIDO Y ALERTA VISUAL ---
         function renderChat(messages) {
             const container = document.getElementById('chat-messages');
             container.innerHTML = "";
             if (!messages) return;
 
-            const previousLength = window.lastChatLength || 0;
+            const previousLength = window.lastChatLength;
             window.lastChatLength = messages.length;
 
-            if (messages.length > previousLength) {
+            // Evitamos notificaciones falsas de historial al cargar por primera vez el chat
+            if (previousLength !== undefined && messages.length > previousLength) {
                 const lastMsg = messages[messages.length - 1];
                 if (lastMsg && lastMsg.sender !== currentUser.uid) {
-                    window.playNotificationSound();
-                    window.sendBrowserNotification(`Mensaje de ${lastMsg.senderName.toUpperCase()}`, lastMsg.text);
+                    const msgTime = lastMsg.time || Date.now();
+                    const isRecent = (Date.now() - msgTime) < 15000; // Últimos 15 segundos (Realtime Guard)
 
-                    const chatSection = document.getElementById('chat-section');
-                    if (chatSection && chatSection.classList.contains('collapsed')) {
-                        const badge = document.getElementById('chat-unread-badge');
-                        if (badge) badge.classList.remove('hidden');
-                        window.showToast(`Nuevo mensaje de ${lastMsg.senderName.toUpperCase()}: "${lastMsg.text}"`, "info");
+                    if (isRecent) {
+                        window.playNotificationSound();
+                        window.sendBrowserNotification(`Mensaje de ${lastMsg.senderName.toUpperCase()}`, lastMsg.text);
+
+                        const chatSection = document.getElementById('chat-section');
+                        if (chatSection && chatSection.classList.contains('collapsed')) {
+                            const badge = document.getElementById('chat-unread-badge');
+                            if (badge) badge.classList.remove('hidden');
+                            window.showToast(`Nuevo mensaje de ${lastMsg.senderName.toUpperCase()}: "${lastMsg.text}"`, "info");
+                        }
                     }
                 }
             }
@@ -1935,7 +1932,6 @@
             location.reload();
         };
 
-
         // --- CONSOLA DE ADMIN SUPREMO ---
         let activeAdminTab = 'stats';
 
@@ -2022,7 +2018,7 @@
                 const isDriver = u.role === 'driver';
 
                 const card = document.createElement('div');
-                card.className = "p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col justify-between gap-2 shadow-sm relative";
+                card.className = "p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col justify-between gap-2 shadow-sm relative text-white";
                 card.innerHTML = `
                     <div class="flex items-start justify-between">
                         <div class="flex items-center gap-2">
@@ -2264,7 +2260,7 @@
                     
                     // ESCUCHAR SEÑALES PUSH PWA NATIVAS EN SEGUNDO PLANO (COMO FACEBOOK)
                     self.addEventListener('push', (event) => {
-                        let data = { title: 'SOZA VIP', body: 'Actualización en tu servicio de transporte.' };
+                        let data = { title: 'SOZA VIP', body: 'Nuevo mensaje recibido en tu chat de transporte.' };
                         try {
                             if (event.data) {
                                 data = event.data.json();
