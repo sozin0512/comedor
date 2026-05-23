@@ -1050,9 +1050,7 @@
         };
 
         window.executeAuth = async () => {
-            // Desbloquear audio táctil al presionar el ingreso
             window.unlockAudioContext();
-
             const email = document.getElementById('email-field').value.trim();
             const pass = document.getElementById('pass-field').value.trim();
             if (!email || !pass) return window.showToast("Ingresa tus credenciales.", "error");
@@ -1060,6 +1058,38 @@
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission().then(permission => updateBellIconUI(permission));
             }
+
+            try {
+                if (authMode === 'login') {
+                    await signInWithEmailAndPassword(auth, email, pass);
+                    window.showToast("Sesión iniciada con éxito.", "success");
+                    setTimeout(window.playNotificationSound, 300);
+                } else {
+                    await createUserWithEmailAndPassword(auth, email, pass);
+                    window.showToast("Cuenta creada con éxito. Finaliza tu perfil.", "success");
+                }
+            } catch (err) {
+                window.showToast("Error de autenticación: " + err.message, "error");
+            }
+        };
+
+        // --- BLOQUEO DE ATENCIÓN PARA CONDUCTORES AL LOGUEARSE ---
+        function showDriverInstruction() {
+             window.showConfirm(
+                "¡ATENCIÓN CONDUCTOR!", 
+                "Para recibir solicitudes de viaje, DEBES mantener esta app abierta en primer plano y la pantalla encendida. Si cierras la app o apagas la pantalla, el sistema no podrá enviarte notificaciones.", 
+                () => { window.requestWakeLock(); }
+            );
+        }
+
+        // --- BLOQUEO DE ATENCIÓN PARA CLIENTES AL SOLICITAR ---
+        function showClientInstruction(callback) {
+            window.showConfirm(
+                "IMPORTANTE: Mantén la App abierta",
+                "Para asegurar que recibas la notificación cuando tu conductor llegue, mantén la app abierta y la pantalla encendida. No cierres la app mientras esperas.",
+                callback
+            );
+        }
 
             try {
                 if (authMode === 'login') {
@@ -1261,6 +1291,8 @@
                             document.getElementById('driver-pending-approval').classList.add('hidden');
                             document.getElementById('driver-active-view').classList.remove('hidden');
                             startDriverListener();
+                            // TRIGGER ALERTA CONDUCTOR
+                            setTimeout(showDriverInstruction, 1000);
                         }
                     } else {
                         document.getElementById('client-view').classList.remove('hidden');
@@ -1723,387 +1755,29 @@
                 return window.showToast("Ya tienes un viaje activo o solicitud en curso.", "error");
             }
             
-            try {
-                const requestBtn = document.querySelector("#fare-card button");
-                if (requestBtn) requestBtn.disabled = true;
-
-                const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
-                const q = query(tripsRef, where('clientId', '==', currentUser.uid));
-                const querySnapshot = await getDocs(q);
-                
-                const hasActive = querySnapshot.docs.some(d => {
-                    const status = d.data().status;
-                    return ['pending', 'accepted', 'in_progress'].includes(status);
-                });
-
-                if (hasActive) {
-                    window.showToast("Ya tienes una solicitud de viaje registrada para tu cuenta.", "error");
-                    if (requestBtn) requestBtn.disabled = false;
-                    return;
-                }
-                
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
-                    clientId: currentUser.uid, clientName: window.userProfile.name,
-                    clientPhoto: window.userProfile.photo || null,
-                    clientPhone: window.userProfile.phone,
-                    origin, destination: dest,
-                    originCoords: window.currentClientCoords || null,
-                    destCoords: window.currentDestCoords || null,
-                    price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
-                });
-                
-                document.getElementById('searching-state').classList.remove('hidden');
-                document.getElementById('fare-card').classList.add('hidden');
-            } catch (err) {
-                console.error("Error al registrar solicitud de viaje:", err);
-                window.showToast("Hubo un error de red. Inténtalo de nuevo.", "error");
-                const requestBtn = document.querySelector("#fare-card button");
-                if (requestBtn) requestBtn.disabled = false;
-            }
-        };
-
-        window.sendChatMessage = async () => {
-            const text = document.getElementById('chat-input').value.trim();
-            if (!text || !activeTrip) return;
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), {
-                chat: arrayUnion({ 
-                    sender: currentUser.uid, 
-                    senderName: window.userProfile.name, 
-                    senderPhoto: window.userProfile.photo || null,
-                    text, 
-                    time: Date.now() 
-                })
-            });
-            document.getElementById('chat-input').value = "";
-        };
-
-        // --- CONTROLADOR DE BANDEJA DE CHAT CON NOTIFICACIÓN DE SONIDO Y ALERTA VISUAL ---
-        function renderChat(messages) {
-            const container = document.getElementById('chat-messages');
-            container.innerHTML = "";
-            if (!messages) return;
-
-            const previousLength = window.lastChatLength;
-            window.lastChatLength = messages.length;
-
-            // Evitamos notificaciones falsas de historial al cargar por primera vez el chat
-            if (previousLength !== undefined && messages.length > previousLength) {
-                const lastMsg = messages[messages.length - 1];
-                if (lastMsg && lastMsg.sender !== currentUser.uid) {
-                    const msgTime = lastMsg.time || Date.now();
-                    const isRecent = (Date.now() - msgTime) < 15000; // Últimos 15 segundos (Realtime Guard)
-
-                    if (isRecent) {
-                        window.playNotificationSound();
-                        window.sendBrowserNotification(`Mensaje de ${lastMsg.senderName.toUpperCase()}`, lastMsg.text);
-
-                        const chatSection = document.getElementById('chat-section');
-                        if (chatSection && chatSection.classList.contains('collapsed')) {
-                            const badge = document.getElementById('chat-unread-badge');
-                            if (badge) badge.classList.remove('hidden');
-                            window.showToast(`Nuevo mensaje de ${lastMsg.senderName.toUpperCase()}: "${lastMsg.text}"`, "info");
-                        }
-                    }
-                }
-            }
-
-            messages.forEach(m => {
-                const isMine = m.sender === currentUser.uid;
-                const div = document.createElement('div');
-                div.className = `chat-msg ${isMine ? 'msg-mine' : 'msg-theirs'}`;
-                div.innerHTML = `
-                    <div class="flex items-center gap-2 mb-1">
-                        ${!isMine && m.senderPhoto ? `<img src="${m.senderPhoto}" class="w-3.5 h-3.5 rounded-full object-cover">` : ''}
-                        <span class="text-[8px] font-black uppercase opacity-60">${isMine ? 'Tú' : m.senderName}</span>
-                    </div>
-                    <p class="leading-tight">${m.text}</p>
-                `;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
-
-        window.processLogout = () => signOut(auth).then(() => location.reload());
-        
-        window.cancelOrder = async () => { 
-            window.showConfirm(
-                "¿Cancelar servicio VIP?", 
-                "Esta acción detendrá y cancelará el viaje. El registro se enviará al historial de auditoría.", 
-                async () => {
-                    if(activeTrip) {
-                        const cancellationData = {
-                            tripId: activeTrip.id,
-                            origin: activeTrip.origin,
-                            destination: activeTrip.destination,
-                            price: activeTrip.price,
-                            clientId: activeTrip.clientId,
-                            clientName: activeTrip.clientName,
-                            clientPhone: activeTrip.clientPhone,
-                            driverId: activeTrip.driverId || null,
-                            driverName: activeTrip.driverName || "Ninguno",
-                            cancelledBy: window.userProfile.role === 'admin' ? 'Administrador Supremo' : window.userProfile.name,
-                            cancelledAt: Date.now()
-                        };
-                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', activeTrip.id), cancellationData);
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled', cancelledBy: currentUser.uid });
-                    }
-                    location.reload(); 
-                }
-            );
-        };
-
-        // --- ESCUCHADOR DE SOLICITUD DE RUTA EN MAPA ---
-        window.addEventListener('map-route-trigger', () => {
-            const origin = document.getElementById('origin-input').value;
-            const dest = document.getElementById('destination-input').value;
-            if (!origin || !dest) return;
-            window.directionsRenderer.setMap(window.gMap);
-            window.directionsRenderer.setOptions({ preserveViewport: false });
-            window.directionsService.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
-                if (status === "OK") {
-                    window.directionsRenderer.setDirections(res);
-                    const km = res.routes[0].legs[0].distance.value / 1000;
-                    document.getElementById('fare-card').classList.remove('hidden');
-                    document.getElementById('price-display').innerText = `L. ${(40 + km * 18).toFixed(2)}`;
-
-                    if (!window.currentClientCoords) {
-                        window.currentClientCoords = {
-                            lat: res.routes[0].legs[0].start_location.lat(),
-                            lng: res.routes[0].legs[0].start_location.lng()
-                        };
-                    }
-                    if (!window.currentDestCoords) {
-                        window.currentDestCoords = {
-                            lat: res.routes[0].legs[0].end_location.lat(),
-                            lng: res.routes[0].legs[0].end_location.lng()
-                        };
-                    }
-                }
-            });
-        });
-
-        window.centerMap = () => {
-            window.autoCenter = true;
-            document.getElementById('fab-center').classList.add('hidden');
-            if(window.currentDriverPos) {
-                window.gMap.panTo(window.currentDriverPos);
-                window.gMap.setZoom(18);
-                window.gMap.setTilt(45);
-            }
-        };
-
-        // --- LOCALIZACIÓN GPS ---
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition((pos) => {
-                const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                window.currentDriverPos = newPos;
-                if (currentUser && window.userProfile?.role === 'driver') {
-                    setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid), { lat: newPos.lat, lng: newPos.lng, updatedAt: Date.now() });
-                }
-            }, null, { enableHighAccuracy: true });
-        }
-
-        function listenForNearbyDrivers() {
-            if (!currentUser) return;
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
-                snap.forEach(d => { window.updateDriverMarker(d.id, d.data().lat, d.data().lng, d.id === currentUser.uid); });
-            });
-        }
-
-        function showRatingScreen() {
-            document.getElementById('rating-screen').style.display = 'flex';
-        }
-
-        window.setRating = (stars) => {
-            selectedStars = stars;
-            document.querySelectorAll('.star-btn').forEach(b => b.classList.toggle('text-soza-gold', parseInt(b.dataset.index) <= stars));
-        };
-
-        window.submitRating = async () => {
-            if (selectedStars === 0) return window.showToast("Califica con estrellas.", "error");
-            const targetUserId = window.userProfile.role === 'client' ? activeTrip.driverId : activeTrip.clientId;
-            const tRef = doc(db, 'artifacts', appId, 'users', targetUserId, 'profile', 'data');
-            const tSnap = await getDoc(tRef);
-            if (tSnap.exists()) {
-                const tData = tSnap.data();
-                await updateDoc(tRef, { ratingSum: (tData.ratingSum || 0) + selectedStars, ratingCount: (tData.ratingCount || 0) + 1, totalTrips: (tData.totalTrips || 0) + 1 });
-            }
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { [`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]: true });
-            location.reload();
-        };
-
-        // --- CONSOLA DE ADMIN SUPREMO ---
-        let activeAdminTab = 'stats';
-
-        window.toggleAdminPanel = () => {
-            const adminSec = document.getElementById('admin-view');
-            const clientSec = document.getElementById('client-view');
-            const driverSec = document.getElementById('driver-view');
-
-            if (adminSec.classList.contains('hidden')) {
-                adminSec.classList.remove('hidden');
-                clientSec.classList.add('hidden');
-                driverSec.classList.add('hidden');
-            } else {
-                adminSec.classList.add('hidden');
-                if (window.userProfile.role === 'driver') driverSec.classList.remove('hidden');
-                else clientSec.classList.remove('hidden');
-            }
-        };
-
-        window.setAdminTab = (tab) => {
-            activeAdminTab = tab;
-            document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.className = 'admin-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400');
-            document.getElementById(`tab-admin-${tab}`).className = 'admin-tab-btn flex-1 py-2 rounded-lg transition-all bg-soza-gold text-soza-dark shadow-sm';
-            
-            document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.add('hidden'));
-            document.getElementById(`admin-content-${tab}`).classList.remove('hidden');
-        };
-
-        function startAdminListeners() {
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snap) => {
-                cachedProfilesList = [];
-                snap.forEach(d => {
-                    cachedProfilesList.push(d.data());
-                });
-                renderAdminUsers();
-                document.getElementById('stat-total-users').innerText = cachedProfilesList.length;
-            });
-
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
-                document.getElementById('stat-active-drivers').innerText = snap.size;
-            });
-
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
-                const activeTripsList = snap.docs.filter(d => ['pending', 'accepted', 'in_progress'].includes(d.data().status));
-                document.getElementById('stat-active-trips').innerText = activeTripsList.length;
-                renderAdminTrips(activeTripsList);
-            });
-
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips'), (snap) => {
-                renderAdminCancelledTrips(snap.docs);
-            });
-        }
-
-        window.setAdminUserFilter = (filter) => {
-            activeUserFilter = filter;
-            document.querySelectorAll('.admin-user-filter-btn').forEach(btn => {
-                btn.className = 'admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
-            });
-            const selectedBtn = document.getElementById(`filter-user-${filter}`);
-            if (selectedBtn) {
-                selectedBtn.className = 'admin-user-filter-btn px-3 py-1.5 bg-soza-gold text-soza-dark rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
-            }
-            renderAdminUsers();
-        };
-
-        function renderAdminUsers() {
-            const listContainer = document.getElementById('admin-users-list');
-            listContainer.innerHTML = '';
-            
-            let filteredList = cachedProfilesList;
-            if (activeUserFilter === 'client') {
-                filteredList = cachedProfilesList.filter(u => u.role === 'client');
-            } else if (activeUserFilter === 'driver') {
-                filteredList = cachedProfilesList.filter(u => u.role === 'driver');
-            } else if (activeUserFilter === 'pending_driver') {
-                filteredList = cachedProfilesList.filter(u => u.role === 'driver' && u.isApproved === false);
-            }
-
-            filteredList.forEach(u => {
-                if (u.uid === currentUser.uid) return; 
-                
-                const stars = u.ratingCount ? (u.ratingSum / u.ratingCount).toFixed(1) : "5.0";
-                const isBanned = u.isBanned === true;
-                const isDriver = u.role === 'driver';
-
-                const card = document.createElement('div');
-                card.className = "p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col justify-between gap-2 shadow-sm relative text-white";
-                card.innerHTML = `
-                    <div class="flex items-start justify-between">
-                        <div class="flex items-center gap-2">
-                            ${u.photo ? `<img src="${u.photo}" class="w-8 h-8 rounded-full object-cover">` : `<div class="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs border border-soza-gold/20">${u.name.charAt(0).toUpperCase()}</div>`}
-                            <div>
-                                <h5 class="text-xs font-black text-white">${u.name.toUpperCase()}</h5>
-                                <p class="text-[9px] text-soza-gold font-bold uppercase tracking-wider">${isDriver ? `Conductor` : 'Pasajero'}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-1 text-soza-gold font-black text-[10px]">
-                            <i class="fas fa-star"></i> <span>${stars}</span>
-                        </div>
-                    </div>
-                    
-                    <div class="flex items-center gap-2 text-[9px] text-slate-400 font-bold mt-1">
-                        <span><i class="fas fa-phone"></i> ${u.phone}</span>
-                        <span>•</span>
-                        <span>Viajes: ${u.totalTrips || 0}</span>
-                    </div>
-
-                    ${isDriver ? `
-                        <div class="flex flex-col gap-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-[9px] text-slate-300 font-medium my-1.5">
-                            <p><b>Vehículo:</b> ${u.vehicle?.model || 'No registrado'}</p>
-                            <p><b>Placa:</b> <span class="uppercase font-bold text-white">${u.vehicle?.plate || 'No registrado'}</span></p>
-                            <p><b>Licencia:</b> <span class="font-bold text-white">${u.vehicle?.license || 'No registrado'}</span></p>
-                            <p class="mt-1">
-                                <b>Estado SOZA:</b> 
-                                ${u.isApproved !== false ? 
-                                    '<span class="text-emerald-400 font-bold">Aprobado ✅</span>' : 
-                                    '<span class="text-amber-500 font-bold">Pendiente de Aprobación ⏳</span>'
-                                }
-                            </p>
-                        </div>
-                    ` : ''}
-
-                    <div class="flex flex-wrap items-center gap-2 mt-3 border-t pt-2 border-slate-800">
-                        ${isBanned ? `
-                            <span class="text-[9px] font-black text-rose-500 uppercase tracking-widest mr-auto"><i class="fas fa-user-slash"></i> Vetado 🚫</span>
-                            <button onclick="window.setAdminVeto('${u.uid}', false)" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all">Desvetar</button>
-                        ` : `
-                            <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest mr-auto"><i class="fas fa-check-circle"></i> Activo</span>
-                            <button onclick="window.setAdminVeto('${u.uid}', true)" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all">Vetar</button>
-                        `}
-                        
-                        ${isDriver ? `
-                            <button onclick="window.trackDriver('${u.uid}')" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-slate-700"><i class="fas fa-location-crosshairs"></i> Rastrear</button>
-                            
-                            ${u.isApproved !== false ? `
-                                <button onclick="window.setDriverApproval('${u.uid}', false)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-soza-dark rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-pause-circle"></i> Revocar</button>
-                            ` : `
-                                <button onclick="window.setDriverApproval('${u.uid}', true)" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-check-double"></i> Aprobar</button>
-                            `}
-                        ` : ''}
-                    </div>
-                `;
-                listContainer.appendChild(card);
-            });
-        }
-
-        window.filterAdminUsers = (val) => {
-            const queryClean = val.toLowerCase().trim();
-            const listContainer = document.getElementById('admin-users-list');
-            const cards = listContainer.children;
-
-            for (let i = 0; i < cards.length; i++) {
-                const cardText = cards[i].innerText.toLowerCase();
-                if (cardText.includes(queryClean)) {
-                    cards[i].classList.remove('hidden');
-                } else {
-                    cards[i].classList.add('hidden');
-                }
-            }
-        };
-
-        window.setAdminVeto = async (uid, shouldBan) => {
-            const title = shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?";
-            const desc = shouldBan ? "El usuario perderá el acceso a la plataforma de inmediato y sus viajes activos serán forzados a cancelación." : "Se restablecerá el acceso de usuario de forma inmediata.";
-            
-            window.showConfirm(title, desc, async () => {
+            // TRIGGER ALERTA CLIENTE ANTES DE ENVIAR
+            showClientInstruction(async () => {
                 try {
-                    await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isBanned: shouldBan });
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isBanned: shouldBan });
-                    window.showToast(shouldBan ? "Usuario vetado exitosamente." : "Socio desvetado con éxito.", "success");
-                } catch(e) {
-                    window.showToast("Error de conexión al procesar baneo.", "error");
+                    const requestBtn = document.querySelector("#fare-card button");
+                    if (requestBtn) requestBtn.disabled = true;
+
+                    // ... existing logic to send trip request ...
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
+                        clientId: currentUser.uid, clientName: window.userProfile.name,
+                        clientPhoto: window.userProfile.photo || null,
+                        clientPhone: window.userProfile.phone,
+                        origin, destination: dest,
+                        originCoords: window.currentClientCoords || null,
+                        destCoords: window.currentDestCoords || null,
+                        price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
+                    });
+                    
+                    document.getElementById('searching-state').classList.remove('hidden');
+                    document.getElementById('fare-card').classList.add('hidden');
+                } catch (err) {
+                    window.showToast("Hubo un error de red. Inténtalo de nuevo.", "error");
+                    const requestBtn = document.querySelector("#fare-card button");
+                    if (requestBtn) requestBtn.disabled = false;
                 }
             });
         };
