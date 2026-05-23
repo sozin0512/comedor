@@ -740,6 +740,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, initializeAuth, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, arrayUnion, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBwaRzw2R1DCFOSn-YtfM5tRLdN7p4dpk8",
@@ -761,6 +762,7 @@
 
         const db = getFirestore(app);
         const appId = "comayagua-vip-pro-v4";
+        const messaging = getMessaging(app);
 
         let userRole = 'client';
         let currentUser = null;
@@ -843,6 +845,10 @@
                 if (permission === "granted") {
                     window.showToast("¡Notificaciones de SOZA activadas! 🔔", "success");
                     window.playNotificationSound();
+                    
+                    // Obtener token FCM para notificaciones con la app cerrada (segundo plano)
+                    registerDeviceForPushNotifications();
+                    
                     window.sendBrowserNotification("SOZA — Soluciones de Transporte VIP", "Las alertas en segundo plano ya están activas y listas.");
                 } else if (permission === "denied") {
                     window.showToast("Permiso denegado. Actívalas en la configuración.", "error");
@@ -851,6 +857,34 @@
                 console.error("Error solicitando permisos:", err);
             }
         };
+
+        // Función dedicada a registrar el token del dispositivo de forma segura
+        async function registerDeviceForPushNotifications() {
+            try {
+                // Registro del Service Worker listo antes de pedir el token
+                const registration = await navigator.serviceWorker.ready;
+                
+                // NOTA: Para producción real, genera tu VAPID Key en Firebase Console -> Settings -> Cloud Messaging -> Web Push
+                const token = await getToken(messaging, { 
+                    serviceWorkerRegistration: registration,
+                    vapidKey: "BKe_n6NfUuN8p-K2E30h3758b9C_fdfVAPID_KEY_AQUI_OPCIONAL" 
+                });
+                
+                if (token) {
+                    console.log("Dispositivo registrado con éxito. Token de segundo plano:", token);
+                    if (currentUser) {
+                        // Guardamos el token en Firebase para que el servidor pueda notificar a este celular aunque la web esté cerrada
+                        const tokenData = { deviceToken: token, lastTokenUpdate: Date.now() };
+                        await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), tokenData, { merge: true });
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), tokenData, { merge: true });
+                    }
+                } else {
+                    console.warn("No se pudo obtener el token de emparejamiento push.");
+                }
+            } catch (err) {
+                console.warn("Fallo al obtener el token FCM (es normal en entornos de sandbox locales):", err);
+            }
+        }
 
         function updateBellIconUI(permission) {
             const bellIcon = document.getElementById('notif-bell-icon');
@@ -1244,6 +1278,11 @@
                     setTimeout(() => {
                         window.showToast("Toca la pantalla para sintonizar el audio y recibir alertas VIP 🔊", "info");
                     }, 1200);
+
+                    // Registrar token de segundo plano de manera automática si el permiso ya fue otorgado previamente
+                    if (Notification.permission === "granted") {
+                        registerDeviceForPushNotifications();
+                    }
 
                 } catch(e) {
                     console.error("Error cargando perfil:", e);
@@ -2216,12 +2255,39 @@
             );
         };
 
-        // --- REGISTRO DE SERVICE WORKER LOCAL ---
+        // --- REGISTRO DE SERVICE WORKER LOCAL & CAPACIDAD DE EMPUJE EN SEGUNDO PLANO ---
         if ('serviceWorker' in navigator) {
             try {
                 const swCode = `
                     self.addEventListener('install', (e) => self.skipWaiting());
                     self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+                    
+                    // ESCUCHAR SEÑALES PUSH PWA NATIVAS EN SEGUNDO PLANO (COMO FACEBOOK)
+                    self.addEventListener('push', (event) => {
+                        let data = { title: 'SOZA VIP', body: 'Actualización en tu servicio de transporte.' };
+                        try {
+                            if (event.data) {
+                                data = event.data.json();
+                            }
+                        } catch(e) {
+                            if (event.data) {
+                                data.body = event.data.text();
+                            }
+                        }
+                        
+                        const options = {
+                            body: data.body,
+                            icon: 'https://cdn-icons-png.flaticon.com/512/854/854878.png',
+                            badge: 'https://cdn-icons-png.flaticon.com/512/854/854878.png',
+                            vibrate: [300, 100, 300],
+                            data: { url: '/' }
+                        };
+                        
+                        event.waitUntil(
+                            self.registration.showNotification(data.title, options)
+                        );
+                    });
+
                     self.addEventListener('notificationclick', (event) => {
                         event.notification.close();
                         event.waitUntil(
