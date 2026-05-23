@@ -148,8 +148,8 @@
         window.driverMarkers = {};
         window.currentDriverPos = null;
         window.autoCenter = true;
-        window.currentClientCoords = null; // Guardará coordenadas de recogida
-        window.currentDestCoords = null;   // Guardará coordenadas de destino
+        window.currentClientCoords = null; // Guardará coordenadas de recogida del cliente
+        window.currentDestCoords = null;   // Guardará coordenadas de destino del cliente
 
         window.initMap = function() {
             try {
@@ -286,7 +286,7 @@
     <!-- CONTENEDOR DE TOASTS -->
     <div id="toast-container"></div>
 
-    <!-- MODAL CONFIRMACIÓN VIP -->
+    <!-- MODAL CONFIRMACIÓN VIP (Reemplazo total de confirm y alert nativos) -->
     <div id="confirm-modal" class="hidden fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-slate-100 transform transition-transform duration-300 scale-95">
             <div class="w-16 h-16 rounded-full bg-rose-50 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-100">
@@ -301,13 +301,13 @@
         </div>
     </div>
 
-    <!-- PANTALLA ROJA DE USUARIOS VETADOS -->
+    <!-- PANTALLA DE USUARIOS VETADOS (VETO COMPLETO) -->
     <div id="banned-screen" class="hidden fixed inset-0 bg-red-950 flex flex-col items-center justify-center p-6 z-[11000] text-center">
         <div class="w-24 h-24 rounded-full bg-red-900 flex items-center justify-center text-white mb-6 shadow-2xl animate-bounce">
             <i class="fas fa-user-slash text-4xl"></i>
         </div>
         <h1 class="text-3xl font-black text-white mb-2 uppercase tracking-tight">Cuenta Vetada</h1>
-        <p class="text-red-300 max-w-md text-sm mb-8 leading-relaxed">Tu cuenta ha sido bloqueada temporal o permanentemente por el Administrador Supremo de Comayagua Express por violaciones de conducta y seguridad.</p>
+        <p class="text-red-300 max-w-md text-sm mb-8 leading-relaxed">Tu cuenta ha sido bloqueada de Comayagua Express por violaciones de conducta y seguridad.</p>
         <button onclick="window.processLogout()" class="px-8 py-4 bg-white text-red-900 font-black rounded-2xl shadow-xl hover:bg-gray-100 transition-all uppercase tracking-widest text-xs">Cerrar Sesión</button>
     </div>
 
@@ -327,7 +327,7 @@
         </div>
     </div>
 
-    <!-- NUEVO: PANEL DE TIEMPO DE ESPERA VIP OPTIMIZADO (PASAJERO) -->
+    <!-- PANEL DE TIEMPO DE ESPERA VIP OPTIMIZADO (PASAJERO) -->
     <div id="eta-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-md px-6 py-3.5 rounded-[1.5rem] shadow-2xl border border-blue-500/30 z-[6000] min-w-[240px] text-white">
         <div class="flex items-center gap-3">
             <div class="relative flex h-3 w-3">
@@ -651,7 +651,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, initializeAuth, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, arrayUnion, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Configuración de credenciales de Firebase
         const firebaseConfig = {
@@ -796,6 +796,7 @@
             }
         };
 
+        // --- STREAMING_CHUNK: Creando el manejador de perfil editable y validador de roles... -->
         // --- CONTROLADOR DE EDICIÓN DE PERFIL ---
         let isEditingProfile = false;
 
@@ -889,6 +890,7 @@
             }
         };
 
+        // --- STREAMING_CHUNK: Creando escuchadores de sesión y ruteo dinámico de mapas... -->
         // --- CONTROLADOR DEL AUTHESTADO ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -1029,6 +1031,7 @@
             navigationInterval = setInterval(render, 5000);
         };
 
+        // --- STREAMING_CHUNK: Creando el disparador de viajes y la lógica del conductor en vivo... -->
         // --- CONDUCTOR (LISTA DE VIAJES DISPONIBLES) ---
         function startDriverListener() {
             if (!currentUser) return;
@@ -1108,6 +1111,7 @@
             }
         };
 
+        // --- STREAMING_CHUNK: Creando el gestor de escuchas de viaje activo y reintento por cancelación... -->
         // --- ESCUCHADOR DE VIAJE ACTIVO EN TIEMPO REAL ---
         function listenToMyActiveTrip() {
             if (!currentUser) return;
@@ -1279,21 +1283,32 @@
                             if (window.userProfile.role === 'client' && wasDriverCancellation) {
                                 window.showToast("Buscando un nuevo conductor VIP automáticamente...", "success");
                                 try {
-                                    // Creamos una nueva solicitud idéntica en estado pendiente
-                                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
-                                        clientId: currentUser.uid, 
-                                        clientName: window.userProfile.name,
-                                        clientPhoto: window.userProfile.photo || null,
-                                        clientPhone: window.userProfile.phone,
-                                        origin: savedOrigin, 
-                                        destination: savedDestination,
-                                        originCoords: savedOriginCoords,
-                                        destCoords: savedDestCoords,
-                                        price: savedPrice, 
-                                        status: 'pending', 
-                                        chat: [], 
-                                        createdAt: serverTimestamp()
+                                    // REGLA DE EVITAR DUPLICADOS EN REENTRADA AUTOMÁTICA
+                                    const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
+                                    const q = query(tripsRef, where('clientId', '==', currentUser.uid));
+                                    const querySnapshot = await getDocs(q);
+                                    const hasActive = querySnapshot.docs.some(d => {
+                                        const status = d.data().status;
+                                        return ['pending', 'accepted', 'in_progress'].includes(status);
                                     });
+
+                                    if (!hasActive) {
+                                        // Creamos una nueva solicitud idéntica en estado pendiente
+                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
+                                            clientId: currentUser.uid, 
+                                            clientName: window.userProfile.name,
+                                            clientPhoto: window.userProfile.photo || null,
+                                            clientPhone: window.userProfile.phone,
+                                            origin: savedOrigin, 
+                                            destination: savedDestination,
+                                            originCoords: savedOriginCoords,
+                                            destCoords: savedDestCoords,
+                                            price: savedPrice, 
+                                            status: 'pending', 
+                                            chat: [], 
+                                            createdAt: serverTimestamp()
+                                        });
+                                    }
 
                                     // Restauramos la interfaz del pasajero al radar de búsqueda activa
                                     document.getElementById('active-trip-panel').classList.add('hidden');
@@ -1384,22 +1399,58 @@
             }
         };
 
+        // --- STREAMING_CHUNK: Creando el control de envíos de viajes y previniendo duplicidad de forma activa... -->
+        // --- EVITAR DUPLICIDAD DE SOLICITUDES ACTIVO ---
         window.sendTripRequest = async () => {
-            const origin = document.getElementById('origin-input').value;
-            const dest = document.getElementById('destination-input').value;
+            const origin = document.getElementById('origin-input').value.trim();
+            const dest = document.getElementById('destination-input').value.trim();
             if(!origin || !dest) return window.showToast("Define ruta.", "error");
+
+            // 1. Verificación Local Rápida
+            if (activeTrip && ['pending', 'accepted', 'in_progress'].includes(activeTrip.status)) {
+                return window.showToast("Ya tienes un viaje activo o solicitud en curso.", "error");
+            }
             
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
-                clientId: currentUser.uid, clientName: window.userProfile.name,
-                clientPhoto: window.userProfile.photo || null,
-                clientPhone: window.userProfile.phone,
-                origin, destination: dest,
-                originCoords: window.currentClientCoords || null,
-                destCoords: window.currentDestCoords || null,
-                price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
-            });
-            document.getElementById('searching-state').classList.remove('hidden');
-            document.getElementById('fare-card').classList.add('hidden');
+            try {
+                // Deshabilitamos temporalmente el botón de envío para evitar doble clic físico
+                const requestBtn = document.querySelector("#fare-card button");
+                if (requestBtn) requestBtn.disabled = true;
+
+                // 2. Consulta Directa e Inviolable a Firestore (Prevención de carrera y duplicados)
+                const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
+                const q = query(tripsRef, where('clientId', '==', currentUser.uid));
+                const querySnapshot = await getDocs(q);
+                
+                const hasActive = querySnapshot.docs.some(d => {
+                    const status = d.data().status;
+                    return ['pending', 'accepted', 'in_progress'].includes(status);
+                });
+
+                if (hasActive) {
+                    window.showToast("Ya tienes una solicitud de viaje registrada para tu cuenta.", "error");
+                    if (requestBtn) requestBtn.disabled = false;
+                    return;
+                }
+                
+                // Creación del viaje seguro
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
+                    clientId: currentUser.uid, clientName: window.userProfile.name,
+                    clientPhoto: window.userProfile.photo || null,
+                    clientPhone: window.userProfile.phone,
+                    origin, destination: dest,
+                    originCoords: window.currentClientCoords || null,
+                    destCoords: window.currentDestCoords || null,
+                    price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
+                });
+                
+                document.getElementById('searching-state').classList.remove('hidden');
+                document.getElementById('fare-card').classList.add('hidden');
+            } catch (err) {
+                console.error("Error al registrar solicitud de viaje:", err);
+                window.showToast("Hubo un error de red. Inténtalo de nuevo.", "error");
+                const requestBtn = document.querySelector("#fare-card button");
+                if (requestBtn) requestBtn.disabled = false;
+            }
         };
 
         window.sendChatMessage = async () => {
@@ -1547,6 +1598,7 @@
             location.reload();
         };
 
+        // --- STREAMING_CHUNK: Creando el set de APIs de la consola del Admin Supremo... -->
         // --- CONSOLA EXCLUSIVA DE ADMIN SUPREMO (VETADOS, TRÁFICO, CANCELADOS) ---
         let activeAdminTab = 'stats';
 
@@ -1709,6 +1761,7 @@
             }
         };
 
+        // --- STREAMING_CHUNK: Creando los métodos de cancelación forzada e historiales auditados... -->
         // --- CONTROLADORES DE SEGURIDAD VETO Y APROBACIÓN DE LICENCIA ---
         window.setAdminVeto = async (uid, shouldBan) => {
             const title = shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?";
@@ -1858,10 +1911,9 @@
                     try {
                         window.showToast("Iniciando vaciado del historial...", "info");
                         const q = collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips');
-                        onSnapshot(q, (snap) => {
-                            snap.forEach(async (d) => {
-                                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', d.id));
-                            });
+                        const querySnapshot = await getDocs(q);
+                        querySnapshot.forEach(async (d) => {
+                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', d.id));
                         });
                         window.showToast("Historial vaciado correctamente.", "success");
                     } catch(e) {
