@@ -29,6 +29,7 @@
         }
     </script>
     
+    
     <!-- Soporte PWA para evitar suspensión profunda en dispositivos móviles -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -56,6 +57,7 @@
             inset: 0;
             overflow-y: auto;
         }
+
 
         /* --- INTERFAZ DE NAVEGACIÓN PROFESIONAL --- */
         #nav-hud-top {
@@ -418,6 +420,7 @@
 
     <div id="fab-center" class="nav-fab hidden" onclick="window.centerMap()"><i class="fas fa-location-arrow"></i> CENTRAR</div>
 
+
     <!-- PANTALLA LOGIN CON TABS DE INGRESO Y REGISTRO -->
     <div id="login-screen" class="login-screen flex items-center justify-center p-6">
         <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-soza-gold/20 text-white">
@@ -731,6 +734,7 @@
         </main>
     </div>
 
+
     <!-- FIREBASE & LOGICA MAESTRA -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -801,6 +805,33 @@
             }
         });
 
+
+        // --- SISTEMA DE DESBLOQUEO DE AUDIO MÓVIL (WEB AUDIO API EXCLUSIVO) ---
+        let globalAudioCtx = null;
+
+        window.unlockAudioContext = () => {
+            try {
+                if (!globalAudioCtx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    if (AudioContext) {
+                        globalAudioCtx = new AudioContext();
+                        console.log("Sistema de audio unificado inicializado.");
+                    }
+                }
+                if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
+                    globalAudioCtx.resume().then(() => {
+                        console.log("Canal de Sonido desbloqueado de forma segura en celular.");
+                    });
+                }
+            } catch (err) {
+                console.warn("No se pudo desbloquear el sistema de audio:", err);
+            }
+        };
+
+        // Escuchadores globales de interacción en celular para desbloqueo silencioso de Audio
+        document.addEventListener('click', window.unlockAudioContext, { once: false });
+        document.addEventListener('touchstart', window.unlockAudioContext, { once: false });
+
         window.requestNotificationPermission = async () => {
             if (!("Notification" in window)) {
                 window.showToast("Tu navegador no soporta notificaciones de sistema.", "error");
@@ -868,9 +899,17 @@
 
         window.playNotificationSound = () => {
             try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                if (!AudioContext) return;
-                const ctx = new AudioContext();
+                // Forzar desbloqueo táctil si no se ha llamado previamente
+                if (!globalAudioCtx) {
+                    window.unlockAudioContext();
+                }
+                const ctx = globalAudioCtx;
+                if (!ctx) return;
+
+                // Asegurar que el contexto no esté suspendido en el momento de reproducir
+                if (ctx.state === 'suspended') {
+                    ctx.resume();
+                }
                 
                 const osc1 = ctx.createOscillator();
                 const gain1 = ctx.createGain();
@@ -982,6 +1021,9 @@
         };
 
         window.executeAuth = async () => {
+            // Desbloquear audio táctil al presionar el ingreso
+            window.unlockAudioContext();
+
             const email = document.getElementById('email-field').value.trim();
             const pass = document.getElementById('pass-field').value.trim();
             if (!email || !pass) return window.showToast("Ingresa tus credenciales.", "error");
@@ -994,6 +1036,8 @@
                 if (authMode === 'login') {
                     await signInWithEmailAndPassword(auth, email, pass);
                     window.showToast("Sesión iniciada con éxito.", "success");
+                    // Dar un sutil toque audible confirmando el desbloqueo
+                    setTimeout(window.playNotificationSound, 300);
                 } else {
                     await createUserWithEmailAndPassword(auth, email, pass);
                     window.showToast("Cuenta creada con éxito. Finaliza tu perfil.", "success");
@@ -1195,12 +1239,19 @@
                         listenForNearbyDrivers();
                     }
                     listenToMyActiveTrip();
+
+                    // --- INVITACIÓN INTERACTIVA AL SONIDO VIP ---
+                    setTimeout(() => {
+                        window.showToast("Toca la pantalla para sintonizar el audio y recibir alertas VIP 🔊", "info");
+                    }, 1200);
+
                 } catch(e) {
                     console.error("Error cargando perfil:", e);
                     window.showToast("Error de conexión al cargar perfil.", "error");
                 }
             }
         });
+
 
         // --- GPS NAVEGACIÓN PROFESIONAL ---
         window.updateNavigation = (dest) => {
@@ -1247,6 +1298,7 @@
             render();
             navigationInterval = setInterval(render, 5000);
         };
+
 
         // --- CONDUCTOR (LISTA DE VIAJES DISPONIBLES) ---
         function startDriverListener() {
@@ -1333,6 +1385,7 @@
                 console.error("Error al calcular ETA en tiempo real:", err);
             }
         };
+
 
         function listenToMyActiveTrip() {
             if (!currentUser) return;
@@ -1693,6 +1746,7 @@
             document.getElementById('chat-input').value = "";
         };
 
+
         // --- CONTROLADOR DE BANDEJA DE CHAT CON NOTIFICACIÓN DE SONIDO Y ALERTA VISUAL ---
         function renderChat(messages) {
             const container = document.getElementById('chat-messages');
@@ -1841,6 +1895,7 @@
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { [`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]: true });
             location.reload();
         };
+
 
         // --- CONSOLA DE ADMIN SUPREMO ---
         let activeAdminTab = 'stats';
