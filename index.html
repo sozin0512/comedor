@@ -6,7 +6,7 @@
     <title>Comayagua Express VIP</title>
     <!-- Frameworks Externos -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
     <style>
@@ -148,8 +148,8 @@
         window.driverMarkers = {};
         window.currentDriverPos = null;
         window.autoCenter = true;
-        window.currentClientCoords = null; // Guardará coordenadas de recogida del cliente
-        window.currentDestCoords = null;   // Guardará coordenadas de destino del cliente
+        window.currentClientCoords = null; 
+        window.currentDestCoords = null;   
 
         window.initMap = function() {
             try {
@@ -271,6 +271,12 @@
         window.toggleChat = () => {
             const chat = document.getElementById('chat-section');
             chat.classList.toggle('collapsed');
+            
+            // Cuando se abre el chat, se quita la alerta visual de mensajes no leídos
+            if (!chat.classList.contains('collapsed')) {
+                const badge = document.getElementById('chat-unread-badge');
+                if (badge) badge.classList.add('hidden');
+            }
         };
 
         window.manualRouteRefresh = () => {
@@ -622,13 +628,15 @@
                         </div>
                     </div>
 
-                    <!-- Botones de Acción (Llamada / Chat) -->
+                    <!-- Botones de Acción (Llamada / Chat con Alerta Visual de No Leídos) -->
                     <div class="flex gap-3 mb-4">
                         <a id="call-btn" href="#" class="flex-[2] bg-green-600 text-white py-4 rounded-2xl text-[12px] font-black uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform">
                             <i class="fas fa-phone"></i> LLAMAR
                         </a>
-                        <button onclick="window.toggleChat()" class="flex-1 bg-gray-100 text-gray-600 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform">
+                        <button onclick="window.toggleChat()" class="relative flex-1 bg-gray-100 text-gray-600 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform">
                             <i class="fas fa-comments text-lg"></i> CHAT
+                            <!-- FARO DE ALERTA DE MENSAJES NO LEÍDOS -->
+                            <span id="chat-unread-badge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
                         </button>
                     </div>
 
@@ -682,10 +690,51 @@
         let selectedStars = 0;
         let etaInterval = null;
         let navigationInterval = null;
-        let authMode = 'login'; // 'login' o 'register'
-        let cachedProfilesList = []; // Para filtros rápidos locales
-        let activeUserFilter = 'all'; // Filtro de socios activo para el Admin Supremo
-        let activeDriverDocListener = null; // Escuchador de ubicación del chofer asignado en tiempo real
+        let authMode = 'login'; 
+        let cachedProfilesList = []; 
+        let activeUserFilter = 'all'; 
+        let activeDriverDocListener = null; 
+
+        // Variable global para detectar si entran nuevos mensajes de chat y alertar acústicamente
+        window.lastChatLength = 0;
+
+        // --- STREAMING_CHUNK: Creando el sintetizador de sonido VIP con Web Audio API... ---
+        // --- SINTETIZADOR ACÚSTICO DE NOTIFICACIÓN VIP (Web Audio API) ---
+        window.playNotificationSound = () => {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                
+                // Nota 1 (Campana inicial) - D5
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+                gain1.gain.setValueAtTime(0.12, ctx.currentTime);
+                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                
+                // Nota 2 (Campana armónica) - A5 (Se activa 0.08 segundos después)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(880.00, ctx.currentTime + 0.08);
+                gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.08);
+                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+                
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                
+                osc1.start();
+                osc1.stop(ctx.currentTime + 0.35);
+                osc2.start(ctx.currentTime + 0.08);
+                osc2.stop(ctx.currentTime + 0.45);
+            } catch (err) {
+                console.warn("Fallo al reproducir el sonido (bloqueo de reproducción automática o falta de soporte):", err);
+            }
+        };
 
         // --- SISTEMA DE TOASTS FLOTANTES ---
         window.showToast = (message, type = "info") => {
@@ -710,6 +759,7 @@
             }, 4000);
         };
 
+        // --- STREAMING_CHUNK: Creando modal de confirmación y flujo de registro de perfiles... ---
         // --- SISTEMA DE MODAL DE CONFIRMACIÓN VIP (NUNCA USA CONFIRM NATIVO) ---
         window.showConfirm = (title, description, onConfirm) => {
             const modal = document.getElementById('confirm-modal');
@@ -768,6 +818,7 @@
             }
         };
 
+        // --- STREAMING_CHUNK: Creando el control de login, tokens y validaciones de Firebase... ---
         // --- AUTENTICACIÓN MEJORADA ---
         window.executeAuth = async () => {
             const email = document.getElementById('email-field').value.trim();
@@ -796,7 +847,6 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando el manejador de perfil editable y validador de roles... -->
         // --- CONTROLADOR DE EDICIÓN DE PERFIL ---
         let isEditingProfile = false;
 
@@ -890,7 +940,7 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando escuchadores de sesión y ruteo dinámico de mapas... -->
+        // --- STREAMING_CHUNK: Validando privilegios de Admin Supremo para josuesoza0513@gmail.com... ---
         // --- CONTROLADOR DEL AUTHESTADO ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
@@ -985,6 +1035,7 @@
             }
         });
 
+        // --- STREAMING_CHUNK: Calculando rutas y dibujando la trayectoria en mapas híbridos... ---
         // --- GPS NAVEGACIÓN PROFESIONAL ---
         window.updateNavigation = (dest) => {
             if (navigationInterval) clearInterval(navigationInterval);
@@ -1031,7 +1082,6 @@
             navigationInterval = setInterval(render, 5000);
         };
 
-        // --- STREAMING_CHUNK: Creando el disparador de viajes y la lógica del conductor en vivo... -->
         // --- CONDUCTOR (LISTA DE VIAJES DISPONIBLES) ---
         function startDriverListener() {
             if (!currentUser) return;
@@ -1076,7 +1126,7 @@
             if (!window.mapLoaded) return;
             try {
                 window.directionsRenderer.setMap(window.gMap);
-                window.directionsRenderer.setOptions({ preserveViewport: true }); // Mantiene la cámara fija mientras dibuja
+                window.directionsRenderer.setOptions({ preserveViewport: true }); 
                 window.directionsService.route({
                     origin: originCoords,
                     destination: destinationCoordsOrText,
@@ -1101,7 +1151,6 @@
                 }, (res, status) => {
                     if (status === "OK" && res.rows[0].elements[0].status === "OK") {
                         const element = res.rows[0].elements[0];
-                        // Se actualiza el tiempo de espera y la distancia restante dinámicamente
                         document.getElementById('eta-text').innerText = "Espera: " + element.duration.text;
                         document.getElementById('eta-distance').innerText = "A " + element.distance.text + " de distancia";
                     }
@@ -1111,7 +1160,7 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando el gestor de escuchas de viaje activo y reintento por cancelación... -->
+        // --- STREAMING_CHUNK: Escuchando rutas en tiempo real y gestionando alertas sonoras de chat... ---
         // --- ESCUCHADOR DE VIAJE ACTIVO EN TIEMPO REAL ---
         function listenToMyActiveTrip() {
             if (!currentUser) return;
@@ -1145,7 +1194,6 @@
                             document.getElementById('client-pin-display').classList.add('hidden');
                             document.getElementById('driver-pickup-display').innerText = data.origin;
                             
-                            // Mostrar marcador verde del cliente en el mapa
                             if (!window.clientPickupMarker) {
                                 const clientPos = data.originCoords || data.origin;
                                 if (data.originCoords) {
@@ -1200,7 +1248,7 @@
                                 window.updateNavigation(data.destination);
                             }
 
-                        // --- MODO PASAJERO (MOVIMIENTO DEL CHOFER EN TIEMPO REAL Y CONSUMO DE RUTA) ---
+                        // --- MODO PASAJERO ---
                         } else if (window.userProfile.role === 'client') {
                             
                             if (data.status === 'accepted') {
@@ -1214,15 +1262,11 @@
                                     try {
                                         if (driverSnap.exists()) {
                                             const driverLoc = driverSnap.data();
-                                            
-                                            // Mover marcador del chofer en tiempo real
                                             window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
                                             
-                                            // Trazar ruta dinámica (CONSUMO DE RUTA): De la posición actual del conductor al cliente
                                             const clientDest = data.originCoords || data.origin;
                                             window.updateMapRouteFromCoords(driverLoc, clientDest);
                                             
-                                            // Auto-Encuadre (Ajustar cámara para ver ambos puntos)
                                             const bounds = new google.maps.LatLngBounds();
                                             bounds.extend(new google.maps.LatLng(driverLoc.lat, driverLoc.lng));
                                             if (data.originCoords) {
@@ -1230,7 +1274,6 @@
                                             }
                                             window.gMap.fitBounds(bounds);
                                             
-                                            // Actualizar estimador ETA y distancias
                                             window.updateRealtimeETA(driverLoc, clientDest);
                                         }
                                     } catch (err) {
@@ -1250,11 +1293,9 @@
                                             const driverLoc = driverSnap.data();
                                             window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
                                             
-                                            // Ruta de destino (CONSUMO DE RUTA): De la posición actual del conductor al destino
                                             const finalDest = data.destCoords || data.destination;
                                             window.updateMapRouteFromCoords(driverLoc, finalDest);
 
-                                            // Auto-Encuadre (Ajustar cámara para ver vehículo y destino)
                                             const bounds = new google.maps.LatLngBounds();
                                             bounds.extend(new google.maps.LatLng(driverLoc.lat, driverLoc.lng));
                                             if (data.destCoords) {
@@ -1272,7 +1313,6 @@
                         const wasDriverCancellation = data.cancelledBy === data.driverId;
                         window.showToast("Servicio VIP Cancelado por el conductor.", "error");
                         
-                        // Guardamos todos los datos del viaje antes de eliminar el registro viejo
                         const savedOrigin = data.origin;
                         const savedDestination = data.destination;
                         const savedPrice = data.price;
@@ -1283,7 +1323,6 @@
                             if (window.userProfile.role === 'client' && wasDriverCancellation) {
                                 window.showToast("Buscando un nuevo conductor VIP automáticamente...", "success");
                                 try {
-                                    // REGLA DE EVITAR DUPLICADOS EN REENTRADA AUTOMÁTICA
                                     const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
                                     const q = query(tripsRef, where('clientId', '==', currentUser.uid));
                                     const querySnapshot = await getDocs(q);
@@ -1293,7 +1332,6 @@
                                     });
 
                                     if (!hasActive) {
-                                        // Creamos una nueva solicitud idéntica en estado pendiente
                                         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
                                             clientId: currentUser.uid, 
                                             clientName: window.userProfile.name,
@@ -1310,7 +1348,6 @@
                                         });
                                     }
 
-                                    // Restauramos la interfaz del pasajero al radar de búsqueda activa
                                     document.getElementById('active-trip-panel').classList.add('hidden');
                                     document.getElementById('client-view').classList.remove('hidden');
                                     document.getElementById('searching-state').classList.remove('hidden');
@@ -1399,24 +1436,21 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando el control de envíos de viajes y previniendo duplicidad de forma activa... -->
+        // --- STREAMING_CHUNK: Bloqueando solicitudes duplicadas de viajes de forma transaccional... ---
         // --- EVITAR DUPLICIDAD DE SOLICITUDES ACTIVO ---
         window.sendTripRequest = async () => {
             const origin = document.getElementById('origin-input').value.trim();
             const dest = document.getElementById('destination-input').value.trim();
             if(!origin || !dest) return window.showToast("Define ruta.", "error");
 
-            // 1. Verificación Local Rápida
             if (activeTrip && ['pending', 'accepted', 'in_progress'].includes(activeTrip.status)) {
                 return window.showToast("Ya tienes un viaje activo o solicitud en curso.", "error");
             }
             
             try {
-                // Deshabilitamos temporalmente el botón de envío para evitar doble clic físico
                 const requestBtn = document.querySelector("#fare-card button");
                 if (requestBtn) requestBtn.disabled = true;
 
-                // 2. Consulta Directa e Inviolable a Firestore (Prevención de carrera y duplicados)
                 const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
                 const q = query(tripsRef, where('clientId', '==', currentUser.uid));
                 const querySnapshot = await getDocs(q);
@@ -1432,7 +1466,6 @@
                     return;
                 }
                 
-                // Creación del viaje seguro
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
                     clientId: currentUser.uid, clientName: window.userProfile.name,
                     clientPhoto: window.userProfile.photo || null,
@@ -1468,10 +1501,37 @@
             document.getElementById('chat-input').value = "";
         };
 
+        // --- STREAMING_CHUNK: Procesando y renderizando el chat con campana doble de no leídos... ---
+        // --- CONTROLADOR DE BANDEJA DE CHAT CON NOTIFICACIÓN DE SONIDO Y ALERTA VISUAL ---
         function renderChat(messages) {
             const container = document.getElementById('chat-messages');
             container.innerHTML = "";
             if (!messages) return;
+
+            // Alerta visual y auditiva cuando entra un mensaje nuevo
+            const previousLength = window.lastChatLength || 0;
+            window.lastChatLength = messages.length;
+
+            if (messages.length > previousLength) {
+                const lastMsg = messages[messages.length - 1];
+                // Solo alertar si el mensaje es de la contraparte (no enviado por mí)
+                if (lastMsg && lastMsg.sender !== currentUser.uid) {
+                    // 1. Reproducir campana VIP
+                    window.playNotificationSound();
+
+                    const chatSection = document.getElementById('chat-section');
+                    // 2. Si el chat está colapsado, mostrar alerta visual en la interfaz
+                    if (chatSection && chatSection.classList.contains('collapsed')) {
+                        // Mostrar badge rojo sobre el botón de CHAT
+                        const badge = document.getElementById('chat-unread-badge');
+                        if (badge) badge.classList.remove('hidden');
+
+                        // Lanzar Toast flotante de previsualización
+                        window.showToast(`Nuevo mensaje de ${lastMsg.senderName.toUpperCase()}: "${lastMsg.text}"`, "info");
+                    }
+                }
+            }
+
             messages.forEach(m => {
                 const isMine = m.sender === currentUser.uid;
                 const div = document.createElement('div');
@@ -1557,6 +1617,7 @@
             }
         };
 
+        // --- STREAMING_CHUNK: Emitiendo señal GPS del conductor de forma constante... ---
         // --- LOCALIZACIÓN GPS DEL DISPOSITIVO EN TIEMPO REAL ---
         if (navigator.geolocation) {
             navigator.geolocation.watchPosition((pos) => {
@@ -1598,7 +1659,7 @@
             location.reload();
         };
 
-        // --- STREAMING_CHUNK: Creando el set de APIs de la consola del Admin Supremo... -->
+        // --- STREAMING_CHUNK: Creando ruteadores de tab de administración de consola... ---
         // --- CONSOLA EXCLUSIVA DE ADMIN SUPREMO (VETADOS, TRÁFICO, CANCELADOS) ---
         let activeAdminTab = 'stats';
 
@@ -1664,6 +1725,7 @@
             renderAdminUsers();
         };
 
+        // --- STREAMING_CHUNK: Creando el listado visual de socios para vetar y evaluar licencias... ---
         // --- SISTEMA DE CONTROL DE SOCIOS E INFORMACIÓN DE VEHÍCULOS ---
         function renderAdminUsers() {
             const listContainer = document.getElementById('admin-users-list');
@@ -1761,7 +1823,7 @@
             }
         };
 
-        // --- STREAMING_CHUNK: Creando los métodos de cancelación forzada e historiales auditados... -->
+        // --- STREAMING_CHUNK: Creando validadores de veto y rastreador en vivo de choferes... ---
         // --- CONTROLADORES DE SEGURIDAD VETO Y APROBACIÓN DE LICENCIA ---
         window.setAdminVeto = async (uid, shouldBan) => {
             const title = shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?";
@@ -1806,6 +1868,7 @@
             }
         };
 
+        // --- STREAMING_CHUNK: Creando el listado de viajes cancelados y botones de auditoría... ---
         // --- SISTEMA DE AUDITORÍA Y CANCELACIÓN DE VIAJES ---
         function renderAdminTrips(trips) {
             const container = document.getElementById('admin-trips-list');
