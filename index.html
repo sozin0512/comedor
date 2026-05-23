@@ -9,6 +9,11 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
+    <!-- Soporte PWA para evitar suspensión profunda en dispositivos móviles -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    
     <style>
         :root { --app-height: 100%; }
         html, body { 
@@ -705,6 +710,33 @@
         window.lastDriverArrived = false;
         window.lastPendingCount = 0;
 
+        let wakeLock = null;
+        window.requestWakeLock = async () => {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log("Wake Lock activado: Pantalla protegida de suspensión.");
+                } catch (err) {
+                    console.warn("Fallo al solicitar Wake Lock de pantalla:", err);
+                }
+            }
+        };
+
+        window.releaseWakeLock = () => {
+            if (wakeLock !== null) {
+                wakeLock.release();
+                wakeLock = null;
+                console.log("Wake Lock liberado.");
+            }
+        };
+
+        // Solicitar Wake Lock automáticamente ante interacciones táctiles si hay un viaje activo
+        document.addEventListener('click', () => {
+            if (currentUser && activeTrip && (activeTrip.status === 'accepted' || activeTrip.status === 'in_progress')) {
+                window.requestWakeLock();
+            }
+        });
+
         // --- STREAMING_CHUNK: Inicializando sistema de notificaciones del navegador... ---
         window.requestNotificationPermission = async () => {
             if (!("Notification" in window)) {
@@ -1290,6 +1322,9 @@
                         document.getElementById('driver-view').classList.add('hidden');
                         document.getElementById('searching-state').classList.add('hidden');
                         
+                        // Activar Wake Lock para evitar que la pantalla se apague y corte la señal en el bolsillo
+                        window.requestWakeLock();
+                        
                         document.getElementById('active-origin-text').innerText = data.origin;
                         document.getElementById('active-dest-text').innerText = data.destination;
                         document.getElementById('call-btn').href = `tel:${window.userProfile.role === 'client' ? data.driverPhone : data.clientPhone}`;
@@ -1480,6 +1515,9 @@
                     document.getElementById('nav-hud-top').style.display = 'none';
                     document.getElementById('nav-hud-bottom').style.display = 'none';
                     document.body.classList.remove('is-navigating');
+                    
+                    // Liberar Wake Lock al terminar el viaje para ahorrar batería normalmente
+                    window.releaseWakeLock();
                     
                     if (navigationInterval) clearInterval(navigationInterval);
                     if (activeDriverDocListener) {
@@ -2095,13 +2133,28 @@
         // Se autohabilita para permitir que los navegadores mantengan la app activa al bloquear pantalla
         if ('serviceWorker' in navigator) {
             try {
+                // Al usar un archivo HTML único, algunos navegadores restringen los Service Workers creados por Blob (protocolo blob:)
+                // Para producción real, se recomienda subir un archivo físico "sw.js" al servidor.
                 const swCode = `
                     self.addEventListener('install', (e) => self.skipWaiting());
                     self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+                    self.addEventListener('notificationclick', (event) => {
+                        event.notification.close();
+                        event.waitUntil(
+                            clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+                                if (clientList.length > 0) return clientList[0].focus();
+                                return clients.openWindow('/');
+                            })
+                        );
+                    });
                 `;
                 const blob = new Blob([swCode], { type: 'application/javascript' });
                 const swUrl = URL.createObjectURL(blob);
-                navigator.serviceWorker.register(swUrl).catch(() => {});
+                navigator.serviceWorker.register(swUrl).then(reg => {
+                    console.log("Service Worker local registrado con éxito.");
+                }).catch((err) => {
+                    console.log("Service Worker por Blob restringido por el navegador (comportamiento normal en archivo local sin sw.js independiente):", err);
+                });
             } catch (err) {
                 console.log("Fallo al registrar worker local:", err);
             }
