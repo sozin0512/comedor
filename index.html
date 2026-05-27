@@ -326,12 +326,40 @@
                 window.updateNavigation(target);
             }
         };
+
+        window.showSyncWarning = () => {
+            const modal = document.getElementById('sync-warning-modal');
+            modal.classList.remove('hidden');
+            const innerDiv = modal.querySelector('div');
+            setTimeout(() => innerDiv.classList.remove('scale-95'), 10);
+        };
+
+        window.closeSyncWarning = () => {
+            const modal = document.getElementById('sync-warning-modal');
+            const innerDiv = modal.querySelector('div');
+            innerDiv.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        };
     </script>
 </head>
 <body class="flex flex-col">
 
     <!-- CONTENEDOR DE TOASTS -->
     <div id="toast-container"></div>
+
+    <!-- MODAL ADVERTENCIA DE SINCRONIZACIÓN -->
+    <div id="sync-warning-modal" class="hidden fixed inset-0 z-[25000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-soza-card p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-soza-gold/30 transform transition-transform duration-300 scale-95 text-white">
+            <div class="w-16 h-16 rounded-full bg-soza-gold/20 flex items-center justify-center text-soza-gold mx-auto mb-4 border border-soza-gold/30">
+                <i class="fas fa-exclamation-triangle text-3xl"></i>
+            </div>
+            <h3 class="text-lg font-black text-white uppercase tracking-tight mb-2">Atención Importante</h3>
+            <p class="text-xs text-slate-300 font-medium leading-relaxed mb-6">Para asegurar la correcta sincronización de tus viajes, ubicación y chat en tiempo real, <strong class="text-soza-gold">no cierres ni minimices la aplicación</strong> mientras estés conectado.</p>
+            <button onclick="window.closeSyncWarning()" class="w-full py-4 bg-soza-gold hover:bg-soza-goldlight transition-colors text-soza-dark font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg">Entendido</button>
+        </div>
+    </div>
 
     <!-- MODAL CONFIRMACIÓN VIP -->
     <div id="confirm-modal" class="hidden fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
@@ -356,6 +384,18 @@
         <h1 class="text-3xl font-black text-white mb-2 uppercase tracking-tight">Cuenta Vetada</h1>
         <p class="text-red-300 max-w-md text-sm mb-8 leading-relaxed">Tu cuenta ha sido bloqueada de Comayagua Express por violaciones de conducta y seguridad.</p>
         <button onclick="window.processLogout()" class="px-8 py-4 bg-white text-red-900 font-black rounded-2xl shadow-xl hover:bg-gray-100 transition-all uppercase tracking-widest text-xs">Cerrar Sesión</button>
+    </div>
+
+    <!-- MODAL PARA VER DOCUMENTOS EN GRANDE -->
+    <div id="doc-modal" class="hidden fixed inset-0 z-[30000] flex flex-col items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md transition-opacity duration-300">
+        <div class="w-full max-w-2xl flex justify-between items-center mb-4">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-file-invoice text-soza-gold text-2xl"></i>
+                <h3 id="doc-modal-title" class="text-soza-gold font-black uppercase text-sm tracking-widest">Documento</h3>
+            </div>
+            <button onclick="document.getElementById('doc-modal').classList.add('hidden')" class="w-10 h-10 bg-slate-800 hover:bg-rose-600 transition-colors rounded-full text-white shadow-lg flex items-center justify-center"><i class="fas fa-times"></i></button>
+        </div>
+        <img id="doc-modal-img" src="" class="w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-soza-gold/20">
     </div>
 
     <!-- PANTALLA DE CALIFICACIÓN -->
@@ -501,6 +541,28 @@
                     <input id="car-model" type="text" placeholder="Vehículo (Ej: Toyota Corolla 2018)" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
                     <input id="car-plate" type="text" placeholder="Placa" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none uppercase font-bold text-white">
                     <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
+                    
+                    <!-- NUEVO: CARGA DE DOCUMENTOS LEGALES -->
+                    <div class="flex gap-3 mt-2">
+                        <div class="flex-1 flex flex-col items-center p-3 bg-slate-950 border border-slate-700 rounded-xl relative overflow-hidden group">
+                            <i class="fas fa-id-card text-2xl text-slate-500 mb-2 group-hover:text-soza-gold transition-colors"></i>
+                            <label class="cursor-pointer text-soza-gold text-[9px] font-black uppercase tracking-wider text-center w-full">
+                                Subir DNI/ID
+                                <input type="file" id="dni-photo-input" accept="image/*" class="hidden" onchange="window.previewDoc(this, 'dni-preview')">
+                            </label>
+                            <div id="dni-preview" class="hidden absolute inset-0 bg-black z-10"></div>
+                            <button onclick="window.clearDoc('dni')" type="button" id="dni-clear" class="hidden absolute top-2 right-2 z-20 text-white bg-rose-600 rounded-full w-6 h-6 flex items-center justify-center shadow-lg"><i class="fas fa-times text-[10px]"></i></button>
+                        </div>
+                        <div class="flex-1 flex flex-col items-center p-3 bg-slate-950 border border-slate-700 rounded-xl relative overflow-hidden group">
+                            <i class="fas fa-car text-2xl text-slate-500 mb-2 group-hover:text-soza-gold transition-colors"></i>
+                            <label class="cursor-pointer text-soza-gold text-[9px] font-black uppercase tracking-wider text-center w-full">
+                                Foto Licencia
+                                <input type="file" id="license-photo-input" accept="image/*" class="hidden" onchange="window.previewDoc(this, 'license-preview')">
+                            </label>
+                            <div id="license-preview" class="hidden absolute inset-0 bg-black z-10"></div>
+                            <button onclick="window.clearDoc('license')" type="button" id="license-clear" class="hidden absolute top-2 right-2 z-20 text-white bg-rose-600 rounded-full w-6 h-6 flex items-center justify-center shadow-lg"><i class="fas fa-times text-[10px]"></i></button>
+                        </div>
+                    </div>
                 </div>
                 <button id="btn-save-profile" onclick="window.saveProfile()" class="w-full bg-soza-gold text-soza-dark font-black py-4 rounded-2xl shadow-xl mt-4 active:scale-95 transition-transform hover:bg-soza-goldlight">EMPEZAR A VIAJAR</button>
                 <button id="btn-cancel-profile" onclick="window.closeProfileEdit()" class="hidden w-full bg-slate-800 text-white font-bold py-4 rounded-2xl active:scale-95 transition-transform text-xs uppercase hover:bg-slate-700">Cerrar</button>
@@ -523,6 +585,10 @@
                 <!-- NOTIFICACIONES DE NAVEGADOR SISTEMA -->
                 <button id="notif-bell-btn" onclick="window.requestNotificationPermission()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-soza-gold flex items-center justify-center shadow-sm border border-slate-700 transition-colors" title="Activar Notificaciones de Navegador">
                     <i id="notif-bell-icon" class="fas fa-bell"></i>
+                </button>
+                <!-- BOTÓN SUPERVISOR -->
+                <button id="sup-toggle-btn" onclick="window.toggleSupPanel()" class="hidden w-10 h-10 rounded-xl bg-indigo-950 text-indigo-400 hover:text-indigo-300 flex items-center justify-center shadow-sm border border-indigo-500/30" title="Panel de Supervisión">
+                    <i class="fas fa-shield-alt"></i>
                 </button>
                 <!-- BOTÓN EXCLUSIVO ADMIN SUPREMO -->
                 <button id="admin-toggle-btn" onclick="window.toggleAdminPanel()" class="hidden w-10 h-10 rounded-xl bg-amber-950 text-soza-gold hover:text-soza-goldlight flex items-center justify-center shadow-sm border border-soza-gold/30">
@@ -572,7 +638,7 @@
                             <i class="fas fa-id-card text-3xl"></i>
                         </div>
                         <h3 class="text-lg font-black text-white tracking-tight uppercase">Licencia en Evaluación</h3>
-                        <p class="text-xs text-slate-400 mt-2 max-w-xs leading-relaxed font-semibold">Tu cuenta de conductor VIP se encuentra en proceso de aprobación por el Administrador Supremo. Podrás recibir viajes en cuanto sea aprobada.</p>
+                        <p class="text-xs text-slate-400 mt-2 max-w-xs leading-relaxed font-semibold">Tus documentos de seguridad (DNI/Licencia) están siendo revisados por un Supervisor de SOZA. Podrás recibir viajes en cuanto sean aprobados legalmente.</p>
                     </div>
                     
                     <!-- VISTA COMPLETA DE VIAJES -->
@@ -630,6 +696,7 @@
                             <button onclick="window.setAdminUserFilter('client')" id="filter-user-client" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Pasajeros</button>
                             <button onclick="window.setAdminUserFilter('driver')" id="filter-user-driver" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Conductores</button>
                             <button onclick="window.setAdminUserFilter('pending_driver')" id="filter-user-pending_driver" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Por Aprobar ⏳</button>
+                            <button onclick="window.setAdminUserFilter('supervisor')" id="filter-user-supervisor" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-indigo-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all"><i class="fas fa-shield-alt"></i> Supervisores</button>
                         </div>
 
                         <div id="admin-users-list" class="space-y-3 max-h-[300px] overflow-y-auto pr-1">
@@ -654,6 +721,23 @@
                         <div id="admin-cancelled-list" class="space-y-3 max-h-[280px] overflow-y-auto pr-1">
                             <!-- Inyectado dinámicamente -->
                         </div>
+                    </div>
+                </div>
+
+                <!-- NUEVO: PANEL SUPERVISOR -->
+                <div id="supervisor-view" class="hidden flex-1 flex flex-col h-full text-white">
+                    <div class="flex items-center gap-2 mb-4">
+                        <span class="text-indigo-400 text-xl"><i class="fas fa-shield-alt"></i></span>
+                        <h3 class="text-lg font-black text-white tracking-tighter uppercase">Panel de Verificación</h3>
+                    </div>
+                    
+                    <div class="flex bg-slate-800 p-1 rounded-xl mb-4 text-[10px] font-black uppercase border border-slate-700">
+                        <button onclick="window.setSupTab('pending')" id="tab-sup-pending" class="sup-tab-btn flex-1 py-2 rounded-lg transition-all bg-indigo-600 text-white shadow-sm">Pendientes</button>
+                        <button onclick="window.setSupTab('approved')" id="tab-sup-approved" class="sup-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400">Aprobados</button>
+                    </div>
+
+                    <div id="sup-list" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+                        <!-- Inyectado dinámicamente -->
                     </div>
                 </div>
 
@@ -731,7 +815,6 @@
         </main>
     </div>
 
-
     <!-- FIREBASE & LOGICA MAESTRA -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -765,6 +848,8 @@
         let currentUser = null;
         let activeTrip = null;
         let profilePhotoBase64 = null;
+        let driverDniBase64 = null;
+        let driverLicenseBase64 = null;
         let selectedStars = 0;
         let etaInterval = null;
         let navigationInterval = null;
@@ -772,6 +857,9 @@
         let cachedProfilesList = []; 
         let activeUserFilter = 'all'; 
         let activeDriverDocListener = null; 
+        
+        let currentSupTab = 'pending';
+        window.cachedSupDrivers = [];
 
         window.lastChatLength = 0;
         window.lastTripStatus = null;
@@ -797,6 +885,14 @@
                 console.log("Wake Lock liberado.");
             }
         };
+
+        // --- ADVERTENCIA AL INTENTAR CERRAR LA PESTAÑA O SALIR ---
+        window.addEventListener('beforeunload', (e) => {
+            if (currentUser) {
+                e.preventDefault();
+                e.returnValue = ''; // Requerido por los navegadores para mostrar el prompt de confirmación
+            }
+        });
 
         document.addEventListener('click', () => {
             if (currentUser && activeTrip && (activeTrip.status === 'accepted' || activeTrip.status === 'in_progress')) {
@@ -826,7 +922,6 @@
             }
         };
 
-        // Escuchadores globales de interacción en celular para desbloqueo silencioso de Audio
         document.addEventListener('click', window.unlockAudioContext, { once: false });
         document.addEventListener('touchstart', window.unlockAudioContext, { once: false });
 
@@ -842,9 +937,7 @@
                     window.showToast("¡Notificaciones de SOZA activadas! 🔔", "success");
                     window.playNotificationSound();
                     
-                    // Obtener token FCM para notificaciones con la app cerrada (segundo plano)
                     registerDeviceForPushNotifications();
-                    
                     window.sendBrowserNotification("SOZA — Soluciones de Transporte VIP", "Las alertas en segundo plano ya están activas y listas.");
                 } else if (permission === "denied") {
                     window.showToast("Permiso denegado. Actívalas en la configuración.", "error");
@@ -854,27 +947,21 @@
             }
         };
 
-        // Función dedicada a registrar el token del dispositivo de forma segura
         async function registerDeviceForPushNotifications() {
             try {
-                // Registro del Service Worker listo antes de pedir el token
                 const registration = await navigator.serviceWorker.ready;
-                
                 const token = await getToken(messaging, { 
                     serviceWorkerRegistration: registration,
                     vapidKey: "BKe_n6NfUuN8p-K2E30h3758b9C_fdfVAPID_KEY_AQUI_OPCIONAL" 
                 });
                 
-                if (token) {
-                    console.log("Dispositivo registrado con éxito. Token de segundo plano:", token);
-                    if (currentUser) {
-                        // Guardamos el token en Firebase para que el servidor pueda notificar a este celular aunque la web esté cerrada
-                        const tokenData = { deviceToken: token, lastTokenUpdate: Date.now() };
-                        await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), tokenData, { merge: true });
+                if (token && currentUser) {
+                    const tokenData = { deviceToken: token, lastTokenUpdate: Date.now() };
+                    // Se usa updateDoc para respetar reglas de seguridad estrictas (si el documento ya existe).
+                    try {
                         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), tokenData, { merge: true });
-                    }
-                } else {
-                    console.warn("No se pudo obtener el token push de mensajería.");
+                        await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), tokenData, { merge: true });
+                    } catch(e) {}
                 }
             } catch (err) {
                 console.warn("Fallo al obtener el token FCM (esperado en entornos locales):", err);
@@ -908,12 +995,7 @@
                     const iconUrl = 'https://cdn-icons-png.flaticon.com/512/854/854878.png'; 
                     if (navigator.serviceWorker && navigator.serviceWorker.ready) {
                         navigator.serviceWorker.ready.then(reg => {
-                            reg.showNotification(title, {
-                                body: body,
-                                icon: iconUrl,
-                                badge: iconUrl,
-                                vibrate: [300, 100, 300]
-                            });
+                            reg.showNotification(title, { body: body, icon: iconUrl, badge: iconUrl, vibrate: [300, 100, 300] });
                         }).catch(() => {
                             new Notification(title, { body: body, icon: iconUrl });
                         });
@@ -928,17 +1010,11 @@
 
         window.playNotificationSound = () => {
             try {
-                // Forzar desbloqueo táctil si no se ha llamado previamente
-                if (!globalAudioCtx) {
-                    window.unlockAudioContext();
-                }
+                if (!globalAudioCtx) window.unlockAudioContext();
                 const ctx = globalAudioCtx;
                 if (!ctx) return;
 
-                // Asegurar que el contexto no esté suspendido en el momento de reproducir
-                if (ctx.state === 'suspended') {
-                    ctx.resume();
-                }
+                if (ctx.state === 'suspended') ctx.resume();
                 
                 const osc1 = ctx.createOscillator();
                 const gain1 = ctx.createGain();
@@ -980,10 +1056,7 @@
             
             container.appendChild(toast);
             
-            setTimeout(() => {
-                toast.classList.remove('translate-y-4', 'opacity-0');
-            }, 10);
-
+            setTimeout(() => { toast.classList.remove('translate-y-4', 'opacity-0'); }, 10);
             setTimeout(() => {
                 toast.classList.add('translate-y-4', 'opacity-0');
                 setTimeout(() => toast.remove(), 300);
@@ -1009,14 +1082,8 @@
                 okBtn.onclick = null;
             };
 
-            cancelBtn.onclick = () => {
-                closeConfirm();
-            };
-
-            okBtn.onclick = () => {
-                closeConfirm();
-                onConfirm();
-            };
+            cancelBtn.onclick = () => closeConfirm();
+            okBtn.onclick = () => { closeConfirm(); onConfirm(); };
         };
 
         window.setAuthMode = (mode) => {
@@ -1038,6 +1105,30 @@
             document.getElementById('photo-req-label').classList.toggle('hidden', role !== 'driver');
         };
 
+        window.previewDoc = (input, previewId) => {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if(previewId === 'dni-preview') driverDniBase64 = e.target.result;
+                    if(previewId === 'license-preview') driverLicenseBase64 = e.target.result;
+                    
+                    const prevDiv = document.getElementById(previewId);
+                    prevDiv.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
+                    prevDiv.classList.remove('hidden');
+                    document.getElementById(previewId.replace('-preview', '-clear')).classList.remove('hidden');
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        };
+
+        window.clearDoc = (type) => {
+            if(type === 'dni') driverDniBase64 = null;
+            if(type === 'license') driverLicenseBase64 = null;
+            document.getElementById(`${type}-preview`).classList.add('hidden');
+            document.getElementById(`${type}-clear`).classList.add('hidden');
+            document.getElementById(`${type}-photo-input`).value = '';
+        };
+
         window.previewPhoto = (input) => {
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
@@ -1051,6 +1142,7 @@
 
         window.executeAuth = async () => {
             window.unlockAudioContext();
+
             const email = document.getElementById('email-field').value.trim();
             const pass = document.getElementById('pass-field').value.trim();
             if (!email || !pass) return window.showToast("Ingresa tus credenciales.", "error");
@@ -1069,49 +1161,11 @@
                     window.showToast("Cuenta creada con éxito. Finaliza tu perfil.", "success");
                 }
             } catch (err) {
-                window.showToast("Error de autenticación: " + err.message, "error");
-            }
-        };
-
-        // --- BLOQUEO DE ATENCIÓN PARA CONDUCTORES AL LOGUEARSE ---
-        function showDriverInstruction() {
-             window.showConfirm(
-                "¡ATENCIÓN CONDUCTOR!", 
-                "Para recibir solicitudes de viaje, DEBES mantener esta app abierta en primer plano y la pantalla encendida. Si cierras la app o apagas la pantalla, el sistema no podrá enviarte notificaciones.", 
-                () => { window.requestWakeLock(); }
-            );
-        }
-
-        // --- BLOQUEO DE ATENCIÓN PARA CLIENTES AL SOLICITAR ---
-        function showClientInstruction(callback) {
-            window.showConfirm(
-                "IMPORTANTE: Mantén la App abierta",
-                "Para asegurar que recibas la notificación cuando tu conductor llegue, mantén la app abierta y la pantalla encendida. No cierres la app mientras esperas.",
-                callback
-            );
-        }
-
-            try {
-                if (authMode === 'login') {
-                    await signInWithEmailAndPassword(auth, email, pass);
-                    window.showToast("Sesión iniciada con éxito.", "success");
-                    // Dar un sutil toque audible confirmando el desbloqueo
-                    setTimeout(window.playNotificationSound, 300);
-                } else {
-                    await createUserWithEmailAndPassword(auth, email, pass);
-                    window.showToast("Cuenta creada con éxito. Finaliza tu perfil.", "success");
-                }
-            } catch (err) {
                 console.error(err);
-                if (err.code === 'auth/email-already-in-use') {
-                    window.showToast("El correo ya está en uso. Intenta Iniciar Sesión.", "error");
-                } else if (err.code === 'auth/wrong-password') {
-                    window.showToast("Contraseña incorrecta.", "error");
-                } else if (err.code === 'auth/user-not-found') {
-                    window.showToast("Usuario no encontrado. Prueba creando una cuenta.", "error");
-                } else {
-                    window.showToast("Error de autenticación: " + err.message, "error");
-                }
+                if (err.code === 'auth/email-already-in-use') window.showToast("El correo ya está en uso. Intenta Iniciar Sesión.", "error");
+                else if (err.code === 'auth/wrong-password') window.showToast("Contraseña incorrecta.", "error");
+                else if (err.code === 'auth/user-not-found') window.showToast("Usuario no encontrado. Prueba creando una cuenta.", "error");
+                else window.showToast("Error de autenticación: " + err.message, "error");
             }
         };
 
@@ -1141,6 +1195,19 @@
                 document.getElementById('car-model').value = window.userProfile.vehicle.model || "";
                 document.getElementById('car-plate').value = window.userProfile.vehicle.plate || "";
                 document.getElementById('driver-license').value = window.userProfile.vehicle.license || "";
+                
+                if (window.userProfile.vehicle.dniPhoto) {
+                    driverDniBase64 = window.userProfile.vehicle.dniPhoto;
+                    document.getElementById('dni-preview').innerHTML = `<img src="${driverDniBase64}" class="w-full h-full object-cover">`;
+                    document.getElementById('dni-preview').classList.remove('hidden');
+                    document.getElementById('dni-clear').classList.remove('hidden');
+                }
+                if (window.userProfile.vehicle.licensePhoto) {
+                    driverLicenseBase64 = window.userProfile.vehicle.licensePhoto;
+                    document.getElementById('license-preview').innerHTML = `<img src="${driverLicenseBase64}" class="w-full h-full object-cover">`;
+                    document.getElementById('license-preview').classList.remove('hidden');
+                    document.getElementById('license-clear').classList.remove('hidden');
+                }
             }
             
             document.getElementById('app-interface').style.display = 'none';
@@ -1155,6 +1222,8 @@
             document.getElementById('setup-title').innerText = "Finaliza tu Perfil";
             document.getElementById('btn-save-profile').innerText = "EMPEZAR A VIAJAR";
             document.getElementById('btn-cancel-profile').classList.add('hidden');
+            window.clearDoc('dni');
+            window.clearDoc('license');
         };
 
         window.saveProfile = async () => {
@@ -1162,8 +1231,10 @@
             const phone = document.getElementById('phone-number').value.trim();
             if (!name || !phone) return window.showToast("Nombre y teléfono requeridos.", "error");
             
-            if (userRole === 'driver' && !profilePhotoBase64) {
-                return window.showToast("Para ser conductor debes subir una fotografía de perfil.", "error");
+            if (userRole === 'driver') {
+                if (!profilePhotoBase64 || !driverDniBase64 || !driverLicenseBase64) {
+                    return window.showToast("Para ser conductor debes subir tu foto de perfil, DNI y Licencia.", "error");
+                }
             }
 
             const existingTrips = window.userProfile?.totalTrips || 0;
@@ -1181,10 +1252,13 @@
                 data.vehicle = {
                     model: document.getElementById('car-model').value.trim(),
                     plate: document.getElementById('car-plate').value.trim(),
-                    license: document.getElementById('driver-license').value.trim()
+                    license: document.getElementById('driver-license').value.trim(),
+                    dniPhoto: driverDniBase64,
+                    licensePhoto: driverLicenseBase64
                 };
             }
             try {
+                // Escribir en perfil privado y público
                 await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), data);
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), data);
                 
@@ -1207,7 +1281,7 @@
             }
         };
 
-        // --- CONTROLADOR DEL AUTHESTADO ---
+        // --- CONTROLADOR DEL AUTHESTADO CON SINCRONIZACIÓN DE DEFENSA ---
         onAuthStateChanged(auth, async (user) => {
             if (user) {
                 currentUser = user;
@@ -1218,19 +1292,23 @@
                 }
 
                 try {
-                    const profileRef = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'));
+                    // LECTURA DE SEGURIDAD: Leemos perfil publico y privado para auto-sincronizar órdenes del admin
+                    const publicProfileRef = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid));
+                    let privateProfileRef;
+                    try {
+                        privateProfileRef = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'));
+                    } catch(e) {
+                        privateProfileRef = null;
+                    }
                     
-                    if (!profileRef.exists()) {
+                    let profileData = privateProfileRef && privateProfileRef.exists() ? privateProfileRef.data() : null;
+                    
+                    // Si no existe nada, forzamos creación de admin o mandamos a registro
+                    if (!profileData && !publicProfileRef.exists()) {
                         if (isAdminEmail) {
                             const adminData = {
-                                uid: user.uid,
-                                name: "Admin Supremo",
-                                phone: "99999999",
-                                role: 'admin',
-                                photo: null,
-                                setupComplete: true,
-                                isBanned: false,
-                                isApproved: true
+                                uid: user.uid, name: "Admin Supremo", phone: "99999999", role: 'admin',
+                                photo: null, setupComplete: true, isBanned: false, isApproved: true
                             };
                             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), adminData);
                             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), adminData);
@@ -1240,77 +1318,103 @@
                             document.getElementById('setup-screen').style.display = 'flex';
                             return;
                         }
-                    }
+                    } else {
+                        // Sincronización Diferida Maestra (El Cliente acata la configuración pública forzada por el admin)
+                        if (!profileData && publicProfileRef.exists()) profileData = publicProfileRef.data();
+                        
+                        if (publicProfileRef.exists() && profileData) {
+                            const pubData = publicProfileRef.data();
+                            let needsSync = false;
+                            
+                            if (pubData.role !== profileData.role) { profileData.role = pubData.role; needsSync = true; }
+                            if (pubData.isBanned !== profileData.isBanned) { profileData.isBanned = pubData.isBanned; needsSync = true; }
+                            if (pubData.isApproved !== profileData.isApproved) { profileData.isApproved = pubData.isApproved; needsSync = true; }
+                            
+                            if (needsSync) {
+                                try {
+                                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), profileData, { merge: true });
+                                } catch(e) { console.warn("Auto-sync del usuario retrasado."); }
+                            }
+                        }
+                        
+                        // Validaciones finales
+                        const profile = profileData;
 
-                    const profile = profileRef.data();
+                        if (profile.isBanned === true && !isAdminEmail) {
+                            document.getElementById('login-screen').style.display = 'none';
+                            document.getElementById('setup-screen').style.display = 'none';
+                            document.getElementById('app-interface').style.display = 'none';
+                            document.getElementById('banned-screen').style.display = 'flex';
+                            return;
+                        } else {
+                            document.getElementById('banned-screen').style.display = 'none';
+                        }
+                        
+                        if (isAdminEmail && profile.role !== 'admin') {
+                            profile.role = 'admin';
+                            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), { role: 'admin' });
+                            try { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), { role: 'admin' }); } catch(e){}
+                        }
 
-                    if (profile.isBanned === true && !isAdminEmail) {
+                        window.userProfile = profile;
                         document.getElementById('login-screen').style.display = 'none';
                         document.getElementById('setup-screen').style.display = 'none';
-                        document.getElementById('app-interface').style.display = 'none';
-                        document.getElementById('banned-screen').style.display = 'flex';
-                        return;
-                    } else {
-                        document.getElementById('banned-screen').style.display = 'none';
-                    }
-                    
-                    if (isAdminEmail && profile.role !== 'admin') {
-                        profile.role = 'admin';
-                        await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), { role: 'admin' });
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), { role: 'admin' });
-                    }
-
-                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), profile, { merge: true });
-
-                    window.userProfile = profile;
-                    document.getElementById('login-screen').style.display = 'none';
-                    document.getElementById('setup-screen').style.display = 'none';
-                    document.getElementById('app-interface').style.display = 'flex';
-                    document.getElementById('user-name-display').innerText = profile.name.toUpperCase();
-                    
-                    if (profile.photo) {
-                        document.getElementById('avatar-placeholder').innerHTML = `<img src="${profile.photo}" class="w-full h-full object-cover">`;
-                    } else {
-                        document.getElementById('avatar-placeholder').innerText = profile.name.charAt(0).toUpperCase();
-                    }
-
-                    if (profile.role === 'admin') {
-                        document.getElementById('admin-toggle-btn').classList.remove('hidden');
-                        document.getElementById('client-view').classList.add('hidden');
-                        document.getElementById('driver-view').classList.add('hidden');
-                        document.getElementById('admin-view').classList.remove('hidden');
-                        startAdminListeners();
-                    } else if (profile.role === 'driver') {
-                        document.getElementById('client-view').classList.add('hidden');
-                        document.getElementById('driver-view').classList.remove('hidden');
+                        document.getElementById('app-interface').style.display = 'flex';
+                        document.getElementById('user-name-display').innerText = profile.name.toUpperCase();
                         
-                        if (profile.isApproved === false) {
-                            document.getElementById('driver-pending-approval').classList.remove('hidden');
-                            document.getElementById('driver-active-view').classList.add('hidden');
-                        } else {
-                            document.getElementById('driver-pending-approval').classList.add('hidden');
-                            document.getElementById('driver-active-view').classList.remove('hidden');
-                            startDriverListener();
-                            // TRIGGER ALERTA CONDUCTOR
-                            setTimeout(showDriverInstruction, 1000);
+                        if (!sessionStorage.getItem('syncWarningShown')) {
+                            window.showSyncWarning();
+                            sessionStorage.setItem('syncWarningShown', 'true');
                         }
-                    } else {
-                        document.getElementById('client-view').classList.remove('hidden');
-                        document.getElementById('driver-view').classList.add('hidden');
-                        listenForNearbyDrivers();
+                        
+                        if (profile.photo) {
+                            document.getElementById('avatar-placeholder').innerHTML = `<img src="${profile.photo}" class="w-full h-full object-cover">`;
+                        } else {
+                            document.getElementById('avatar-placeholder').innerText = profile.name.charAt(0).toUpperCase();
+                        }
+
+                        if (profile.role === 'admin') {
+                            document.getElementById('admin-toggle-btn').classList.remove('hidden');
+                            document.getElementById('sup-toggle-btn').classList.add('hidden');
+                            document.getElementById('client-view').classList.add('hidden');
+                            document.getElementById('driver-view').classList.add('hidden');
+                            document.getElementById('supervisor-view').classList.add('hidden');
+                            document.getElementById('admin-view').classList.remove('hidden');
+                            startAdminListeners();
+                        } else if (profile.role === 'supervisor') {
+                            document.getElementById('sup-toggle-btn').classList.remove('hidden');
+                            document.getElementById('admin-toggle-btn').classList.add('hidden');
+                            document.getElementById('client-view').classList.add('hidden');
+                            document.getElementById('driver-view').classList.add('hidden');
+                            document.getElementById('admin-view').classList.add('hidden');
+                            document.getElementById('supervisor-view').classList.remove('hidden');
+                            startSupervisorListeners();
+                        } else if (profile.role === 'driver') {
+                            document.getElementById('client-view').classList.add('hidden');
+                            document.getElementById('supervisor-view').classList.add('hidden');
+                            document.getElementById('driver-view').classList.remove('hidden');
+                            
+                            if (profile.isApproved === false) {
+                                document.getElementById('driver-pending-approval').classList.remove('hidden');
+                                document.getElementById('driver-active-view').classList.add('hidden');
+                            } else {
+                                document.getElementById('driver-pending-approval').classList.add('hidden');
+                                document.getElementById('driver-active-view').classList.remove('hidden');
+                                startDriverListener();
+                            }
+                        } else {
+                            document.getElementById('client-view').classList.remove('hidden');
+                            document.getElementById('driver-view').classList.add('hidden');
+                            listenForNearbyDrivers();
+                        }
+                        listenToMyActiveTrip();
+
+                        setTimeout(() => { window.showToast("Toca la pantalla para sintonizar el audio y recibir alertas VIP 🔊", "info"); }, 1200);
+
+                        if (Notification.permission === "granted") {
+                            registerDeviceForPushNotifications();
+                        }
                     }
-                    listenToMyActiveTrip();
-
-                    // --- INVITACIÓN INTERACTIVA AL SONIDO VIP ---
-                    setTimeout(() => {
-                        window.showToast("Toca la pantalla para sintonizar el audio y recibir alertas VIP 🔊", "info");
-                    }, 1200);
-
-                    // Registrar token de segundo plano de manera automática si el permiso ya fue otorgado previamente
-                    if (Notification.permission === "granted") {
-                        registerDeviceForPushNotifications();
-                    }
-
                 } catch(e) {
                     console.error("Error cargando perfil:", e);
                     window.showToast("Error de conexión al cargar perfil.", "error");
@@ -1375,7 +1479,6 @@
                 const container = document.getElementById('requests-list');
                 const pendingTrips = snap.docs.filter(d => d.data().status === 'pending');
                 
-                // --- ALERTA DE NUEVO VIAJE VIP DISPONIBLE PARA EL CONDUCTOR ---
                 const previousPendingCount = window.lastPendingCount || 0;
                 window.lastPendingCount = pendingTrips.length;
                 
@@ -1395,7 +1498,7 @@
                     card.className = "p-4 bg-slate-900 border border-slate-800 rounded-3xl shadow-sm border-l-[6px] border-l-soza-gold mb-3";
                     card.innerHTML = `<div class="flex justify-between items-start mb-2"><p class="text-[11px] font-black text-soza-gold uppercase client-name-${d.id}">Cargando...</p><span class="font-black text-sm">${t.price}</span></div><p class="text-[10px] text-gray-400 mb-4 line-clamp-2 uppercase font-medium"><b>Origen:</b> ${t.origin}</p><button onclick="window.acceptTrip('${d.id}')" class="w-full bg-soza-gold text-soza-dark font-black py-4 rounded-2xl text-[10px] shadow-lg uppercase tracking-widest active:scale-95 transition-all hover:bg-soza-goldlight">ACEPTAR VIAJE VIP</button>`;
                     container.appendChild(card);
-                    const cRef = await getDoc(doc(db, 'artifacts', appId, 'users', t.clientId, 'profile', 'data'));
+                    const cRef = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', t.clientId));
                     if (cRef.exists()) document.querySelector(`.client-name-${d.id}`).innerText = cRef.data().name.toUpperCase();
                 }
             });
@@ -1755,29 +1858,437 @@
                 return window.showToast("Ya tienes un viaje activo o solicitud en curso.", "error");
             }
             
-            // TRIGGER ALERTA CLIENTE ANTES DE ENVIAR
-            showClientInstruction(async () => {
-                try {
-                    const requestBtn = document.querySelector("#fare-card button");
-                    if (requestBtn) requestBtn.disabled = true;
+            try {
+                const requestBtn = document.querySelector("#fare-card button");
+                if (requestBtn) requestBtn.disabled = true;
 
-                    // ... existing logic to send trip request ...
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
-                        clientId: currentUser.uid, clientName: window.userProfile.name,
-                        clientPhoto: window.userProfile.photo || null,
-                        clientPhone: window.userProfile.phone,
-                        origin, destination: dest,
-                        originCoords: window.currentClientCoords || null,
-                        destCoords: window.currentDestCoords || null,
-                        price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
-                    });
-                    
-                    document.getElementById('searching-state').classList.remove('hidden');
-                    document.getElementById('fare-card').classList.add('hidden');
-                } catch (err) {
-                    window.showToast("Hubo un error de red. Inténtalo de nuevo.", "error");
-                    const requestBtn = document.querySelector("#fare-card button");
+                const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
+                const q = query(tripsRef, where('clientId', '==', currentUser.uid));
+                const querySnapshot = await getDocs(q);
+                
+                const hasActive = querySnapshot.docs.some(d => {
+                    const status = d.data().status;
+                    return ['pending', 'accepted', 'in_progress'].includes(status);
+                });
+
+                if (hasActive) {
+                    window.showToast("Ya tienes una solicitud de viaje registrada para tu cuenta.", "error");
                     if (requestBtn) requestBtn.disabled = false;
+                    return;
+                }
+                
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
+                    clientId: currentUser.uid, clientName: window.userProfile.name,
+                    clientPhoto: window.userProfile.photo || null,
+                    clientPhone: window.userProfile.phone,
+                    origin, destination: dest,
+                    originCoords: window.currentClientCoords || null,
+                    destCoords: window.currentDestCoords || null,
+                    price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
+                });
+                
+                document.getElementById('searching-state').classList.remove('hidden');
+                document.getElementById('fare-card').classList.add('hidden');
+            } catch (err) {
+                console.error("Error al registrar solicitud de viaje:", err);
+                window.showToast("Hubo un error de red. Inténtalo de nuevo.", "error");
+                const requestBtn = document.querySelector("#fare-card button");
+                if (requestBtn) requestBtn.disabled = false;
+            }
+        };
+
+        window.sendChatMessage = async () => {
+            const text = document.getElementById('chat-input').value.trim();
+            if (!text || !activeTrip) return;
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), {
+                chat: arrayUnion({ 
+                    sender: currentUser.uid, 
+                    senderName: window.userProfile.name, 
+                    senderPhoto: window.userProfile.photo || null,
+                    text, 
+                    time: Date.now() 
+                })
+            });
+            document.getElementById('chat-input').value = "";
+        };
+
+        function renderChat(messages) {
+            const container = document.getElementById('chat-messages');
+            container.innerHTML = "";
+            if (!messages) return;
+
+            const previousLength = window.lastChatLength;
+            window.lastChatLength = messages.length;
+
+            if (previousLength !== undefined && messages.length > previousLength) {
+                const lastMsg = messages[messages.length - 1];
+                if (lastMsg && lastMsg.sender !== currentUser.uid) {
+                    const msgTime = lastMsg.time || Date.now();
+                    const isRecent = (Date.now() - msgTime) < 15000; 
+
+                    if (isRecent) {
+                        window.playNotificationSound();
+                        window.sendBrowserNotification(`Mensaje de ${lastMsg.senderName.toUpperCase()}`, lastMsg.text);
+
+                        const chatSection = document.getElementById('chat-section');
+                        if (chatSection && chatSection.classList.contains('collapsed')) {
+                            const badge = document.getElementById('chat-unread-badge');
+                            if (badge) badge.classList.remove('hidden');
+                            window.showToast(`Nuevo mensaje de ${lastMsg.senderName.toUpperCase()}: "${lastMsg.text}"`, "info");
+                        }
+                    }
+                }
+            }
+
+            messages.forEach(m => {
+                const isMine = m.sender === currentUser.uid;
+                const div = document.createElement('div');
+                div.className = `chat-msg ${isMine ? 'msg-mine' : 'msg-theirs'}`;
+                div.innerHTML = `
+                    <div class="flex items-center gap-2 mb-1">
+                        ${!isMine && m.senderPhoto ? `<img src="${m.senderPhoto}" class="w-3.5 h-3.5 rounded-full object-cover">` : ''}
+                        <span class="text-[8px] font-black uppercase opacity-60">${isMine ? 'Tú' : m.senderName}</span>
+                    </div>
+                    <p class="leading-tight">${m.text}</p>
+                `;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        window.processLogout = () => signOut(auth).then(() => location.reload());
+        
+        window.cancelOrder = async () => { 
+            window.showConfirm(
+                "¿Cancelar servicio VIP?", 
+                "Esta acción detendrá y cancelará el viaje. El registro se enviará al historial de auditoría.", 
+                async () => {
+                    if(activeTrip) {
+                        const cancellationData = {
+                            tripId: activeTrip.id,
+                            origin: activeTrip.origin,
+                            destination: activeTrip.destination,
+                            price: activeTrip.price,
+                            clientId: activeTrip.clientId,
+                            clientName: activeTrip.clientName,
+                            clientPhone: activeTrip.clientPhone,
+                            driverId: activeTrip.driverId || null,
+                            driverName: activeTrip.driverName || "Ninguno",
+                            cancelledBy: window.userProfile.role === 'admin' ? 'Administrador Supremo' : window.userProfile.name,
+                            cancelledAt: Date.now()
+                        };
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', activeTrip.id), cancellationData);
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled', cancelledBy: currentUser.uid });
+                    }
+                    location.reload(); 
+                }
+            );
+        };
+
+        window.addEventListener('map-route-trigger', () => {
+            const origin = document.getElementById('origin-input').value;
+            const dest = document.getElementById('destination-input').value;
+            if (!origin || !dest) return;
+            window.directionsRenderer.setMap(window.gMap);
+            window.directionsRenderer.setOptions({ preserveViewport: false });
+            window.directionsService.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
+                if (status === "OK") {
+                    window.directionsRenderer.setDirections(res);
+                    const km = res.routes[0].legs[0].distance.value / 1000;
+                    document.getElementById('fare-card').classList.remove('hidden');
+                    document.getElementById('price-display').innerText = `L. ${(40 + km * 18).toFixed(2)}`;
+
+                    if (!window.currentClientCoords) {
+                        window.currentClientCoords = {
+                            lat: res.routes[0].legs[0].start_location.lat(),
+                            lng: res.routes[0].legs[0].start_location.lng()
+                        };
+                    }
+                    if (!window.currentDestCoords) {
+                        window.currentDestCoords = {
+                            lat: res.routes[0].legs[0].end_location.lat(),
+                            lng: res.routes[0].legs[0].end_location.lng()
+                        };
+                    }
+                }
+            });
+        });
+
+        window.centerMap = () => {
+            window.autoCenter = true;
+            document.getElementById('fab-center').classList.add('hidden');
+            if(window.currentDriverPos) {
+                window.gMap.panTo(window.currentDriverPos);
+                window.gMap.setZoom(18);
+                window.gMap.setTilt(45);
+            }
+        };
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition((pos) => {
+                const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                window.currentDriverPos = newPos;
+                if (currentUser && window.userProfile?.role === 'driver') {
+                    setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid), { lat: newPos.lat, lng: newPos.lng, updatedAt: Date.now() });
+                }
+            }, null, { enableHighAccuracy: true });
+        }
+
+        function listenForNearbyDrivers() {
+            if (!currentUser) return;
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
+                snap.forEach(d => { 
+                    const relatedDriver = cachedProfilesList.find(p => p.uid === d.id);
+                    if (!relatedDriver || relatedDriver.isApproved !== false) {
+                        window.updateDriverMarker(d.id, d.data().lat, d.data().lng, d.id === currentUser.uid); 
+                    }
+                });
+            });
+        }
+
+        function showRatingScreen() {
+            document.getElementById('rating-screen').style.display = 'flex';
+        }
+
+        window.setRating = (stars) => {
+            selectedStars = stars;
+            document.querySelectorAll('.star-btn').forEach(b => b.classList.toggle('text-soza-gold', parseInt(b.dataset.index) <= stars));
+        };
+
+        window.submitRating = async () => {
+            if (selectedStars === 0) return window.showToast("Califica con estrellas.", "error");
+            const targetUserId = window.userProfile.role === 'client' ? activeTrip.driverId : activeTrip.clientId;
+            
+            // Sincronización Diferida con el public profile para los ratings
+            try {
+                const pubRef = doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetUserId);
+                const pubSnap = await getDoc(pubRef);
+                if (pubSnap.exists()) {
+                    const pubData = pubSnap.data();
+                    await updateDoc(pubRef, { ratingSum: (pubData.ratingSum || 0) + selectedStars, ratingCount: (pubData.ratingCount || 0) + 1, totalTrips: (pubData.totalTrips || 0) + 1 });
+                }
+            } catch(e) { console.warn("Fallo rating público", e); }
+            
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { [`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]: true });
+            location.reload();
+        };
+
+        // --- CONSOLA DE ADMIN SUPREMO ---
+        let activeAdminTab = 'stats';
+
+        window.toggleAdminPanel = () => {
+            const adminSec = document.getElementById('admin-view');
+            const clientSec = document.getElementById('client-view');
+            const driverSec = document.getElementById('driver-view');
+
+            if (adminSec.classList.contains('hidden')) {
+                adminSec.classList.remove('hidden');
+                clientSec.classList.add('hidden');
+                driverSec.classList.add('hidden');
+            } else {
+                adminSec.classList.add('hidden');
+                if (window.userProfile.role === 'driver') driverSec.classList.remove('hidden');
+                else clientSec.classList.remove('hidden');
+            }
+        };
+
+        window.toggleSupPanel = () => {
+            const supSec = document.getElementById('supervisor-view');
+            const clientSec = document.getElementById('client-view');
+            if (supSec.classList.contains('hidden')) {
+                supSec.classList.remove('hidden');
+                clientSec.classList.add('hidden');
+            } else {
+                supSec.classList.add('hidden');
+                clientSec.classList.remove('hidden');
+            }
+        };
+
+        window.setAdminTab = (tab) => {
+            activeAdminTab = tab;
+            document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.className = 'admin-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400');
+            document.getElementById(`tab-admin-${tab}`).className = 'admin-tab-btn flex-1 py-2 rounded-lg transition-all bg-soza-gold text-soza-dark shadow-sm';
+            
+            document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById(`admin-content-${tab}`).classList.remove('hidden');
+        };
+
+        function startAdminListeners() {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snap) => {
+                cachedProfilesList = [];
+                snap.forEach(d => {
+                    cachedProfilesList.push(d.data());
+                });
+                renderAdminUsers();
+                document.getElementById('stat-total-users').innerText = cachedProfilesList.length;
+            });
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
+                document.getElementById('stat-active-drivers').innerText = snap.size;
+            });
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
+                const activeTripsList = snap.docs.filter(d => ['pending', 'accepted', 'in_progress'].includes(d.data().status));
+                document.getElementById('stat-active-trips').innerText = activeTripsList.length;
+                renderAdminTrips(activeTripsList);
+            });
+
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips'), (snap) => {
+                renderAdminCancelledTrips(snap.docs);
+            });
+        }
+
+        window.setAdminUserFilter = (filter) => {
+            activeUserFilter = filter;
+            document.querySelectorAll('.admin-user-filter-btn').forEach(btn => {
+                btn.className = 'admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
+            });
+            const selectedBtn = document.getElementById(`filter-user-${filter}`);
+            if (selectedBtn) {
+                selectedBtn.className = 'admin-user-filter-btn px-3 py-1.5 bg-soza-gold text-soza-dark rounded-xl text-[9px] font-black uppercase tracking-wider transition-all';
+            }
+            renderAdminUsers();
+        };
+
+        function renderAdminUsers() {
+            const listContainer = document.getElementById('admin-users-list');
+            listContainer.innerHTML = '';
+            
+            let filteredList = cachedProfilesList;
+            if (activeUserFilter === 'client') {
+                filteredList = cachedProfilesList.filter(u => u.role === 'client');
+            } else if (activeUserFilter === 'driver') {
+                filteredList = cachedProfilesList.filter(u => u.role === 'driver');
+            } else if (activeUserFilter === 'pending_driver') {
+                filteredList = cachedProfilesList.filter(u => u.role === 'driver' && u.isApproved === false);
+            } else if (activeUserFilter === 'supervisor') {
+                filteredList = cachedProfilesList.filter(u => u.role === 'supervisor');
+            }
+
+            filteredList.forEach(u => {
+                if (u.uid === currentUser.uid) return; 
+                
+                const stars = u.ratingCount ? (u.ratingSum / u.ratingCount).toFixed(1) : "5.0";
+                const isBanned = u.isBanned === true;
+                const isDriver = u.role === 'driver';
+
+                const card = document.createElement('div');
+                card.className = "p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col justify-between gap-2 shadow-sm relative text-white";
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-center gap-2">
+                            ${u.photo ? `<img src="${u.photo}" class="w-8 h-8 rounded-full object-cover">` : `<div class="w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-xs border border-soza-gold/20">${u.name.charAt(0).toUpperCase()}</div>`}
+                            <div>
+                                <h5 class="text-xs font-black text-white">${u.name.toUpperCase()}</h5>
+                                <p class="text-[9px] text-soza-gold font-bold uppercase tracking-wider">${isDriver ? `Conductor` : 'Pasajero'}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1 text-soza-gold font-black text-[10px]">
+                            <i class="fas fa-star"></i> <span>${stars}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 text-[9px] text-slate-400 font-bold mt-1">
+                        <span><i class="fas fa-phone"></i> ${u.phone}</span>
+                        <span>•</span>
+                        <span>Viajes: ${u.totalTrips || 0}</span>
+                    </div>
+
+                    ${isDriver ? `
+                        <div class="flex flex-col gap-1 bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-[9px] text-slate-300 font-medium my-1.5">
+                            <p><b>Vehículo:</b> ${u.vehicle?.model || 'No registrado'}</p>
+                            <p><b>Placa:</b> <span class="uppercase font-bold text-white">${u.vehicle?.plate || 'No registrado'}</span></p>
+                            <p><b>Licencia:</b> <span class="font-bold text-white">${u.vehicle?.license || 'No registrado'}</span></p>
+                            <p class="mt-1">
+                                <b>Estado SOZA:</b> 
+                                ${u.isApproved !== false ? 
+                                    '<span class="text-emerald-400 font-bold">Aprobado ✅</span>' : 
+                                    '<span class="text-amber-500 font-bold">Pendiente de Aprobación ⏳</span>'
+                                }
+                            </p>
+                        </div>
+                    ` : ''}
+
+                    <div class="flex flex-wrap items-center gap-2 mt-3 border-t pt-2 border-slate-800">
+                        ${isBanned ? `
+                            <span class="text-[9px] font-black text-rose-500 uppercase tracking-widest mr-auto"><i class="fas fa-user-slash"></i> Vetado 🚫</span>
+                            <button onclick="window.setAdminVeto('${u.uid}', false)" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all">Desvetar</button>
+                        ` : `
+                            <span class="text-[9px] font-black text-emerald-400 uppercase tracking-widest mr-auto"><i class="fas fa-check-circle"></i> Activo</span>
+                            <button onclick="window.setAdminVeto('${u.uid}', true)" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all">Vetar</button>
+                        `}
+                        
+                        ${u.role === 'supervisor' ? `
+                            <button onclick="window.setRoleAdmin('${u.uid}', 'client')" class="px-3 py-1.5 bg-slate-800 text-indigo-400 border border-slate-700 rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-user-minus"></i> Quitar Sup.</button>
+                        ` : `
+                            <button onclick="window.setRoleAdmin('${u.uid}', 'supervisor')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-shield-alt"></i> Hacer Sup.</button>
+                        `}
+
+                        ${isDriver ? `
+                            <button onclick="window.trackDriver('${u.uid}')" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-slate-700"><i class="fas fa-location-crosshairs"></i> Rastrear</button>
+                            
+                            ${u.isApproved !== false ? `
+                                <button onclick="window.setDriverApproval('${u.uid}', false)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-soza-dark rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-pause-circle"></i> Revocar</button>
+                            ` : `
+                                <button onclick="window.setDriverApproval('${u.uid}', true)" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-check-double"></i> Aprobar</button>
+                            `}
+                        ` : ''}
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        window.filterAdminUsers = (val) => {
+            const queryClean = val.toLowerCase().trim();
+            const listContainer = document.getElementById('admin-users-list');
+            const cards = listContainer.children;
+
+            for (let i = 0; i < cards.length; i++) {
+                const cardText = cards[i].innerText.toLowerCase();
+                if (cardText.includes(queryClean)) {
+                    cards[i].classList.remove('hidden');
+                } else {
+                    cards[i].classList.add('hidden');
+                }
+            }
+        };
+
+        // --- SISTEMA DE GESTIÓN PROTEGIDO CONTRA FALLOS DE REGLAS ---
+        window.setAdminVeto = async (uid, shouldBan) => {
+            const title = shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?";
+            const desc = shouldBan ? "El usuario perderá el acceso a la plataforma de inmediato y sus viajes activos serán forzados a cancelación." : "Se restablecerá el acceso de usuario de forma inmediata.";
+            
+            window.showConfirm(title, desc, async () => {
+                try {
+                    // Update público (permitido por las reglas sin fallos)
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isBanned: shouldBan });
+                    
+                    // Update privado (Si lo bloquea, se ignora, el cliente lo auto-sincronizará al cargar)
+                    try {
+                        await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isBanned: shouldBan });
+                    } catch(err) { console.warn("Sincronización diferida de seguridad activada."); }
+                    
+                    window.showToast(shouldBan ? "Usuario vetado exitosamente." : "Socio desvetado con éxito.", "success");
+                } catch(e) {
+                    console.error("Error al procesar baneo:", e);
+                    window.showToast("Error de conexión al procesar baneo.", "error");
+                }
+            });
+        };
+
+        window.setRoleAdmin = async (uid, newRole) => {
+            window.showConfirm("¿Modificar Privilegios?", `¿Estás seguro de asignar el rol de ${newRole.toUpperCase()} a este usuario?`, async () => {
+                try {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { role: newRole });
+                    try {
+                        await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { role: newRole });
+                    } catch(err) { console.warn("Sincronización diferida de seguridad activada."); }
+                    
+                    window.showToast("Privilegios actualizados correctamente.", "success");
+                } catch(e) {
+                    console.error("Error asignando rol:", e);
+                    window.showToast("Error al asignar rol.", "error");
                 }
             });
         };
@@ -1788,25 +2299,34 @@
             
             window.showConfirm(title, desc, async () => {
                 try {
-                    await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isApproved: shouldApprove });
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isApproved: shouldApprove });
+                    try {
+                        await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isApproved: shouldApprove });
+                    } catch(err) { console.warn("Sincronización diferida de seguridad activada."); }
+                    
                     window.showToast(shouldApprove ? "Conductor aprobado con éxito." : "Licencia revocada del conductor.", "success");
                 } catch(e) {
+                    console.error("Error al actualizar aprobación:", e);
                     window.showToast("Error al actualizar aprobación.", "error");
                 }
             });
         };
 
         window.trackDriver = async (uid) => {
-            const dLoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid));
-            if (dLoc.exists()) {
-                const pos = dLoc.data();
-                window.gMap.panTo(pos);
-                window.gMap.setZoom(18);
-                window.gMap.setTilt(45);
-                window.showToast("Rastreando posición del conductor.", "success");
-            } else {
-                window.showToast("El conductor no está emitiendo señal GPS.", "error");
+            try {
+                const dLoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid));
+                if (dLoc.exists()) {
+                    const pos = dLoc.data();
+                    window.gMap.panTo(pos);
+                    window.gMap.setZoom(18);
+                    window.gMap.setTilt(45);
+                    window.showToast("Rastreando posición del conductor.", "success");
+                } else {
+                    window.showToast("El conductor no está emitiendo señal GPS.", "error");
+                }
+            } catch(e) {
+                console.error("Error rastreando conductor:", e);
+                window.showToast("Error de conexión al rastrear.", "error");
             }
         };
 
@@ -1925,6 +2445,84 @@
             );
         };
 
+        // --- FUNCIONALIDAD EXCLUSIVA DEL SUPERVISOR ---
+        
+        window.setSupTab = (tab) => {
+            currentSupTab = tab;
+            document.querySelectorAll('.sup-tab-btn').forEach(btn => btn.className = 'sup-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400');
+            document.getElementById(`tab-sup-${tab}`).className = 'sup-tab-btn flex-1 py-2 rounded-lg transition-all bg-indigo-600 text-white shadow-sm';
+            renderSupervisorList();
+        };
+
+        window.openDocModal = (title, src) => {
+            if (!src || src === 'undefined') return;
+            document.getElementById('doc-modal-title').innerText = title;
+            document.getElementById('doc-modal-img').src = src;
+            document.getElementById('doc-modal').classList.remove('hidden');
+        };
+
+        function startSupervisorListeners() {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snap) => {
+                const drivers = [];
+                snap.forEach(d => { 
+                    if(d.data().role === 'driver') drivers.push(d.data());
+                });
+                window.cachedSupDrivers = drivers;
+                renderSupervisorList();
+            });
+        }
+
+        function renderSupervisorList() {
+            const container = document.getElementById('sup-list');
+            container.innerHTML = '';
+            
+            const isPending = currentSupTab === 'pending';
+            const filtered = window.cachedSupDrivers.filter(d => isPending ? d.isApproved === false : d.isApproved !== false);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="py-12 text-center opacity-30"><i class="fas fa-folder-open text-4xl mb-4 text-indigo-400"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center text-white">No hay conductores ${isPending ? 'pendientes de revisión' : 'aprobados'}</p></div>`;
+                return;
+            }
+
+            filtered.forEach(u => {
+                const d = u.vehicle || {};
+                const hasDni = d.dniPhoto && d.dniPhoto !== 'null';
+                const hasLicense = d.licensePhoto && d.licensePhoto !== 'null';
+                
+                const card = document.createElement('div');
+                card.className = "p-5 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col gap-3 shadow-lg relative text-white";
+                card.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        ${u.photo ? `<img src="${u.photo}" class="w-12 h-12 rounded-full object-cover border border-soza-gold/40">` : `<div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-lg border border-soza-gold/40">${u.name.charAt(0)}</div>`}
+                        <div>
+                            <h5 class="text-sm font-black text-white">${u.name.toUpperCase()}</h5>
+                            <p class="text-[10px] text-gray-400 mt-0.5"><i class="fas fa-phone text-soza-gold"></i> ${u.phone}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-[10px] text-slate-300 grid grid-cols-2 gap-x-2 gap-y-1.5 mt-1">
+                        <div><b class="text-soza-gold uppercase tracking-wider block text-[8px] opacity-70">Vehículo:</b> <span class="font-bold">${d.model || 'No adjunto'}</span></div>
+                        <div><b class="text-soza-gold uppercase tracking-wider block text-[8px] opacity-70">Placa:</b> <span class="uppercase font-bold">${d.plate || 'N/A'}</span></div>
+                        <div class="col-span-2"><b class="text-soza-gold uppercase tracking-wider block text-[8px] opacity-70 mt-1">N° Licencia:</b> <span class="font-bold">${d.license || 'N/A'}</span></div>
+                    </div>
+                    
+                    <div class="flex gap-2 mt-1">
+                        <button onclick="window.openDocModal('Identidad de ${u.name}', '${d.dniPhoto}')" class="${!hasDni ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} flex-1 py-2.5 bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-id-card text-indigo-400 text-sm block mb-1"></i> Ver DNI</button>
+                        <button onclick="window.openDocModal('Licencia de ${u.name}', '${d.licensePhoto}')" class="${!hasLicense ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} flex-1 py-2.5 bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-car text-indigo-400 text-sm block mb-1"></i> Ver Licencia</button>
+                    </div>
+                    
+                    <div class="flex gap-2 mt-2 pt-4 border-t border-slate-800">
+                        ${u.isApproved !== false ? `
+                            <button onclick="window.setDriverApproval('${u.uid}', false)" class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all"><i class="fas fa-ban"></i> Suspender</button>
+                        ` : `
+                            <button onclick="window.setDriverApproval('${u.uid}', true)" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all"><i class="fas fa-check-double"></i> Aprobar Conductor</button>
+                        `}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
         // --- REGISTRO DE SERVICE WORKER LOCAL & CAPACIDAD DE EMPUJE EN SEGUNDO PLANO ---
         if ('serviceWorker' in navigator) {
             try {
@@ -1932,7 +2530,6 @@
                     self.addEventListener('install', (e) => self.skipWaiting());
                     self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
                     
-                    // ESCUCHAR SEÑALES PUSH PWA NATIVAS EN SEGUNDO PLANO (COMO FACEBOOK)
                     self.addEventListener('push', (event) => {
                         let data = { title: 'SOZA VIP', body: 'Nuevo mensaje recibido en tu chat de transporte.' };
                         try {
@@ -1980,6 +2577,6 @@
             }
         }
     </script>
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places&callback=initMap"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places&callback=initMap" loading="async"></script>
 </body>
 </html>
