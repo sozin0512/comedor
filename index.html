@@ -349,6 +349,33 @@
     <!-- CONTENEDOR DE TOASTS -->
     <div id="toast-container"></div>
 
+    <!-- ALERTA SOS OVERLAY GLOBAL (Solo visible si hay emergencia) -->
+    <div id="sos-alarm-overlay" class="hidden fixed inset-0 z-[60000] bg-red-600/40 backdrop-blur-sm pointer-events-none animate-pulse flex flex-col items-center justify-center">
+         <i class="fas fa-exclamation-triangle text-red-500 text-9xl drop-shadow-2xl"></i>
+         <h1 class="text-white text-4xl font-black mt-4 drop-shadow-lg tracking-widest text-center">¡ALERTA SOS<br>ACTIVA!</h1>
+         <p class="text-white font-bold mt-2 text-xl drop-shadow-md">Un usuario está en peligro</p>
+    </div>
+
+    <!-- MODAL DE VERIFICACIÓN FACIAL (SELFIE) -->
+    <div id="selfie-modal" class="hidden fixed inset-0 z-[40000] bg-slate-950 flex flex-col items-center justify-center p-6">
+        <div class="text-center mb-6">
+            <h2 class="text-soza-gold font-black text-2xl uppercase tracking-widest drop-shadow-md">Verificación</h2>
+            <p class="text-slate-300 text-xs mt-2 max-w-xs leading-relaxed">Por seguridad, tómate una foto en tiempo real antes de acceder a la plataforma VIP.</p>
+        </div>
+        
+        <div class="relative w-64 h-64 rounded-full overflow-hidden border-4 border-soza-gold mb-8 shadow-[0_0_40px_rgba(212,175,55,0.3)] bg-slate-900 flex items-center justify-center">
+            <i id="selfie-placeholder" class="fas fa-camera text-4xl text-slate-700 absolute"></i>
+            <video id="selfie-video" class="w-full h-full object-cover hidden" autoplay playsinline></video>
+            <canvas id="selfie-canvas" class="hidden w-full h-full"></canvas>
+        </div>
+        
+        <div class="flex gap-4 w-full max-w-xs">
+            <button id="btn-capture-selfie" onclick="window.takeSelfie()" class="flex-1 bg-soza-gold hover:bg-soza-goldlight transition-colors text-soza-dark font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest text-sm hidden">Capturar</button>
+            <button id="btn-retake-selfie" onclick="window.retakeSelfie()" class="hidden flex-1 bg-slate-800 text-white font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest border border-slate-700 text-xs">Reintentar</button>
+            <button id="btn-submit-selfie" onclick="window.submitSelfie()" class="hidden flex-1 bg-emerald-600 hover:bg-emerald-500 transition-colors text-white font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest text-xs">Confirmar</button>
+        </div>
+    </div>
+
     <!-- MODAL ADVERTENCIA DE SINCRONIZACIÓN -->
     <div id="sync-warning-modal" class="hidden fixed inset-0 z-[25000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-soza-card p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-soza-gold/30 transform transition-transform duration-300 scale-95 text-white">
@@ -475,7 +502,6 @@
                         
                         <!-- Pin de Mapa Dorado (O) -->
                         <g transform="translate(135, 45)">
-                            <!-- Círculo Base Pin -->
                             <path d="M 40 10 C 15 10, 0 25, 0 45 C 0 75, 40 110, 40 110 C 40 110, 80 75, 80 45 C 80 25, 65 10, 40 10 Z" fill="url(#goldGradient)" />
                             <circle cx="40" cy="45" r="16" fill="#111827" />
                         </g>
@@ -486,7 +512,6 @@
                         <!-- Letra A (Blanco) -->
                         <path d="M 315 115 L 340 65 L 365 115 M 325 98 L 355 98" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" fill="none" />
                         
-                        <!-- Gradiente de Oro Metálico -->
                         <defs>
                             <linearGradient id="goldGradient" x1="0" y1="0" x2="1" y2="1">
                                 <stop offset="0%" stop-color="#b8860b" />
@@ -542,7 +567,7 @@
                     <input id="car-plate" type="text" placeholder="Placa" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none uppercase font-bold text-white">
                     <input id="driver-license" type="text" placeholder="N° Licencia" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
                     
-                    <!-- NUEVO: CARGA DE DOCUMENTOS LEGALES -->
+                    <!-- CARGA DE DOCUMENTOS LEGALES -->
                     <div class="flex gap-3 mt-2">
                         <div class="flex-1 flex flex-col items-center p-3 bg-slate-950 border border-slate-700 rounded-xl relative overflow-hidden group">
                             <i class="fas fa-id-card text-2xl text-slate-500 mb-2 group-hover:text-soza-gold transition-colors"></i>
@@ -650,7 +675,7 @@
                     </div>
                 </div>
 
-                <!-- NUEVO: PANEL ADMINISTRADOR SUPREMO EXCLUSIVO -->
+                <!-- PANEL ADMINISTRADOR SUPREMO EXCLUSIVO -->
                 <div id="admin-view" class="hidden flex-1 flex flex-col h-full text-white">
                     <div class="flex items-center gap-2 mb-4">
                         <span class="text-soza-gold text-xl"><i class="fas fa-crown"></i></span>
@@ -683,14 +708,13 @@
                         </div>
                     </div>
 
-                    <!-- TAB CONTENIDO: SOCIOS / BUSCADOR / VETADOS Y APROBACIÓN DE CHOFERES -->
+                    <!-- TAB CONTENIDO: SOCIOS -->
                     <div id="admin-content-users" class="admin-tab-content hidden space-y-3">
                         <div class="relative">
                             <input id="admin-user-search" type="text" oninput="window.filterAdminUsers(this.value)" placeholder="Buscar socio por nombre o tel..." class="w-full px-4 py-3 bg-slate-900 border border-slate-800 text-white rounded-2xl outline-none text-xs focus:ring-2 focus:ring-soza-gold">
                             <i class="fas fa-search absolute right-4 top-3.5 text-gray-400 text-xs"></i>
                         </div>
                         
-                        <!-- FILTROS DE SOCIO DEBIDO A RESTRICCIONES DE CONDUCTOR -->
                         <div class="flex gap-1.5 overflow-x-auto pb-1">
                             <button onclick="window.setAdminUserFilter('all')" id="filter-user-all" class="admin-user-filter-btn px-3 py-1.5 bg-soza-gold text-soza-dark rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Todos</button>
                             <button onclick="window.setAdminUserFilter('client')" id="filter-user-client" class="admin-user-filter-btn px-3 py-1.5 bg-slate-800 text-gray-400 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all">Pasajeros</button>
@@ -707,9 +731,7 @@
                     <!-- TAB CONTENIDO: VIAJES ACTIVOS -->
                     <div id="admin-content-trips" class="admin-tab-content hidden space-y-3">
                         <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Servicios en curso</h4>
-                        <div id="admin-trips-list" class="space-y-3 max-h-[320px] overflow-y-auto pr-1">
-                            <!-- Inyectado dinámicamente -->
-                        </div>
+                        <div id="admin-trips-list" class="space-y-3 max-h-[320px] overflow-y-auto pr-1"></div>
                     </div>
 
                     <!-- TAB CONTENIDO: CANCELADOS -->
@@ -718,13 +740,11 @@
                             <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Historial de cancelaciones</h4>
                             <button onclick="window.clearCancelledLogs()" class="text-[9px] font-black text-red-500 uppercase tracking-widest underline hover:text-red-400">Limpiar Registro</button>
                         </div>
-                        <div id="admin-cancelled-list" class="space-y-3 max-h-[280px] overflow-y-auto pr-1">
-                            <!-- Inyectado dinámicamente -->
-                        </div>
+                        <div id="admin-cancelled-list" class="space-y-3 max-h-[280px] overflow-y-auto pr-1"></div>
                     </div>
                 </div>
 
-                <!-- NUEVO: PANEL SUPERVISOR -->
+                <!-- PANEL SUPERVISOR -->
                 <div id="supervisor-view" class="hidden flex-1 flex flex-col h-full text-white">
                     <div class="flex items-center gap-2 mb-4">
                         <span class="text-indigo-400 text-xl"><i class="fas fa-shield-alt"></i></span>
@@ -743,12 +763,10 @@
 
                 <!-- PANEL VIAJE ACTIVO (CHAT Y PANEL CLIENTE/CONDUCTOR) -->
                 <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full text-white">
-                    <!-- Barra de arrastre -->
                     <div onclick="window.toggleActivePanel()" class="flex justify-center py-2 cursor-pointer border-b border-slate-800 mb-4 hover:bg-slate-800 transition-colors">
                         <div class="w-12 h-1 bg-slate-700 rounded-full shadow-sm"></div>
                     </div>
 
-                    <!-- Cuadro de Direcciones Principal -->
                     <div class="p-4 bg-slate-900 rounded-2xl border border-slate-800 shadow-sm mb-4">
                          <div class="flex items-start gap-2 mb-3">
                              <div class="w-2 h-2 rounded-full bg-soza-gold mt-1.5 flex-shrink-0"></div>
@@ -760,6 +778,16 @@
                          </div>
                     </div>
 
+                    <!-- NUEVO: BOTONES DE COMPARTIR Y SOS -->
+                    <div class="flex gap-2 mb-4">
+                        <button onclick="window.shareRoute()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95">
+                            <i class="fas fa-share-alt"></i> Compartir Ruta
+                        </button>
+                        <button onclick="window.triggerSOS()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95">
+                            <i class="fas fa-exclamation-triangle"></i> Botón SOS
+                        </button>
+                    </div>
+
                     <!-- ÁREA DE PIN / BOTÓN LLEGADA -->
                     <div id="pin-area" class="mb-4">
                         <div id="client-pin-display" class="hidden bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse">
@@ -768,7 +796,6 @@
                         </div>
 
                         <div id="driver-pin-controls" class="hidden space-y-2">
-                             <!-- LINK DINÁMICO DE RUTA PARA CONDUCTOR -->
                              <button onclick="window.manualRouteRefresh()" id="driver-target-address" class="w-full p-3 bg-soza-gold text-soza-dark rounded-xl mb-3 text-center shadow-md active:scale-95 transition-all">
                                 <div class="flex items-center justify-center gap-2">
                                     <i class="fas fa-map-marked-alt text-lg"></i>
@@ -788,21 +815,18 @@
                         </div>
                     </div>
 
-                    <!-- Botones de Acción -->
                     <div class="flex gap-3 mb-4">
                         <a id="call-btn" href="#" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl text-[12px] font-black uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform">
                             <i class="fas fa-phone"></i> LLAMAR
                         </a>
                         <button onclick="window.toggleChat()" class="relative flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-4 rounded-2xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-transform border border-slate-700">
                             <i class="fas fa-comments text-lg"></i> CHAT
-                            <!-- FARO DE ALERTA DE MENSAJES NO LEÍDOS -->
                             <span id="chat-unread-badge" class="hidden absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-600 rounded-full border-2 border-soza-card animate-pulse"></span>
                         </button>
                     </div>
 
                     <button onclick="window.cancelOrder()" class="w-full py-3 text-[10px] font-black text-rose-500 uppercase tracking-widest border border-rose-950/40 rounded-xl mb-4 hover:bg-rose-950/20 active:scale-95 transition-all text-center">Cancelar Servicio</button>
 
-                    <!-- SECCIÓN DE CHAT EN TIEMPO REAL -->
                     <div id="chat-section" class="collapsed border-t border-slate-800 pt-4 h-full overflow-y-auto font-sans">
                         <div id="chat-messages" class="h-40 overflow-y-auto mb-3 flex flex-col p-1 bg-slate-900 rounded-xl border border-slate-800"></div>
                         <div class="flex gap-2 pb-10">
@@ -815,10 +839,9 @@
         </main>
     </div>
 
-    <!-- FIREBASE & LOGICA MAESTRA -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, initializeAuth, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, initializeAuth, browserLocalPersistence, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot, query, where, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, arrayUnion, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js";
 
@@ -865,146 +888,103 @@
         window.lastTripStatus = null;
         window.lastDriverArrived = false;
         window.lastPendingCount = 0;
+        let localCameraStream = null;
+
+        // --- MODO INVITADO (RASTREO EXTERNO) ---
+        const urlParams = new URLSearchParams(window.location.search);
+        const guestTrackId = urlParams.get('track');
 
         let wakeLock = null;
         window.requestWakeLock = async () => {
             if ('wakeLock' in navigator) {
                 try {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log("Wake Lock activo.");
-                } catch (err) {
-                    console.warn("Wake Lock denegado:", err);
-                }
+                } catch (err) {}
             }
         };
 
         window.releaseWakeLock = () => {
-            if (wakeLock !== null) {
-                wakeLock.release();
-                wakeLock = null;
-                console.log("Wake Lock liberado.");
-            }
+            if (wakeLock !== null) { wakeLock.release(); wakeLock = null; }
         };
 
-        // --- ADVERTENCIA AL INTENTAR CERRAR LA PESTAÑA O SALIR ---
         window.addEventListener('beforeunload', (e) => {
-            if (currentUser) {
-                e.preventDefault();
-                e.returnValue = ''; // Requerido por los navegadores para mostrar el prompt de confirmación
-            }
+            if (currentUser && !guestTrackId) { e.preventDefault(); e.returnValue = ''; }
         });
 
         document.addEventListener('click', () => {
-            if (currentUser && activeTrip && (activeTrip.status === 'accepted' || activeTrip.status === 'in_progress')) {
-                window.requestWakeLock();
-            }
+            if (currentUser && activeTrip && (activeTrip.status === 'accepted' || activeTrip.status === 'in_progress')) window.requestWakeLock();
         });
 
-        // --- SISTEMA DE DESBLOQUEO DE AUDIO MÓVIL (WEB AUDIO API EXCLUSIVO) ---
         let globalAudioCtx = null;
-
         window.unlockAudioContext = () => {
             try {
                 if (!globalAudioCtx) {
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
-                    if (AudioContext) {
-                        globalAudioCtx = new AudioContext();
-                        console.log("Sistema de audio unificado inicializado.");
-                    }
+                    if (AudioContext) globalAudioCtx = new AudioContext();
                 }
-                if (globalAudioCtx && globalAudioCtx.state === 'suspended') {
-                    globalAudioCtx.resume().then(() => {
-                        console.log("Canal de Sonido desbloqueado de forma segura en celular.");
-                    });
-                }
-            } catch (err) {
-                console.warn("No se pudo desbloquear el sistema de audio:", err);
-            }
+                if (globalAudioCtx && globalAudioCtx.state === 'suspended') globalAudioCtx.resume();
+            } catch (err) {}
         };
 
         document.addEventListener('click', window.unlockAudioContext, { once: false });
         document.addEventListener('touchstart', window.unlockAudioContext, { once: false });
 
         window.requestNotificationPermission = async () => {
-            if (!("Notification" in window)) {
-                window.showToast("Tu navegador no soporta notificaciones de sistema.", "error");
-                return;
-            }
+            if (!("Notification" in window)) { window.showToast("Tu navegador no soporta notificaciones", "error"); return; }
             try {
                 const permission = await Notification.requestPermission();
                 updateBellIconUI(permission);
                 if (permission === "granted") {
                     window.showToast("¡Notificaciones de SOZA activadas! 🔔", "success");
                     window.playNotificationSound();
-                    
                     registerDeviceForPushNotifications();
-                    window.sendBrowserNotification("SOZA — Soluciones de Transporte VIP", "Las alertas en segundo plano ya están activas y listas.");
                 } else if (permission === "denied") {
-                    window.showToast("Permiso denegado. Actívalas en la configuración.", "error");
+                    window.showToast("Permiso denegado.", "error");
                 }
-            } catch (err) {
-                console.error("Error solicitando permisos:", err);
-            }
+            } catch (err) {}
         };
 
         async function registerDeviceForPushNotifications() {
             try {
                 const registration = await navigator.serviceWorker.ready;
-                const token = await getToken(messaging, { 
-                    serviceWorkerRegistration: registration,
-                    vapidKey: "BKe_n6NfUuN8p-K2E30h3758b9C_fdfVAPID_KEY_AQUI_OPCIONAL" 
-                });
-                
-                if (token && currentUser) {
+                const token = await getToken(messaging, { serviceWorkerRegistration: registration, vapidKey: "BKe_n6NfUuN8p-K2E30h3758b9C_fdfVAPID_KEY_AQUI_OPCIONAL" });
+                if (token && currentUser && !guestTrackId) {
                     const tokenData = { deviceToken: token, lastTokenUpdate: Date.now() };
-                    // Se usa updateDoc para respetar reglas de seguridad estrictas (si el documento ya existe).
                     try {
                         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), tokenData, { merge: true });
                         await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), tokenData, { merge: true });
                     } catch(e) {}
                 }
-            } catch (err) {
-                console.warn("Fallo al obtener el token FCM (esperado en entornos locales):", err);
-            }
+            } catch (err) {}
         }
 
         function updateBellIconUI(permission) {
             const bellIcon = document.getElementById('notif-bell-icon');
             const bellBtn = document.getElementById('notif-bell-btn');
             if (!bellIcon || !bellBtn) return;
-            
             if (permission === "granted") {
                 bellIcon.className = "fas fa-bell text-soza-gold animate-pulse";
                 bellBtn.className = "w-10 h-10 rounded-xl bg-slate-900 text-soza-gold flex items-center justify-center shadow-sm border border-soza-gold/40 transition-colors";
-                bellBtn.title = "Notificaciones Activas ✅";
             } else if (permission === "denied") {
                 bellIcon.className = "fas fa-bell-slash text-rose-500";
                 bellBtn.className = "w-10 h-10 rounded-xl bg-rose-950 text-rose-500 flex items-center justify-center shadow-sm border border-rose-500/30 transition-colors";
-                bellBtn.title = "Notificaciones Bloqueadas 🚫";
             } else {
                 bellIcon.className = "fas fa-bell text-slate-400";
                 bellBtn.className = "w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-soza-gold flex items-center justify-center shadow-sm border border-slate-700 transition-colors";
-                bellBtn.title = "Activar Notificaciones 🔔";
             }
         }
 
         window.sendBrowserNotification = (title, body) => {
-            if (!("Notification" in window)) return;
+            if (!("Notification" in window) || guestTrackId) return;
             if (Notification.permission === "granted") {
                 try {
                     const iconUrl = 'https://cdn-icons-png.flaticon.com/512/854/854878.png'; 
                     if (navigator.serviceWorker && navigator.serviceWorker.ready) {
                         navigator.serviceWorker.ready.then(reg => {
                             reg.showNotification(title, { body: body, icon: iconUrl, badge: iconUrl, vibrate: [300, 100, 300] });
-                        }).catch(() => {
-                            new Notification(title, { body: body, icon: iconUrl });
-                        });
-                    } else {
-                        new Notification(title, { body: body, icon: iconUrl });
-                    }
-                } catch (e) {
-                    new Notification(title, { body: body });
-                }
+                        }).catch(() => { new Notification(title, { body: body, icon: iconUrl }); });
+                    } else { new Notification(title, { body: body, icon: iconUrl }); }
+                } catch (e) { new Notification(title, { body: body }); }
             }
         };
 
@@ -1012,42 +992,31 @@
             try {
                 if (!globalAudioCtx) window.unlockAudioContext();
                 const ctx = globalAudioCtx;
-                if (!ctx) return;
+                if (!ctx || guestTrackId) return;
 
                 if (ctx.state === 'suspended') ctx.resume();
                 
                 const osc1 = ctx.createOscillator();
                 const gain1 = ctx.createGain();
-                osc1.type = 'sine';
-                osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
-                gain1.gain.setValueAtTime(0.12, ctx.currentTime);
-                gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+                osc1.type = 'sine'; osc1.frequency.setValueAtTime(587.33, ctx.currentTime);
+                gain1.gain.setValueAtTime(0.12, ctx.currentTime); gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
                 
                 const osc2 = ctx.createOscillator();
                 const gain2 = ctx.createGain();
-                osc2.type = 'sine';
-                osc2.frequency.setValueAtTime(880.00, ctx.currentTime + 0.08);
-                gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.08);
-                gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+                osc2.type = 'sine'; osc2.frequency.setValueAtTime(880.00, ctx.currentTime + 0.08);
+                gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.08); gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
                 
-                osc1.connect(gain1);
-                gain1.connect(ctx.destination);
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
+                osc1.connect(gain1); gain1.connect(ctx.destination);
+                osc2.connect(gain2); gain2.connect(ctx.destination);
                 
-                osc1.start();
-                osc1.stop(ctx.currentTime + 0.35);
-                osc2.start(ctx.currentTime + 0.08);
-                osc2.stop(ctx.currentTime + 0.45);
-            } catch (err) {
-                console.warn("Fallo al reproducir sonido:", err);
-            }
+                osc1.start(); osc1.stop(ctx.currentTime + 0.35);
+                osc2.start(ctx.currentTime + 0.08); osc2.stop(ctx.currentTime + 0.45);
+            } catch (err) {}
         };
 
         window.showToast = (message, type = "info") => {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-            
             const bgClass = type === "success" ? "bg-emerald-600" : type === "error" ? "bg-rose-600" : "bg-slate-800 border border-soza-gold/20";
             const iconClass = type === "success" ? "fa-circle-check" : type === "error" ? "fa-circle-exclamation" : "fa-circle-info";
 
@@ -1055,7 +1024,6 @@
             toast.innerHTML = `<i class="fas ${iconClass} text-lg ${type !== "success" && type !== "error" ? "text-soza-gold" : ""}"></i><span>${message}</span>`;
             
             container.appendChild(toast);
-            
             setTimeout(() => { toast.classList.remove('translate-y-4', 'opacity-0'); }, 10);
             setTimeout(() => {
                 toast.classList.add('translate-y-4', 'opacity-0');
@@ -1086,6 +1054,109 @@
             okBtn.onclick = () => { closeConfirm(); onConfirm(); };
         };
 
+        // --- NUEVO: FUNCIONALIDAD BOTÓN SOS ---
+        window.triggerSOS = async () => {
+            window.showConfirm(
+                "🚨 ¿ACTIVAR ALERTA SOS?", 
+                "Se notificará inmediatamente a los administradores de la plataforma con tu ubicación y podrás llamar a emergencias. Úsalo solo si estás en verdadero peligro.", 
+                async () => {
+                    if(activeTrip) {
+                        try {
+                            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { 
+                                sosActive: true, 
+                                sosTime: Date.now() 
+                            });
+                            window.showToast("Alerta SOS enviada a SOZA. Redirigiendo al 911...", "error");
+                            setTimeout(() => { window.location.href = "tel:911"; }, 1500);
+                        } catch(e) {
+                            window.showToast("Error al emitir señal SOS", "error");
+                        }
+                    }
+                }
+            );
+        };
+
+        // --- NUEVO: FUNCIONALIDAD COMPARTIR RUTA ---
+        window.shareRoute = () => {
+            if(!activeTrip) return;
+            const link = window.location.origin + window.location.pathname + "?track=" + activeTrip.id;
+            const text = `Sigue mi viaje VIP en tiempo real a través de SOZA Express: ${link}`;
+            
+            if (navigator.share) {
+                navigator.share({ title: 'Mi viaje en SOZA VIP', text: text, url: link }).catch(console.error);
+            } else {
+                window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+            }
+        };
+
+        // --- NUEVO: FUNCIONALIDAD CÁMARA (SELFIE CONDUCTOR) ---
+        window.openSelfieModal = async () => {
+             document.getElementById('selfie-modal').classList.remove('hidden');
+             document.getElementById('btn-capture-selfie').classList.remove('hidden');
+             document.getElementById('btn-retake-selfie').classList.add('hidden');
+             document.getElementById('btn-submit-selfie').classList.add('hidden');
+             document.getElementById('selfie-video').classList.remove('hidden');
+             document.getElementById('selfie-canvas').classList.add('hidden');
+             document.getElementById('selfie-placeholder').classList.add('hidden');
+
+             try {
+                 localCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+                 document.getElementById('selfie-video').srcObject = localCameraStream;
+             } catch(e) {
+                 window.showToast("No se pudo acceder a la cámara. Requerido para seguridad.", "error");
+                 document.getElementById('selfie-placeholder').classList.remove('hidden');
+             }
+        };
+
+        window.takeSelfie = () => {
+             if(!localCameraStream) return window.showToast("Cámara no activa", "error");
+             const video = document.getElementById('selfie-video');
+             const canvas = document.getElementById('selfie-canvas');
+             canvas.width = video.videoWidth;
+             canvas.height = video.videoHeight;
+             canvas.getContext('2d').drawImage(video, 0, 0);
+
+             video.classList.add('hidden');
+             canvas.classList.remove('hidden');
+
+             document.getElementById('btn-capture-selfie').classList.add('hidden');
+             document.getElementById('btn-retake-selfie').classList.remove('hidden');
+             document.getElementById('btn-submit-selfie').classList.remove('hidden');
+        };
+
+        window.retakeSelfie = () => {
+             document.getElementById('selfie-video').classList.remove('hidden');
+             document.getElementById('selfie-canvas').classList.add('hidden');
+             document.getElementById('btn-capture-selfie').classList.remove('hidden');
+             document.getElementById('btn-retake-selfie').classList.add('hidden');
+             document.getElementById('btn-submit-selfie').classList.add('hidden');
+        };
+
+        window.submitSelfie = async () => {
+             const canvas = document.getElementById('selfie-canvas');
+             const base64Img = canvas.toDataURL('image/jpeg', 0.6);
+
+             window.showToast("Guardando verificación facial...", "info");
+             try {
+                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), {
+                     currentSelfie: base64Img,
+                     selfieTimestamp: Date.now()
+                 });
+                 
+                 sessionStorage.setItem('selfieTaken', 'true');
+                 if(localCameraStream) localCameraStream.getTracks().forEach(track => track.stop());
+                 document.getElementById('selfie-modal').classList.add('hidden');
+                 window.showToast("Identidad verificada. ¡Listo para trabajar!", "success");
+                 
+                 document.getElementById('driver-pending-approval').classList.add('hidden');
+                 document.getElementById('driver-active-view').classList.remove('hidden');
+                 startDriverListener();
+             } catch(e) {
+                 window.showToast("Error subiendo foto. Revisa tu conexión.", "error");
+             }
+        };
+
+
         window.setAuthMode = (mode) => {
             authMode = mode;
             const isLogin = mode === 'login';
@@ -1097,7 +1168,6 @@
         window.updateRole = (role) => {
             userRole = role;
             document.querySelectorAll('.role-btn').forEach(b => b.className = 'role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase');
-            
             const btn = document.getElementById(`role-${role}`);
             if (btn) btn.className = 'role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-slate-900 border border-soza-gold/30 text-soza-gold uppercase';
             
@@ -1111,7 +1181,6 @@
                 reader.onload = (e) => {
                     if(previewId === 'dni-preview') driverDniBase64 = e.target.result;
                     if(previewId === 'license-preview') driverLicenseBase64 = e.target.result;
-                    
                     const prevDiv = document.getElementById(previewId);
                     prevDiv.innerHTML = `<img src="${e.target.result}" class="w-full h-full object-cover">`;
                     prevDiv.classList.remove('hidden');
@@ -1142,7 +1211,6 @@
 
         window.executeAuth = async () => {
             window.unlockAudioContext();
-
             const email = document.getElementById('email-field').value.trim();
             const pass = document.getElementById('pass-field').value.trim();
             if (!email || !pass) return window.showToast("Ingresa tus credenciales.", "error");
@@ -1174,11 +1242,9 @@
         window.openProfileEdit = () => {
             if (!window.userProfile) return;
             isEditingProfile = true;
-            
             document.getElementById('setup-title').innerText = "Mi Perfil SOZA VIP";
             document.getElementById('btn-save-profile').innerText = "GUARDAR CAMBIOS";
             document.getElementById('btn-cancel-profile').classList.remove('hidden');
-            
             document.getElementById('full-name').value = window.userProfile.name || "";
             document.getElementById('phone-number').value = window.userProfile.phone || "";
             
@@ -1209,7 +1275,6 @@
                     document.getElementById('license-clear').classList.remove('hidden');
                 }
             }
-            
             document.getElementById('app-interface').style.display = 'none';
             document.getElementById('setup-screen').style.display = 'flex';
         };
@@ -1218,7 +1283,6 @@
             isEditingProfile = false;
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('app-interface').style.display = 'flex';
-            
             document.getElementById('setup-title').innerText = "Finaliza tu Perfil";
             document.getElementById('btn-save-profile').innerText = "EMPEZAR A VIAJAR";
             document.getElementById('btn-cancel-profile').classList.add('hidden');
@@ -1240,7 +1304,6 @@
             const existingTrips = window.userProfile?.totalTrips || 0;
             const existingRatingSum = window.userProfile?.ratingSum || 5;
             const existingRatingCount = window.userProfile?.ratingCount || 1;
-            
             const existingApproval = window.userProfile?.isApproved !== undefined ? window.userProfile.isApproved : (userRole === 'client');
 
             const data = {
@@ -1258,7 +1321,6 @@
                 };
             }
             try {
-                // Escribir en perfil privado y público
                 await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), data);
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), data);
                 
@@ -1267,11 +1329,8 @@
                 if (isEditingProfile) {
                     window.userProfile = data;
                     document.getElementById('user-name-display').innerText = data.name.toUpperCase();
-                    if (data.photo) {
-                        document.getElementById('avatar-placeholder').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`;
-                    } else {
-                        document.getElementById('avatar-placeholder').innerHTML = data.name.charAt(0).toUpperCase();
-                    }
+                    if (data.photo) { document.getElementById('avatar-placeholder').innerHTML = `<img src="${data.photo}" class="w-full h-full object-cover">`; }
+                    else { document.getElementById('avatar-placeholder').innerHTML = data.name.charAt(0).toUpperCase(); }
                     window.closeProfileEdit();
                 } else {
                     location.reload();
@@ -1281,29 +1340,42 @@
             }
         };
 
-        // --- CONTROLADOR DEL AUTHESTADO CON SINCRONIZACIÓN DE DEFENSA ---
+        // --- CONTROLADOR DEL AUTHESTADO ---
         onAuthStateChanged(auth, async (user) => {
+            // MODO INVITADO RASTREO
+            if (!user && guestTrackId) {
+                window.showToast("Iniciando acceso seguro para familiar...", "info");
+                try { await signInAnonymously(auth); } catch(e){}
+                return;
+            }
+
             if (user) {
                 currentUser = user;
-                const isAdminEmail = user.email && user.email.toLowerCase() === 'josuesoza0513@gmail.com';
 
-                if ("Notification" in window) {
-                    updateBellIconUI(Notification.permission);
+                // SI ES UN INVITADO (ANÓNIMO PARA RASTREAR)
+                if (guestTrackId) {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('setup-screen').style.display = 'none';
+                    document.getElementById('app-interface').style.display = 'flex';
+                    document.getElementById('app-header').style.display = 'none';
+                    document.getElementById('control-panel').style.display = 'none';
+                    document.getElementById('fab-center').classList.remove('hidden');
+                    startGuestTracking(guestTrackId);
+                    return;
                 }
 
+                // SI ES UN USUARIO NORMAL
+                const isAdminEmail = user.email && user.email.toLowerCase() === 'josuesoza0513@gmail.com';
+
+                if ("Notification" in window) updateBellIconUI(Notification.permission);
+
                 try {
-                    // LECTURA DE SEGURIDAD: Leemos perfil publico y privado para auto-sincronizar órdenes del admin
                     const publicProfileRef = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid));
                     let privateProfileRef;
-                    try {
-                        privateProfileRef = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'));
-                    } catch(e) {
-                        privateProfileRef = null;
-                    }
+                    try { privateProfileRef = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data')); } catch(e) { privateProfileRef = null; }
                     
                     let profileData = privateProfileRef && privateProfileRef.exists() ? privateProfileRef.data() : null;
                     
-                    // Si no existe nada, forzamos creación de admin o mandamos a registro
                     if (!profileData && !publicProfileRef.exists()) {
                         if (isAdminEmail) {
                             const adminData = {
@@ -1319,25 +1391,20 @@
                             return;
                         }
                     } else {
-                        // Sincronización Diferida Maestra (El Cliente acata la configuración pública forzada por el admin)
                         if (!profileData && publicProfileRef.exists()) profileData = publicProfileRef.data();
                         
                         if (publicProfileRef.exists() && profileData) {
                             const pubData = publicProfileRef.data();
                             let needsSync = false;
-                            
                             if (pubData.role !== profileData.role) { profileData.role = pubData.role; needsSync = true; }
                             if (pubData.isBanned !== profileData.isBanned) { profileData.isBanned = pubData.isBanned; needsSync = true; }
                             if (pubData.isApproved !== profileData.isApproved) { profileData.isApproved = pubData.isApproved; needsSync = true; }
                             
                             if (needsSync) {
-                                try {
-                                    await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), profileData, { merge: true });
-                                } catch(e) { console.warn("Auto-sync del usuario retrasado."); }
+                                try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), profileData, { merge: true }); } catch(e) {}
                             }
                         }
                         
-                        // Validaciones finales
                         const profile = profileData;
 
                         if (profile.isBanned === true && !isAdminEmail) {
@@ -1362,16 +1429,13 @@
                         document.getElementById('app-interface').style.display = 'flex';
                         document.getElementById('user-name-display').innerText = profile.name.toUpperCase();
                         
-                        if (!sessionStorage.getItem('syncWarningShown')) {
+                        if (!sessionStorage.getItem('syncWarningShown') && profile.role !== 'admin' && profile.role !== 'supervisor') {
                             window.showSyncWarning();
                             sessionStorage.setItem('syncWarningShown', 'true');
                         }
                         
-                        if (profile.photo) {
-                            document.getElementById('avatar-placeholder').innerHTML = `<img src="${profile.photo}" class="w-full h-full object-cover">`;
-                        } else {
-                            document.getElementById('avatar-placeholder').innerText = profile.name.charAt(0).toUpperCase();
-                        }
+                        if (profile.photo) { document.getElementById('avatar-placeholder').innerHTML = `<img src="${profile.photo}" class="w-full h-full object-cover">`; } 
+                        else { document.getElementById('avatar-placeholder').innerText = profile.name.charAt(0).toUpperCase(); }
 
                         if (profile.role === 'admin') {
                             document.getElementById('admin-toggle-btn').classList.remove('hidden');
@@ -1398,9 +1462,15 @@
                                 document.getElementById('driver-pending-approval').classList.remove('hidden');
                                 document.getElementById('driver-active-view').classList.add('hidden');
                             } else {
-                                document.getElementById('driver-pending-approval').classList.add('hidden');
-                                document.getElementById('driver-active-view').classList.remove('hidden');
-                                startDriverListener();
+                                // --- LÓGICA DE SELFIE ---
+                                if (!sessionStorage.getItem('selfieTaken')) {
+                                    document.getElementById('driver-active-view').classList.add('hidden');
+                                    window.openSelfieModal();
+                                } else {
+                                    document.getElementById('driver-pending-approval').classList.add('hidden');
+                                    document.getElementById('driver-active-view').classList.remove('hidden');
+                                    startDriverListener();
+                                }
                             }
                         } else {
                             document.getElementById('client-view').classList.remove('hidden');
@@ -1409,18 +1479,66 @@
                         }
                         listenToMyActiveTrip();
 
-                        setTimeout(() => { window.showToast("Toca la pantalla para sintonizar el audio y recibir alertas VIP 🔊", "info"); }, 1200);
+                        setTimeout(() => { window.showToast("Toca la pantalla para sintonizar el audio VIP 🔊", "info"); }, 1200);
 
-                        if (Notification.permission === "granted") {
-                            registerDeviceForPushNotifications();
-                        }
+                        if (Notification.permission === "granted") registerDeviceForPushNotifications();
                     }
                 } catch(e) {
-                    console.error("Error cargando perfil:", e);
                     window.showToast("Error de conexión al cargar perfil.", "error");
                 }
             }
         });
+
+        // --- SISTEMA DE RASTREO PARA FAMILIARES / INVITADOS ---
+        function startGuestTracking(tripId) {
+            onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId), (snap) => {
+                if(snap.exists()) {
+                    const data = snap.data();
+                    
+                    if (!document.getElementById('guest-hud')) {
+                        const hud = document.createElement('div');
+                        hud.id = 'guest-hud';
+                        hud.className = "fixed bottom-0 left-0 w-full bg-slate-900 border-t-[3px] border-soza-gold px-6 py-8 rounded-t-[2.5rem] z-[6000] text-white shadow-[0_-10px_40px_rgba(0,0,0,0.8)]";
+                        document.body.appendChild(hud);
+                    }
+                    
+                    document.getElementById('guest-hud').innerHTML = `
+                        <div class="flex items-center gap-4 mb-5">
+                            ${data.driverPhoto ? `<img src="${data.driverPhoto}" class="w-16 h-16 rounded-full border-2 border-soza-gold object-cover shadow-lg">` : `<div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center border-2 border-soza-gold text-2xl font-black">${(data.driverName||'C').charAt(0)}</div>`}
+                            <div>
+                                <h3 class="text-md font-black text-soza-gold uppercase tracking-widest">${data.driverName || 'Buscando Chofer...'}</h3>
+                                <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mt-1"><i class="fas fa-user-shield text-indigo-400"></i> Llevando a ${data.clientName}</p>
+                            </div>
+                        </div>
+                        <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-inner">
+                            <p class="text-xs text-slate-400 mb-2 truncate font-medium"><b>HACIA:</b> ${data.destination}</p>
+                            <div class="flex justify-between items-center mt-3 pt-3 border-t border-slate-800">
+                                <span class="text-xs font-black text-white uppercase tracking-widest">Estado VIP:</span>
+                                <span class="text-[10px] bg-soza-gold text-soza-dark px-3 py-1 rounded-full font-black uppercase tracking-widest shadow-md">${data.status === 'in_progress' ? 'EN RUTA' : data.status}</span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Si hay un SOS, el HUD familiar cambia a ROJO
+                    if(data.sosActive) {
+                        document.getElementById('guest-hud').className = "fixed bottom-0 left-0 w-full bg-red-950 border-t-[3px] border-red-500 px-6 py-8 rounded-t-[2.5rem] z-[6000] text-white shadow-[0_-10px_40px_rgba(255,0,0,0.8)] animate-pulse";
+                    }
+
+                    if (data.driverId) {
+                        onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', data.driverId), (dSnap) => {
+                            if(dSnap.exists() && window.mapLoaded) {
+                                const loc = dSnap.data();
+                                window.updateDriverMarker(data.driverId, loc.lat, loc.lng, false);
+                                window.gMap.panTo(loc);
+                                if(window.gMap.getZoom() < 16) window.gMap.setZoom(16);
+                            }
+                        });
+                    }
+                } else {
+                    window.showToast("El viaje ha finalizado o no existe.", "error");
+                }
+            });
+        }
 
         // --- GPS NAVEGACIÓN PROFESIONAL ---
         window.updateNavigation = (dest) => {
@@ -1526,21 +1644,15 @@
                     destination: destinationCoordsOrText,
                     travelMode: google.maps.TravelMode.DRIVING
                 }, (res, status) => {
-                    if (status === "OK") {
-                        window.directionsRenderer.setDirections(res);
-                    }
+                    if (status === "OK") window.directionsRenderer.setDirections(res);
                 });
-            } catch (err) {
-                console.error("Error al trazar ruta desde coordenadas:", err);
-            }
+            } catch (err) {}
         };
 
         window.updateRealtimeETA = (driverLoc, clientOrigin) => {
             try {
                 new google.maps.DistanceMatrixService().getDistanceMatrix({
-                    origins: [driverLoc],
-                    destinations: [clientOrigin],
-                    travelMode: google.maps.TravelMode.DRIVING
+                    origins: [driverLoc], destinations: [clientOrigin], travelMode: google.maps.TravelMode.DRIVING
                 }, (res, status) => {
                     if (status === "OK" && res.rows[0].elements[0].status === "OK") {
                         const element = res.rows[0].elements[0];
@@ -1548,9 +1660,7 @@
                         document.getElementById('eta-distance').innerText = "A " + element.distance.text + " de distancia";
                     }
                 });
-            } catch (err) {
-                console.error("Error al calcular ETA en tiempo real:", err);
-            }
+            } catch (err) {}
         };
 
         function listenToMyActiveTrip() {
@@ -1567,7 +1677,6 @@
                     activeTrip = { id: trip.id, ...data };
                     window.currentActiveTripData = data;
 
-                    // --- DETECTORES DE CAMBIOS DE ESTADO PARA NOTIFICAR AL PASAJERO ---
                     const lastStatus = window.lastTripStatus || null;
                     window.lastTripStatus = data.status;
 
@@ -1598,43 +1707,23 @@
                         
                         renderChat(data.chat);
 
-                        // --- MODO CONDUCTOR ---
                         if (window.userProfile.role === 'driver') {
                             document.getElementById('driver-pin-controls').classList.remove('hidden');
                             document.getElementById('client-pin-display').classList.add('hidden');
                             document.getElementById('driver-pickup-display').innerText = data.origin;
                             
                             if (!window.clientPickupMarker) {
-                                const clientPos = data.originCoords || data.origin;
                                 if (data.originCoords) {
                                     window.clientPickupMarker = new google.maps.Marker({
-                                        position: data.originCoords,
-                                        map: window.gMap,
-                                        title: "Pasajero VIP",
-                                        icon: {
-                                            path: google.maps.SymbolPath.CIRCLE,
-                                            fillColor: "#10b981", 
-                                            fillOpacity: 1,
-                                            strokeWeight: 3,
-                                            strokeColor: "#ffffff",
-                                            scale: 10
-                                        }
+                                        position: data.originCoords, map: window.gMap, title: "Pasajero VIP",
+                                        icon: { path: google.maps.SymbolPath.CIRCLE, fillColor: "#10b981", fillOpacity: 1, strokeWeight: 3, strokeColor: "#ffffff", scale: 10 }
                                     });
                                 } else {
                                     window.geocoder.geocode({ address: data.origin }, (results, status) => {
                                         if (status === "OK" && results[0]) {
                                             window.clientPickupMarker = new google.maps.Marker({
-                                                position: results[0].geometry.location,
-                                                map: window.gMap,
-                                                title: "Pasajero VIP",
-                                                icon: {
-                                                    path: google.maps.SymbolPath.CIRCLE,
-                                                    fillColor: "#10b981",
-                                                    fillOpacity: 1,
-                                                    strokeWeight: 3,
-                                                    strokeColor: "#ffffff",
-                                                    scale: 10
-                                                }
+                                                position: results[0].geometry.location, map: window.gMap, title: "Pasajero VIP",
+                                                icon: { path: google.maps.SymbolPath.CIRCLE, fillColor: "#10b981", fillOpacity: 1, strokeWeight: 3, strokeColor: "#ffffff", scale: 10 }
                                             });
                                         }
                                     });
@@ -1658,64 +1747,46 @@
                                 window.updateNavigation(data.destination);
                             }
 
-                        // --- MODO PASAJERO ---
                         } else if (window.userProfile.role === 'client') {
-                            
                             if (data.status === 'accepted') {
                                 document.getElementById('client-pin-display').classList.remove('hidden');
                                 document.getElementById('client-pin-code').innerText = data.pin || "----";
                                 document.getElementById('eta-indicator').classList.remove('hidden');
                                 
                                 if (activeDriverDocListener) activeDriverDocListener();
-                                
                                 activeDriverDocListener = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', data.driverId), (driverSnap) => {
                                     try {
                                         if (driverSnap.exists()) {
                                             const driverLoc = driverSnap.data();
                                             window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
-                                            
                                             const clientDest = data.originCoords || data.origin;
                                             window.updateMapRouteFromCoords(driverLoc, clientDest);
-                                            
                                             const bounds = new google.maps.LatLngBounds();
                                             bounds.extend(new google.maps.LatLng(driverLoc.lat, driverLoc.lng));
-                                            if (data.originCoords) {
-                                                bounds.extend(new google.maps.LatLng(data.originCoords.lat, data.originCoords.lng));
-                                            }
+                                            if (data.originCoords) bounds.extend(new google.maps.LatLng(data.originCoords.lat, data.originCoords.lng));
                                             window.gMap.fitBounds(bounds);
-                                            
                                             window.updateRealtimeETA(driverLoc, clientDest);
                                         }
-                                    } catch (err) {
-                                        console.error("Error en tracker dinámico de pasajero:", err);
-                                    }
+                                    } catch (err) {}
                                 });
-
                             } else if (data.status === 'in_progress') {
                                 document.getElementById('client-pin-display').classList.add('hidden');
                                 document.getElementById('eta-indicator').classList.add('hidden');
                                 
                                 if (activeDriverDocListener) activeDriverDocListener();
-                                
                                 activeDriverDocListener = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', data.driverId), (driverSnap) => {
                                     try {
                                         if (driverSnap.exists()) {
                                             const driverLoc = driverSnap.data();
                                             window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false);
-                                            
                                             const finalDest = data.destCoords || data.destination;
                                             window.updateMapRouteFromCoords(driverLoc, finalDest);
-
                                             const bounds = new google.maps.LatLngBounds();
                                             bounds.extend(new google.maps.LatLng(driverLoc.lat, driverLoc.lng));
-                                            if (data.destCoords) {
-                                                bounds.extend(new google.maps.LatLng(data.destCoords.lat, data.destCoords.lng));
-                                            }
+                                            if (data.destCoords) bounds.extend(new google.maps.LatLng(data.destCoords.lat, data.destCoords.lng));
                                             window.gMap.fitBounds(bounds);
                                         }
-                                    } catch (err) {
-                                        console.error("Error en ruta final del viaje:", err);
-                                    }
+                                    } catch (err) {}
                                 });
                             }
                         }
@@ -1724,11 +1795,8 @@
                         window.showToast("Servicio VIP Cancelado por el conductor.", "error");
                         window.sendBrowserNotification("Servicio Cancelado ❌", "Tu viaje VIP de Comayagua Express fue cancelado.");
                         
-                        const savedOrigin = data.origin;
-                        const savedDestination = data.destination;
-                        const savedPrice = data.price;
-                        const savedOriginCoords = data.originCoords || null;
-                        const savedDestCoords = data.destCoords || null;
+                        const savedOrigin = data.origin; const savedDestination = data.destination; const savedPrice = data.price;
+                        const savedOriginCoords = data.originCoords || null; const savedDestCoords = data.destCoords || null;
 
                         deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id)).then(async () => {
                             if (window.userProfile.role === 'client' && wasDriverCancellation) {
@@ -1737,25 +1805,15 @@
                                     const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
                                     const q = query(tripsRef, where('clientId', '==', currentUser.uid));
                                     const querySnapshot = await getDocs(q);
-                                    const hasActive = querySnapshot.docs.some(d => {
-                                        const status = d.data().status;
-                                        return ['pending', 'accepted', 'in_progress'].includes(status);
-                                    });
+                                    const hasActive = querySnapshot.docs.some(d => { return ['pending', 'accepted', 'in_progress'].includes(d.data().status); });
 
                                     if (!hasActive) {
                                         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
-                                            clientId: currentUser.uid, 
-                                            clientName: window.userProfile.name,
-                                            clientPhoto: window.userProfile.photo || null,
-                                            clientPhone: window.userProfile.phone,
-                                            origin: savedOrigin, 
-                                            destination: savedDestination,
-                                            originCoords: savedOriginCoords,
-                                            destCoords: savedDestCoords,
-                                            price: savedPrice, 
-                                            status: 'pending', 
-                                            chat: [], 
-                                            createdAt: serverTimestamp()
+                                            clientId: currentUser.uid, clientName: window.userProfile.name,
+                                            clientPhoto: window.userProfile.photo || null, clientPhone: window.userProfile.phone,
+                                            origin: savedOrigin, destination: savedDestination,
+                                            originCoords: savedOriginCoords, destCoords: savedDestCoords,
+                                            price: savedPrice, status: 'pending', chat: [], createdAt: serverTimestamp()
                                         });
                                     }
 
@@ -1764,13 +1822,8 @@
                                     document.getElementById('searching-state').classList.remove('hidden');
                                     document.getElementById('fare-card').classList.add('hidden');
                                     document.getElementById('eta-indicator').classList.add('hidden');
-                                } catch (err) {
-                                    console.error("Error al reiniciar búsqueda de viaje:", err);
-                                    location.reload();
-                                }
-                            } else { 
-                                location.reload(); 
-                            }
+                                } catch (err) { location.reload(); }
+                            } else { location.reload(); }
                         });
                         activeTrip = null;
                     } else if (data.status === 'completed' && !data[`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]) {
@@ -1786,23 +1839,12 @@
                     window.releaseWakeLock();
                     
                     if (navigationInterval) clearInterval(navigationInterval);
-                    if (activeDriverDocListener) {
-                        activeDriverDocListener();
-                        activeDriverDocListener = null;
-                    }
-                    if (window.clientPickupMarker) {
-                        window.clientPickupMarker.setMap(null);
-                        window.clientPickupMarker = null;
-                    }
-                    if (window.gMap) { 
-                        window.gMap.setMapTypeId('roadmap'); window.gMap.setTilt(0); 
-                        window.directionsRenderer.setDirections({routes: []});
-                    }
-                    if (window.userProfile?.role === 'driver') {
-                        document.getElementById('driver-view').classList.remove('hidden');
-                    } else if (window.userProfile?.role === 'client') {
-                        document.getElementById('client-view').classList.remove('hidden');
-                    }
+                    if (activeDriverDocListener) { activeDriverDocListener(); activeDriverDocListener = null; }
+                    if (window.clientPickupMarker) { window.clientPickupMarker.setMap(null); window.clientPickupMarker = null; }
+                    if (window.gMap) { window.gMap.setMapTypeId('roadmap'); window.gMap.setTilt(0); window.directionsRenderer.setDirections({routes: []}); }
+                    
+                    if (window.userProfile?.role === 'driver') document.getElementById('driver-view').classList.remove('hidden');
+                    else if (window.userProfile?.role === 'client') document.getElementById('client-view').classList.remove('hidden');
                 }
             });
         }
@@ -1821,9 +1863,7 @@
             try {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'completed' });
                 window.showToast("¡Viaje finalizado con éxito!", "success");
-            } catch(e) {
-                window.showToast("Error al finalizar viaje.", "error");
-            }
+            } catch(e) { window.showToast("Error al finalizar viaje.", "error"); }
         };
 
         window.useCurrentLocation = () => {
@@ -1837,16 +1877,10 @@
                             document.getElementById('origin-input').value = results[0].formatted_address;
                             window.dispatchEvent(new CustomEvent('map-route-trigger'));
                             window.showToast("Origen autocompletado.", "success");
-                        } else {
-                            window.showToast("No se pudo obtener la dirección.", "error");
-                        }
+                        } else { window.showToast("No se pudo obtener la dirección.", "error"); }
                     });
-                }, () => {
-                    window.showToast("Permiso de localización denegado.", "error");
-                });
-            } else {
-                window.showToast("Tu navegador no soporta geolocalización.", "error");
-            }
+                }, () => { window.showToast("Permiso de localización denegado.", "error"); });
+            } else { window.showToast("Tu navegador no soporta geolocalización.", "error"); }
         };
 
         window.sendTripRequest = async () => {
@@ -1866,10 +1900,7 @@
                 const q = query(tripsRef, where('clientId', '==', currentUser.uid));
                 const querySnapshot = await getDocs(q);
                 
-                const hasActive = querySnapshot.docs.some(d => {
-                    const status = d.data().status;
-                    return ['pending', 'accepted', 'in_progress'].includes(status);
-                });
+                const hasActive = querySnapshot.docs.some(d => { return ['pending', 'accepted', 'in_progress'].includes(d.data().status); });
 
                 if (hasActive) {
                     window.showToast("Ya tienes una solicitud de viaje registrada para tu cuenta.", "error");
@@ -1879,18 +1910,14 @@
                 
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
                     clientId: currentUser.uid, clientName: window.userProfile.name,
-                    clientPhoto: window.userProfile.photo || null,
-                    clientPhone: window.userProfile.phone,
-                    origin, destination: dest,
-                    originCoords: window.currentClientCoords || null,
-                    destCoords: window.currentDestCoords || null,
+                    clientPhoto: window.userProfile.photo || null, clientPhone: window.userProfile.phone,
+                    origin, destination: dest, originCoords: window.currentClientCoords || null, destCoords: window.currentDestCoords || null,
                     price: document.getElementById('price-display').innerText, status: 'pending', chat: [], createdAt: serverTimestamp()
                 });
                 
                 document.getElementById('searching-state').classList.remove('hidden');
                 document.getElementById('fare-card').classList.add('hidden');
             } catch (err) {
-                console.error("Error al registrar solicitud de viaje:", err);
                 window.showToast("Hubo un error de red. Inténtalo de nuevo.", "error");
                 const requestBtn = document.querySelector("#fare-card button");
                 if (requestBtn) requestBtn.disabled = false;
@@ -1901,13 +1928,7 @@
             const text = document.getElementById('chat-input').value.trim();
             if (!text || !activeTrip) return;
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), {
-                chat: arrayUnion({ 
-                    sender: currentUser.uid, 
-                    senderName: window.userProfile.name, 
-                    senderPhoto: window.userProfile.photo || null,
-                    text, 
-                    time: Date.now() 
-                })
+                chat: arrayUnion({ sender: currentUser.uid, senderName: window.userProfile.name, senderPhoto: window.userProfile.photo || null, text, time: Date.now() })
             });
             document.getElementById('chat-input').value = "";
         };
@@ -1965,15 +1986,9 @@
                 async () => {
                     if(activeTrip) {
                         const cancellationData = {
-                            tripId: activeTrip.id,
-                            origin: activeTrip.origin,
-                            destination: activeTrip.destination,
-                            price: activeTrip.price,
-                            clientId: activeTrip.clientId,
-                            clientName: activeTrip.clientName,
-                            clientPhone: activeTrip.clientPhone,
-                            driverId: activeTrip.driverId || null,
-                            driverName: activeTrip.driverName || "Ninguno",
+                            tripId: activeTrip.id, origin: activeTrip.origin, destination: activeTrip.destination, price: activeTrip.price,
+                            clientId: activeTrip.clientId, clientName: activeTrip.clientName, clientPhone: activeTrip.clientPhone,
+                            driverId: activeTrip.driverId || null, driverName: activeTrip.driverName || "Ninguno",
                             cancelledBy: window.userProfile.role === 'admin' ? 'Administrador Supremo' : window.userProfile.name,
                             cancelledAt: Date.now()
                         };
@@ -1999,16 +2014,10 @@
                     document.getElementById('price-display').innerText = `L. ${(40 + km * 18).toFixed(2)}`;
 
                     if (!window.currentClientCoords) {
-                        window.currentClientCoords = {
-                            lat: res.routes[0].legs[0].start_location.lat(),
-                            lng: res.routes[0].legs[0].start_location.lng()
-                        };
+                        window.currentClientCoords = { lat: res.routes[0].legs[0].start_location.lat(), lng: res.routes[0].legs[0].start_location.lng() };
                     }
                     if (!window.currentDestCoords) {
-                        window.currentDestCoords = {
-                            lat: res.routes[0].legs[0].end_location.lat(),
-                            lng: res.routes[0].legs[0].end_location.lng()
-                        };
+                        window.currentDestCoords = { lat: res.routes[0].legs[0].end_location.lat(), lng: res.routes[0].legs[0].end_location.lng() };
                     }
                 }
             });
@@ -2018,9 +2027,7 @@
             window.autoCenter = true;
             document.getElementById('fab-center').classList.add('hidden');
             if(window.currentDriverPos) {
-                window.gMap.panTo(window.currentDriverPos);
-                window.gMap.setZoom(18);
-                window.gMap.setTilt(45);
+                window.gMap.panTo(window.currentDriverPos); window.gMap.setZoom(18); window.gMap.setTilt(45);
             }
         };
 
@@ -2046,9 +2053,7 @@
             });
         }
 
-        function showRatingScreen() {
-            document.getElementById('rating-screen').style.display = 'flex';
-        }
+        function showRatingScreen() { document.getElementById('rating-screen').style.display = 'flex'; }
 
         window.setRating = (stars) => {
             selectedStars = stars;
@@ -2059,7 +2064,6 @@
             if (selectedStars === 0) return window.showToast("Califica con estrellas.", "error");
             const targetUserId = window.userProfile.role === 'client' ? activeTrip.driverId : activeTrip.clientId;
             
-            // Sincronización Diferida con el public profile para los ratings
             try {
                 const pubRef = doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetUserId);
                 const pubSnap = await getDoc(pubRef);
@@ -2067,7 +2071,7 @@
                     const pubData = pubSnap.data();
                     await updateDoc(pubRef, { ratingSum: (pubData.ratingSum || 0) + selectedStars, ratingCount: (pubData.ratingCount || 0) + 1, totalTrips: (pubData.totalTrips || 0) + 1 });
                 }
-            } catch(e) { console.warn("Fallo rating público", e); }
+            } catch(e) {}
             
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { [`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]: true });
             location.reload();
@@ -2082,9 +2086,7 @@
             const driverSec = document.getElementById('driver-view');
 
             if (adminSec.classList.contains('hidden')) {
-                adminSec.classList.remove('hidden');
-                clientSec.classList.add('hidden');
-                driverSec.classList.add('hidden');
+                adminSec.classList.remove('hidden'); clientSec.classList.add('hidden'); driverSec.classList.add('hidden');
             } else {
                 adminSec.classList.add('hidden');
                 if (window.userProfile.role === 'driver') driverSec.classList.remove('hidden');
@@ -2096,11 +2098,9 @@
             const supSec = document.getElementById('supervisor-view');
             const clientSec = document.getElementById('client-view');
             if (supSec.classList.contains('hidden')) {
-                supSec.classList.remove('hidden');
-                clientSec.classList.add('hidden');
+                supSec.classList.remove('hidden'); clientSec.classList.add('hidden');
             } else {
-                supSec.classList.add('hidden');
-                clientSec.classList.remove('hidden');
+                supSec.classList.add('hidden'); clientSec.classList.remove('hidden');
             }
         };
 
@@ -2116,9 +2116,7 @@
         function startAdminListeners() {
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snap) => {
                 cachedProfilesList = [];
-                snap.forEach(d => {
-                    cachedProfilesList.push(d.data());
-                });
+                snap.forEach(d => { cachedProfilesList.push(d.data()); });
                 renderAdminUsers();
                 document.getElementById('stat-total-users').innerText = cachedProfilesList.length;
             });
@@ -2131,6 +2129,15 @@
                 const activeTripsList = snap.docs.filter(d => ['pending', 'accepted', 'in_progress'].includes(d.data().status));
                 document.getElementById('stat-active-trips').innerText = activeTripsList.length;
                 renderAdminTrips(activeTripsList);
+                
+                // --- ALARMA SOS PARA ADMINISTRADOR ---
+                const hasSOS = activeTripsList.some(d => d.data().sosActive === true);
+                if (hasSOS) {
+                    document.getElementById('sos-alarm-overlay').classList.remove('hidden');
+                    window.playNotificationSound();
+                } else {
+                    document.getElementById('sos-alarm-overlay').classList.add('hidden');
+                }
             });
 
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips'), (snap) => {
@@ -2155,15 +2162,10 @@
             listContainer.innerHTML = '';
             
             let filteredList = cachedProfilesList;
-            if (activeUserFilter === 'client') {
-                filteredList = cachedProfilesList.filter(u => u.role === 'client');
-            } else if (activeUserFilter === 'driver') {
-                filteredList = cachedProfilesList.filter(u => u.role === 'driver');
-            } else if (activeUserFilter === 'pending_driver') {
-                filteredList = cachedProfilesList.filter(u => u.role === 'driver' && u.isApproved === false);
-            } else if (activeUserFilter === 'supervisor') {
-                filteredList = cachedProfilesList.filter(u => u.role === 'supervisor');
-            }
+            if (activeUserFilter === 'client') filteredList = cachedProfilesList.filter(u => u.role === 'client');
+            else if (activeUserFilter === 'driver') filteredList = cachedProfilesList.filter(u => u.role === 'driver');
+            else if (activeUserFilter === 'pending_driver') filteredList = cachedProfilesList.filter(u => u.role === 'driver' && u.isApproved === false);
+            else if (activeUserFilter === 'supervisor') filteredList = cachedProfilesList.filter(u => u.role === 'supervisor');
 
             filteredList.forEach(u => {
                 if (u.uid === currentUser.uid) return; 
@@ -2226,12 +2228,13 @@
 
                         ${isDriver ? `
                             <button onclick="window.trackDriver('${u.uid}')" class="px-3 py-1.5 bg-slate-800 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border border-slate-700"><i class="fas fa-location-crosshairs"></i> Rastrear</button>
-                            
                             ${u.isApproved !== false ? `
                                 <button onclick="window.setDriverApproval('${u.uid}', false)" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-soza-dark rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-pause-circle"></i> Revocar</button>
                             ` : `
                                 <button onclick="window.setDriverApproval('${u.uid}', true)" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider shadow-sm transition-all"><i class="fas fa-check-double"></i> Aprobar</button>
                             `}
+                            <!-- Botón para ver Selfie -->
+                            <button onclick="window.openDocModal('Última Verificación Facial', '${u.currentSelfie}')" class="${!u.currentSelfie ? 'hidden' : 'hover:bg-slate-700'} w-full mt-2 py-2.5 bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-colors border border-soza-gold/30"><i class="fas fa-camera text-soza-gold text-sm block mb-1"></i> Ver Selfie de Seguridad</button>
                         ` : ''}
                     </div>
                 `;
@@ -2243,37 +2246,19 @@
             const queryClean = val.toLowerCase().trim();
             const listContainer = document.getElementById('admin-users-list');
             const cards = listContainer.children;
-
             for (let i = 0; i < cards.length; i++) {
-                const cardText = cards[i].innerText.toLowerCase();
-                if (cardText.includes(queryClean)) {
-                    cards[i].classList.remove('hidden');
-                } else {
-                    cards[i].classList.add('hidden');
-                }
+                if (cards[i].innerText.toLowerCase().includes(queryClean)) cards[i].classList.remove('hidden');
+                else cards[i].classList.add('hidden');
             }
         };
 
-        // --- SISTEMA DE GESTIÓN PROTEGIDO CONTRA FALLOS DE REGLAS ---
         window.setAdminVeto = async (uid, shouldBan) => {
-            const title = shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?";
-            const desc = shouldBan ? "El usuario perderá el acceso a la plataforma de inmediato y sus viajes activos serán forzados a cancelación." : "Se restablecerá el acceso de usuario de forma inmediata.";
-            
-            window.showConfirm(title, desc, async () => {
+            window.showConfirm(shouldBan ? "¿Vetar Socio VIP?" : "¿Restablecer Acceso?", shouldBan ? "El usuario perderá el acceso a la plataforma de inmediato y sus viajes activos serán forzados a cancelación." : "Se restablecerá el acceso de usuario de forma inmediata.", async () => {
                 try {
-                    // Update público (permitido por las reglas sin fallos)
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isBanned: shouldBan });
-                    
-                    // Update privado (Si lo bloquea, se ignora, el cliente lo auto-sincronizará al cargar)
-                    try {
-                        await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isBanned: shouldBan });
-                    } catch(err) { console.warn("Sincronización diferida de seguridad activada."); }
-                    
+                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isBanned: shouldBan }); } catch(err) {}
                     window.showToast(shouldBan ? "Usuario vetado exitosamente." : "Socio desvetado con éxito.", "success");
-                } catch(e) {
-                    console.error("Error al procesar baneo:", e);
-                    window.showToast("Error de conexión al procesar baneo.", "error");
-                }
+                } catch(e) { window.showToast("Error de conexión al procesar baneo.", "error"); }
             });
         };
 
@@ -2281,34 +2266,19 @@
             window.showConfirm("¿Modificar Privilegios?", `¿Estás seguro de asignar el rol de ${newRole.toUpperCase()} a este usuario?`, async () => {
                 try {
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { role: newRole });
-                    try {
-                        await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { role: newRole });
-                    } catch(err) { console.warn("Sincronización diferida de seguridad activada."); }
-                    
+                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { role: newRole }); } catch(err) {}
                     window.showToast("Privilegios actualizados correctamente.", "success");
-                } catch(e) {
-                    console.error("Error asignando rol:", e);
-                    window.showToast("Error al asignar rol.", "error");
-                }
+                } catch(e) { window.showToast("Error al asignar rol.", "error"); }
             });
         };
 
         window.setDriverApproval = async (uid, shouldApprove) => {
-            const title = shouldApprove ? "¿Aprobar Conductor VIP?" : "¿Revocar Licencia?";
-            const desc = shouldApprove ? "El conductor podrá recibir solicitudes de viaje y aparecerá en el mapa de pasajeros." : "El conductor quedará inactivo de inmediato y no podrá ver las solicitudes.";
-            
-            window.showConfirm(title, desc, async () => {
+            window.showConfirm(shouldApprove ? "¿Aprobar Conductor VIP?" : "¿Revocar Licencia?", shouldApprove ? "El conductor podrá recibir solicitudes de viaje y aparecerá en el mapa de pasajeros." : "El conductor quedará inactivo de inmediato y no podrá ver las solicitudes.", async () => {
                 try {
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isApproved: shouldApprove });
-                    try {
-                        await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isApproved: shouldApprove });
-                    } catch(err) { console.warn("Sincronización diferida de seguridad activada."); }
-                    
+                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isApproved: shouldApprove }); } catch(err) {}
                     window.showToast(shouldApprove ? "Conductor aprobado con éxito." : "Licencia revocada del conductor.", "success");
-                } catch(e) {
-                    console.error("Error al actualizar aprobación:", e);
-                    window.showToast("Error al actualizar aprobación.", "error");
-                }
+                } catch(e) { window.showToast("Error al actualizar aprobación.", "error"); }
             });
         };
 
@@ -2316,18 +2286,10 @@
             try {
                 const dLoc = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid));
                 if (dLoc.exists()) {
-                    const pos = dLoc.data();
-                    window.gMap.panTo(pos);
-                    window.gMap.setZoom(18);
-                    window.gMap.setTilt(45);
+                    window.gMap.panTo(dLoc.data()); window.gMap.setZoom(18); window.gMap.setTilt(45);
                     window.showToast("Rastreando posición del conductor.", "success");
-                } else {
-                    window.showToast("El conductor no está emitiendo señal GPS.", "error");
-                }
-            } catch(e) {
-                console.error("Error rastreando conductor:", e);
-                window.showToast("Error de conexión al rastrear.", "error");
-            }
+                } else { window.showToast("El conductor no está emitiendo señal GPS.", "error"); }
+            } catch(e) { window.showToast("Error de conexión al rastrear.", "error"); }
         };
 
         function renderAdminTrips(trips) {
@@ -2346,7 +2308,7 @@
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
                         <div>
-                            <span class="text-[8px] font-black bg-soza-gold text-soza-dark px-2 py-0.5 rounded-full uppercase tracking-wider">${t.status}</span>
+                            <span class="text-[8px] font-black ${t.sosActive ? 'bg-red-600 text-white animate-pulse' : 'bg-soza-gold text-soza-dark'} px-2 py-0.5 rounded-full uppercase tracking-wider">${t.sosActive ? 'SOS ACTIVO' : t.status}</span>
                             <h5 class="text-[10px] font-black text-white mt-1 uppercase">Cliente: ${t.clientName}</h5>
                         </div>
                         <span class="font-black text-sm text-soza-gold">${t.price}</span>
@@ -2354,6 +2316,7 @@
                     <p class="text-[9px] text-slate-300 line-clamp-1"><b>R:</b> ${t.origin}</p>
                     <p class="text-[9px] text-slate-300 line-clamp-1"><b>D:</b> ${t.destination}</p>
                     
+                    ${t.driverId ? `<button onclick="window.trackDriver('${t.driverId}')" class="w-full mt-2 py-2 bg-slate-800 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-transform active:scale-95 border border-slate-700 shadow-md">Rastrear Chofer</button>` : ''}
                     <button onclick="window.forceAdminCancel('${d.id}')" class="w-full mt-2 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[9px] font-black uppercase tracking-widest rounded-xl transition-transform active:scale-95 shadow-md">Cancelar Viaje Administrativamente</button>
                 `;
                 container.appendChild(card);
@@ -2361,53 +2324,37 @@
         }
 
         window.forceAdminCancel = async (id) => {
-            window.showConfirm(
-                "¿Fuerza de Cancelación?", 
-                "Esta acción detendrá el viaje administrativamente. Ambos usuarios serán notificados.", 
-                async () => {
-                    try {
-                        const tSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
-                        if (tSnap.exists()) {
-                            const activeTripData = tSnap.data();
-                            const cancellationData = {
-                                tripId: id,
-                                origin: activeTripData.origin,
-                                destination: activeTripData.destination,
-                                price: activeTripData.price,
-                                clientId: activeTripData.clientId,
-                                clientName: activeTripData.clientName,
-                                clientPhone: activeTripData.clientPhone,
-                                driverId: activeTripData.driverId || null,
-                                driverName: activeTripData.driverName || "Ninguno",
-                                cancelledBy: "Administrador Supremo",
-                                cancelledAt: Date.now()
-                            };
-                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', id), cancellationData);
-                        }
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { status: 'cancelled', cancelledBy: 'admin' });
-                        window.showToast("Viaje cancelado por la autoridad.", "success");
-                    } catch(e) {
-                        window.showToast("Error al forzar la cancelación.", "error");
+            window.showConfirm("¿Fuerza de Cancelación?", "Esta acción detendrá el viaje administrativamente. Ambos usuarios serán notificados.", async () => {
+                try {
+                    const tSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
+                    if (tSnap.exists()) {
+                        const activeTripData = tSnap.data();
+                        const cancellationData = {
+                            tripId: id, origin: activeTripData.origin, destination: activeTripData.destination, price: activeTripData.price,
+                            clientId: activeTripData.clientId, clientName: activeTripData.clientName, clientPhone: activeTripData.clientPhone,
+                            driverId: activeTripData.driverId || null, driverName: activeTripData.driverName || "Ninguno",
+                            cancelledBy: "Administrador Supremo", cancelledAt: Date.now()
+                        };
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', id), cancellationData);
                     }
-                }
-            );
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), { status: 'cancelled', cancelledBy: 'admin' });
+                    window.showToast("Viaje cancelado por la autoridad.", "success");
+                } catch(e) { window.showToast("Error al forzar la cancelación.", "error"); }
+            });
         };
 
         function renderAdminCancelledTrips(cancelledDocs) {
             const container = document.getElementById('admin-cancelled-list');
             container.innerHTML = '';
-            
             if (cancelledDocs.length === 0) {
                 container.innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-trash-alt text-4xl mb-4 text-slate-500"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center">Registro de cancelaciones vacío</p></div>';
                 return;
             }
 
             const sorted = cancelledDocs.sort((a,b) => b.data().cancelledAt - a.data().cancelledAt);
-
             sorted.forEach(d => {
                 const t = d.data();
                 const cancelDate = new Date(t.cancelledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + " - " + new Date(t.cancelledAt).toLocaleDateString();
-                
                 const card = document.createElement('div');
                 card.className = "p-4 bg-slate-900 border border-slate-800 rounded-2xl flex flex-col gap-1 text-[10px] relative shadow-sm text-white";
                 card.innerHTML = `
@@ -2426,27 +2373,18 @@
         }
 
         window.clearCancelledLogs = async () => {
-            window.showConfirm(
-                "¿Vaciar Historial?", 
-                "Se eliminarán todos los registros históricos de cancelaciones permanentemente.", 
-                async () => {
-                    try {
-                        window.showToast("Iniciando vaciado del historial...", "info");
-                        const q = collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips');
-                        const querySnapshot = await getDocs(q);
-                        querySnapshot.forEach(async (d) => {
-                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', d.id));
-                        });
-                        window.showToast("Historial vaciado correctamente.", "success");
-                    } catch(e) {
-                        window.showToast("Error al borrar registros.", "error");
-                    }
-                }
-            );
+            window.showConfirm("¿Vaciar Historial?", "Se eliminarán todos los registros históricos de cancelaciones permanentemente.", async () => {
+                try {
+                    window.showToast("Iniciando vaciado del historial...", "info");
+                    const q = collection(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips');
+                    const querySnapshot = await getDocs(q);
+                    querySnapshot.forEach(async (d) => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', d.id)); });
+                    window.showToast("Historial vaciado correctamente.", "success");
+                } catch(e) { window.showToast("Error al borrar registros.", "error"); }
+            });
         };
 
         // --- FUNCIONALIDAD EXCLUSIVA DEL SUPERVISOR ---
-        
         window.setSupTab = (tab) => {
             currentSupTab = tab;
             document.querySelectorAll('.sup-tab-btn').forEach(btn => btn.className = 'sup-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400');
@@ -2464,11 +2402,21 @@
         function startSupervisorListeners() {
             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snap) => {
                 const drivers = [];
-                snap.forEach(d => { 
-                    if(d.data().role === 'driver') drivers.push(d.data());
-                });
+                snap.forEach(d => { if(d.data().role === 'driver') drivers.push(d.data()); });
                 window.cachedSupDrivers = drivers;
                 renderSupervisorList();
+            });
+
+            // Supervisores también escuchan viajes para detectar botones SOS
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
+                const activeTripsList = snap.docs.filter(d => ['pending', 'accepted', 'in_progress'].includes(d.data().status));
+                const hasSOS = activeTripsList.some(d => d.data().sosActive === true);
+                if (hasSOS) {
+                    document.getElementById('sos-alarm-overlay').classList.remove('hidden');
+                    window.playNotificationSound();
+                } else {
+                    document.getElementById('sos-alarm-overlay').classList.add('hidden');
+                }
             });
         }
 
@@ -2510,6 +2458,10 @@
                         <button onclick="window.openDocModal('Identidad de ${u.name}', '${d.dniPhoto}')" class="${!hasDni ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} flex-1 py-2.5 bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-id-card text-indigo-400 text-sm block mb-1"></i> Ver DNI</button>
                         <button onclick="window.openDocModal('Licencia de ${u.name}', '${d.licensePhoto}')" class="${!hasLicense ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} flex-1 py-2.5 bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-car text-indigo-400 text-sm block mb-1"></i> Ver Licencia</button>
                     </div>
+
+                    ${u.currentSelfie ? `
+                        <button onclick="window.openDocModal('Última Verificación Facial', '${u.currentSelfie}')" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-colors hover:bg-slate-700 border border-soza-gold/30"><i class="fas fa-camera text-soza-gold text-sm block mb-1"></i> Ver Selfie de Seguridad</button>
+                    ` : ''}
                     
                     <div class="flex gap-2 mt-2 pt-4 border-t border-slate-800">
                         ${u.isApproved !== false ? `
@@ -2523,7 +2475,6 @@
             });
         }
 
-        // --- REGISTRO DE SERVICE WORKER LOCAL & CAPACIDAD DE EMPUJE EN SEGUNDO PLANO ---
         if ('serviceWorker' in navigator) {
             try {
                 const swCode = `
@@ -2532,49 +2483,20 @@
                     
                     self.addEventListener('push', (event) => {
                         let data = { title: 'SOZA VIP', body: 'Nuevo mensaje recibido en tu chat de transporte.' };
-                        try {
-                            if (event.data) {
-                                data = event.data.json();
-                            }
-                        } catch(e) {
-                            if (event.data) {
-                                data.body = event.data.text();
-                            }
-                        }
-                        
-                        const options = {
-                            body: data.body,
-                            icon: 'https://cdn-icons-png.flaticon.com/512/854/854878.png',
-                            badge: 'https://cdn-icons-png.flaticon.com/512/854/854878.png',
-                            vibrate: [300, 100, 300],
-                            data: { url: '/' }
-                        };
-                        
-                        event.waitUntil(
-                            self.registration.showNotification(data.title, options)
-                        );
+                        try { if (event.data) data = event.data.json(); } catch(e) { if (event.data) data.body = event.data.text(); }
+                        const options = { body: data.body, icon: 'https://cdn-icons-png.flaticon.com/512/854/854878.png', badge: 'https://cdn-icons-png.flaticon.com/512/854/854878.png', vibrate: [300, 100, 300], data: { url: '/' } };
+                        event.waitUntil(self.registration.showNotification(data.title, options));
                     });
-
                     self.addEventListener('notificationclick', (event) => {
                         event.notification.close();
-                        event.waitUntil(
-                            clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-                                if (clientList.length > 0) return clientList[0].focus();
-                                return clients.openWindow('/');
-                            })
-                        );
+                        event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+                            if (clientList.length > 0) return clientList[0].focus(); return clients.openWindow('/');
+                        }));
                     });
                 `;
                 const blob = new Blob([swCode], { type: 'application/javascript' });
-                const swUrl = URL.createObjectURL(blob);
-                navigator.serviceWorker.register(swUrl).then(reg => {
-                    console.log("Service Worker local registrado con éxito.");
-                }).catch((err) => {
-                    console.log("Service Worker por Blob restringido en entorno local, pero listo para HTTPS.", err);
-                });
-            } catch (err) {
-                console.log("Fallo al registrar worker local:", err);
-            }
+                navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+            } catch (err) {}
         }
     </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places&callback=initMap" loading="async"></script>
