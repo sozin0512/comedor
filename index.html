@@ -5,18 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SOZA — Soluciones de Transporte VIP</title>
     
-    <!-- Favicon de Carrito -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚘</text></svg>">
     
-    <!-- PWA Manifest Inline -->
     <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22SOZA%20VIP%22%2C%22short_name%22%3A%22SOZA%22%2C%22start_url%22%3A%22%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230b0f19%22%2C%22theme_color%22%3A%22%23d4af37%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%20100%20100'%3E%3Ctext%20y%3D'.9em'%20font-size%3D'90'%3E%F0%9F%9A%98%3C%2Ftext%3E%3C%2Fsvg%3E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
     
-    <!-- Frameworks Externos -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     
-    <!-- Configuración de Colores de Tailwind Personalizados para SOZA -->
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -295,7 +291,6 @@
             font-size: 16px !important; 
         } 
 
-        /* Favoritos Buttons */
         .fav-chip { 
             display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; 
             background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(212, 175, 55, 0.3); 
@@ -305,7 +300,6 @@
         .fav-chip:hover { background: rgba(212, 175, 55, 0.2); }
         body.light-mode .fav-chip { background: #f1f5f9; color: #0f172a; border-color: #cbd5e1; }
 
-        /* Payment Method Radio Button Styles */
         .payment-radio input:checked + div {
             background-color: #d4af37;
             color: #0b0f19;
@@ -339,7 +333,7 @@
             { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0b0f19" }] }
         ];
         
-        const lightMapStyle = []; // Default Maps Style
+        const lightMapStyle = [];
 
         window.requestInitialLocation = () => {
             if (navigator.geolocation) {
@@ -569,7 +563,6 @@
 </head>
 <body class="flex flex-col">
 
-    <!-- CONTENEDOR DE TOASTS -->
     <div id="toast-container"></div>
 
     <!-- ALERTA SOS OVERLAY GLOBAL -->
@@ -577,6 +570,23 @@
          <i class="fas fa-exclamation-triangle text-red-500 text-9xl drop-shadow-2xl"></i>
          <h1 class="text-white text-4xl font-black mt-4 drop-shadow-lg tracking-widest text-center">¡ALERTA SOS<br>ACTIVA!</h1>
          <p class="text-white font-bold mt-2 text-xl drop-shadow-md">Un usuario está en peligro</p>
+    </div>
+
+    <!-- MODAL PASAJERO: CONDUCTOR LLEGÓ -->
+    <div id="passenger-arrived-modal" class="hidden fixed inset-0 z-[55000] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md transition-opacity duration-300">
+        <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border-2 border-emerald-500 text-white transform transition-transform scale-100">
+            <div class="w-24 h-24 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 mx-auto mb-4 border border-emerald-500/50 animate-pulse">
+                <i class="fas fa-car-side text-5xl"></i>
+            </div>
+            <h3 class="text-2xl font-black uppercase tracking-tight text-emerald-400 mb-2">¡Conductor Afuera!</h3>
+            <p class="text-sm text-slate-300 font-medium mb-6">Por tu seguridad, dile este PIN al conductor para iniciar el viaje:</p>
+            <div class="bg-slate-900 border border-slate-700 py-6 rounded-2xl mb-8 shadow-inner">
+                <span id="modal-passenger-pin" class="text-6xl font-black text-white tracking-[0.2em] drop-shadow-lg">----</span>
+            </div>
+            <button onclick="document.getElementById('passenger-arrived-modal').classList.add('hidden'); window.speakVoice('Gracias por usar Soza VIP, que tengas un excelente viaje.');" class="w-full py-4 bg-emerald-600 hover:bg-emerald-500 transition-colors text-white font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg">
+                ENTENDIDO
+            </button>
+        </div>
     </div>
 
     <!-- MODAL DE BILLETERA / RECARGA (PASAJEROS) -->
@@ -626,7 +636,6 @@
         </div>
     </div>
 
-    <!-- MODAL DE REPORTE DIARIO (CONDUCTORES) -->
     <div id="daily-report-modal" class="hidden fixed inset-0 z-[35000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-soza-card p-6 rounded-[2rem] shadow-2xl w-full max-w-md border border-soza-gold/30 flex flex-col text-white max-h-[90vh]">
             <div class="flex justify-between items-center mb-4">
@@ -653,7 +662,6 @@
         </div>
     </div>
 
-    <!-- MODAL DE VERIFICACIÓN FACIAL (SELFIE) -->
     <div id="selfie-modal" class="hidden fixed inset-0 z-[40000] bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
         <div class="text-center mb-6">
             <h2 class="text-soza-gold font-black text-2xl uppercase tracking-widest drop-shadow-md">Verificación</h2>
@@ -673,19 +681,6 @@
         </div>
     </div>
 
-    <!-- MODAL ADVERTENCIA DE SINCRONIZACIÓN -->
-    <div id="sync-warning-modal" class="hidden fixed inset-0 z-[25000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
-        <div class="bg-soza-card p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-soza-gold/30 transform transition-transform duration-300 scale-95 text-white">
-            <div class="w-16 h-16 rounded-full bg-soza-gold/20 flex items-center justify-center text-soza-gold mx-auto mb-4 border border-soza-gold/30">
-                <i class="fas fa-exclamation-triangle text-3xl"></i>
-            </div>
-            <h3 class="text-lg font-black uppercase tracking-tight mb-2">Atención Importante</h3>
-            <p class="text-xs text-slate-300 font-medium leading-relaxed mb-6">Para asegurar la correcta sincronización de tus viajes, ubicación y chat en tiempo real, <strong class="text-soza-gold">no cierres ni minimices la aplicación</strong> mientras estés conectado y en un viaje activo.</p>
-            <button onclick="window.closeSyncWarning()" class="w-full py-4 bg-soza-gold hover:bg-soza-goldlight transition-colors text-soza-dark font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg">Entendido</button>
-        </div>
-    </div>
-
-    <!-- MODAL CONFIRMACIÓN VIP -->
     <div id="confirm-modal" class="hidden fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-soza-card p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-soza-gold/30 transform transition-transform duration-300 scale-95 text-white">
             <div class="w-16 h-16 rounded-full bg-rose-950/50 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-500/30">
@@ -700,7 +695,6 @@
         </div>
     </div>
 
-    <!-- MODAL CUSTOM PROMPT (INGRESAR MENSAJES/AVISOS) -->
     <div id="custom-prompt-modal" class="hidden fixed inset-0 z-[45000] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md transition-opacity duration-300">
         <div class="bg-soza-card p-6 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-soza-gold/40 text-white">
             <div class="w-16 h-16 rounded-full bg-soza-gold/20 flex items-center justify-center text-soza-gold mx-auto mb-4 border border-soza-gold/30">
@@ -716,7 +710,6 @@
         </div>
     </div>
 
-    <!-- MODAL DE VISUALIZACIÓN DE AVISO GLOBAL -->
     <div id="announcement-display-modal" class="hidden fixed inset-0 z-[50000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
         <div class="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-soza-gold/50 text-white relative overflow-hidden">
             <div class="absolute -top-10 -right-10 text-9xl text-soza-gold/10 rotate-[20deg] pointer-events-none">
@@ -745,7 +738,6 @@
         <button onclick="window.processLogout()" class="px-8 py-4 bg-white text-red-900 font-black rounded-2xl shadow-xl hover:bg-gray-100 transition-all uppercase tracking-widest text-xs">Cerrar Sesión</button>
     </div>
 
-    <!-- MODAL PARA VER DOCUMENTOS EN GRANDE -->
     <div id="doc-modal" class="hidden fixed inset-0 z-[30000] flex flex-col items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md transition-opacity duration-300">
         <div class="w-full max-w-2xl flex justify-between items-center mb-4">
             <div class="flex items-center gap-3">
@@ -757,7 +749,6 @@
         <img id="doc-modal-img" src="" class="w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-soza-gold/20">
     </div>
 
-    <!-- PANTALLA DE CALIFICACIÓN -->
     <div id="rating-screen" class="rating-screen fixed inset-0 flex items-center justify-center p-4">
         <div class="bg-soza-card p-8 rounded-[2rem] shadow-2xl w-full max-w-sm text-center border border-soza-gold/30">
             <h2 class="text-xl font-black mb-1 text-white">Viaje Finalizado</h2>
@@ -773,7 +764,6 @@
         </div>
     </div>
 
-    <!-- PANEL DE TIEMPO DE ESPERA VIP -->
     <div id="eta-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-slate-950/95 backdrop-blur-md px-6 py-3.5 rounded-[1.5rem] shadow-2xl border border-soza-gold/40 z-[6000] min-w-[240px] text-white">
         <div class="flex items-center gap-3">
             <div class="relative flex h-3 w-3">
@@ -788,7 +778,6 @@
         </div>
     </div>
 
-    <!-- HUD NAVEGACIÓN TOP/BOTTOM -->
     <div id="nav-hud-top" class="border border-soza-gold/20">
         <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
             <i class="fas fa-location-arrow text-2xl text-white" id="nav-step-icon"></i>
@@ -818,10 +807,8 @@
         <i class="fas fa-location-arrow"></i> CENTRAR
     </div>
 
-    <!-- PANTALLA LOGIN CON TABS DE INGRESO Y REGISTRO -->
     <div id="login-screen" class="login-screen flex items-center justify-center p-6">
         <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-md border border-soza-gold/20 text-white">
-            
             <div class="text-center mb-6">
                 <div class="flex justify-center mb-2">
                     <svg class="w-48 h-auto" viewBox="0 0 500 200" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -865,7 +852,6 @@
         </div>
     </div>
 
-    <!-- SETUP PERFIL -->
     <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
         <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-xl border border-soza-gold/30 text-white mt-10 mb-10 overflow-y-auto max-h-[90vh]">
             <h2 id="setup-title" class="text-xl font-black mb-6 text-center text-soza-gold">Finaliza tu Perfil</h2>
@@ -884,7 +870,6 @@
                 <input id="full-name" type="text" placeholder="Nombre completo" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
                 <input id="phone-number" type="tel" placeholder="Teléfono" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
                 
-                <!-- NUEVOS CAMPOS GENERALES -->
                 <div class="flex flex-col md:flex-row gap-3">
                     <input id="contact-email" type="email" placeholder="Correo de contacto" class="w-full md:w-1/2 px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
                     <div class="w-full md:w-1/2 relative">
@@ -893,7 +878,6 @@
                     </div>
                 </div>
 
-                <!-- CAMPOS EXCLUSIVOS CONDUCTOR Y REGISTRO VIP ESTRICTO -->
                 <div id="driver-fields" class="hidden space-y-3 pt-4 border-t border-slate-800">
                     <div class="bg-indigo-950/30 border border-indigo-500/30 p-3 rounded-xl mb-2">
                         <p class="text-[10px] text-indigo-300 font-bold leading-tight">
@@ -909,9 +893,7 @@
                     
                     <input id="driver-license" type="text" placeholder="N° Licencia de Conducir" class="w-full px-5 py-4 rounded-xl border border-slate-700 bg-slate-900 outline-none text-white">
                     
-                    <!-- MATRIZ DE CARGA DE DOCUMENTOS LEGALES VIP (6 FOTOS) -->
                     <div class="grid grid-cols-2 md:grid-cols-3 gap-2 mt-3">
-                        
                         <div class="flex flex-col items-center p-2 bg-slate-950 border border-slate-700 rounded-xl relative overflow-hidden group">
                             <i class="fas fa-id-card text-lg text-slate-500 mb-1 group-hover:text-soza-gold transition-colors"></i>
                             <label class="cursor-pointer text-soza-gold text-[8px] font-black uppercase tracking-wider text-center w-full">
@@ -983,7 +965,6 @@
                                 <i class="fas fa-times text-[8px]"></i>
                             </button>
                         </div>
-
                     </div>
                 </div>
                 
@@ -997,7 +978,6 @@
         </div>
     </div>
 
-    <!-- APP INTERFACE -->
     <div id="app-interface" class="flex-1 flex flex-col relative h-full">
         <header id="app-header" class="border-b border-slate-800 px-4 py-3 flex justify-between items-center z-50 shadow-sm bg-soza-card">
             <div onclick="window.openProfileEdit()" class="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity text-white" title="Gestionar mi perfil">
@@ -1009,7 +989,6 @@
             </div>
             
             <div class="flex items-center gap-2">
-                <!-- BOTÓN BILLETERA GLOBAL -->
                 <button onclick="window.openWalletOrReport()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 rounded-xl border border-soza-gold/30 shadow-sm transition-colors hover:bg-slate-700 group">
                     <i class="fas fa-wallet text-soza-gold text-xs group-hover:animate-pulse"></i>
                     <span id="header-balance-display" class="font-black text-white text-xs">L. 0.00</span>
@@ -1043,7 +1022,6 @@
 
             <div id="control-panel" class="collapsible-panel w-full md:w-[400px] z-40 shadow-2xl border-r border-slate-800 p-6 flex flex-col order-2 md:order-1 overflow-y-auto bg-soza-card">
                 
-                <!-- VISTA PASAJERO -->
                 <div id="client-view" class="flex-1 text-white">
                     <h3 class="text-lg font-black text-white mb-4 tracking-tighter">¿A dónde vamos hoy?</h3>
                     <div class="space-y-3 relative">
@@ -1055,7 +1033,6 @@
                         </div>
                         <input id="destination-input" type="text" placeholder="Destino final" class="w-full px-5 py-4 bg-slate-900 border border-slate-800 text-white rounded-2xl outline-none shadow-sm focus:ring-2 focus:ring-soza-gold transition-all">
                         
-                        <!-- BOTONES DE LUGARES FAVORITOS -->
                         <div class="flex gap-2 mt-2">
                             <button onclick="window.setFavorite('casa')" class="fav-chip"><i class="fas fa-home"></i> Casa</button>
                             <button onclick="window.setFavorite('trabajo')" class="fav-chip"><i class="fas fa-briefcase"></i> Trabajo</button>
@@ -1068,7 +1045,6 @@
                             <span class="text-xs font-black uppercase tracking-widest text-soza-gold mb-1 block">Costo Estimado VIP</span>
                             <span class="text-4xl font-black block mb-4 text-white" id="price-display">L. 0.00</span>
                             
-                            <!-- SELECCIÓN DE MÉTODO DE PAGO (NUEVO FASE 1) -->
                             <div class="mb-5">
                                 <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-2">Método de Pago</p>
                                 <div class="flex gap-2">
@@ -1087,7 +1063,6 @@
                                 </div>
                             </div>
 
-                            <!-- SISTEMA DE CÓDIGOS PROMO -->
                             <div class="flex gap-2 mb-4">
                                 <input id="promo-input" type="text" placeholder="Código Promo" class="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-xl outline-none text-white placeholder-slate-500 font-bold uppercase text-xs focus:border-soza-gold">
                                 <button onclick="window.applyPromo()" class="px-4 py-2 bg-soza-gold text-soza-dark text-[10px] font-black uppercase rounded-xl shadow-md active:scale-95 transition-transform">Aplicar</button>
@@ -1114,7 +1089,6 @@
                     </div>
                 </div>
 
-                <!-- CONDUCTOR -->
                 <div id="driver-view" class="hidden flex-1 text-white">
                     <div id="driver-pending-approval" class="hidden flex flex-col items-center justify-center py-16 text-center px-4">
                         <div class="w-20 h-20 bg-amber-950/40 rounded-full flex items-center justify-center border-4 border-soza-gold shadow-lg text-soza-gold mb-6 animate-pulse">
@@ -1141,7 +1115,6 @@
                     </div>
                 </div>
 
-                <!-- PANEL ADMINISTRADOR SUPREMO EXCLUSIVO -->
                 <div id="admin-view" class="hidden flex-1 flex flex-col h-full text-white">
                     <div class="flex items-center gap-2 mb-4">
                         <span class="text-soza-gold text-xl"><i class="fas fa-crown"></i></span>
@@ -1174,7 +1147,6 @@
                         </div>
                     </div>
 
-                    <!-- NUEVA PESTAÑA DE BANCOS ADMIN -->
                     <div id="admin-content-banks" class="admin-tab-content hidden flex-1 flex flex-col space-y-4">
                         <div class="bg-indigo-950/30 border border-indigo-500/30 p-3 rounded-xl mb-2">
                             <p class="text-[10px] text-indigo-300 font-bold leading-tight">
@@ -1193,7 +1165,6 @@
                         <div class="flex-1 overflow-y-auto pr-1">
                             <h4 class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Cuentas Activas</h4>
                             <div id="admin-banks-list" class="space-y-2">
-                                <!-- Llenado dinámicamente -->
                                 <div class="text-center opacity-50 py-4"><i class="fas fa-spinner fa-spin text-soza-gold"></i></div>
                             </div>
                         </div>
@@ -1230,7 +1201,6 @@
                     </div>
                 </div>
 
-                <!-- PANEL SUPERVISOR -->
                 <div id="supervisor-view" class="hidden flex-1 flex flex-col h-full text-white">
                     <div class="flex items-center gap-2 mb-4">
                         <span class="text-indigo-400 text-xl"><i class="fas fa-shield-alt"></i></span>
@@ -1244,7 +1214,6 @@
                         <button onclick="window.setSupTab('map')" id="tab-sup-map" class="sup-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400">Mapa / En línea</button>
                     </div>
 
-                    <!-- NUEVA SECCIÓN DE MAPA/EN LÍNEA PARA SUPERVISORES -->
                     <div id="sup-map-view" class="hidden space-y-3 max-h-[70vh] overflow-y-auto pr-1">
                         <div class="bg-indigo-950/30 border border-indigo-500/30 p-3 rounded-xl mb-2">
                             <p class="text-[10px] text-indigo-300 font-bold leading-tight">
@@ -1256,12 +1225,9 @@
                         </div>
                     </div>
 
-                    <div id="sup-list" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1">
-                        <!-- Inyectado dinámicamente -->
-                    </div>
+                    <div id="sup-list" class="space-y-3 max-h-[70vh] overflow-y-auto pr-1"></div>
                 </div>
 
-                <!-- PANEL VIAJE ACTIVO -->
                 <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full text-white">
                     <div onclick="window.toggleActivePanel()" class="flex justify-center py-2 cursor-pointer border-b border-slate-800 mb-4 hover:bg-slate-800 transition-colors">
                         <div class="w-12 h-1 bg-slate-700 rounded-full shadow-sm"></div>
@@ -1291,6 +1257,7 @@
                         </button>
                     </div>
 
+                    <!-- PANTALLAS DE PIN DE CONDUCTOR Y CLIENTE -->
                     <div id="pin-area" class="mb-4">
                         <div id="client-pin-display" class="hidden bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse">
                             <p class="text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest">Tu PIN SOZA de Seguridad</p>
@@ -1349,7 +1316,6 @@
         </main>
     </div>
 
-    <!-- FIREBASE & LOGICA MAESTRA -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, initializeAuth, browserLocalPersistence, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -1378,7 +1344,6 @@
         const appId = "comayagua-vip-pro-v4"; 
         const messaging = getMessaging(app);
 
-        // --- VARIABLES GLOBALES ---
         let userRole = 'client'; 
         let currentUser = null; 
         let activeTrip = null; 
@@ -1396,16 +1361,15 @@
         window.lastChatLength = 0; 
         window.lastTripStatus = null; 
         window.lastDriverArrived = false; 
+        window.lastRequestsCount = 0; 
         let localCameraStream = null;
         let originalPrice = 0; 
         let currentPromo = null;
         
-        // FASE 1: Variables Globales Pagos y Puntos
         window.paymentMethod = 'cash'; 
         window.appConfig = { banks: [] };
         window.rechargeReceiptBase64 = null;
         
-        // --- BASE64 IMAGENES GLOBALES ---
         let profilePhotoBase64 = null;
         let driverDniBase64 = null;
         let driverLicenseBase64 = null;
@@ -1439,7 +1403,6 @@
             }
         });
 
-        // --- DESBLOQUEO DE AUDIO MÓVIL ---
         let globalAudioCtx = null;
         window.unlockAudioContext = () => {
             try { 
@@ -1454,7 +1417,21 @@
         document.addEventListener('click', window.unlockAudioContext, { once: false }); 
         document.addEventListener('touchstart', window.unlockAudioContext, { once: false });
 
-        // --- NOTIFICACIONES PUSH ---
+        window.speakVoice = (text) => {
+            try {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel(); 
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'es-ES'; 
+                    utterance.rate = 1.0; 
+                    utterance.pitch = 1.1; 
+                    window.speechSynthesis.speak(utterance);
+                }
+            } catch (err) {
+                console.warn("TTS no soportado", err);
+            }
+        };
+
         window.requestNotificationPermission = async () => {
             if (!("Notification" in window)) { 
                 window.showToast("Tu navegador no soporta notificaciones.", "error"); return; 
@@ -1537,7 +1514,6 @@
             } catch (err) {}
         };
 
-        // --- SISTEMA DE UI: TOASTS Y MODALES ---
         window.showToast = (message, type = "info") => {
             const container = document.getElementById('toast-container'); 
             const toast = document.createElement('div');
@@ -1553,7 +1529,7 @@
             setTimeout(() => { 
                 toast.classList.add('translate-y-4', 'opacity-0'); 
                 setTimeout(() => toast.remove(), 300); 
-            }, 4000);
+            }, 5000);
         };
 
         window.showConfirm = (title, description, onConfirm) => {
@@ -1602,7 +1578,6 @@
             };
         };
 
-        // --- SISTEMA FASE 1: BILLETERA, RECARGAS Y REPORTES ---
         window.openWalletOrReport = () => {
             if (!window.userProfile) return;
             if (window.userProfile.role === 'driver') {
@@ -2658,9 +2633,12 @@
 
                             onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
                                 let found = false;
+                                let newReqCount = 0;
+                                
                                 snap.docs.forEach(d => {
                                     const t = d.data();
                                     if(t.status === 'pending' && (t.targetDriverId === user.uid || !t.targetDriverId)) {
+                                        newReqCount++;
                                         document.getElementById('requests-list').innerHTML = `
                                         <div class="bg-slate-900 border border-soza-gold p-4 rounded-2xl shadow-lg border-2 animate-pulse">
                                             <div class="flex justify-between items-center mb-2">
@@ -2674,6 +2652,13 @@
                                         found = true;
                                     }
                                 });
+                                
+                                if (newReqCount > window.lastRequestsCount) {
+                                    window.playNotificationSound();
+                                    window.speakVoice("Nueva solicitud de viaje VIP disponible.");
+                                }
+                                window.lastRequestsCount = newReqCount;
+
                                 if(!found) document.getElementById('requests-list').innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-soza-gold"></i><p class="font-bold text-xs uppercase tracking-widest text-center">En línea. Esperando asignación...</p></div>';
                             });
 
@@ -2784,7 +2769,8 @@
 
                     if (lastStatus === 'pending' && data.status === 'accepted' && window.userProfile?.role === 'client') { 
                         window.playNotificationSound(); 
-                        window.sendBrowserNotification("¡Viaje VIP Aceptado! 🚗", `${data.driverName.toUpperCase()} va en camino a recogerte.`); 
+                        window.speakVoice(`Tu viaje VIP ha sido aceptado por ${data.driverName}. Tu PIN de seguridad es: ${data.pin}.`);
+                        window.sendBrowserNotification("¡Viaje VIP Aceptado! 🚗", `${data.driverName.toUpperCase()} va en camino. PIN: ${data.pin}`); 
                     }
                     
                     const lastArrived = window.lastDriverArrived || false; 
@@ -2792,8 +2778,16 @@
                     
                     if (!lastArrived && data.driverArrived && window.userProfile?.role === 'client') { 
                         window.playNotificationSound(); 
-                        window.sendBrowserNotification("¡Tu Conductor ha Llegado! 📍", `${data.driverName.toUpperCase()} está esperándote en el punto de recogida.`); 
-                        window.showToast("¡Tu conductor ha llegado al punto de recogida!", "success");
+                        window.speakVoice(`Tu conductor está afuera. Por favor bríndale el PIN de seguridad: ${data.pin}, para iniciar tu viaje.`);
+                        window.sendBrowserNotification("¡Tu Conductor ha Llegado! 📍", `Dale el PIN ${data.pin} a ${data.driverName.toUpperCase()} para iniciar el viaje.`); 
+                        window.showToast(`¡Conductor afuera! Tu PIN es ${data.pin}`, "success");
+                        
+                        // Mostrar el Modal Gigante del Pasajero
+                        const pinModal = document.getElementById('passenger-arrived-modal');
+                        if (pinModal) {
+                            document.getElementById('modal-passenger-pin').innerText = data.pin;
+                            pinModal.classList.remove('hidden');
+                        }
                     }
 
                     if (data.status === 'accepted' || data.status === 'in_progress') {
@@ -2848,18 +2842,17 @@
                             if (data.status === 'accepted' && !data.driverArrived) {
                                 document.getElementById('btn-driver-arrived').classList.remove('hidden'); 
                                 document.getElementById('pin-input-group').classList.add('hidden'); 
-                                window.updateNavigation(data.origin); 
+                                window.updateNavigation(data.origin); // Dibuja la ruta hacia el pasajero
                             } else if (data.driverArrived && data.status === 'accepted') {
                                 document.getElementById('btn-driver-arrived').classList.add('hidden'); 
                                 document.getElementById('pin-input-group').classList.remove('hidden'); 
-                                document.getElementById('nav-hud-top').style.display = 'none'; 
-                                document.getElementById('nav-hud-bottom').style.display = 'none'; 
-                                document.body.classList.remove('is-navigating');
+                                // Al tocar "Llegué", carga la ruta real del viaje en el mapa del conductor
+                                window.updateNavigation(data.destination); 
                             } else if (data.status === 'in_progress') {
                                 document.getElementById('btn-driver-arrived').classList.add('hidden'); 
                                 document.getElementById('pin-input-group').classList.add('hidden'); 
                                 document.getElementById('finish-trip-btn').classList.remove('hidden'); 
-                                window.updateNavigation(data.destination);
+                                window.updateNavigation(data.destination); // Mantiene la ruta final trazada
                             }
 
                         } else if (window.userProfile.role === 'client') {
@@ -2874,7 +2867,7 @@
 
                                 if (data.driverArrived) {
                                     document.getElementById('eta-indicator').classList.add('hidden');
-                                    pinContainer.className = "bg-emerald-950/40 border border-emerald-500 p-4 rounded-2xl text-center shadow-lg animate-bounce";
+                                    pinContainer.className = "bg-emerald-950/40 border border-emerald-500 p-4 rounded-2xl text-center shadow-lg animate-pulse";
                                     if(pinLabel) {
                                         pinLabel.innerText = "¡CONDUCTOR AFUERA! DILE ESTE PIN:";
                                         pinLabel.className = "text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-widest";
@@ -2903,11 +2896,24 @@
                                     if (driverSnap.exists()) { 
                                         const driverLoc = driverSnap.data(); 
                                         window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false); 
-                                        const finalDest = data.destCoords || data.destination; 
-                                        window.updateMapRouteFromCoords(driverLoc, finalDest); 
+                                        
+                                        let targetDest;
+                                        // Si el conductor apenas va en camino, la ruta es HACIA el pasajero
+                                        if (data.status === 'accepted' && !data.driverArrived) {
+                                            targetDest = data.originCoords || data.origin;
+                                            window.updateRealtimeETA(driverLoc, targetDest); // Actualiza tiempo de llegada a recogerlo
+                                        } else {
+                                            // Si ya llegó afuera o el viaje está en progreso, trazar la ruta del VIAJE REAL
+                                            targetDest = data.destCoords || data.destination;
+                                        }
+                                        
+                                        window.updateMapRouteFromCoords(driverLoc, targetDest); 
+                                        
                                         const bounds = new google.maps.LatLngBounds(); 
                                         bounds.extend(new google.maps.LatLng(driverLoc.lat, driverLoc.lng)); 
-                                        if (data.destCoords) bounds.extend(new google.maps.LatLng(data.destCoords.lat, data.destCoords.lng)); 
+                                        if (targetDest && targetDest.lat) { 
+                                            bounds.extend(new google.maps.LatLng(targetDest.lat, targetDest.lng)); 
+                                        } 
                                         window.gMap.fitBounds(bounds); 
                                     } 
                                 } catch (err) {}
@@ -2916,7 +2922,8 @@
                     } else if (data.status === 'cancelled') {
                         const wasDriverCancellation = data.cancelledBy === data.driverId; 
                         window.showToast("Servicio VIP Cancelado por el conductor.", "error"); 
-                        window.sendBrowserNotification("Servicio Cancelado ❌", "Tu viaje VIP de Comayagua Express fue cancelado.");
+                        window.sendBrowserNotification("Servicio Cancelado ❌", "Tu viaje VIP de SOZA Express fue cancelado.");
+                        window.speakVoice("El viaje ha sido cancelado.");
                         
                         const savedOrigin = data.origin; 
                         const savedDestination = data.destination; 
@@ -3015,10 +3022,9 @@
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { driverArrived: true }); 
         };
         
-        // --- VERIFICACIÓN DE PIN MEJORADA ---
         window.verifyPin = async () => { 
             const pinInput = document.getElementById('driver-pin-input');
-            const enteredPin = pinInput.value.trim(); // Se asegura de que no haya espacios
+            const enteredPin = pinInput.value.trim();
 
             if (!enteredPin) return window.showToast("Debes ingresar el PIN del pasajero.", "error");
 
@@ -3027,8 +3033,8 @@
                 window.showToast("¡PIN Verificado! Buen viaje VIP.", "success");
             } else { 
                 window.showToast("PIN Incorrecto. Pídelo al pasajero.", "error"); 
-                pinInput.value = ''; // Limpiar el input para que intente de nuevo rápidamente
-                pinInput.focus(); // Volver a enfocar el teclado
+                pinInput.value = ''; 
+                pinInput.focus(); 
             }
         };
 
@@ -3050,6 +3056,7 @@
 
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'completed' });
                 window.showToast("¡Viaje finalizado con éxito!", "success");
+                window.speakVoice("El viaje ha sido completado.");
             } catch(e) { 
                 window.showToast("Error al finalizar viaje.", "error"); 
             }
@@ -3275,7 +3282,6 @@
             }
         }
 
-        // --- CONSOLA DE ADMINISTRADOR SUPREMO ---
         let activeAdminTab = 'stats';
 
         window.toggleAdminPanel = () => { 
@@ -3651,7 +3657,6 @@
             });
         };
 
-        // PARCHE DE DISTANCE MATRIX
         window.addEventListener('map-route-trigger', () => { 
             const origin = document.getElementById('origin-input').value;
             const dest = document.getElementById('destination-input').value;
@@ -3716,11 +3721,11 @@
             if (tab === 'map') {
                 document.getElementById('sup-list').classList.add('hidden');
                 document.getElementById('sup-map-view').classList.remove('hidden');
-                window.renderOnlineDrivers();
+                if(window.renderOnlineDrivers) window.renderOnlineDrivers();
             } else {
                 document.getElementById('sup-list').classList.remove('hidden');
                 document.getElementById('sup-map-view').classList.add('hidden');
-                window.renderSupervisorList();
+                if(window.renderSupervisorList) window.renderSupervisorList();
             }
         };
 
@@ -3848,7 +3853,7 @@
                             </button>
                         ` : `
                             <button onclick="window.setAdminVeto('${loc.id}', true)" class="flex-1 py-2 bg-rose-950/50 text-rose-500 border border-rose-500/30 rounded-xl text-[9px] font-black uppercase transition-colors hover:bg-rose-900">
-                                Suspender (Deuda)
+                                Suspender
                             </button>
                         `}
                     </div>
@@ -3859,6 +3864,7 @@
 
         window.renderSupervisorList = () => {
             const container = document.getElementById('sup-list'); 
+            if(!container) return;
             container.innerHTML = '';
             
             if (currentSupTab === 'recharges') {
@@ -3990,6 +3996,57 @@
                     window.showToast("Error al rechazar.", "error");
                 }
             });
+        };
+
+        window.showRatingScreen = () => {
+            document.getElementById('rating-screen').style.display = 'flex';
+            document.getElementById('app-interface').style.display = 'none';
+            selectedStars = 5;
+            window.setRating(5);
+        };
+
+        window.setRating = (stars) => {
+            selectedStars = stars;
+            document.querySelectorAll('.star-btn').forEach(el => {
+                if (parseInt(el.getAttribute('data-index')) <= stars) {
+                    el.classList.remove('text-gray-600');
+                    el.classList.add('text-soza-gold');
+                } else {
+                    el.classList.add('text-gray-600');
+                    el.classList.remove('text-soza-gold');
+                }
+            });
+        };
+
+        window.submitRating = async () => {
+            if (!activeTrip) return;
+            try {
+                const isClient = window.userProfile.role === 'client';
+                const targetId = isClient ? activeTrip.driverId : activeTrip.clientId;
+                
+                if (targetId) {
+                    const targetProfileRef = doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetId);
+                    const targetSnap = await getDoc(targetProfileRef);
+                    if (targetSnap.exists()) {
+                        const tData = targetSnap.data();
+                        await updateDoc(targetProfileRef, {
+                            ratingSum: (tData.ratingSum || 0) + selectedStars,
+                            ratingCount: (tData.ratingCount || 0) + 1,
+                            totalTrips: (tData.totalTrips || 0) + 1
+                        });
+                    }
+                }
+
+                const updateData = isClient ? { ratedByClient: true, clientRating: selectedStars } : { ratedByDriver: true, driverRating: selectedStars };
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), updateData);
+                
+                document.getElementById('rating-screen').style.display = 'none';
+                document.getElementById('app-interface').style.display = 'flex';
+                window.showToast("¡Gracias por tu calificación!", "success");
+                location.reload();
+            } catch(e) {
+                window.showToast("Error al enviar calificación", "error");
+            }
         };
 
         if ('serviceWorker' in navigator) { 
