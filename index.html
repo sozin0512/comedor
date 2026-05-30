@@ -1236,11 +1236,11 @@
             }
             try { 
                 const permission = await Notification.requestPermission(); 
-                updateBellIconUI(permission);
+                window.updateBellIconUI(permission);
                 
                 if (permission === "granted") { 
                     window.showToast("¡Notificaciones de SOZA activadas! 🔔", "success"); 
-                    window.playNotificationSound(); 
+                    if(window.playNotificationSound) window.playNotificationSound(); 
                     registerDeviceForPushNotifications(); 
                     window.sendBrowserNotification("SOZA — Soluciones de Transporte VIP", "Las alertas en segundo plano ya están activas y listas."); 
                 } else if (permission === "denied") { 
@@ -1267,7 +1267,7 @@
             } catch (err) {}
         }
 
-        function updateBellIconUI(permission) {
+        window.updateBellIconUI = function(permission) {
             const bellIcon = document.getElementById('notif-bell-icon'); 
             const bellBtn = document.getElementById('notif-bell-btn'); 
             if (!bellIcon || !bellBtn) return;
@@ -1282,7 +1282,7 @@
                 bellIcon.className = "fas fa-bell text-slate-400"; 
                 bellBtn.className = "w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-soza-gold flex items-center justify-center shadow-sm border border-slate-700 transition-colors"; 
             }
-        }
+        };
 
         window.sendBrowserNotification = (title, body) => {
             if (!("Notification" in window) || guestTrackId) return;
@@ -1548,7 +1548,6 @@
                  
                  document.getElementById('driver-pending-approval').classList.add('hidden'); 
                  document.getElementById('driver-active-view').classList.remove('hidden'); 
-                 startDriverListener(); 
              } catch(e) { 
                  window.showToast("Error subiendo foto. Revisa tu conexión.", "error"); 
              }
@@ -1776,7 +1775,150 @@
             }
         };
 
-        // --- MANEJO DEL ESTADO DEL USUARIO ---
+        // --- SISTEMA DE PROMOCIONES ---
+        window.applyPromo = () => {
+            const code = document.getElementById('promo-input').value.trim().toUpperCase();
+            if (code === 'SOZA10') {
+                if (currentPromo === 'SOZA10') return window.showToast("Promo ya aplicada.", "info");
+                currentPromo = 'SOZA10';
+                const newPrice = (originalPrice * 0.90).toFixed(2);
+                document.getElementById('price-display').innerText = `L. ${newPrice}`;
+                window.showToast("¡Descuento VIP del 10% aplicado!", "success");
+            } else {
+                window.showToast("Código inválido o expirado.", "error");
+            }
+        };
+
+        window.useCurrentLocation = () => {
+            if (navigator.geolocation) {
+                window.showToast("Localizando ubicación actual...", "info");
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    window.currentClientCoords = coords; 
+                    if (window.geocoder) {
+                        window.geocoder.geocode({ location: coords }, (results, status) => {
+                            if (status === "OK" && results[0]) {
+                                document.getElementById('origin-input').value = results[0].formatted_address;
+                                window.dispatchEvent(new CustomEvent('map-route-trigger'));
+                                window.showToast("Origen autocompletado.", "success");
+                            } else { 
+                                window.showToast("No se pudo obtener la dirección.", "error"); 
+                            }
+                        });
+                    }
+                }, () => { 
+                    window.showToast("Permiso de localización denegado.", "error"); 
+                });
+            } else { 
+                window.showToast("Tu navegador no soporta geolocalización.", "error"); 
+            }
+        };
+
+        window.sendTripRequest = async () => {
+            const origin = document.getElementById('origin-input').value.trim();
+            const dest = document.getElementById('destination-input').value.trim();
+            if(!origin || !dest) return window.showToast("Define ruta.", "error");
+
+            if (activeTrip && ['pending', 'accepted', 'in_progress'].includes(activeTrip.status)) {
+                return window.showToast("Ya tienes un viaje activo o solicitud en curso.", "error");
+            }
+            
+            try {
+                const requestBtn = document.querySelector("#fare-card button");
+                if (requestBtn) requestBtn.disabled = true;
+
+                const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
+                const q = query(tripsRef, where('clientId', '==', currentUser.uid));
+                const querySnapshot = await getDocs(q);
+                
+                const hasActive = querySnapshot.docs.some(d => { 
+                    return ['pending', 'accepted', 'in_progress'].includes(d.data().status); 
+                });
+
+                if (hasActive) {
+                    window.showToast("Ya tienes una solicitud de viaje registrada para tu cuenta.", "error");
+                    if (requestBtn) requestBtn.disabled = false;
+                    return;
+                }
+                
+                // Auto-Assign (busca conductores activos recientes)
+                const driversSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'));
+                let drivers = [];
+                driversSnap.forEach(d => {
+                    const data = d.data();
+                    if (Date.now() - data.updatedAt < 1000 * 60 * 15) { 
+                        drivers.push({ id: d.id, ...data });
+                    }
+                });
+                
+                if (window.currentClientCoords && drivers.length > 0) {
+                    drivers.sort((a,b) => {
+                        const distA = Math.pow(a.lat - window.currentClientCoords.lat, 2) + Math.pow(a.lng - window.currentClientCoords.lng, 2);
+                        const distB = Math.pow(b.lat - window.currentClientCoords.lat, 2) + Math.pow(b.lng - window.currentClientCoords.lng, 2);
+                        return distA - distB;
+                    });
+                }
+                const targetDriver = drivers.length > 0 ? drivers[0].id : null;
+
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
+                    clientId: currentUser.uid, 
+                    clientName: window.userProfile.name,
+                    clientPhoto: window.userProfile.photo || null, 
+                    clientPhone: window.userProfile.phone,
+                    origin, 
+                    destination: dest, 
+                    originCoords: window.currentClientCoords || null, 
+                    destCoords: window.currentDestCoords || null,
+                    price: document.getElementById('price-display').innerText, 
+                    status: 'pending', 
+                    targetDriverId: targetDriver,
+                    assignedAt: Date.now(),
+                    chat: [], 
+                    createdAt: serverTimestamp()
+                });
+                
+                document.getElementById('searching-state').classList.remove('hidden');
+                document.getElementById('fare-card').classList.add('hidden');
+                
+                if(window.showSyncWarning) window.showSyncWarning();
+
+            } catch (err) {
+                window.showToast("Hubo un error de red. Inténtalo de nuevo.", "error");
+                const requestBtn = document.querySelector("#fare-card button");
+                if (requestBtn) requestBtn.disabled = false;
+            }
+        };
+
+        window.executeAuth = async () => {
+            if(window.unlockAudioContext) window.unlockAudioContext(); 
+            const email = document.getElementById('email-field').value.trim(); 
+            const pass = document.getElementById('pass-field').value.trim();
+            
+            if (!email || !pass) return window.showToast("Ingresa tus credenciales.", "error");
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission().then(permission => {
+                    if(window.updateBellIconUI) window.updateBellIconUI(permission);
+                });
+            }
+
+            try {
+                if (authMode === 'login') { 
+                    await signInWithEmailAndPassword(auth, email, pass); 
+                    window.showToast("Sesión iniciada con éxito.", "success"); 
+                    if(window.playNotificationSound) setTimeout(window.playNotificationSound, 300); 
+                } else { 
+                    await createUserWithEmailAndPassword(auth, email, pass); 
+                    window.showToast("Cuenta creada con éxito. Finaliza tu perfil.", "success"); 
+                }
+            } catch (err) {
+                if (err.code === 'auth/email-already-in-use') window.showToast("El correo ya está en uso. Intenta Iniciar Sesión.", "error");
+                else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') window.showToast("Contraseña incorrecta.", "error");
+                else if (err.code === 'auth/user-not-found') window.showToast("Usuario no encontrado.", "error");
+                else window.showToast("Error de autenticación: " + err.message, "error");
+            }
+        };
+
+        // --- MANEJO DEL ESTADO DEL USUARIO (LOGIN / LOGOUT / CUESTIONARIOS) ---
         onAuthStateChanged(auth, async (user) => {
             if (!user && guestTrackId) { 
                 window.showToast("Iniciando acceso seguro para familiar...", "info"); 
@@ -1805,6 +1947,9 @@
                 }
 
                 try {
+                    // Muestra UI de carga temporal (opcional)
+                    window.showToast("Autenticando usuario...", "info");
+
                     const publicProfileRef = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid));
                     let privateProfileRef; 
                     
@@ -1833,7 +1978,9 @@
                             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), adminData); 
                             window.userProfile = adminData;
                         } else {
+                            // Usuario nuevo, debe llenar el perfil
                             document.getElementById('login-screen').style.display = 'none'; 
+                            document.getElementById('app-interface').style.display = 'none';
                             document.getElementById('setup-screen').style.display = 'flex'; 
                             return;
                         }
@@ -1921,6 +2068,7 @@
                                 } else { 
                                     document.getElementById('driver-pending-approval').classList.add('hidden'); 
                                     document.getElementById('driver-active-view').classList.remove('hidden'); 
+                                    startDriverListener();
                                 }
                             }
 
@@ -1929,7 +2077,6 @@
                                 let found = false;
                                 snap.docs.forEach(d => {
                                     const t = d.data();
-                                    // Muestra si me auto-asignaron a mí (targetDriverId) o si ya es broadcast a todos (null)
                                     if(t.status === 'pending' && (t.targetDriverId === user.uid || !t.targetDriverId)) {
                                         document.getElementById('requests-list').innerHTML = `
                                         <div class="bg-slate-900 border border-soza-gold p-4 rounded-2xl shadow-lg border-2 animate-pulse">
@@ -1953,8 +2100,8 @@
                         listenToMyActiveTrip();
                         
                         setTimeout(() => { 
-                            window.showToast("Toca la pantalla para sintonizar el audio VIP 🔊", "info"); 
-                        }, 1200);
+                            window.showToast("Bienvenido a SOZA VIP", "success"); 
+                        }, 500);
                         
                         if (Notification.permission === "granted") {
                             registerDeviceForPushNotifications();
@@ -1962,7 +2109,13 @@
                     }
                 } catch(e) { 
                     window.showToast("Error de conexión al cargar perfil.", "error"); 
+                    console.error("Auth state error:", e);
                 }
+            } else {
+                // Asegurarse de que si NO hay usuario, siempre se muestre el login
+                document.getElementById('login-screen').style.display = 'flex'; 
+                document.getElementById('setup-screen').style.display = 'none'; 
+                document.getElementById('app-interface').style.display = 'none'; 
             }
         });
 
@@ -2030,12 +2183,20 @@
                     activeTrip = { id: trip.id, ...data }; 
                     window.currentActiveTripData = data;
                     
-                    // Tiempo de expiración Auto-Asignación (15s) - Solo cliente revisa esto para aligerar la BD
-                    if(data.status === 'pending' && data.clientId === currentUser.uid) {
-                        if (Date.now() - data.assignedAt > 15000 && data.targetDriverId !== null) {
-                            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), { targetDriverId: null, assignedAt: Date.now() });
-                            window.showToast("Buscando en área extendida...", "info");
+                    // Tiempo de expiración Auto-Asignación (15s) Seguro
+                    if(data.status === 'pending' && data.clientId === currentUser.uid && data.targetDriverId) {
+                        if (!window.autoAssignTimeout) {
+                            window.autoAssignTimeout = setTimeout(async () => {
+                                const tSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id));
+                                if(tSnap.exists() && tSnap.data().status === 'pending' && tSnap.data().targetDriverId === data.targetDriverId) {
+                                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), { targetDriverId: null, assignedAt: Date.now() });
+                                    window.showToast("Ampliando búsqueda a todos los conductores...", "info");
+                                }
+                                window.autoAssignTimeout = null;
+                            }, 15000);
                         }
+                    } else {
+                        if (window.autoAssignTimeout) { clearTimeout(window.autoAssignTimeout); window.autoAssignTimeout = null; }
                     }
 
                     const lastStatus = window.lastTripStatus || null; 
@@ -2358,6 +2519,41 @@
             });
             document.getElementById('chat-input').value = "";
         };
+
+        window.processLogout = () => {
+            signOut(auth).then(() => location.reload());
+        };
+
+        window.cancelOrder = async () => { 
+            window.showConfirm(
+                "¿Cancelar servicio VIP?", 
+                "Esta acción detendrá y cancelará el viaje. El registro se enviará al historial de auditoría.", 
+                async () => {
+                    if(activeTrip) {
+                        const cancellationData = {
+                            tripId: activeTrip.id, 
+                            origin: activeTrip.origin, 
+                            destination: activeTrip.destination, 
+                            price: activeTrip.price,
+                            clientId: activeTrip.clientId, 
+                            clientName: activeTrip.clientName, 
+                            clientPhone: activeTrip.clientPhone,
+                            driverId: activeTrip.driverId || null, 
+                            driverName: activeTrip.driverName || "Ninguno",
+                            cancelledBy: window.userProfile.role === 'admin' ? 'Administrador Supremo' : window.userProfile.name,
+                            cancelledAt: Date.now()
+                        };
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', activeTrip.id), cancellationData);
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled', cancelledBy: currentUser.uid });
+                    }
+                    location.reload(); 
+                }
+            );
+        };
+
+        function startDriverListener() {
+            // Hook para conductor
+        }
 
         // --- CONSOLA DE ADMINISTRADOR SUPREMO ---
         let activeAdminTab = 'stats';
