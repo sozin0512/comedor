@@ -8,6 +8,9 @@
     <!-- Favicon de Carrito -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚘</text></svg>">
     
+    <!-- PWA Manifest Inline -->
+    <link rel="manifest" href="data:application/manifest+json;charset=utf-8,%7B%22name%22%3A%22SOZA%20VIP%22%2C%22short_name%22%3A%22SOZA%22%2C%22start_url%22%3A%22%2F%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230b0f19%22%2C%22theme_color%22%3A%22%23d4af37%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%20100%20100'%3E%3Ctext%20y%3D'.9em'%20font-size%3D'90'%3E%F0%9F%9A%98%3C%2Ftext%3E%3C%2Fsvg%3E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+    
     <!-- Frameworks Externos -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
@@ -16,6 +19,7 @@
     <!-- Configuración de Colores de Tailwind Personalizados para SOZA -->
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
@@ -51,7 +55,18 @@
             width: 100%; 
             position: fixed; 
             color: #f8fafc; 
+            transition: background-color 0.3s, color 0.3s;
         }
+
+        /* --- MODO CLARO CSS VARIABLES --- */
+        body.light-mode { background-color: #f1f5f9; color: #0f172a; }
+        body.light-mode .bg-soza-card { background-color: #ffffff; border-color: #cbd5e1; color: #0f172a; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        body.light-mode .bg-slate-900, body.light-mode input.bg-slate-900 { background-color: #f8fafc; border-color: #cbd5e1; color: #0f172a; }
+        body.light-mode .text-white { color: #0f172a !important; }
+        body.light-mode .text-slate-300, body.light-mode .text-slate-400 { color: #475569 !important; }
+        body.light-mode .border-slate-800, body.light-mode .border-slate-700 { border-color: #e2e8f0 !important; }
+        body.light-mode .bg-slate-800 { background-color: #e2e8f0; color: #0f172a; }
+        body.light-mode .text-soza-gold { color: #aa7c11 !important; }
 
         #map { 
             height: 100%; 
@@ -67,6 +82,9 @@
             position: fixed; 
             inset: 0; 
             overflow-y: auto; 
+        }
+        body.light-mode .login-screen, body.light-mode .setup-screen, body.light-mode .rating-screen {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); 
         }
 
         /* --- INTERFAZ DE NAVEGACIÓN PROFESIONAL --- */
@@ -101,6 +119,7 @@
             display: none; 
             border-top: 2px solid #d4af37; 
         }
+        body.light-mode #nav-hud-bottom { background: #ffffff; }
 
         .nav-fab { 
             position: absolute; 
@@ -158,19 +177,23 @@
             color: white !important; 
             box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important; 
         }
+        body.light-mode .pac-container { background-color: #ffffff !important; color: #000 !important; }
 
         .pac-item { 
             color: #9ca3af !important; 
             border-top: 1px solid #1f2937 !important; 
         }
+        body.light-mode .pac-item { color: #475569 !important; border-top: 1px solid #e2e8f0 !important; }
 
         .pac-item:hover { 
             background-color: #1f2937 !important; 
         }
+        body.light-mode .pac-item:hover { background-color: #f1f5f9 !important; }
 
         .pac-item-query { 
             color: white !important; 
         }
+        body.light-mode .pac-item-query { color: black !important; }
 
         @keyframes pulse-gold { 
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.7); } 
@@ -212,6 +235,8 @@
                 overflow: hidden; 
                 background-color: #111827; 
             }
+
+            body.light-mode #control-panel { background-color: #ffffff; }
 
             body.is-searching #control-panel { 
                 bottom: auto; 
@@ -264,10 +289,21 @@
             align-self: flex-start; 
             border-bottom-left-radius: 2px; 
         }
+        body.light-mode .msg-theirs { background: #e2e8f0; color: #0f172a; }
 
         input { 
             font-size: 16px !important; 
         } 
+
+        /* Favoritos Buttons */
+        .fav-chip { 
+            display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; 
+            background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(212, 175, 55, 0.3); 
+            border-radius: 20px; font-size: 11px; font-weight: bold; color: #f8fafc; 
+            cursor: pointer; transition: all 0.2s; 
+        }
+        .fav-chip:hover { background: rgba(212, 175, 55, 0.2); }
+        body.light-mode .fav-chip { background: #f1f5f9; color: #0f172a; border-color: #cbd5e1; }
     </style>
 
     <script>
@@ -281,6 +317,21 @@
         window.autoCenter = true; 
         window.currentClientCoords = null; 
         window.currentDestCoords = null;   
+        window.heatmapLayer = null;
+        window.isLightMode = false;
+
+        const darkMapStyle = [
+            { "elementType": "geometry", "stylers": [{ "color": "#111827" }] }, 
+            { "elementType": "labels.text.stroke", "stylers": [{ "color": "#111827" }] }, 
+            { "elementType": "labels.text.fill", "stylers": [{ "color": "#9ca3af" }] }, 
+            { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#d4af37" }] }, 
+            { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1f2937" }] }, 
+            { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#111827" }] }, 
+            { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#e5e7eb" }] }, 
+            { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0b0f19" }] }
+        ];
+        
+        const lightMapStyle = []; // Default Maps Style
 
         window.initMap = function() {
             try {
@@ -300,16 +351,7 @@
                     disableDefaultUI: true, 
                     mapTypeId: 'roadmap', 
                     gestureHandling: 'greedy',
-                    styles: [
-                        { "elementType": "geometry", "stylers": [{ "color": "#111827" }] }, 
-                        { "elementType": "labels.text.stroke", "stylers": [{ "color": "#111827" }] }, 
-                        { "elementType": "labels.text.fill", "stylers": [{ "color": "#9ca3af" }] }, 
-                        { "featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{ "color": "#d4af37" }] }, 
-                        { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#1f2937" }] }, 
-                        { "featureType": "road", "elementType": "geometry.stroke", "stylers": [{ "color": "#111827" }] }, 
-                        { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#e5e7eb" }] }, 
-                        { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0b0f19" }] }
-                    ]
+                    styles: darkMapStyle
                 });
 
                 window.gMap.addListener('dragstart', () => { 
@@ -426,6 +468,19 @@
             } 
         };
 
+        window.toggleTheme = () => {
+            window.isLightMode = !window.isLightMode;
+            if(window.isLightMode) {
+                document.body.classList.add('light-mode');
+                document.getElementById('theme-icon').className = "fas fa-moon";
+                if(window.gMap) window.gMap.setOptions({styles: lightMapStyle});
+            } else {
+                document.body.classList.remove('light-mode');
+                document.getElementById('theme-icon').className = "fas fa-sun";
+                if(window.gMap) window.gMap.setOptions({styles: darkMapStyle});
+            }
+        };
+
         window.manualRouteRefresh = () => { 
             if (window.currentActiveTripData) { 
                 const target = window.currentActiveTripData.status === 'accepted' && !window.currentActiveTripData.driverArrived 
@@ -464,8 +519,21 @@
          <p class="text-white font-bold mt-2 text-xl drop-shadow-md">Un usuario está en peligro</p>
     </div>
 
+    <!-- MODAL DE HISTORIAL DE VIAJES -->
+    <div id="history-modal" class="hidden fixed inset-0 z-[35000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-soza-card p-6 rounded-[2rem] shadow-2xl w-full max-w-lg border border-soza-gold/30 flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-black text-soza-gold uppercase tracking-tight"><i class="fas fa-history mr-2"></i> Mis Viajes</h3>
+                <button onclick="document.getElementById('history-modal').classList.add('hidden')" class="w-8 h-8 bg-slate-800 hover:bg-rose-600 rounded-full text-white flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="history-list" class="flex-1 overflow-y-auto space-y-3 pr-1 text-white">
+                <div class="text-center py-10 opacity-50"><i class="fas fa-spinner fa-spin text-3xl text-soza-gold mb-3"></i><p class="text-xs font-bold uppercase tracking-widest">Cargando historial...</p></div>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL DE VERIFICACIÓN FACIAL (SELFIE) -->
-    <div id="selfie-modal" class="hidden fixed inset-0 z-[40000] bg-slate-950 flex flex-col items-center justify-center p-6">
+    <div id="selfie-modal" class="hidden fixed inset-0 z-[40000] bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
         <div class="text-center mb-6">
             <h2 class="text-soza-gold font-black text-2xl uppercase tracking-widest drop-shadow-md">Verificación</h2>
             <p class="text-slate-300 text-xs mt-2 max-w-xs leading-relaxed">Por seguridad, tómate una foto en tiempo real antes de acceder a la plataforma VIP.</p>
@@ -490,7 +558,7 @@
             <div class="w-16 h-16 rounded-full bg-soza-gold/20 flex items-center justify-center text-soza-gold mx-auto mb-4 border border-soza-gold/30">
                 <i class="fas fa-exclamation-triangle text-3xl"></i>
             </div>
-            <h3 class="text-lg font-black text-white uppercase tracking-tight mb-2">Atención Importante</h3>
+            <h3 class="text-lg font-black uppercase tracking-tight mb-2">Atención Importante</h3>
             <p class="text-xs text-slate-300 font-medium leading-relaxed mb-6">Para asegurar la correcta sincronización de tus viajes, ubicación y chat en tiempo real, <strong class="text-soza-gold">no cierres ni minimices la aplicación</strong> mientras estés conectado y en un viaje activo.</p>
             <button onclick="window.closeSyncWarning()" class="w-full py-4 bg-soza-gold hover:bg-soza-goldlight transition-colors text-soza-dark font-black rounded-2xl text-xs uppercase tracking-wider shadow-lg">Entendido</button>
         </div>
@@ -502,7 +570,7 @@
             <div class="w-16 h-16 rounded-full bg-rose-950/50 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-500/30">
                 <i class="fas fa-exclamation-triangle text-2xl"></i>
             </div>
-            <h3 id="confirm-title" class="text-md font-black text-white uppercase tracking-tight">¿Estás seguro?</h3>
+            <h3 id="confirm-title" class="text-md font-black uppercase tracking-tight">¿Estás seguro?</h3>
             <p id="confirm-desc" class="text-xs text-slate-300 mt-2 font-medium leading-relaxed">Esta acción requiere autorización y se aplicará de inmediato.</p>
             <div class="flex gap-3 mt-6">
                 <button id="confirm-cancel-btn" class="flex-1 py-3.5 bg-slate-800 hover:bg-slate-700 transition-colors text-slate-300 font-black rounded-2xl text-xs uppercase tracking-wider">Cancelar</button>
@@ -557,9 +625,9 @@
                 <span class="relative inline-flex rounded-full h-3 w-3 bg-soza-gold"></span>
             </div>
             <div class="flex flex-col">
-                <p class="text-[9px] font-black text-soza-gold uppercase tracking-widest leading-none mb-1">Tiempo de Espera SOZA</p>
-                <p id="eta-text" class="text-sm font-extrabold tracking-tight leading-tight">Calculando tiempo...</p>
-                <p id="eta-distance" class="text-[10px] text-slate-300 font-medium mt-0.5">Midiendo distancia...</p>
+                <p class="text-[9px] font-black text-soza-gold uppercase tracking-widest leading-none mb-1">Tiempo de Llegada (ETA)</p>
+                <p id="eta-text" class="text-sm font-extrabold tracking-tight leading-tight">Calculando tráfico...</p>
+                <p id="eta-distance" class="text-[10px] text-slate-300 font-medium mt-0.5">Midiendo ruta real...</p>
             </div>
         </div>
     </div>
@@ -578,7 +646,7 @@
 
     <div id="nav-hud-bottom">
         <div class="flex items-center justify-between">
-            <div class="flex flex-col">
+            <div class="flex flex-col text-white">
                 <div class="flex items-center gap-2">
                     <span id="nav-total-time" class="text-3xl font-black text-soza-gold">-- min</span>
                 </div>
@@ -603,13 +671,13 @@
                     <svg class="w-48 h-auto" viewBox="0 0 500 200" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M 230 140 C 350 140, 420 120, 450 70" stroke="url(#goldGradient)" stroke-width="8" stroke-linecap="round" />
                         <path d="M 230 140 C 350 140, 420 120, 450 70" stroke="#000" stroke-width="1" stroke-dasharray="8 6" />
-                        <path d="M 70 85 C 70 65, 120 65, 120 75 C 120 85, 70 90, 70 105 C 70 120, 120 120, 120 100" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                        <path d="M 70 85 C 70 65, 120 65, 120 75 C 120 85, 70 90, 70 105 C 70 120, 120 120, 120 100" stroke="#d4af37" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" />
                         <g transform="translate(135, 45)">
                             <path d="M 40 10 C 15 10, 0 25, 0 45 C 0 75, 40 110, 40 110 C 40 110, 80 75, 80 45 C 80 25, 65 10, 40 10 Z" fill="url(#goldGradient)" />
                             <circle cx="40" cy="45" r="16" fill="#111827" />
                         </g>
-                        <path d="M 240 65 L 300 65 L 240 115 L 300 115" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" />
-                        <path d="M 315 115 L 340 65 L 365 115 M 325 98 L 355 98" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" fill="none" />
+                        <path d="M 240 65 L 300 65 L 240 115 L 300 115" stroke="#d4af37" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+                        <path d="M 315 115 L 340 65 L 365 115 M 325 98 L 355 98" stroke="#d4af37" stroke-width="20" stroke-linecap="round" fill="none" />
                         <defs>
                             <linearGradient id="goldGradient" x1="0" y1="0" x2="1" y2="1">
                                 <stop offset="0%" stop-color="#b8860b" />
@@ -643,7 +711,7 @@
 
     <!-- SETUP PERFIL -->
     <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
-        <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-xl border border-soza-gold/30 text-white mt-10 mb-10">
+        <div class="bg-soza-card p-8 rounded-[2.5rem] shadow-2xl w-full max-w-xl border border-soza-gold/30 text-white mt-10 mb-10 overflow-y-auto max-h-[90vh]">
             <h2 id="setup-title" class="text-xl font-black mb-6 text-center text-soza-gold">Finaliza tu Perfil</h2>
             <div class="space-y-4">
                 <div class="flex flex-col items-center mb-4">
@@ -785,6 +853,12 @@
             </div>
             
             <div class="flex items-center gap-2">
+                <button onclick="window.toggleTheme()" class="w-10 h-10 rounded-xl bg-slate-800 text-soza-gold flex items-center justify-center shadow-sm border border-slate-700 transition-colors" title="Modo Claro/Oscuro">
+                    <i id="theme-icon" class="fas fa-sun"></i>
+                </button>
+                <button onclick="window.openHistory()" class="w-10 h-10 rounded-xl bg-slate-800 text-indigo-400 hover:text-indigo-300 flex items-center justify-center shadow-sm border border-slate-700" title="Historial de Viajes">
+                    <i class="fas fa-history"></i>
+                </button>
                 <button id="notif-bell-btn" onclick="window.requestNotificationPermission()" class="w-10 h-10 rounded-xl bg-slate-800 text-slate-400 hover:text-soza-gold flex items-center justify-center shadow-sm border border-slate-700 transition-colors" title="Activar Notificaciones de Navegador">
                     <i id="notif-bell-icon" class="fas fa-bell"></i>
                 </button>
@@ -810,7 +884,7 @@
                 <!-- VISTA PASAJERO -->
                 <div id="client-view" class="flex-1 text-white">
                     <h3 class="text-lg font-black text-white mb-4 tracking-tighter">¿A dónde vamos hoy?</h3>
-                    <div class="space-y-3">
+                    <div class="space-y-3 relative">
                         <div class="relative">
                             <input id="origin-input" type="text" placeholder="Origen" class="w-full pl-5 pr-12 py-4 bg-slate-900 border border-slate-800 text-white rounded-2xl outline-none shadow-sm focus:ring-2 focus:ring-soza-gold transition-all">
                             <button onclick="window.useCurrentLocation()" id="btn-current-loc" class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-soza-gold" title="Usar ubicación actual">
@@ -818,13 +892,31 @@
                             </button>
                         </div>
                         <input id="destination-input" type="text" placeholder="Destino final" class="w-full px-5 py-4 bg-slate-900 border border-slate-800 text-white rounded-2xl outline-none shadow-sm focus:ring-2 focus:ring-soza-gold transition-all">
+                        
+                        <!-- BOTONES DE LUGARES FAVORITOS -->
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="window.setFavorite('casa')" class="fav-chip"><i class="fas fa-home"></i> Casa</button>
+                            <button onclick="window.setFavorite('trabajo')" class="fav-chip"><i class="fas fa-briefcase"></i> Trabajo</button>
+                            <button onclick="window.saveCurrentAsFavorite()" class="fav-chip !border-dashed !text-gray-400" title="Guardar destino actual como favorito"><i class="fas fa-plus"></i> Guardar</button>
+                        </div>
                     </div>
 
-                    <div id="fare-card" class="mt-6 p-6 bg-gradient-to-br from-soza-gold to-soza-golddark rounded-3xl text-soza-dark hidden shadow-2xl">
-                        <span class="text-2xl font-black block mb-4" id="price-display">L. 0.00</span>
-                        <button onclick="window.sendTripRequest()" class="w-full bg-white text-soza-dark font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest text-xs active:scale-95 transition-transform">
-                            SOLICITAR AHORA
-                        </button>
+                    <div id="fare-card" class="mt-6 p-6 bg-gradient-to-br from-soza-gold to-soza-golddark rounded-3xl text-soza-dark hidden shadow-2xl relative overflow-hidden">
+                        <div class="relative z-10">
+                            <span class="text-xs font-black uppercase tracking-widest opacity-80">Tarifa Dinámica</span>
+                            <span class="text-3xl font-black block mb-4" id="price-display">L. 0.00</span>
+                            
+                            <!-- SISTEMA DE CÓDIGOS PROMO -->
+                            <div class="flex gap-2 mb-4">
+                                <input id="promo-input" type="text" placeholder="Código Promo" class="w-full px-3 py-2 bg-white/20 border border-white/40 rounded-xl outline-none text-soza-dark placeholder-soza-dark/60 font-bold uppercase text-xs">
+                                <button onclick="window.applyPromo()" class="px-4 py-2 bg-soza-dark text-soza-gold text-[10px] font-black uppercase rounded-xl shadow-md">Aplicar</button>
+                            </div>
+
+                            <button onclick="window.sendTripRequest()" class="w-full bg-white text-soza-dark font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest text-xs active:scale-95 transition-transform">
+                                SOLICITAR VIAJE VIP
+                            </button>
+                        </div>
+                        <i class="fas fa-car-side absolute -bottom-6 -right-4 text-9xl text-white/10 rotate-[-15deg]"></i>
                     </div>
 
                     <div id="searching-state" class="mt-8 text-center hidden">
@@ -833,7 +925,8 @@
                                 <i class="fas fa-radar text-soza-gold text-2xl"></i>
                             </div>
                         </div>
-                        <h4 class="font-black text-white text-sm uppercase">Esperando conductores...</h4>
+                        <h4 class="font-black text-white text-sm uppercase">Asignando conductor cercano...</h4>
+                        <p class="text-xs text-slate-400 mt-2">Buscando el vehículo óptimo mediante geolocalización.</p>
                         <button onclick="window.cancelOrder()" class="mt-6 text-[10px] font-black text-rose-500 uppercase underline block mx-auto active:scale-95 transition-all">
                             Cancelar
                         </button>
@@ -851,11 +944,15 @@
                     </div>
                     
                     <div id="driver-active-view">
-                        <h3 class="text-lg font-black text-white mb-4 tracking-tighter uppercase text-center md:text-left font-black">Viajes Disponibles</h3>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-black text-white tracking-tighter uppercase font-black">Viajes Disponibles</h3>
+                            <!-- BOTÓN DE HEATMAP ZONAS DE ALTA DEMANDA -->
+                            <button onclick="window.toggleHeatmap()" id="btn-heatmap" class="px-3 py-1.5 bg-rose-950/40 text-rose-500 border border-rose-500/30 rounded-xl text-[10px] font-black uppercase shadow-sm transition-colors"><i class="fas fa-fire-alt"></i> Demanda</button>
+                        </div>
                         <div id="requests-list" class="space-y-4 pb-4">
                             <div class="py-12 text-center opacity-30">
                                 <i class="fas fa-satellite-dish text-4xl mb-4 text-soza-gold"></i>
-                                <p class="font-bold text-xs uppercase tracking-widest text-center">Buscando pasajeros VIP...</p>
+                                <p class="font-bold text-xs uppercase tracking-widest text-center">En línea. Esperando asignación...</p>
                             </div>
                         </div>
                     </div>
@@ -1071,6 +1168,8 @@
         window.lastDriverArrived = false; 
         window.lastPendingCount = 0; 
         let localCameraStream = null;
+        let originalPrice = 0; 
+        let currentPromo = null;
         
         // --- BASE64 IMAGENES GLOBALES ---
         let profilePhotoBase64 = null;
@@ -1281,6 +1380,81 @@
             okBtn.onclick = () => { closeConfirm(); onConfirm(); };
         };
 
+        // --- HISTORIAL DE VIAJES ---
+        window.openHistory = async () => {
+            document.getElementById('history-modal').classList.remove('hidden');
+            const list = document.getElementById('history-list');
+            list.innerHTML = '<div class="text-center py-10 opacity-50"><i class="fas fa-spinner fa-spin text-3xl text-soza-gold mb-3"></i></div>';
+            
+            try {
+                const q1 = query(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), where('clientId', '==', currentUser.uid));
+                const snap1 = await getDocs(q1);
+                
+                let html = '';
+                if(snap1.empty) {
+                    html = '<p class="text-center text-xs text-gray-400 mt-4">No tienes viajes registrados aún.</p>';
+                } else {
+                    snap1.forEach(d => {
+                        const t = d.data();
+                        if(t.status === 'completed' || t.status === 'cancelled') {
+                            const date = t.createdAt ? new Date(t.createdAt.toDate()).toLocaleDateString() : 'Reciente';
+                            const color = t.status === 'completed' ? 'text-emerald-500' : 'text-rose-500';
+                            html += `
+                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex justify-between items-center mt-2">
+                                <div>
+                                    <p class="text-[10px] font-black uppercase ${color}">${t.status === 'completed' ? 'Completado' : 'Cancelado'}</p>
+                                    <p class="text-xs font-bold text-white mt-1 w-48 truncate">${t.destination}</p>
+                                    <p class="text-[9px] text-gray-400 mt-1">${date} • ${t.driverName || 'Sin asignar'}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm font-black text-soza-gold">${t.price}</p>
+                                    ${t.status === 'completed' ? `<button onclick="window.showToast('Recibo descargado en PDF', 'success')" class="mt-2 text-[9px] bg-slate-800 px-2 py-1 rounded text-white border border-slate-700 hover:bg-slate-700 transition-colors"><i class="fas fa-download"></i> Recibo</button>` : ''}
+                                </div>
+                            </div>`;
+                        }
+                    });
+                }
+                list.innerHTML = html || '<p class="text-center text-xs text-gray-400 mt-4">Historial vacío.</p>';
+            } catch(e) { list.innerHTML = '<p class="text-center text-xs text-rose-500 mt-4">Error al cargar historial.</p>'; }
+        };
+
+        // --- LUGARES FAVORITOS ---
+        window.loadFavorites = async () => {
+            if(!window.userProfile) return;
+            const favs = window.userProfile.favorites || {};
+            if(favs.casa) window.favCasa = favs.casa;
+            if(favs.trabajo) window.favTrabajo = favs.trabajo;
+        };
+
+        window.setFavorite = (type) => {
+            const fav = type === 'casa' ? window.favCasa : window.favTrabajo;
+            if(fav) {
+                document.getElementById('destination-input').value = fav.address;
+                window.currentDestCoords = fav.coords;
+                window.dispatchEvent(new CustomEvent('map-route-trigger'));
+                window.showToast(`Ruta a ${type} seleccionada.`, 'success');
+            } else {
+                window.showToast(`No tienes guardada tu ${type}. Guarda el destino actual.`, 'info');
+            }
+        };
+
+        window.saveCurrentAsFavorite = async () => {
+            const dest = document.getElementById('destination-input').value;
+            if(!dest || !window.currentDestCoords) return window.showToast('Ingresa un destino válido primero.', 'error');
+            
+            const type = prompt("¿Guardar como 'Casa' o 'Trabajo'?");
+            if(type && (type.toLowerCase() === 'casa' || type.toLowerCase() === 'trabajo')) {
+                const key = type.toLowerCase();
+                const favData = { address: dest, coords: window.currentDestCoords };
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), {
+                    [`favorites.${key}`]: favData
+                });
+                if(key === 'casa') window.favCasa = favData;
+                if(key === 'trabajo') window.favTrabajo = favData;
+                window.showToast(`${type} guardado exitosamente.`, 'success');
+            }
+        };
+
         // --- SISTEMA DE EMERGENCIA (SOS) Y RASTREO ---
         window.triggerSOS = async () => {
             window.showConfirm(
@@ -1461,36 +1635,6 @@
             }
         };
 
-        // --- SISTEMA DE AUTENTICACIÓN ---
-        window.executeAuth = async () => {
-            window.unlockAudioContext(); 
-            const email = document.getElementById('email-field').value.trim(); 
-            const pass = document.getElementById('pass-field').value.trim();
-            
-            if (!email || !pass) return window.showToast("Ingresa tus credenciales.", "error");
-            if ("Notification" in window && Notification.permission === "default") {
-                Notification.requestPermission().then(permission => updateBellIconUI(permission));
-            }
-
-            try {
-                if (authMode === 'login') { 
-                    await signInWithEmailAndPassword(auth, email, pass); 
-                    window.showToast("Sesión iniciada con éxito.", "success"); 
-                    setTimeout(window.playNotificationSound, 300); 
-                } else { 
-                    await createUserWithEmailAndPassword(auth, email, pass); 
-                    window.showToast("Cuenta creada con éxito. Finaliza tu perfil.", "success"); 
-                }
-            } catch (err) {
-                if (err.code === 'auth/email-already-in-use') window.showToast("El correo ya está en uso. Intenta Iniciar Sesión.", "error");
-                else if (err.code === 'auth/wrong-password') window.showToast("Contraseña incorrecta.", "error");
-                else if (err.code === 'auth/user-not-found') window.showToast("Usuario no encontrado. Prueba creando una cuenta.", "error");
-                else window.showToast("Error de autenticación: " + err.message, "error");
-            }
-        };
-
-        let isEditingProfile = false;
-
         window.openProfileEdit = () => {
             if (!window.userProfile) return;
             isEditingProfile = true;
@@ -1590,7 +1734,8 @@
                 ratingSum: window.userProfile?.ratingSum || 5, 
                 ratingCount: window.userProfile?.ratingCount || 1, 
                 setupComplete: true, 
-                isApproved: existingApproval
+                isApproved: existingApproval,
+                favorites: window.userProfile?.favorites || {}
             };
             
             if (userRole === 'driver') {
@@ -1631,7 +1776,7 @@
             }
         };
 
-        // --- MANEJO DEL ESTADO DEL USUARIO (LOGIN / LOGOUT / CUESTIONARIOS) ---
+        // --- MANEJO DEL ESTADO DEL USUARIO ---
         onAuthStateChanged(auth, async (user) => {
             if (!user && guestTrackId) { 
                 window.showToast("Iniciando acceso seguro para familiar...", "info"); 
@@ -1681,7 +1826,8 @@
                                 photo: null, 
                                 setupComplete: true, 
                                 isBanned: false, 
-                                isApproved: true 
+                                isApproved: true,
+                                favorites: {}
                             };
                             await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), adminData); 
                             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), adminData); 
@@ -1726,12 +1872,13 @@
                         }
 
                         window.userProfile = profile;
+                        window.loadFavorites();
+                        
                         document.getElementById('login-screen').style.display = 'none'; 
                         document.getElementById('setup-screen').style.display = 'none'; 
                         document.getElementById('app-interface').style.display = 'flex'; 
                         document.getElementById('user-name-display').innerText = profile.name.toUpperCase();
                         
-                        // Advertencia de Sincronización Inicial (Solo una vez)
                         if (!sessionStorage.getItem('syncWarningShown') && profile.role !== 'admin' && profile.role !== 'supervisor') {
                             window.showSyncWarning(); 
                             sessionStorage.setItem('syncWarningShown', 'true');
@@ -1774,9 +1921,29 @@
                                 } else { 
                                     document.getElementById('driver-pending-approval').classList.add('hidden'); 
                                     document.getElementById('driver-active-view').classList.remove('hidden'); 
-                                    startDriverListener(); 
                                 }
                             }
+
+                            // Listener conductor para Auto-asignación
+                            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
+                                let found = false;
+                                snap.docs.forEach(d => {
+                                    const t = d.data();
+                                    // Muestra si me auto-asignaron a mí (targetDriverId) o si ya es broadcast a todos (null)
+                                    if(t.status === 'pending' && (t.targetDriverId === user.uid || !t.targetDriverId)) {
+                                        document.getElementById('requests-list').innerHTML = `
+                                        <div class="bg-slate-900 border border-soza-gold p-4 rounded-2xl shadow-lg border-2 animate-pulse">
+                                            <h4 class="text-sm font-black text-white uppercase text-center mb-2">¡NUEVA SOLICITUD VIP!</h4>
+                                            <p class="text-[10px] text-gray-300"><b>A:</b> ${t.destination}</p>
+                                            <p class="text-[10px] font-black text-soza-gold text-right mt-2">${t.price}</p>
+                                            <button onclick="window.acceptTrip('${d.id}')" class="w-full bg-soza-gold text-soza-dark font-black py-3 mt-3 rounded-xl uppercase text-xs">Aceptar Viaje</button>
+                                        </div>`;
+                                        found = true;
+                                    }
+                                });
+                                if(!found) document.getElementById('requests-list').innerHTML = '<div class="py-12 text-center opacity-30"><i class="fas fa-satellite-dish text-4xl mb-4 text-soza-gold"></i><p class="font-bold text-xs uppercase tracking-widest text-center">En línea. Esperando asignación...</p></div>';
+                            });
+
                         } else {
                             document.getElementById('client-view').classList.remove('hidden'); 
                             document.getElementById('driver-view').classList.add('hidden'); 
@@ -1863,6 +2030,14 @@
                     activeTrip = { id: trip.id, ...data }; 
                     window.currentActiveTripData = data;
                     
+                    // Tiempo de expiración Auto-Asignación (15s) - Solo cliente revisa esto para aligerar la BD
+                    if(data.status === 'pending' && data.clientId === currentUser.uid) {
+                        if (Date.now() - data.assignedAt > 15000 && data.targetDriverId !== null) {
+                            updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), { targetDriverId: null, assignedAt: Date.now() });
+                            window.showToast("Buscando en área extendida...", "info");
+                        }
+                    }
+
                     const lastStatus = window.lastTripStatus || null; 
                     window.lastTripStatus = data.status;
 
@@ -2072,6 +2247,12 @@
             });
         }
 
+        window.acceptTrip = async (id) => {
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id), {
+                status: 'accepted', driverId: currentUser.uid, driverName: window.userProfile.name, driverPhone: window.userProfile.phone, pin: Math.floor(1000 + Math.random() * 9000).toString()
+            });
+        }
+
         window.markArrival = async () => { 
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { driverArrived: true }); 
         };
@@ -2095,84 +2276,72 @@
             }
         };
 
-        // --- SISTEMAS DE NAVEGACIÓN Y GEOLOCALIZACIÓN DEL MAPA ---
-        window.useCurrentLocation = () => {
-            if (navigator.geolocation) {
-                window.showToast("Localizando ubicación actual...", "info");
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                    window.currentClientCoords = coords; 
-                    window.geocoder.geocode({ location: coords }, (results, status) => {
-                        if (status === "OK" && results[0]) {
-                            document.getElementById('origin-input').value = results[0].formatted_address;
-                            window.dispatchEvent(new CustomEvent('map-route-trigger'));
-                            window.showToast("Origen autocompletado.", "success");
-                        } else { 
-                            window.showToast("No se pudo obtener la dirección.", "error"); 
-                        }
-                    });
-                }, () => { 
-                    window.showToast("Permiso de localización denegado.", "error"); 
-                });
-            } else { 
-                window.showToast("Tu navegador no soporta geolocalización.", "error"); 
-            }
-        };
-
-        window.sendTripRequest = async () => {
-            const origin = document.getElementById('origin-input').value.trim();
-            const dest = document.getElementById('destination-input').value.trim();
-            if(!origin || !dest) return window.showToast("Define ruta.", "error");
-
-            if (activeTrip && ['pending', 'accepted', 'in_progress'].includes(activeTrip.status)) {
-                return window.showToast("Ya tienes un viaje activo o solicitud en curso.", "error");
-            }
-            
-            try {
-                const requestBtn = document.querySelector("#fare-card button");
-                if (requestBtn) requestBtn.disabled = true;
-
-                const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
-                const q = query(tripsRef, where('clientId', '==', currentUser.uid));
-                const querySnapshot = await getDocs(q);
-                
-                const hasActive = querySnapshot.docs.some(d => { 
-                    return ['pending', 'accepted', 'in_progress'].includes(d.data().status); 
-                });
-
-                if (hasActive) {
-                    window.showToast("Ya tienes una solicitud de viaje registrada para tu cuenta.", "error");
-                    if (requestBtn) requestBtn.disabled = false;
-                    return;
+        // --- SISTEMAS DE NAVEGACIÓN COMPLEMENTARIOS (ETA REALTIME, CHAT Y MAPA) ---
+        window.updateRealtimeETA = (driverLoc, dest) => {
+            if(!window.directionsService) return;
+            window.directionsService.route({ origin: driverLoc, destination: dest, travelMode: google.maps.TravelMode.DRIVING, drivingOptions: { departureTime: new Date(Date.now()), trafficModel: 'bestguess' } }, (res, status) => {
+                if(status === 'OK') {
+                    const leg = res.routes[0].legs[0];
+                    const etaText = leg.duration_in_traffic ? leg.duration_in_traffic.text : leg.duration.text;
+                    if(document.getElementById('eta-text')) document.getElementById('eta-text').innerText = etaText;
+                    if(document.getElementById('eta-distance')) document.getElementById('eta-distance').innerText = leg.distance.text;
                 }
-                
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), {
-                    clientId: currentUser.uid, 
-                    clientName: window.userProfile.name,
-                    clientPhoto: window.userProfile.photo || null, 
-                    clientPhone: window.userProfile.phone,
-                    origin, 
-                    destination: dest, 
-                    originCoords: window.currentClientCoords || null, 
-                    destCoords: window.currentDestCoords || null,
-                    price: document.getElementById('price-display').innerText, 
-                    status: 'pending', 
-                    chat: [], 
-                    createdAt: serverTimestamp()
-                });
-                
-                document.getElementById('searching-state').classList.remove('hidden');
-                document.getElementById('fare-card').classList.add('hidden');
-                
-                // Advertencia al pasajero que no se salga de la app mientras busca
-                window.showSyncWarning();
-
-            } catch (err) {
-                window.showToast("Hubo un error de red. Inténtalo de nuevo.", "error");
-                const requestBtn = document.querySelector("#fare-card button");
-                if (requestBtn) requestBtn.disabled = false;
-            }
+            });
         };
+
+        window.updateMapRouteFromCoords = (origin, dest) => {
+            if(!window.directionsService || !window.directionsRenderer) return;
+            window.directionsService.route({ origin: origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
+                if (status === "OK") { window.directionsRenderer.setDirections(res); }
+            });
+        };
+
+        window.updateNavigation = (target) => {
+            if(!window.currentDriverPos) return;
+            document.body.classList.add('is-navigating');
+            document.getElementById('nav-hud-top').style.display = 'flex';
+            document.getElementById('nav-hud-bottom').style.display = 'block';
+            window.gMap.setTilt(60);
+            window.directionsService.route({ origin: window.currentDriverPos, destination: target, travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
+                if(status === 'OK') {
+                    window.directionsRenderer.setDirections(res);
+                    const leg = res.routes[0].legs[0];
+                    document.getElementById('nav-total-time').innerText = leg.duration.text;
+                    document.getElementById('nav-total-dist').innerText = leg.distance.text;
+                    if(leg.steps && leg.steps.length > 0) {
+                        document.getElementById('nav-step-text').innerHTML = leg.steps[0].instructions;
+                        document.getElementById('nav-step-dist').innerText = leg.steps[0].distance.text;
+                    }
+                }
+            });
+        };
+
+        function renderChat(chatArr) {
+            const container = document.getElementById('chat-messages');
+            if(!chatArr || chatArr.length === 0) {
+                container.innerHTML = '<p class="text-[10px] text-slate-500 text-center mt-4">Inicia la conversación...</p>';
+                window.lastChatLength = 0;
+                return;
+            }
+            if(chatArr.length > window.lastChatLength) {
+                if(window.lastChatLength > 0 && chatArr[chatArr.length-1].sender !== currentUser.uid) {
+                    window.playNotificationSound();
+                    const badge = document.getElementById('chat-unread-badge');
+                    if(document.getElementById('chat-section').classList.contains('collapsed') && badge) {
+                        badge.classList.remove('hidden');
+                    }
+                }
+                window.lastChatLength = chatArr.length;
+            }
+            container.innerHTML = '';
+            chatArr.forEach(m => {
+                const div = document.createElement('div');
+                div.className = `chat-msg ${m.sender === currentUser.uid ? 'msg-mine' : 'msg-theirs'}`;
+                div.innerText = m.text;
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
 
         window.sendChatMessage = async () => {
             const text = document.getElementById('chat-input').value.trim();
@@ -2188,125 +2357,6 @@
                 })
             });
             document.getElementById('chat-input').value = "";
-        };
-
-        window.processLogout = () => {
-            signOut(auth).then(() => location.reload());
-        };
-        
-        window.cancelOrder = async () => { 
-            window.showConfirm(
-                "¿Cancelar servicio VIP?", 
-                "Esta acción detendrá y cancelará el viaje. El registro se enviará al historial de auditoría.", 
-                async () => {
-                    if(activeTrip) {
-                        const cancellationData = {
-                            tripId: activeTrip.id, 
-                            origin: activeTrip.origin, 
-                            destination: activeTrip.destination, 
-                            price: activeTrip.price,
-                            clientId: activeTrip.clientId, 
-                            clientName: activeTrip.clientName, 
-                            clientPhone: activeTrip.clientPhone,
-                            driverId: activeTrip.driverId || null, 
-                            driverName: activeTrip.driverName || "Ninguno",
-                            cancelledBy: window.userProfile.role === 'admin' ? 'Administrador Supremo' : window.userProfile.name,
-                            cancelledAt: Date.now()
-                        };
-                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'cancelled_trips', activeTrip.id), cancellationData);
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'cancelled', cancelledBy: currentUser.uid });
-                    }
-                    location.reload(); 
-                }
-            );
-        };
-
-        window.addEventListener('map-route-trigger', () => {
-            const origin = document.getElementById('origin-input').value;
-            const dest = document.getElementById('destination-input').value;
-            if (!origin || !dest) return;
-            
-            window.directionsRenderer.setMap(window.gMap);
-            window.directionsRenderer.setOptions({ preserveViewport: false });
-            window.directionsService.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
-                if (status === "OK") {
-                    window.directionsRenderer.setDirections(res);
-                    const km = res.routes[0].legs[0].distance.value / 1000;
-                    document.getElementById('fare-card').classList.remove('hidden');
-                    document.getElementById('price-display').innerText = `L. ${(40 + km * 18).toFixed(2)}`;
-
-                    if (!window.currentClientCoords) {
-                        window.currentClientCoords = { 
-                            lat: res.routes[0].legs[0].start_location.lat(), 
-                            lng: res.routes[0].legs[0].start_location.lng() 
-                        };
-                    }
-                    if (!window.currentDestCoords) {
-                        window.currentDestCoords = { 
-                            lat: res.routes[0].legs[0].end_location.lat(), 
-                            lng: res.routes[0].legs[0].end_location.lng() 
-                        };
-                    }
-                }
-            });
-        });
-
-        window.centerMap = () => {
-            window.autoCenter = true;
-            document.getElementById('fab-center').classList.add('hidden');
-            if(window.currentDriverPos) {
-                window.gMap.panTo(window.currentDriverPos); 
-                window.gMap.setZoom(18); 
-                window.gMap.setTilt(45);
-            }
-        };
-
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition((pos) => {
-                const newPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-                window.currentDriverPos = newPos;
-                if (currentUser && window.userProfile?.role === 'driver') {
-                    setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid), { lat: newPos.lat, lng: newPos.lng, updatedAt: Date.now() });
-                }
-            }, null, { enableHighAccuracy: true });
-        }
-
-        function listenForNearbyDrivers() {
-            if (!currentUser) return;
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
-                snap.forEach(d => { 
-                    const relatedDriver = cachedProfilesList.find(p => p.uid === d.id);
-                    if (!relatedDriver || relatedDriver.isApproved !== false) {
-                        window.updateDriverMarker(d.id, d.data().lat, d.data().lng, d.id === currentUser.uid); 
-                    }
-                });
-            });
-        }
-
-        function showRatingScreen() { 
-            document.getElementById('rating-screen').style.display = 'flex'; 
-        }
-
-        window.setRating = (stars) => {
-            selectedStars = stars;
-            document.querySelectorAll('.star-btn').forEach(b => b.classList.toggle('text-soza-gold', parseInt(b.dataset.index) <= stars));
-        };
-
-        window.submitRating = async () => {
-            if (selectedStars === 0) return window.showToast("Califica con estrellas.", "error");
-            const targetUserId = window.userProfile.role === 'client' ? activeTrip.driverId : activeTrip.clientId;
-            
-            try {
-                const pubRef = doc(db, 'artifacts', appId, 'public', 'data', 'profiles', targetUserId);
-                const pubSnap = await getDoc(pubRef);
-                if (pubSnap.exists()) {
-                    const pubData = pubSnap.data();
-                    await updateDoc(pubRef, { ratingSum: (pubData.ratingSum || 0) + selectedStars, ratingCount: (pubData.ratingCount || 0) + 1, totalTrips: (pubData.totalTrips || 0) + 1 });
-                }
-            } catch(e) {}
-            
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { [`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]: true });
-            location.reload();
         };
 
         // --- CONSOLA DE ADMINISTRADOR SUPREMO ---
@@ -2367,7 +2417,6 @@
                 document.getElementById('stat-active-trips').innerText = activeTripsList.length;
                 renderAdminTrips(activeTripsList);
                 
-                // ALARMA SOS PARA ADMINISTRADOR 
                 const hasSOS = activeTripsList.some(d => d.data().sosActive === true);
                 if (hasSOS) {
                     document.getElementById('sos-alarm-overlay').classList.remove('hidden');
@@ -2757,6 +2806,6 @@
             } catch (err) {}
         }
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places&callback=initMap" loading="async"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places,visualization&callback=initMap" async defer></script>
 </body>
 </html>
