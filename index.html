@@ -2176,7 +2176,7 @@
         function listenToMyActiveTrip() {
             if (!currentUser) return;
             
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
                 const trip = snap.docs.find(d => {
                     const data = d.data();
                     return (data.clientId === currentUser.uid || data.driverId === currentUser.uid) && 
@@ -2323,9 +2323,12 @@
                             }
                         }
                     } else if (data.status === 'cancelled') {
+                        // CANDADO DE SEGURIDAD: Evita que este bloque se ejecute doble y duplique viajes
+                        if (window.isHandlingCancel) return;
+                        window.isHandlingCancel = true;
+
                         const wasDriverCancellation = data.cancelledBy === data.driverId; 
-                        window.showToast("Servicio VIP Cancelado por el conductor.", "error"); 
-                        window.sendBrowserNotification("Servicio Cancelado ❌", "Tu viaje VIP de Comayagua Express fue cancelado.");
+                        window.showToast("Servicio VIP Cancelado.", "error"); 
                         
                         const savedOrigin = data.origin; 
                         const savedDestination = data.destination; 
@@ -2333,47 +2336,55 @@
                         const savedOriginCoords = data.originCoords || null; 
                         const savedDestCoords = data.destCoords || null;
                         
-                        deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id)).then(async () => {
-                            if (window.userProfile.role === 'client' && wasDriverCancellation) {
-                                window.showToast("Buscando un nuevo conductor VIP automáticamente...", "success");
-                                try {
-                                    const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips'); 
-                                    const q = query(tripsRef, where('clientId', '==', currentUser.uid)); 
-                                    const querySnapshot = await getDocs(q);
-                                    
-                                    const hasActive = querySnapshot.docs.some(d => { 
-                                        return ['pending', 'accepted', 'in_progress'].includes(d.data().status); 
+                        try {
+                            // Limpiamos el viaje cancelado de la BD principal para evitar conflictos
+                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id));
+                        } catch(e) {}
+                        
+                        if (window.userProfile.role === 'client' && wasDriverCancellation) {
+                            window.showToast("Buscando un nuevo conductor VIP automáticamente...", "success");
+                            try {
+                                const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips'); 
+                                const q = query(tripsRef, where('clientId', '==', currentUser.uid)); 
+                                const querySnapshot = await getDocs(q);
+                                
+                                // REVISIÓN DOBLE: Aseguramos que NO se haya creado ya un viaje pendiente o aceptado
+                                const hasActive = querySnapshot.docs.some(d => { 
+                                    return ['pending', 'accepted', 'in_progress'].includes(d.data().status); 
+                                });
+                                
+                                if (!hasActive) {
+                                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), { 
+                                        clientId: currentUser.uid, 
+                                        clientName: window.userProfile.name, 
+                                        clientPhoto: window.userProfile.photo || null, 
+                                        clientPhone: window.userProfile.phone, 
+                                        origin: savedOrigin, 
+                                        destination: savedDestination, 
+                                        originCoords: savedOriginCoords, 
+                                        destCoords: savedDestCoords, 
+                                        price: savedPrice, 
+                                        status: 'pending', 
+                                        targetDriverId: null, // Lo mandamos abierto a todos los conductores disponibles
+                                        assignedAt: Date.now(),
+                                        chat: [], 
+                                        createdAt: serverTimestamp() 
                                     });
-                                    
-                                    if (!hasActive) {
-                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), { 
-                                            clientId: currentUser.uid, 
-                                            clientName: window.userProfile.name, 
-                                            clientPhoto: window.userProfile.photo || null, 
-                                            clientPhone: window.userProfile.phone, 
-                                            origin: savedOrigin, 
-                                            destination: savedDestination, 
-                                            originCoords: savedOriginCoords, 
-                                            destCoords: savedDestCoords, 
-                                            price: savedPrice, 
-                                            status: 'pending', 
-                                            chat: [], 
-                                            createdAt: serverTimestamp() 
-                                        });
-                                    }
-                                    
-                                    document.getElementById('active-trip-panel').classList.add('hidden'); 
-                                    document.getElementById('client-view').classList.remove('hidden'); 
-                                    document.getElementById('searching-state').classList.remove('hidden'); 
-                                    document.getElementById('fare-card').classList.add('hidden'); 
-                                    document.getElementById('eta-indicator').classList.add('hidden');
-                                } catch (err) { 
-                                    location.reload(); 
                                 }
-                            } else { 
+                                
+                                document.getElementById('active-trip-panel').classList.add('hidden'); 
+                                document.getElementById('client-view').classList.remove('hidden'); 
+                                document.getElementById('searching-state').classList.remove('hidden'); 
+                                document.getElementById('fare-card').classList.add('hidden'); 
+                                document.getElementById('eta-indicator').classList.add('hidden');
+                                
+                                setTimeout(() => { window.isHandlingCancel = false; }, 3000);
+                            } catch (err) { 
                                 location.reload(); 
                             }
-                        });
+                        } else { 
+                            location.reload(); 
+                        }
                         activeTrip = null;
                     } else if (data.status === 'completed' && !data[`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]) { 
                         showRatingScreen(); 
@@ -2463,7 +2474,10 @@
         };
 
         window.updateNavigation = (target) => {
-            if(!window.currentDriverPos) return;
+            if(!window.currentDriverPos) {
+                window.showToast("Esperando señal GPS para trazar ruta...", "info");
+                return;
+            }
             document.body.classList.add('is-navigating');
             document.getElementById('nav-hud-top').style.display = 'flex';
             document.getElementById('nav-hud-bottom').style.display = 'block';
@@ -2478,6 +2492,8 @@
                         document.getElementById('nav-step-text').innerHTML = leg.steps[0].instructions;
                         document.getElementById('nav-step-dist').innerText = leg.steps[0].distance.text;
                     }
+                } else {
+                    window.showToast("No se pudo trazar la ruta automáticamente.", "error");
                 }
             });
         };
@@ -2489,16 +2505,19 @@
                 window.lastChatLength = 0;
                 return;
             }
+            
+            // SONIDO Y NOTIFICACIÓN DE CHAT RESTAURADOS
             if(chatArr.length > window.lastChatLength) {
                 if(window.lastChatLength > 0 && chatArr[chatArr.length-1].sender !== currentUser.uid) {
-                    window.playNotificationSound();
+                    window.playNotificationSound(); // Reproduce sonido
                     const badge = document.getElementById('chat-unread-badge');
                     if(document.getElementById('chat-section').classList.contains('collapsed') && badge) {
-                        badge.classList.remove('hidden');
+                        badge.classList.remove('hidden'); // Muestra punto rojo si el chat está cerrado
                     }
                 }
                 window.lastChatLength = chatArr.length;
             }
+            
             container.innerHTML = '';
             chatArr.forEach(m => {
                 const div = document.createElement('div');
@@ -2557,7 +2576,7 @@
         };
 
         function startDriverListener() {
-            // Hook para conductor
+            // Hook reservado
         }
 
         // --- CONSOLA DE ADMINISTRADOR SUPREMO ---
