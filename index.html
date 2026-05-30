@@ -340,6 +340,7 @@
                     (pos) => {
                         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                         window.currentClientCoords = coords;
+                        window.currentDriverPos = coords; // Prevenimos null antes del watchPosition
                         
                         // Centrar mapa si ya está cargado
                         if (window.gMap) {
@@ -372,8 +373,9 @@
 
         // NUEVO: Función para el botón flotante "CENTRAR"
         window.centerMap = () => {
-            if (window.currentClientCoords && window.gMap) {
-                window.gMap.panTo(window.currentClientCoords);
+            const centerTarget = window.currentDriverPos || window.currentClientCoords;
+            if (centerTarget && window.gMap) {
+                window.gMap.panTo(centerTarget);
                 window.gMap.setZoom(16);
                 window.autoCenter = true;
                 document.getElementById('fab-center').classList.add('hidden');
@@ -1853,6 +1855,8 @@
                 navigator.geolocation.getCurrentPosition((pos) => {
                     const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     window.currentClientCoords = coords; 
+                    window.currentDriverPos = coords; // Prevenimos null en choferes
+
                     if(window.gMap) window.gMap.panTo(coords);
                     if (window.geocoder) {
                         window.geocoder.geocode({ location: coords }, (results, status) => {
@@ -2524,16 +2528,20 @@
             });
         };
 
+        // ACTUALIZADO: Fallback a coordenadas del cliente si no hay del conductor
         window.updateNavigation = (target) => {
-            if(!window.currentDriverPos) {
+            const startPos = window.currentDriverPos || window.currentClientCoords;
+            if(!startPos) {
                 window.showToast("Esperando señal GPS para trazar ruta...", "info");
+                // Forzar lectura de posición en caso de emergencia
+                window.requestInitialLocation();
                 return;
             }
             document.body.classList.add('is-navigating');
             document.getElementById('nav-hud-top').style.display = 'flex';
             document.getElementById('nav-hud-bottom').style.display = 'block';
             window.gMap.setTilt(60);
-            window.directionsService.route({ origin: window.currentDriverPos, destination: target, travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
+            window.directionsService.route({ origin: startPos, destination: target, travelMode: google.maps.TravelMode.DRIVING }, (res, status) => {
                 if(status === 'OK') {
                     window.directionsRenderer.setDirections(res);
                     const leg = res.routes[0].legs[0];
@@ -2627,11 +2635,44 @@
         };
 
         function listenForNearbyDrivers() {
-            // Hook placeholder
+            // Hook placeholder (ya implementado parcialmente en Auto-Assign)
         }
 
+        // ACTUALIZADO: RASTREO REAL DEL CONDUCTOR
         function startDriverListener() {
-            // Hook reservado
+            if (navigator.geolocation) {
+                // watchPosition actualiza constantemente la posición mientras el usuario se mueve
+                window.driverWatchId = navigator.geolocation.watchPosition(async (pos) => {
+                    const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    window.currentDriverPos = coords;
+                    window.currentClientCoords = coords; // Sincroniza ambos por seguridad
+                    
+                    if (window.mapLoaded && window.gMap) {
+                        window.updateDriverMarker(currentUser.uid, coords.lat, coords.lng, true, pos.coords.heading || 0);
+                    }
+
+                    // Sube la ubicación a Firebase para el Heatmap y los pasajeros
+                    if (currentUser && window.userProfile?.role === 'driver') {
+                        const locData = {
+                            lat: coords.lat,
+                            lng: coords.lng,
+                            heading: pos.coords.heading || 0,
+                            updatedAt: Date.now(),
+                            isAvailable: !activeTrip
+                        };
+                        try {
+                            // Usamos setDoc con merge para no fallar si no existe
+                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid), locData, { merge: true });
+                        } catch (e) {
+                            console.error("Error al actualizar la ubicación del conductor:", e);
+                        }
+                    }
+                }, (err) => {
+                    console.warn("Error en el rastreo del conductor:", err);
+                }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 });
+            } else {
+                window.showToast("Tu dispositivo no soporta rastreo GPS continuo.", "error");
+            }
         }
 
         // --- CONSOLA DE ADMINISTRADOR SUPREMO ---
