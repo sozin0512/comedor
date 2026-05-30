@@ -2787,6 +2787,13 @@
                         window.sendBrowserNotification("¡Viaje VIP Aceptado! 🚗", `${data.driverName.toUpperCase()} va en camino a recogerte.`); 
                     }
                     
+                    // --- NUEVA LÓGICA DE NOTIFICACIONES AL INICIAR EL VIAJE (IN_PROGRESS) ---
+                    if (lastStatus === 'accepted' && data.status === 'in_progress' && window.userProfile?.role === 'client') {
+                        window.playNotificationSound();
+                        window.sendBrowserNotification("¡Viaje Iniciado! 🚘", "Tu PIN ha sido verificado correctamente.");
+                        window.showToast("¡PIN verificado! Tu viaje ha comenzado.", "success");
+                    }
+                    
                     const lastArrived = window.lastDriverArrived || false; 
                     window.lastDriverArrived = data.driverArrived;
                     
@@ -2863,30 +2870,42 @@
                             }
 
                         } else if (window.userProfile.role === 'client') {
-                            if (data.status === 'accepted') {
+                            if (data.status === 'accepted' || data.status === 'in_progress') {
                                 document.getElementById('client-pin-display').classList.remove('hidden'); 
-                                document.getElementById('client-pin-code').innerText = data.pin || "----"; 
                                 
                                 const pinContainer = document.getElementById('client-pin-display');
                                 const pinLabel = document.querySelector('#client-pin-display p:first-child');
                                 const pinCode = document.getElementById('client-pin-code');
 
-                                if (data.driverArrived) {
+                                // Lógica visual de UI mejorada para cuando el viaje inicia (In Progress)
+                                if (data.status === 'in_progress') {
                                     document.getElementById('eta-indicator').classList.add('hidden');
-                                    pinContainer.className = "bg-emerald-950/40 border border-emerald-500 p-4 rounded-2xl text-center shadow-lg animate-bounce";
+                                    pinContainer.className = "bg-soza-gold/20 border border-soza-gold p-4 rounded-2xl text-center shadow-lg";
                                     if(pinLabel) {
-                                        pinLabel.innerText = "¡CONDUCTOR AFUERA! DILE ESTE PIN:";
-                                        pinLabel.className = "text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-widest";
+                                        pinLabel.innerText = "¡VIAJE EN CURSO!";
+                                        pinLabel.className = "text-[12px] font-black text-soza-gold uppercase mb-1 tracking-widest";
                                     }
-                                    pinCode.className = "text-5xl font-black text-white tracking-[0.4em] drop-shadow-md";
+                                    pinCode.innerText = "Disfruta tu viaje VIP";
+                                    pinCode.className = "text-sm font-bold text-white";
                                 } else {
-                                    document.getElementById('eta-indicator').classList.remove('hidden');
-                                    pinContainer.className = "bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse";
-                                    if(pinLabel) {
-                                        pinLabel.innerText = "Tu PIN SOZA de Seguridad";
-                                        pinLabel.className = "text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest";
+                                    document.getElementById('client-pin-code').innerText = data.pin || "----"; 
+                                    if (data.driverArrived) {
+                                        document.getElementById('eta-indicator').classList.add('hidden');
+                                        pinContainer.className = "bg-emerald-950/40 border border-emerald-500 p-4 rounded-2xl text-center shadow-lg animate-bounce";
+                                        if(pinLabel) {
+                                            pinLabel.innerText = "¡CONDUCTOR AFUERA! DILE ESTE PIN:";
+                                            pinLabel.className = "text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-widest";
+                                        }
+                                        pinCode.className = "text-5xl font-black text-white tracking-[0.4em] drop-shadow-md";
+                                    } else {
+                                        document.getElementById('eta-indicator').classList.remove('hidden');
+                                        pinContainer.className = "bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse";
+                                        if(pinLabel) {
+                                            pinLabel.innerText = "Tu PIN SOZA de Seguridad";
+                                            pinLabel.className = "text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest";
+                                        }
+                                        pinCode.className = "text-4xl font-black text-soza-goldlight tracking-[0.4em]";
                                     }
-                                    pinCode.className = "text-4xl font-black text-soza-goldlight tracking-[0.4em]";
                                 }
                                 
                                 if (activeDriverDocListener) activeDriverDocListener();
@@ -3009,12 +3028,20 @@
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { driverArrived: true }); 
         };
         
+        // --- VERIFICACIÓN DE PIN MEJORADA ---
         window.verifyPin = async () => { 
-            if (document.getElementById('driver-pin-input').value === activeTrip.pin) {
+            const inputElement = document.getElementById('driver-pin-input');
+            const inputVal = inputElement.value.trim();
+            
+            if (!inputVal) return window.showToast("Por favor, ingresa el PIN del pasajero.", "error");
+
+            if (inputVal === activeTrip.pin) {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { status: 'in_progress' });
-                window.showToast("¡PIN Verificado! Buen viaje VIP.", "success");
+                window.showToast("¡PIN Verificado! El viaje ha comenzado.", "success");
+                inputElement.value = ""; // Limpiar
             } else { 
-                window.showToast("PIN Incorrecto", "error"); 
+                window.showToast("PIN Incorrecto. Verifica el número con tu pasajero.", "error"); 
+                inputElement.value = ""; // Limpiar para que vuelva a intentar
             }
         };
 
@@ -3692,291 +3719,6 @@
                 }
             });
         });
-
-        // --- FUNCIONALIDAD EXCLUSIVA DEL SUPERVISOR ---
-        window.setSupTab = (tab) => { 
-            currentSupTab = tab;
-            document.querySelectorAll('.sup-tab-btn').forEach(btn => btn.className = 'sup-tab-btn flex-1 py-2 rounded-lg transition-all text-gray-400');
-            document.getElementById(`tab-sup-${tab}`).className = 'sup-tab-btn flex-1 py-2 rounded-lg transition-all bg-indigo-600 text-white shadow-sm';
-            
-            if (tab === 'map') {
-                document.getElementById('sup-list').classList.add('hidden');
-                document.getElementById('sup-map-view').classList.remove('hidden');
-                window.renderOnlineDrivers();
-            } else {
-                document.getElementById('sup-list').classList.remove('hidden');
-                document.getElementById('sup-map-view').classList.add('hidden');
-                window.renderSupervisorList();
-            }
-        };
-
-        window.openDocModal = (title, src) => { 
-            if (!src || src === 'undefined') return;
-            document.getElementById('doc-modal-title').innerText = title;
-            document.getElementById('doc-modal-img').src = src;
-            document.getElementById('doc-modal').classList.remove('hidden');
-        };
-
-        function startSupervisorListeners() { 
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'profiles'), (snap) => {
-                const drivers = [];
-                snap.forEach(d => { if(d.data().role === 'driver') drivers.push(d.data()); });
-                window.cachedSupDrivers = drivers;
-                if (currentSupTab !== 'recharges' && currentSupTab !== 'map') window.renderSupervisorList();
-                if (currentSupTab === 'map') window.renderOnlineDrivers();
-            });
-
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'), (snap) => {
-                const onlines = [];
-                const now = Date.now();
-                snap.forEach(d => { 
-                    const loc = d.data();
-                    if (now - loc.updatedAt < 1000 * 60 * 15) {
-                        onlines.push({ id: d.id, ...loc }); 
-                    }
-                });
-                window.cachedOnlineDrivers = onlines;
-                if (currentSupTab === 'map') window.renderOnlineDrivers();
-            });
-
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
-                const activeTripsList = snap.docs.filter(d => ['pending', 'accepted', 'in_progress'].includes(d.data().status));
-                const hasSOS = activeTripsList.some(d => d.data().sosActive === true);
-                if (hasSOS) {
-                    document.getElementById('sos-alarm-overlay').classList.remove('hidden');
-                    window.playNotificationSound();
-                } else {
-                    document.getElementById('sos-alarm-overlay').classList.add('hidden');
-                }
-            });
-        }
-
-        window.renderOnlineDrivers = async () => {
-            const container = document.getElementById('sup-online-drivers-list');
-            if(!container) return;
-            container.innerHTML = '';
-
-            if (window.cachedOnlineDrivers.length === 0) {
-                container.innerHTML = `<div class="py-12 text-center opacity-30"><i class="fas fa-car-crash text-4xl mb-4 text-indigo-400"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center text-white">No hay conductores emitiendo señal GPS</p></div>`;
-                return;
-            }
-
-            for (let loc of window.cachedOnlineDrivers) {
-                const profile = window.cachedSupDrivers.find(p => p.uid === loc.id);
-                if (!profile) continue; 
-
-                const isBanned = profile.isBanned === true;
-                const lastSeenMin = Math.floor((Date.now() - loc.updatedAt) / 60000);
-                
-                let debtHTML = '<span class="text-[9px] text-gray-400"><i class="fas fa-spinner fa-spin"></i></span>';
-                
-                const cardDiv = document.createElement('div');
-                cardDiv.className = `p-3 bg-slate-900 border ${isBanned ? 'border-rose-500/50' : 'border-slate-800'} rounded-2xl flex flex-col gap-2 shadow-sm relative text-white`;
-                
-                const getDebtHtml = async () => {
-                    try {
-                        const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), where('driverId', '==', loc.id));
-                        const snap = await getDocs(q);
-                        
-                        let sumCashComm = 0; 
-                        let sumPointsOwed = 0; 
-                        const todayStr = new Date().toLocaleDateString();
-
-                        snap.docs.forEach(d => {
-                            const t = d.data();
-                            if (t.status === 'completed' && t.createdAt) {
-                                if (new Date(t.createdAt.toDate()).toLocaleDateString() === todayStr) {
-                                    const priceVal = parseFloat(t.price.replace(/[^\d.-]/g, ''));
-                                    if (t.paymentMethod === 'cash') sumCashComm += (priceVal * 0.30);
-                                    else sumPointsOwed += (priceVal * 0.70);
-                                }
-                            }
-                        });
-
-                        const netBalance = sumCashComm - sumPointsOwed;
-                        if (netBalance > 0) {
-                            return `<span class="text-[10px] font-black text-rose-500 uppercase">Debe L. ${netBalance.toFixed(2)}</span>`;
-                        } else if (netBalance < 0) {
-                            return `<span class="text-[10px] font-black text-emerald-400 uppercase">A Favor L. ${Math.abs(netBalance).toFixed(2)}</span>`;
-                        } else {
-                            return `<span class="text-[10px] font-bold text-gray-500 uppercase">Al día</span>`;
-                        }
-                    } catch(e) { return '<span class="text-[9px] text-rose-500">Error</span>'; }
-                };
-
-                const debtStr = await getDebtHtml();
-
-                cardDiv.innerHTML = `
-                    <div class="flex justify-between items-start">
-                        <div class="flex items-center gap-2">
-                            ${profile.photo ? `<img src="${profile.photo}" class="w-8 h-8 rounded-full object-cover">` : `<div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center font-bold text-xs">${profile.name.charAt(0)}</div>`}
-                            <div>
-                                <h5 class="text-xs font-black uppercase text-white">${profile.name}</h5>
-                                <p class="text-[9px] font-bold ${loc.isAvailable ? 'text-emerald-400' : 'text-amber-400'} uppercase tracking-widest flex items-center gap-1">
-                                    <span class="w-1.5 h-1.5 rounded-full ${loc.isAvailable ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}"></span>
-                                    ${loc.isAvailable ? 'Libre' : 'En Viaje'}
-                                </p>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                            ${debtStr}
-                            <p class="text-[8px] text-gray-400 mt-1">Activo hace ${lastSeenMin} min</p>
-                        </div>
-                    </div>
-                    
-                    <div class="flex gap-2 mt-1">
-                        <button onclick="window.trackDriver('${loc.id}')" class="flex-1 py-2 bg-slate-800 border border-slate-700 rounded-xl text-[9px] font-black uppercase transition-colors hover:bg-slate-700">
-                            <i class="fas fa-location-crosshairs text-indigo-400"></i> Rastrear
-                        </button>
-                        ${isBanned ? `
-                            <button onclick="window.setAdminVeto('${loc.id}', false)" class="flex-1 py-2 bg-emerald-950/50 text-emerald-400 border border-emerald-500/30 rounded-xl text-[9px] font-black uppercase transition-colors hover:bg-emerald-900">
-                                Desvetar
-                            </button>
-                        ` : `
-                            <button onclick="window.setAdminVeto('${loc.id}', true)" class="flex-1 py-2 bg-rose-950/50 text-rose-500 border border-rose-500/30 rounded-xl text-[9px] font-black uppercase transition-colors hover:bg-rose-900">
-                                Suspender (Deuda)
-                            </button>
-                        `}
-                    </div>
-                `;
-                container.appendChild(cardDiv);
-            }
-        };
-
-        window.renderSupervisorList = () => {
-            const container = document.getElementById('sup-list'); 
-            container.innerHTML = '';
-            
-            if (currentSupTab === 'recharges') {
-                const pendingRecharges = window.cachedRecharges.filter(r => r.status === 'pending');
-                if (pendingRecharges.length === 0) {
-                    container.innerHTML = `<div class="py-12 text-center opacity-30"><i class="fas fa-check-double text-4xl mb-4 text-emerald-400"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center text-white">Todas las transferencias están revisadas</p></div>`;
-                    return;
-                }
-
-                pendingRecharges.forEach(r => {
-                    const isDeposit = r.type === 'driver_deposit';
-                    const card = document.createElement('div');
-                    card.className = `p-4 bg-slate-900 border ${isDeposit ? 'border-rose-500/30' : 'border-soza-gold/30'} rounded-2xl flex flex-col gap-3 shadow-lg relative text-white`;
-                    card.innerHTML = `
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h5 class="text-sm font-black uppercase text-white">${r.userName}</h5>
-                                <p class="text-[9px] font-bold ${isDeposit ? 'text-rose-400' : 'text-soza-gold'} uppercase tracking-widest">${isDeposit ? 'Depósito de Comisión' : 'Recarga de Puntos'}</p>
-                            </div>
-                            <span class="text-lg font-black ${isDeposit ? 'text-white' : 'text-emerald-400'}">L. ${r.amount.toFixed(2)}</span>
-                        </div>
-                        <button onclick="window.openDocModal('Comprobante ${isDeposit ? 'Depósito' : 'Recarga'}', '${r.receiptImage}')" class="w-full py-2 bg-slate-800 border border-slate-700 rounded-xl text-[10px] font-bold uppercase transition-colors hover:bg-slate-700">
-                            <i class="fas fa-file-invoice text-indigo-400"></i> Ver Comprobante
-                        </button>
-                        <div class="flex gap-2 mt-1">
-                            <button onclick="window.rejectRecharge('${r.id}')" class="flex-1 py-2.5 bg-rose-950/50 text-rose-500 border border-rose-500/30 rounded-xl text-[10px] font-black uppercase shadow-sm transition-all hover:bg-rose-900"><i class="fas fa-times"></i> Rechazar</button>
-                            <button onclick="window.approveRecharge('${r.id}', '${r.userId}', ${r.amount}, ${isDeposit})" class="flex-[2] py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg transition-all hover:bg-emerald-500"><i class="fas fa-check"></i> Aprobar</button>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
-                return;
-            }
-
-            const isPending = currentSupTab === 'pending';
-            const filtered = window.cachedSupDrivers.filter(d => isPending ? d.isApproved === false : d.isApproved !== false);
-
-            if (filtered.length === 0) {
-                container.innerHTML = `<div class="py-12 text-center opacity-30"><i class="fas fa-folder-open text-4xl mb-4 text-indigo-400"></i><p class="font-bold text-[10px] uppercase tracking-widest text-center text-white">No hay conductores ${isPending ? 'pendientes de revisión' : 'aprobados'}</p></div>`;
-                return;
-            }
-
-            filtered.forEach(u => {
-                const d = u.vehicle || {};
-                const hasDni = d.dniPhoto && d.dniPhoto !== 'null'; 
-                const hasLicense = d.licensePhoto && d.licensePhoto !== 'null';
-                const hasRev = d.revisionPhoto && d.revisionPhoto !== 'null'; 
-                const hasMat = d.matriculaPhoto && d.matriculaPhoto !== 'null';
-                const hasExt = d.vehExtPhoto && d.vehExtPhoto !== 'null'; 
-                const hasInt = d.vehIntPhoto && d.vehIntPhoto !== 'null';
-                
-                const card = document.createElement('div');
-                card.className = "p-5 bg-slate-900 border border-slate-800 rounded-3xl flex flex-col gap-3 shadow-lg relative text-white";
-                card.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        ${u.photo ? `<img src="${u.photo}" class="w-12 h-12 rounded-full object-cover border border-soza-gold/40">` : `<div class="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-lg border border-soza-gold/40">${u.name.charAt(0)}</div>`}
-                        <div>
-                            <h5 class="text-sm font-black text-white">${u.name.toUpperCase()}</h5>
-                            <p class="text-[10px] text-gray-400 mt-0.5"><i class="fas fa-phone text-soza-gold"></i> ${u.phone}</p>
-                        </div>
-                    </div>
-                    
-                    <div class="bg-slate-950 p-3 rounded-2xl border border-slate-800 text-[10px] text-slate-300 grid grid-cols-2 gap-x-2 gap-y-1.5 mt-1">
-                        <div><b class="text-soza-gold uppercase tracking-wider block text-[7px] opacity-70">Vehículo:</b> <span class="font-bold">${d.model || 'N/A'}</span></div>
-                        <div><b class="text-soza-gold uppercase tracking-wider block text-[7px] opacity-70">Placa:</b> <span class="uppercase font-bold">${d.plate || 'N/A'}</span></div>
-                        <div><b class="text-soza-gold uppercase tracking-wider block text-[7px] opacity-70">Licencia N°:</b> <span class="font-bold">${d.license || 'N/A'}</span></div>
-                        <div><b class="text-soza-gold uppercase tracking-wider block text-[7px] opacity-70">Nacimiento:</b> <span class="font-bold">${u.dob || 'N/A'}</span></div>
-                        <div class="col-span-2"><b class="text-soza-gold uppercase tracking-wider block text-[7px] opacity-70">Correo:</b> <span class="font-bold text-[8px] break-all">${u.contactEmail || 'N/A'}</span></div>
-                    </div>
-                    
-                    <div class="grid grid-cols-3 gap-1.5 mt-1">
-                        <button onclick="window.openDocModal('Identidad (DNI)', '${d.dniPhoto}')" class="${!hasDni ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} py-2 bg-slate-800 text-white rounded-xl text-[8px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-id-card text-indigo-400 mb-0.5 block"></i> DNI</button>
-                        <button onclick="window.openDocModal('Licencia', '${d.licensePhoto}')" class="${!hasLicense ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} py-2 bg-slate-800 text-white rounded-xl text-[8px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-car text-indigo-400 mb-0.5 block"></i> Lic.</button>
-                        <button onclick="window.openDocModal('Revisión Físico-Mecánica', '${d.revisionPhoto}')" class="${!hasRev ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} py-2 bg-slate-800 text-white rounded-xl text-[8px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-file-contract text-indigo-400 mb-0.5 block"></i> Rev.</button>
-                        <button onclick="window.openDocModal('Matrícula de Vehículo', '${d.matriculaPhoto}')" class="${!hasMat ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} py-2 bg-slate-800 text-white rounded-xl text-[8px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-file-invoice text-indigo-400 mb-0.5 block"></i> Matr.</button>
-                        <button onclick="window.openDocModal('Exterior del Vehículo', '${d.vehExtPhoto}')" class="${!hasExt ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} py-2 bg-slate-800 text-white rounded-xl text-[8px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-car-side text-indigo-400 mb-0.5 block"></i> Ext.</button>
-                        <button onclick="window.openDocModal('Interior del Vehículo', '${d.vehIntPhoto}')" class="${!hasInt ? 'opacity-30 pointer-events-none' : 'hover:bg-slate-700'} py-2 bg-slate-800 text-white rounded-xl text-[8px] font-black uppercase tracking-wider transition-colors"><i class="fas fa-chair text-indigo-400 mb-0.5 block"></i> Int.</button>
-                    </div>
-
-                    ${u.currentSelfie ? `
-                        <button onclick="window.openDocModal('Última Verificación Facial', '${u.currentSelfie}')" class="w-full py-2.5 bg-slate-800 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-colors hover:bg-slate-700 border border-soza-gold/30 mt-1"><i class="fas fa-camera text-soza-gold text-sm block mb-1"></i> Ver Selfie de Seguridad Diaria</button>
-                    ` : ''}
-                    
-                    <div class="flex gap-2 mt-2 pt-4 border-t border-slate-800">
-                        ${u.isApproved !== false ? `
-                            <button onclick="window.setDriverApproval('${u.uid}', false)" class="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all"><i class="fas fa-ban"></i> Suspender</button>
-                        ` : `
-                            <button onclick="window.setDriverApproval('${u.uid}', true)" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[10px] font-black uppercase shadow-lg active:scale-95 transition-all"><i class="fas fa-check-double"></i> Aprobar Conductor</button>
-                        `}
-                    </div>
-                `;
-                container.appendChild(card);
-            });
-        };
-
-        window.approveRecharge = async (rechargeId, userId, amount, isDeposit) => {
-            window.showConfirm("¿Aprobar transferencia?", isDeposit ? "El depósito del conductor será marcado como válido." : `Se sumarán L. ${amount.toFixed(2)} a la billetera del pasajero.`, async () => {
-                try {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'recharges', rechargeId), {
-                        status: 'approved', approvedAt: Date.now(), approvedBy: currentUser.uid
-                    });
-
-                    if (!isDeposit) {
-                        const clientProfileRefPublic = doc(db, 'artifacts', appId, 'public', 'data', 'profiles', userId);
-                        const clientProfileRefPrivate = doc(db, 'artifacts', appId, 'users', userId, 'profile', 'info');
-                        const pSnap = await getDoc(clientProfileRefPublic);
-                        if(pSnap.exists()) {
-                            const currentBal = pSnap.data().balance || 0;
-                            await updateDoc(clientProfileRefPublic, { balance: currentBal + amount });
-                            try{ await updateDoc(clientProfileRefPrivate, { balance: currentBal + amount }); }catch(e){}
-                        }
-                    }
-                    
-                    window.showToast("Operación aprobada.", "success");
-                } catch(e) {
-                    window.showToast("Error al aprobar.", "error");
-                }
-            });
-        };
-
-        window.rejectRecharge = async (rechargeId) => {
-            window.showConfirm("¿Rechazar comprobante?", "La transferencia será marcada como rechazada.", async () => {
-                try {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'recharges', rechargeId), {
-                        status: 'rejected', rejectedAt: Date.now(), rejectedBy: currentUser.uid
-                    });
-                    window.showToast("Comprobante rechazado.", "success");
-                } catch(e) {
-                    window.showToast("Error al rechazar.", "error");
-                }
-            });
-        };
 
         if ('serviceWorker' in navigator) { 
             try {
