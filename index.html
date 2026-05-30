@@ -2793,6 +2793,7 @@
                     if (!lastArrived && data.driverArrived && window.userProfile?.role === 'client') { 
                         window.playNotificationSound(); 
                         window.sendBrowserNotification("¡Tu Conductor ha Llegado! 📍", `${data.driverName.toUpperCase()} está esperándote en el punto de recogida.`); 
+                        window.showToast("¡Tu conductor ha llegado al punto de recogida!", "success");
                     }
 
                     if (data.status === 'accepted' || data.status === 'in_progress') {
@@ -2873,37 +2874,20 @@
                                 if (data.driverArrived) {
                                     document.getElementById('eta-indicator').classList.add('hidden');
                                     pinContainer.className = "bg-emerald-950/40 border border-emerald-500 p-4 rounded-2xl text-center shadow-lg animate-bounce";
-                                    pinLabel.innerText = "¡CONDUCTOR AFUERA! DILE ESTE PIN:";
-                                    pinLabel.className = "text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-widest";
+                                    if(pinLabel) {
+                                        pinLabel.innerText = "¡CONDUCTOR AFUERA! DILE ESTE PIN:";
+                                        pinLabel.className = "text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-widest";
+                                    }
                                     pinCode.className = "text-5xl font-black text-white tracking-[0.4em] drop-shadow-md";
                                 } else {
                                     document.getElementById('eta-indicator').classList.remove('hidden');
                                     pinContainer.className = "bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse";
-                                    pinLabel.innerText = "Tu PIN SOZA de Seguridad";
-                                    pinLabel.className = "text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest";
+                                    if(pinLabel) {
+                                        pinLabel.innerText = "Tu PIN SOZA de Seguridad";
+                                        pinLabel.className = "text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest";
+                                    }
                                     pinCode.className = "text-4xl font-black text-soza-goldlight tracking-[0.4em]";
-                                    
-                                    if (activeDriverDocListener) activeDriverDocListener();
-                                    
-                                    activeDriverDocListener = onSnapshot(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', data.driverId), (driverSnap) => {
-                                        try { 
-                                            if (driverSnap.exists()) { 
-                                                const driverLoc = driverSnap.data(); 
-                                                window.updateDriverMarker(data.driverId, driverLoc.lat, driverLoc.lng, false); 
-                                                const clientDest = data.originCoords || data.origin; 
-                                                window.updateMapRouteFromCoords(driverLoc, clientDest); 
-                                                const bounds = new google.maps.LatLngBounds(); 
-                                                bounds.extend(new google.maps.LatLng(driverLoc.lat, driverLoc.lng)); 
-                                                if (data.originCoords) bounds.extend(new google.maps.LatLng(data.originCoords.lat, data.originCoords.lng)); 
-                                                window.gMap.fitBounds(bounds); 
-                                                window.updateRealtimeETA(driverLoc, clientDest); 
-                                            } 
-                                        } catch (err) {}
-                                    });
                                 }
-                            } else if (data.status === 'in_progress') {
-                                document.getElementById('client-pin-display').classList.add('hidden'); 
-                                document.getElementById('eta-indicator').classList.add('hidden');
                                 
                                 if (activeDriverDocListener) activeDriverDocListener();
                                 
@@ -3177,6 +3161,10 @@
             if(chatArr.length > window.lastChatLength) {
                 if(window.lastChatLength > 0 && chatArr[chatArr.length-1].sender !== currentUser.uid) {
                     window.playNotificationSound(); 
+                    
+                    const lastMsg = chatArr[chatArr.length-1];
+                    window.showToast("💬 " + lastMsg.senderName + ": " + lastMsg.text, "info");
+                    
                     const badge = document.getElementById('chat-unread-badge');
                     if(document.getElementById('chat-section').classList.contains('collapsed') && badge) {
                         badge.classList.remove('hidden'); 
