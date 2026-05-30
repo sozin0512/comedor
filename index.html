@@ -408,6 +408,11 @@
                         window.dispatchEvent(new CustomEvent('map-route-trigger')); 
                         destInput.blur(); 
                     });
+                    
+                    // PARCHE DE VISIBILIDAD: Forzar trigger al teclear manualmente y salir
+                    destInput.addEventListener('change', () => {
+                        window.dispatchEvent(new CustomEvent('map-route-trigger'));
+                    });
                 }
             } catch (error) {
                 console.error("Error inicializando el mapa", error);
@@ -1261,7 +1266,7 @@
                     const tokenData = { deviceToken: token, lastTokenUpdate: Date.now() }; 
                     try { 
                         await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), tokenData, { merge: true }); 
-                        await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), tokenData, { merge: true }); 
+                        await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'info'), tokenData, { merge: true }); 
                     } catch(e) {} 
                 }
             } catch (err) {}
@@ -1752,7 +1757,7 @@
             }
             
             try {
-                await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), data);
+                await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'info'), data);
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', currentUser.uid), data);
                 
                 window.showToast("¡Perfil guardado correctamente!", "success");
@@ -1943,7 +1948,7 @@
                 const isAdminEmail = user.email && user.email.toLowerCase() === 'josuesoza0513@gmail.com';
                 
                 if ("Notification" in window) {
-                    updateBellIconUI(Notification.permission);
+                    window.updateBellIconUI(Notification.permission);
                 }
 
                 try {
@@ -1954,7 +1959,7 @@
                     let privateProfileRef; 
                     
                     try { 
-                        privateProfileRef = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data')); 
+                        privateProfileRef = await getDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'info')); 
                     } catch(e) { 
                         privateProfileRef = null; 
                     }
@@ -1974,7 +1979,7 @@
                                 isApproved: true,
                                 favorites: {}
                             };
-                            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), adminData); 
+                            await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'info'), adminData); 
                             await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), adminData); 
                             window.userProfile = adminData;
                         } else {
@@ -1996,7 +2001,7 @@
                             if (pubData.isApproved !== profileData.isApproved) { profileData.isApproved = pubData.isApproved; needsSync = true; }
                             
                             if (needsSync) { 
-                                try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), profileData, { merge: true }); } catch(e) {} 
+                                try { await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'info'), profileData, { merge: true }); } catch(e) {} 
                             }
                         }
                         
@@ -2015,7 +2020,7 @@
                         if (isAdminEmail && profile.role !== 'admin') {
                             profile.role = 'admin';
                             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid), { role: 'admin' });
-                            try { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), { role: 'admin' }); } catch(e){}
+                            try { await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'info'), { role: 'admin' }); } catch(e){}
                         }
 
                         window.userProfile = profile;
@@ -2746,7 +2751,7 @@
             window.showConfirm(title, desc, async () => {
                 try {
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isBanned: shouldBan });
-                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isBanned: shouldBan }); } catch(err) {}
+                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'info'), { isBanned: shouldBan }); } catch(err) {}
                     window.showToast(shouldBan ? "Usuario vetado exitosamente." : "Socio desvetado con éxito.", "success");
                 } catch(e) { window.showToast("Error de conexión al procesar baneo.", "error"); }
             });
@@ -2756,7 +2761,7 @@
             window.showConfirm("¿Modificar Privilegios?", `¿Estás seguro de asignar el rol de ${newRole.toUpperCase()} a este usuario?`, async () => {
                 try {
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { role: newRole });
-                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { role: newRole }); } catch(err) {}
+                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'info'), { role: newRole }); } catch(err) {}
                     window.showToast("Privilegios actualizados correctamente.", "success");
                 } catch(e) { window.showToast("Error al asignar rol.", "error"); }
             });
@@ -2769,7 +2774,7 @@
             window.showConfirm(title, desc, async () => {
                 try {
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', uid), { isApproved: shouldApprove });
-                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), { isApproved: shouldApprove }); } catch(err) {}
+                    try { await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'info'), { isApproved: shouldApprove }); } catch(err) {}
                     window.showToast(shouldApprove ? "Conductor aprobado con éxito." : "Licencia revocada del conductor.", "success");
                 } catch(e) { window.showToast("Error al actualizar aprobación.", "error"); }
             });
@@ -2876,6 +2881,63 @@
                 } catch(e) { window.showToast("Error al borrar registros.", "error"); }
             });
         };
+
+        // PARCHE DE DISTANCE MATRIX: Fallback si Distance Matrix falla
+        window.addEventListener('map-route-trigger', () => {
+            const origin = document.getElementById('origin-input').value;
+            const dest = document.getElementById('destination-input').value;
+            if (!origin || !dest) return;
+            
+            window.directionsRenderer.setMap(window.gMap);
+            window.directionsRenderer.setOptions({ preserveViewport: false });
+            
+            window.directionsService.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING, drivingOptions: { departureTime: new Date(Date.now()), trafficModel: 'bestguess' } }, (res, status) => {
+                if (status === "OK") {
+                    window.directionsRenderer.setDirections(res);
+                    const leg = res.routes[0].legs[0];
+                    const km = leg.distance.value / 1000;
+                    const durationText = leg.duration_in_traffic ? leg.duration_in_traffic.text : leg.duration.text;
+                    
+                    document.getElementById('fare-card').classList.remove('hidden');
+                    
+                    originalPrice = (40 + km * 18);
+                    if(currentPromo === 'SOZA10') {
+                        document.getElementById('price-display').innerText = `L. ${(originalPrice * 0.9).toFixed(2)}`;
+                    } else {
+                        document.getElementById('price-display').innerText = `L. ${originalPrice.toFixed(2)}`;
+                    }
+
+                    if(document.getElementById('eta-indicator')) {
+                        document.getElementById('eta-text').innerText = durationText;
+                    }
+
+                    if (!window.currentClientCoords) {
+                        window.currentClientCoords = { lat: leg.start_location.lat(), lng: leg.start_location.lng() };
+                    }
+                    if (!window.currentDestCoords) {
+                        window.currentDestCoords = { lat: leg.end_location.lat(), lng: leg.end_location.lng() };
+                    }
+                } else {
+                    // Si Google API falla por tráfico, hacemos fallback a ruta normal para mostrar el botón
+                    window.directionsService.route({ origin, destination: dest, travelMode: google.maps.TravelMode.DRIVING }, (resFallback, statusFallback) => {
+                         if(statusFallback === "OK") {
+                             window.directionsRenderer.setDirections(resFallback);
+                             const leg = resFallback.routes[0].legs[0];
+                             const km = leg.distance.value / 1000;
+                             
+                             document.getElementById('fare-card').classList.remove('hidden');
+                             originalPrice = (40 + km * 18);
+                             document.getElementById('price-display').innerText = `L. ${originalPrice.toFixed(2)}`;
+                             
+                             if (!window.currentClientCoords) window.currentClientCoords = { lat: leg.start_location.lat(), lng: leg.start_location.lng() };
+                             if (!window.currentDestCoords) window.currentDestCoords = { lat: leg.end_location.lat(), lng: leg.end_location.lng() };
+                         } else {
+                             window.showToast("No se pudo calcular la ruta. Verifica las direcciones.", "error");
+                         }
+                    });
+                }
+            });
+        });
 
         // --- FUNCIONALIDAD EXCLUSIVA DEL SUPERVISOR ---
         window.setSupTab = (tab) => {
