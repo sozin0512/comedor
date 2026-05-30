@@ -333,6 +333,56 @@
         
         const lightMapStyle = []; // Default Maps Style
 
+        // NUEVO: Función proactiva para solicitar ubicación
+        window.requestInitialLocation = () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                        window.currentClientCoords = coords;
+                        
+                        // Centrar mapa si ya está cargado
+                        if (window.gMap) {
+                            window.gMap.panTo(coords);
+                            window.gMap.setZoom(16);
+                        }
+                        
+                        // Rellenar origen automáticamente para pasajeros
+                        if (window.userProfile && window.userProfile.role === 'client' && window.geocoder) {
+                            window.geocoder.geocode({ location: coords }, (results, status) => {
+                                if (status === "OK" && results[0]) {
+                                    const originInput = document.getElementById('origin-input');
+                                    if(originInput && !originInput.value) {
+                                        originInput.value = results[0].formatted_address;
+                                    }
+                                }
+                            });
+                        }
+                    },
+                    (error) => {
+                        console.warn("Permiso de GPS no concedido:", error);
+                        if (error.code === 1) { 
+                            window.showToast("⚠️ Permiso de ubicación denegado. La app necesita tu GPS para funcionar correctamente.", "error");
+                        }
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 } // EXIGIR GPS
+                );
+            }
+        };
+
+        // NUEVO: Función para el botón flotante "CENTRAR"
+        window.centerMap = () => {
+            if (window.currentClientCoords && window.gMap) {
+                window.gMap.panTo(window.currentClientCoords);
+                window.gMap.setZoom(16);
+                window.autoCenter = true;
+                document.getElementById('fab-center').classList.add('hidden');
+            } else {
+                // Si aún no tenemos coordenadas, las volvemos a pedir
+                window.useCurrentLocation();
+            }
+        };
+
         window.initMap = function() {
             try {
                 window.directionsService = new google.maps.DirectionsService();
@@ -343,10 +393,11 @@
                     preserveViewport: false 
                 });
 
-                const comayaguaCoords = { lat: 14.4513, lng: -87.6374 };
+                // Si ya tenemos coordenadas usamos esas, sino Comayagua
+                const initialCenter = window.currentClientCoords || { lat: 14.4513, lng: -87.6374 };
                 
                 window.gMap = new google.maps.Map(document.getElementById("map"), {
-                    center: comayaguaCoords, 
+                    center: initialCenter, 
                     zoom: 16, 
                     disableDefaultUI: true, 
                     mapTypeId: 'roadmap', 
@@ -392,6 +443,8 @@
                                 lat: place.geometry.location.lat(), 
                                 lng: place.geometry.location.lng() 
                             }; 
+                            // Centrar mapa si selecciona un nuevo origen
+                            if(window.gMap) window.gMap.panTo(window.currentClientCoords);
                         }
                         window.dispatchEvent(new CustomEvent('map-route-trigger')); 
                         originInput.blur(); 
@@ -409,7 +462,6 @@
                         destInput.blur(); 
                     });
                     
-                    // PARCHE DE VISIBILIDAD: Forzar trigger al teclear manualmente y salir
                     destInput.addEventListener('change', () => {
                         window.dispatchEvent(new CustomEvent('map-route-trigger'));
                     });
@@ -1794,12 +1846,14 @@
             }
         };
 
+        // ACTUALIZADO CON { enableHighAccuracy: true } PARA GPS REAL
         window.useCurrentLocation = () => {
             if (navigator.geolocation) {
                 window.showToast("Localizando ubicación actual...", "info");
                 navigator.geolocation.getCurrentPosition((pos) => {
                     const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     window.currentClientCoords = coords; 
+                    if(window.gMap) window.gMap.panTo(coords);
                     if (window.geocoder) {
                         window.geocoder.geocode({ location: coords }, (results, status) => {
                             if (status === "OK" && results[0]) {
@@ -1811,9 +1865,13 @@
                             }
                         });
                     }
-                }, () => { 
-                    window.showToast("Permiso de localización denegado.", "error"); 
-                });
+                }, (error) => { 
+                    if (error.code === 1) {
+                        window.showToast("Permiso de localización denegado. Actívalo en tu navegador.", "error");
+                    } else {
+                        window.showToast("Error al obtener ubicación.", "error");
+                    }
+                }, { enableHighAccuracy: true });
             } else { 
                 window.showToast("Tu navegador no soporta geolocalización.", "error"); 
             }
@@ -1952,7 +2010,6 @@
                 }
 
                 try {
-                    // Muestra UI de carga temporal (opcional)
                     window.showToast("Autenticando usuario...", "info");
 
                     const publicProfileRef = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'profiles', user.uid));
@@ -2031,6 +2088,11 @@
                         document.getElementById('app-interface').style.display = 'flex'; 
                         document.getElementById('user-name-display').innerText = profile.name.toUpperCase();
                         
+                        // SOLUCIÓN: Solicitar ubicación proactivamente al entrar a la app (solo para clientes y conductores)
+                        if (profile.role === 'client' || profile.role === 'driver') {
+                            window.requestInitialLocation();
+                        }
+
                         if (!sessionStorage.getItem('syncWarningShown') && profile.role !== 'admin' && profile.role !== 'supervisor') {
                             window.showSyncWarning(); 
                             sessionStorage.setItem('syncWarningShown', 'true');
@@ -2176,7 +2238,7 @@
         function listenToMyActiveTrip() {
             if (!currentUser) return;
             
-            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
+            onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), (snap) => {
                 const trip = snap.docs.find(d => {
                     const data = d.data();
                     return (data.clientId === currentUser.uid || data.driverId === currentUser.uid) && 
@@ -2323,12 +2385,9 @@
                             }
                         }
                     } else if (data.status === 'cancelled') {
-                        // CANDADO DE SEGURIDAD: Evita que este bloque se ejecute doble y duplique viajes
-                        if (window.isHandlingCancel) return;
-                        window.isHandlingCancel = true;
-
                         const wasDriverCancellation = data.cancelledBy === data.driverId; 
-                        window.showToast("Servicio VIP Cancelado.", "error"); 
+                        window.showToast("Servicio VIP Cancelado por el conductor.", "error"); 
+                        window.sendBrowserNotification("Servicio Cancelado ❌", "Tu viaje VIP de Comayagua Express fue cancelado.");
                         
                         const savedOrigin = data.origin; 
                         const savedDestination = data.destination; 
@@ -2336,55 +2395,47 @@
                         const savedOriginCoords = data.originCoords || null; 
                         const savedDestCoords = data.destCoords || null;
                         
-                        try {
-                            // Limpiamos el viaje cancelado de la BD principal para evitar conflictos
-                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id));
-                        } catch(e) {}
-                        
-                        if (window.userProfile.role === 'client' && wasDriverCancellation) {
-                            window.showToast("Buscando un nuevo conductor VIP automáticamente...", "success");
-                            try {
-                                const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips'); 
-                                const q = query(tripsRef, where('clientId', '==', currentUser.uid)); 
-                                const querySnapshot = await getDocs(q);
-                                
-                                // REVISIÓN DOBLE: Aseguramos que NO se haya creado ya un viaje pendiente o aceptado
-                                const hasActive = querySnapshot.docs.some(d => { 
-                                    return ['pending', 'accepted', 'in_progress'].includes(d.data().status); 
-                                });
-                                
-                                if (!hasActive) {
-                                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), { 
-                                        clientId: currentUser.uid, 
-                                        clientName: window.userProfile.name, 
-                                        clientPhoto: window.userProfile.photo || null, 
-                                        clientPhone: window.userProfile.phone, 
-                                        origin: savedOrigin, 
-                                        destination: savedDestination, 
-                                        originCoords: savedOriginCoords, 
-                                        destCoords: savedDestCoords, 
-                                        price: savedPrice, 
-                                        status: 'pending', 
-                                        targetDriverId: null, // Lo mandamos abierto a todos los conductores disponibles
-                                        assignedAt: Date.now(),
-                                        chat: [], 
-                                        createdAt: serverTimestamp() 
+                        deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id)).then(async () => {
+                            if (window.userProfile.role === 'client' && wasDriverCancellation) {
+                                window.showToast("Buscando un nuevo conductor VIP automáticamente...", "success");
+                                try {
+                                    const tripsRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips'); 
+                                    const q = query(tripsRef, where('clientId', '==', currentUser.uid)); 
+                                    const querySnapshot = await getDocs(q);
+                                    
+                                    const hasActive = querySnapshot.docs.some(d => { 
+                                        return ['pending', 'accepted', 'in_progress'].includes(d.data().status); 
                                     });
+                                    
+                                    if (!hasActive) {
+                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), { 
+                                            clientId: currentUser.uid, 
+                                            clientName: window.userProfile.name, 
+                                            clientPhoto: window.userProfile.photo || null, 
+                                            clientPhone: window.userProfile.phone, 
+                                            origin: savedOrigin, 
+                                            destination: savedDestination, 
+                                            originCoords: savedOriginCoords, 
+                                            destCoords: savedDestCoords, 
+                                            price: savedPrice, 
+                                            status: 'pending', 
+                                            chat: [], 
+                                            createdAt: serverTimestamp() 
+                                        });
+                                    }
+                                    
+                                    document.getElementById('active-trip-panel').classList.add('hidden'); 
+                                    document.getElementById('client-view').classList.remove('hidden'); 
+                                    document.getElementById('searching-state').classList.remove('hidden'); 
+                                    document.getElementById('fare-card').classList.add('hidden'); 
+                                    document.getElementById('eta-indicator').classList.add('hidden');
+                                } catch (err) { 
+                                    location.reload(); 
                                 }
-                                
-                                document.getElementById('active-trip-panel').classList.add('hidden'); 
-                                document.getElementById('client-view').classList.remove('hidden'); 
-                                document.getElementById('searching-state').classList.remove('hidden'); 
-                                document.getElementById('fare-card').classList.add('hidden'); 
-                                document.getElementById('eta-indicator').classList.add('hidden');
-                                
-                                setTimeout(() => { window.isHandlingCancel = false; }, 3000);
-                            } catch (err) { 
+                            } else { 
                                 location.reload(); 
                             }
-                        } else { 
-                            location.reload(); 
-                        }
+                        });
                         activeTrip = null;
                     } else if (data.status === 'completed' && !data[`ratedBy${window.userProfile.role === 'client' ? 'Client' : 'Driver'}`]) { 
                         showRatingScreen(); 
@@ -2574,6 +2625,10 @@
                 }
             );
         };
+
+        function listenForNearbyDrivers() {
+            // Hook placeholder
+        }
 
         function startDriverListener() {
             // Hook reservado
