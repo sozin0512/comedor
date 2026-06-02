@@ -217,7 +217,7 @@
             width: 90%; 
         }
 
-        @media (max-width: 768px) {
+     @media (max-width: 768px) {
             #control-panel { 
                 position: absolute; 
                 bottom: 0; 
@@ -228,10 +228,9 @@
                 border-radius: 2.5rem 2.5rem 0 0; 
                 border-top: 2px solid #d4af37; 
                 z-index: 5000; 
-                overflow: hidden; 
+                overflow-y: auto; /* <-- REEMPLAZAR overflow: hidden; POR ESTO */
                 background-color: #111827; 
             }
-
             body.light-mode #control-panel { background-color: #ffffff; }
 
             body.is-searching #control-panel { 
@@ -2857,32 +2856,32 @@
 
                         } else if (window.userProfile.role === 'client') {
                             // SI EL VIAJE HA SIDO ACEPTADO MOSTRAMOS EL PIN
-                            if (data.status === 'accepted') {
-                                document.getElementById('client-pin-display').classList.remove('hidden'); 
-                                document.getElementById('client-pin-code').innerText = data.pin || "----"; 
-                                
-                                const pinContainer = document.getElementById('client-pin-display');
-                                const pinLabel = document.querySelector('#client-pin-display p:first-child');
-                                const pinCode = document.getElementById('client-pin-code');
+                        if (data.status === 'accepted') {
+                const pinContainer = document.getElementById('client-pin-display');
+                const pinLabel = document.querySelector('#client-pin-display p:first-child');
+                const pinCode = document.getElementById('client-pin-code');
 
-                                if (data.driverArrived) {
-                                    document.getElementById('eta-indicator').classList.add('hidden');
-                                    pinContainer.className = "bg-emerald-950/40 border border-emerald-500 p-4 rounded-2xl text-center shadow-lg animate-pulse";
-                                    if(pinLabel) {
-                                        pinLabel.innerText = "¡CONDUCTOR AFUERA! DILE ESTE PIN:";
-                                        pinLabel.className = "text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-widest";
-                                    }
-                                    pinCode.className = "text-5xl font-black text-white tracking-[0.4em] drop-shadow-md";
-                                } else {
-                                    document.getElementById('eta-indicator').classList.remove('hidden');
-                                    pinContainer.className = "bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse";
-                                    if(pinLabel) {
-                                        pinLabel.innerText = "Tu PIN SOZA de Seguridad";
-                                        pinLabel.className = "text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest";
-                                    }
-                                    pinCode.className = "text-4xl font-black text-soza-goldlight tracking-[0.4em]";
-                                }
-                            } 
+                pinContainer.classList.remove('hidden');
+                pinCode.innerText = data.pin || "----";
+
+                if (data.driverArrived) {
+                    document.getElementById('eta-indicator').classList.add('hidden');
+                    pinContainer.className = "block bg-emerald-950/40 border border-emerald-500 p-4 rounded-2xl text-center shadow-lg animate-pulse";
+                    if(pinLabel) {
+                        pinLabel.innerText = "¡CONDUCTOR AFUERA! DILE ESTE PIN:";
+                        pinLabel.className = "text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-widest";
+                    }
+                    pinCode.className = "text-5xl font-black text-white tracking-[0.4em] drop-shadow-md";
+                } else {
+                    document.getElementById('eta-indicator').classList.remove('hidden');
+                    pinContainer.className = "block bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse";
+                    if(pinLabel) {
+                        pinLabel.innerText = "Tu PIN SOZA de Seguridad";
+                        pinLabel.className = "text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest";
+                    }
+                    pinCode.className = "text-4xl font-black text-soza-goldlight tracking-[0.4em]";
+                }
+            }
                             // SI EL VIAJE YA EMPEZÓ, OCULTAMOS EL PIN
                             else if (data.status === 'in_progress') {
                                 document.getElementById('client-pin-display').classList.add('hidden');
