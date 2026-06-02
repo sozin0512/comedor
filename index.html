@@ -2854,39 +2854,27 @@
                                 window.updateNavigation(data.destination); // Mantiene la ruta final trazada
                             }
 
-                        } else if (window.userProfile.role === 'client') {
-                            // SI EL VIAJE HA SIDO ACEPTADO MOSTRAMOS EL PIN
-                        if (data.status === 'accepted') {
-                const pinContainer = document.getElementById('client-pin-display');
-                const pinLabel = document.querySelector('#client-pin-display p:first-child');
-                const pinCode = document.getElementById('client-pin-code');
-
-                pinContainer.classList.remove('hidden');
-                pinCode.innerText = data.pin || "----";
-
-                if (data.driverArrived) {
-                    document.getElementById('eta-indicator').classList.add('hidden');
-                    pinContainer.className = "block bg-emerald-950/40 border border-emerald-500 p-4 rounded-2xl text-center shadow-lg animate-pulse";
-                    if(pinLabel) {
-                        pinLabel.innerText = "¡CONDUCTOR AFUERA! DILE ESTE PIN:";
-                        pinLabel.className = "text-[10px] font-black text-emerald-400 uppercase mb-2 tracking-widest";
-                    }
-                    pinCode.className = "text-5xl font-black text-white tracking-[0.4em] drop-shadow-md";
-                } else {
-                    document.getElementById('eta-indicator').classList.remove('hidden');
-                    pinContainer.className = "block bg-amber-950/20 border border-soza-gold/40 p-4 rounded-2xl text-center shadow-inner animate-pulse";
-                    if(pinLabel) {
-                        pinLabel.innerText = "Tu PIN SOZA de Seguridad";
-                        pinLabel.className = "text-[10px] font-black text-soza-gold uppercase mb-2 tracking-widest";
-                    }
-                    pinCode.className = "text-4xl font-black text-soza-goldlight tracking-[0.4em]";
-                }
-            }
-                            // SI EL VIAJE YA EMPEZÓ, OCULTAMOS EL PIN
-                            else if (data.status === 'in_progress') {
+                       } else if (window.userProfile.role === 'client') {
+                            
+                            // EL PIN SIEMPRE ESTARÁ VISIBLE MIENTRAS EL VIAJE ESTÉ ACEPTADO O EN PROGRESO
+                            if (data.status === 'accepted' || data.status === 'in_progress') {
+                                const pinDisplay = document.getElementById('client-pin-display');
+                                pinDisplay.classList.remove('hidden');
+                                pinDisplay.style.display = 'block'; // Forzamos que se muestre siempre
+                                document.getElementById('client-pin-code').innerText = data.pin || "----"; 
+                                
+                                // Ocultamos el ETA solo si el viaje ya está en progreso
+                                if (data.status === 'in_progress') {
+                                    document.getElementById('eta-indicator').classList.add('hidden');
+                                } else {
+                                    document.getElementById('eta-indicator').classList.remove('hidden');
+                                }
+                            } else {
+                                // Solo lo ocultamos si el viaje fue cancelado o terminado
                                 document.getElementById('client-pin-display').classList.add('hidden');
-                                document.getElementById('eta-indicator').classList.add('hidden');
+                                document.getElementById('client-pin-display').style.display = 'none';
                             }
+                          
                                 
                             if (activeDriverDocListener) activeDriverDocListener();
                             
