@@ -3834,9 +3834,61 @@
             document.getElementById('chat-input').value = "";
         };
 
+        // Mejorar notificaciones de chat
+        window.playChatSound = () => {
+            try {
+                const audio = new AudioContext();
+                const osc = audio.createOscillator();
+                const gain = audio.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = 1200;
+                gain.gain.value = 0.2;
+                const now = audio.currentTime;
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.connect(gain);
+                gain.connect(audio.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } catch(e){}
+        };
+
+        let lastChatMessageTime = 0;
+
         function renderChat(messages) {
             const container = document.getElementById('chat-messages');
+            if (!container) return;
+
+            const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
+
             container.innerHTML = "";
+
+            // Reproducir sonido si hay mensajes nuevos de otra persona
+            if (messages.length > 0) {
+                const lastMsg = messages[messages.length - 1];
+                if (lastMsg.time > lastChatMessageTime && lastMsg.sender !== currentUser.uid) {
+                    window.playChatSound();
+                    lastChatMessageTime = lastMsg.time;
+                }
+            }
+
+            messages.forEach(msg => {
+                const div = document.createElement('div');
+                const isMe = msg.sender === currentUser.uid;
+                div.className = `flex ${isMe ? 'justify-end' : 'justify-start'} mb-2`;
+                div.innerHTML = `
+                    <div class="max-w-[75%] px-3 py-2 rounded-2xl text-sm ${isMe ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800'}">
+                        ${!isMe ? `<div class="text-[10px] font-bold mb-0.5">${msg.senderName || 'Usuario'}</div>` : ''}
+                        <div>${msg.text}</div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+
+            // Auto scroll al final
+            setTimeout(() => {
+                container.scrollTop = container.scrollHeight;
+            }, 50);
             if (!messages) return;
             messages.forEach(m => {
                 const isMine = m.sender === currentUser.uid;
