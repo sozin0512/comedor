@@ -564,14 +564,25 @@
     </div>
 
     <!-- SETUP PERFIL MEJORADO CON RIGOR PARA CONDUCTORES -->
-    <div id="setup-screen" class="setup-screen p-4 flex items-center justify-center">
-        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-white/10">
-            <h2 class="text-xl font-black mb-6 text-center text-gray-900">Finaliza tu Perfil</h2>
-            <div class="space-y-4">
-                <div class="flex flex-col items-center mb-4">
-                    <div id="photo-preview" class="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center border-4 border-white shadow-md overflow-hidden relative">
-                        <i class="fas fa-user text-2xl text-gray-300"></i>
-                    </div>
+   <!-- SETUP MULTI-PASO PARA CONDUCTORES -->
+<div id="setup-screen" class="hidden fixed inset-0 bg-white z-[20000] flex flex-col">
+    <div class="p-4 border-b flex justify-between items-center bg-white sticky top-0">
+        <div>
+            <h2 class="font-black text-lg">Configura tu cuenta de Conductor</h2>
+            <p class="text-xs text-gray-500" id="setup-progress-text">Paso 1 de 4</p>
+        </div>
+        <button onclick="window.closeSetupScreen()" class="text-2xl text-gray-400">×</button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-4" id="setup-step-container">
+        <!-- Se carga automáticamente -->
+    </div>
+
+    <div class="p-4 border-t flex gap-3 bg-white sticky bottom-0">
+        <button id="setup-back-btn" onclick="window.changeSetupStep(-1)" class="flex-1 py-3 rounded-2xl border font-bold text-sm hidden">← ATRÁS</button>
+        <button id="setup-next-btn" onclick="window.changeSetupStep(1)" class="flex-1 py-3 rounded-2xl bg-emerald-600 text-white font-black text-sm">SIGUIENTE →</button>
+    </div>
+</div>
                     <label class="mt-2 cursor-pointer text-blue-600 text-[10px] font-black uppercase">
                         Subir Foto REAL de tu rostro
                         <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="window.previewPhoto(this)">
@@ -4596,6 +4607,106 @@
                 btn.disabled = false;
             }
         };
+        let setupCurrentStep = 1;
+
+window.changeSetupStep = (dir) => {
+    setupCurrentStep += dir;
+    if (setupCurrentStep < 1) setupCurrentStep = 1;
+    if (setupCurrentStep > 4) {
+        window.showToast("¡Perfil completado!", "success");
+        document.getElementById('setup-screen').classList.add('hidden');
+        setTimeout(() => location.reload(), 800);
+        return;
+    }
+    window.renderSetupStep();
+};
+
+window.renderSetupStep = () => {
+    const container = document.getElementById('setup-step-container');
+    const progress = document.getElementById('setup-progress-text');
+    const backBtn = document.getElementById('setup-back-btn');
+
+    progress.innerText = `Paso ${setupCurrentStep} de 4`;
+    backBtn.classList.toggle('hidden', setupCurrentStep === 1);
+
+    let html = '';
+
+    if (setupCurrentStep === 1) {
+        // Paso 1: Datos personales + Foto de perfil
+        html = `<div class="space-y-4">
+            <div class="text-center">
+                <div id="p1-photo" class="w-20 h-20 mx-auto bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">Foto</div>
+                <button onclick="document.getElementById('p1-file').click()" class="text-emerald-600 text-sm mt-2">Subir Foto REAL de tu rostro</button>
+                <input type="file" id="p1-file" class="hidden">
+            </div>
+            <input id="p1-name" placeholder="Nombre completo" class="w-full p-3 border rounded-2xl">
+            <input id="p1-phone" placeholder="Teléfono" class="w-full p-3 border rounded-2xl">
+            <input id="p1-emergency" placeholder="Contacto de Emergencia" class="w-full p-3 border rounded-2xl">
+        </div>`;
+    } 
+    else if (setupCurrentStep === 2) {
+        // Paso 2: Información del vehículo
+        html = `<div class="space-y-3">
+            <input id="p2-model" placeholder="Modelo de Vehículo" class="w-full p-3 border rounded-2xl">
+            <input id="p2-plate" placeholder="Placa del Vehículo" class="w-full p-3 border rounded-2xl uppercase">
+            <input id="p2-identity" placeholder="N° de Identidad" class="w-full p-3 border rounded-2xl">
+        </div>`;
+    } 
+    else if (setupCurrentStep === 3) {
+        // Paso 3: Fotos del Vehículo (Interior + Exterior + Placa)
+        html = `<div>
+            <p class="font-bold text-sm mb-2 text-red-600">FOTOS DEL VEHÍCULO (Obligatorias)</p>
+            
+            <div class="mb-3">
+                <p class="text-xs font-bold mb-1">Interior del Vehículo (3 fotos)</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <div onclick="document.getElementById('int1').click()" class="h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs cursor-pointer">Interior 1</div>
+                    <div onclick="document.getElementById('int2').click()" class="h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs cursor-pointer">Interior 2</div>
+                    <div onclick="document.getElementById('int3').click()" class="h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs cursor-pointer">Interior 3</div>
+                </div>
+                <input type="file" id="int1" class="hidden">
+                <input type="file" id="int2" class="hidden">
+                <input type="file" id="int3" class="hidden">
+            </div>
+
+            <div class="mb-3">
+                <p class="text-xs font-bold mb-1">Exterior del Vehículo</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <div onclick="document.getElementById('ext-front').click()" class="h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs cursor-pointer">Exterior Frente</div>
+                    <div onclick="document.getElementById('ext-rear').click()" class="h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs cursor-pointer">Exterior Atrás</div>
+                </div>
+                <input type="file" id="ext-front" class="hidden">
+                <input type="file" id="ext-rear" class="hidden">
+            </div>
+
+            <div>
+                <p class="text-xs font-bold mb-1">Foto de la Placa (legible)</p>
+                <div onclick="document.getElementById('plate-photo').click()" class="h-16 bg-gray-100 rounded-xl flex items-center justify-center text-xs cursor-pointer">Foto de la Placa</div>
+                <input type="file" id="plate-photo" class="hidden">
+            </div>
+        </div>`;
+    } 
+    else if (setupCurrentStep === 4) {
+        // Paso 4: Documentos
+        html = `<div>
+            <p class="font-bold text-sm mb-2 text-red-600">DOCUMENTOS (Obligatorios)</p>
+            
+            <div class="mb-3">
+                <p class="text-xs font-bold mb-1">Licencia de Conducir</p>
+                <div onclick="document.getElementById('license-photo').click()" class="h-20 bg-gray-100 rounded-2xl flex items-center justify-center text-xs cursor-pointer">Subir Licencia</div>
+                <input type="file" id="license-photo" class="hidden">
+            </div>
+
+            <div>
+                <p class="text-xs font-bold mb-1">Revisión Técnica / Inspección Vehicular</p>
+                <div onclick="document.getElementById('inspection-photo').click()" class="h-20 bg-gray-100 rounded-2xl flex items-center justify-center text-xs cursor-pointer">Subir Revisión</div>
+                <input type="file" id="inspection-photo" class="hidden">
+            </div>
+        </div>`;
+    }
+
+    container.innerHTML = html;
+};
     </script>
     <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8&libraries=places&callback=initMap"></script>
 </body>
