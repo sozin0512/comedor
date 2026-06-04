@@ -1010,6 +1010,24 @@
             if (window.userProfile.role === 'driver') {
                 if (window.userProfile.approvalStatus !== 'approved') {
                     window.showToast("Tu cuenta de conductor aún no ha sido aprobada por un supervisor.");
+
+            // Verificar saldo si paga con puntos
+            try {
+                const tripSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
+                if (tripSnap.exists()) {
+                    const t = tripSnap.data();
+                    if (t.paymentMethod === 'saldo') {
+                        const passSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', t.clientId));
+                        const bal = passSnap.exists() ? (passSnap.data().balance || 0) : 0;
+                        const priceNum = parseFloat((t.price || '0').replace(/[^0-9.]/g, '')) || 0;
+
+                        if (bal < priceNum) {
+                            window.showToast("El pasajero no tiene suficiente saldo para este viaje.");
+                            return;
+                        }
+                    }
+                }
+            } catch(e) {}
                     return;
                 }
                 if (window.userProfile.documentsValidUntil) {
@@ -2447,12 +2465,16 @@
             }
         };
 
-        // Compartir código de referido por WhatsApp
+        // Compartir código de referido por WhatsApp (con enlace)
         window.shareReferralWhatsApp = () => {
             const code = document.getElementById('my-referral-code').innerText;
             if (!code || code === '------') return;
 
-            const message = `¡Hola! Únete a *Comayagua Express VIP* usando mi código de referido: *${code}* y recibe 50 puntos gratis para tus viajes.\n\nDescarga la app y usa mi código al registrarte.`;
+            // Crear enlace con parámetro de referido
+            const currentUrl = window.location.origin + window.location.pathname;
+            const referralLink = `${currentUrl}?ref=${code}`;
+
+            const message = `¡Hola! Únete a *Comayagua Express VIP* usando mi enlace de referido:\n\n${referralLink}\n\nAl registrarte con este enlace recibes 50 puntos gratis.`;
 
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
             window.open(whatsappUrl, '_blank');
@@ -3139,6 +3161,17 @@
                     window.showToast("¡Sesión iniciada con éxito!", "success");
                 } else {
                     await createUserWithEmailAndPassword(auth, email, pass);
+                    
+                    // === APLICAR REFERIDO SI VIENE DE UN ENLACE ===
+                    const pendingRef = localStorage.getItem('pendingReferralCode');
+                    if (pendingRef) {
+                        // Esperar un momento para que el usuario se cree completamente
+                        setTimeout(async () => {
+                            await window.applyReferralReward(currentUser.uid, email.split('@')[0], pendingRef);
+                            localStorage.removeItem('pendingReferralCode');
+                        }, 1500);
+                    }
+                    
                     window.showToast("Cuenta creada. Completa tu perfil.", "success");
                 }
             } catch (err) {
@@ -4416,6 +4449,22 @@
                 window.updateNotificationBadge();
             }
         };
+
+        // === DETECTAR CÓDIGO DE REFERIDO DESDE LA URL ===
+        (function checkReferralFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const refCode = urlParams.get('ref');
+            
+            if (refCode) {
+                // Guardar el código de referido para usarlo al registrarse
+                localStorage.setItem('pendingReferralCode', refCode.toUpperCase());
+                
+                // Opcional: Mostrar toast de bienvenida por referido
+                setTimeout(() => {
+                    window.showToast(`¡Bienvenido! Serás recompensado por usar el código de referido.`, 'success');
+                }, 1500);
+            }
+        })();
 
         // Actualizar badge al iniciar sesión
         setTimeout(() => {
