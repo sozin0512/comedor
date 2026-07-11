@@ -1512,6 +1512,19 @@ window.gMap = null;
             setTxt('client-trip-status-sub', status.sub || '');
             setTxt('client-trip-min-meta', status.badge || 'Viaje activo');
 
+            // Fotos frente (placa) y atrás del vehículo
+            const vehiclePair = tpResolveVehicleExteriorPhotos(data);
+            const vehiclePlaceholder = 'https://placehold.co/320x200/e2e8f0/94a3b8?text=Sin+foto';
+            tpApplyPhotoPair(
+                'client-trip-vehicle-photos',
+                'client-trip-vehicle-front',
+                'client-trip-vehicle-rear',
+                'client-trip-vehicle-front-link',
+                'client-trip-vehicle-rear-link',
+                vehiclePair,
+                vehiclePlaceholder
+            );
+
             const etaFull = document.getElementById('client-trip-status-eta');
             const etaMin = document.getElementById('client-trip-min-eta');
             const etaText = (document.getElementById('tp-status-eta')?.textContent

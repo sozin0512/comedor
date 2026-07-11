@@ -9691,6 +9691,74 @@
             color: #78350f;
         }
 
+        .client-trip-vehicle-photos {
+            margin: 0;
+            padding: 0.35rem 0 0;
+        }
+
+        .client-trip-vehicle-photos-label {
+            margin: 0 0 0.35rem;
+            font-size: 0.55rem;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #64748b;
+        }
+
+        .client-trip-vehicle-photos-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.4rem;
+        }
+
+        .client-trip-vehicle-photo-card {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            border-radius: 0.65rem;
+            overflow: hidden;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            text-decoration: none;
+            color: inherit;
+            min-width: 0;
+        }
+
+        .client-trip-vehicle-photo-card:active {
+            transform: scale(0.98);
+        }
+
+        .client-trip-vehicle-photo-card img {
+            width: 100%;
+            height: 4.25rem;
+            object-fit: cover;
+            background: #e2e8f0;
+            display: block;
+        }
+
+        .client-trip-vehicle-photo-card span {
+            font-size: 0.52rem;
+            font-weight: 800;
+            text-align: center;
+            padding: 0.2rem 0.25rem 0.3rem;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        html[data-theme="dark"] .client-trip-vehicle-photo-card {
+            background: #1e293b;
+            border-color: #334155;
+        }
+
+        html[data-theme="dark"] .client-trip-vehicle-photo-card span {
+            color: #cbd5e1;
+        }
+
+        html[data-theme="dark"] .client-trip-vehicle-photos-label {
+            color: #94a3b8;
+        }
+
         /* Pasajero en viaje: NO duplicar conductor/PIN en el panel inferior */
         body.client-mode.trip-active #trip-partner-info,
         body.client-mode.trip-active #client-pin-panel,
@@ -9699,6 +9767,25 @@
         body.passenger-trip-float-active #client-pin-panel,
         body.passenger-trip-float-active #active-trip-route-summary {
             display: none !important;
+        }
+
+        /* Quitar la barrita horizontal (drag handle / ::before) del panel inferior del pasajero */
+        body.client-mode.trip-active #control-panel .trip-drag-handle,
+        body.client-mode.trip-active #control-panel.panel-collapsed .trip-drag-handle,
+        body.passenger-trip-float-active #control-panel .trip-drag-handle,
+        body.passenger-trip-float-active #control-panel.panel-collapsed .trip-drag-handle,
+        body.trip-active:not(.driver-mode) #control-panel .trip-drag-handle,
+        body.trip-active:not(.driver-mode) #control-panel.panel-collapsed .trip-drag-handle,
+        body.client-mode.trip-active #control-panel::before,
+        body.passenger-trip-float-active #control-panel::before,
+        body.trip-active:not(.driver-mode) #control-panel::before {
+            display: none !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            border: none !important;
         }
 
         /* Panel inferior del pasajero: solo acciones (compartir / SOS / cancelar) */
