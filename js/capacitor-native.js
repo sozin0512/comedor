@@ -19,50 +19,61 @@ export function isCapacitorAndroid() {
     return isCapacitorNative() && getCapacitorPlatform() === 'android';
 }
 
-/**
- * Abre una URL externa de forma fiable (Chrome / navegador del sistema).
- * Necesario en Android WebView: <a download> y window.open casi nunca descargan APK.
- * @returns {Promise<boolean>}
- */
-export async function openExternalUrl(url) {
-    if (!url || typeof url !== 'string') return false;
-    const Cap = window.Capacitor;
+function isLikelyApkOrFirebaseStorageUrl(url) {
+    const u = String(url || '').toLowerCase();
+    return u.includes('.apk')
+        || u.includes('firebasestorage.googleapis.com')
+        || u.includes('firebasestorage.app')
+        || u.includes('/o/artifacts%2f')
+        || u.includes('/public/apk/');
+}
 
-    // 1) Capacitor Browser (Chrome Custom Tabs / Safari View) — mejor para descargas
+/**
+ * En Android nativo: encola la descarga con DownloadManager (completa en Descargas).
+ * Chrome Custom Tabs a menudo deja el APK de Firebase a medias.
+ * @returns {Promise<{ok:boolean, downloadId?:number, fileName?:string, pathHint?:string}|null>}
+ */
+export async function downloadApkNative(url, fileName = 'HonduRaite.apk') {
+    if (!url || !isCapacitorAndroid()) return null;
     try {
-        if (Cap?.isNativePlatform?.()) {
-            const Browser = Cap.Plugins?.Browser;
-            if (Browser?.open) {
-                await Browser.open({ url, windowName: '_system' });
+        const plugin = window.Capacitor?.Plugins?.ApkDownload;
+        if (!plugin?.download) return null;
+        const res = await plugin.download({ url, fileName });
+        return res || { ok: true };
+    } catch (e) {
+        console.warn('[downloadApkNative]', e);
+        return null;
+    }
+}
+
+/**
+ * Abre URL en el navegador real del sistema (no Custom Tab).
+ * Mejor para APK grandes de Firebase Storage.
+ */
+export async function openInSystemBrowser(url) {
+    if (!url) return false;
+    try {
+        if (isCapacitorAndroid()) {
+            const plugin = window.Capacitor?.Plugins?.ApkDownload;
+            if (plugin?.openExternalBrowser) {
+                await plugin.openExternalBrowser({ url });
                 return true;
             }
         }
     } catch (e) {
-        console.warn('[openExternalUrl] Browser.open:', e);
+        console.warn('[openInSystemBrowser] plugin:', e);
     }
-
-    // 2) Capacitor App.openUrl
     try {
-        if (Cap?.isNativePlatform?.()) {
-            const App = Cap.Plugins?.App;
+        if (isCapacitorNative()) {
+            const App = window.Capacitor?.Plugins?.App;
             if (App?.openUrl) {
                 await App.openUrl({ url });
                 return true;
             }
         }
     } catch (e) {
-        console.warn('[openExternalUrl] App.openUrl:', e);
+        console.warn('[openInSystemBrowser] App.openUrl:', e);
     }
-
-    // 3) Cordova-style / Capacitor system target
-    try {
-        if (Cap?.isNativePlatform?.()) {
-            const w = window.open(url, '_system');
-            if (w) return true;
-        }
-    } catch (_) {}
-
-    // 4) Android intent → Chrome / navegador por defecto
     try {
         if (isCapacitorAndroid() || /Android/i.test(navigator.userAgent || '')) {
             const bare = url.replace(/^https?:\/\//i, '');
@@ -73,8 +84,58 @@ export async function openExternalUrl(url) {
             return true;
         }
     } catch (_) {}
+    try {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
 
-    // 5) Web / fallback
+/**
+ * Abre una URL externa de forma fiable (Chrome / navegador del sistema).
+ * Necesario en Android WebView: <a download> y window.open casi nunca descargan APK.
+ * @returns {Promise<boolean>}
+ */
+export async function openExternalUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    const Cap = window.Capacitor;
+    const isApkish = isLikelyApkOrFirebaseStorageUrl(url);
+
+    // APK / Firebase Storage: NO usar Custom Tabs (descargas a medias).
+    // Preferir DownloadManager (vía JS) o navegador del sistema.
+    if (isApkish && isCapacitorAndroid()) {
+        const opened = await openInSystemBrowser(url);
+        if (opened) return true;
+    }
+
+    // 1) Capacitor Browser (Custom Tabs) — OK para páginas normales, no para APK
+    if (!isApkish) {
+        try {
+            if (Cap?.isNativePlatform?.()) {
+                const Browser = Cap.Plugins?.Browser;
+                if (Browser?.open) {
+                    await Browser.open({ url, windowName: '_system' });
+                    return true;
+                }
+            }
+        } catch (e) {
+            console.warn('[openExternalUrl] Browser.open:', e);
+        }
+    }
+
+    // 2) Navegador del sistema / App.openUrl
+    if (await openInSystemBrowser(url)) return true;
+
+    // 3) Cordova-style
+    try {
+        if (Cap?.isNativePlatform?.()) {
+            const w = window.open(url, '_system');
+            if (w) return true;
+        }
+    } catch (_) {}
+
+    // 4) Web / fallback
     try {
         const w = window.open(url, '_blank', 'noopener,noreferrer');
         if (w) return true;

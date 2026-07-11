@@ -7,7 +7,13 @@ import {
 import {
     doc, getDoc, setDoc, serverTimestamp, onSnapshot
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { isCapacitorNative, isCapacitorAndroid, openExternalUrl } from './capacitor-native.js';
+import {
+    isCapacitorNative,
+    isCapacitorAndroid,
+    openExternalUrl,
+    downloadApkNative,
+    openInSystemBrowser
+} from './capacitor-native.js';
 
 const SETTINGS_DOC = 'main';
 /** Solo oculta el badge en la sesión actual (X) — se limpia en cada login */
@@ -697,8 +703,8 @@ function ensureBadgeEl() {
 
 /**
  * Inicia la descarga del APK.
- * En Android/Capacitor NO se puede usar <a download> (Firebase es otra origen y el WebView lo bloquea).
- * Se abre el navegador del celular para que el sistema gestione la descarga.
+ * En la APK Android: DownloadManager del sistema (Chrome Custom Tabs deja Firebase Storage a medias).
+ * En web móvil: navegador del sistema / enlace directo.
  */
 async function startApkDownload() {
     const url = cachedApkMeta?.url;
@@ -708,12 +714,43 @@ async function startApkDownload() {
     }
 
     const fileName = cachedApkMeta.fileName || 'HonduRaite.apk';
-    const onAndroid = isCapacitorAndroid()
-        || isCapacitorNative()
-        || /Android/i.test(navigator.userAgent || '');
+    const onAndroidApp = isCapacitorAndroid();
+    const onAndroidWeb = !onAndroidApp
+        && (isCapacitorNative() || /Android/i.test(navigator.userAgent || ''));
+
+    // 1) App nativa Android → DownloadManager (completo en carpeta Descargas)
+    if (onAndroidApp) {
+        window.showToast?.('Iniciando descarga del APK en Descargas…', 'info');
+        try {
+            const native = await downloadApkNative(url, fileName);
+            if (native?.ok !== false && native) {
+                markApkDownloadedOrInstalled(cachedApkMeta.buildId);
+                syncAppDownloadBadge();
+                window.showToast?.(
+                    'Descarga en curso. Mira la barra de notificaciones; al terminar abre el APK desde Descargas e instálalo.',
+                    'success'
+                );
+                return true;
+            }
+        } catch (e) {
+            console.warn('[app-download] native DownloadManager:', e);
+        }
+        // Fallback: navegador del sistema (no Custom Tab)
+        window.showToast?.('Abriendo el navegador del celular para descargar…', 'info');
+        const openedSys = await openInSystemBrowser(url);
+        if (openedSys) {
+            markApkDownloadedOrInstalled(cachedApkMeta.buildId);
+            syncAppDownloadBadge();
+            window.showToast?.(
+                'Si Chrome no descarga solo, toca el archivo o el icono de descarga. Luego instala desde Descargas.',
+                'success'
+            );
+            return true;
+        }
+    }
 
     window.showToast?.(
-        onAndroid
+        onAndroidWeb
             ? 'Abriendo el navegador del celular para descargar el APK…'
             : 'Iniciando descarga del APK…',
         'info'
@@ -721,7 +758,6 @@ async function startApkDownload() {
 
     let opened = false;
     try {
-        // Preferir navegador del sistema (funciona en Capacitor + Chrome móvil)
         opened = await openExternalUrl(url);
     } catch (e) {
         console.warn('[app-download] openExternalUrl:', e);
@@ -735,8 +771,7 @@ async function startApkDownload() {
             a.href = url;
             a.target = '_blank';
             a.rel = 'noopener noreferrer';
-            // Solo en desktop/web el attr download puede ayudar si es same-origin
-            if (!onAndroid) a.setAttribute('download', fileName);
+            if (!onAndroidApp && !onAndroidWeb) a.setAttribute('download', fileName);
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -759,12 +794,11 @@ async function startApkDownload() {
         return false;
     }
 
-    // Tras abrir el enlace: marcar como “ya descargó esta versión”
     markApkDownloadedOrInstalled(cachedApkMeta.buildId);
     syncAppDownloadBadge();
     window.showToast?.(
-        onAndroid
-            ? 'Si no empieza sola, toca la notificación de descarga o abre Descargas e instala el APK.'
+        onAndroidWeb || onAndroidApp
+            ? 'Si no termina sola, abre Descargas o la notificación y toca el APK para instalar.'
             : 'Descarga iniciada. Abre el archivo e instálalo cuando termine.',
         'success'
     );
@@ -785,7 +819,9 @@ function installTutorialStepsHtml() {
                 <div>
                     <strong>Toca “Descargar APK”</strong>
                     <p>${androidHint
-                        ? 'Se abrirá el <b>navegador del celular</b> (Chrome u otro) y ahí empieza la descarga. No se descarga dentro de la app.'
+                        ? (isCapacitorAndroid()
+                            ? 'La app usa el <b>descargador del sistema</b>: el APK va a la carpeta <em>Descargas</em> y avisa al terminar (más fiable que Chrome).'
+                            : 'Se abrirá el <b>navegador del celular</b> (Chrome u otro) y ahí empieza la descarga.')
                         : 'Se descarga el instalador oficial de HonduRaite (archivo .apk).'}</p>
                 </div>
             </li>
