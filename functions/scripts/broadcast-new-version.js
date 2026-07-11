@@ -9,10 +9,10 @@ const { getMessaging } = require('firebase-admin/messaging');
 
 const PROJECT_ID = 'comedor-86278';
 const APP_ID = 'comayagua-vip-pro-v4';
-const VERSION = '2026.07.06.8';
+const VERSION = '2026.07.10.2';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
-    `Actualización ${VERSION}: mejor experiencia y avisos de viaje más potentes. Abre la app para usar la última versión. ¡Gracias por confiar en HonduRaite!`;
+    `Actualización ${VERSION}: descarga de app para pasajeros y conductores, panel y PIN más fáciles en el celular, y notificaciones con sonido y vibración. Abre o actualiza la app para usar la última versión. ¡Gracias por confiar en HonduRaite!`;
 
 initializeApp({
     credential: applicationDefault(),
