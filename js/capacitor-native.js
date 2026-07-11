@@ -19,6 +19,35 @@ export function isCapacitorAndroid() {
     return isCapacitorNative() && getCapacitorPlatform() === 'android';
 }
 
+/** Clases en <body> para CSS (safe area, header, etc.). */
+export function markCapacitorBodyClasses() {
+    try {
+        if (typeof document === 'undefined' || !document.body) return;
+        if (isCapacitorNative()) {
+            document.body.classList.add('capacitor-native');
+            document.documentElement.classList.add('capacitor-native');
+        }
+        if (isCapacitorAndroid()) {
+            document.body.classList.add('capacitor-android');
+            document.documentElement.classList.add('capacitor-android');
+        }
+        if (isCapacitorNative() && getCapacitorPlatform() === 'ios') {
+            document.body.classList.add('capacitor-ios');
+            document.documentElement.classList.add('capacitor-ios');
+        }
+    } catch (_) {}
+}
+
+// Marcar lo antes posible (y de nuevo al cargar el body)
+try {
+    markCapacitorBodyClasses();
+    if (typeof document !== 'undefined') {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', markCapacitorBodyClasses, { once: true });
+        }
+    }
+} catch (_) {}
+
 function isLikelyApkOrFirebaseStorageUrl(url) {
     const u = String(url || '').toLowerCase();
     return u.includes('.apk')

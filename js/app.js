@@ -95,7 +95,8 @@ import {
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers
 } from "./ops-fleet-map.js";
 import { syncLiveTripKeepalive, registerLiveTripGpsPulse } from "./live-trip-keepalive.js";
-import { isCapacitorNative, isCapacitorAndroid } from "./capacitor-native.js";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js";
+markCapacitorBodyClasses();
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,

@@ -24,6 +24,33 @@
             overflow: hidden;
             padding-top: env(safe-area-inset-top, 0px);
             padding-bottom: env(safe-area-inset-bottom, 0px);
+            box-sizing: border-box;
+        }
+
+        /*
+         * APK Android: el padding de status bar lo aplica MainActivity al WebView.
+         * No sumar otro safe-area grande aquí (doble hueco). Solo un respiro mínimo
+         * si el SO no reporta insets y el header quedaría pegado al borde.
+         */
+        body.capacitor-android #app-interface {
+            /* safe-area en WebView Android suele ser 0; el inset nativo ya da el espacio */
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        body.capacitor-android #app-header {
+            /* Zona táctil del header más clara, lejos del gesto del sistema */
+            padding-top: 2px;
+        }
+
+        body.capacitor-android .header-toolbar {
+            min-height: 3.65rem;
+        }
+
+        body.capacitor-android .header-icon-btn {
+            /* Botones un poco más abajo del borde superior del contenido */
+            min-width: 2.5rem;
+            min-height: 2.5rem;
         }
 
         /* Header fijo arriba — el logo no invade el panel de viajes */
