@@ -1,0 +1,223 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================
+    // HONDU RAITE - FIRESTORE SECURITY RULES v2 (actualizado)
+    // ============================================================
+    // 
+    // Esta versión está diseñada para:
+    // - No romper las funciones actuales de Pasajero, Conductor, Supervisor y Admin
+    // - Dar solo los permisos necesarios según lo que cada rol ve en su pantalla
+    // - Ser más segura que las reglas abiertas anteriores
+    //
+    // Si algo deja de funcionar después de desplegar, dime la pantalla/acción
+    // y lo ajustamos inmediatamente.
+    // ============================================================
+
+    // === HELPERS ===
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function requestUid() {
+      return request.auth.uid;
+    }
+
+    // Obtiene el rol de forma segura (evita errores si el documento aún no existe en signup)
+    function getRole(app) {
+      let userDoc = get(/databases/$(database)/documents/artifacts/$(app)/public/data/users/$(requestUid()));
+      return userDoc.exists ? userDoc.data.role : null;
+    }
+
+    function isAdmin(app) {
+      let email = request.auth.token.email;
+      let role = getRole(app);
+      return role == 'admin' || email == 'josuesoza0513@gmail.com';
+    }
+
+    function isSupervisor(app) {
+      let role = getRole(app);
+      return role == 'supervisor' || isAdmin(app);
+    }
+
+    function isDriver(app) {
+      return getRole(app) == 'driver';
+    }
+
+    function isClient(app) {
+      let role = getRole(app);
+      return role == 'client' || role == null;
+    }
+
+    function isStaff(app) {
+      return isAdmin(app) || isSupervisor(app);
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && requestUid() == userId;
+    }
+
+    // ============================================================
+    // PERFILES DE USUARIO
+    // ============================================================
+
+    // Perfil PÚBLICO
+    match /artifacts/{app}/public/data/users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isOwner(userId) || isStaff(app));
+      allow create: if isSignedIn() && isOwner(userId);
+    }
+
+    // Perfil PRIVADO
+    match /artifacts/{app}/users/{userId}/profile/data {
+      allow read, write: if isSignedIn() && (isOwner(userId) || isStaff(app));
+    }
+
+    // ============================================================
+    // VIAJES
+    // ============================================================
+
+    match /artifacts/{app}/public/data/trips/{tripId} {
+      // Lectura amplia para flujos de app (conductor ve ofertas, pasajero ve su viaje)
+      allow read: if isSignedIn() && (
+        isStaff(app) ||
+        resource.data.clientId == requestUid() ||
+        resource.data.driverId == requestUid() ||
+        resource.data.status == 'pending'   // conductores necesitan ver pending para ofertas
+      );
+
+      // Crear viaje (solo pasajero)
+      allow create: if isSignedIn() &&
+        isClient(app) &&
+        request.resource.data.clientId == requestUid();
+
+      // Actualizar viaje: pasajero, conductor asignado, staff, o cualquier conductor en viajes pending (ofertas / visto)
+      allow update: if isSignedIn() && (
+        isStaff(app) ||
+        resource.data.clientId == requestUid() ||
+        resource.data.driverId == requestUid() ||
+        resource.data.offeredToDriverId == requestUid() ||
+        (resource.data.status == 'pending' && isDriver(app))
+      );
+
+      // Borrar solo staff
+      allow delete: if isSignedIn() && isStaff(app);
+    }
+
+    // ============================================================
+    // UBICACIÓN EN TIEMPO REAL DE CONDUCTORES
+    // ============================================================
+
+    match /artifacts/{app}/public/data/drivers_location/{driverId} {
+      allow read: if isSignedIn();                    // necesario para mapas y tracking
+      allow write: if isSignedIn() && (isOwner(driverId) || isStaff(app));
+    }
+
+    // ============================================================
+    // MODERACIÓN (Reportes, Encuestas, Feedback)
+    // ============================================================
+
+    match /artifacts/{app}/public/data/reports/{reportId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (isStaff(app) || resource.data.reportedBy == requestUid());
+      allow update: if isSignedIn() && isStaff(app);
+    }
+
+    match /artifacts/{app}/public/data/cancellation_surveys/{surveyId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (isStaff(app) || resource.data.respondentId == requestUid());
+      allow update: if isSignedIn() && isStaff(app);
+    }
+
+    match /artifacts/{app}/public/data/app_feedback/{feedbackId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (isStaff(app) || resource.data.userId == requestUid());
+      allow update: if isSignedIn() && isStaff(app);
+    }
+
+    // ============================================================
+    // VEHÍCULOS Y VERIFICACIÓN (conductor y staff)
+    // ============================================================
+
+    match /artifacts/{app}/users/{userId}/vehicles/{vehicleId} {
+      allow read, write: if isSignedIn() && (isOwner(userId) || isStaff(app));
+    }
+
+    match /artifacts/{app}/users/{userId}/verification/{document=**} {
+      allow read, write: if isSignedIn() && (isOwner(userId) || isStaff(app));
+    }
+
+    match /artifacts/{app}/users/{userId}/resubmit/{document=**} {
+      allow read, write: if isSignedIn() && (isOwner(userId) || isStaff(app));
+    }
+
+    // ============================================================
+    // DATOS OPERATIVOS DE STAFF
+    // ============================================================
+
+    match /artifacts/{app}/public/data/driver_deposit_requests/{requestId} {
+      allow read, write: if isSignedIn() && isStaff(app);
+      allow create: if isSignedIn() && isDriver(app);
+    }
+
+    // ============================================================
+    // CONFIGURACIÓN Y OTRAS COLECCIONES PÚBLICAS
+    // ============================================================
+
+    match /artifacts/{app}/public/data/appSettings/{doc} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isStaff(app);
+    }
+
+    // ============================================================
+    // RECARGAS DE PASAJEROS (solicitudes de saldo)
+    // ============================================================
+    match /artifacts/{app}/public/data/recharge_requests/{requestId} {
+      // Pasajero puede crear su propia solicitud
+      allow create: if isSignedIn() &&
+        request.resource.data.passengerId == requestUid() &&
+        request.resource.data.status == 'pending';
+
+      // Pasajero ve solo sus solicitudes; staff ve todas
+      allow read: if isSignedIn() && (
+        isStaff(app) ||
+        resource.data.passengerId == requestUid()
+      );
+
+      // Solo staff aprueba/rechaza
+      allow update: if isSignedIn() && isStaff(app);
+    }
+
+    // Cuentas bancarias (solo staff administra, todos leen para recargar)
+    match /artifacts/{app}/public/data/bankAccounts/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isStaff(app);
+    }
+
+    // Promociones (lectura usuarios autenticados; escritura staff)
+    match /artifacts/{app}/public/data/promotions/{promoId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && isStaff(app);
+    }
+
+    // Bonos reclamados por pasajero (solo lectura; escritura vía Cloud Functions)
+    match /artifacts/{app}/users/{userId}/claimed_promos/{claimId} {
+      allow read: if isSignedIn() && (isOwner(userId) || isStaff(app));
+      allow write: if false;
+    }
+
+    // Catch-all para otras colecciones públicas
+    match /artifacts/{app}/public/data/{collection}/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && (isOwner(docId) || isStaff(app));
+    }
+
+    // Seguridad por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+  }
+}

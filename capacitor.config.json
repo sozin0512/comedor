@@ -1,0 +1,17 @@
+{
+  "appId": "honduraite.com",
+  "appName": "HonduRaite",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": false,
+      "backgroundColor": "#E8E6E0",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false
+    }
+  }
+}

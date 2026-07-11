@@ -1,0 +1,143 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ============================================================
+    // HONDU RAITE - STORAGE SECURITY RULES (actualizado)
+    // ============================================================
+    //
+    // Reglas seguras pero funcionales para:
+    // - Pasajeros (client)
+    // - Conductores (driver)
+    // - Supervisores
+    // - Admins
+    //
+    // Principios:
+    // - Usuarios autenticados pueden leer la mayoría de archivos (para ver perfiles, verificaciones, etc.)
+    // - Solo el dueño (userId) puede subir a su carpeta
+    // - Admins/Staff tienen acceso completo para moderación
+    // - Limitación de tamaño y tipo de archivo
+    // ============================================================
+
+    // === HELPERS ===
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      let email = request.auth.token.email;
+      // Email principal del admin + UID de respaldo
+      return email == 'josuesoza0513@gmail.com' || request.auth.uid == 'GOsIqh5xgoSsx8lRC0ZXxLYVUEm2';
+    }
+
+    function isStaff() {
+      // En el futuro puedes mejorar esto leyendo el rol desde Firestore
+      // Por ahora usamos email/UID + permitimos supervisores si quieres
+      return isAdmin();
+    }
+
+    function isImageOrPdf() {
+      return request.resource.contentType.matches('image/.*') 
+             || request.resource.contentType == 'application/pdf'
+             || request.resource.contentType == 'application/octet-stream';
+    }
+
+    function maxSize(mb) {
+      return request.resource.size < mb * 1024 * 1024;
+    }
+
+    // ============================================================
+    // ARCHIVOS DE USUARIOS (perfil, verificación, vehículos)
+    // ============================================================
+
+    // Carpeta general de cada usuario
+    match /artifacts/{appId}/users/{userId}/{allPaths=**} {
+      // Cualquiera autenticado puede leer (para ver fotos de perfil, verificaciones en panel admin, etc.)
+      allow read: if isSignedIn();
+
+      // Solo el dueño puede escribir
+      allow write: if isOwner(userId) 
+                   && maxSize(10)
+                   && isImageOrPdf();
+    }
+
+    // Verificación de identidad (selfie, cédula, etc.)
+    match /artifacts/{appId}/users/{userId}/verification/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) 
+                   && maxSize(10)
+                   && isImageOrPdf();
+    }
+
+    // Reenvío de verificación
+    match /artifacts/{appId}/users/{userId}/resubmit/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) 
+                   && maxSize(10)
+                   && isImageOrPdf();
+    }
+
+    // Fotos de vehículos
+    match /artifacts/{appId}/users/{userId}/vehicles/{vehicleId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) 
+                   && maxSize(10)
+                   && isImageOrPdf();
+    }
+
+    // ============================================================
+    // DEPÓSITOS DE CONDUCTORES
+    // ============================================================
+
+    match /artifacts/{appId}/users/{userId}/deposits/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) 
+                   && maxSize(10)
+                   && isImageOrPdf();
+    }
+
+    // ============================================================
+    // CONFIGURACIÓN Y LOGOS DE LA APP (solo admin)
+    // ============================================================
+
+    match /artifacts/{appId}/settings/{allPaths=**} {
+      allow read: if true;   // público para que la app cargue logos, etc.
+      allow write: if isAdmin();
+    }
+
+    // ============================================================
+    // ASSETS PÚBLICOS (iconos, logos generales, etc.)
+    // ============================================================
+
+    match /artifacts/{appId}/public/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // APK de la app Android (solo admin; descarga pública)
+    match /artifacts/{appId}/public/apk/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin()
+                   && request.resource.size < 200 * 1024 * 1024
+                   && (
+                     request.resource.contentType == 'application/vnd.android.package-archive'
+                     || request.resource.contentType == 'application/octet-stream'
+                     || request.resource.contentType.matches('application/.*')
+                   );
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // CATCH-ALL (por seguridad)
+    // ============================================================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+  }
+}

@@ -1,0 +1,67 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace = "honduraite.com"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "honduraite.com"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 202607101
+        versionName "2026.07.10.1"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+def servicesJSON = file('google-services.json')
+def appPackage = android.defaultConfig.applicationId
+def shouldApplyGoogleServices = false
+
+if (servicesJSON.exists()) {
+    try {
+        def parsed = new groovy.json.JsonSlurper().parse(servicesJSON)
+        shouldApplyGoogleServices = parsed.client?.any { client ->
+            client?.client_info?.android_client_info?.package_name == appPackage
+        }
+        if (!shouldApplyGoogleServices) {
+            logger.warn("google-services.json no incluye el paquete ${appPackage}. Push FCM desactivado hasta descargar el JSON correcto desde Firebase.")
+        }
+    } catch (Exception e) {
+        logger.warn("No se pudo leer google-services.json: ${e.message}")
+    }
+}
+
+if (shouldApplyGoogleServices) {
+    apply plugin: 'com.google.gms.google-services'
+}

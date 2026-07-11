@@ -1,0 +1,74 @@
+# Dependencias (rutas MUY largas en Windows — no copiar ni subir a Git)
+node_modules/
+**/node_modules/
+functions/node_modules/
+
+# Firebase / claves (NUNCA subir)
+*-firebase-adminsdk-*.json
+serviceAccount*.json
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Entorno local
+.env
+.env.*
+!.env.example
+
+# Sistema / editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/
+*.swp
+*~
+
+# Builds web
+dist/
+build/
+# www/ es copia generada por npm run build:www — no hace falta en git si construyes al clonar
+# Si prefieres versionar www/, comenta la siguiente línea:
+www/
+
+# Android (generados / rutas largas)
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/capacitor-cordova-android-plugins/build/
+android/local.properties
+android/captures/
+android/*.iml
+android/.cxx/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Capacitor copy cache
+.capacitor/
+
+# Python
+__pycache__/
+*.pyc
+
+# Misc
+*.tmp
+*.bak
+.DS_Store
+
+# Capturas / basura local (no subir)
+error.png
+error_preview.jpg
+error*.png
+error*.jpg
+* - copia.*
+*-copia.*
+panel-*.txt
+panel-crop.png
+panel-reference*
+analyze_*.py
+$null
+assets

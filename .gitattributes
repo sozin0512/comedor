@@ -1,0 +1,13 @@
+# Normalizar finales de línea a LF en el repositorio (estándar web / GitHub)
+* text=auto eol=lf
+
+# Binarios: no convertir
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

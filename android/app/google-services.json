@@ -1,0 +1,69 @@
+{
+  "project_info": {
+    "project_number": "1081425728323",
+    "firebase_url": "https://comedor-86278-default-rtdb.firebaseio.com",
+    "project_id": "comedor-86278",
+    "storage_bucket": "comedor-86278.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1081425728323:android:ea0776792855c81caf15f6",
+        "android_client_info": {
+          "package_name": "com.honduraite.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1081425728323-39ii8apomlc2cbq6242rp13k16trug0n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkoFVBv5xZGy44CH86g2rc_L9SJGnJfr0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1081425728323-39ii8apomlc2cbq6242rp13k16trug0n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1081425728323:android:b5b831095f8a4794af15f6",
+        "android_client_info": {
+          "package_name": "honduraite.com"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1081425728323-39ii8apomlc2cbq6242rp13k16trug0n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDkoFVBv5xZGy44CH86g2rc_L9SJGnJfr0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1081425728323-39ii8apomlc2cbq6242rp13k16trug0n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

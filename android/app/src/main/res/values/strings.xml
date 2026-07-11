@@ -1,0 +1,12 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">HonduRaite</string>
+    <string name="title_activity_main">HonduRaite</string>
+    <string name="package_name">honduraite.com</string>
+    <string name="custom_url_scheme">honduraite.com</string>
+    <string name="keepalive_channel_name">Sesión activa</string>
+    <string name="keepalive_channel_desc">Mantiene HonduRaite conectado en segundo plano</string>
+    <string name="keepalive_title">HonduRaite activo</string>
+    <string name="keepalive_body">Tu sesión sigue abierta. Toca para volver a la app.</string>
+    <string name="keepalive_body_driver">Conductor en línea. Tu sesión sigue activa.</string>
+</resources>

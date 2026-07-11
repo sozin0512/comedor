@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="hr-app-version" content="2026.07.10.1">
+    <meta name="theme-color" content="#2563eb">
+    <script>
+        (function () {
+            try {
+                var t = localStorage.getItem('honduber-theme') || 'light';
+                document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="HonduRaite">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="manifest" href="manifest.json?v=2026.07.10.1">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    <meta name="copyright" content="Empresa SOZIN. Todos los derechos reservados.">
+    <meta name="author" content="Empresa SOZIN">
+    <title>HonduRaite — Empresa SOZIN</title>
+    
+    <!-- Frameworks Externos -->
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.10.1">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/app.css?v=2026.07.10.1">
+    <script src="js/maps-init.js?v=2026.07.10.1"></script>
+    <script type="module">
+        import { APP_CONFIG } from './js/config.js?v=2026.07.10.1';
+        window.APP_CONFIG = APP_CONFIG;
+        const mapsScript = document.createElement('script');
+        mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
+        mapsScript.async = true;
+        mapsScript.onerror = () => {
+            window.__mapsLoadError = true;
+            document.body?.classList.add('map-load-failed');
+        };
+        document.head.appendChild(mapsScript);
+    </script>
+    <style>
+        #hr-boot-loading {
+            position: fixed; inset: 0; z-index: 99999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #e8e6e0;
+            color: #1e293b; font-family: Inter, system-ui, sans-serif; text-align: center;
+            padding: 2rem; transition: opacity 0.45s ease, visibility 0.45s ease;
+        }
+        #hr-boot-loading.hr-boot-hide {
+            opacity: 0; visibility: hidden; pointer-events: none;
+        }
+        #hr-boot-loading .hr-boot-logo {
+            width: min(72vw, 320px); height: min(72vw, 320px);
+            object-fit: contain; margin-bottom: 1.25rem;
+            animation: hr-boot-pop 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        #hr-boot-loading .hr-boot-spinner {
+            width: 2rem; height: 2rem; border: 3px solid rgba(30, 41, 59, 0.15);
+            border-top-color: #2563eb; border-radius: 50%;
+            animation: hr-spin 0.8s linear infinite; margin-top: 0.25rem;
+        }
+        #hr-boot-loading .hr-boot-tagline {
+            margin-top: 0.85rem; font-size: 0.8rem; color: #64748b; font-weight: 600;
+        }
+        @keyframes hr-spin { to { transform: rotate(360deg); } }
+        @keyframes hr-boot-pop {
+            0% { opacity: 0; transform: scale(0.82); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        body.map-load-failed #map { background: #e2e8f0; }
+        body.map-load-failed #map::after {
+            content: 'Mapa no disponible. Revisa conexión o API de Google Maps.';
+            position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            color: #475569; font-size: 12px; text-align: center; max-width: 80%; padding: 1rem;
+        }
+    </style>
+    <script type="module">
+        try {
+            const { registerPlugin } = await import('./js/vendor/capacitor-core.js');
+            const SplashScreen = registerPlugin('SplashScreen');
+            window.hideCapacitorSplash = (opts) => SplashScreen.hide(opts || { fadeOutDuration: 350 }).catch(() => {});
+        } catch (err) {
+            console.warn('[boot] Capacitor splash no disponible en web:', err);
+            window.hideCapacitorSplash = async () => {};
+        }
+    </script>
+    <script>
+        window.__HR_BUILD_VERSION__ = '2026.07.10.1';
+        (function () {
+            try {
+                var build = '2026.07.10.1';
+                var doneKey = 'hr_boot_updated_' + build;
+                if (sessionStorage.getItem(doneKey)) return;
+                fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (d) {
+                        if (!d || !d.version || d.version === build) return;
+                        sessionStorage.setItem(doneKey, '1');
+                        var url = new URL(location.href);
+                        url.searchParams.set('v', d.version);
+                        url.searchParams.set('hr_refresh', String(Date.now()));
+                        location.replace(url.toString());
+                    })
+                    .catch(function () {});
+            } catch (e) {}
+        })();
+    </script>
+</head>
+<body class="flex flex-col">
+    <div id="hr-boot-loading" aria-live="polite">
+        <img src="icons/splash-logo.png" alt="HonduRaite" class="hr-boot-logo" width="320" height="320">
+        <div class="hr-boot-spinner" aria-hidden="true"></div>
+        <p class="hr-boot-tagline">Cargando aplicación…</p>
+    </div>
+    <script>
+        window.__hrAppReady = false;
+        window.addEventListener('error', function (e) {
+            if (window.__hrAppReady) return;
+            var el = document.getElementById('hr-boot-loading');
+            if (!el) return;
+            el.innerHTML = '<p style="font-weight:700">No se pudo iniciar</p><p style="font-size:0.8rem;opacity:0.9;margin-top:0.75rem">'
+                + (e.message || 'Error de carga') + '</p><p style="font-size:0.75rem;opacity:0.75;margin-top:1rem">Comprueba tu conexión a internet y vuelve a abrir la app.</p>';
+        });
+        setTimeout(function () {
+            if (window.__hrAppReady) return;
+            var el = document.getElementById('hr-boot-loading');
+            if (!el || el.querySelector('.hr-boot-spinner')) {
+                if (el) el.innerHTML = '<p style="font-weight:700">Tarda más de lo normal</p><p style="font-size:0.8rem;opacity:0.9;margin-top:0.75rem">Verifica que tengas internet activo (Firebase y mapas lo necesitan).</p>';
+            }
+        }, 15000);
+    </script>
+
+    <!-- PANEL DE ADMINISTRACIÓN -->
+    <div id="admin-panel" class="ops-panel fixed inset-0 z-[30000] hidden">
+        <div id="admin-ops-backdrop" class="ops-backdrop" aria-hidden="true"></div>
+        <aside id="admin-sidebar" class="ops-sidebar">
+            <div class="ops-sidebar-brand">
+                <div class="ops-brand-icon"><i class="fas fa-crown"></i></div>
+                <div class="ops-brand-text">
+                    <span class="ops-brand-title">HonduRaite</span>
+                    <span class="ops-brand-sub">Panel Admin</span>
+                </div>
+            </div>
+            <nav class="ops-nav" aria-label="Navegación administración">
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Usuarios</span>
+                    <button type="button" onclick="window.renderAdminTab('client')" id="tab-client" data-admin-tab="client" class="ops-nav-item ops-nav-item--active admin-tab-btn"><i class="fas fa-users"></i><span>Pasajeros</span></button>
+                    <button type="button" onclick="window.renderAdminTab('driver')" id="tab-driver" data-admin-tab="driver" class="ops-nav-item admin-tab-btn"><i class="fas fa-motorcycle"></i><span>Conductores</span></button>
+                    <button type="button" onclick="window.renderAdminTab('supervisor')" id="tab-supervisor" data-admin-tab="supervisor" class="ops-nav-item admin-tab-btn"><i class="fas fa-user-shield"></i><span>Supervisores</span></button>
+                </div>
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Operaciones</span>
+                    <button type="button" onclick="window.renderAdminTab('trips')" id="tab-trips" data-admin-tab="trips" class="ops-nav-item admin-tab-btn"><i class="fas fa-route"></i><span>Viajes activos</span></button>
+                    <button type="button" onclick="window.renderAdminTab('reports')" id="tab-reports" data-admin-tab="reports" class="ops-nav-item ops-nav-item--alert admin-tab-btn"><i class="fas fa-flag"></i><span>Reportes</span></button>
+                    <button type="button" onclick="window.renderAdminTab('tickets')" id="tab-tickets" data-admin-tab="tickets" class="ops-nav-item admin-tab-btn"><i class="fas fa-ticket-alt"></i><span>Tickets</span></button>
+                    <button type="button" onclick="window.renderAdminTab('notify')" id="tab-notify" data-admin-tab="notify" class="ops-nav-item admin-tab-btn"><i class="fas fa-bell"></i><span>Notificar</span></button>
+                </div>
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Promociones</span>
+                    <button type="button" onclick="window.loadAdminPromotions()" id="tab-promotions" data-admin-tab="promotions" class="ops-nav-item admin-tab-btn"><i class="fas fa-gift"></i><span>Promociones</span></button>
+                </div>
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Finanzas</span>
+                    <button type="button" onclick="window.renderAdminTab('recharges')" id="tab-recharges" data-admin-tab="recharges" class="ops-nav-item admin-tab-btn"><i class="fas fa-coins"></i><span>Recargas</span></button>
+                    <button type="button" onclick="window.renderAdminTab('bank')" id="tab-bank" data-admin-tab="bank" class="ops-nav-item admin-tab-btn"><i class="fas fa-university"></i><span>Cuentas bancarias</span></button>
+                </div>
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Sistema</span>
+                    <button type="button" onclick="window.renderAdminTab('stats')" id="tab-stats" data-admin-tab="stats" class="ops-nav-item admin-tab-btn"><i class="fas fa-chart-line"></i><span>Estadísticas</span></button>
+                    <button type="button" onclick="window.renderAdminTab('customization')" id="tab-customization" data-admin-tab="customization" class="ops-nav-item admin-tab-btn"><i class="fas fa-palette"></i><span>Personalizar</span></button>
+                    <button type="button" onclick="window.renderAdminTab('apk')" id="tab-apk" data-admin-tab="apk" class="ops-nav-item admin-tab-btn"><i class="fab fa-android"></i><span>App Android</span></button>
+                    <button type="button" onclick="window.renderAdminTab('testing')" id="tab-testing" data-admin-tab="testing" class="ops-nav-item admin-tab-btn"><i class="fas fa-vial"></i><span>Pruebas</span></button>
+                </div>
+            </nav>
+            <div class="ops-sidebar-foot">
+                <span>🇭🇳 Honduras · SOZIN</span>
+            </div>
+        </aside>
+        <div class="ops-main">
+            <header class="ops-topbar">
+                <div class="ops-topbar-left">
+                    <button type="button" id="admin-ops-menu-btn" class="ops-icon-btn ops-menu-btn" aria-label="Abrir menú"><i class="fas fa-bars"></i></button>
+                    <div class="ops-topbar-titles">
+                        <p class="ops-crumb">Administración · <span id="admin-ops-crumb">Pasajeros</span></p>
+                        <h1 id="admin-ops-title" class="ops-page-title">Pasajeros</h1>
+                    </div>
+                </div>
+                <div class="ops-topbar-actions">
+                    <button type="button" id="admin-ops-refresh" class="ops-icon-btn" title="Actualizar" aria-label="Actualizar"><i class="fas fa-sync-alt"></i></button>
+                    <button type="button" onclick="window.showCityPickerModal()" class="ops-pill-btn"><i class="fas fa-map-marker-alt"></i><span>Ciudad</span></button>
+                    <button type="button" onclick="window.closeAdminPanel()" class="ops-icon-btn ops-icon-btn--danger" aria-label="Cerrar panel"><i class="fas fa-times"></i></button>
+                </div>
+            </header>
+            <div id="admin-users-list" class="ops-content">
+                <div class="ops-loading">
+                    <div class="ops-loading-ring"><i class="fas fa-spinner fa-spin"></i></div>
+                    <p class="ops-loading-text">Cargando base de datos…</p>
+                </div>
+            </div>
+            <div data-sozin-copyright="panel-dark" class="ops-footer"></div>
+        </div>
+    </div>
+
+    <!-- PANEL DE SUPERVISIÓN -->
+    <div id="supervisor-panel" class="ops-panel ops-panel--supervisor fixed inset-0 z-[30000] hidden">
+        <div id="supervisor-ops-backdrop" class="ops-backdrop" aria-hidden="true"></div>
+        <aside id="supervisor-sidebar" class="ops-sidebar ops-sidebar--emerald">
+            <div class="ops-sidebar-brand">
+                <div class="ops-brand-icon ops-brand-icon--emerald"><i class="fas fa-shield-alt"></i></div>
+                <div class="ops-brand-text">
+                    <span class="ops-brand-title">HonduRaite</span>
+                    <span class="ops-brand-sub">Supervisión</span>
+                </div>
+            </div>
+            <nav class="ops-nav" aria-label="Navegación supervisión">
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Conductores</span>
+                    <button type="button" onclick="window.loadPendingDrivers()" id="sup-tab-pending" data-sup-tab="pending" class="ops-nav-item ops-nav-item--active"><i class="fas fa-hourglass-half"></i><span>Verificaciones</span></button>
+                    <button type="button" onclick="window.loadActiveDrivers()" id="sup-tab-active" data-sup-tab="active" class="ops-nav-item"><i class="fas fa-check-circle"></i><span>Activos</span></button>
+                </div>
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Operaciones</span>
+                    <button type="button" onclick="window.loadSupervisorObjectives()" id="sup-tab-objectives" data-sup-tab="objectives" class="ops-nav-item"><i class="fas fa-bullseye"></i><span>Objetivos</span></button>
+                    <button type="button" onclick="window.loadSupervisorTrips()" id="sup-tab-trips" data-sup-tab="trips" class="ops-nav-item"><i class="fas fa-route"></i><span>Viajes</span></button>
+                    <button type="button" onclick="window.loadSupervisorReports()" id="sup-tab-reports" data-sup-tab="reports" class="ops-nav-item"><i class="fas fa-flag"></i><span>Reportes</span></button>
+                    <button type="button" onclick="window.loadAdminTickets()" id="sup-tab-tickets" data-sup-tab="tickets" class="ops-nav-item"><i class="fas fa-ticket-alt"></i><span>Tickets</span></button>
+                </div>
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Promociones</span>
+                    <button type="button" onclick="window.loadSupervisorPromotions()" id="sup-tab-promotions" data-sup-tab="promotions" class="ops-nav-item"><i class="fas fa-gift"></i><span>Promociones</span></button>
+                </div>
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Finanzas</span>
+                    <button type="button" onclick="window.loadSupervisorDeposits()" id="sup-tab-deposits" data-sup-tab="deposits" class="ops-nav-item"><i class="fas fa-piggy-bank"></i><span>Depósitos</span></button>
+                    <button type="button" onclick="window.loadSupervisorDriverPayouts()" id="sup-tab-payouts" data-sup-tab="payouts" class="ops-nav-item"><i class="fas fa-hand-holding-usd"></i><span>Pagos</span></button>
+                </div>
+                <div class="ops-nav-section">
+                    <span class="ops-nav-label">Acceso rápido</span>
+                    <button type="button" onclick="window.loadSupervisorClients()" data-sup-quick="clients" class="ops-nav-item ops-nav-item--quick"><i class="fas fa-users"></i><span>Pasajeros</span></button>
+                    <button type="button" onclick="window.loadSupervisorDrivers()" data-sup-quick="drivers" class="ops-nav-item ops-nav-item--quick"><i class="fas fa-id-card"></i><span>Lista conductores</span></button>
+                    <button type="button" onclick="window.loadSupervisorStats()" data-sup-quick="stats" class="ops-nav-item ops-nav-item--quick"><i class="fas fa-chart-pie"></i><span>Estadísticas</span></button>
+                    <button type="button" onclick="window.loadSupervisorRecharges()" data-sup-quick="recharges" class="ops-nav-item ops-nav-item--quick"><i class="fas fa-coins"></i><span>Recargas</span></button>
+                    <button type="button" onclick="window.setSupervisorQuickActive('notify'); window.showNotifyModal('all')" data-sup-quick="notify" class="ops-nav-item ops-nav-item--quick"><i class="fas fa-bell"></i><span>Notificar</span></button>
+                </div>
+            </nav>
+            <div class="ops-sidebar-foot">
+                <button type="button" onclick="window.copyAllDriverBanks && window.copyAllDriverBanks()" class="ops-sidebar-tool"><i class="fas fa-university"></i> Copiar cuentas</button>
+            </div>
+        </aside>
+        <div class="ops-main">
+            <header class="ops-topbar ops-topbar--emerald">
+                <div class="ops-topbar-left">
+                    <button type="button" id="supervisor-ops-menu-btn" class="ops-icon-btn ops-menu-btn" aria-label="Abrir menú"><i class="fas fa-bars"></i></button>
+                    <div class="ops-topbar-titles">
+                        <p class="ops-crumb">Supervisión · <span id="supervisor-ops-crumb">Verificaciones</span></p>
+                        <h1 id="supervisor-ops-title" class="ops-page-title">Verificaciones</h1>
+                    </div>
+                </div>
+                <div class="ops-topbar-actions">
+                    <button type="button" id="supervisor-ops-refresh" class="ops-icon-btn" title="Actualizar" aria-label="Actualizar"><i class="fas fa-sync-alt"></i></button>
+                    <button type="button" onclick="window.showNotifyModal('driver')" class="ops-icon-btn" title="Notificar conductores"><i class="fas fa-bell"></i></button>
+                    <button type="button" onclick="window.showCityPickerModal()" class="ops-pill-btn"><i class="fas fa-map-marker-alt"></i><span>Ciudad</span></button>
+                    <button type="button" onclick="window.closeSupervisorPanel()" class="ops-icon-btn ops-icon-btn--danger" aria-label="Cerrar panel"><i class="fas fa-times"></i></button>
+                </div>
+            </header>
+            <div class="ops-trust-banner">
+                <i class="fas fa-shield-alt"></i>
+                <span>Foto real + identidad verificada por supervisor · 🇭🇳 Honduras</span>
+            </div>
+            <div id="supervisor-pending-list" class="ops-content"></div>
+            <div data-sozin-copyright="panel-dark" class="ops-footer"></div>
+        </div>
+    </div>
+
+    <!-- MODAL PARA VER FOTO AMPLIADA (para supervisor) -->
+    <div id="photo-modal" onclick="this.classList.add('hidden'); this.classList.remove('flex');" class="hidden fixed inset-0 bg-black/90 z-[50000] items-center justify-center p-6">
+        <img id="enlarged-photo" class="max-w-full max-h-[85vh] rounded-3xl shadow-2xl border border-white/20" />
+    </div>
+
+    <!-- Objetivos activos del conductor (flotante, fuera del panel para no quedar oculto) -->
+    <div id="driver-objectives-active" class="hidden" aria-live="polite"></div>
+
+    <!-- PIN + chat durante viaje activo (flotantes, fuera del panel) -->
+    <div id="trip-floats-layer" class="hidden" aria-live="polite">
+        <div id="client-pin-float" class="trip-float trip-float--passenger hidden" data-trip-float="client-pin">
+            <div class="trip-float-min-view hidden" data-trip-float-expand="client-pin" title="Toca para ver · arrastra para mover">
+                <div class="trip-pin-min-pill" role="presentation">
+                    <i class="fas fa-key"></i>
+                    <span id="client-pin-min-label">PIN</span>
+                </div>
+            </div>
+            <div class="trip-float-full-view">
+            <div class="trip-float-head" title="Arrastra aquí para mover">
+                <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
+                <p class="trip-float-title"><i class="fas fa-key"></i> Tu PIN</p>
+                <button type="button" class="trip-float-min-btn" data-no-drag data-trip-float-min="client-pin" title="Minimizar" aria-label="Minimizar PIN">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+            <div id="client-pin-display" class="hidden client-pin-hero trip-float-body">
+                <p id="client-trip-accepted-kicker" class="client-pin-hero-kicker"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
+                <button type="button" data-trip-action="copy-pin" id="client-pin-btn" class="client-pin-hero-btn trip-touch-btn w-full">
+                    <div class="flex items-center justify-center gap-2 pointer-events-none">
+                        <i class="fas fa-key text-lg"></i>
+                        <div class="text-left flex-1 min-w-0">
+                            <p class="client-pin-hero-label">Tu PIN de Seguridad</p>
+                            <p id="client-pin-code" class="client-pin-hero-code">----</p>
+                        </div>
+                        <i class="fas fa-copy text-sm opacity-80 shrink-0"></i>
+                    </div>
+                </button>
+                <p id="client-pin-hint" class="client-pin-hero-hint">Toca para copiar · muéstraselo al conductor al subir</p>
+                <button type="button" id="client-pin-gmaps-btn" data-trip-action="client-route-gmaps"
+                        class="hidden client-pin-gmaps-btn trip-touch-btn w-full" aria-label="Abrir ruta completa en Google Maps">
+                    <span class="pointer-events-none flex items-center justify-center gap-2">
+                        <i class="fab fa-google"></i>
+                        <span id="client-gmaps-btn-label">Abrir ruta en Google Maps</span>
+                        <i class="fas fa-external-link-alt text-[10px] opacity-80"></i>
+                    </span>
+                </button>
+            </div>
+            </div>
+        </div>
+
+        <div id="driver-arrived-float" class="trip-float trip-float--driver trip-float--pill hidden" data-trip-float="driver-arrived" title="Toca para marcar llegada · arrastra para mover">
+            <div id="btn-driver-arrived" class="trip-arrived-pill-btn" data-trip-float-tap="arrived" role="presentation">
+                <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
+                <i class="fas fa-map-marker-alt"></i>
+                <span>¡HE LLEGADO!</span>
+            </div>
+        </div>
+
+        <div id="driver-pin-float" class="trip-float trip-float--driver trip-float--fixed hidden" data-trip-float="driver-pin">
+            <div class="trip-float-min-view hidden" data-trip-float-expand="driver-pin" title="Toca para ingresar PIN">
+                <div class="trip-pin-min-pill" role="presentation">
+                    <i class="fas fa-key"></i>
+                    <span>Ingresar PIN</span>
+                </div>
+            </div>
+            <div class="trip-float-full-view">
+            <div class="trip-float-head trip-float-head--fixed" title="Panel fijo — puedes minimizar">
+                <p class="trip-float-title"><i class="fas fa-key"></i> PIN del pasajero</p>
+                <button type="button" class="trip-float-min-btn" data-no-drag data-trip-float-min="driver-pin" title="Minimizar" aria-label="Minimizar PIN">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+            <div id="driver-pin-hero" class="hidden driver-pin-hero trip-float-body">
+                <p class="driver-pin-hero-kicker"><i class="fas fa-key"></i> Paso 2 · PIN del pasajero</p>
+                <p id="driver-pin-hint" class="driver-pin-hero-hint">Pide el PIN al pasajero e ingrésalo para iniciar el viaje</p>
+                <div id="pin-input-group" class="hidden driver-pin-input-group mt-2">
+                    <input id="driver-pin-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="PIN" aria-label="PIN del pasajero" class="driver-pin-input w-full min-w-0 px-3 py-3 border-2 border-blue-100 rounded-2xl outline-none text-center font-black text-2xl tracking-[0.25em]">
+                    <button type="button" data-trip-action="verify-pin" class="driver-pin-submit bg-blue-600 text-white w-full rounded-2xl font-black text-xs uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]"><span class="pointer-events-none">INICIAR VIAJE</span></button>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <div id="trip-chat-float-pill" class="trip-chat-pill hidden" data-trip-float="chat-pill" title="Toca para abrir chat · arrastra para mover">
+            <div class="trip-pill-face" data-trip-float-tap="toggle-chat" role="presentation">
+                <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
+                <i class="fas fa-comments"></i>
+                <span>Chat</span>
+                <span id="chat-badge" class="hidden trip-chat-pill-badge">0</span>
+                <span id="chat-badge-driver" class="hidden trip-chat-pill-badge">0</span>
+            </div>
+        </div>
+
+        <div id="chat-float" class="trip-float trip-float--chat hidden" data-trip-float="chat">
+            <div class="trip-float-head" title="Arrastra aquí para mover el chat">
+                <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
+                <p class="trip-float-title"><i class="fas fa-comments"></i> Chat del viaje</p>
+                <button type="button" class="trip-float-min-btn" data-no-drag data-trip-action="toggle-chat" title="Minimizar chat" aria-label="Minimizar chat">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+            <div id="chat-section" class="trip-float-body trip-chat-body" data-no-drag>
+                <div id="chat-messages" class="trip-chat-messages overflow-y-auto mb-3 flex flex-col p-1 bg-gray-50/50 rounded-xl border border-gray-100" data-no-drag></div>
+                <form id="chat-compose-form" class="trip-chat-compose flex gap-2" data-no-drag autocomplete="off">
+                    <input id="chat-input" type="text" inputmode="text" enterkeyhint="send" autocomplete="off" autocorrect="on" placeholder="Escribe un mensaje..." class="trip-chat-input flex-1 min-w-0 px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none text-base focus:ring-2 focus:ring-blue-100 transition-all" data-no-drag>
+                    <button type="submit" id="chat-send-btn" data-no-drag class="trip-chat-send bg-blue-600 text-white w-11 h-11 shrink-0 rounded-xl flex items-center justify-center shadow-lg active:scale-90 transition-transform trip-touch-btn" aria-label="Enviar mensaje"><i class="fas fa-paper-plane text-sm pointer-events-none"></i></button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ganancias del día del conductor (flotante, arrastrable y minimizable) -->
+    <div id="driver-earnings-float" class="hidden" aria-live="polite"></div>
+
+    <!-- Radar / clientes del conductor (chip flotante al minimizar el panel central) -->
+    <div id="driver-radar-float" class="hidden" aria-live="polite"></div>
+
+  <!-- PANEL DE PERFIL - COMPACTO CON SCROLL -->
+<div id="profile-manage-panel" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-[30000] hidden flex-col items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col max-h-[92dvh]">
+        
+        <!-- Header Fijo -->
+        <div class="flex items-center justify-between px-5 py-4 border-b flex-shrink-0">
+            <div>
+                <h2 class="text-xl font-black text-gray-900">Mi Perfil</h2>
+                <p class="text-xs text-gray-500 font-bold tracking-widest">CONFIGURACIÓN DE SEGURIDAD</p>
+            </div>
+            <button onclick="window.closeProfilePanel()" 
+                    class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+
+        <!-- Contenido con Scroll -->
+        <div class="flex-1 overflow-y-auto p-5 space-y-4">
+
+            <!-- Foto de Perfil -->
+            <div class="flex justify-center">
+                <div class="relative group cursor-pointer" onclick="document.getElementById('edit-photo-input').click()">
+                    <div id="edit-photo-preview" 
+                         class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl overflow-hidden border-4 border-white shadow-md">
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <i class="fas fa-camera text-white text-lg"></i>
+                    </div>
+                    <input type="file" id="edit-photo-input" accept="image/*" class="hidden" onchange="window.previewEditPhoto(this)">
+                </div>
+            </div>
+
+            <!-- Saldo del Pasajero -->
+            <div id="passenger-balance-section" class="hidden p-4 bg-purple-50 border border-purple-200 rounded-2xl space-y-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-black text-purple-600 tracking-widest">TU SALDO DISPONIBLE</p>
+                        <p id="passenger-balance" class="text-3xl font-black text-purple-700">L. 0.00</p>
+                        <p class="text-[10px] text-purple-500 font-semibold mt-0.5">Toca aquí para actualizar</p>
+                    </div>
+                    <i class="fas fa-wallet text-purple-400 text-2xl"></i>
+                </div>
+                <p id="passenger-low-balance-warn" class="hidden text-[10px] text-amber-700 font-bold bg-amber-100 border border-amber-200 rounded-xl px-3 py-2">
+                    <i class="fas fa-exclamation-triangle"></i> Saldo bajo — recarga para pagar viajes con saldo
+                </p>
+                <div class="flex gap-2">
+                    <button type="button" onclick="window.showRechargeModal()"
+                            class="flex-1 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-black rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all">
+                        <i class="fas fa-plus"></i> RECARGAR
+                    </button>
+                    <button type="button" onclick="window.showMyRechargeHistory()"
+                            class="flex-1 py-2.5 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-black rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all">
+                        <i class="fas fa-history"></i> HISTORIAL
+                    </button>
+                </div>
+            </div>
+
+            <!-- Código de Referido -->
+            <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-emerald-600 text-xs font-black tracking-widest">TU CÓDIGO DE REFERIDO</p>
+                        <p id="my-referral-code" class="text-3xl font-black text-emerald-700 tracking-widest">------</p>
+                    </div>
+                    <button onclick="window.copyReferralCode()" 
+                            class="px-4 py-1.5 bg-emerald-600 text-white text-xs font-black rounded-2xl active:scale-95">
+                        COPIAR
+                    </button>
+                </div>
+                <p class="text-emerald-600 text-xs mt-1">Ganas <b>L. 50</b> cuando tu referido complete su primer viaje. Quien use tu código recibe <b>L. 20</b> al meterlo.</p>
+
+                <div id="referral-stats" class="grid grid-cols-2 gap-2 mt-3">
+                    <div class="bg-white/70 rounded-xl p-2 text-center">
+                        <p class="text-[10px] text-emerald-600 font-bold">REFERIDOS</p>
+                        <p id="referral-total-count" class="text-lg font-black text-emerald-800">0</p>
+                    </div>
+                    <div class="bg-white/70 rounded-xl p-2 text-center">
+                        <p class="text-[10px] text-emerald-600 font-bold">GANADO</p>
+                        <p id="referral-total-earnings" class="text-lg font-black text-emerald-800">L. 0</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 mt-3">
+                    <button onclick="window.shareReferralWhatsApp()" 
+                            class="flex-1 py-2 bg-green-600 text-white text-xs font-black rounded-2xl flex items-center justify-center gap-2 active:scale-95">
+                        <i class="fab fa-whatsapp"></i> 
+                        <span>WHATSAPP</span>
+                    </button>
+                    <button onclick="window.showMyReferrals()" 
+                            class="flex-1 py-2 border border-emerald-300 text-emerald-700 text-xs font-black rounded-2xl active:bg-emerald-100">
+                        VER MIS REFERIDOS
+                    </button>
+                </div>
+            </div>
+
+            <!-- Cuenta BAC para recibir pagos (Conductores) -->
+            <div id="driver-payout-bank-section" class="hidden p-4 bg-blue-50 border border-blue-200 rounded-2xl space-y-3">
+                <div>
+                    <p class="text-xs font-black text-blue-800 tracking-widest"><i class="fas fa-university"></i> CUENTA PARA RECIBIR PAGOS</p>
+                    <p class="text-[10px] text-blue-600 mt-1">Los viajes pagados con saldo de la app se depositan los <b>fines de semana</b>. Preferiblemente BAC Honduras.</p>
+                </div>
+                <div id="driver-wallet-display" class="bg-white/80 rounded-xl p-3 text-center">
+                    <p class="text-[10px] text-violet-600 font-bold uppercase">Saldo pendiente de pago (fin de semana)</p>
+                    <p id="driver-wallet-balance" class="text-2xl font-black text-violet-700">L. 0.00</p>
+                    <button type="button" onclick="window.showDriverMyPayouts()"
+                        class="mt-2 w-full py-2.5 bg-violet-600 text-white text-[10px] font-black rounded-xl active:scale-95">
+                        <i class="fas fa-history"></i> VER MIS PAGOS RECIBIDOS
+                    </button>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-gray-500 uppercase">Banco</label>
+                    <select id="edit-payout-bank" class="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+                        <option value="BAC Honduras">BAC Honduras</option>
+                        <option value="Banco Atlántida">Banco Atlántida</option>
+                        <option value="Ficohsa">Ficohsa</option>
+                        <option value="Banpaís">Banpaís</option>
+                        <option value="Davivienda">Davivienda</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-gray-500 uppercase">Número de cuenta</label>
+                    <input id="edit-payout-account" type="text" placeholder="Ej: 12345678901234"
+                           class="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-gray-500 uppercase">Titular (nombre en la cuenta)</label>
+                    <input id="edit-payout-holder" type="text" placeholder="Como aparece en el banco"
+                           class="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="text-[10px] font-black text-gray-500 uppercase">Tipo</label>
+                        <select id="edit-payout-type" class="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+                            <option value="Ahorro">Ahorro</option>
+                            <option value="Corriente">Corriente</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black text-gray-500 uppercase">Correo</label>
+                        <input id="edit-payout-email" type="email" placeholder="tu@email.com"
+                               class="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Género y cumpleaños -->
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="text-[10px] font-black text-gray-500 uppercase pl-1">Género</label>
+                    <select id="edit-gender" class="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+                        <option value="">Sin especificar</option>
+                        <option value="male">Masculino</option>
+                        <option value="female">Femenino</option>
+                        <option value="other">Otro</option>
+                        <option value="prefer_not">Prefiero no decir</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-gray-500 uppercase pl-1">Fecha de nacimiento</label>
+                    <input id="edit-birthdate" type="date" class="w-full mt-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white">
+                </div>
+            </div>
+            <p class="text-[10px] text-pink-600 font-semibold pl-1 -mt-1">Pasajeros: 1 viaje gratis al año en tu cumpleaños. Conductores: sin comisión ese día.</p>
+
+            <!-- Contacto de Emergencia -->
+            <div>
+                <label class="text-xs font-black text-gray-500 tracking-widest pl-1">CONTACTO DE EMERGENCIA WHATSAPP</label>
+                <div class="relative mt-1.5">
+                    <i class="fab fa-whatsapp absolute left-4 top-3.5 text-gray-400"></i>
+                    <input id="edit-emergency-contact" type="tel" placeholder="+504 0000-0000"
+                           class="w-full pl-11 pr-4 py-3 border border-gray-200 bg-gray-50 rounded-2xl text-sm focus:outline-none focus:border-emerald-500">
+                </div>
+                <p class="text-gray-400 text-xs mt-1 pl-1">Este número recibirá tus alertas SOS.</p>
+            </div>
+
+            <!-- Mis vehículos (Conductores) -->
+            <div id="profile-vehicles-section" class="hidden p-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm space-y-3">
+                <p class="text-xs font-black text-slate-700 tracking-widest uppercase"><i class="fas fa-car-side"></i> Mis vehículos</p>
+                <div id="driver-vehicle-selector" class="hidden"></div>
+                <div id="profile-vehicles-list" class="space-y-2"></div>
+            </div>
+
+            <!-- Documentos (Conductores) -->
+            <div id="profile-expiration-info" class="hidden p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-sm">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-calendar-check text-emerald-600"></i>
+                    <div class="flex-1">
+                        <p class="text-xs font-black text-emerald-700">Documentos vigentes hasta</p>
+                        <p id="profile-valid-until" class="font-black text-emerald-900"></p>
+                        <p id="profile-days-left" class="text-xs text-emerald-600 font-bold"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botones de Acción -->
+            <div class="space-y-2 pt-2">
+                <button type="button" data-theme-toggle onclick="window.toggleTheme()"
+                        class="w-full flex items-center justify-center gap-3 py-3 border border-slate-200 bg-slate-50 rounded-2xl text-sm font-bold text-slate-800 active:bg-slate-100">
+                    <i data-theme-icon class="fas fa-moon text-slate-600"></i>
+                    <span id="profile-theme-label">Modo noche (oscuro)</span>
+                </button>
+
+                <button onclick="window.showBankAccountsModal()" 
+                        class="w-full flex items-center justify-center gap-3 py-3 border border-gray-200 rounded-2xl text-sm font-bold hover:bg-gray-50 active:bg-gray-100">
+                    <i class="fas fa-university text-emerald-600"></i>
+                    <span>Ver Cuentas Bancarias y Comisión</span>
+                </button>
+
+                <button id="btn-native-install" onclick="window.showInstallFlow()" 
+                        class="hidden w-full flex items-center justify-center gap-3 py-3 border border-blue-300 bg-blue-50 rounded-2xl text-sm font-bold text-blue-800 active:bg-blue-100">
+                    <i class="fas fa-download text-blue-600"></i>
+                    <span>Instalar app en este dispositivo</span>
+                </button>
+
+                <button onclick="window.showInstallFlow()" 
+                        class="w-full flex items-center justify-center gap-3 py-3 border border-gray-200 rounded-2xl text-sm font-bold hover:bg-gray-50 active:bg-gray-100">
+                    <i class="fas fa-mobile-alt text-blue-600"></i>
+                    <span>Cómo instalar en mi celular</span>
+                </button>
+
+                <button type="button" id="btn-passenger-tutorial"
+                        class="hidden w-full flex items-center justify-center gap-3 py-3 border border-blue-200 bg-blue-50 rounded-2xl text-sm font-bold text-blue-800 active:bg-blue-100">
+                    <i class="fas fa-graduation-cap text-blue-600"></i>
+                    <span>Guía: cómo pedir un viaje</span>
+                </button>
+
+                <button type="button" id="btn-driver-tutorial"
+                        class="hidden w-full flex items-center justify-center gap-3 py-3 border border-emerald-200 bg-emerald-50 rounded-2xl text-sm font-bold text-emerald-800 active:bg-emerald-100">
+                    <i class="fas fa-graduation-cap text-emerald-600"></i>
+                    <span>Guía: cómo recibir viajes</span>
+                </button>
+
+                <button onclick="window.showSuggestionModal()" 
+                        class="w-full flex items-center justify-center gap-3 py-3 border border-blue-200 bg-blue-50 rounded-2xl text-sm font-bold text-blue-800 active:bg-blue-100">
+                    <i class="fas fa-lightbulb text-blue-600"></i>
+                    <span>Enviar sugerencia</span>
+                </button>
+
+                <!-- Ver Términos y Condiciones -->
+                <button onclick="window.open('terminos-y-condiciones.html', '_blank')"
+                        class="w-full flex items-center justify-center gap-3 py-3 border border-gray-200 bg-white rounded-2xl text-sm font-bold text-gray-700 active:bg-gray-100">
+                    <i class="fas fa-file-contract text-gray-500"></i>
+                    <span>Ver Términos y Condiciones</span>
+                </button>
+
+                <button id="btn-resubmit-documents" onclick="window.startDocumentResubmit()" 
+                        class="w-full flex items-center justify-center gap-3 py-3 border border-amber-200 bg-amber-50 rounded-2xl text-sm font-bold text-amber-800 active:bg-amber-100 hidden">
+                    <i class="fas fa-redo text-amber-600"></i>
+                    <span>Reenviar / corregir documentos</span>
+                </button>
+
+                <button onclick="window.showBugReportModal()" 
+                        class="w-full flex items-center justify-center gap-3 py-3 border border-amber-200 bg-amber-50 rounded-2xl text-sm font-bold text-amber-900 active:bg-amber-100">
+                    <i class="fas fa-bug text-amber-600"></i>
+                    <span>Reportar problema / fallo</span>
+                </button>
+
+                <button id="btn-recharge-passenger" onclick="window.showRechargeModal()" 
+                        class="w-full py-3 rounded-2xl bg-purple-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 hidden">
+                    <i class="fas fa-wallet"></i> 
+                    <span>Recargar Puntos de Viaje</span>
+                </button>
+
+                <button id="btn-recharge-history" onclick="window.showMyRechargeHistory()" 
+                        class="w-full py-2.5 rounded-2xl bg-purple-100 text-purple-700 text-sm font-black flex items-center justify-center gap-2 active:scale-95 hidden">
+                    <i class="fas fa-history"></i> 
+                    <span>Ver Historial de Recargas</span>
+                </button>
+
+                <button id="btn-driver-background-mode" onclick="window.showDriverBackgroundModeModal()" 
+                        class="hidden w-full py-3 rounded-2xl bg-sky-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95">
+                    <i class="fas fa-layer-group"></i> 
+                    <span>Modo segundo plano</span>
+                </button>
+
+                <button id="btn-daily-deposit" onclick="window.showDailyDepositInfo()" 
+                        class="w-full py-3 rounded-2xl bg-emerald-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 hidden">
+                    <i class="fas fa-wallet"></i> 
+                    <span>Ver Depósito del Día</span>
+                </button>
+
+                <button id="btn-driver-payouts" onclick="window.showDriverMyPayouts()" 
+                        class="w-full py-3 rounded-2xl bg-violet-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 hidden">
+                    <i class="fas fa-hand-holding-usd"></i> 
+                    <span>Mis Pagos Recibidos</span>
+                </button>
+            </div>
+
+            <div data-sozin-copyright="light" class="pt-2"></div>
+
+        </div>
+
+        <!-- Botón Guardar (Fijo abajo) -->
+        <div class="p-5 border-t flex-shrink-0">
+            <button onclick="window.saveProfileChanges()" 
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-sm tracking-wider shadow-lg active:scale-[0.985] transition-all">
+                GUARDAR CAMBIOS
+            </button>
+        </div>
+
+    </div>
+</div>
+
+    <!-- CONTENEDOR FLOTANTE PARA TOASTS -->
+    <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 md:left-auto md:right-5 md:translate-x-0 z-[40000] flex flex-col gap-2 w-[90%] max-w-sm pointer-events-none"></div>
+
+    <!-- ENCUESTA DE CANCELACIÓN (viajes ya confirmados) -->
+    <div id="cancellation-survey-screen" class="cancellation-survey-screen flex items-center justify-center p-4">
+        <div class="bg-white p-6 sm:p-8 rounded-[2rem] shadow-2xl w-full max-w-md border border-white/20 max-h-[92dvh] overflow-y-auto relative">
+            <button id="cancellation-survey-close-btn"
+                    onclick="window.closeCancellationSurveyForAdmin && window.closeCancellationSurveyForAdmin()"
+                    class="hidden absolute top-4 right-4 text-2xl leading-none w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-gray-100 rounded-full z-[10]"
+                    title="Cerrar (solo administradores)"
+                    aria-label="Cerrar encuesta (solo admin)">×</button>
+            <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-50 flex items-center justify-center">
+                <i class="fas fa-clipboard-list text-2xl text-amber-600"></i>
+            </div>
+            <h2 class="text-lg font-black mb-1 text-gray-900 text-center">Encuesta de cancelación</h2>
+            <p id="cancellation-survey-subtitle" class="text-gray-500 text-xs mb-5 font-medium text-center leading-snug">Este viaje ya estaba confirmado. Tu respuesta es obligatoria y confidencial.</p>
+
+            <div class="space-y-5 text-left">
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Contexto del viaje</p>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">1. ¿En qué momento se canceló? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="cancel-point" value="before_arrival" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Antes de que llegara el conductor</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-point" value="driver_en_route" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Conductor en camino</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-point" value="at_pickup" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">En el punto de encuentro</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-point" value="trip_started" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El viaje ya había comenzado</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-point" value="prefer_not" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Prefiero no decir</span></label>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">2. ¿Quién propuso cancelar en la app? *</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-who" value="me" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Yo</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-who" value="them" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">La otra persona</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-who" value="mutual" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Mutuo</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-who" value="unclear" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No quedó claro</span></label>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">3. Motivo principal de la cancelación *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="cancel-reason" value="plans_changed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Cambié de planes o ya no lo necesitaba</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-reason" value="delay_no_show" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Demora, no llegó o no respondió</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-reason" value="location_issue" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Ubicación o dirección incorrecta</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-reason" value="misunderstanding" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Malentendido con la otra persona</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-reason" value="payment_issue" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Desacuerdo sobre tarifa o pago</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-reason" value="safety_concern" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Me sentí incómodo/a o inseguro/a</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-reason" value="other" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Otro motivo</span></label>
+                    </div>
+                </div>
+
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center pt-1">Tu experiencia</p>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">4. ¿Cómo fue la comunicación? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="cancel-communication" value="good" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">Buena y respetuosa</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-communication" value="normal" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Normal, sin problemas</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-communication" value="cold" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Fría, poco clara o distante</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-communication" value="tense" class="mt-0.5 accent-orange-600"><span class="text-xs font-semibold text-gray-700">Tensa o incómoda</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-communication" value="uncomfortable" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Me hizo sentir incómodo/a o inseguro/a</span></label>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">5. ¿Pasó algo durante el contacto que quieras reportar? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="cancel-incident" value="nothing" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">No, todo normal</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-incident" value="misunderstanding" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Malentendido menor</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-incident" value="disrespect" class="mt-0.5 accent-orange-600"><span class="text-xs font-semibold text-gray-700">Actitud irrespetuosa o agresiva</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-incident" value="inappropriate" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Comentarios o conducta inapropiada</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-incident" value="unsafe" class="mt-0.5 accent-red-600"><span class="text-xs font-semibold text-red-800">Me sentí en riesgo o acosado/a</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-incident" value="vehicle" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Problema con el vehículo o conducción</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-incident" value="other" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Otro</span></label>
+                    </div>
+                </div>
+
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center pt-1">Detalles del servicio</p>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">6. ¿Acordaron cómo seguir o terminar el servicio? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="cancel-agreement" value="app_only" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">Todo debía seguirse por la app</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-agreement" value="no_agreement" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No llegamos a acordar nada</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-agreement" value="alternative_discussed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Hablamos de otra forma de hacerlo</span></label>
+                        <label class="survey-option"><input type="radio" name="cancel-agreement" value="not_discussed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No hablamos de eso</span></label>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">7. ¿Compartieron teléfono, WhatsApp u otro contacto? *</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-contact" value="no" class="accent-emerald-600"><span class="text-xs font-bold text-gray-700">No</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-contact" value="yes_trip" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí, para este viaje</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-contact" value="yes_after" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí, para después</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-contact" value="unsure" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No estoy seguro/a</span></label>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">8. Después de cancelar, ¿creen que el viaje se hará igual? *</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-continue" value="no" class="accent-emerald-600"><span class="text-xs font-bold text-gray-700">No</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-continue" value="maybe" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Tal vez</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-continue" value="yes" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="cancel-continue" value="unknown" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No sé</span></label>
+                    </div>
+                </div>
+
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">9. Cuéntanos más si lo deseas (opcional)</p>
+                    <textarea id="cancellation-survey-comments" placeholder="Describe con tus palabras lo que pasó. Tu relato puede ayudar en situaciones de seguridad." class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-xs outline-none focus:border-amber-500 h-20 resize-none"></textarea>
+                </div>
+            </div>
+
+            <p class="text-[9px] text-gray-400 mt-4 mb-3 text-center leading-snug">Tus respuestas son confidenciales y las revisa el equipo de supervisión. Varias alertas pueden suspender una cuenta automáticamente.</p>
+            <button type="button" data-trip-action="submit-cancel-survey" class="w-full bg-amber-600 text-white font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest text-xs trip-touch-btn"><span class="pointer-events-none">Enviar encuesta</span></button>
+            <div data-sozin-copyright="light" class="mt-4"></div>
+        </div>
+    </div>
+
+    <!-- PANTALLA DE CALIFICACIÓN -->
+    <div id="rating-screen" class="rating-screen flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-sm text-center border border-white/20">
+            <h2 class="text-xl font-black mb-1 text-gray-900">Viaje Finalizado</h2>
+            <p id="rating-title" class="text-gray-500 text-xs mb-6 font-medium">¿Cómo fue tu experiencia VIP?</p>
+            <div id="rating-stars" class="flex justify-center gap-3 mb-6 text-4xl">
+                <button type="button" data-trip-action="rating" data-rating="1" class="star-btn text-gray-200 bg-transparent border-0 p-1 cursor-pointer" aria-label="1 estrella"><i class="fas fa-star pointer-events-none"></i></button>
+                <button type="button" data-trip-action="rating" data-rating="2" class="star-btn text-gray-200 bg-transparent border-0 p-1 cursor-pointer" aria-label="2 estrellas"><i class="fas fa-star pointer-events-none"></i></button>
+                <button type="button" data-trip-action="rating" data-rating="3" class="star-btn text-gray-200 bg-transparent border-0 p-1 cursor-pointer" aria-label="3 estrellas"><i class="fas fa-star pointer-events-none"></i></button>
+                <button type="button" data-trip-action="rating" data-rating="4" class="star-btn text-gray-200 bg-transparent border-0 p-1 cursor-pointer" aria-label="4 estrellas"><i class="fas fa-star pointer-events-none"></i></button>
+                <button type="button" data-trip-action="rating" data-rating="5" class="star-btn text-gray-200 bg-transparent border-0 p-1 cursor-pointer" aria-label="5 estrellas"><i class="fas fa-star pointer-events-none"></i></button>
+            </div>
+            <div id="tip-section" class="hidden mb-4 text-left">
+                <p class="text-[10px] font-black text-gray-500 uppercase mb-2">Propina para el conductor (con saldo de la app)</p>
+                <p id="tip-balance-hint" class="text-[10px] text-emerald-600 font-bold mb-2">Tu saldo: L. 0.00</p>
+                <div class="flex flex-wrap gap-2 mb-2">
+                    <button type="button" data-trip-action="tip" data-tip-amount="0" class="tip-btn flex-1 min-w-[4rem] py-2 rounded-xl border-2 border-gray-200 text-xs font-black text-gray-500"><span class="pointer-events-none">Sin propina</span></button>
+                    <button type="button" data-trip-action="tip" data-tip-amount="10" class="tip-btn flex-1 min-w-[4rem] py-2 rounded-xl border-2 border-gray-200 text-xs font-black text-gray-700"><span class="pointer-events-none">L. 10</span></button>
+                    <button type="button" data-trip-action="tip" data-tip-amount="20" class="tip-btn flex-1 min-w-[4rem] py-2 rounded-xl border-2 border-gray-200 text-xs font-black text-gray-700"><span class="pointer-events-none">L. 20</span></button>
+                    <button type="button" data-trip-action="tip" data-tip-amount="50" class="tip-btn flex-1 min-w-[4rem] py-2 rounded-xl border-2 border-gray-200 text-xs font-black text-gray-700"><span class="pointer-events-none">L. 50</span></button>
+                </div>
+                <input type="number" id="tip-custom-amount" min="0" step="1" placeholder="Otra cantidad (L.)"
+                    oninput="window.selectTipCustom(this.value)"
+                    class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-xs outline-none focus:border-emerald-500">
+            </div>
+            <textarea id="report-text" placeholder="¿Ocurrió algún problema? Escribe un reporte para el supervisor (opcional)..." class="w-full p-4 rounded-xl border border-gray-200 bg-gray-50 text-xs mb-4 outline-none focus:border-blue-500 h-24 resize-none transition-all"></textarea>
+            <button type="button" data-trip-action="submit-rating" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg trip-touch-btn"><span class="pointer-events-none">ENVIAR CALIFICACIÓN</span></button>
+            <button type="button" id="driver-skip-rating-btn" data-trip-action="skip-rating" class="hidden w-full mt-3 bg-white/90 text-blue-700 font-black py-3 rounded-2xl border border-blue-200 trip-touch-btn"><span class="pointer-events-none">CALIFICAR DESPUÉS</span></button>
+            <div data-sozin-copyright="light" class="mt-4"></div>
+        </div>
+    </div>
+
+    <!-- HUD NAVEGACIÓN TOP (arrastrable + minimizable) -->
+    <div id="nav-hud-top" class="nav-hud-top-card">
+        <div class="nav-hud-top-chrome">
+            <span class="nav-hud-top-drag-hint" aria-hidden="true"><i class="fas fa-up-down-left-right"></i> Mover</span>
+            <button type="button" data-trip-action="toggle-nav-hud-top" data-no-drag class="nav-hud-top-min-btn" aria-label="Minimizar instrucciones" title="Minimizar">
+                <i class="fas fa-minus nav-hud-top-min-icon" aria-hidden="true"></i>
+                <i class="fas fa-location-arrow nav-hud-top-expand-icon" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="nav-hud-top-body">
+            <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                <i class="fas fa-location-arrow text-2xl text-white" id="nav-step-icon"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+                <p id="nav-step-text" class="text-lg font-bold leading-tight">En camino...</p>
+                <p id="nav-step-dist" class="text-sm opacity-80 font-medium">Sigue la ruta azul</p>
+            </div>
+            <i class="fas fa-sparkles text-blue-200 animate-pulse shrink-0"></i>
+        </div>
+    </div>
+
+    <!-- HUD NAVEGACIÓN BOTTOM (conductor: ETA + llegada estimada) -->
+    <div id="nav-hud-bottom">
+        <button type="button" data-trip-action="toggle-nav-hud" class="nav-hud-toggle-btn" aria-label="Minimizar panel de navegación" title="Minimizar navegación">
+            <span class="nav-hud-toggle-expanded" aria-hidden="true">−</span>
+            <span class="nav-hud-toggle-collapsed" aria-hidden="true"><i class="fas fa-route"></i> Abrir nav</span>
+        </button>
+        <div class="nav-hud-panel">
+            <div class="nav-hud-panel-header flex items-center justify-between gap-2">
+                <span class="text-[10px] font-bold tracking-widest text-white/80">NAV</span>
+                <div class="flex items-center gap-1.5">
+                    <button type="button" data-trip-action="pick-nav-voice" class="nav-voice-pick-btn" aria-label="Elegir voz de navegación" title="Elegir voz">
+                        <i class="fas fa-user-astronaut text-[11px]"></i>
+                        <span class="nav-voice-pick-label">Voz</span>
+                    </button>
+                    <button type="button" data-trip-action="toggle-nav-voice" class="nav-voice-toggle-btn" aria-pressed="true" aria-label="Silenciar voz de navegación" title="Silenciar voz">
+                        <i class="fas fa-volume-up"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="nav-hud-panel-content flex items-center justify-between gap-3 p-2">
+                <div class="flex flex-col min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span id="nav-total-time" class="text-3xl font-black text-green-600">-- min</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-gray-500 font-bold text-xs uppercase tracking-widest">
+                        <span id="nav-total-dist">-- km</span> • <span id="nav-total-eta">--:--</span>
+                    </div>
+                </div>
+                <button type="button" data-trip-action="center-map" class="driver-nav-recenter-btn px-5 py-3 rounded-full bg-blue-600 text-white font-black text-xs uppercase shadow-lg trip-touch-btn shrink-0"><span class="pointer-events-none"><i class="fas fa-location-arrow"></i> Centrar</span></button>
+            </div>
+        </div>
+    </div>
+
+    <div id="fab-center" class="nav-fab hidden" data-trip-action="center-map" role="button" tabindex="0" aria-label="Centrar mapa"><i class="fas fa-location-arrow pointer-events-none"></i><span class="pointer-events-none"> CENTRAR</span></div>
+    
+    <div id="fab-traffic" class="nav-fab hidden" data-trip-action="toggle-traffic" role="button" tabindex="0" title="Ver Tráfico" aria-label="Ver tráfico">
+        <i class="fas fa-traffic-light pointer-events-none"></i>
+    </div>
+
+ <!-- PANTALLA LOGIN — diseño móvil primero -->
+<div id="login-screen" class="login-screen flex flex-col min-h-[100dvh]">
+    
+    <!-- Hero: logo grande + marca -->
+    <div class="login-hero flex-shrink-0 pt-8 pb-5 px-5 text-center">
+        <div class="login-logo-wrap mx-auto">
+            <div class="login-logo-glow" aria-hidden="true"></div>
+            <div class="login-logo-box">
+                <img id="login-firebase-logo" 
+                     src="" 
+                     alt="HonduRaite"
+                     class="login-logo-img auth-hero-logo-img">
+                <div id="login-default-logo" class="login-logo-fallback auth-hero-logo-fallback">
+                    <img src="icons/icon-192.png" alt="HonduRaite" class="login-default-icon-img" width="192" height="192">
+                </div>
+            </div>
+        </div>
+        <h1 class="login-brand-title">HonduRaite</h1>
+        <p class="login-brand-sub">🇭🇳 Movilidad en Honduras</p>
+        <p class="login-brand-tagline">Hecho con orgullo catracho</p>
+        <p id="login-welcome-msg" class="login-welcome-msg hidden"></p>
+    </div>
+
+    <!-- Tarjeta de acceso -->
+    <div class="login-card flex-1 w-full max-w-md mx-auto px-5 pt-7 pb-8 rounded-t-[2.75rem] shadow-2xl">
+        
+        <!-- Servicios disponibles -->
+        <div class="login-services-grid mb-3 p-2 bg-blue-50 rounded-2xl border border-blue-100">
+            <div class="text-center py-1">
+                <i class="fas fa-car text-blue-600 text-sm"></i>
+                <p class="text-[8px] font-black text-blue-700 uppercase mt-0.5">Auto</p>
+            </div>
+            <div class="text-center py-1">
+                <i class="fas fa-motorcycle text-violet-600 text-sm"></i>
+                <p class="text-[8px] font-black text-violet-700 uppercase mt-0.5">Moto</p>
+            </div>
+            <div class="text-center py-1">
+                <i class="fas fa-box text-amber-600 text-sm"></i>
+                <p class="text-[8px] font-black text-amber-700 uppercase mt-0.5">Comida</p>
+            </div>
+            <div class="text-center py-1">
+                <i class="fas fa-truck-pickup text-emerald-600 text-sm"></i>
+                <p class="text-[8px] font-black text-emerald-700 uppercase mt-0.5">Paila</p>
+            </div>
+            <div class="text-center py-1">
+                <i class="fas fa-truck text-slate-600 text-sm"></i>
+                <p class="text-[8px] font-black text-slate-700 uppercase mt-0.5">Camión</p>
+            </div>
+        </div>
+
+        <!-- Roles -->
+        <div class="flex bg-gray-100 p-1 rounded-2xl mb-3">
+            <button onclick="window.updateRole('client')" id="role-client" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600 uppercase">Pasajero</button>
+            <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase">Conductor</button>
+        </div>
+        <p id="login-role-hint" class="text-[10px] text-center text-gray-500 mb-4 leading-snug px-1">Pasajero: viajes en auto, moto, envíos o fletes (paila/camión). Eliges el servicio dentro de la app.</p>
+
+        <!-- Tabs Login / Registro -->
+        <div class="flex border-b border-gray-100 mb-6 text-xs font-bold uppercase tracking-wider">
+            <button onclick="window.setAuthMode('login')" id="btn-auth-login" class="flex-1 py-2 text-center text-blue-600 border-b-2 border-blue-600 transition-all">Iniciar Sesión</button>
+            <button onclick="window.setAuthMode('register')" id="btn-auth-register" class="flex-1 py-2 text-center text-gray-400 border-b-2 border-transparent transition-all">Crear Cuenta</button>
+        </div>
+
+        <!-- Formulario -->
+        <div class="space-y-4">
+            <input id="email-field" type="text" inputmode="email" autocomplete="username" placeholder="Correo o teléfono (+504…)" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+            <input id="pass-field" type="password" autocomplete="current-password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+            <button type="button" id="auth-forgot-link" onclick="window.showForgotPassword?.()" class="w-full text-right text-[11px] font-bold text-blue-600 hover:text-blue-700 -mt-1 mb-1">¿Olvidaste tu contraseña?</button>
+            <button id="auth-submit-btn" onclick="window.executeAuth()" class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all uppercase tracking-widest text-xs">INGRESAR AL SISTEMA</button>
+        </div>
+        <div data-sozin-copyright="light" class="mt-6 px-1"></div>
+    </div>
+    <div data-sozin-copyright="on-gradient" class="flex-shrink-0 px-5 pb-6 pt-2"></div>
+</div>
+
+    <!-- SETUP PERFIL MEJORADO CON RIGOR PARA CONDUCTORES -->
+  <!-- ==================== SETUP COMPLETO Y LIMPIO (CORREGIDO POR GROK) ==================== -->
+<div id="setup-screen" class="hidden driver-setup-screen z-[20000]">
+    <header class="driver-setup-bar">
+        <div class="driver-setup-bar-brand">
+            <img class="driver-setup-mini-logo auth-hero-logo-img" src="icons/icon-192.png" data-default-src="icons/icon-192.png" alt="HonduRaite"
+                 onerror="this.style.display='none'; this.nextElementSibling?.classList.remove('hidden')">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 text-white hidden items-center justify-center auth-hero-logo-fallback"><i class="fas fa-car-side text-sm"></i></div>
+            <div class="min-w-0">
+                <p id="driver-setup-title" class="text-white font-black text-sm leading-tight">Registro Conductor</p>
+                <p id="driver-setup-subtitle" class="text-blue-200 text-[9px] font-bold uppercase tracking-wide">Fotos + documentos</p>
+            </div>
+        </div>
+        <button type="button" onclick="window.cancelSetupAndLogout()" class="w-8 h-8 text-white/70 hover:text-red-300 text-xl" title="Cancelar">×</button>
+    </header>
+
+    <div id="setup-form-scroll" class="driver-setup-body">
+        <!-- TIPO: AUTO O MOTO -->
+        <div class="setup-step">
+            <p class="setup-step-title text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">¿Qué vas a manejar?</p>
+            <div class="grid grid-cols-3 gap-2 mb-2">
+                <button type="button" id="drv-type-auto" data-type="auto" onclick="window.selectDriverVehicleType('auto')"
+                        class="driver-type-btn active"><i class="fas fa-car"></i><span>Automóvil</span></button>
+                <button type="button" id="drv-type-taxi" data-type="taxi" onclick="window.selectDriverVehicleType('taxi')"
+                        class="driver-type-btn"><i class="fas fa-taxi"></i><span>Taxi</span></button>
+                <button type="button" id="drv-type-moto" data-type="moto" onclick="window.selectDriverVehicleType('moto')"
+                        class="driver-type-btn"><i class="fas fa-motorcycle"></i><span>Motocicleta</span></button>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <button type="button" id="drv-type-paila" data-type="paila" onclick="window.selectDriverVehicleType('paila')"
+                        class="driver-type-btn driver-type-btn--flete"><i class="fas fa-truck-pickup"></i><span>Paila</span></button>
+                <button type="button" id="drv-type-camion" data-type="camion" onclick="window.selectDriverVehicleType('camion')"
+                        class="driver-type-btn driver-type-btn--flete"><i class="fas fa-truck"></i><span>Camión</span></button>
+            </div>
+            <select id="driver-vehicle-type" class="hidden" onchange="window.onDriverVehicleTypeChange()">
+                <option value="auto">Automóvil — viajes en auto</option>
+                <option value="taxi">Taxi tradicional</option>
+                <option value="moto">Motocicleta — viajes y envíos</option>
+                <option value="paila">Paila / pickup — fletes</option>
+                <option value="camion">Camión — fletes pesados</option>
+            </select>
+            <p id="driver-vehicle-type-hint" class="text-[10px] text-blue-600 font-semibold">Auto: viajes en automóvil.</p>
+        </div>
+
+        <!-- PASO 1: FOTO REAL DEL CONDUCTOR -->
+        <div class="setup-step">
+            <div class="setup-step-head">
+                <span class="setup-step-num bg-red-600">1</span>
+                <h3 class="setup-step-title">Foto de tu rostro <span class="text-red-600">*</span></h3>
+            </div>
+            <p class="setup-step-desc">Selfie clara, sin gorra ni gafas de sol. El supervisor la verificará.</p>
+            <div onclick="document.getElementById('photo-input').click()" class="setup-photo-face" id="photo-preview">
+                <i class="fas fa-user text-2xl text-blue-400"></i>
+                <span class="text-[8px] font-black text-blue-600 mt-0.5">SUBIR FOTO</span>
+            </div>
+            <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="window.previewPhoto(this)">
+        </div>
+
+        <!-- MOTO SEGURA: CASCO -->
+        <div id="helmet-photo-step" class="setup-step hidden border-violet-200 bg-violet-50/50">
+            <div class="setup-step-head">
+                <span class="setup-step-num bg-violet-600">1B</span>
+                <h3 class="setup-step-title text-violet-800">Moto Segura — Casco <span class="text-red-600">*</span></h3>
+            </div>
+            <p class="setup-step-desc text-violet-700">Foto tuya con casco puesto. Luego subirás 3 fotos del casco del conductor + 2 fotos del casco para pasajeros (incluyendo por dentro).</p>
+            <div onclick="document.getElementById('helmet-photo-input').click()" class="setup-photo-face border-violet-300" id="helmet-photo-preview">
+                <i class="fas fa-hard-hat text-2xl text-violet-500"></i>
+                <span class="text-[8px] font-black text-violet-700 mt-0.5">FOTO CON CASCO PUESTO</span>
+            </div>
+            <input type="file" id="helmet-photo-input" accept="image/*" capture="user" class="hidden" onchange="window.previewHelmetPhoto(this)">
+        </div>
+
+        <!-- DATOS PERSONALES -->
+        <div class="setup-step">
+            <div class="setup-step-head">
+                <span class="setup-step-num bg-blue-600">2</span>
+                <h3 class="setup-step-title">Datos personales</h3>
+            </div>
+            <div class="space-y-2">
+                <input id="full-name" placeholder="Nombre completo (como en tu DNI)" class="setup-input">
+                <input id="phone-number" placeholder="WhatsApp (+504...)" class="setup-input">
+                <input id="emergency-contact-setup" placeholder="Emergencia WhatsApp (+504...)" class="setup-input">
+                <input id="referral-code-input" placeholder="Código referido (opcional)" maxlength="12" class="setup-input uppercase tracking-widest border-emerald-200 bg-emerald-50">
+                <p class="text-[9px] text-emerald-700 -mt-1 ml-0.5">L. 20 al meter el código · quien te invitó gana L. 50 en tu primer viaje</p>
+                <input id="driver-id-number" placeholder="N° de Identidad (DNI)" class="setup-input">
+                <div class="grid grid-cols-2 gap-2">
+                    <select id="driver-gender" class="setup-input">
+                        <option value="">Género...</option>
+                        <option value="male">Masculino</option>
+                        <option value="female">Femenino</option>
+                        <option value="other">Otro</option>
+                        <option value="prefer_not">Prefiero no decir</option>
+                    </select>
+                    <input id="driver-birthdate" type="date" class="setup-input">
+                </div>
+                <p class="text-[9px] text-pink-600 font-semibold">Sin comisión el día de tu cumpleaños (opcional).</p>
+            </div>
+        </div>
+
+        <!-- INFORMACIÓN DEL VEHÍCULO -->
+        <div class="setup-step">
+            <div class="setup-step-head">
+                <span class="setup-step-num bg-emerald-600">3</span>
+                <h3 class="setup-step-title">Datos del vehículo</h3>
+            </div>
+            <div class="space-y-2">
+                <input id="car-model" placeholder="Marca y modelo" class="setup-input">
+                <input id="car-plate" placeholder="Placa" class="setup-input uppercase">
+                <input id="driver-license" placeholder="N° licencia de conducir" class="setup-input">
+                <input id="vehicle-inspection" placeholder="Revisión vehicular de Honduras (n° o fecha)" class="setup-input">
+                <input id="vehicle-cargo-capacity" type="text" placeholder="Capacidad de carga (ej: 1.5 ton, 8 varas, 20 qq)"
+                       class="setup-input hidden">
+            </div>
+        </div>
+
+        <!-- FOTOS DEL VEHÍCULO -->
+        <div class="setup-step">
+            <div class="setup-step-head">
+                <span class="setup-step-num bg-orange-600">4</span>
+                <h3 class="setup-step-title"><span id="vehicle-photos-title">Fotos del vehículo</span> <span class="text-red-600">*</span></h3>
+            </div>
+            <p class="setup-step-desc"><b>Fotos obligatorias.</b> Para moto: casco del conductor + casco para pasajeros (en vez de interior de carro) + revisión vehicular de Honduras. El supervisor las verificará.</p>
+            <p id="vehicle-interior-label" class="text-[9px] font-black text-orange-700 mb-1.5"><i class="fas fa-car"></i> INTERIOR (3 fotos)</p>
+            <div class="grid grid-cols-3 gap-1.5 mb-3">
+                <div id="int1-preview" onclick="document.getElementById('int1-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Asientos</span></div>
+                <input type="file" id="int1-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'int1')">
+                <div id="int2-preview" onclick="document.getElementById('int2-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Tablero</span></div>
+                <input type="file" id="int2-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'int2')">
+                <div id="int3-preview" onclick="document.getElementById('int3-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Maletero</span></div>
+                <input type="file" id="int3-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'int3')">
+            </div>
+
+            <!-- CASCO PASAJERO (solo para moto) -->
+            <p id="passenger-casco-label" class="text-[9px] font-black text-violet-700 mb-1.5 hidden"><i class="fas fa-hard-hat"></i> CASCO PARA PASAJEROS (2 fotos) *</p>
+            <div id="passenger-casco-grid" class="grid grid-cols-2 gap-1.5 mb-3 hidden">
+                <div id="pcasco1-preview" onclick="document.getElementById('pcasco1-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Casco pasajero</span></div>
+                <input type="file" id="pcasco1-input" accept="image/*" class="hidden" onchange="window.previewPassengerCascoPhoto(this, 'pc1')">
+                <div id="pcasco2-preview" onclick="document.getElementById('pcasco2-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Casco pasajero por dentro</span></div>
+                <input type="file" id="pcasco2-input" accept="image/*" class="hidden" onchange="window.previewPassengerCascoPhoto(this, 'pc2')">
+            </div>
+
+            <p id="vehicle-exterior-label" class="text-[9px] font-black text-orange-700 mb-1.5"><i class="fas fa-car-side"></i> EXTERIOR (2 fotos)</p>
+            <div class="grid grid-cols-2 gap-1.5 mb-3">
+                <div id="ext-front-preview" onclick="document.getElementById('ext-front-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Frontal</span></div>
+                <input type="file" id="ext-front-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'extFront')">
+                <div id="ext-rear-preview" onclick="document.getElementById('ext-rear-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Trasero</span></div>
+                <input type="file" id="ext-rear-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'extRear')">
+            </div>
+            <p class="text-[9px] font-black text-orange-700 mb-1.5"><i class="fas fa-id-card"></i> PLACA *</p>
+            <div id="plate-preview" onclick="document.getElementById('plate-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Foto de placa legible</span></div>
+            <input type="file" id="plate-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'plate')">
+        </div>
+
+        <!-- DOCUMENTOS Y ANTECEDENTES -->
+        <div class="setup-step border-red-200">
+            <div class="setup-step-head">
+                <span class="setup-step-num bg-red-600">5</span>
+                <h3 class="setup-step-title text-red-700">Documentos <span class="text-red-600">*</span></h3>
+            </div>
+            <p class="setup-step-desc text-red-600">Licencia, revisión vehicular de Honduras y antecedentes penales/policiales.</p>
+            <p class="text-[9px] font-black text-gray-600 mb-1">LICENCIA DE CONDUCIR (2 fotos: FRENTE y REVÉS) *</p>
+            <div class="grid grid-cols-2 gap-1.5 mb-2">
+                <div id="license-front-preview" onclick="document.getElementById('license-front-input').click()" class="setup-photo-slot setup-photo-doc"><i class="fas fa-id-card text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Frente (Anverso)</span></div>
+                <input type="file" id="license-front-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'licenseFront')">
+                <div id="license-back-preview" onclick="document.getElementById('license-back-input').click()" class="setup-photo-slot setup-photo-doc"><i class="fas fa-id-card text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Revés (Reverso)</span></div>
+                <input type="file" id="license-back-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'licenseBack')">
+            </div>
+            <p class="text-[9px] font-black text-gray-600 mb-1">REVISIÓN VEHICULAR DE HONDURAS</p>
+            <div id="inspection-preview" onclick="document.getElementById('inspection-input').click()" class="setup-photo-slot setup-photo-doc mb-3"><i class="fas fa-clipboard-check text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Subir revisión vehicular</span></div>
+            <input type="file" id="inspection-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'inspection')">
+            <div class="p-2.5 bg-red-50 border border-red-200 rounded-xl space-y-2">
+                <p class="text-[9px] font-black text-red-700"><i class="fas fa-shield-alt"></i> ANTECEDENTES PENALES (PEN)</p>
+                <input id="pen-code" placeholder="Código PEN" class="setup-input border-red-200">
+                <div id="antecedentes-preview" onclick="document.getElementById('antecedentes-input').click()" class="setup-photo-slot setup-photo-doc"><i class="fas fa-file-alt text-red-400"></i><span class="text-[7px] font-bold text-red-500">Foto certificado PEN</span></div>
+                <input type="file" id="antecedentes-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'antecedentes')">
+                <p class="text-[9px] font-black text-red-700 pt-1">ANTECEDENTES POLICIALES</p>
+                <input id="policiales-code" placeholder="Código policial" class="setup-input border-red-200">
+                <div id="policiales-preview" onclick="document.getElementById('policiales-input').click()" class="setup-photo-slot setup-photo-doc"><i class="fas fa-file-alt text-red-400"></i><span class="text-[7px] font-bold text-red-500">Foto certificado policial</span></div>
+                <input type="file" id="policiales-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'policiales')">
+            </div>
+        </div>
+
+        <button id="driver-setup-submit-btn" onclick="window.saveProfile()" class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-wider shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
+            <i class="fas fa-paper-plane"></i> <span id="driver-setup-submit-label">ENVIAR PARA APROBACIÓN</span>
+        </button>
+        <p class="text-center text-[9px] text-white/70 mt-2 mb-1 leading-snug">Un supervisor verificará tus fotos. Vigencia documentos: 6 meses.</p>
+        <div data-sozin-copyright="on-gradient" class="pb-2"></div>
+    </div>
+</div>
+<!-- ==================== FIN SETUP CORREGIDO ==================== -->
+    <!-- APP INTERFACE -->
+    <div id="app-interface" class="flex-1 flex flex-col relative h-full">
+  <div class="hn-flag-stripe shrink-0" aria-hidden="true"></div>
+  <header id="app-header" class="glass-panel border-b border-gray-100 shadow-sm bg-white relative flex flex-col shrink-0">
+    
+    <div id="header-toolbar" class="header-toolbar w-full px-2 py-2 sm:px-4 sm:py-3 relative">
+    
+    <!-- IZQUIERDA: avatar -->
+    <div class="header-slot header-slot-left flex items-center gap-2 min-w-0">
+        <div class="w-8 h-8 sm:w-9 sm:h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-sm overflow-hidden shrink-0" id="avatar-placeholder">C</div>
+        <div id="header-user-text" class="header-user-text min-w-0 hidden sm:block">
+            <h2 class="font-black text-gray-900 text-sm leading-tight truncate max-w-[7.5rem] lg:max-w-none" id="user-greeting-display">USUARIO</h2>
+            <p id="user-holiday-badge" class="hidden text-[9px] text-amber-600 font-bold leading-tight"></p>
+            <p class="text-[10px] text-blue-700 font-bold -mt-0.5">🇭🇳 Honduras</p>
+        </div>
+    </div>
+
+    <!-- CENTRO: logo (grid en móvil, sin solapar iconos) -->
+    <div id="app-logo-center" class="header-slot header-slot-center pointer-events-none min-w-0">
+        <div id="app-logo-header" class="flex items-center justify-center px-0.5 sm:px-2">
+            <img id="header-custom-logo" 
+                 class="header-map-logo object-contain hidden"
+                 data-default-src="icons/icon-192.png"
+                 alt="HonduRaite">
+            <p id="header-brand-fallback" class="header-brand-fallback hidden truncate">HonduRaite</p>
+        </div>
+    </div>
+
+    <!-- DERECHA: pocos iconos en móvil + menú "más" -->
+    <div class="header-slot header-slot-right flex items-center justify-end gap-0.5 sm:gap-2 min-w-0">
+        <div class="header-actions-mobile flex items-center gap-0.5 sm:hidden">
+            <div class="relative">
+                <button type="button" id="header-notif-btn-mobile" data-header-action="notif" class="header-icon-btn w-9 h-9 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center shadow-sm relative" title="Notificaciones" aria-label="Notificaciones">
+                    <i class="fas fa-bell pointer-events-none"></i>
+                    <span id="notification-badge-mobile" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[9px] min-w-[16px] h-[16px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
+                </button>
+            </div>
+            <button type="button" id="header-profile-btn-mobile" data-header-action="profile" class="header-icon-btn w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm" title="Mi Perfil" aria-label="Mi Perfil">
+                <i class="fas fa-user-cog pointer-events-none"></i>
+            </button>
+            <button type="button" id="header-more-toggle" data-header-action="more" class="header-icon-btn w-9 h-9 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center shadow-sm" title="Más opciones" aria-label="Más opciones" aria-expanded="false" aria-controls="header-more-menu">
+                <i class="fas fa-ellipsis-v pointer-events-none"></i>
+            </button>
+        </div>
+
+        <div class="header-actions-desktop hidden sm:flex items-center gap-1 sm:gap-2">
+            <button id="theme-toggle-btn" type="button" data-theme-toggle onclick="window.toggleTheme()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center shadow-sm" title="Cambiar a modo noche">
+                <i data-theme-icon class="fas fa-moon pointer-events-none"></i>
+            </button>
+            <button id="support-whatsapp-btn" type="button" onclick="window.openSupportWhatsApp()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center shadow-sm" title="Soporte WhatsApp">
+                <i class="fab fa-whatsapp pointer-events-none"></i>
+            </button>
+            <button type="button" onclick="window.openProfilePanel()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center shadow-sm" title="Mi Perfil">
+                <i class="fas fa-user-cog pointer-events-none"></i>
+            </button>
+            <button id="push-enable-btn" type="button" onclick="window.enableTripNotifications()" class="hidden header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 flex items-center justify-center shadow-sm animate-pulse" title="Activar avisos de chat y viaje">
+                <i class="fas fa-bell-slash pointer-events-none"></i>
+            </button>
+            <div class="relative">
+                <button type="button" onclick="window.showNotificationsModal()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center justify-center shadow-sm relative" title="Notificaciones">
+                    <i class="fas fa-bell pointer-events-none"></i>
+                    <span id="notification-badge" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[10px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
+                </button>
+            </div>
+            <button id="admin-trigger-btn" type="button" onclick="window.openAdminPanel()" class="hidden relative header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-100 text-purple-700 hover:bg-purple-200 items-center justify-center shadow-sm" title="Panel Admin">
+                <i class="fas fa-shield-alt pointer-events-none"></i>
+                <span id="admin-reports-badge" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[9px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
+            </button>
+            <button id="supervisor-trigger-btn" type="button" onclick="window.openSupervisorPanel()" class="hidden relative header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 items-center justify-center shadow-sm" title="Verificaciones y papelera de reciclaje">
+                <i class="fas fa-user-check pointer-events-none"></i>
+                <span id="supervisor-pending-badge" class="hidden absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
+                <span id="supervisor-reports-badge" class="hidden absolute -bottom-1 -right-1 bg-red-600 text-white text-[9px] min-w-[16px] h-[16px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
+            </button>
+            <button type="button" onclick="window.confirmLogout()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-50 text-gray-400 hover:text-red-500 flex items-center justify-center shadow-sm" title="Cerrar Sesión">
+                <i class="fas fa-power-off pointer-events-none"></i>
+            </button>
+        </div>
+    </div>
+
+    </div>
+
+    <div id="header-more-menu" class="header-more-menu hidden sm:hidden" role="menu" aria-label="Más opciones">
+        <button type="button" data-header-menu-action="theme" data-theme-toggle class="header-more-item" role="menuitem">
+            <i data-theme-icon class="fas fa-moon"></i><span id="header-more-theme-label">Modo noche</span>
+        </button>
+        <button type="button" data-header-menu-action="whatsapp" class="header-more-item" role="menuitem">
+            <i class="fab fa-whatsapp text-emerald-600"></i><span>Soporte WhatsApp</span>
+        </button>
+        <button type="button" id="header-menu-tutorial" data-header-menu-action="tutorial" class="hidden header-more-item" role="menuitem">
+            <i class="fas fa-graduation-cap text-blue-600"></i><span>Guía: cómo pedir un viaje</span>
+        </button>
+        <button type="button" id="header-menu-driver-tutorial" data-header-menu-action="driver-tutorial" class="hidden header-more-item" role="menuitem">
+            <i class="fas fa-graduation-cap text-emerald-600"></i><span>Guía: cómo recibir viajes</span>
+        </button>
+        <button type="button" data-header-menu-action="history" class="header-more-item" role="menuitem">
+            <i class="fas fa-history text-blue-600"></i><span>Mis Viajes Pasados + Facturas</span>
+        </button>
+        <button type="button" data-header-menu-action="install" class="header-more-item" role="menuitem">
+            <i class="fas fa-download text-emerald-600"></i><span>Instalar HonduRaite</span>
+        </button>
+        <button type="button" id="push-enable-btn-mobile" data-header-menu-action="push" class="hidden header-more-item" role="menuitem">
+            <i class="fas fa-bell-slash text-amber-600"></i><span>Activar avisos</span>
+        </button>
+        <button type="button" id="admin-trigger-btn-mobile" data-header-menu-action="admin" class="hidden header-more-item" role="menuitem">
+            <i class="fas fa-shield-alt text-purple-600"></i><span>Panel Admin</span>
+        </button>
+        <button type="button" id="supervisor-trigger-btn-mobile" data-header-menu-action="supervisor" class="hidden header-more-item" role="menuitem">
+            <i class="fas fa-user-check text-emerald-600"></i><span>Supervisión</span>
+        </button>
+        <button type="button" data-header-menu-action="logout" class="header-more-item header-more-item-danger" role="menuitem">
+            <i class="fas fa-power-off"></i><span>Cerrar sesión</span>
+        </button>
+    </div>
+</header>
+
+        <div id="birthday-banner-global" class="hidden px-4 py-3 bg-gradient-to-r from-pink-500 via-rose-500 to-fuchsia-500 text-white shadow-md z-[45] flex items-start gap-3 border-b border-pink-400/30">
+            <div class="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 text-xl" aria-hidden="true">🎂</div>
+            <div class="flex-1 min-w-0 pt-0.5">
+                <p id="birthday-banner-title" class="text-xs font-black uppercase tracking-widest text-pink-100">¡Feliz cumpleaños!</p>
+                <p id="birthday-banner-message" class="text-sm font-bold leading-snug mt-0.5"></p>
+                <p id="birthday-banner-detail" class="text-[10px] text-pink-100/90 mt-1 leading-snug"></p>
+            </div>
+            <button type="button" onclick="window.dismissBirthdayBanner()" class="w-8 h-8 rounded-xl bg-white/15 hover:bg-white/25 flex items-center justify-center shrink-0 text-white/90" title="Ocultar por hoy">
+                <i class="fas fa-times text-sm"></i>
+            </button>
+        </div>
+
+        <main class="app-shell flex-1 relative overflow-hidden">
+            <div id="map-container">
+                <div id="map"></div>
+                <div id="map-pick-overlay" class="map-pick-overlay hidden" aria-hidden="true">
+                    <div class="map-pick-sheet">
+                        <p id="map-pick-title" class="map-pick-title">Elige el destino</p>
+                        <p id="map-pick-address" class="map-pick-address">Buscando dirección…</p>
+                        <p id="map-pick-label" class="map-pick-label">Arrastra el mapa · el pin no se mueve</p>
+                    </div>
+                    <div class="map-pick-pin-wrap" aria-hidden="true">
+                        <div class="map-pick-pin"><i class="fas fa-map-marker-alt"></i></div>
+                        <div class="map-pick-pin-dot"></div>
+                        <div class="map-pick-pin-shadow"></div>
+                    </div>
+                    <div class="map-pick-actions">
+                        <button type="button" id="btn-map-pick-cancel" class="map-pick-btn map-pick-btn--cancel">Volver</button>
+                        <button type="button" id="btn-map-pick-confirm" class="map-pick-btn map-pick-btn--confirm">
+                            <span id="map-pick-confirm-text">Confirmar destino</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="nav-route-loading" class="nav-route-loading hidden" aria-live="polite" aria-busy="false">
+                    <div class="nav-route-loading-card">
+                        <div class="nav-route-loading-spinner" aria-hidden="true"><i class="fas fa-circle-notch fa-spin"></i></div>
+                        <p class="nav-route-loading-text">Estableciendo ruta</p>
+                    </div>
+                </div>
+                <div id="demand-heatmap-legend" class="hidden absolute bottom-24 left-3 z-40 demand-heatmap-legend max-w-[calc(100%-1.5rem)]">
+                    <p class="text-[9px] font-black uppercase tracking-wider text-red-700 flex items-center gap-1.5 leading-snug">
+                        <span class="demand-legend-pulse" aria-hidden="true">$</span>
+                        <span id="demand-heatmap-legend-text">Zonas calientes hoy</span>
+                    </p>
+                </div>
+                <div id="driver-offer-map-hint" class="driver-offer-map-hint hidden absolute top-14 left-1/2 -translate-x-1/2 z-40 max-w-[calc(100%-1.5rem)]" aria-live="polite">
+                    <div class="driver-offer-map-hint-card">
+                        <i class="fas fa-route driver-offer-map-hint-icon" aria-hidden="true"></i>
+                        <div class="driver-offer-map-hint-copy min-w-0">
+                            <p id="driver-offer-map-hint-title" class="driver-offer-map-hint-title">Ruta de orientación</p>
+                            <p id="driver-offer-map-hint-sub" class="driver-offer-map-hint-sub">Solo referencia — no es navegación activa</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="nearby-drivers-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-2xl border border-emerald-100 z-40">
+                    <p class="text-[10px] font-black text-emerald-700 uppercase text-center tracking-wider flex items-center gap-2">
+                        <i class="fas fa-car-side"></i>
+                        <span id="nearby-drivers-count">0 conductores en línea</span>
+                    </p>
+                </div>
+                <button type="button" id="service-zone-map-chip" class="hidden absolute top-3 left-3 z-40 max-w-[calc(100%-1.5rem)] service-zone-map-chip" data-trip-action="expand-zone-panel" aria-label="Cambiar ciudad">
+                    <i class="fas fa-map-marker-alt text-blue-600 shrink-0 pointer-events-none"></i>
+                    <span id="service-zone-map-chip-text" class="truncate pointer-events-none">Comayagua</span>
+                    <i class="fas fa-chevron-down text-[10px] text-slate-400 shrink-0 pointer-events-none"></i>
+                </button>
+                <div id="service-zone-picker" class="hidden" aria-hidden="true">
+                    <span id="service-zone-summary">Comayagua</span>
+                    <span id="service-zone-hint"></span>
+                    <button type="button" id="service-zone-collapse-toggle" data-trip-action="toggle-zone-panel"></button>
+                    <div id="client-setup-collapsed-radius">
+                        <span id="service-radius-value-collapsed"></span>
+                        <div id="radius-presets-collapsed"></div>
+                    </div>
+                    <div id="service-zone-body" class="service-zone-body">
+                        <button type="button" id="detect-gps-city-btn"></button>
+                        <input type="search" id="service-zone-search">
+                        <div id="service-zone-list"></div>
+                        <select id="service-zone-select" onchange="window.onServiceZoneChange(this.value)"></select>
+                        <span id="service-radius-value"></span>
+                        <input type="range" id="service-radius-slider" min="5" max="150" step="5" value="25">
+                        <div id="radius-presets"></div>
+                    </div>
+                </div>
+                <div id="eta-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-white px-5 py-3 rounded-2xl shadow-2xl border border-violet-200 z-40 min-w-[220px] max-w-[92vw]">
+                    <p id="eta-indicator-label" class="text-[9px] font-black text-violet-600 uppercase text-center leading-tight tracking-wider"><i class="fas fa-car-side"></i> Conductor en camino</p>
+                    <p id="eta-text" class="text-sm font-black text-gray-900 text-center leading-snug mt-1">...</p>
+                    <p id="eta-indicator-sub" class="hidden text-[10px] font-semibold text-gray-500 text-center mt-0.5">Síguelo en el mapa</p>
+                </div>
+
+                <div id="passenger-promo-strip" class="passenger-promo-strip hidden" aria-label="Promociones activas">
+                    <button type="button" class="passenger-promo-drag-handle" data-promo-drag-handle
+                            title="Arrastra para mover las promos" aria-label="Mover promos">
+                        <i class="fas fa-grip-vertical pointer-events-none"></i>
+                    </button>
+                    <div id="passenger-promo-track" class="passenger-promo-track" data-no-drag></div>
+                    <button type="button" class="passenger-promo-close" id="passenger-promo-close"
+                            title="Ocultar promos" aria-label="Ocultar promos">
+                        <i class="fas fa-times pointer-events-none"></i>
+                    </button>
+                </div>
+
+                <button type="button" id="panel-expand-fab" data-trip-action="show-panel"
+                        class="panel-expand-fab" aria-label="Abrir panel de viaje">
+                    <i class="fas fa-chevron-up pointer-events-none"></i>
+                    <span class="pointer-events-none">Abrir panel</span>
+                </button>
+            </div>
+
+            <div id="control-panel" class="collapsible-panel glass-panel flex flex-col overflow-hidden">
+                <div class="control-panel-header" title="Arrastra desde cualquier parte del panel para moverlo">
+                    <span class="control-panel-drag-hint"><i class="fas fa-up-down-left-right"></i> Arrastra el panel</span>
+                    <div class="control-panel-grab" aria-hidden="true"></div>
+                    <button type="button" data-trip-action="hide-panel" data-no-drag class="panel-hide-btn trip-touch-btn" aria-label="Ocultar panel y ver más mapa" title="Ocultar panel">
+                        <i class="fas fa-chevron-down pointer-events-none"></i>
+                    </button>
+                </div>
+                <div id="ios-install-banner" class="hidden px-3 py-[7px] bg-blue-600 text-white flex items-center gap-2 text-xs border-b border-blue-700 z-10">
+                    <i class="fab fa-apple text-base ml-0.5"></i>
+                    <div class="flex-1 leading-tight min-w-0">
+                        <span class="font-black">Instala HonduRaite</span>
+                        <span class="text-blue-100 hidden sm:inline"> — Acceso rápido + notificaciones</span>
+                    </div>
+                    <button type="button" id="ios-install-btn"
+                            class="px-3.5 py-1 bg-white text-blue-700 font-black text-[10px] rounded-2xl active:opacity-90 shadow-sm whitespace-nowrap">
+                        INSTALAR
+                    </button>
+                    <button type="button" id="ios-install-close"
+                            class="w-6 h-6 flex items-center justify-center text-white/70 hover:text-white text-lg leading-none">×</button>
+                </div>
+                <div id="panel-content" class="trip-panel-scroll flex flex-col flex-1 min-h-0">
+
+              <!-- VISTA PASAJERO -->
+<div id="client-view" class="trip-client-flow flex-1">
+
+    <!-- ORIGEN Y DESTINO PRIMERO (como el radar para conductor) -->
+    <section id="passenger-booking-route" class="trip-step-card trip-step-route">
+        <div class="trip-step-head">
+            <span class="trip-step-badge">1</span>
+            <span class="trip-step-title">Origen y destino</span>
+            <span class="text-[9px] text-blue-600 ml-1">(origen + paradas en el orden que agregues + destino SIEMPRE último)</span>
+        </div>
+
+    <div id="favorites-bar" class="trip-favorites-bar flex gap-2 overflow-x-auto pb-1">
+        <button type="button" data-trip-action="favorite" data-favorite-key="home" data-favorite-target="destination" class="favorite-chip shrink-0"><i class="fas fa-home pointer-events-none"></i><span class="pointer-events-none"> Casa</span></button>
+        <button type="button" data-trip-action="favorite" data-favorite-key="work" data-favorite-target="destination" class="favorite-chip shrink-0"><i class="fas fa-briefcase pointer-events-none"></i><span class="pointer-events-none"> Trabajo</span></button>
+        <button type="button" data-trip-action="favorite" data-favorite-key="pulperia" data-favorite-target="destination" class="favorite-chip shrink-0"><i class="fas fa-store pointer-events-none"></i><span class="pointer-events-none"> Pulpería</span></button>
+        <button type="button" data-trip-action="save-favorite" class="favorite-chip favorite-chip-save shrink-0"><i class="fas fa-bookmark pointer-events-none"></i><span class="pointer-events-none"> Guardar</span></button>
+        <button type="button" data-trip-action="claim-promo" class="favorite-chip favorite-chip-promo shrink-0"><i class="fas fa-gift pointer-events-none"></i><span class="pointer-events-none"> Promo</span></button>
+        <span id="passenger-promo-chip" class="passenger-promo-chip hidden shrink-0" role="status"></span>
+    </div>
+
+    <div class="space-y-3 trip-route-fields">
+        <!-- ORIGEN -->
+        <div class="relative trip-origin-wrap">
+            <gmp-place-autocomplete 
+                id="origin-autocomplete" 
+                placeholder="Origen"
+                included-region-codes="hn"
+                class="w-full trip-input-field">
+            </gmp-place-autocomplete>
+            
+            <button type="button" id="btn-use-location" data-trip-action="gps"
+                    class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-blue-600 z-10" 
+                    title="Usar ubicación actual" aria-label="Usar ubicación actual">
+                <i class="fas fa-crosshairs text-lg pointer-events-none"></i>
+            </button>
+        </div>
+
+        <!-- DESTINO -->
+        <div class="relative trip-dest-wrap">
+            <gmp-place-autocomplete 
+                id="destination-autocomplete" 
+                placeholder="Destino final"
+                included-region-codes="hn"
+                class="w-full trip-input-field">
+            </gmp-place-autocomplete>
+            <button type="button" id="btn-dest-map" data-trip-action="dest-map"
+                    class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-emerald-600 z-10"
+                    title="Elegir destino con pin en el mapa" aria-label="Elegir destino con pin en el mapa">
+                <i class="fas fa-map-marker-alt text-lg pointer-events-none"></i>
+            </button>
+        </div>
+
+        <!-- Paradas extras (ocultas en envíos / comida) -->
+        <div id="standard-extra-stops-wrap">
+        <button type="button" id="add-extra-stop-btn" class="add-extra-stop-btn trip-touch-btn"
+                aria-expanded="false" aria-controls="standard-stops-adder">
+            <span class="add-extra-stop-btn-icon" aria-hidden="true"><i class="fas fa-map-signs"></i></span>
+            <span class="add-extra-stop-btn-text">
+                <span class="add-extra-stop-btn-label">+ Agregar parada (cobrada)</span>
+            </span>
+            <i class="fas fa-chevron-down add-extra-stop-btn-chevron" aria-hidden="true"></i>
+        </button>
+        <div id="standard-stops-adder" class="hidden mt-1.5 p-2 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div class="flex items-center justify-between mb-0.5">
+                <span class="text-[10px] font-black text-slate-600 uppercase tracking-wide">Agregar parada intermedia</span>
+                <button type="button" id="btn-extra-stop-cancel-inline" class="text-slate-400 hover:text-red-500 text-lg leading-none px-1" aria-label="Cerrar">×</button>
+            </div>
+
+            <div class="relative flex gap-1.5 items-stretch">
+                <gmp-place-autocomplete
+                    id="extra-stop-autocomplete"
+                    placeholder="Buscar dirección de la parada"
+                    included-region-codes="hn"
+                    class="flex-1 min-w-0 trip-input-field">
+                </gmp-place-autocomplete>
+                <button type="button" id="btn-extra-stop-map" data-trip-action="extra-stop-map" class="shrink-0 w-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center shadow active:scale-95 transition-transform trip-touch-btn" title="Seleccionar en el mapa" aria-label="Seleccionar en el mapa">
+                    <i class="fas fa-map-marker-alt pointer-events-none"></i>
+                </button>
+            </div>
+
+            <div class="text-[8.5px] text-slate-500 leading-snug px-0.5">
+                Se agregará al final. Usa las flechas ↑↓ en la lista para reordenar. El destino siempre queda de último.
+            </div>
+
+            <div class="flex gap-2 pt-0.5">
+                <button type="button" id="btn-extra-stop-add" class="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase shadow active:scale-95 transition-transform">Agregar</button>
+                <button type="button" id="btn-extra-stop-cancel" class="px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-600 text-[10px] font-bold active:scale-95 transition-transform">Cancelar</button>
+            </div>
+        </div>
+        <div id="standard-stops-list" class="text-xs mt-1 space-y-0.5"></div>
+        <div id="route-order-preview" class="hidden text-[9px] mt-1.5 p-1.5 bg-slate-100/70 rounded-lg leading-snug text-slate-600"></div>
+        </div>
+
+    </div>
+    </section>
+
+    <section id="passenger-booking-advanced" class="trip-step-card trip-step-advanced">
+        <button type="button" id="trip-advanced-toggle" class="trip-advanced-toggle" aria-expanded="false">
+            <span class="trip-advanced-toggle-left">
+                <span class="trip-step-badge trip-step-badge--muted">2</span>
+                <span>Más opciones</span>
+            </span>
+            <span class="trip-advanced-toggle-hint">Programar · por horas · envío</span>
+            <i class="fas fa-chevron-down trip-advanced-chevron"></i>
+        </button>
+        <div id="trip-advanced-body" class="trip-advanced-body hidden">
+    <div id="freight-details-panel" class="hidden trip-advanced-block freight-panel space-y-2">
+        <p class="trip-advanced-block-title"><i class="fas fa-truck-loading"></i> Datos del flete</p>
+        <textarea id="freight-cargo-desc" rows="2" placeholder="¿Qué transportas? (muebles, bloques, ganado, materiales, maquinaria...)"
+                  class="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm bg-white resize-none"></textarea>
+        <input id="freight-weight" type="text" placeholder="Peso estimado (ej: 800 kg, 2 ton, 1.5 toneladas)"
+               class="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm bg-white">
+        <input id="freight-contact-name" type="text" placeholder="Nombre de contacto en destino"
+               class="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm bg-white">
+        <input id="freight-contact-phone" type="tel" placeholder="WhatsApp de contacto (+504...)"
+               class="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm bg-white">
+        <div class="flex items-center justify-between gap-3">
+            <label for="freight-helpers-count" class="text-[10px] font-bold text-emerald-800 leading-snug">
+                Ayudantes para cargar/descargar<br>
+                <span class="font-semibold text-emerald-600">L. 150 c/u · máx. 4</span>
+            </label>
+            <select id="freight-helpers-count"
+                    class="freight-helpers-select px-3 py-2 border border-emerald-200 rounded-xl text-sm bg-white font-bold text-emerald-900 min-w-[5.5rem]">
+                <option value="0">0</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+            </select>
+        </div>
+        <textarea id="freight-notes" rows="2" placeholder="Notas: horario, acceso, grúa, animales, frágil..."
+                  class="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm bg-white resize-none"></textarea>
+    </div>
+
+    <div id="delivery-details-panel" class="hidden trip-advanced-block delivery-panel space-y-2">
+        <p class="trip-advanced-block-title"><i class="fas fa-utensils"></i> Datos del envío</p>
+        <div id="delivery-category-chips" class="flex flex-wrap gap-1.5"></div>
+        <input type="hidden" id="delivery-category" value="comida">
+        <input id="delivery-restaurant" type="text" placeholder="Restaurante o lugar (ej: Pollo Campero, pulpería, farmacia...)"
+               class="w-full px-3 py-2.5 border border-amber-200 rounded-xl text-sm bg-white">
+        <input id="delivery-recipient-name" type="text" placeholder="Nombre de quien recibe"
+               class="w-full px-3 py-2.5 border border-amber-200 rounded-xl text-sm bg-white">
+        <input id="delivery-recipient-phone" type="tel" placeholder="WhatsApp de quien recibe (+504...)"
+               class="w-full px-3 py-2.5 border border-amber-200 rounded-xl text-sm bg-white">
+        <textarea id="delivery-package-desc" rows="2" placeholder="Qué pediste o envías (comida, paquete, documentos...)"
+                  class="w-full px-3 py-2.5 border border-amber-200 rounded-xl text-sm bg-white resize-none"></textarea>
+    </div>
+
+    <div id="trip-options-panel" class="trip-advanced-block space-y-2.5">
+        <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="trip-schedule-toggle" class="rounded border-slate-300 text-blue-600" onchange="window.toggleTripScheduleFields()">
+            <span class="text-[10px] font-black text-slate-700 uppercase"><i class="fas fa-calendar-alt"></i> Programar viaje (aeropuerto, cita...)</span>
+        </label>
+        <input type="datetime-local" id="trip-schedule-datetime" class="hidden w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+
+        <label class="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" id="trip-third-party-toggle" class="rounded border-slate-300 text-violet-600" onchange="window.toggleThirdPartyFields()">
+            <span class="text-[10px] font-black text-slate-700 uppercase"><i class="fas fa-user-friends"></i> Viaje para otra persona (mamá, hijo...)</span>
+        </label>
+        <div id="trip-third-party-fields" class="hidden space-y-2">
+            <select id="trip-rider-relation" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+                <option value="mama">Mi mamá</option>
+                <option value="papa">Mi papá</option>
+                <option value="hijo">Mi hijo/a</option>
+                <option value="esposo">Mi esposo/a</option>
+                <option value="otro">Otra persona</option>
+            </select>
+            <input id="trip-rider-name" type="text" placeholder="Nombre de quien viaja" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+            <input id="trip-rider-phone" type="tel" placeholder="WhatsApp de quien viaja (+504...)" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+        </div>
+
+        <!-- HOURLY BOOKING TOGGLE (Reservar conductor por horas) -->
+        <label class="flex items-center gap-2 cursor-pointer mt-1">
+            <input type="checkbox" id="trip-hourly-toggle" class="rounded border-slate-300 text-emerald-600" onchange="window.toggleHourlyBooking()">
+            <span class="text-[10px] font-black text-emerald-700 uppercase"><i class="fas fa-clock"></i> Reservar conductor por horas (múltiples paradas · precio fijo)</span>
+        </label>
+        <div id="hourly-options" class="hidden mt-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl">
+            <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1.5">Duración de la reserva</p>
+            <div id="hourly-hours-chips" class="flex flex-wrap gap-1.5">
+                <!-- populated by JS: chips hasta 24h -->
+            </div>
+
+            <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1 mt-2.5">Cuántas personas viajan (máx 4)</p>
+            <div id="hourly-passenger-chips" class="flex flex-wrap gap-1.5">
+                <!-- populated by JS -->
+            </div>
+
+            <!-- Hora de inicio -->
+            <div class="mt-2.5">
+                <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1">Hora de inicio (hora de Honduras)</p>
+                <input type="time" id="hourly-start-time" value="08:00" class="w-full px-3 py-2 border border-emerald-200 rounded-xl text-sm bg-white">
+                <p class="text-[8px] text-emerald-600 mt-0.5">Usamos hora oficial de Honduras para evitar fraudes. Recargo nocturno aplica.</p>
+            </div>
+
+            <!-- Tipo de paradas -->
+            <div class="mt-2.5">
+                <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1">Tipo de reserva</p>
+                <div id="hourly-stop-type" class="flex gap-2">
+                    <button type="button" data-hourly-stop="standard" class="flex-1 px-2 py-1.5 text-xs font-black rounded-xl border border-emerald-300 bg-emerald-600 text-white active">Estándar (2 paradas)</button>
+                    <button type="button" data-hourly-stop="multi" class="flex-1 px-2 py-1.5 text-xs font-black rounded-xl border border-emerald-300 bg-white text-emerald-700">Múltiples paradas</button>
+                </div>
+                <p id="hourly-stop-hint" class="text-[8px] text-emerald-600 mt-0.5">Estándar: solo recogida + 1 destino. Múltiples: conductor sigue tus instrucciones.</p>
+            </div>
+
+            <p class="text-[9px] text-emerald-600 mt-1.5">Tarifa por hora según vehículo. Máx 4 personas. Comisión 25%.</p>
+        </div>
+
+    </div>
+        </div>
+    </section>
+
+    <section id="passenger-booking-service" class="trip-step-card trip-step-service">
+        <div id="client-service-type-wrap" class="client-service-type-wrap trip-service-wrap">
+            <p class="trip-service-type-label text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Tipo de servicio</p>
+            <div id="service-type-picker" class="service-type-picker trip-service-picker" role="tablist" aria-label="Tipo de viaje">
+                <button type="button" data-service-type="moto" id="svc-btn-moto" role="tab" aria-selected="true"
+                        class="service-type-btn service-type-moto active trip-service-chip" title="Viajes de pasajeros en motocicleta">
+                    <i class="fas fa-motorcycle pointer-events-none"></i><span class="pointer-events-none">Moto (pasajeros)</span>
+                </button>
+                <button type="button" data-service-type="auto" id="svc-btn-auto" role="tab" aria-selected="false"
+                        class="service-type-btn trip-service-chip" title="Automóvil privado · tarifa premium">
+                    <i class="fas fa-car pointer-events-none"></i><span class="pointer-events-none">Taxi VIP</span>
+                </button>
+                <button type="button" data-service-type="taxi" id="svc-btn-taxi" role="tab" aria-selected="false"
+                        class="service-type-btn trip-service-chip" title="Solo taxis con placa T- oficial">
+                    <i class="fas fa-taxi pointer-events-none"></i><span class="pointer-events-none">Taxi T-</span>
+                </button>
+                <button type="button" data-service-type="delivery" id="svc-btn-delivery" role="tab" aria-selected="false"
+                        class="service-type-btn service-type-delivery trip-service-chip trip-service-chip--delivery" title="Comida de restaurantes y envíos/paquetes (en moto)">
+                    <i class="fas fa-box pointer-events-none"></i><span class="pointer-events-none">Envío / Comida (moto)</span>
+                </button>
+                <button type="button" data-service-type="flete_paila" id="svc-btn-flete_paila" role="tab" aria-selected="false"
+                        class="service-type-btn service-type-flete trip-service-chip" title="Fletes en pickup o paila">
+                    <i class="fas fa-truck-pickup pointer-events-none"></i><span class="pointer-events-none">Flete · Paila</span>
+                </button>
+                <button type="button" data-service-type="flete_camion" id="svc-btn-flete_camion" role="tab" aria-selected="false"
+                        class="service-type-btn service-type-flete trip-service-chip" title="Fletes en camión">
+                    <i class="fas fa-truck pointer-events-none"></i><span class="pointer-events-none">Flete · Camión</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="fare-card" class="trip-fare-card hidden">
+            <p id="price-display" class="fare-price-hero">L. 0.00</p>
+            <p id="fare-card-label" class="fare-card-label">Tarifa estimada</p>
+            <p id="birthday-fare-note" class="hidden fare-birthday-note">🎂 ¡Viaje gratis por tu cumpleaños!</p>
+            <p id="promo-fare-note" class="hidden fare-promo-note"></p>
+            <div class="fare-card-details">
+                <p id="route-summary" class="fare-route-summary"></p>
+                <p id="freight-fare-breakdown" class="hidden fare-extra-line"></p>
+                <p id="route-conditions-note" class="hidden fare-extra-line"></p>
+                <p id="eta-preview" class="hidden fare-eta-line"></p>
+            </div>
+            <button type="button" id="fare-request-btn" data-trip-action="request" class="fare-request-btn trip-touch-btn"><span class="pointer-events-none">SOLICITAR AHORA</span></button>
+        </div>
+
+        <div id="ride-options" class="hidden trip-ride-options">
+            <p class="trip-ride-options-label">Cambiar tipo de vehículo</p>
+            <div class="space-y-2" id="ride-options-list"></div>
+        </div>
+
+    </section>
+
+    <div id="scheduled-trip-card" class="hidden mt-6 p-5 bg-amber-50 border border-amber-200 rounded-2xl text-center">
+        <i class="fas fa-calendar-check text-amber-500 text-3xl mb-2"></i>
+        <p class="font-black text-amber-800 text-sm">Viaje programado</p>
+        <p id="scheduled-trip-when" class="text-xs text-amber-700 mt-1"></p>
+        <p class="text-[10px] text-amber-600 mt-2">Te avisaremos cuando se active la búsqueda de conductor.</p>
+    </div>
+
+    <div id="searching-state" class="mt-6 hidden passenger-pending-wrap">
+        <div id="install-reminder-banner" class="hidden"></div>
+        <div class="passenger-pending-hero text-center">
+            <div class="passenger-pending-pulse"><i class="fas fa-radar" aria-hidden="true"></i></div>
+            <h4 id="searching-status-headline" class="passenger-pending-title">Buscando conductores</h4>
+            <p id="searching-status-sub" class="passenger-pending-sub">Conductores de tu ciudad pueden ofertarte</p>
+        </div>
+        <div id="searching-trip-summary" class="passenger-pending-route"></div>
+        <div id="trip-viewers-panel" class="hidden passenger-offers-panel">
+            <p id="trip-viewers-count" class="passenger-offers-title">Ofertas de conductores</p>
+            <div id="trip-viewers-list" class="passenger-offers-list"></div>
+            <p id="trip-viewers-more" class="hidden passenger-offers-more"></p>
+        </div>
+        <p id="searching-drivers-total" class="passenger-pending-foot hidden"></p>
+        <div id="searching-driver-card" class="hidden" aria-hidden="true">
+            <p id="searching-driver-card-title"></p>
+            <p id="searching-driver-card-sub"></p>
+        </div>
+        <button type="button" data-trip-action="cancel" class="passenger-pending-cancel trip-touch-btn"><span class="pointer-events-none">Cancelar solicitud</span></button>
+    </div>
+</div>
+
+                <!-- CONDUCTOR (LISTA DE VIAJES DISPONIBLES) -->
+                <div id="driver-view" class="hidden flex-1 flex flex-col min-h-0">
+                    <div id="install-reminder-banner-driver" class="hidden"></div>
+
+                    <div class="driver-view-header flex items-center justify-between shrink-0">
+                        <h3 id="driver-list-title" class="text-base font-black text-gray-900 tracking-tight">Clientes pidiendo viajes</h3>
+                        <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                            <span id="driver-vehicle-type-badge" class="hidden text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Auto</span>
+                            <span id="driver-online-badge" class="text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">En línea</span>
+                        </div>
+                    </div>
+                    <div id="driver-radar-status" class="driver-radar-status shrink-0" aria-live="polite">
+                        <i class="fas fa-radar driver-radar-status-icon" aria-hidden="true"></i>
+                        <div class="driver-radar-status-text min-w-0">
+                            <p id="driver-radar-status-main" class="driver-radar-status-main">Buscando clientes pidiendo viaje</p>
+                            <p id="driver-radar-status-sub" class="driver-radar-status-sub">Los clientes que pidan viaje aparecerán abajo</p>
+                        </div>
+                    </div>
+                    <div id="driver-incoming-offer" class="hidden mb-2 shrink-0"></div>
+                    <div id="requests-list" class="driver-radar-list space-y-3 pb-2 flex-1 min-h-0 overflow-y-auto"></div>
+                    <div id="driver-objectives-pending" class="hidden mb-3"></div>
+                </div>
+
+                <!-- PANEL VIAJE ACTIVO -->
+                <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full min-h-0">
+                    <div data-trip-action="toggle-panel" role="button" tabindex="0" aria-label="Minimizar o expandir panel" class="trip-drag-handle flex justify-center py-2 cursor-pointer hover:bg-gray-50 transition-colors rounded-xl">
+                        <div class="w-12 h-1 bg-gray-300 rounded-full shadow-sm pointer-events-none"></div>
+                    </div>
+
+                    <div id="trip-mini-bar" class="driver-active-eta flex items-center justify-between px-1 py-2 mb-2">
+                        <div>
+                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5 driver-active-eta-label">Tiempo estimado</p>
+                            <p id="trip-mini-time" class="text-2xl font-black text-emerald-600 leading-none">-- min</p>
+                            <p class="text-[10px] text-gray-500 font-bold mt-0.5 uppercase tracking-widest">
+                                <span id="trip-mini-dist">-- km</span> • <span id="trip-mini-eta">--:--</span>
+                            </p>
+                        </div>
+                        <button type="button" data-trip-action="toggle-panel" class="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 py-1 min-h-[44px]">
+                            <span id="trip-panel-toggle-label" class="pointer-events-none">Minimizar</span>
+                        </button>
+                    </div>
+
+                    <div id="driver-active-body" class="driver-active-body flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
+                    <div id="active-trip-route-summary" class="driver-active-route p-4 bg-white rounded-2xl border border-slate-200 shadow-sm mb-3">
+                         <p class="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2.5"><i class="fas fa-route"></i> Ruta del viaje</p>
+                         <div class="flex items-start gap-2 mb-2.5">
+                             <div class="w-2.5 h-2.5 rounded-full bg-blue-600 mt-1 flex-shrink-0"></div>
+                             <p class="text-[10px] text-gray-600 leading-tight uppercase font-medium"><b>Recogida:</b> <span id="active-origin-text" class="font-bold text-gray-900 normal-case">...</span></p>
+                         </div>
+                         <div class="flex items-start gap-2">
+                             <div class="w-2.5 h-2.5 rounded bg-red-600 mt-1 flex-shrink-0"></div>
+                             <p class="text-[10px] text-gray-600 leading-tight uppercase font-medium"><b>Destino:</b> <span id="active-dest-text" class="font-bold text-gray-900 normal-case">...</span></p>
+                         </div>
+                         <div id="active-hourly-note" class="hidden mt-1"></div>
+                    </div>
+
+                    <div id="trip-partner-info" class="hidden driver-assigned-card driver-active-passenger mb-3 rounded-2xl border shadow-sm overflow-hidden">
+                         <div id="tp-status-banner" class="driver-assigned-status hidden">
+                             <div class="driver-assigned-status-text">
+                                 <span id="tp-status-badge" class="driver-status-badge">¡Reservado!</span>
+                                 <span id="tp-status-sub" class="driver-status-sub"></span>
+                             </div>
+                             <div class="driver-assigned-status-actions">
+                                 <span id="tp-status-eta" class="driver-status-eta hidden">-- min</span>
+                                 <button type="button" id="tp-status-toggle" data-trip-action="toggle-panel" class="tp-status-toggle-btn hidden" aria-label="Ver más del viaje">
+                                     <span id="tp-panel-toggle-label" class="pointer-events-none">Ver más</span>
+                                 </button>
+                             </div>
+                         </div>
+                         <div class="driver-assigned-body p-4 flex flex-col gap-3">
+                             <p id="tp-role-label" class="text-[9px] font-black text-blue-600 uppercase tracking-widest">Tu conductor</p>
+                             <div class="flex items-center gap-3">
+                                 <img id="tp-photo" src="" alt="" class="w-14 h-14 rounded-full object-cover bg-gray-200 ring-2 ring-white shadow-md flex-shrink-0" onerror="this.src='https://placehold.co/100x100/e2e8f0/64748b?text=Usuario'">
+                                 <div class="flex-1 min-w-0">
+                                     <p id="tp-name" class="font-black text-base uppercase text-gray-900 leading-tight truncate">...</p>
+                                     <p class="text-amber-500 text-xs font-bold mt-0.5"><i class="fas fa-star"></i> <span id="tp-rating">5.0</span></p>
+                                 </div>
+                             </div>
+                             <div id="tp-driver-extra" class="driver-vehicle-panel">
+                                 <div class="driver-plate-badge" aria-label="Placa del vehículo">
+                                     <span class="driver-plate-label">Placa</span>
+                                     <span id="tp-plate" class="driver-plate-value">---</span>
+                                 </div>
+                                 <div id="tp-vehicle-photos" class="driver-vehicle-photos hidden">
+                                     <p class="driver-vehicle-photos-label"><i class="fas fa-camera"></i> Referencia del vehículo</p>
+                                     <div class="driver-vehicle-photos-grid">
+                                         <a id="tp-vehicle-front-link" href="#" target="_blank" rel="noopener" class="driver-vehicle-photo-card">
+                                             <img id="tp-vehicle-front" src="" alt="Frente del vehículo" loading="lazy">
+                                             <span>Frente</span>
+                                         </a>
+                                         <a id="tp-vehicle-rear-link" href="#" target="_blank" rel="noopener" class="driver-vehicle-photo-card">
+                                             <img id="tp-vehicle-rear" src="" alt="Atrás del vehículo" loading="lazy">
+                                             <span>Atrás</span>
+                                         </a>
+                                     </div>
+                                 </div>
+                                 <div id="tp-license-photos" class="driver-vehicle-photos hidden">
+                                     <p class="driver-vehicle-photos-label"><i class="fas fa-id-card"></i> Licencia de conducir</p>
+                                     <div class="driver-vehicle-photos-grid">
+                                         <a id="tp-license-front-link" href="#" target="_blank" rel="noopener" class="driver-vehicle-photo-card driver-license-photo-card">
+                                             <img id="tp-license-front" src="" alt="Frente de la licencia" loading="lazy">
+                                             <span>Frente</span>
+                                         </a>
+                                         <a id="tp-license-back-link" href="#" target="_blank" rel="noopener" class="driver-vehicle-photo-card driver-license-photo-card">
+                                             <img id="tp-license-back" src="" alt="Revés de la licencia" loading="lazy">
+                                             <span>Revés</span>
+                                         </a>
+                                     </div>
+                                 </div>
+                                 <div class="driver-vehicle-grid">
+                                     <div class="driver-vehicle-row">
+                                         <span class="driver-vehicle-key"><i id="tp-vehicle-type-icon" class="fas fa-car"></i> Tipo</span>
+                                         <span id="tp-vehicle-type" class="driver-vehicle-val">Automóvil</span>
+                                     </div>
+                                     <div class="driver-vehicle-row">
+                                         <span class="driver-vehicle-key">Modelo</span>
+                                         <span id="tp-vehicle" class="driver-vehicle-val">...</span>
+                                     </div>
+                                     <div class="driver-vehicle-row driver-vehicle-row-full">
+                                         <span class="driver-vehicle-key">ID conductor</span>
+                                         <span id="tp-identity" class="driver-vehicle-val">...</span>
+                                     </div>
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+                    </div>
+
+                    <div id="driver-active-cta" class="driver-active-cta trip-actions-sticky space-y-2 pt-1">
+                    <div id="driver-route-hero" class="hidden driver-route-hero driver-gmaps-route-wrap">
+                        <p id="driver-trip-accepted-kicker" class="driver-route-hero-kicker hidden"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
+                        <button type="button" data-trip-action="driver-route" id="driver-target-address" class="driver-route-hero-btn driver-active-primary-btn driver-gmaps-route-btn trip-touch-btn w-full" aria-label="Abrir ruta en Google Maps">
+                            <div class="flex items-center justify-center gap-3 pointer-events-none">
+                                <span class="driver-gmaps-route-icon" aria-hidden="true"><i class="fab fa-google"></i></span>
+                                <div class="text-left flex-1 min-w-0">
+                                    <p class="driver-route-hero-label">Toca para ir en Google Maps</p>
+                                    <p id="driver-pickup-display" class="driver-route-hero-addr driver-gmaps-route-addr">Cargando dirección…</p>
+                                </div>
+                                <i class="fas fa-external-link-alt text-base opacity-90 shrink-0"></i>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div id="driver-destination-controls" class="hidden driver-dest-hero mb-0 space-y-2">
+                        <p class="driver-pin-hero-kicker"><i class="fas fa-flag-checkered"></i> Llegada al destino</p>
+                        <p id="driver-dest-distance-hint" class="driver-pin-hero-hint">Calculando distancia al destino…</p>
+                        <button type="button" id="btn-driver-arrived-dest" data-trip-action="driver-arrived-dest" disabled class="driver-pin-hero-btn driver-active-primary-btn trip-touch-btn w-full disabled:bg-slate-300 disabled:text-slate-500 disabled:opacity-80"><span class="pointer-events-none">LLEGUÉ AL DESTINO</span></button>
+                        <p class="text-[9px] text-center text-slate-500 font-bold leading-snug">Se activa a 200 m del punto. Finaliza el viaje al presionarlo.</p>
+                    </div>
+
+                    <div id="driver-active-tools" class="driver-active-tools hidden">
+                        <button type="button" data-trip-action="toggle-chat" class="driver-active-tool-btn trip-touch-btn" title="Chat del viaje">
+                            <i class="fas fa-comments pointer-events-none"></i>
+                            <span class="pointer-events-none">Chat</span>
+                        </button>
+                        <button type="button" data-trip-action="center-map" class="driver-active-tool-btn trip-touch-btn" title="Centrar mapa">
+                            <i class="fas fa-location-arrow pointer-events-none"></i>
+                            <span class="pointer-events-none">Centrar</span>
+                        </button>
+                    </div>
+                    </div>
+
+                    <div id="trip-expanded-content">
+                    <div id="client-driver-busy-notice" class="hidden mb-4 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+                        <p class="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1"><i class="fas fa-car-side"></i> Conductor en otro viaje</p>
+                        <p id="client-driver-busy-text" class="text-xs text-amber-900 font-semibold leading-snug">Tu conductor está terminando otro viaje pero llegará pronto. Espéralo atentamente.</p>
+                    </div>
+
+                    <p class="trip-passenger-only text-[9px] text-center text-gray-400 font-semibold mb-3 leading-snug">Comunícate solo por el chat flotante. Los números de teléfono no se comparten.</p>
+
+                    <button type="button" data-trip-action="cancel" class="trip-passenger-only w-full py-3 text-[10px] font-black text-red-500 uppercase tracking-widest border border-red-100 rounded-xl mb-4 hover:bg-red-50 active:scale-95 transition-all text-center trip-touch-btn"><span class="pointer-events-none">Cancelar Servicio</span></button>
+                    </div>
+
+                    <div id="trip-actions-sticky" class="trip-actions-sticky space-y-2 pt-1">
+                        <div id="passenger-alert-settings" class="hidden bg-violet-50 border border-violet-200 rounded-2xl p-3 mb-1">
+                            <p class="text-[10px] font-black text-violet-800 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <i class="fas fa-bell"></i> Alertas de llegada
+                            </p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="flex items-center gap-2 text-[10px] font-bold text-violet-900 cursor-pointer">
+                                    <input type="checkbox" id="pa-alert-sound" class="rounded border-violet-300 text-violet-600" checked>
+                                    <span>Sonido</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-[10px] font-bold text-violet-900 cursor-pointer">
+                                    <input type="checkbox" id="pa-alert-voice" class="rounded border-violet-300 text-violet-600" checked>
+                                    <span>Voz</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-[10px] font-bold text-violet-900 cursor-pointer">
+                                    <input type="checkbox" id="pa-alert-notify" class="rounded border-violet-300 text-violet-600" checked>
+                                    <span>Notificaciones</span>
+                                </label>
+                                <label class="flex items-center gap-2 text-[10px] font-bold text-violet-900 cursor-pointer">
+                                    <input type="checkbox" id="pa-alert-vibrate" class="rounded border-violet-300 text-violet-600" checked>
+                                    <span>Vibración</span>
+                                </label>
+                            </div>
+                            <p class="text-[9px] text-violet-600/90 mt-2 leading-snug">Avisos a 5 min, 3 min, 1 min y cuando ya está muy cerca.</p>
+                        </div>
+                        <div id="client-pin-panel" class="hidden client-pin-panel">
+                            <p class="client-pin-panel-kicker"><i class="fas fa-key"></i> Tu PIN de seguridad</p>
+                            <button type="button" data-trip-action="copy-pin" id="client-pin-panel-btn" class="client-pin-panel-code-btn trip-touch-btn w-full">
+                                <span id="client-pin-panel-code" class="client-pin-panel-code">----</span>
+                                <span class="client-pin-panel-copy"><i class="fas fa-copy"></i> Copiar</span>
+                            </button>
+                            <p id="client-pin-panel-hint" class="client-pin-panel-hint">Muéstraselo al conductor cuando subas al vehículo</p>
+                        </div>
+                        <div id="client-security-controls" class="hidden flex flex-col gap-2">
+                            <div class="flex gap-2">
+                                <button type="button" data-trip-action="share" class="flex-[2] bg-emerald-500 text-white py-3 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform trip-touch-btn">
+                                    <i class="fab fa-whatsapp text-lg pointer-events-none"></i><span class="pointer-events-none"> Compartir</span>
+                                </button>
+                                <button type="button" data-trip-action="sos" class="flex-1 bg-rose-600 text-white py-3 rounded-xl text-[10px] font-black uppercase flex items-center justify-center gap-2 shadow-md active:scale-95 transition-transform trip-touch-btn">
+                                    <i class="fas fa-exclamation-triangle text-lg pointer-events-none"></i><span class="pointer-events-none"> SOS</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="js/app.js?v=2026.07.10.1"></script>
+</body>
+</html>
