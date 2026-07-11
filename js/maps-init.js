@@ -1601,21 +1601,40 @@ window.gMap = null;
             const isMobile = window.innerWidth < 768;
             const hasTrip = document.body.classList.contains('trip-active');
             const isDriver = document.body.classList.contains('driver-mode');
+            const userMinimized = !!panel?.classList.contains('panel-collapsed')
+                || document.body.classList.contains('panel-minimized');
 
             if (isDriver) {
-                document.body.classList.remove('panel-hidden', 'panel-minimized');
-                panel?.classList.remove('panel-hidden', 'panel-collapsed');
+                // Nunca ocultar del todo, pero respetar si el usuario minimizó durante el viaje
+                document.body.classList.remove('panel-hidden');
+                panel?.classList.remove('panel-hidden');
+                if (hasTrip && userMinimized) {
+                    panel?.classList.add('panel-collapsed');
+                    document.body.classList.add('panel-minimized');
+                    window.syncPassengerPanelToggleLabel?.();
+                    window.syncDriverRadarFloatPanel?.();
+                    window.updatePassengerPromoStripVisibility?.();
+                    return;
+                }
+                document.body.classList.remove('panel-minimized');
+                panel?.classList.remove('panel-collapsed');
                 try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
                 window.dockControlPanelForDriverTrip?.();
                 window.syncDriverRadarFloatPanel?.();
+                window.updatePassengerPromoStripVisibility?.();
                 return;
             }
 
             if (isMobile && hasTrip) {
-                // On mobile trip: don't force remove minimized state.
-                // Only the explicit minimize button controls disappearance.
+                // En viaje móvil: no forzar expandir; solo el botón minimiza/expande
                 document.body.classList.remove('panel-hidden');
                 panel?.classList.remove('panel-hidden');
+                if (userMinimized) {
+                    panel?.classList.add('panel-collapsed');
+                    document.body.classList.add('panel-minimized');
+                }
+                window.syncPassengerPanelToggleLabel?.();
+                window.updatePassengerPromoStripVisibility?.();
                 return;
             }
 
@@ -1764,6 +1783,9 @@ window.gMap = null;
             panel.classList.toggle('panel-collapsed');
             const collapsed = panel.classList.contains('panel-collapsed');
             document.body.classList.toggle('panel-minimized', collapsed);
+            document.body.classList.remove('panel-hidden');
+            panel.classList.remove('panel-hidden');
+            try { localStorage.setItem(PANEL_HIDDEN_KEY, collapsed ? '1' : '0'); } catch (_) {}
             window.syncPassengerPanelToggleLabel?.();
 
             if (document.body.classList.contains('driver-mode')) {
@@ -1772,10 +1794,16 @@ window.gMap = null;
                     window.dockControlPanelForDriverTrip?.();
                     window.syncDriverRadarFloatPanel?.();
                 }
+            } else if (!collapsed) {
+                window.dockControlPanelForClient?.();
             }
 
-            // Record last manual expand time (used to avoid immediately auto-collapsing again while driving)
-            // Nav HUD (left) visibility managed only by its own toggle button.
+            // iOS/Android: forzar reflow para que max-height del colapsado se aplique al toque
+            try {
+                // eslint-disable-next-line no-unused-expressions
+                panel.offsetHeight;
+            } catch (_) {}
+            window.updatePassengerPromoStripVisibility?.();
         };
 
         window.syncNavHudToggleUi = () => {

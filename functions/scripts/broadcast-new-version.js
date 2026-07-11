@@ -57,7 +57,7 @@ async function sendPush(uid, tokens) {
         android: {
             priority: 'high',
             notification: {
-                channelId: 'hondu_ride_alerts',
+                channelId: 'hondu_ride_alerts_v2',
                 sound: 'default',
                 defaultSound: true,
                 priority: 'high',

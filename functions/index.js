@@ -987,10 +987,12 @@ function rideDemandTitle(serviceType) {
     return 'HonduRaite · 🏍️ ¡Cliente pide moto!';
 }
 
-/** Canal Android de alta prioridad (creado en la app) para ofertas y demanda. */
-const RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts';
+/** Canal Android de alta prioridad (v2: fuerza sonido+vibración en clientes viejos). */
+const RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v2';
+const DEFAULT_ALERT_CHANNEL_ID = 'hondu_default_v2';
 /** Patrón de vibración fuerte (ms) — distintivo HonduRaite. */
 const HONDU_SUPER_VIBRATE_MS = [0, 450, 100, 450, 100, 550, 120, 750, 100, 950];
+const HONDU_DEFAULT_VIBRATE_MS = [0, 250, 100, 250, 80, 350];
 
 function isHonduRideAlertType(type) {
     return type === 'ride_demand_alert'
@@ -1366,6 +1368,11 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         openNotifications: openNotifications ? 'true' : String(data.openNotifications || 'false')
     };
 
+    // Siempre enviar bloque android con canal+sonido+vibración.
+    // Sin channelId, Android 8+ usa un canal silencioso / genérico y "no suena ni vibra".
+    const androidChannelId = rideAlert ? RIDE_ALERT_CHANNEL_ID : DEFAULT_ALERT_CHANNEL_ID;
+    const androidVibrate = rideAlert ? HONDU_SUPER_VIBRATE_MS : HONDU_DEFAULT_VIBRATE_MS;
+
     const payload = {
         tokens,
         notification: { title, body },
@@ -1379,43 +1386,38 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
                 requireInteraction: useHigh || undefined,
                 renotify: rideAlert || undefined,
                 tag: data.tag || undefined,
-                vibrate: rideAlert ? HONDU_SUPER_VIBRATE_MS : undefined
+                vibrate: rideAlert ? HONDU_SUPER_VIBRATE_MS : HONDU_DEFAULT_VIBRATE_MS
             },
             fcmOptions: { link }
         },
-        android: useHigh
-            ? {
-                priority: 'high',
-                ttl: 120 * 1000,
-                notification: {
-                    channelId: rideAlert ? RIDE_ALERT_CHANNEL_ID : 'hondu_default',
+        android: {
+            priority: useHigh ? 'high' : 'normal',
+            ttl: useHigh ? 120 * 1000 : 3600 * 1000,
+            notification: {
+                channelId: androidChannelId,
+                sound: 'default',
+                defaultSound: true,
+                priority: useHigh ? 'high' : 'default',
+                visibility: 'public',
+                defaultVibrateTimings: false,
+                vibrateTimingsMillis: androidVibrate,
+                notificationCount: 1,
+                // Mantener en pantalla hasta que el conductor actúe (ofertas)
+                sticky: rideAlert || undefined
+            }
+        },
+        apns: {
+            headers: {
+                'apns-priority': useHigh ? '10' : '5',
+                'apns-push-type': 'alert'
+            },
+            payload: {
+                aps: {
                     sound: 'default',
-                    defaultSound: true,
-                    priority: 'high',
-                    visibility: 'public',
-                    defaultVibrateTimings: false,
-                    vibrateTimingsMillis: rideAlert
-                        ? HONDU_SUPER_VIBRATE_MS
-                        : [0, 250, 100, 250],
-                    notificationCount: 1,
-                    // Mantener en pantalla hasta que el conductor actúe
-                    sticky: rideAlert || undefined
+                    'interruption-level': useHigh ? 'time-sensitive' : 'active'
                 }
             }
-            : undefined,
-        apns: useHigh
-            ? {
-                headers: {
-                    'apns-priority': '10',
-                    'apns-push-type': 'alert'
-                },
-                payload: {
-                    aps: {
-                        sound: 'default'
-                    }
-                }
-            }
-            : undefined
+        }
     };
 
     const res = await getMessaging().sendEachForMulticast(payload);

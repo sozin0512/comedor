@@ -1148,9 +1148,12 @@
             color: #1e40af;
         }
 
-        body.trip-active #control-panel.panel-collapsed #driver-route-hero:not(.hidden),
-        body.trip-active #control-panel.panel-collapsed #driver-destination-controls:not(.hidden) {
-            display: block !important;
+        /* Al minimizar el panel NO mantener el botón de ruta GMaps a pantalla grande */
+        body.trip-active #control-panel.panel-collapsed #driver-route-hero,
+        body.trip-active #control-panel.panel-collapsed #driver-destination-controls,
+        body.trip-active.panel-minimized #control-panel #driver-route-hero,
+        body.trip-active.panel-minimized #control-panel #driver-destination-controls {
+            display: none !important;
         }
 
         html[data-theme="dark"] .driver-route-hero {
@@ -5095,52 +5098,74 @@
         /* nav-hud-bottom visibility is controlled explicitly by driver-nav and its own minimize button */
         body.trip-active:not(.driver-nav-mode) #nav-hud-bottom { display: none; }
 
-        body.trip-active #control-panel.panel-collapsed {
-            max-height: min(58dvh, 380px) !important;
-            overflow-x: hidden;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
+        /* Minimizado de verdad en Android/iOS: barra compacta, no media pantalla */
+        body.trip-active #control-panel.panel-collapsed,
+        body.trip-active.panel-minimized #control-panel {
+            max-height: min(22dvh, 148px) !important;
+            min-height: 0 !important;
+            height: auto !important;
+            overflow: hidden !important;
+            -webkit-overflow-scrolling: auto;
+            padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
         }
 
-        body.trip-active #control-panel.panel-collapsed #trip-expanded-content {
-            display: none;
+        body.trip-active #control-panel.panel-collapsed #trip-expanded-content,
+        body.trip-active.panel-minimized #control-panel #trip-expanded-content {
+            display: none !important;
         }
 
-        body.trip-active #control-panel.panel-collapsed .panel-expanded-only {
+        body.trip-active #control-panel.panel-collapsed .panel-expanded-only,
+        body.trip-active.panel-minimized #control-panel .panel-expanded-only {
+            display: none !important;
+        }
+
+        body.trip-active #control-panel.panel-collapsed #trip-actions-sticky,
+        body.trip-active.panel-minimized #control-panel #trip-actions-sticky,
+        body.trip-active #control-panel.panel-collapsed #client-pin-panel,
+        body.trip-active #control-panel.panel-collapsed #client-security-controls,
+        body.trip-active #control-panel.panel-collapsed #passenger-alert-settings,
+        body.trip-active #control-panel.panel-collapsed #active-trip-route-summary {
             display: none !important;
         }
 
         body.trip-active #control-panel.panel-collapsed .trip-drag-handle {
-            display: none;
+            display: flex !important;
+            justify-content: center;
+            padding: 0.45rem 0 0.15rem;
         }
 
         body.trip-active #control-panel.panel-collapsed #active-trip-panel {
             height: auto;
             flex: 0 0 auto;
+            min-height: 0;
+            overflow: hidden;
         }
 
         body.trip-active #control-panel.panel-collapsed #panel-content {
             flex: 0 0 auto;
             min-height: 0;
+            overflow: hidden;
         }
 
         body.trip-active #control-panel.panel-collapsed::before {
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
             cursor: pointer;
         }
 
         body.trip-active #control-panel.panel-collapsed #trip-mini-bar {
-            margin-bottom: 0.5rem;
-            padding-top: 0.25rem;
+            margin-bottom: 0;
+            padding-top: 0.15rem;
+            padding-bottom: 0.35rem;
         }
 
         body.trip-active #control-panel.panel-collapsed .trip-actions-sticky {
+            display: none !important;
             padding-top: 0;
         }
 
         body.trip-active.panel-minimized #fab-center,
         body.trip-active.panel-minimized #fab-traffic {
-            bottom: min(58dvh, 396px);
+            bottom: calc(min(22dvh, 156px) + 0.75rem + env(safe-area-inset-bottom, 0px));
         }
 
         body.trip-active #control-panel {
@@ -5465,27 +5490,33 @@
         }
 
         /* Vista pasajero estilo Uber — mapa grande + seguimiento del conductor.
-           El panel se colapsa inicialmente para ver el mapa, pero el usuario puede
-           desplegarlo (toggle) para acceder a chat, cancelar, etc. */
-        body.passenger-track-mode.trip-active #control-panel.panel-collapsed {
-            max-height: none !important;
+           Minimizado: barra compacta (status + conductor), no full height. */
+        body.passenger-track-mode.trip-active #control-panel.panel-collapsed,
+        body.passenger-track-mode.trip-active.panel-minimized #control-panel {
+            max-height: min(24dvh, 160px) !important;
             height: auto !important;
-            min-height: 0;
-            overflow: visible !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
             -webkit-overflow-scrolling: auto;
         }
 
         body.passenger-track-mode.trip-active #control-panel.panel-collapsed #panel-content,
         body.passenger-track-mode.trip-active #control-panel.panel-collapsed #active-trip-panel {
-            overflow: visible;
+            overflow: hidden;
             flex: 0 0 auto;
             min-height: 0;
         }
 
         body.passenger-track-mode.trip-active #control-panel.panel-collapsed #trip-expanded-content,
-        body.passenger-track-mode.trip-active #control-panel.panel-collapsed .trip-drag-handle,
+        body.passenger-track-mode.trip-active #control-panel.panel-collapsed #trip-actions-sticky,
         body.passenger-track-mode.trip-active #control-panel.panel-collapsed .panel-expanded-only {
             display: none !important;
+        }
+
+        body.passenger-track-mode.trip-active #control-panel.panel-collapsed .trip-drag-handle {
+            display: flex !important;
+            justify-content: center;
+            padding: 0.4rem 0 0.1rem;
         }
 
         body.passenger-nav-mode #nav-hud-top {
@@ -5587,16 +5618,27 @@
             -webkit-overflow-scrolling: auto;
         }
 
-        body.trip-active:not(.driver-mode) #control-panel.panel-collapsed {
-            max-height: none !important;
+        body.trip-active:not(.driver-mode) #control-panel.panel-collapsed,
+        body.trip-active:not(.driver-mode).panel-minimized #control-panel {
+            max-height: min(24dvh, 160px) !important;
             height: auto !important;
-            overflow: visible !important;
+            overflow: hidden !important;
             -webkit-overflow-scrolling: auto;
         }
 
         body.trip-active:not(.driver-mode) #control-panel.panel-collapsed #panel-content {
-            overflow: visible;
+            overflow: hidden;
             flex: 0 0 auto;
+        }
+
+        body.trip-active:not(.driver-mode) #control-panel.panel-collapsed #driver-active-body {
+            max-height: none;
+            overflow: hidden;
+        }
+
+        /* Pasajero minimizado: solo status + foto/nombre (sin share/SOS/alertas del panel) */
+        body.trip-active:not(.driver-mode) #control-panel.panel-collapsed #trip-partner-info {
+            margin-bottom: 0;
         }
 
         body.trip-active:not(.driver-mode) #control-panel:not(.panel-collapsed) #driver-active-body {
@@ -9394,6 +9436,84 @@
             -webkit-user-select: none;
         }
 
+        /* PIN pasajero: compacto en móvil (no full-width) */
+        #client-pin-float.trip-float {
+            max-width: min(280px, calc(100vw - 1.3rem));
+            padding: 0.5rem 0.55rem 0.55rem;
+            border-radius: 0.9rem;
+            border-color: #fcd34d;
+            background: rgba(255, 251, 235, 0.98);
+            box-shadow: 0 6px 18px rgba(245, 158, 11, 0.2);
+        }
+
+        #client-pin-float.trip-float--min {
+            padding: 0;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            max-width: none;
+        }
+
+        #client-pin-float .trip-float-head {
+            margin-bottom: 0.25rem;
+            padding: 0.05rem 0;
+        }
+
+        #client-pin-float .trip-float-title {
+            color: #b45309;
+            font-size: 0.55rem;
+        }
+
+        #client-pin-float .trip-float-min-btn {
+            width: 2rem;
+            height: 2rem;
+            min-width: 2rem;
+            min-height: 2rem;
+            border-color: #fcd34d;
+            color: #b45309;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #client-pin-float .client-pin-hero {
+            margin: 0;
+            padding: 0.45rem 0.5rem 0.5rem;
+            border-radius: 0.75rem;
+            border-width: 1px;
+            box-shadow: none;
+            background: transparent;
+        }
+
+        #client-pin-float .client-pin-hero-kicker {
+            margin: 0 0 0.3rem;
+            font-size: 0.55rem;
+            letter-spacing: 0.08em;
+        }
+
+        #client-pin-float .client-pin-hero-btn {
+            padding: 0.55rem 0.65rem;
+            border-radius: 0.75rem;
+            font-size: 0.62rem;
+        }
+
+        #client-pin-float .client-pin-hero-label {
+            font-size: 0.58rem;
+        }
+
+        #client-pin-float .client-pin-hero-code {
+            font-size: clamp(1.25rem, 5.5vw, 1.7rem);
+            letter-spacing: 0.22em;
+            margin-top: 0.1rem;
+        }
+
+        #client-pin-float .client-pin-hero-hint {
+            margin: 0.3rem 0 0;
+            font-size: 0.58rem;
+            line-height: 1.25;
+        }
+
+
+
         .trip-float--pill {
             padding: 0;
             background: transparent;
@@ -9486,16 +9606,24 @@
         }
 
         .trip-float-min-btn {
-            width: 1.6rem;
-            height: 1.6rem;
+            width: 1.85rem;
+            height: 1.85rem;
+            min-width: 1.85rem;
+            min-height: 1.85rem;
             border-radius: 999px;
             border: 1px solid #bfdbfe;
             background: #fff;
             color: #1d4ed8;
-            font-size: 0.7rem;
+            font-size: 0.72rem;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-shrink: 0;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            cursor: pointer;
+            z-index: 2;
+            position: relative;
         }
 
         .trip-float-body {
@@ -9699,9 +9827,17 @@
                 width: auto !important;
             }
 
-            #client-pin-float.trip-float {
+            /* Antes era full-width y tapaba el mapa; ahora pill compacto */
+            #client-pin-float.trip-float:not(.trip-float--min) {
                 left: 0.65rem !important;
-                right: 0.65rem !important;
+                right: auto !important;
+                max-width: min(268px, calc(100vw - 1.3rem)) !important;
+                width: auto !important;
+            }
+
+            #client-pin-float.trip-float--min {
+                left: 0.65rem !important;
+                right: auto !important;
                 max-width: none !important;
                 width: auto !important;
             }
@@ -10067,11 +10203,15 @@
         body.trip-active.driver-mode #fab-traffic,
         body.trip-active.driver-mode .control-panel-drag-hint,
         body.trip-active.driver-mode .control-panel-grab,
-        body.trip-active.driver-mode .driver-active-body,
-        body.trip-active.driver-mode .driver-active-eta,
-        body.trip-active.driver-mode .driver-active-tools,
-        body.trip-active.driver-mode .trip-drag-handle {
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-active-eta,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle,
+        body.trip-active.driver-mode .driver-active-tools {
             display: none !important;
+        }
+
+        /* Expandido: cuerpo con botones de ruta; minimizado se oculta abajo */
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-active-body {
+            display: block !important;
         }
 
         body.trip-active.driver-mode .control-panel-header {
@@ -10092,6 +10232,38 @@
             padding-bottom: 0.35rem;
             cursor: default !important;
             touch-action: pan-y;
+        }
+
+        /* Conductor minimizado en celular: barra chica (antes casi no bajaba) */
+        body.trip-active.driver-mode #control-panel.panel-collapsed,
+        body.trip-active.driver-mode.panel-minimized #control-panel {
+            max-height: 4.75rem !important;
+            min-height: 0 !important;
+            height: auto !important;
+            overflow: hidden !important;
+            padding-top: 0.15rem;
+            padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+        }
+
+        body.trip-active.driver-mode #control-panel.panel-collapsed #trip-mini-bar.driver-active-eta,
+        body.trip-active.driver-mode.panel-minimized #control-panel #trip-mini-bar.driver-active-eta {
+            display: flex !important;
+            margin: 0;
+            padding: 0.35rem 0.5rem 0.45rem;
+            align-items: center;
+        }
+
+        body.trip-active.driver-mode #control-panel.panel-collapsed .trip-drag-handle,
+        body.trip-active.driver-mode.panel-minimized #control-panel .trip-drag-handle {
+            display: flex !important;
+            padding: 0.35rem 0 0;
+        }
+
+        body.trip-active.driver-mode #control-panel.panel-collapsed #driver-active-body,
+        body.trip-active.driver-mode.panel-minimized #control-panel #driver-active-body,
+        body.trip-active.driver-mode #control-panel.panel-collapsed #trip-expanded-content,
+        body.trip-active.driver-mode #control-panel.panel-collapsed #trip-actions-sticky {
+            display: none !important;
         }
 
         body.trip-active.driver-mode #control-panel.panel-is-floating,
@@ -10124,9 +10296,15 @@
             display: block !important;
         }
 
-        body.trip-active.driver-mode.driver-trip-dest-phase #control-panel {
+        body.trip-active.driver-mode.driver-trip-dest-phase #control-panel:not(.panel-collapsed) {
             max-height: min(44%, 40dvh) !important;
             min-height: 14.5rem;
+        }
+
+        body.trip-active.driver-mode.driver-trip-dest-phase #control-panel.panel-collapsed,
+        body.trip-active.driver-mode.driver-trip-dest-phase.panel-minimized #control-panel {
+            max-height: 4.75rem !important;
+            min-height: 0 !important;
         }
 
         body.trip-active.driver-mode.driver-trip-dest-phase .driver-gmaps-route-btn {
@@ -10377,23 +10555,39 @@
             font-size: 1.25rem;
         }
 
-        body.trip-active.driver-mode #control-panel.panel-collapsed {
-            max-height: min(30dvh, 220px) !important;
+        body.trip-active.driver-mode #control-panel.panel-collapsed,
+        body.trip-active.driver-mode.panel-minimized #control-panel {
+            max-height: 4.75rem !important;
+            min-height: 0 !important;
         }
 
         body.trip-active.driver-mode #control-panel.panel-collapsed .driver-active-cta {
             border-top: none;
             background: transparent;
             padding-top: 0;
+            display: none !important;
         }
 
         body.trip-active.driver-mode #control-panel.panel-collapsed #driver-active-tools {
             display: none !important;
         }
 
-        body.trip-active.driver-mode #control-panel.panel-collapsed #driver-route-hero:not(.hidden),
-        body.trip-active.driver-mode #control-panel.panel-collapsed #driver-destination-controls:not(.hidden) {
-            display: block !important;
+        /* Minimizado: no mostrar “Ir al origen/destino” ni controles de llegada */
+        body.trip-active.driver-mode #control-panel.panel-collapsed #driver-route-hero,
+        body.trip-active.driver-mode #control-panel.panel-collapsed #driver-destination-controls,
+        body.trip-active.driver-mode.panel-minimized #control-panel #driver-route-hero,
+        body.trip-active.driver-mode.panel-minimized #control-panel #driver-destination-controls {
+            display: none !important;
+        }
+
+        body.trip-active.driver-mode #control-panel.panel-collapsed #trip-mini-bar,
+        body.trip-active.driver-mode.panel-minimized #control-panel #trip-mini-bar {
+            display: flex !important;
+        }
+
+        body.trip-active.driver-mode #control-panel.panel-collapsed .trip-drag-handle,
+        body.trip-active.driver-mode.panel-minimized #control-panel .trip-drag-handle {
+            display: flex !important;
         }
 
         html[data-theme="dark"] body.trip-active.driver-mode #control-panel {

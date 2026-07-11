@@ -10,47 +10,131 @@ import { APP_CONFIG } from './config.js';
 let messagingInstance = null;
 let androidPushInitialized = false;
 let androidPushInitPromise = null;
+let localNotifIdSeq = Math.floor(Date.now() % 100000);
 
 const PushNotifications = registerPlugin('PushNotifications');
+const LocalNotifications = registerPlugin('LocalNotifications');
 
-/** Canal Android de máxima prioridad: ofertas y demanda (VIP/taxi/moto/envío). */
-export const HONDU_RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts';
-const HONDU_DEFAULT_CHANNEL_ID = 'hondu_default';
+/**
+ * Canales v2: Android no permite cambiar sound/vibration de un canal ya creado.
+ * Subir el id fuerza canales nuevos con sonido + vibración.
+ */
+export const HONDU_RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v2';
+const HONDU_DEFAULT_CHANNEL_ID = 'hondu_default_v2';
 
 export function isAndroidFcmConfigured() {
     return APP_CONFIG.androidFcmEnabled === true;
 }
 
+function isRideAlertData(data = {}) {
+    const type = String(data.type || '');
+    const tag = String(data.tag || '');
+    return data.superVibrate === 'true'
+        || type === 'ride_demand_alert'
+        || type === 'trip_offer'
+        || type === 'freight_trip_alert'
+        || type === 'new_trip_staff'
+        || tag.startsWith('trip-offer-')
+        || tag.startsWith('freight-alert-')
+        || tag.startsWith('ride-demand-')
+        || tag.startsWith('staff-trip-');
+}
+
 /** Crea canales nativos con sonido + vibración (requerido en Android 8+). */
 async function ensureAndroidPushChannels() {
     if (!isCapacitorAndroid()) return;
+
+    const rideChannel = {
+        id: HONDU_RIDE_ALERT_CHANNEL_ID,
+        name: 'Viajes HonduRaite',
+        description: 'Ofertas y demanda de VIP, taxi, moto y envíos. Sonido y vibración fuerte.',
+        importance: 5,
+        visibility: 1,
+        sound: 'default',
+        vibration: true,
+        lights: true,
+        lightColor: '#2563eb'
+    };
+    const defaultChannel = {
+        id: HONDU_DEFAULT_CHANNEL_ID,
+        name: 'Avisos HonduRaite',
+        description: 'Notificaciones generales de HonduRaite (sonido y vibración)',
+        importance: 5,
+        visibility: 1,
+        sound: 'default',
+        vibration: true,
+        lights: true,
+        lightColor: '#2563eb'
+    };
+
     try {
-        await PushNotifications.createChannel({
-            id: HONDU_RIDE_ALERT_CHANNEL_ID,
-            name: 'Viajes HonduRaite',
-            description: 'Ofertas y demanda de VIP, taxi, moto y envíos. Sonido y vibración fuerte.',
-            importance: 5,
-            visibility: 1,
-            sound: 'default',
-            vibration: true,
-            lights: true,
-            lightColor: '#2563eb'
-        });
+        await PushNotifications.createChannel(rideChannel);
     } catch (e) {
-        console.warn('[push] canal hondu_ride_alerts:', e);
+        console.warn('[push] canal ride:', e);
     }
     try {
-        await PushNotifications.createChannel({
-            id: HONDU_DEFAULT_CHANNEL_ID,
-            name: 'Avisos HonduRaite',
-            description: 'Notificaciones generales de HonduRaite',
-            importance: 4,
-            visibility: 1,
-            sound: 'default',
-            vibration: true
-        });
+        await PushNotifications.createChannel(defaultChannel);
     } catch (e) {
-        console.warn('[push] canal hondu_default:', e);
+        console.warn('[push] canal default:', e);
+    }
+
+    // LocalNotifications usa los mismos ids (foreground con app abierta)
+    try {
+        if (LocalNotifications?.createChannel) {
+            await LocalNotifications.createChannel(rideChannel);
+            await LocalNotifications.createChannel(defaultChannel);
+        }
+    } catch (e) {
+        console.warn('[push] local channels:', e);
+    }
+}
+
+/**
+ * Con app en primer plano Android no muestra el push del sistema.
+ * Publicamos notificación local en el canal con sonido + vibración.
+ */
+async function showAndroidForegroundLocalNotification(payload = {}) {
+    if (!isCapacitorAndroid() || !LocalNotifications?.schedule) return false;
+
+    const data = payload.data || payload.notification?.data || {};
+    const title = payload.notification?.title
+        || data.title
+        || payload.title
+        || 'HonduRaite';
+    const body = payload.notification?.body
+        || data.body
+        || payload.body
+        || '';
+    if (!title && !body) return false;
+
+    const ride = isRideAlertData(data);
+    const channelId = ride ? HONDU_RIDE_ALERT_CHANNEL_ID : HONDU_DEFAULT_CHANNEL_ID;
+    localNotifIdSeq = (localNotifIdSeq + 1) % 900000;
+    const id = 100000 + localNotifIdSeq;
+
+    try {
+        await LocalNotifications.schedule({
+            notifications: [{
+                id,
+                title: String(title).slice(0, 80),
+                body: String(body).slice(0, 180),
+                channelId,
+                sound: 'default',
+                smallIcon: 'ic_launcher',
+                largeIcon: 'ic_launcher',
+                extra: {
+                    ...Object.fromEntries(
+                        Object.entries(data || {}).map(([k, v]) => [k, String(v ?? '')])
+                    ),
+                    title: String(title),
+                    body: String(body)
+                }
+            }]
+        });
+        return true;
+    } catch (e) {
+        console.warn('[push] local schedule:', e);
+        return false;
     }
 }
 
@@ -114,6 +198,20 @@ function routeForegroundPush(payload) {
     const body = payload.notification?.body || data.body || payload.body || '';
     const tripId = data.tripId || null;
     const type = data.type || '';
+
+    // Android foreground: sistema no suena → notificación local + haptics/audio
+    if (isCapacitorAndroid()) {
+        showAndroidForegroundLocalNotification({
+            notification: { title, body },
+            data
+        }).catch(() => {});
+        try {
+            const pattern = isRideAlertData(data)
+                ? [0, 450, 100, 450, 100, 550, 120, 750, 100, 950]
+                : [0, 250, 100, 250, 80, 350];
+            navigator.vibrate?.(pattern);
+        } catch (_) {}
+    }
 
     if (type === 'chat' || data.openChat === 'true') {
         notifyChatMessage({ senderName: title, text: body, tripId, force: true });
@@ -290,6 +388,16 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                 if (perm.receive !== 'granted') return null;
             }
 
+            // Local notifications también necesitan permiso en Android 13+
+            try {
+                if (LocalNotifications?.checkPermissions) {
+                    let lp = await LocalNotifications.checkPermissions();
+                    if (lp.display === 'prompt' || lp.display === 'prompt-with-rationale') {
+                        lp = await LocalNotifications.requestPermissions();
+                    }
+                }
+            } catch (_) {}
+
             await ensureAndroidPushChannels();
 
             let tokenValue = null;
@@ -321,14 +429,29 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
 
             await PushNotifications.addListener('pushNotificationReceived', (notification) => {
                 routeForegroundPush({
-                    notification: notification.notification,
-                    data: notification.data || notification.notification?.data || {}
+                    notification: notification.notification || {
+                        title: notification.title,
+                        body: notification.body
+                    },
+                    data: notification.data || notification.notification?.data || {},
+                    title: notification.title,
+                    body: notification.body
                 });
             }).catch(() => {});
 
             await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
                 handleNotificationNavigation(action.notification?.data || {});
             }).catch(() => {});
+
+            // Click en notificación local (foreground)
+            try {
+                if (LocalNotifications?.addListener) {
+                    await LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+                        const extra = action.notification?.extra || {};
+                        handleNotificationNavigation(extra);
+                    });
+                }
+            } catch (_) {}
 
             androidPushInitialized = true;
             return tokenValue || 'ready';

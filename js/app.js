@@ -1631,10 +1631,36 @@ if (document.readyState === 'loading') {
             }, 4000);
         };
 
+        // AudioContext compartido: en WebView Android hay que reanudarlo tras un gesto del usuario
+        let sharedNotifAudioCtx = null;
+        function getNotifAudioContext() {
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) return null;
+                if (!sharedNotifAudioCtx || sharedNotifAudioCtx.state === 'closed') {
+                    sharedNotifAudioCtx = new AC();
+                }
+                if (sharedNotifAudioCtx.state === 'suspended') {
+                    sharedNotifAudioCtx.resume().catch(() => {});
+                }
+                return sharedNotifAudioCtx;
+            } catch (_) {
+                return null;
+            }
+        }
+        const unlockNotifAudio = () => {
+            const ctx = getNotifAudioContext();
+            if (ctx?.state === 'suspended') ctx.resume().catch(() => {});
+        };
+        ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((evt) => {
+            document.addEventListener(evt, unlockNotifAudio, { passive: true, capture: true });
+        });
+
         // === Sonido de notificación (ding agradable) ===
         window.playNotificationSound = () => {
             try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const audioContext = getNotifAudioContext();
+                if (!audioContext) return;
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
                 const filter = audioContext.createBiquadFilter();
@@ -1665,8 +1691,8 @@ if (document.readyState === 'loading') {
         // === Alerta sonora exclusiva para conductores (nuevo viaje / oferta) ===
         window.playDriverTripOfferSound = () => {
             try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+                const ctx = getNotifAudioContext();
+                if (!ctx) return;
 
                 const tone = (freq, start, duration, volume = 0.32) => {
                     const osc = ctx.createOscillator();
@@ -1693,8 +1719,8 @@ if (document.readyState === 'loading') {
         // Sonido más urgente, "alerta de control" con patrón repetido y tono más grave + agudo
         window.playStaffTripAlertSound = () => {
             try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+                const ctx = getNotifAudioContext();
+                if (!ctx) return;
 
                 const urgentBeep = (freq, start, dur, vol = 0.45) => {
                     const osc = ctx.createOscillator();
@@ -18726,8 +18752,6 @@ function _initDestinationArrivalPanel() {
                 && !!data?.driverId
                 && !!data?.pin;
 
-            const gmapsBtn = document.getElementById('client-pin-gmaps-btn');
-            const gmapsLabel = document.getElementById('client-gmaps-btn-label');
             const pinHintText = data?.driverArrived
                 ? 'Toca para copiar · ¡tu conductor llegó! Muéstrale el PIN ahora'
                 : 'Toca para copiar · muéstraselo al conductor al subir';
@@ -18738,7 +18762,6 @@ function _initDestinationArrivalPanel() {
             if (!shouldShow) {
                 pinEl?.classList.add('hidden');
                 pinPanel?.classList.add('hidden');
-                gmapsBtn?.classList.add('hidden');
                 window.syncTripFloatPanels?.(data);
                 return;
             }
@@ -18751,10 +18774,6 @@ function _initDestinationArrivalPanel() {
             if (pinPanelCode) pinPanelCode.textContent = pinStr;
             if (pinHintEl) pinHintEl.textContent = pinHintText;
             if (pinPanelHint) pinPanelHint.textContent = panelHintText;
-            if (gmapsLabel) {
-                gmapsLabel.textContent = window.formatTripGmapsBtnLabel?.(data, 'client') || 'Abrir ruta en Google Maps';
-            }
-            gmapsBtn?.classList.remove('hidden');
 
             pinEl?.classList.remove('hidden');
             pinPanel?.classList.remove('hidden');

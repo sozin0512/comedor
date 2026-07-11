@@ -75,12 +75,23 @@ export function shouldNotifyInBackground() {
     return document.hidden || !document.hasFocus();
 }
 
+export function triggerVibration(pattern = DEFAULT_VIBRATE) {
+    try {
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            navigator.vibrate(0);
+            navigator.vibrate(pattern);
+            return true;
+        }
+    } catch (_) {}
+    return false;
+}
+
 export function triggerSuperFreightVibration() {
-    try { navigator.vibrate?.(SUPER_FREIGHT_VIBRATE); } catch (_) {}
+    triggerVibration(SUPER_FREIGHT_VIBRATE);
 }
 
 export function triggerSuperTripVibration() {
-    try { navigator.vibrate?.(SUPER_TRIP_OFFER_VIBRATE); } catch (_) {}
+    triggerVibration(SUPER_TRIP_OFFER_VIBRATE);
 }
 
 export async function showTripNotification({
@@ -165,7 +176,7 @@ export async function notifySuperDemandAlert({
     sound = 'default'
 }) {
     if (!title || !body) return false;
-    try { navigator.vibrate?.(vibrate); } catch (_) {}
+    triggerVibration(vibrate);
     const shown = await showTripNotification({
         title,
         body,

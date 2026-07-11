@@ -451,9 +451,8 @@ function defaultTripFloatPosition(el, key) {
     const narrow = isNarrowTripFloatViewport();
     const bottomSafe = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
     const positions = {
-        'client-pin': narrow
-            ? { left: '0.65rem', right: '0.65rem', bottom: bottomSafe }
-            : { left: '0.65rem', bottom: bottomSafe },
+        // Pasajero: tarjeta compacta (no full-width) en Android/iOS
+        'client-pin': { left: '0.65rem', bottom: bottomSafe },
         'driver-arrived': { right: '0.65rem', bottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' },
         'driver-pin': narrow
             ? { left: '0.65rem', right: '0.65rem', bottom: bottomSafe }
@@ -468,9 +467,16 @@ function defaultTripFloatPosition(el, key) {
     el.style.right = pos.right || 'auto';
     if (pos.bottom) el.style.bottom = pos.bottom;
     el.style.top = 'auto';
-    if (narrow && (key === 'driver-pin' || key === 'client-pin')) {
+    if (narrow && key === 'driver-pin') {
         el.style.maxWidth = 'none';
         el.style.width = 'auto';
+    }
+    if (key === 'client-pin') {
+        el.style.right = 'auto';
+        el.style.width = 'auto';
+        el.style.maxWidth = narrow
+            ? 'min(268px, calc(100vw - 1.3rem))'
+            : 'min(300px, calc(100vw - 1.3rem))';
     }
 }
 
@@ -603,11 +609,16 @@ export function bindFloatingTripPanels() {
     layer.querySelectorAll('[data-trip-float-min]').forEach((btn) => {
         if (btn.dataset.minBound === '1') return;
         btn.dataset.minBound = '1';
-        btn.addEventListener('click', (e) => {
+        const minimize = (e) => {
+            e.preventDefault();
             e.stopPropagation();
             const key = btn.dataset.tripFloatMin;
             if (key) window.toggleTripFloatMinimized?.(key, true);
-        });
+        };
+        // pointerup + click: iOS/Android a veces pierden click en paneles flotantes
+        btn.addEventListener('pointerdown', (e) => e.stopPropagation(), { passive: true });
+        btn.addEventListener('pointerup', minimize);
+        btn.addEventListener('click', minimize);
     });
 
     layer.querySelectorAll('[data-trip-float-expand]').forEach((el) => {
@@ -615,7 +626,7 @@ export function bindFloatingTripPanels() {
         el.dataset.expandBound = '1';
         el.addEventListener('pointerup', (e) => {
             if (wasRecentPanelDrag()) return;
-            if (isInteractiveTarget(e.target)) return;
+            if (isInteractiveTarget(e.target) && !e.target.closest?.('[data-trip-float-expand]')) return;
             const key = el.dataset.tripFloatExpand;
             if (key) window.toggleTripFloatMinimized?.(key, false);
         });
@@ -624,7 +635,20 @@ export function bindFloatingTripPanels() {
 
 export function toggleTripFloatMinimized(key, minimized) {
     setTripFloatMinimized(key, minimized);
-    window.syncTripFloatPanels?.(window.currentActiveTripData);
+    const floatEl = document.querySelector(`[data-trip-float="${key}"]`);
+    if (floatEl) {
+        applyTripFloatMinState(floatEl, key, minimized);
+        // Pill minimizado: re-anclar tamaño compacto sin perder preferencia del usuario
+        if (minimized) {
+            floatEl.style.width = 'auto';
+            floatEl.style.maxWidth = '';
+            floatEl.style.right = 'auto';
+        } else if (key === 'client-pin' || key === 'driver-pin') {
+            defaultTripFloatPosition(floatEl, key);
+        }
+    } else {
+        window.syncTripFloatPanels?.(window.currentActiveTripData);
+    }
 }
 
 function applyTripFloatMinState(floatEl, key, minimized) {
@@ -681,10 +705,18 @@ export function syncTripFloatPanels(data) {
             clientPinDisplay.classList.remove('hidden');
             const minLabel = document.getElementById('client-pin-min-label');
             if (minLabel) minLabel.textContent = `PIN ${String(data.pin || '----')}`;
-            setTripFloatMinimized('client-pin', false);
-            applyTripFloatMinState(clientPinFloat, 'client-pin', false);
+            // Respetar minimizar del usuario (antes se forzaba expandido en cada sync)
+            const clientMin = isTripFloatMinimized('client-pin');
+            applyTripFloatMinState(clientPinFloat, 'client-pin', clientMin);
             clientPinFloat.classList.remove('hidden');
-            dockTripFloat(clientPinFloat, 'client-pin');
+            if (!clientPinFloat.classList.contains('is-drag-positioned')) {
+                dockTripFloat(clientPinFloat, 'client-pin');
+            }
+            if (clientMin) {
+                clientPinFloat.style.width = 'auto';
+                clientPinFloat.style.maxWidth = '';
+                clientPinFloat.style.right = 'auto';
+            }
         } else {
             clientPinFloat.classList.add('hidden');
             clientPinDisplay.classList.add('hidden');
@@ -708,15 +740,17 @@ export function syncTripFloatPanels(data) {
 
     if (driverPinFloat && driverPinHero) {
         if (showDriverPin) {
-            setTripFloatMinimized('driver-pin', false);
+            const driverMin = isTripFloatMinimized('driver-pin');
             dockTripFloat(driverPinFloat, 'driver-pin');
             driverPinHero.classList.remove('hidden');
             pinInputGroup?.classList.remove('hidden');
-            applyTripFloatMinState(driverPinFloat, 'driver-pin', false);
+            applyTripFloatMinState(driverPinFloat, 'driver-pin', driverMin);
             driverPinFloat.classList.remove('hidden');
-            window.setTimeout(() => {
-                document.getElementById('driver-pin-input')?.focus?.();
-            }, 280);
+            if (!driverMin) {
+                window.setTimeout(() => {
+                    document.getElementById('driver-pin-input')?.focus?.();
+                }, 280);
+            }
         } else {
             driverPinFloat.classList.add('hidden');
             driverPinHero.classList.add('hidden');
