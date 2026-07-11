@@ -1469,6 +1469,69 @@ window.gMap = null;
             return { badge: '', sub: '', tone: '', showEta: false };
         };
 
+        /** Flotante unificado del pasajero (conductor + PIN). Evita doble panel. */
+        window.syncClientTripFloat = (data) => {
+            if (!data || window.userProfile?.role !== 'client') return;
+            const floatEl = document.getElementById('client-trip-float');
+            if (!floatEl || floatEl.classList.contains('hidden')) return;
+
+            const vType = data.driverVehicleType || data.driverVehicle?.type || 'auto';
+            const vehicle = data.driverVehicle || {};
+            const status = tpPassengerDriverStatus(data);
+            const photoUrl = data.driverPhoto || 'https://placehold.co/100x100/e2e8f0/64748b?text=Conductor';
+            const driverName = data.driverName || 'Conductor';
+            const plate = (vehicle.plate || '').toString().trim().toUpperCase();
+            const model = vehicle.model || '';
+            const typeLabel = tpVehicleTypeLabel(vType);
+
+            const setTxt = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            };
+            const setImg = (id, src) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.src = src;
+                el.onerror = () => { el.src = 'https://placehold.co/100x100/e2e8f0/64748b?text=Conductor'; };
+            };
+
+            setImg('client-trip-photo', photoUrl);
+            setImg('client-trip-min-photo', photoUrl);
+            setTxt('client-trip-name', driverName);
+            setTxt('client-trip-min-name', driverName);
+            setTxt('client-trip-rating', data.driverRating || '5.0');
+            setTxt('client-trip-plate', plate || '---');
+            setTxt('client-trip-vehicle', [typeLabel, model].filter(Boolean).join(' · ') || 'Vehículo');
+
+            const statusEl = document.getElementById('client-trip-status');
+            if (statusEl) {
+                statusEl.classList.remove('tone-en-route', 'tone-arrived', 'tone-reserved');
+                if (status.tone) statusEl.classList.add(`tone-${status.tone}`);
+            }
+            setTxt('client-trip-status-badge', status.badge || 'Viaje activo');
+            setTxt('client-trip-status-sub', status.sub || '');
+            setTxt('client-trip-min-meta', status.badge || 'Viaje activo');
+
+            const etaFull = document.getElementById('client-trip-status-eta');
+            const etaMin = document.getElementById('client-trip-min-eta');
+            const etaText = (document.getElementById('tp-status-eta')?.textContent
+                || document.getElementById('trip-mini-time')?.textContent
+                || '').trim();
+            if (status.showEta && etaText && etaText !== '-- min' && etaText !== '--') {
+                if (etaFull) {
+                    etaFull.textContent = etaText.includes('min') ? etaText : `${etaText}`;
+                    etaFull.classList.remove('hidden');
+                }
+                if (etaMin) {
+                    etaMin.textContent = etaText.replace(/\s*min\.?/i, '').trim() || etaText;
+                    etaMin.classList.remove('hidden');
+                }
+            } else {
+                etaFull?.classList.add('hidden');
+                etaMin?.classList.add('hidden');
+            }
+        };
+
         window.renderTripPartnerInfo = (data, role) => {
             const card = document.getElementById('trip-partner-info');
             if (!card || !data) return;
@@ -1484,7 +1547,14 @@ window.gMap = null;
             const statusSub = document.getElementById('tp-status-sub');
             const statusEta = document.getElementById('tp-status-eta');
 
-            card.classList.remove('hidden');
+            // Pasajero: la info del conductor va al flotante (no al panel inferior)
+            if (!isDriver) {
+                card.classList.add('hidden');
+                try { window.syncClientTripFloat?.(data); } catch (_) {}
+                // seguir rellenando ETA del panel interno por si se usa como fuente
+            } else {
+                card.classList.remove('hidden');
+            }
             card.classList.toggle('driver-view-passenger', isDriver);
             if (label) label.textContent = isDriver ? 'Tu pasajero' : 'Tu conductor';
             if (driverExtra) driverExtra.classList.toggle('hidden', isDriver);
@@ -4076,6 +4146,29 @@ window.gMap = null;
                     statusEta.textContent = `~${mins} min`;
                 } else if (tripData?.driverArrived) {
                     statusEta.classList.add('hidden');
+                }
+            }
+            // Flotante unificado del pasajero
+            const fBadge = document.getElementById('client-trip-status-badge');
+            const fSub = document.getElementById('client-trip-status-sub');
+            const fEta = document.getElementById('client-trip-status-eta');
+            const fMinEta = document.getElementById('client-trip-min-eta');
+            const fMinMeta = document.getElementById('client-trip-min-meta');
+            if (fBadge && statusBadge) fBadge.textContent = statusBadge.textContent;
+            if (fSub && statusSub) fSub.textContent = statusSub.textContent;
+            if (fMinMeta && statusBadge) fMinMeta.textContent = statusBadge.textContent;
+            if (fEta) {
+                if (tripData?.driverArrived) fEta.classList.add('hidden');
+                else {
+                    fEta.textContent = `~${mins} min`;
+                    fEta.classList.remove('hidden');
+                }
+            }
+            if (fMinEta) {
+                if (tripData?.driverArrived) fMinEta.classList.add('hidden');
+                else {
+                    fMinEta.textContent = `~${mins}`;
+                    fMinEta.classList.remove('hidden');
                 }
             }
 

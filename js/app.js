@@ -18760,9 +18760,11 @@ function _initDestinationArrivalPanel() {
                 ? '¡Tu conductor llegó! Muéstrale este PIN ahora'
                 : 'Muéstraselo al conductor cuando subas al vehículo';
 
+            // PIN solo en el flotante unificado (no duplicar en el panel inferior)
+            pinPanel?.classList.add('hidden');
+
             if (!shouldShow) {
                 pinEl?.classList.add('hidden');
-                pinPanel?.classList.add('hidden');
                 window.syncTripFloatPanels?.(data);
                 return;
             }
@@ -18777,7 +18779,6 @@ function _initDestinationArrivalPanel() {
             if (pinPanelHint) pinPanelHint.textContent = panelHintText;
 
             pinEl?.classList.remove('hidden');
-            pinPanel?.classList.remove('hidden');
             window.syncTripFloatPanels?.(data);
         };
 
@@ -23571,6 +23572,11 @@ window.cancelSetupAndLogout = () => {
             const statusEta = document.getElementById('tp-status-eta');
             const statusBadge = document.getElementById('tp-status-badge');
             const statusSub = document.getElementById('tp-status-sub');
+            const floatBadge = document.getElementById('client-trip-status-badge');
+            const floatSub = document.getElementById('client-trip-status-sub');
+            const floatEta = document.getElementById('client-trip-status-eta');
+            const floatMinEta = document.getElementById('client-trip-min-eta');
+            const floatMinMeta = document.getElementById('client-trip-min-meta');
             if (statusBadge) {
                 if (tripData?.driverArrived) {
                     statusBadge.textContent = '¡Ha llegado!';
@@ -23582,6 +23588,7 @@ window.cancelSetupAndLogout = () => {
                     statusBadge.textContent = '¡Va en camino!';
                 }
             }
+            if (floatBadge && statusBadge) floatBadge.textContent = statusBadge.textContent;
             if (statusSub) {
                 if (tripData?.driverArrived) {
                     statusSub.textContent = 'Muéstrale tu PIN';
@@ -23601,6 +23608,24 @@ window.cancelSetupAndLogout = () => {
                 statusEta.textContent = `~${mins} min`;
             } else if (statusEta && tripData?.driverArrived) {
                 statusEta.classList.add('hidden');
+            }
+            if (floatSub && statusSub) floatSub.textContent = statusSub.textContent;
+            if (floatMinMeta && statusBadge) floatMinMeta.textContent = statusBadge.textContent;
+            if (floatEta) {
+                if (tripData?.driverArrived) {
+                    floatEta.classList.add('hidden');
+                } else {
+                    floatEta.textContent = `~${mins} min`;
+                    floatEta.classList.remove('hidden');
+                }
+            }
+            if (floatMinEta) {
+                if (tripData?.driverArrived) {
+                    floatMinEta.classList.add('hidden');
+                } else {
+                    floatMinEta.textContent = `~${mins}`;
+                    floatMinEta.classList.remove('hidden');
+                }
             }
             if (busyText && tripData?.driverFinishingOtherTrip) {
                 busyText.innerText = `${firstName} está terminando un viaje y luego viene por ti. Llegada estimada: ~${mins} min. Síguelo en el mapa.`;

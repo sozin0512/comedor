@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.10.4">
+    <meta name="hr-app-version" content="2026.07.10.5">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.10.4">
+    <link rel="manifest" href="manifest.json?v=2026.07.10.5">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,13 +30,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.10.4">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.10.5">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.10.4">
-    <script src="js/maps-init.js?v=2026.07.10.4"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.10.5">
+    <script src="js/maps-init.js?v=2026.07.10.5"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.10.4';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.10.5';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -94,10 +94,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.10.4';
+        window.__HR_BUILD_VERSION__ = '2026.07.10.5';
         (function () {
             try {
-                var build = '2026.07.10.4';
+                var build = '2026.07.10.5';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -289,39 +289,65 @@
     <!-- Objetivos activos del conductor (flotante, fuera del panel para no quedar oculto) -->
     <div id="driver-objectives-active" class="hidden" aria-live="polite"></div>
 
-    <!-- PIN + chat durante viaje activo (flotantes, fuera del panel) -->
+    <!-- Pasajero: 1 flotante unificado (conductor + PIN). Evita 2 paneles superpuestos. -->
     <div id="trip-floats-layer" class="hidden" aria-live="polite">
-        <div id="client-pin-float" class="trip-float trip-float--passenger hidden" data-trip-float="client-pin">
-            <div class="trip-float-min-view hidden" data-trip-float-expand="client-pin" title="Toca para ver · arrastra para mover">
-                <div class="trip-pin-min-pill" role="presentation">
-                    <i class="fas fa-key"></i>
-                    <span id="client-pin-min-label">PIN</span>
+        <div id="client-trip-float" class="trip-float trip-float--passenger trip-float--client-trip hidden" data-trip-float="client-trip">
+            <div class="trip-float-min-view hidden" data-trip-float-expand="client-trip" title="Toca para ver · arrastra para mover">
+                <div class="client-trip-min-pill" role="presentation">
+                    <img id="client-trip-min-photo" class="client-trip-min-photo" alt="" src="https://placehold.co/64x64/e2e8f0/64748b?text=·">
+                    <div class="client-trip-min-text min-w-0">
+                        <span id="client-trip-min-name" class="client-trip-min-name">Conductor</span>
+                        <span id="client-trip-min-meta" class="client-trip-min-meta">En camino</span>
+                    </div>
+                    <span id="client-trip-min-eta" class="client-trip-min-eta hidden">--</span>
+                    <span id="client-pin-min-label" class="client-trip-min-pin hidden">PIN</span>
                 </div>
             </div>
             <div class="trip-float-full-view">
-            <div class="trip-float-head" title="Arrastra aquí para mover">
-                <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
-                <p class="trip-float-title"><i class="fas fa-key"></i> Tu PIN</p>
-                <button type="button" class="trip-float-min-btn" data-no-drag data-trip-float-min="client-pin" title="Minimizar" aria-label="Minimizar PIN">
-                    <i class="fas fa-minus"></i>
-                </button>
-            </div>
-            <div id="client-pin-display" class="hidden client-pin-hero trip-float-body">
-                <p id="client-trip-accepted-kicker" class="client-pin-hero-kicker"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
-                <button type="button" data-trip-action="copy-pin" id="client-pin-btn" class="client-pin-hero-btn trip-touch-btn w-full">
-                    <div class="flex items-center justify-center gap-2 pointer-events-none">
-                        <i class="fas fa-key text-lg"></i>
-                        <div class="text-left flex-1 min-w-0">
-                            <p class="client-pin-hero-label">Tu PIN de Seguridad</p>
-                            <p id="client-pin-code" class="client-pin-hero-code">----</p>
+                <div class="trip-float-head" title="Arrastra aquí para mover">
+                    <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
+                    <p class="trip-float-title"><i class="fas fa-user-check"></i> Tu conductor</p>
+                    <button type="button" class="trip-float-min-btn" data-no-drag data-trip-float-min="client-trip" title="Minimizar" aria-label="Minimizar tarjeta del conductor">
+                        <i class="fas fa-minus"></i>
+                    </button>
+                </div>
+                <div class="client-trip-float-body trip-float-body">
+                    <div id="client-trip-status" class="client-trip-status tone-en-route">
+                        <div class="client-trip-status-text">
+                            <span id="client-trip-status-badge" class="client-trip-status-badge">¡Va en camino!</span>
+                            <span id="client-trip-status-sub" class="client-trip-status-sub">Síguelo en el mapa</span>
                         </div>
-                        <i class="fas fa-copy text-sm opacity-80 shrink-0"></i>
+                        <span id="client-trip-status-eta" class="client-trip-status-eta hidden">-- min</span>
                     </div>
-                </button>
-                <p id="client-pin-hint" class="client-pin-hero-hint">Toca para copiar · muéstraselo al conductor al subir</p>
-            </div>
+                    <div class="client-trip-driver-row">
+                        <img id="client-trip-photo" class="client-trip-photo" alt="Conductor" src="https://placehold.co/100x100/e2e8f0/64748b?text=Conductor">
+                        <div class="client-trip-driver-meta min-w-0">
+                            <p id="client-trip-name" class="client-trip-name">Conductor</p>
+                            <p class="client-trip-rating"><i class="fas fa-star"></i> <span id="client-trip-rating">5.0</span>
+                                <span id="client-trip-plate" class="client-trip-plate">---</span>
+                            </p>
+                            <p id="client-trip-vehicle" class="client-trip-vehicle">Vehículo</p>
+                        </div>
+                    </div>
+                    <div id="client-pin-display" class="hidden client-pin-hero client-pin-hero--in-float">
+                        <p id="client-trip-accepted-kicker" class="client-pin-hero-kicker"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
+                        <button type="button" data-trip-action="copy-pin" id="client-pin-btn" class="client-pin-hero-btn trip-touch-btn w-full">
+                            <div class="flex items-center justify-center gap-2 pointer-events-none">
+                                <i class="fas fa-key text-lg"></i>
+                                <div class="text-left flex-1 min-w-0">
+                                    <p class="client-pin-hero-label">Tu PIN de Seguridad</p>
+                                    <p id="client-pin-code" class="client-pin-hero-code">----</p>
+                                </div>
+                                <i class="fas fa-copy text-sm opacity-80 shrink-0"></i>
+                            </div>
+                        </button>
+                        <p id="client-pin-hint" class="client-pin-hero-hint">Toca para copiar · muéstraselo al conductor al subir</p>
+                    </div>
+                </div>
             </div>
         </div>
+        <!-- Compat: id antiguo redirige a la tarjeta unificada (oculto) -->
+        <div id="client-pin-float" class="hidden" aria-hidden="true"></div>
 
         <div id="driver-arrived-float" class="trip-float trip-float--driver trip-float--pill hidden" data-trip-float="driver-arrived" title="Toca para marcar llegada · arrastra para mover">
             <div id="btn-driver-arrived" class="trip-arrived-pill-btn" data-trip-float-tap="arrived" role="presentation">
@@ -1938,6 +1964,6 @@
         </main>
     </div>
 
-    <script type="module" src="js/app.js?v=2026.07.10.4"></script>
+    <script type="module" src="js/app.js?v=2026.07.10.5"></script>
 </body>
 </html>

@@ -451,7 +451,8 @@ function defaultTripFloatPosition(el, key) {
     const narrow = isNarrowTripFloatViewport();
     const bottomSafe = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
     const positions = {
-        // Pasajero: tarjeta compacta (no full-width) en Android/iOS
+        // Pasajero: una sola tarjeta flotante (conductor + PIN)
+        'client-trip': { left: '0.65rem', top: 'max(4.75rem, calc(env(safe-area-inset-top, 0px) + 3.75rem))' },
         'client-pin': { left: '0.65rem', bottom: bottomSafe },
         'driver-arrived': { right: '0.65rem', bottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' },
         'driver-pin': narrow
@@ -465,18 +466,24 @@ function defaultTripFloatPosition(el, key) {
     el.style.position = 'fixed';
     el.style.left = pos.left || 'auto';
     el.style.right = pos.right || 'auto';
-    if (pos.bottom) el.style.bottom = pos.bottom;
-    el.style.top = 'auto';
+    if (pos.bottom) {
+        el.style.bottom = pos.bottom;
+        el.style.top = 'auto';
+    }
+    if (pos.top) {
+        el.style.top = pos.top;
+        el.style.bottom = 'auto';
+    }
     if (narrow && key === 'driver-pin') {
         el.style.maxWidth = 'none';
         el.style.width = 'auto';
     }
-    if (key === 'client-pin') {
+    if (key === 'client-trip' || key === 'client-pin') {
         el.style.right = 'auto';
         el.style.width = 'auto';
         el.style.maxWidth = narrow
-            ? 'min(268px, calc(100vw - 1.3rem))'
-            : 'min(300px, calc(100vw - 1.3rem))';
+            ? 'min(300px, calc(100vw - 1.3rem))'
+            : 'min(320px, calc(100vw - 1.3rem))';
     }
 }
 
@@ -491,7 +498,7 @@ function dockTripFloat(el, key) {
 }
 
 function getTripFloatDragHandle(el, key) {
-    if (key === 'chat' || key === 'client-pin' || key === 'driver-pin') {
+    if (key === 'chat' || key === 'client-pin' || key === 'client-trip' || key === 'driver-pin') {
         return el.querySelector('.trip-float-head') || el;
     }
     return el;
@@ -643,7 +650,7 @@ export function toggleTripFloatMinimized(key, minimized) {
             floatEl.style.width = 'auto';
             floatEl.style.maxWidth = '';
             floatEl.style.right = 'auto';
-        } else if (key === 'client-pin' || key === 'driver-pin') {
+        } else if (key === 'client-pin' || key === 'client-trip' || key === 'driver-pin') {
             defaultTripFloatPosition(floatEl, key);
         }
     } else {
@@ -674,19 +681,20 @@ export function syncTripFloatPanels(data) {
 
     if (!inTrip) {
         layer.classList.add('hidden');
+        document.getElementById('client-trip-float')?.classList.add('hidden');
         document.getElementById('client-pin-float')?.classList.add('hidden');
         document.getElementById('driver-arrived-float')?.classList.add('hidden');
         document.getElementById('driver-pin-float')?.classList.add('hidden');
         document.getElementById('trip-chat-float-pill')?.classList.add('hidden');
         document.getElementById('chat-float')?.classList.add('hidden');
-        document.body.classList.remove('trip-chat-open');
+        document.body.classList.remove('trip-chat-open', 'passenger-trip-float-active');
         return;
     }
 
     layer.classList.remove('hidden');
     bindFloatingTripPanels();
 
-    const clientPinFloat = document.getElementById('client-pin-float');
+    const clientTripFloat = document.getElementById('client-trip-float');
     const clientPinDisplay = document.getElementById('client-pin-display');
     const driverArrivedFloat = document.getElementById('driver-arrived-float');
     const driverPinFloat = document.getElementById('driver-pin-float');
@@ -695,31 +703,46 @@ export function syncTripFloatPanels(data) {
     const chatPill = document.getElementById('trip-chat-float-pill');
     const chatFloat = document.getElementById('chat-float');
 
-    const showClientPin = isClient
-        && data.status === 'accepted'
+    // Un solo flotante pasajero: datos del conductor + PIN (si aplica)
+    const showClientTrip = isClient
         && !!data.driverId
+        && ['accepted', 'in_progress'].includes(data.status);
+    const showClientPin = showClientTrip
+        && data.status === 'accepted'
         && !!data.pin;
 
-    if (clientPinFloat && clientPinDisplay) {
-        if (showClientPin) {
-            clientPinDisplay.classList.remove('hidden');
-            const minLabel = document.getElementById('client-pin-min-label');
-            if (minLabel) minLabel.textContent = `PIN ${String(data.pin || '----')}`;
-            // Respetar minimizar del usuario (antes se forzaba expandido en cada sync)
-            const clientMin = isTripFloatMinimized('client-pin');
-            applyTripFloatMinState(clientPinFloat, 'client-pin', clientMin);
-            clientPinFloat.classList.remove('hidden');
-            if (!clientPinFloat.classList.contains('is-drag-positioned')) {
-                dockTripFloat(clientPinFloat, 'client-pin');
+    if (clientTripFloat) {
+        if (showClientTrip) {
+            document.body.classList.add('passenger-trip-float-active');
+            if (clientPinDisplay) {
+                clientPinDisplay.classList.toggle('hidden', !showClientPin);
+            }
+            const minPin = document.getElementById('client-pin-min-label');
+            if (minPin) {
+                if (showClientPin) {
+                    minPin.textContent = `PIN ${String(data.pin || '')}`;
+                    minPin.classList.remove('hidden');
+                } else {
+                    minPin.classList.add('hidden');
+                }
+            }
+            const clientMin = isTripFloatMinimized('client-trip');
+            applyTripFloatMinState(clientTripFloat, 'client-trip', clientMin);
+            clientTripFloat.classList.remove('hidden');
+            if (!clientTripFloat.classList.contains('is-drag-positioned')) {
+                dockTripFloat(clientTripFloat, 'client-trip');
             }
             if (clientMin) {
-                clientPinFloat.style.width = 'auto';
-                clientPinFloat.style.maxWidth = '';
-                clientPinFloat.style.right = 'auto';
+                clientTripFloat.style.width = 'auto';
+                clientTripFloat.style.maxWidth = '';
+                clientTripFloat.style.right = 'auto';
             }
+            // Rellenar datos del conductor en el flotante
+            try { window.syncClientTripFloat?.(data); } catch (_) {}
         } else {
-            clientPinFloat.classList.add('hidden');
-            clientPinDisplay.classList.add('hidden');
+            clientTripFloat.classList.add('hidden');
+            clientPinDisplay?.classList.add('hidden');
+            document.body.classList.remove('passenger-trip-float-active');
         }
     }
 
