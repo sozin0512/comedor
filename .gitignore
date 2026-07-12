@@ -39,6 +39,8 @@ android/app/build/
 android/app/release/
 android/capacitor-cordova-android-plugins/build/
 android/local.properties
+android/key.properties
+android/app/key.properties
 android/captures/
 android/*.iml
 android/.cxx/
