@@ -40,15 +40,15 @@
          * inyectado por MainActivity (--native-safe-top / --native-safe-bottom).
          */
         body.capacitor-native {
-            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 36px));
+            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 44px));
             --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 12px));
             --safe-left: var(--native-safe-left, env(safe-area-inset-left, 0px));
             --safe-right: var(--native-safe-right, env(safe-area-inset-right, 0px));
         }
 
         body.capacitor-android {
-            /* Status bar + un poco de aire para no pelear con la cortina de notificaciones */
-            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 40px));
+            /* Status bar + aire extra: si no, el gesto de notificaciones “come” los botones */
+            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 52px));
             --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 16px));
         }
 
@@ -63,23 +63,73 @@
         body.capacitor-android #app-header,
         body.capacitor-ios #app-header {
             /* Respiro extra bajo el safe-area: botones lejos del reloj/notificaciones */
-            padding-top: 0.45rem;
+            padding-top: 0.55rem;
         }
 
         body.capacitor-android .header-toolbar {
-            min-height: 3.75rem;
-            padding-top: 0.2rem;
-            padding-bottom: 0.35rem;
+            min-height: 3.85rem;
+            padding-top: 0.25rem;
+            padding-bottom: 0.4rem;
         }
 
         body.capacitor-android .header-icon-btn {
-            min-width: 2.55rem;
-            min-height: 2.55rem;
+            min-width: 2.6rem;
+            min-height: 2.6rem;
         }
 
         body.capacitor-android .hn-flag-stripe {
             /* La franja de bandera también queda bajo el safe-area del shell */
             flex-shrink: 0;
+        }
+
+        /*
+         * Paneles fixed a pantalla completa (admin / supervisor / perfil / setup).
+         * inset:0 ignora el padding de #app-interface → hay que aplicar safe-area aquí.
+         */
+        body.capacitor-native .ops-panel,
+        body.capacitor-android .ops-panel {
+            padding-top: var(--safe-top) !important;
+            padding-bottom: var(--safe-bottom) !important;
+            padding-left: var(--safe-left);
+            padding-right: var(--safe-right);
+            box-sizing: border-box;
+        }
+
+        body.capacitor-native #profile-manage-panel,
+        body.capacitor-android #profile-manage-panel {
+            padding-top: var(--safe-top) !important;
+            padding-bottom: var(--safe-bottom) !important;
+            box-sizing: border-box;
+        }
+
+        body.capacitor-native .driver-setup-screen,
+        body.capacitor-android .driver-setup-screen {
+            padding-top: 0; /* la barra interna ya usa safe-top */
+        }
+
+        /* Paneles absolute con top:0 (conductor/pasajero a pantalla completa) */
+        body.capacitor-native.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel,
+        body.capacitor-android.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+            top: var(--safe-top) !important;
+            height: calc(100% - var(--safe-top) - var(--safe-bottom)) !important;
+            max-height: none !important;
+            padding-top: 0.55rem !important;
+            padding-bottom: max(0.45rem, var(--safe-bottom)) !important;
+        }
+
+        body.capacitor-native.client-mode.is-searching:not(.panel-minimized):not(.panel-collapsed) #control-panel,
+        body.capacitor-android.client-mode.is-searching:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+            top: var(--safe-top) !important;
+            height: calc(100% - var(--safe-top) - var(--safe-bottom)) !important;
+            max-height: none !important;
+            padding-top: 0.55rem !important;
+            padding-bottom: max(0.45rem, var(--safe-bottom)) !important;
+        }
+
+        body.capacitor-native.trip-active #control-panel,
+        body.capacitor-android.trip-active #control-panel {
+            /* El panel de viaje activo no debe subir hasta el reloj */
+            padding-bottom: max(0.75rem, var(--safe-bottom));
         }
 
         /* Header fijo arriba — el logo no invade el panel de viajes */
@@ -2846,15 +2896,16 @@
         }
 
         body.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
-            top: 0 !important;
-            bottom: 0 !important;
-            height: 100% !important;
-            max-height: 100% !important;
+            /* top usa safe-area: absolute top:0 ignora padding de #app-interface */
+            top: var(--safe-top, env(safe-area-inset-top, 0px)) !important;
+            bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            height: auto !important;
+            max-height: none !important;
             min-height: 0 !important;
             border-radius: 0 !important;
             z-index: 12000 !important;
-            padding-top: max(0.2rem, var(--safe-top, env(safe-area-inset-top, 0px)));
-            padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+            padding-top: 0.5rem;
+            padding-bottom: 0.45rem;
             box-shadow: none !important;
         }
 
@@ -3958,15 +4009,15 @@
 
         /* Pasajero buscando conductor: panel central a pantalla completa */
         body.client-mode.is-searching:not(.panel-minimized):not(.panel-collapsed) #control-panel {
-            top: 0 !important;
-            bottom: 0 !important;
-            height: 100% !important;
-            max-height: 100dvh !important;
+            top: var(--safe-top, env(safe-area-inset-top, 0px)) !important;
+            bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            height: auto !important;
+            max-height: none !important;
             min-height: 0 !important;
             border-radius: 0 !important;
             z-index: 12000 !important;
-            padding-top: max(0.2rem, var(--safe-top, env(safe-area-inset-top, 0px)));
-            padding-bottom: max(0.35rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+            padding-top: 0.5rem;
+            padding-bottom: 0.45rem;
             box-shadow: none !important;
         }
 
@@ -7689,10 +7740,25 @@
             display: flex;
             background: #0b1220;
             color: #e2e8f0;
+            /* Fallback web: notch iOS / Android browser */
+            padding-top: env(safe-area-inset-top, 0px);
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+            box-sizing: border-box;
         }
 
         .ops-panel.hidden {
             display: none !important;
+        }
+
+        body.capacitor-native .ops-sidebar-brand,
+        body.capacitor-android .ops-sidebar-brand {
+            padding-top: 0.85rem;
+        }
+
+        body.capacitor-native .ops-icon-btn,
+        body.capacitor-android .ops-icon-btn {
+            min-width: 2.5rem;
+            min-height: 2.5rem;
         }
 
         .ops-backdrop {
@@ -7876,11 +7942,18 @@
             justify-content: space-between;
             gap: 0.65rem;
             padding: 0.75rem 1rem;
+            min-height: 3.25rem;
             border-bottom: 1px solid rgba(51, 65, 85, 0.55);
             background: rgba(15, 23, 42, 0.82);
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             flex-shrink: 0;
+        }
+
+        body.capacitor-native .ops-topbar,
+        body.capacitor-android .ops-topbar {
+            padding-top: 0.55rem;
+            padding-bottom: 0.55rem;
         }
 
         .ops-topbar--emerald {

@@ -116,7 +116,14 @@ html, body {
         z-index: 5000;
         overflow: hidden;
     }
-    body.is-searching #control-panel { bottom: auto; top: 0; max-height: 100dvh; border-radius: 0; padding-top: 20px; }
+    body.is-searching #control-panel {
+        bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+        top: var(--safe-top, env(safe-area-inset-top, 0px));
+        max-height: none;
+        height: auto;
+        border-radius: 0;
+        padding-top: 0.5rem;
+    }
     body.is-searching #map-container { opacity: 0.05; pointer-events: none; }
     #map-container { height: 100%; transition: opacity 0.3s ease; }
     

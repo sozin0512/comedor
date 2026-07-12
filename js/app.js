@@ -3844,6 +3844,7 @@ if (document.readyState === 'loading') {
             return r.count;
         }
 
+        /** Solo mientras el pasajero busca viaje (notificando de verdad). */
         function formatRegisteredDriversWaitingLabel(count) {
             const n = Math.max(0, Number(count) || 0);
             if (n <= 0) return 'Conductores están siendo notificados';
@@ -3851,9 +3852,21 @@ if (document.readyState === 'loading') {
             return `Estos ${n} conductores están siendo notificados`;
         }
 
+        /**
+         * Texto neutro de flota (mapa / tarifa). NO decir "notificados"
+         * si el pasajero aún no pidió viaje.
+         */
+        function formatRegisteredDriversFleetLabel(count) {
+            const n = Math.max(0, Number(count) || 0);
+            if (n <= 0) return '';
+            if (n === 1) return '1 conductor en tu ciudad';
+            return `${n} conductores en tu ciudad`;
+        }
+
         window.countRegisteredDrivers = countRegisteredDrivers;
         window.getRegisteredDriversForNotify = getRegisteredDriversForNotify;
         window.formatRegisteredDriversWaitingLabel = formatRegisteredDriversWaitingLabel;
+        window.formatRegisteredDriversFleetLabel = formatRegisteredDriversFleetLabel;
 
         function stopDriverNotifyNameAnimation() {
             if (window._driverNotifyNameTimer) {
@@ -4080,7 +4093,8 @@ if (document.readyState === 'loading') {
                 // En búsqueda el mensaje va en el panel, no en el chip del mapa
                 return;
             }
-            countEl.textContent = formatRegisteredDriversWaitingLabel(n);
+            // Chip del mapa: flota en ciudad, no "están siendo notificados"
+            countEl.textContent = formatRegisteredDriversFleetLabel(n);
             indicator.classList.remove('hidden');
         }
 
@@ -24709,9 +24723,10 @@ window.cancelSetupAndLogout = () => {
                             ? '1 conductor disponible'
                             : `${count} conductores disponibles`;
                     } else if (regCount > 0) {
-                        // Mostrar flota registrada (nunca "0 en línea")
+                        // Flota registrada en la ciudad — NO "están siendo notificados"
+                        // (eso solo aplica cuando el pasajero ya pidió viaje)
                         indicator.classList.remove('hidden');
-                        countEl.textContent = formatRegisteredDriversWaitingLabel(regCount);
+                        countEl.textContent = formatRegisteredDriversFleetLabel(regCount);
                     } else {
                         countEl.textContent = '';
                         indicator.classList.add('hidden');
@@ -26135,13 +26150,12 @@ window.calculateTripRoute = async (options = {}) => {
                     ?? 0
                 );
                 const onlineCount = Number(window.lastNearbyDriversCount || 0);
-                // Preferir flota registrada; si no, online cerca. Nunca "0 en línea".
+                // Tarifa / mapa: solo info de flota. "Notificados" solo en is-searching.
                 let fleetLabel = '';
-                if (regCount > 0) {
-                    fleetLabel = (window.formatRegisteredDriversWaitingLabel || formatRegisteredDriversWaitingLabel)(regCount);
-                } else if (onlineCount > 0) {
+                if (onlineCount > 0) {
                     fleetLabel = onlineCount === 1 ? '1 conductor cerca' : `${onlineCount} conductores cerca`;
-                    window.prefetchRegisteredDriversCount?.();
+                } else if (regCount > 0) {
+                    fleetLabel = (window.formatRegisteredDriversFleetLabel || formatRegisteredDriversFleetLabel)(regCount);
                 } else {
                     window.prefetchRegisteredDriversCount?.();
                 }

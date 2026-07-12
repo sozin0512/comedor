@@ -61,7 +61,7 @@ export function ensureNativeSafeAreaFallback() {
             probe.remove();
         } catch (_) {}
 
-        const minTop = isCapacitorAndroid() ? 40 : 36;
+        const minTop = isCapacitorAndroid() ? 52 : 44;
         const minBottom = isCapacitorAndroid() ? 16 : 12;
         const safeTop = Math.max(topPx, minTop);
         root.style.setProperty('--native-safe-top', `${safeTop}px`);

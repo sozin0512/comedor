@@ -26,8 +26,9 @@ import com.getcapacitor.BridgeActivity;
  * 3) Inyectar --native-safe-top/bottom al CSS con el inset real + un respiro.
  */
 public class MainActivity extends BridgeActivity {
-    private static final float EXTRA_TOP_DP = 10f;
-    private static final float EXTRA_BOTTOM_DP = 4f;
+    /** Aire extra bajo status bar para que los botones no activen la cortina de notificaciones. */
+    private static final float EXTRA_TOP_DP = 18f;
+    private static final float EXTRA_BOTTOM_DP = 6f;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -63,9 +64,9 @@ public class MainActivity extends BridgeActivity {
         int cssBottom = Math.round(bottom / density);
         int cssLeft = Math.round(left / density);
         int cssRight = Math.round(right / density);
-        // Mínimos de seguridad si el SO reporta 0
-        if (cssTop < 28) cssTop = 28 + Math.round(EXTRA_TOP_DP);
-        if (cssBottom < 8) cssBottom = 8;
+        // Mínimos de seguridad (status bar típico ~24–28dp + gesto notificaciones)
+        if (cssTop < 48) cssTop = 48;
+        if (cssBottom < 10) cssBottom = 10;
 
         final String js =
             "(function(){try{"
