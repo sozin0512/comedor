@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.10.6">
+    <meta name="hr-app-version" content="2026.07.11.1">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.10.6">
+    <link rel="manifest" href="manifest.json?v=2026.07.11.1">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,17 +30,19 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.10.6">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.11.1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.10.6">
-    <script src="js/maps-init.js?v=2026.07.10.6"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.11.1">
+    <script src="js/maps-init.js?v=2026.07.11.1"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.10.6';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.11.1';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
         mapsScript.async = true;
+        // Permite ver el stack real si Maps falla (en vez del genérico "Script error.")
+        mapsScript.crossOrigin = 'anonymous';
         mapsScript.onerror = () => {
             window.__mapsLoadError = true;
             document.body?.classList.add('map-load-failed');
@@ -94,10 +96,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.10.6';
+        window.__HR_BUILD_VERSION__ = '2026.07.11.1';
         (function () {
             try {
-                var build = '2026.07.10.6';
+                var build = '2026.07.11.1';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -735,7 +737,7 @@
 </div>
 
     <!-- CONTENEDOR FLOTANTE PARA TOASTS -->
-    <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 md:left-auto md:right-5 md:translate-x-0 z-[40000] flex flex-col gap-2 w-[90%] max-w-sm pointer-events-none"></div>
+    <div id="toast-container" class="fixed left-1/2 -translate-x-1/2 md:left-auto md:right-5 md:translate-x-0 z-[40000] flex flex-col gap-2 w-[90%] max-w-sm pointer-events-none" style="top: max(1.25rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.5rem));"></div>
 
     <!-- ENCUESTA DE CANCELACIÓN (viajes ya confirmados) -->
     <div id="cancellation-survey-screen" class="cancellation-survey-screen flex items-center justify-center p-4">
@@ -1387,7 +1389,7 @@
                 <div id="nearby-drivers-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-2xl border border-emerald-100 z-40">
                     <p class="text-[10px] font-black text-emerald-700 uppercase text-center tracking-wider flex items-center gap-2">
                         <i class="fas fa-car-side"></i>
-                        <span id="nearby-drivers-count">0 conductores en línea</span>
+                        <span id="nearby-drivers-count"></span>
                     </p>
                 </div>
                 <button type="button" id="service-zone-map-chip" class="hidden absolute top-3 left-3 z-40 max-w-[calc(100%-1.5rem)] service-zone-map-chip" data-trip-action="expand-zone-panel" aria-label="Cambiar ciudad">
@@ -1737,6 +1739,22 @@
             <div class="passenger-pending-pulse"><i class="fas fa-radar" aria-hidden="true"></i></div>
             <h4 id="searching-status-headline" class="passenger-pending-title">Buscando conductores</h4>
             <p id="searching-status-sub" class="passenger-pending-sub">Conductores de tu ciudad pueden ofertarte</p>
+            <div id="searching-notify-countdown" class="hidden passenger-pending-countdown" aria-live="polite">
+                <p id="searching-notify-countdown-label" class="passenger-pending-countdown-label">Estos conductores están siendo notificados</p>
+                <div id="searching-notify-fly-stage" class="passenger-notify-fly-stage" aria-live="polite">
+                    <div id="searching-notify-fly-msg" class="passenger-notify-fly-msg" aria-hidden="true">
+                        <i class="fas fa-comment-dots"></i>
+                    </div>
+                    <div id="searching-notify-avatars" class="passenger-notify-avatars"></div>
+                    <p id="searching-notify-name-line" class="passenger-notify-name-line">Enviando tu mensaje…</p>
+                    <p id="searching-notify-name-progress" class="passenger-notify-name-progress"></p>
+                </div>
+                <div class="passenger-pending-countdown-ring" aria-hidden="true">
+                    <span id="searching-notify-countdown-time" class="passenger-pending-countdown-time">120</span>
+                    <span class="passenger-pending-countdown-unit">seg</span>
+                </div>
+                <p id="searching-notify-countdown-hint" class="passenger-pending-countdown-hint">Quédate aquí — si sales, se detiene la búsqueda</p>
+            </div>
         </div>
         <div id="searching-trip-summary" class="passenger-pending-route"></div>
         <div id="trip-viewers-panel" class="hidden passenger-offers-panel">
@@ -1749,7 +1767,9 @@
             <p id="searching-driver-card-title"></p>
             <p id="searching-driver-card-sub"></p>
         </div>
-        <button type="button" data-trip-action="cancel" class="passenger-pending-cancel trip-touch-btn"><span class="pointer-events-none">Cancelar solicitud</span></button>
+        <button type="button" data-trip-action="cancel" id="searching-cancel-btn" class="passenger-pending-cancel trip-touch-btn" aria-label="Cancelar búsqueda de viaje">
+            <span class="pointer-events-none">Cancelar búsqueda</span>
+        </button>
     </div>
 </div>
 
@@ -1977,6 +1997,6 @@
         </main>
     </div>
 
-    <script type="module" src="js/app.js?v=2026.07.10.6"></script>
+    <script type="module" src="js/app.js?v=2026.07.11.1"></script>
 </body>
 </html>

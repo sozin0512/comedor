@@ -1387,7 +1387,8 @@ if (document.readyState === 'loading') {
         initCrashReporting({
             db, appId, collection, addDoc, serverTimestamp,
             onSubmitted: (type) => {
-                if (type === 'crash') {
+                // Solo avisar en crashes reales de la app (ruido cross-origin ya se filtra)
+                if (type === 'crash' && window.userProfile?.role) {
                     window.showToast?.('Se reportó un fallo automáticamente al equipo técnico.', 'warning');
                 }
             }
@@ -3073,6 +3074,8 @@ if (document.readyState === 'loading') {
             window._passengerCounterDrafts = {};
             window._passengerCounterRowOpen = {};
             window._passengerCounterFocusKey = null;
+            window.stopNoDriversNotifyCountdown?.();
+            window.stopDriverNotifyNameAnimation?.();
         }
 
         window._passengerCounterDrafts = window._passengerCounterDrafts || {};
@@ -3714,6 +3717,373 @@ if (document.readyState === 'loading') {
             return count;
         }
 
+        const REGISTERED_DRIVERS_CACHE_TTL_MS = 120000;
+        const NOTIFY_FLY_INTERVAL_MS = 1800;
+        const NOTIFY_DRIVERS_MAX = 12;
+        const NOTIFY_AVATAR_PLACEHOLDER = 'https://placehold.co/80x80/dbeafe/1d4ed8?text=C';
+
+        function driverFirstNameFromProfile(u) {
+            const raw = String(u?.name || u?.displayName || u?.fullName || '').trim();
+            if (!raw) return null;
+            const first = raw.split(/\s+/)[0]
+                .replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ0-9'-]/g, '');
+            if (!first || first.length < 2) return null;
+            return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+        }
+
+        function driverPhotoFromProfile(u) {
+            const photo = u?.photo || u?.photoURL || u?.profilePhoto || u?.avatar || null;
+            if (photo && typeof photo === 'string' && photo.length > 8) return photo;
+            return null;
+        }
+
+        function shuffleArrayCopy(list) {
+            const arr = list.slice();
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                const t = arr[i];
+                arr[i] = arr[j];
+                arr[j] = t;
+            }
+            return arr;
+        }
+
+        function normalizeNotifyDriverList(list) {
+            if (!Array.isArray(list)) return [];
+            return list.map((item) => {
+                if (!item) return null;
+                if (typeof item === 'string') {
+                    return { name: item, photo: NOTIFY_AVATAR_PLACEHOLDER };
+                }
+                const name = item.name || null;
+                if (!name) return null;
+                return {
+                    name,
+                    photo: item.photo || NOTIFY_AVATAR_PLACEHOLDER
+                };
+            }).filter(Boolean);
+        }
+
+        /**
+         * Flota registrada (count + {name, photo}) para UX de mensajes volando.
+         */
+        async function getRegisteredDriversForNotify({ zoneId = null } = {}) {
+            const zone = zoneId || window.activeServiceZoneId || window.userProfile?.serviceZoneId || null;
+            const cacheKey = zone || 'all';
+            const cache = window._registeredDriversCountCache || {};
+            const hit = cache[cacheKey];
+            if (hit && (Date.now() - hit.at) < REGISTERED_DRIVERS_CACHE_TTL_MS && Array.isArray(hit.drivers)) {
+                return { count: hit.count, drivers: hit.drivers, names: hit.drivers.map((d) => d.name) };
+            }
+
+            let usersSnap;
+            try {
+                usersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+            } catch (_) {
+                const fallbackDrivers = hit?.drivers
+                    || window.lastRegisteredNotifyDrivers
+                    || normalizeNotifyDriverList(window.lastRegisteredDriverNames);
+                return {
+                    count: hit?.count || window.lastRegisteredDriversCount || 0,
+                    drivers: fallbackDrivers,
+                    names: fallbackDrivers.map((d) => d.name)
+                };
+            }
+
+            const driversInZone = [];
+            const driversAll = [];
+            let countInZone = 0;
+            let countAllDrivers = 0;
+
+            usersSnap.forEach((d) => {
+                const u = d.data() || {};
+                if (u.role !== 'driver') return;
+                if (u.approvalStatus === 'suspended' || u.approvalStatus === 'rejected') return;
+                if (u.accountRestricted) return;
+
+                countAllDrivers++;
+                const first = driverFirstNameFromProfile(u);
+                const entry = first
+                    ? { name: first, photo: driverPhotoFromProfile(u) || NOTIFY_AVATAR_PLACEHOLDER }
+                    : null;
+                if (entry) driversAll.push(entry);
+
+                if (zone) {
+                    const uZone = u.serviceZoneId || u.cityId || null;
+                    if (!uZone || uZone === zone) {
+                        countInZone++;
+                        if (entry) driversInZone.push(entry);
+                    }
+                } else {
+                    countInZone++;
+                    if (entry) driversInZone.push(entry);
+                }
+            });
+
+            const useZone = countInZone > 0;
+            const count = useZone ? countInZone : countAllDrivers;
+            const drivers = shuffleArrayCopy(useZone ? driversInZone : driversAll).slice(0, NOTIFY_DRIVERS_MAX);
+
+            window._registeredDriversCountCache = cache;
+            cache[cacheKey] = { count, drivers, at: Date.now() };
+            if (countAllDrivers > 0) {
+                cache.all = {
+                    count: countAllDrivers,
+                    drivers: shuffleArrayCopy(driversAll).slice(0, NOTIFY_DRIVERS_MAX),
+                    at: Date.now()
+                };
+            }
+            if (count > 0) window.lastRegisteredDriversCount = count;
+            window.lastRegisteredNotifyDrivers = drivers;
+            window.lastRegisteredDriverNames = drivers.map((d) => d.name);
+            return { count, drivers, names: drivers.map((d) => d.name) };
+        }
+
+        async function countRegisteredDrivers({ zoneId = null } = {}) {
+            const r = await getRegisteredDriversForNotify({ zoneId });
+            return r.count;
+        }
+
+        function formatRegisteredDriversWaitingLabel(count) {
+            const n = Math.max(0, Number(count) || 0);
+            if (n <= 0) return 'Conductores están siendo notificados';
+            if (n === 1) return 'Este 1 conductor está siendo notificado';
+            return `Estos ${n} conductores están siendo notificados`;
+        }
+
+        window.countRegisteredDrivers = countRegisteredDrivers;
+        window.getRegisteredDriversForNotify = getRegisteredDriversForNotify;
+        window.formatRegisteredDriversWaitingLabel = formatRegisteredDriversWaitingLabel;
+
+        function stopDriverNotifyNameAnimation() {
+            if (window._driverNotifyNameTimer) {
+                clearInterval(window._driverNotifyNameTimer);
+                window._driverNotifyNameTimer = null;
+            }
+            window._driverNotifyNameState = null;
+            const line = document.getElementById('searching-notify-name-line');
+            const prog = document.getElementById('searching-notify-name-progress');
+            const fly = document.getElementById('searching-notify-fly-msg');
+            const avatars = document.getElementById('searching-notify-avatars');
+            if (line) line.textContent = 'Enviando tu mensaje…';
+            if (prog) prog.textContent = '';
+            if (fly) {
+                fly.classList.remove('is-flying', 'is-hit');
+                fly.style.transform = '';
+            }
+            if (avatars) avatars.innerHTML = '';
+        }
+
+        function ensureNotifyAvatarDom(drivers) {
+            const wrap = document.getElementById('searching-notify-avatars');
+            if (!wrap) return [];
+            const list = normalizeNotifyDriverList(drivers).slice(0, NOTIFY_DRIVERS_MAX);
+            // Rebuild only if length/names changed
+            const sig = list.map((d) => `${d.name}|${d.photo}`).join('~');
+            if (wrap.dataset.sig === sig && wrap.children.length === list.length) {
+                return Array.from(wrap.children);
+            }
+            wrap.dataset.sig = sig;
+            wrap.innerHTML = list.map((d, i) => {
+                const safeName = String(d.name).replace(/</g, '');
+                const safePhoto = String(d.photo || NOTIFY_AVATAR_PLACEHOLDER).replace(/"/g, '');
+                const initial = safeName.charAt(0) || 'C';
+                return `
+                    <div class="passenger-notify-avatar" data-notify-idx="${i}" data-name="${safeName}">
+                        <img src="${safePhoto}" alt="${safeName}" loading="lazy"
+                             onerror="this.onerror=null;this.src='${NOTIFY_AVATAR_PLACEHOLDER}'">
+                        <span class="passenger-notify-avatar-check" aria-hidden="true"><i class="fas fa-check"></i></span>
+                        <span class="passenger-notify-avatar-label">${safeName}</span>
+                    </div>
+                `;
+            }).join('');
+            return Array.from(wrap.children);
+        }
+
+        function flyMessageToAvatar(avatarEl) {
+            const stage = document.getElementById('searching-notify-fly-stage');
+            const fly = document.getElementById('searching-notify-fly-msg');
+            if (!stage || !fly || !avatarEl) return;
+
+            const stageRect = stage.getBoundingClientRect();
+            const avRect = avatarEl.getBoundingClientRect();
+            // Origen: centro inferior del stage (sale del “mensaje”)
+            const fromX = stageRect.width / 2 - 14;
+            const fromY = 8;
+            const toX = (avRect.left - stageRect.left) + avRect.width / 2 - 14;
+            const toY = (avRect.top - stageRect.top) + avRect.height / 2 - 14;
+
+            fly.classList.remove('is-flying', 'is-hit');
+            fly.style.transition = 'none';
+            fly.style.opacity = '1';
+            fly.style.transform = `translate(${fromX}px, ${fromY}px) scale(0.85)`;
+            void fly.offsetWidth;
+            fly.classList.add('is-flying');
+            fly.style.transition = 'transform 0.75s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.75s ease';
+            fly.style.transform = `translate(${toX}px, ${toY}px) scale(1.05)`;
+
+            clearTimeout(window._notifyFlyHitTimer);
+            window._notifyFlyHitTimer = setTimeout(() => {
+                fly.classList.add('is-hit');
+                avatarEl.classList.add('is-receiving');
+                setTimeout(() => {
+                    avatarEl.classList.remove('is-receiving');
+                    avatarEl.classList.add('is-received');
+                    fly.style.opacity = '0';
+                }, 220);
+            }, 720);
+        }
+
+        function paintDriverNotifyNameFrame() {
+            const state = window._driverNotifyNameState;
+            const line = document.getElementById('searching-notify-name-line');
+            const prog = document.getElementById('searching-notify-name-progress');
+            if (!state || !line) return;
+
+            const drivers = normalizeNotifyDriverList(state.drivers || state.names || []);
+            const total = state.total || drivers.length || 0;
+            if (!drivers.length) {
+                line.textContent = total > 0
+                    ? `Enviando tu mensaje a ${total} conductores…`
+                    : 'Enviando tu mensaje…';
+                if (prog) prog.textContent = '';
+                return;
+            }
+
+            const nodes = ensureNotifyAvatarDom(drivers);
+            const idx = state.index % drivers.length;
+            const driver = drivers[idx];
+            const avatarEl = nodes[idx] || nodes[idx % nodes.length];
+
+            // Quitar highlight previo
+            nodes.forEach((n) => n.classList.remove('is-target'));
+            if (avatarEl) {
+                avatarEl.classList.add('is-target');
+                // Scroll suave del avatar al centro si hay overflow
+                try {
+                    avatarEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                } catch (_) {}
+                flyMessageToAvatar(avatarEl);
+            }
+
+            // Primero “enviando…”, luego (tras el vuelo) “ya recibió”
+            line.textContent = `Mensaje volando a ${driver.name}…`;
+            clearTimeout(window._notifyReceivedTextTimer);
+            window._notifyReceivedTextTimer = setTimeout(() => {
+                if (window._driverNotifyNameState !== state) return;
+                line.innerHTML = `<i class="fas fa-check-circle passenger-notify-ok"></i> <strong>${driver.name}</strong> ya recibió tu mensaje`;
+            }, 800);
+
+            if (prog) {
+                const n = Math.min(idx + 1, total || drivers.length);
+                const den = total || drivers.length;
+                prog.textContent = den > 1 ? `${n} de ${den} avisados` : 'Mensaje entregado';
+            }
+
+            state.index = idx + 1;
+            if (state.index >= drivers.length) {
+                state.index = 0;
+                state.cycle = (state.cycle || 1) + 1;
+                // En el siguiente ciclo, quitar “recibido” para reanimar
+                if (state.cycle > 1) {
+                    nodes.forEach((n) => n.classList.remove('is-received'));
+                    state.drivers = shuffleArrayCopy(drivers);
+                }
+            }
+        }
+
+        function startDriverNotifyNameAnimation({ tripId, names = [], drivers = [], total = 0 } = {}) {
+            if (!tripId) return;
+            const list = normalizeNotifyDriverList(
+                (drivers && drivers.length) ? drivers : names
+            );
+            const existing = window._driverNotifyNameState;
+            if (existing?.tripId === tripId && window._driverNotifyNameTimer) {
+                if (list.length && (!existing.drivers?.length || existing.total !== total)) {
+                    existing.drivers = list;
+                    existing.total = total || list.length;
+                    ensureNotifyAvatarDom(list);
+                }
+                return;
+            }
+            stopDriverNotifyNameAnimation();
+            window._driverNotifyNameState = {
+                tripId,
+                drivers: list,
+                total: total || list.length || 0,
+                index: 0,
+                cycle: 1
+            };
+            ensureNotifyAvatarDom(list);
+            paintDriverNotifyNameFrame();
+            window._driverNotifyNameTimer = setInterval(() => {
+                if (!document.body.classList.contains('is-searching')) {
+                    stopDriverNotifyNameAnimation();
+                    return;
+                }
+                if (window._driverNotifyNameState?.tripId !== tripId) {
+                    stopDriverNotifyNameAnimation();
+                    return;
+                }
+                paintDriverNotifyNameFrame();
+            }, NOTIFY_FLY_INTERVAL_MS);
+        }
+        window.startDriverNotifyNameAnimation = startDriverNotifyNameAnimation;
+        window.stopDriverNotifyNameAnimation = stopDriverNotifyNameAnimation;
+
+        /** Prefetch en background para pasajeros (tarifa + búsqueda). */
+        function prefetchRegisteredDriversCount(tripLike = null) {
+            if (window.userProfile?.role === 'driver') return;
+            const zoneId = tripLike?.serviceZoneId
+                || window.activeServiceZoneId
+                || window.userProfile?.serviceZoneId
+                || null;
+            getRegisteredDriversForNotify({ zoneId }).then(({ count, drivers, names }) => {
+                window.pendingTripRegisteredDrivers = count;
+                window.lastRegisteredNotifyDrivers = drivers || [];
+                window.pendingTripRegisteredNotifyDrivers = drivers || [];
+                window.lastRegisteredDriverNames = names || [];
+                window.pendingTripRegisteredDriverNames = names || [];
+                if (activeTrip?.status === 'pending' && activeTrip.clientId === currentUser?.uid) {
+                    updateSearchingStatusUI({
+                        ...activeTrip,
+                        _registeredDrivers: count,
+                        _registeredNotifyDrivers: drivers,
+                        _registeredDriverNames: names,
+                        _onlineDriversNear: window.pendingTripOnlineDrivers ?? window.lastNearbyDriversCount ?? 0,
+                        _noDriversNearby: !activeTrip.offeredToDriverId && !activeTrip.driverId
+                    });
+                    if (!getPassengerDriverOffers(activeTrip).length) {
+                        startDriverNotifyNameAnimation({
+                            tripId: activeTrip.id,
+                            drivers,
+                            names,
+                            total: count
+                        });
+                    }
+                }
+                paintRegisteredDriversChip(count);
+            }).catch(() => {});
+        }
+        window.prefetchRegisteredDriversCount = prefetchRegisteredDriversCount;
+
+        function paintRegisteredDriversChip(count) {
+            const n = Number(count);
+            if (!Number.isFinite(n) || n <= 0) return;
+            const indicator = document.getElementById('nearby-drivers-indicator');
+            const countEl = document.getElementById('nearby-drivers-count');
+            if (!indicator || !countEl) return;
+            // Solo en modo pasajero sin viaje activo
+            if (window.userProfile?.role === 'driver') return;
+            if (activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status)) return;
+            if (document.body.classList.contains('is-searching')) {
+                // En búsqueda el mensaje va en el panel, no en el chip del mapa
+                return;
+            }
+            countEl.textContent = formatRegisteredDriversWaitingLabel(n);
+            indicator.classList.remove('hidden');
+        }
+
         window.releaseIncompatibleDriverOffers = async (driverVehicleType) => {
             if (!currentUser || window.userProfile?.role !== 'driver') return;
             const active = getActiveVehicle(window.userProfile);
@@ -3937,7 +4307,12 @@ if (document.readyState === 'loading') {
                     const now = Date.now();
                     if (!window._lastNoDriversToastAt || now - window._lastNoDriversToastAt > 60000) {
                         window._lastNoDriversToastAt = now;
-                        window.showToast?.('No hay conductores en línea en tu ciudad ahora. Seguimos buscando…', 'warning');
+                        const regLabel = formatRegisteredDriversWaitingLabel(
+                            window.pendingTripRegisteredDrivers
+                            ?? window.lastRegisteredDriversCount
+                            ?? 0
+                        );
+                        window.showToast?.(`${regLabel}. Quédate en la app…`, 'info');
                     }
                 }
                 return;
@@ -4032,43 +4407,91 @@ if (document.readyState === 'loading') {
             return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
         }
 
+        /**
+         * Nombre de punto A/B para conductores: prioriza el nombre del mapa
+         * (ej. "Liceo Jesús") sobre la dirección completa de calle.
+         */
+        function getDriverTripPointLabel(t, which = 'origin') {
+            if (!t) return '—';
+            if (which === 'origin') {
+                const named = t.originPlaceName || t.originName || '';
+                if (named) return String(named).trim();
+                const raw = t.origin || '';
+                return (window.shortenMapPlaceLabel?.(raw) || raw || '—');
+            }
+            if (t.bookingType === 'hourly' && !t.destination) {
+                return t.reservedHours ? `Reserva ${t.reservedHours}h` : 'Por horas';
+            }
+            const named = t.destinationPlaceName || t.destinationName || '';
+            if (named) return String(named).trim();
+            const raw = t.destination || '';
+            return (window.shortenMapPlaceLabel?.(raw) || raw || '—');
+        }
+        window.getDriverTripPointLabel = getDriverTripPointLabel;
+
+        function isClientFirstTripFlag(t) {
+            if (!t) return false;
+            if (t.clientIsFirstTrip === true) return true;
+            if (t.clientIsFirstTrip === false) return false;
+            // Fallback para viajes antiguos sin el flag
+            const n = Number(t.clientTotalTrips);
+            return Number.isFinite(n) && n === 0;
+        }
+
         function buildDriverOfferRouteHtml(t) {
+            const originLabel = getDriverTripPointLabel(t, 'origin');
+            const destLabelFull = getDriverTripPointLabel(t, 'destination');
             const origin = {
-                address: t.origin,
+                address: originLabel,
                 latLng: t.originLat != null ? { lat: t.originLat, lng: t.originLng } : null,
             };
             const destination = {
-                address: t.destination,
+                address: destLabelFull,
                 latLng: t.destinationLat != null ? { lat: t.destinationLat, lng: t.destinationLng } : null,
             };
             const stops = t.additionalStops || [];
             const hasMultiStop = stops.length > 0;
 
             if (!hasMultiStop) {
-                const destLabel = t.bookingType === 'hourly'
-                    ? (t.reservedHours ? `Reserva ${t.reservedHours}h` : 'Por horas')
-                    : truncateOfferText(t.destination);
+                const destLabel = t.bookingType === 'hourly' && !t.destination
+                    ? destLabelFull
+                    : truncateOfferText(destLabelFull);
                 return `
-                    <div class="driver-offer-route" title="${(t.origin || '') + ' → ' + (t.destination || '')}">
-                        <span class="driver-offer-route-point"><b>A</b> ${truncateOfferText(t.origin)}</span>
+                    <div class="driver-offer-route" title="${originLabel} → ${destLabelFull}">
+                        <span class="driver-offer-route-point"><b>A</b> ${truncateOfferText(originLabel)}</span>
                         <i class="fas fa-arrow-right driver-offer-route-arrow" aria-hidden="true"></i>
-                        <span class="driver-offer-route-point"><b>${t.bookingType === 'hourly' ? '⏱' : 'B'}</b> ${destLabel}</span>
+                        <span class="driver-offer-route-point"><b>${t.bookingType === 'hourly' && !t.destination ? '⏱' : 'B'}</b> ${destLabel}</span>
                     </div>`;
             }
 
             const chain = window.buildOrderedRoutePoints?.(origin, destination, stops) || [];
-            const stopsHtml = chain.map((p, idx) => {
+            // Si buildOrderedRoutePoints no devuelve nada (sin coords), armar cadena solo con nombres
+            const rows = chain.length
+                ? chain
+                : [
+                    { address: originLabel, routeNum: 1 },
+                    ...stops.map((s, i) => ({
+                        address: s.placeName || window.shortenMapPlaceLabel?.(s.address) || s.address || 'Parada',
+                        routeNum: i + 2,
+                    })),
+                    { address: destLabelFull, routeNum: stops.length + 2 },
+                ];
+            const stopsHtml = rows.map((p, idx) => {
                 const isFirst = idx === 0;
-                const isLast = idx === chain.length - 1;
+                const isLast = idx === rows.length - 1;
                 const badge = isFirst
                     ? 'A'
-                    : (isLast ? (t.bookingType === 'hourly' ? '⏱' : 'B') : String(p.routeNum));
+                    : (isLast ? (t.bookingType === 'hourly' && !t.destination ? '⏱' : 'B') : String(p.routeNum || idx + 1));
                 const badgeClass = isFirst
                     ? 'driver-offer-route-num--origin'
                     : (isLast ? 'driver-offer-route-num--dest' : 'driver-offer-route-num--stop');
+                const addr = p.address || (isFirst ? originLabel : (isLast ? destLabelFull : 'Parada'));
+                const shortAddr = isFirst || isLast
+                    ? addr
+                    : (window.shortenMapPlaceLabel?.(addr) || addr);
                 return `<div class="driver-offer-route-chain-row">
                     <span class="driver-offer-route-num ${badgeClass}">${badge}</span>
-                    <span class="driver-offer-route-addr" title="${p.address || ''}">${truncateOfferText(p.address, 48)}</span>
+                    <span class="driver-offer-route-addr" title="${addr || ''}">${truncateOfferText(shortAddr, 48)}</span>
                 </div>`;
             }).join('');
 
@@ -4562,11 +4985,21 @@ if (document.readyState === 'loading') {
                     ? `L. ${parseFloat(t.negotiatedPrice).toFixed(2)}`
                     : (t.price || '—'));
             const isUnverified = t.clientVerified === false || t.clientApprovalStatus === 'pending';
+            const isFirstTrip = isClientFirstTripFlag(t);
             const unverifiedAlert = isUnverified
                 ? `<p class="driver-offer-alert driver-offer-alert--warn"><i class="fas fa-exclamation-triangle"></i> Pasajero sin verificar</p>`
                 : '';
+            const firstTripAlert = isFirstTrip
+                ? `<p class="driver-offer-alert driver-offer-alert--first"><i class="fas fa-star"></i> Primer viaje del cliente</p>`
+                : '';
+            const firstTripBadge = isFirstTrip
+                ? `<span class="driver-offer-first-badge" title="Este es el primer viaje de este cliente"><i class="fas fa-star"></i> 1er viaje</span>`
+                : '';
 
             const detailParts = [];
+            if (isFirstTrip) {
+                detailParts.push('<p class="driver-offer-detail-line driver-offer-detail-line--first"><i class="fas fa-star"></i> <b>Primer viaje</b> de este cliente — sé amable y claro</p>');
+            }
             if (t.clientVerified && !isUnverified) {
                 detailParts.push('<p class="driver-offer-detail-line"><i class="fas fa-check-circle"></i> Pasajero verificado</p>');
             }
@@ -4606,8 +5039,10 @@ if (document.readyState === 'loading') {
                 }
             }
             if (!t.additionalStops?.length) {
-                detailParts.push(`<p class="driver-offer-detail-line driver-offer-detail-line--route"><span class="driver-offer-detail-origin">A</span> ${t.origin || '—'}</p>`);
-                detailParts.push(`<p class="driver-offer-detail-line driver-offer-detail-line--route"><span class="driver-offer-detail-dest">${t.bookingType === 'hourly' ? '⏱' : 'B'}</span> ${t.destination || (t.bookingType === 'hourly' ? 'Reserva por horas' : '—')}</p>`);
+                const aLabel = getDriverTripPointLabel(t, 'origin');
+                const bLabel = getDriverTripPointLabel(t, 'destination');
+                detailParts.push(`<p class="driver-offer-detail-line driver-offer-detail-line--route"><span class="driver-offer-detail-origin">A</span> ${aLabel || '—'}</p>`);
+                detailParts.push(`<p class="driver-offer-detail-line driver-offer-detail-line--route"><span class="driver-offer-detail-dest">${t.bookingType === 'hourly' && !t.destination ? '⏱' : 'B'}</span> ${bLabel || '—'}</p>`);
             }
 
             const detailsHtml = detailParts.length
@@ -4636,11 +5071,12 @@ if (document.readyState === 'loading') {
                 <div class="trip-request-card driver-offer-card ${compact ? 'driver-offer-card--highlight' : ''}" data-preview-offer="${tripId}">
                     <div class="driver-offer-top">
                         <p class="driver-offer-name client-name-${tripId}">${t.clientName || 'Pasajero'}</p>
-                        <div class="driver-offer-badges">${queueBadge}${serviceBadge}${distBadge}</div>
+                        <div class="driver-offer-badges">${firstTripBadge}${queueBadge}${serviceBadge}${distBadge}</div>
                     </div>
                     <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Ver ruta por calles en el mapa">
                         <i class="fas fa-route" aria-hidden="true"></i> Ver ruta en mapa
                     </button>
+                    ${firstTripAlert}
                     ${unverifiedAlert}
                     ${buildDriverOfferRouteHtml(t)}
                     ${buildDriverOfferDistanceHeroHtml(tripId, t, { distanceKm: dist })}
@@ -4665,7 +5101,29 @@ if (document.readyState === 'loading') {
                     const verifyBadge = isVerified 
                         ? `<span class="text-[9px] ml-1 text-blue-600"><i class="fas fa-check-circle"></i></span>` 
                         : `<span class="text-[8px] ml-1 px-1 py-0 bg-red-100 text-red-600 rounded">Sin verificar</span>`;
-                    nameEl.innerHTML = `${cData.name} <span class="text-amber-500 text-[10px]"><i class="fas fa-star"></i> ${rating}</span> ${verifyBadge}`;
+                    const totalTrips = Number(cData.totalTrips) || 0;
+                    const isFirst = t.clientIsFirstTrip === true
+                        || (t.clientIsFirstTrip !== false && totalTrips === 0);
+                    const firstBadge = isFirst
+                        ? `<span class="driver-offer-first-badge ml-1"><i class="fas fa-star"></i> 1er viaje</span>`
+                        : '';
+                    nameEl.innerHTML = `${cData.name} <span class="text-amber-500 text-[10px]"><i class="fas fa-star"></i> ${rating}</span> ${verifyBadge}${firstBadge}`;
+                    // Si el viaje no traía el flag, pintar aviso en la tarjeta
+                    if (isFirst) {
+                        const card = nameEl.closest('.driver-offer-card');
+                        if (card && !card.querySelector('.driver-offer-alert--first')) {
+                            const alert = document.createElement('p');
+                            alert.className = 'driver-offer-alert driver-offer-alert--first';
+                            alert.innerHTML = '<i class="fas fa-star"></i> Primer viaje del cliente';
+                            const route = card.querySelector('.driver-offer-route, .driver-offer-route-chain, .driver-offer-preview-btn');
+                            if (route) route.insertAdjacentElement('beforebegin', alert);
+                            else card.appendChild(alert);
+                        }
+                        const badges = card?.querySelector('.driver-offer-badges');
+                        if (badges && !badges.querySelector('.driver-offer-first-badge')) {
+                            badges.insertAdjacentHTML('afterbegin', '<span class="driver-offer-first-badge"><i class="fas fa-star"></i> 1er viaje</span>');
+                        }
+                    }
                 }
             } catch (_) {}
         }
@@ -15900,6 +16358,8 @@ onAuthStateChanged(auth, async (user) => {
                     // (si ya descargó esta versión, el badge sigue oculto hasta una actualización)
                     window.onPassengerAppBadgeSessionStart?.(user.uid || currentUser?.uid);
                     resetPromoStripSessionDismiss?.();
+                    // Contar flota registrada para mensajes de espera / tarifa
+                    setTimeout(() => window.prefetchRegisteredDriversCount?.(), 600);
                 } else {
                     window.dockControlPanelForDriverTrip?.();
                     const panelHeader = document.querySelector('#control-panel .control-panel-header');
@@ -16217,6 +16677,7 @@ onAuthStateChanged(auth, async (user) => {
                         }
                         window.listenForNearbyDrivers?.();
                         setTimeout(() => window.refreshNearbyDriversFromCache?.(), 400);
+                        window.prefetchRegisteredDriversCount?.();
                         window.initTripExperienceUI?.();
                         window.selectServiceType?.(window.currentServiceType || 'moto');
                         refreshPassengerBalanceUI();
@@ -16768,6 +17229,7 @@ function _initDestinationArrivalPanel() {
                 clearInterval(window.pendingOfferWatch);
                 window.pendingOfferWatch = null;
             }
+            window.stopNoDriversNotifyCountdown?.();
             activeTrip = null;
             window.currentActiveTripData = null;
             window.lastMessageCount = 0;
@@ -18215,8 +18677,8 @@ function _initDestinationArrivalPanel() {
                 title.innerHTML = `<i class="fas fa-user-check text-emerald-600"></i> ${firstName} está cerca (${dist}) terminando un viaje`;
                 sub.textContent = 'Si acepta, quedas reservado: no pierdes tu turno y verás en el mapa cuándo viene por ti.';
             } else {
-                title.innerHTML = `<i class="fas fa-bell text-emerald-600"></i> ${firstName} está viendo tu solicitud (${dist})`;
-                sub.textContent = 'Tu viaje ya está en su pantalla. En cuanto acepte, verás su ruta y tiempo estimado de llegada.';
+                title.innerHTML = `<i class="fas fa-bell text-emerald-600"></i> ${firstName} está viendo tu mensaje (${dist})`;
+                sub.textContent = 'Tu mensaje ya está en su pantalla. En cuanto acepte, verás su ruta y tiempo estimado de llegada.';
             }
         }
 
@@ -18232,24 +18694,150 @@ function _initDestinationArrivalPanel() {
             return `${offerSig}:${data?.negotiatedPrice ?? ''}:${data?.negotiatedBy || ''}:${viewedCount}`;
         }
 
+        const NO_DRIVERS_NOTIFY_COUNTDOWN_SEC = 120;
+
+        /** Mensajes de retención durante la espera (120s) para que no salgan de la app. */
+        const SEARCH_WAIT_RETENTION_TIPS = [
+            'Quédate aquí — si sales, se detiene la búsqueda',
+            'Tu mensaje ya va en camino a los conductores cercanos',
+            'Un conductor puede responder en cualquier momento',
+            'No cierres la app: te avisamos al instante cuando acepten',
+            'Vale la pena esperar un poco más… ya están viendo tu viaje',
+            'Cuando acepten, verás foto, placa y tiempo de llegada',
+            'Seguimos avisando a más conductores de tu zona',
+            'Casi listo — no te vayas todavía',
+            'Los conductores revisan el precio y te escriben al aceptar',
+            'Mantén la app abierta para no perder tu lugar en la fila',
+            'Estamos trabajando para conectarte lo antes posible',
+            'Gracias por tu paciencia — un momento más y alguien te responde'
+        ];
+
+        function getSearchWaitRetentionTip(state, remainingSec) {
+            const total = NO_DRIVERS_NOTIFY_COUNTDOWN_SEC;
+            const elapsed = Math.max(0, total - Math.max(0, remainingSec));
+            // Cambia de tip cada ~10 segundos
+            const tipIdx = Math.floor(elapsed / 10) % SEARCH_WAIT_RETENTION_TIPS.length;
+            const cycle = state?.cycle || 1;
+            // En ciclos siguientes, rotar el inicio del array para no repetir el mismo orden
+            const rotated = (tipIdx + (cycle - 1) * 3) % SEARCH_WAIT_RETENTION_TIPS.length;
+            return SEARCH_WAIT_RETENTION_TIPS[rotated];
+        }
+
+        function stopNoDriversNotifyCountdown() {
+            if (window._noDriversCountdownTimer) {
+                clearInterval(window._noDriversCountdownTimer);
+                window._noDriversCountdownTimer = null;
+            }
+            window._noDriversCountdown = null;
+            const box = document.getElementById('searching-notify-countdown');
+            if (box) box.classList.add('hidden');
+            stopDriverNotifyNameAnimation();
+        }
+        window.stopNoDriversNotifyCountdown = stopNoDriversNotifyCountdown;
+
+        function paintNoDriversCountdownUi() {
+            const state = window._noDriversCountdown;
+            const box = document.getElementById('searching-notify-countdown');
+            const timeEl = document.getElementById('searching-notify-countdown-time');
+            const hintEl = document.getElementById('searching-notify-countdown-hint');
+            const labelEl = document.getElementById('searching-notify-countdown-label');
+            if (!state || !box || !timeEl) return;
+
+            const remaining = Math.max(0, Math.ceil((state.endsAt - Date.now()) / 1000));
+            timeEl.textContent = String(remaining);
+            box.classList.remove('hidden');
+            const regN = window.pendingTripRegisteredDrivers
+                ?? window.lastRegisteredDriversCount
+                ?? 0;
+            if (labelEl) {
+                labelEl.textContent = formatRegisteredDriversWaitingLabel(regN);
+            }
+            if (hintEl) {
+                hintEl.textContent = remaining > 0
+                    ? getSearchWaitRetentionTip(state, remaining)
+                    : 'Seguimos enviando tu mensaje. Quédate un momento más';
+            }
+            // Asegurar animación de fotos/mensajes si hay flota
+            if (state.tripId && !window._driverNotifyNameTimer) {
+                startDriverNotifyNameAnimation({
+                    tripId: state.tripId,
+                    drivers: window.pendingTripRegisteredNotifyDrivers
+                        || window.lastRegisteredNotifyDrivers
+                        || [],
+                    names: window.pendingTripRegisteredDriverNames
+                        || window.lastRegisteredDriverNames
+                        || [],
+                    total: regN
+                });
+            }
+        }
+
+        /**
+         * Mantén al pasajero en espera con mensaje de notificación +
+         * cuenta regresiva de 120s y tips de retención (sin despacharlo).
+         */
+        function ensureNoDriversNotifyCountdown(tripId) {
+            if (!tripId) return;
+            const existing = window._noDriversCountdown;
+            if (existing?.tripId === tripId && existing.endsAt > Date.now()) {
+                paintNoDriversCountdownUi();
+                return;
+            }
+            // Si se acabó el ciclo, reinicia otros 120s para no sacar al cliente
+            if (existing?.tripId === tripId && existing.endsAt <= Date.now()) {
+                window._noDriversCountdown = {
+                    tripId,
+                    endsAt: Date.now() + NO_DRIVERS_NOTIFY_COUNTDOWN_SEC * 1000,
+                    cycle: (existing.cycle || 1) + 1
+                };
+            } else {
+                window._noDriversCountdown = {
+                    tripId,
+                    endsAt: Date.now() + NO_DRIVERS_NOTIFY_COUNTDOWN_SEC * 1000,
+                    cycle: 1
+                };
+            }
+            paintNoDriversCountdownUi();
+            if (window._noDriversCountdownTimer) clearInterval(window._noDriversCountdownTimer);
+            window._noDriversCountdownTimer = setInterval(() => {
+                const s = window._noDriversCountdown;
+                if (!s || s.tripId !== tripId) {
+                    window.stopNoDriversNotifyCountdown?.();
+                    return;
+                }
+                if (s.endsAt <= Date.now()) {
+                    // Reiniciar ciclo: el cliente se queda; no cancelar ni despachar
+                    window._noDriversCountdown = {
+                        tripId,
+                        endsAt: Date.now() + NO_DRIVERS_NOTIFY_COUNTDOWN_SEC * 1000,
+                        cycle: (s.cycle || 1) + 1
+                    };
+                }
+                paintNoDriversCountdownUi();
+            }, 250);
+        }
+
         function updateSearchingDriversTotal(data) {
             const totalEl = document.getElementById('searching-drivers-total');
             if (!totalEl) return;
 
-            const onlineN = data?._onlineDriversNear ?? window.pendingTripOnlineDrivers ?? window.lastNearbyDriversCount ?? 0;
+            const regN = data?._registeredDrivers
+                ?? window.pendingTripRegisteredDrivers
+                ?? window.lastRegisteredDriversCount
+                ?? 0;
             const viewedN = getPendingTripViewedCount(data?.viewedBy);
 
             totalEl.classList.remove('hidden');
             const parts = [];
-            if (onlineN > 0) {
-                parts.push(`${onlineN} conductor${onlineN === 1 ? '' : 'es'} en línea en tu ciudad`);
+            if (regN > 0) {
+                parts.push(formatRegisteredDriversWaitingLabel(regN));
             }
             if (viewedN > 0) {
-                parts.push(`${viewedN} ya ${viewedN === 1 ? 'vio' : 'vieron'} tu solicitud`);
+                parts.push(`${viewedN} ya ${viewedN === 1 ? 'vio' : 'vieron'} tu mensaje`);
             }
             totalEl.textContent = parts.length
                 ? parts.join(' · ')
-                : 'Seguimos buscando conductores en tu zona…';
+                : 'Conductores están siendo notificados';
         }
 
         function updateSearchingStatusUI(data) {
@@ -18260,11 +18848,17 @@ function _initDestinationArrivalPanel() {
             if (!data) return;
 
             const onlineN = data._onlineDriversNear ?? window.pendingTripOnlineDrivers ?? window.lastNearbyDriversCount ?? 0;
+            const regN = data._registeredDrivers
+                ?? window.pendingTripRegisteredDrivers
+                ?? window.lastRegisteredDriversCount
+                ?? 0;
             const offers = getPassengerDriverOffers(data);
             const closest = offers[0] || null;
+            const waitingForOffer = !data.offeredToDriverId && !data.driverId && offers.length === 0;
 
             let statusLine = 'Buscando conductores';
             let subLine = 'Cuando aceptes un conductor, te daremos tu PIN de seguridad';
+            let showNotifyCountdown = false;
 
             const scheduledMins = getScheduledTripMinutesUntil(data);
             if (scheduledMins != null && scheduledMins > 0) {
@@ -18277,13 +18871,45 @@ function _initDestinationArrivalPanel() {
             } else if (data.negotiatedBy === 'passenger' && data.negotiatedPrice != null) {
                 statusLine = 'Esperando respuesta';
                 subLine = `Tu precio: L. ${parseFloat(data.negotiatedPrice).toFixed(2)}`;
+            } else if (waitingForOffer) {
+                // “Estos N conductores están siendo notificados” + mensajes volando a fotos
+                if (regN > 0) {
+                    statusLine = regN === 1
+                        ? '1 conductor está siendo notificado'
+                        : `Estos ${regN} conductores están siendo notificados`;
+                    subLine = 'Enviando tu mensaje a cada conductor de tu zona';
+                } else {
+                    statusLine = 'Notificando conductores';
+                    subLine = 'Estamos enviando tu mensaje a la flota';
+                }
+                showNotifyCountdown = true;
             } else if (onlineN > 0) {
-                statusLine = `${onlineN} conductor${onlineN === 1 ? '' : 'es'} en línea`;
+                statusLine = `${onlineN} conductor${onlineN === 1 ? '' : 'es'} cerca`;
                 subLine = 'En tu ciudad — esperando ofertas';
             }
 
             if (headline) headline.innerText = statusLine;
             if (sub) sub.innerText = subLine;
+
+            if (showNotifyCountdown && data.id) {
+                ensureNoDriversNotifyCountdown(data.id);
+                const drivers = data._registeredNotifyDrivers
+                    || window.pendingTripRegisteredNotifyDrivers
+                    || window.lastRegisteredNotifyDrivers
+                    || [];
+                const names = data._registeredDriverNames
+                    || window.pendingTripRegisteredDriverNames
+                    || window.lastRegisteredDriverNames
+                    || [];
+                startDriverNotifyNameAnimation({
+                    tripId: data.id,
+                    drivers,
+                    names,
+                    total: regN || drivers.length || names.length
+                });
+            } else {
+                window.stopNoDriversNotifyCountdown?.();
+            }
 
             if (summary) {
                 const routeHtml = window.formatTripRouteOrderHtml?.(data) || '';
@@ -18297,11 +18923,19 @@ function _initDestinationArrivalPanel() {
             if (footEl) {
                 if (offers.length > 0) {
                     footEl.classList.add('hidden');
+                } else if (waitingForOffer) {
+                    const viewedN = getPendingTripViewedCount(data.viewedBy);
+                    const bits = [];
+                    if (regN > 0) bits.push(formatRegisteredDriversWaitingLabel(regN));
+                    if (viewedN > 0) bits.push(`${viewedN} revisando tu viaje`);
+                    if (!bits.length) bits.push('Tu mensaje sigue activo. No te desconectes.');
+                    footEl.textContent = bits.join(' · ');
+                    footEl.classList.remove('hidden');
                 } else {
                     const viewedN = getPendingTripViewedCount(data.viewedBy);
                     const bits = [];
                     if (viewedN > 0) bits.push(`${viewedN} revisando tu viaje`);
-                    if (onlineN > 0 && !bits.length) bits.push(`${onlineN} en línea en tu ciudad`);
+                    if (regN > 0 && !bits.length) bits.push(formatRegisteredDriversWaitingLabel(regN));
                     footEl.textContent = bits.join(' · ') || '';
                     footEl.classList.toggle('hidden', !bits.length);
                 }
@@ -18309,6 +18943,11 @@ function _initDestinationArrivalPanel() {
 
             updateSearchingDriverCard(data);
             window.renderTripViewersPanel?.(data);
+
+            // Si aún no tenemos el conteo, pedirlo (async y re-pinta)
+            if (waitingForOffer && data.id && !(data._registeredDrivers > 0) && !window.pendingTripRegisteredDrivers) {
+                prefetchRegisteredDriversCount(data);
+            }
         }
 
         function startPendingOfferWatch(tripId) {
@@ -18330,6 +18969,12 @@ function _initDestinationArrivalPanel() {
 
                     const onlineNear = await countOnlineDriversNearTrip({ ...t, id: tripId });
                     window.pendingTripOnlineDrivers = onlineNear;
+                    const regInfo = await getRegisteredDriversForNotify({
+                        zoneId: t.serviceZoneId || null
+                    });
+                    window.pendingTripRegisteredDrivers = regInfo.count;
+                    window.pendingTripRegisteredDriverNames = regInfo.names || [];
+                    window.lastRegisteredDriverNames = regInfo.names || [];
 
                     if (t.offeredToDriverId && isOfferExpired(t)) {
                         await updateDoc(snap.ref, {
@@ -18348,6 +18993,8 @@ function _initDestinationArrivalPanel() {
                             id: tripId,
                             ...t,
                             _onlineDriversNear: onlineNear,
+                            _registeredDrivers: regInfo.count,
+                            _registeredDriverNames: regInfo.names || [],
                             _noDriversNearby: !t.offeredToDriverId && !t.driverId
                         };
                         updateSearchingStatusUI(live);
@@ -18891,12 +19538,16 @@ function _initDestinationArrivalPanel() {
 
             updateSearchingStatusUI(data);
             window._lastPendingTripUiSig = getPendingTripUiSig(data);
+            prefetchRegisteredDriversCount(data);
             countOnlineDriversNearTrip(data).then((n) => {
                 window.pendingTripOnlineDrivers = n;
                 if (activeTrip?.id === data.id) {
                     updateSearchingStatusUI({
                         ...data,
                         _onlineDriversNear: n,
+                        _registeredDrivers: window.pendingTripRegisteredDrivers
+                            ?? window.lastRegisteredDriversCount
+                            ?? 0,
                         _noDriversNearby: !data.offeredToDriverId && !data.driverId
                     });
                 }
@@ -19206,9 +19857,17 @@ function _initDestinationArrivalPanel() {
                 syncPassengerBookingForm?.(data);
 
                 const ao = document.getElementById('active-origin-text');
-                if (ao) ao.innerText = data.origin || '';
+                if (ao) {
+                    ao.innerText = (typeof getDriverTripPointLabel === 'function')
+                        ? getDriverTripPointLabel(data, 'origin')
+                        : (data.originPlaceName || window.shortenMapPlaceLabel?.(data.origin) || data.origin || '');
+                }
                 const ad = document.getElementById('active-dest-text');
-                if (ad) ad.innerText = data.destination || '';
+                if (ad) {
+                    ad.innerText = (typeof getDriverTripPointLabel === 'function')
+                        ? getDriverTripPointLabel(data, 'destination')
+                        : (data.destinationPlaceName || window.shortenMapPlaceLabel?.(data.destination) || data.destination || '');
+                }
                 // Hourly note
                 const hourlyNote = document.getElementById('active-hourly-note');
                 if (hourlyNote) {
@@ -21674,11 +22333,24 @@ window.cancelSetupAndLogout = () => {
             const el = document.getElementById('extra-stop-autocomplete');
             if (!el) return null;
             const ep = await resolveRouteEndpoint(el);
-            if (ep?.latLng) return { address: ep.address, latLng: ep.latLng };
+            if (ep?.latLng) {
+                return {
+                    address: ep.address,
+                    placeName: ep.placeName || null,
+                    formattedAddress: ep.formattedAddress || null,
+                    latLng: ep.latLng,
+                };
+            }
             const text = window.readAutocompleteText?.(el) || '';
             if (!text.trim()) return null;
             const geo = await window.geocodeAddressString?.(text);
-            if (geo?.latLng) return { address: geo.address || text, latLng: geo.latLng };
+            if (geo?.latLng) {
+                return {
+                    address: geo.address || text,
+                    placeName: window.shortenMapPlaceLabel?.(geo.address || text) || null,
+                    latLng: geo.latLng,
+                };
+            }
             return null;
         };
 
@@ -21743,6 +22415,8 @@ window.cancelSetupAndLogout = () => {
 
             window.storeRouteEndpoint?.(destEl, {
                 address,
+                placeName: geo.placeName || null,
+                formattedAddress: geo.formattedAddress || geo.address || null,
                 latLng: latlng,
                 place: null,
                 source: 'map',
@@ -22397,8 +23071,10 @@ window.cancelSetupAndLogout = () => {
             }
 
             let preferredDriverId = null;
+            let clientHasCompletedTrip = (Number(window.userProfile?.totalTrips) || 0) > 0;
             if (activeTrip?.status === 'completed' && activeTrip.clientId === currentUser.uid && activeTrip.driverId) {
                 preferredDriverId = activeTrip.driverId;
+                clientHasCompletedTrip = true;
             } else {
                 try {
                     const recentSnap = await getDocs(
@@ -22408,6 +23084,7 @@ window.cancelSetupAndLogout = () => {
                             where('status', '==', 'completed')
                         )
                     );
+                    if (!recentSnap.empty) clientHasCompletedTrip = true;
                     const recent = recentSnap.docs
                         .map((d) => ({ id: d.id, ...d.data() }))
                         .sort((a, b) => {
@@ -22421,6 +23098,29 @@ window.cancelSetupAndLogout = () => {
                     }
                 } catch (_) {}
             }
+            const clientIsFirstTrip = !clientHasCompletedTrip;
+            const clientTotalTrips = Number(window.userProfile?.totalTrips) || 0;
+
+            // Nombres del mapa (displayName) cuando el pasajero eligió un lugar conocido
+            const originPlaceName = originEp?.placeName
+                || window.placeDisplayName?.(originEp?.place)
+                || (originEp?.source === 'place' || originEp?.source === 'map'
+                    ? window.shortenMapPlaceLabel?.(origin)
+                    : null)
+                || null;
+            const destinationPlaceName = isHourly
+                ? null
+                : (destEp?.placeName
+                    || window.placeDisplayName?.(destEp?.place)
+                    || (destEp?.source === 'place' || destEp?.source === 'map'
+                        ? window.shortenMapPlaceLabel?.(destination)
+                        : null)
+                    || null);
+            // Guardar en origin/destination el nombre corto del mapa cuando exista
+            const originForTrip = (originPlaceName && originPlaceName.length >= 2) ? originPlaceName : origin;
+            const destinationForTrip = (destinationPlaceName && destinationPlaceName.length >= 2)
+                ? destinationPlaceName
+                : destination;
 
             try {
                 const tripPayload = {
@@ -22444,8 +23144,12 @@ window.cancelSetupAndLogout = () => {
                     freightFareBreakdown: window.currentTripQuote?.freightFareBreakdown || null,
                     deliverySlaMinutes: serviceType === 'delivery' ? (getServiceMeta('delivery').slaMinutes || 30) : null,
                     riderInfo: tripOptions.riderInfo ? { ...tripOptions.riderInfo, bookedByUid: currentUser.uid } : null,
-                    origin,
-                    destination,
+                    origin: originForTrip,
+                    destination: destinationForTrip,
+                    originPlaceName: originPlaceName || null,
+                    destinationPlaceName: destinationPlaceName || null,
+                    originFormattedAddress: originEp?.formattedAddress || origin || null,
+                    destinationFormattedAddress: destEp?.formattedAddress || destination || null,
                     originSource,
                     originLat: originCoords?.lat ?? null,
                     originLng: originCoords?.lng ?? null,
@@ -22467,6 +23171,8 @@ window.cancelSetupAndLogout = () => {
                     clientRating: window.getProfileRating?.(window.userProfile) || '5.0',
                     clientApprovalStatus: window.userProfile?.approvalStatus || 'approved',
                     clientVerified: (window.userProfile?.approvalStatus === 'approved' || !window.userProfile?.approvalStatus || window.userProfile?.verified === true),
+                    clientIsFirstTrip,
+                    clientTotalTrips,
                     createdAt: serverTimestamp(),
                     chat: [],
                     viewedBy: {},
@@ -22497,14 +23203,18 @@ window.cancelSetupAndLogout = () => {
                     multipleStops: isHourly ? (window.currentHourlyStopType === 'multi') : false,
                     deliveryDetails: deliveryDetails || null,
                     freightDetails: freightDetails || null,
-                    origin,
-                    destination,
+                    origin: originForTrip,
+                    destination: destinationForTrip,
+                    originPlaceName: originPlaceName || null,
+                    destinationPlaceName: destinationPlaceName || null,
                     price: tripPayload.price,
                     paymentMethod,
                     clientId: currentUser.uid,
                     clientPhone: normalizeHondurasPhone(window.userProfile.phone),
                     clientApprovalStatus: window.userProfile?.approvalStatus || 'approved',
                     clientVerified: (window.userProfile?.approvalStatus === 'approved' || !window.userProfile?.approvalStatus || window.userProfile?.verified === true),
+                    clientIsFirstTrip,
+                    clientTotalTrips,
                     viewedBy: {},
                     declinedDriverIds: []
                 };
@@ -23469,11 +24179,16 @@ window.cancelSetupAndLogout = () => {
                 if (!snap.exists()) return tripData;
                 const profile = snap.data();
                 const rating = window.getProfileRating?.(profile) || tripData.clientRating || '5.0';
+                const totalTrips = Number(profile.totalTrips) || 0;
+                const clientIsFirstTrip = tripData.clientIsFirstTrip === true
+                    || (tripData.clientIsFirstTrip !== false && totalTrips === 0);
                 return {
                     ...tripData,
                     clientName: tripData.clientName || profile.name,
                     clientPhoto: tripData.clientPhoto || profile.photo || null,
-                    clientRating: rating
+                    clientRating: rating,
+                    clientTotalTrips: tripData.clientTotalTrips ?? totalTrips,
+                    clientIsFirstTrip
                 };
             } catch (_) {
                 return tripData;
@@ -23980,12 +24695,27 @@ window.cancelSetupAndLogout = () => {
 
                 const indicator = document.getElementById('nearby-drivers-indicator');
                 const countEl = document.getElementById('nearby-drivers-count');
+                const regCount = Number(
+                    window.pendingTripRegisteredDrivers
+                    ?? window.lastRegisteredDriversCount
+                    ?? 0
+                );
                 if (indicator && countEl) {
-                    if (count > 0) {
-                        indicator.classList.remove('hidden');
-                        countEl.textContent = count === 1 ? '1 conductor disponible' : `${count} conductores disponibles`;
-                    } else {
+                    if (document.body.classList.contains('is-searching')) {
                         indicator.classList.add('hidden');
+                    } else if (count > 0) {
+                        indicator.classList.remove('hidden');
+                        countEl.textContent = count === 1
+                            ? '1 conductor disponible'
+                            : `${count} conductores disponibles`;
+                    } else if (regCount > 0) {
+                        // Mostrar flota registrada (nunca "0 en línea")
+                        indicator.classList.remove('hidden');
+                        countEl.textContent = formatRegisteredDriversWaitingLabel(regCount);
+                    } else {
+                        countEl.textContent = '';
+                        indicator.classList.add('hidden');
+                        prefetchRegisteredDriversCount();
                     }
                 }
 
@@ -23994,6 +24724,7 @@ window.cancelSetupAndLogout = () => {
                     updateSearchingStatusUI({
                         ...activeTrip,
                         _onlineDriversNear: count,
+                        _registeredDrivers: regCount || window.pendingTripRegisteredDrivers || 0,
                         _noDriversNearby: !activeTrip.offeredToDriverId && !activeTrip.driverId
                     });
                 }
@@ -24539,9 +25270,10 @@ async function resolveRouteEndpoint(el) {
 }
 
 function getAutocompleteAddress(el) {
-    return el?._routeEndpoint?.address
+    return el?._routeEndpoint?.placeName
+        || el?._routeEndpoint?.address
+        || window.placeDisplayName?.(el?._selectedPlace)
         || el?._selectedPlace?.formattedAddress
-        || el?._selectedPlace?.displayName
         || window.readAutocompleteText?.(el)
         || null;
 }
@@ -24644,30 +25376,45 @@ window.getRouteSlotLabel = (slot) => {
 
 window.formatTripRouteOrderHtml = (trip) => {
     if (!trip) return '';
+    const labelOf = (which, fallback) => {
+        if (which === 'origin') {
+            return trip.originPlaceName
+                || window.shortenMapPlaceLabel?.(trip.origin)
+                || trip.origin
+                || fallback;
+        }
+        return trip.destinationPlaceName
+            || window.shortenMapPlaceLabel?.(trip.destination)
+            || trip.destination
+            || fallback;
+    };
     const hasExtras = trip.additionalStops?.length > 0;
     if (!hasExtras) {
         const destLabel = trip.bookingType === 'hourly' ? '⏱' : 'B';
-        const destText = trip.destination || (trip.bookingType === 'hourly' ? 'Reserva por horas' : '...');
+        const destText = labelOf('destination', trip.bookingType === 'hourly' ? 'Reserva por horas' : '...');
         return `
-            <p class="text-[10px] text-gray-500 mb-1"><span class="font-black text-emerald-600">1</span> ${trip.origin || '...'}</p>
+            <p class="text-[10px] text-gray-500 mb-1"><span class="font-black text-emerald-600">1</span> ${labelOf('origin', '...')}</p>
             <p class="text-[10px] text-gray-500"><span class="font-black text-red-500">2</span> ${destText}</p>
         `;
     }
     const origin = {
-        address: trip.origin,
+        address: labelOf('origin', trip.origin),
         latLng: trip.originLat != null ? { lat: trip.originLat, lng: trip.originLng } : null,
     };
     const destination = {
-        address: trip.destination,
+        address: labelOf('destination', trip.destination),
         latLng: trip.destinationLat != null ? { lat: trip.destinationLat, lng: trip.destinationLng } : null,
     };
     const chain = window.buildOrderedRoutePoints(origin, destination, trip.additionalStops);
-    return chain.map((p) => `
+    return chain.map((p) => {
+        const addr = p.placeName || window.shortenMapPlaceLabel?.(p.address) || p.address || '…';
+        return `
         <p class="text-[10px] text-gray-500${p.routeNum < chain.length ? ' mb-0.5' : ''}">
             <span class="font-black ${p.routeNum === 1 ? 'text-emerald-600' : (p.routeNum === chain.length ? 'text-red-500' : 'text-blue-600')}">${p.routeNum}</span>
-            ${p.address || '…'}
+            ${addr}
         </p>
-    `).join('');
+    `;
+    }).join('');
 };
 
 window.getSelectedExtraStopRouteSlot = () => {
@@ -25382,11 +26129,26 @@ window.calculateTripRoute = async (options = {}) => {
                 etaPreview.innerText = `Reserva por ${getHourlyLabel(hoursForCalc)} · ${pp} pers · ${stop}${extra}`;
             } else {
                 const mins = getAdjustedDurationMinutes(route, routeConditions);
-                const nearby = document.getElementById('nearby-drivers-count')?.textContent || '';
+                const regCount = Number(
+                    window.pendingTripRegisteredDrivers
+                    ?? window.lastRegisteredDriversCount
+                    ?? 0
+                );
+                const onlineCount = Number(window.lastNearbyDriversCount || 0);
+                // Preferir flota registrada; si no, online cerca. Nunca "0 en línea".
+                let fleetLabel = '';
+                if (regCount > 0) {
+                    fleetLabel = (window.formatRegisteredDriversWaitingLabel || formatRegisteredDriversWaitingLabel)(regCount);
+                } else if (onlineCount > 0) {
+                    fleetLabel = onlineCount === 1 ? '1 conductor cerca' : `${onlineCount} conductores cerca`;
+                    window.prefetchRegisteredDriversCount?.();
+                } else {
+                    window.prefetchRegisteredDriversCount?.();
+                }
                 etaPreview.classList.remove('hidden');
                 const trafficHint = routeConditions?.traffic?.trafficAware ? ' (con tráfico)' : '';
-                etaPreview.innerText = nearby
-                    ? `Estimado: ~${mins} min de ruta${trafficHint} · ${nearby}`
+                etaPreview.innerText = fleetLabel
+                    ? `Estimado: ~${mins} min de ruta${trafficHint} · ${fleetLabel}`
                     : `Tiempo de ruta estimado: ~${mins} min${trafficHint}`;
             }
         }
@@ -25468,54 +26230,53 @@ window.addEventListener('map-route-trigger', () => {
                         window.gMap.setZoom(17);
                     }
 
-                    // Obtener dirección
-                    if (window.geocoder) {
-                        window.geocoder.geocode({ location: latlng }, async (results, status) => {
-                            if (status === "OK" && results[0]) {
-                                const address = results[0].formatted_address;
-                                const originEl = document.getElementById('origin-autocomplete');
-                                const snap = window.captureRouteFieldSnapshot?.(originEl);
-                                const ok = await window.guardRouteEndpointChange?.(originEl, address);
-                                if (!ok) {
-                                    window.restoreRouteFieldSnapshot?.(originEl, snap);
-                                    return;
-                                }
-
-                                window.storeRouteEndpoint?.(originEl, {
-                                    address,
-                                    latLng: latlng,
-                                    place: null,
-                                    source: 'gps',
-                                    gpsAddress: address
-                                });
-
-                                if (originEl) {
-                                    // Intentar setear directamente en el componente
-                                    try {
-                                        originEl.value = address;
-                                    } catch (e) {}
-
-                                    // Setear en el input interno + disparar eventos
-                                    const input = originEl.shadowRoot?.querySelector('input') || 
-                                                 originEl.querySelector('input');
-
-                                    if (input) {
-                                        input.value = address;
-                                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                                    }
-                                }
-
-                                // Disparar cálculo de ruta
-                                window.dispatchEvent(new CustomEvent('map-route-trigger'));
-                                window.updateOriginGPSButton?.();
-
-                                window.showToast("Ubicación actual establecida como origen.");
-                            } else {
-                                window.showToast("No pudimos obtener la dirección exacta.");
+                    // Obtener dirección (preferir nombre del lugar en el mapa si hay POI cerca)
+                    (async () => {
+                        try {
+                            const geo = await window.reverseGeocodeLatLng?.(latlng);
+                            const address = geo?.address || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+                            const placeName = geo?.placeName || null;
+                            const formatted = geo?.formattedAddress || null;
+                            const originEl = document.getElementById('origin-autocomplete');
+                            const snap = window.captureRouteFieldSnapshot?.(originEl);
+                            const ok = await window.guardRouteEndpointChange?.(originEl, address);
+                            if (!ok) {
+                                window.restoreRouteFieldSnapshot?.(originEl, snap);
+                                return;
                             }
-                        });
-                    }
+
+                            window.storeRouteEndpoint?.(originEl, {
+                                address,
+                                placeName,
+                                formattedAddress: formatted,
+                                latLng: latlng,
+                                place: null,
+                                source: 'gps',
+                                gpsAddress: address
+                            });
+
+                            if (originEl) {
+                                try {
+                                    originEl.value = address;
+                                } catch (e) {}
+
+                                const input = originEl.shadowRoot?.querySelector('input') ||
+                                             originEl.querySelector('input');
+
+                                if (input) {
+                                    input.value = address;
+                                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                                }
+                            }
+
+                            window.dispatchEvent(new CustomEvent('map-route-trigger'));
+                            window.updateOriginGPSButton?.();
+                            window.showToast("Ubicación actual establecida como origen.");
+                        } catch (_) {
+                            window.showToast("No pudimos obtener la dirección exacta.");
+                        }
+                    })();
                 },
                 (error) => {
                     let message = "No se pudo obtener tu ubicación.";

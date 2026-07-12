@@ -26,9 +26,10 @@ window.gMap = null;
                 const direct = el.value;
                 if (typeof direct === 'string') return direct.trim();
             } catch (_) {}
-            return el._routeEndpoint?.address?.trim()
+            return el._routeEndpoint?.placeName?.trim()
+                || el._routeEndpoint?.address?.trim()
+                || window.placeDisplayName?.(el._selectedPlace)
                 || el._selectedPlace?.formattedAddress?.trim()
-                || el._selectedPlace?.displayName?.trim()
                 || '';
         };
 
@@ -69,10 +70,17 @@ window.gMap = null;
             })();
         });
 
-  window.canUseAdvancedMapMarkers = () =>
+  window.canUseAdvancedMapMarkers = () => {
     // Only use AdvancedMarkerElement when a real mapId is configured.
-    // This enables nice vehicle icons and better performance in the fleet map.
-    !!(google.maps?.marker?.AdvancedMarkerElement && window.gMap?.getMapId?.());
+    // Guardar `google` evita ReferenceError ("Script error." / google is not defined)
+    // cuando el mapa aún no cargó o falló la API.
+    try {
+      if (typeof google === 'undefined' || !google?.maps) return false;
+      return !!(google.maps?.marker?.AdvancedMarkerElement && window.gMap?.getMapId?.());
+    } catch (_) {
+      return false;
+    }
+  };
 
   window.initMap = function() {
     try {
@@ -123,6 +131,44 @@ window.gMap = null;
         window.gMap = new google.maps.Map(document.getElementById("map"), mapOptions);
         document.body?.classList.add('map-ready');
 
+        /** Tipos de Google Geocoder que suelen ser el nombre real del lugar en el mapa. */
+        const MAP_PLACE_GEOCODE_TYPES = new Set([
+            'establishment', 'point_of_interest', 'premise', 'subpremise',
+            'school', 'university', 'hospital', 'church', 'park', 'cemetery',
+            'shopping_mall', 'store', 'restaurant', 'cafe', 'lodging', 'gym',
+            'bus_station', 'transit_station', 'airport', 'stadium', 'museum',
+            'library', 'place_of_worship', 'tourist_attraction', 'zoo',
+            'amusement_park', 'aquarium', 'art_gallery', 'bank', 'pharmacy',
+            'gas_station', 'supermarket', 'local_government_office', 'police',
+            'fire_station', 'post_office', 'courthouse', 'city_hall'
+        ]);
+
+        /** Extrae displayName de Place (API nueva: string u objeto { text }). */
+        window.placeDisplayName = (place) => {
+            if (!place) return '';
+            const dn = place.displayName;
+            if (typeof dn === 'string' && dn.trim()) return dn.trim();
+            if (dn && typeof dn.text === 'string' && dn.text.trim()) return dn.text.trim();
+            if (typeof place.name === 'string' && place.name.trim()) return place.name.trim();
+            return '';
+        };
+
+        /**
+         * Etiqueta corta legible para conductores: prioriza el nombre del mapa
+         * (ej. "Liceo Jesús") sobre la dirección larga de calle.
+         */
+        window.shortenMapPlaceLabel = (text) => {
+            if (!text) return '';
+            const s = String(text).trim();
+            if (!s) return '';
+            if (!s.includes(',')) return s;
+            const first = s.split(',')[0].trim();
+            if (first.length < 2 || first.length > 64) return s;
+            // Evitar recortar coordenadas crudas
+            if (/^-?\d+(\.\d+)?$/.test(first)) return s;
+            return first;
+        };
+
         window.reverseGeocodeLatLng = (latLng) => new Promise((resolve) => {
             if (!latLng) return resolve(null);
             const pos = {
@@ -133,10 +179,31 @@ window.gMap = null;
                 return resolve({ address: 'Ubicación seleccionada en el mapa', latLng: pos });
             }
             window.geocoder.geocode({ location: pos }, (results, status) => {
+                if (status !== 'OK' || !results?.length) {
+                    return resolve({
+                        address: 'Ubicación seleccionada en el mapa',
+                        latLng: pos,
+                    });
+                }
+                const poi = results.find((r) =>
+                    (r.types || []).some((t) => MAP_PLACE_GEOCODE_TYPES.has(t))
+                );
+                const best = poi || results[0];
+                const formatted = best.formatted_address || results[0].formatted_address || '';
+                // Si hay un POI en el mapa, usar su nombre corto (antes de la primera coma)
+                let address = formatted || 'Ubicación seleccionada en el mapa';
+                let placeName = null;
+                if (poi && formatted) {
+                    const shortName = window.shortenMapPlaceLabel(formatted);
+                    if (shortName) {
+                        placeName = shortName;
+                        address = shortName;
+                    }
+                }
                 resolve({
-                    address: (status === 'OK' && results?.[0]?.formatted_address)
-                        ? results[0].formatted_address
-                        : 'Ubicación seleccionada en el mapa',
+                    address,
+                    placeName,
+                    formattedAddress: formatted || null,
                     latLng: pos,
                 });
             });
@@ -650,6 +717,22 @@ window.gMap = null;
                 wrap?.classList.remove('is-autocomplete-active');
             };
 
+            const applyEndpointLabelToInput = (el, label) => {
+                const text = String(label || '').trim();
+                if (!el || !text) return;
+                try { el.value = text; } catch (_) {}
+                try {
+                    const input = el.shadowRoot?.querySelector('input')
+                        || el.shadowRoot?.querySelector('[part="input"]')
+                        || el.querySelector('input');
+                    if (input) {
+                        input.value = text;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                } catch (_) {}
+            };
+
             const onPlaceSelect = async (event, el) => {
                 const snap = window.captureRouteFieldSnapshot?.(el);
                 try {
@@ -670,6 +753,8 @@ window.gMap = null;
                         el._selectedPlace = place;
                         el.place = place;
                         window.storeRouteEndpoint?.(el, endpoint);
+                        // Mostrar el nombre del mapa (ej. "Liceo Jesús"), no solo la calle larga
+                        applyEndpointLabelToInput(el, nextAddr);
                     }
                 } catch (_) {}
                 clearAutocompleteStack(el);
@@ -968,9 +1053,19 @@ window.gMap = null;
             }
             const nlat = Number(lat);
             const nlng = Number(lng);
-            const address = place.formattedAddress || place.displayName || fallbackText || '';
+            // Preferir el nombre del lugar en el mapa (displayName) sobre la dirección de calle larga
+            const placeName = window.placeDisplayName?.(place) || '';
+            const formatted = place.formattedAddress || place.formatted_address || '';
+            const address = placeName || formatted || fallbackText || '';
             const latLng = (!isNaN(nlat) && !isNaN(nlng)) ? { lat: nlat, lng: nlng } : null;
-            return { address, latLng, place, source: 'place' };
+            return {
+                address,
+                placeName: placeName || null,
+                formattedAddress: formatted || null,
+                latLng,
+                place,
+                source: 'place',
+            };
         };
 
         window.storeRouteEndpoint = (el, endpoint) => {
@@ -1582,7 +1677,13 @@ window.gMap = null;
                     photo.src = data.clientPhoto || 'https://placehold.co/100x100/e2e8f0/64748b?text=Pasajero';
                     photo.onerror = () => { photo.src = 'https://placehold.co/100x100/e2e8f0/64748b?text=Pasajero'; };
                 }
-                if (name) name.textContent = data.clientName || 'Pasajero';
+                if (name) {
+                    const firstTrip = data.clientIsFirstTrip === true
+                        || (data.clientIsFirstTrip !== false && Number(data.clientTotalTrips) === 0);
+                    name.innerHTML = firstTrip
+                        ? `${data.clientName || 'Pasajero'} <span class="driver-offer-first-badge"><i class="fas fa-star"></i> 1er viaje</span>`
+                        : (data.clientName || 'Pasajero');
+                }
                 if (rating) rating.textContent = data.clientRating || '5.0';
                 // No mostrar placa ni info de vehículo del pasajero al conductor
                 // (el pasajero es cliente, no tiene placa; y si es servicio carro, no corresponde)

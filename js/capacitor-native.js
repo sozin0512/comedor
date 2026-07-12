@@ -35,6 +35,41 @@ export function markCapacitorBodyClasses() {
             document.body.classList.add('capacitor-ios');
             document.documentElement.classList.add('capacitor-ios');
         }
+        // Fallback de safe-area si el nativo aún no inyectó insets (evita botones bajo el reloj)
+        ensureNativeSafeAreaFallback();
+    } catch (_) {}
+}
+
+/**
+ * Si MainActivity no ha puesto --native-safe-top, usa un mínimo razonable
+ * para que el header no quede bajo la barra de estado / notificaciones.
+ */
+export function ensureNativeSafeAreaFallback() {
+    try {
+        if (typeof document === 'undefined' || !isCapacitorNative()) return;
+        const root = document.documentElement;
+        const current = getComputedStyle(root).getPropertyValue('--native-safe-top').trim();
+        if (current && current !== '0px') return;
+
+        // Visual viewport / env() a veces sí reporta en WebViews nuevos
+        let topPx = 0;
+        try {
+            const probe = document.createElement('div');
+            probe.style.cssText = 'position:fixed;visibility:hidden;padding-top:env(safe-area-inset-top,0px);';
+            document.body?.appendChild(probe);
+            topPx = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+            probe.remove();
+        } catch (_) {}
+
+        const minTop = isCapacitorAndroid() ? 40 : 36;
+        const minBottom = isCapacitorAndroid() ? 16 : 12;
+        const safeTop = Math.max(topPx, minTop);
+        root.style.setProperty('--native-safe-top', `${safeTop}px`);
+        if (!getComputedStyle(root).getPropertyValue('--native-safe-bottom').trim()) {
+            root.style.setProperty('--native-safe-bottom', `${minBottom}px`);
+        }
+        root.classList.add('native-insets-ready');
+        document.body?.classList.add('native-insets-ready');
     } catch (_) {}
 }
 
@@ -44,7 +79,13 @@ try {
     if (typeof document !== 'undefined') {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', markCapacitorBodyClasses, { once: true });
+        } else {
+            markCapacitorBodyClasses();
         }
+        // Reintentar por si el WebView aplica insets tarde
+        setTimeout(ensureNativeSafeAreaFallback, 80);
+        setTimeout(ensureNativeSafeAreaFallback, 350);
+        setTimeout(ensureNativeSafeAreaFallback, 900);
     }
 } catch (_) {}
 

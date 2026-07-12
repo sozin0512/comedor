@@ -5,6 +5,25 @@
 const RECENT_ERROR_KEY = 'honduber_recent_errors';
 const ERROR_COOLDOWN_MS = 90000;
 
+/** Patrones que no son bugs de la app (CDN cross-origin, browser quirks, extensiones). */
+const NOISE_ERROR_PATTERNS = [
+    /^Script error\.?$/i,
+    /ResizeObserver loop/i,
+    /Loading chunk [\d]+ failed/i,
+    /Failed to fetch dynamically imported module/i,
+    /Importing a module script failed/i,
+    /ChunkLoadError/i,
+    /^AbortError/i,
+    /The user aborted a request/i,
+    /The operation was aborted/i,
+    /^Load failed$/i,
+    /NetworkError when attempting to fetch resource/i,
+    /Non-Error promise rejection captured/i,
+    /^undefined$/i,
+    /^null$/i,
+    /^\[object (Event|Object)\]$/i,
+];
+
 function readRecentErrors() {
     try {
         return JSON.parse(sessionStorage.getItem(RECENT_ERROR_KEY) || '{}');
@@ -17,6 +36,13 @@ function markErrorSent(fingerprint) {
     try {
         const map = readRecentErrors();
         map[fingerprint] = Date.now();
+        // Limitar tamaño del mapa de cooldown
+        const keys = Object.keys(map);
+        if (keys.length > 40) {
+            keys.sort((a, b) => (map[a] || 0) - (map[b] || 0))
+                .slice(0, keys.length - 30)
+                .forEach((k) => delete map[k]);
+        }
         sessionStorage.setItem(RECENT_ERROR_KEY, JSON.stringify(map));
     } catch (_) {}
 }
@@ -34,24 +60,92 @@ function errorFingerprint(type, message, source) {
     return String(h);
 }
 
-export function buildFeedbackPayload(db, appId, partial = {}) {
+/**
+ * "Script error." es el mensaje genérico del navegador cuando un script de
+ * otro dominio (Maps, Firebase CDN, etc.) falla y oculta el stack por CORS.
+ * No aporta nada al panel admin y spamea usuarios nuevos (guest / sin perfil).
+ */
+function isNoiseError(message, details = '', meta = {}) {
+    const msg = String(message || '').trim();
+    const det = String(details || '');
+    const source = String(meta.source || meta.filename || '');
+    const combined = `${msg}\n${det}\n${source}`;
+
+    // Fallos de carga de recursos (img/script/link) no son crashes de la app
+    if (meta.isResourceError) return true;
+
+    // Extensiones del navegador
+    if (/chrome-extension:|moz-extension:|safari-extension:|webkit-masked-url/i.test(combined)) {
+        return true;
+    }
+
+    // Classic cross-origin: mensaje vacío / "Script error." sin stack ni archivo
+    const isScriptErrorLabel = !msg || /^Script error\.?$/i.test(msg);
+    const hasUsefulStack = !!(meta.hasStack || /at\s+\S+|@\S+:\d+|:\d+:\d+/.test(det));
+    const hasFilename = !!(meta.filename || (source && !/^unhandledrejection$/i.test(source)));
+    if (isScriptErrorLabel && !hasUsefulStack && !hasFilename) {
+        return true;
+    }
+
+    // Patrones benignos conocidos
+    for (const re of NOISE_ERROR_PATTERNS) {
+        if (re.test(msg)) return true;
+    }
+
+    // Rechazos de Firebase/permiso durante bootstrap (usuarios recién creados)
+    if (/permission-denied|Missing or insufficient permissions/i.test(msg)
+        && /artifacts\/|firestore/i.test(det)) {
+        // Solo silenciar si aún no hay perfil (registro en curso)
+        if (!window.userProfile?.role) return true;
+    }
+
+    return false;
+}
+
+function resolveFeedbackUserMeta(partial = {}) {
     const profile = window.userProfile || {};
     const user = window.currentUserFeedbackUser || null;
+    const role = profile.role || partial.userRole || (user ? 'signed_in' : 'guest');
+    const name = profile.name
+        || partial.userName
+        || (user?.displayName)
+        || (user?.email ? String(user.email).split('@')[0] : null)
+        || (user ? 'Usuario nuevo' : 'Usuario');
+
+    return {
+        userId: user?.uid || partial.userId || null,
+        userName: name,
+        userRole: role,
+        userPhone: profile.phone || partial.userPhone || '',
+        userEmail: profile.email || user?.email || partial.userEmail || ''
+    };
+}
+
+export function buildFeedbackPayload(db, appId, partial = {}) {
+    const userMeta = resolveFeedbackUserMeta(partial);
 
     return {
         type: partial.type || 'suggestion',
         message: (partial.message || '').slice(0, 2000),
         details: (partial.details || '').slice(0, 8000),
-        userId: user?.uid || partial.userId || null,
-        userName: profile.name || partial.userName || 'Usuario',
-        userRole: profile.role || partial.userRole || 'guest',
-        userPhone: profile.phone || partial.userPhone || '',
-        userEmail: profile.email || user?.email || partial.userEmail || '',
+        ...userMeta,
         pageUrl: partial.pageUrl || (typeof location !== 'undefined' ? location.href : ''),
         userAgent: partial.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
         screenSize: partial.screenSize || (typeof screen !== 'undefined' ? `${screen.width}x${screen.height}` : ''),
+        appVersion: partial.appVersion
+            || (typeof document !== 'undefined'
+                ? document.querySelector('meta[name="hr-app-version"]')?.content
+                : '')
+            || window.__HR_BUILD_VERSION__
+            || '',
         status: 'new',
-        ...partial
+        ...partial,
+        // partial no debe pisar userMeta con undefined
+        userId: partial.userId ?? userMeta.userId,
+        userName: partial.userName || userMeta.userName,
+        userRole: partial.userRole || userMeta.userRole,
+        userPhone: partial.userPhone || userMeta.userPhone,
+        userEmail: partial.userEmail || userMeta.userEmail
     };
 }
 
@@ -71,6 +165,18 @@ export function initCrashReporting({ db, appId, collection, addDoc, serverTimest
     window._honduberCrashReportingInit = true;
 
     const report = async (type, message, details = '', extra = {}) => {
+        if (isNoiseError(message, details, extra)) {
+            if (typeof console !== 'undefined' && console.debug) {
+                console.debug('[crash-report] ignorado (ruido):', message);
+            }
+            return;
+        }
+
+        // Sin sesión no se puede escribir en app_feedback (reglas Firestore)
+        if (!window.currentUserFeedbackUser?.uid && type !== 'bug_report') {
+            return;
+        }
+
         const fp = errorFingerprint(type, message, extra.source);
         if (!shouldSendError(fp)) return;
 
@@ -79,7 +185,9 @@ export function initCrashReporting({ db, appId, collection, addDoc, serverTimest
                 type,
                 message,
                 details,
-                ...extra
+                source: extra.source || '',
+                lineno: extra.lineno || 0,
+                colno: extra.colno || 0
             });
             markErrorSent(fp);
             onSubmitted?.(type);
@@ -89,20 +197,64 @@ export function initCrashReporting({ db, appId, collection, addDoc, serverTimest
     };
 
     window.addEventListener('error', (event) => {
-        const msg = event.message || 'Error de script';
+        // Errores de carga de <script>/<img>/<link> (target ≠ window)
+        const t = event.target;
+        const isResourceError = !!(t && t !== window && t.nodeName
+            && /^(SCRIPT|IMG|LINK|VIDEO|AUDIO|SOURCE)$/i.test(t.nodeName));
+
+        const msg = event.message || (isResourceError
+            ? `Fallo al cargar ${t.nodeName?.toLowerCase() || 'recurso'}`
+            : 'Error de script');
         const details = [
             event.filename ? `Archivo: ${event.filename}` : '',
             event.lineno ? `Línea: ${event.lineno}:${event.colno || 0}` : '',
+            isResourceError && t?.src ? `src: ${t.src}` : '',
+            isResourceError && t?.href ? `href: ${t.href}` : '',
             event.error?.stack || ''
         ].filter(Boolean).join('\n');
-        report('crash', msg, details, { source: event.filename || '' });
+
+        report('crash', msg, details, {
+            source: event.filename || (isResourceError ? String(t?.src || t?.href || '') : ''),
+            filename: event.filename || '',
+            hasStack: !!event.error?.stack,
+            isResourceError,
+            lineno: event.lineno || 0,
+            colno: event.colno || 0
+        });
     });
 
     window.addEventListener('unhandledrejection', (event) => {
         const reason = event.reason;
-        const msg = reason?.message || String(reason || 'Promise rechazada');
-        const details = reason?.stack || String(reason || '');
-        report('error', msg, details, { source: 'unhandledrejection' });
+        let msg = 'Promise rechazada';
+        let details = '';
+        let hasStack = false;
+
+        if (reason == null) {
+            msg = 'Promise rechazada (sin detalle)';
+        } else if (typeof reason === 'string') {
+            msg = reason;
+            details = reason;
+        } else if (reason instanceof Error) {
+            msg = reason.message || reason.name || 'Error';
+            details = reason.stack || String(reason);
+            hasStack = !!reason.stack;
+        } else if (typeof reason === 'object') {
+            msg = reason.message || reason.code || reason.name || String(reason);
+            try {
+                details = reason.stack || JSON.stringify(reason).slice(0, 2000);
+            } catch (_) {
+                details = String(reason);
+            }
+            hasStack = !!reason.stack;
+        } else {
+            msg = String(reason);
+            details = String(reason);
+        }
+
+        report('error', msg, details, {
+            source: 'unhandledrejection',
+            hasStack
+        });
     });
 
     window.reportAppIssue = (message, details = '') => report('bug_report', message, details);

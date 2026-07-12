@@ -4,6 +4,11 @@
             --hn-blue-light: #1a6bb5;
             --hn-sky: #38bdf8;
             --hn-white: #ffffff;
+            /* Safe areas: notch / status bar / home indicator */
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --safe-left: env(safe-area-inset-left, 0px);
+            --safe-right: env(safe-area-inset-right, 0px);
         }
         html, body { 
             font-family: 'Inter', sans-serif; 
@@ -22,35 +27,59 @@
             height: 100dvh;
             width: 100%;
             overflow: hidden;
-            padding-top: env(safe-area-inset-top, 0px);
-            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom);
+            padding-left: var(--safe-left);
+            padding-right: var(--safe-right);
             box-sizing: border-box;
         }
 
         /*
-         * APK Android: el padding de status bar lo aplica MainActivity al WebView.
-         * No sumar otro safe-area grande aquí (doble hueco). Solo un respiro mínimo
-         * si el SO no reporta insets y el header quedaría pegado al borde.
+         * App nativa (Capacitor): respetar reloj, notificaciones y notch.
+         * En WebView Android env(safe-area-*) a veces es 0; usamos mínimo + valor
+         * inyectado por MainActivity (--native-safe-top / --native-safe-bottom).
          */
-        body.capacitor-android #app-interface {
-            /* safe-area en WebView Android suele ser 0; el inset nativo ya da el espacio */
-            padding-top: 0;
-            padding-bottom: 0;
+        body.capacitor-native {
+            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 36px));
+            --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 12px));
+            --safe-left: var(--native-safe-left, env(safe-area-inset-left, 0px));
+            --safe-right: var(--native-safe-right, env(safe-area-inset-right, 0px));
         }
 
-        body.capacitor-android #app-header {
-            /* Zona táctil del header más clara, lejos del gesto del sistema */
-            padding-top: 2px;
+        body.capacitor-android {
+            /* Status bar + un poco de aire para no pelear con la cortina de notificaciones */
+            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 40px));
+            --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 16px));
+        }
+
+        body.capacitor-android #app-interface,
+        body.capacitor-ios #app-interface {
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom);
+            padding-left: var(--safe-left);
+            padding-right: var(--safe-right);
+        }
+
+        body.capacitor-android #app-header,
+        body.capacitor-ios #app-header {
+            /* Respiro extra bajo el safe-area: botones lejos del reloj/notificaciones */
+            padding-top: 0.45rem;
         }
 
         body.capacitor-android .header-toolbar {
-            min-height: 3.65rem;
+            min-height: 3.75rem;
+            padding-top: 0.2rem;
+            padding-bottom: 0.35rem;
         }
 
         body.capacitor-android .header-icon-btn {
-            /* Botones un poco más abajo del borde superior del contenido */
-            min-width: 2.5rem;
-            min-height: 2.5rem;
+            min-width: 2.55rem;
+            min-height: 2.55rem;
+        }
+
+        body.capacitor-android .hn-flag-stripe {
+            /* La franja de bandera también queda bajo el safe-area del shell */
+            flex-shrink: 0;
         }
 
         /* Header fijo arriba — el logo no invade el panel de viajes */
@@ -1878,6 +1907,17 @@
             position: fixed;
             inset: 0;
             overflow-y: auto;
+            padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+            padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+            box-sizing: border-box;
+        }
+
+        body.capacitor-native .login-screen,
+        body.capacitor-native .setup-screen,
+        body.capacitor-native .rating-screen,
+        body.capacitor-native .cancellation-survey-screen {
+            padding-top: var(--safe-top, 40px);
+            padding-bottom: var(--safe-bottom, 16px);
         }
 
         .rating-screen.rating-screen-driver-overlay {
@@ -1887,7 +1927,8 @@
             z-index: 13000;
             background: linear-gradient(180deg, rgba(4, 30, 66, 0.15) 0%, rgba(4, 30, 66, 0.92) 28%, #0f4c8a 100%);
             align-items: flex-end;
-            padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+            padding-top: 0;
+            padding-bottom: max(1rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.driver-rating-active.driver-mode #control-panel {
@@ -1896,16 +1937,21 @@
 
         body.driver-rating-active #driver-incoming-offer:not(.hidden) {
             position: fixed;
-            left: max(10px, env(safe-area-inset-left, 0px));
-            right: max(10px, env(safe-area-inset-right, 0px));
-            top: max(72px, calc(env(safe-area-inset-top, 0px) + 56px));
+            left: max(10px, var(--safe-left, env(safe-area-inset-left, 0px)));
+            right: max(10px, var(--safe-right, env(safe-area-inset-right, 0px)));
+            top: max(72px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 56px));
             z-index: 10050;
             margin: 0;
         }
 
         /* --- LOGIN MÓVIL: logo hero grande --- */
+        /* El safe-area ya lo aplica .login-screen; aquí solo respiro visual */
         .login-hero {
-            padding-top: max(2rem, env(safe-area-inset-top, 0px));
+            padding-top: 2rem;
+        }
+
+        body.capacitor-native .login-hero {
+            padding-top: 1rem;
         }
 
         .login-logo-wrap {
@@ -2083,8 +2129,12 @@
         /* Login más compacto en celular */
         @media (max-width: 639px) {
             .login-hero {
-                padding-top: max(0.85rem, env(safe-area-inset-top, 0px));
+                padding-top: 0.85rem;
                 padding-bottom: 0.35rem;
+            }
+
+            body.capacitor-native .login-hero {
+                padding-top: 0.55rem;
             }
 
             .login-logo-wrap {
@@ -2142,9 +2192,14 @@
             align-items: center;
             justify-content: space-between;
             gap: 0.5rem;
-            padding: max(0.5rem, env(safe-area-inset-top, 0px)) 0.75rem 0.5rem;
+            /* Pantalla full-screen fixed: sí necesita safe-top propio */
+            padding: max(0.5rem, var(--safe-top, env(safe-area-inset-top, 0px))) 0.75rem 0.5rem;
             background: rgba(4, 30, 66, 0.92);
             border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        body.capacitor-native .driver-setup-bar {
+            padding-top: max(0.75rem, calc(var(--safe-top, 40px) + 0.35rem));
         }
 
         .driver-setup-bar-brand {
@@ -2370,7 +2425,7 @@
         /* --- INTERFAZ DE NAVEGACIÓN PROFESIONAL --- */
         #nav-hud-top {
             position: fixed;
-            top: max(12px, env(safe-area-inset-top, 0px));
+            top: max(12px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px));
             left: 50%;
             transform: translateX(-50%);
             width: min(480px, calc(100vw - 1.5rem));
@@ -2798,7 +2853,7 @@
             min-height: 0 !important;
             border-radius: 0 !important;
             z-index: 12000 !important;
-            padding-top: max(0.2rem, env(safe-area-inset-top, 0px));
+            padding-top: max(0.2rem, var(--safe-top, env(safe-area-inset-top, 0px)));
             padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
             box-shadow: none !important;
         }
@@ -3468,7 +3523,7 @@
         .map-pick-sheet {
             pointer-events: none;
             position: fixed;
-            top: max(0.85rem, calc(env(safe-area-inset-top, 0px) + 0.65rem));
+            top: max(0.85rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.65rem));
             left: 50%;
             transform: translateX(-50%) translateY(-8px);
             width: min(22.5rem, calc(100% - 1.25rem));
@@ -3697,7 +3752,7 @@
         /* Bigger hit targets + safe areas on phones */
         @media (max-width: 768px) {
             body.map-pick-mode .map-pick-sheet {
-                top: max(0.65rem, calc(env(safe-area-inset-top, 0px) + 0.45rem));
+                top: max(0.65rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.45rem));
                 width: min(100% - 1rem, 24rem);
                 padding: 0.9rem 1rem 0.85rem;
             }
@@ -3910,8 +3965,8 @@
             min-height: 0 !important;
             border-radius: 0 !important;
             z-index: 12000 !important;
-            padding-top: max(0.2rem, env(safe-area-inset-top, 0px));
-            padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+            padding-top: max(0.2rem, var(--safe-top, env(safe-area-inset-top, 0px)));
+            padding-bottom: max(0.35rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
             box-shadow: none !important;
         }
 
@@ -3929,7 +3984,9 @@
             flex-direction: column;
             min-height: 0;
             max-height: none;
+            /* Permitir que el hijo (#searching-state) scrollee y muestre Cancelar */
             overflow: hidden;
+            overflow-y: visible;
         }
 
         body.is-searching #client-view {
@@ -3950,8 +4007,75 @@
             min-height: 0;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             margin-top: 0 !important;
+            /* Hueco para el botón fijo "Cancelar solicitud" */
+            padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px)) !important;
+        }
+
+        /* Cancelar SIEMPRE visible (fijo abajo) mientras se busca conductor */
+        body.is-searching #searching-cancel-btn,
+        body.is-searching #searching-state .passenger-pending-cancel {
+            position: fixed !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            z-index: 13050 !important;
+            flex-shrink: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            min-height: 3.25rem !important;
+            padding: 0.85rem 1rem max(1rem, env(safe-area-inset-bottom, 0px)) !important;
+            background: #ffffff !important;
+            border: none !important;
+            border-top: 1px solid #fecaca !important;
+            box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.08) !important;
+            pointer-events: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            color: #dc2626 !important;
+            text-decoration: none !important;
+            font-size: 0.85rem !important;
+            font-weight: 900 !important;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            border-radius: 0 !important;
+        }
+
+        html[data-theme="dark"] body.is-searching #searching-cancel-btn,
+        html[data-theme="dark"] body.is-searching #searching-state .passenger-pending-cancel {
+            background: #0f172a !important;
+            border-top-color: #7f1d1d !important;
+            color: #fca5a5 !important;
+            box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35) !important;
+        }
+
+        /* Countdown más compacto para no empujar el cancelar fuera de vista */
+        body.is-searching #searching-state .passenger-pending-countdown {
+            margin-top: 0.45rem;
+            padding: 0.5rem 0.7rem 0.55rem;
+            max-width: 15.5rem;
+        }
+        body.is-searching #searching-state .passenger-pending-countdown-ring {
+            width: 3.25rem;
+            height: 3.25rem;
+        }
+        body.is-searching #searching-state .passenger-pending-countdown-time {
+            font-size: 1.15rem;
+        }
+        body.is-searching #searching-state .passenger-pending-hero {
+            flex-shrink: 0;
+            margin-bottom: 0.45rem;
+        }
+        body.is-searching #searching-state .passenger-pending-route,
+        body.is-searching #searching-state .passenger-pending-foot {
+            flex-shrink: 0;
         }
 
         body.is-searching.passenger-search-multi-offers #searching-state {
@@ -4322,6 +4446,33 @@
             color: #b91c1c;
             background: #fef2f2;
             border: 1px solid #fecaca;
+        }
+
+        .driver-offer-alert--first {
+            color: #6d28d9;
+            background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+            border: 1px solid #c4b5fd;
+        }
+
+        .driver-offer-first-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            font-size: 0.5rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            color: #fff;
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            padding: 0.12rem 0.4rem;
+            border-radius: 999px;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        .driver-offer-detail-line--first {
+            color: #6d28d9;
+            font-weight: 800;
         }
 
         .driver-offer-route {
@@ -5679,7 +5830,7 @@
         }
 
         body.passenger-track-mode #eta-indicator {
-            top: max(10px, env(safe-area-inset-top, 0px));
+            top: max(10px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 6px));
             width: 94%;
             max-width: 440px;
             padding: 14px 18px;
@@ -5715,11 +5866,11 @@
         }
 
         #nearby-drivers-indicator {
-            top: max(12px, env(safe-area-inset-top, 0px));
+            top: max(12px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px));
         }
 
         body.trip-active #nearby-drivers-indicator {
-            top: max(52px, calc(env(safe-area-inset-top, 0px) + 40px));
+            top: max(52px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 48px));
         }
         
         #chat-section { transition: max-height 0.4s ease, opacity 0.3s ease; overflow: hidden; }
@@ -5765,6 +5916,222 @@
             font-size: 0.72rem;
             color: #64748b;
             line-height: 1.35;
+        }
+        /* Mensaje volando + fotos de conductores */
+        .passenger-notify-fly-stage {
+            position: relative;
+            margin: 0.4rem auto 0.5rem;
+            padding: 0.55rem 0.45rem 0.45rem;
+            border-radius: 0.95rem;
+            background: #fff;
+            border: 1px solid #dbeafe;
+            max-width: 18rem;
+            min-height: 5.5rem;
+            overflow: hidden;
+        }
+        .passenger-notify-fly-msg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 5;
+            width: 1.75rem;
+            height: 1.75rem;
+            border-radius: 9999px;
+            background: #2563eb;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            box-shadow: 0 6px 14px rgba(37, 99, 235, 0.35);
+            opacity: 0;
+            pointer-events: none;
+            will-change: transform, opacity;
+        }
+        .passenger-notify-fly-msg.is-flying {
+            opacity: 1;
+        }
+        .passenger-notify-fly-msg.is-hit {
+            background: #059669;
+        }
+        .passenger-notify-avatars {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 0.45rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            scroll-snap-type: x proximity;
+            padding: 0.35rem 0.25rem 0.15rem;
+            justify-content: flex-start;
+            scrollbar-width: none;
+        }
+        .passenger-notify-avatars::-webkit-scrollbar { display: none; }
+        .passenger-notify-avatar {
+            position: relative;
+            flex: 0 0 auto;
+            width: 2.65rem;
+            scroll-snap-align: center;
+            text-align: center;
+            transition: transform 0.25s ease, filter 0.25s ease;
+            filter: grayscale(0.35) opacity(0.75);
+        }
+        .passenger-notify-avatar img {
+            width: 2.45rem;
+            height: 2.45rem;
+            border-radius: 9999px;
+            object-fit: cover;
+            border: 2px solid #e2e8f0;
+            background: #eff6ff;
+            display: block;
+            margin: 0 auto;
+        }
+        .passenger-notify-avatar-label {
+            display: block;
+            margin-top: 0.15rem;
+            font-size: 0.52rem;
+            font-weight: 800;
+            color: #64748b;
+            max-width: 2.65rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .passenger-notify-avatar-check {
+            position: absolute;
+            top: -2px;
+            right: 2px;
+            width: 0.95rem;
+            height: 0.95rem;
+            border-radius: 9999px;
+            background: #10b981;
+            color: #fff;
+            font-size: 0.48rem;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border: 1.5px solid #fff;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.35);
+        }
+        .passenger-notify-avatar.is-target {
+            filter: none;
+            transform: scale(1.08);
+            z-index: 2;
+        }
+        .passenger-notify-avatar.is-target img {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+        .passenger-notify-avatar.is-receiving img {
+            animation: passenger-notify-pop 0.35s ease;
+        }
+        .passenger-notify-avatar.is-received {
+            filter: none;
+            opacity: 1;
+        }
+        .passenger-notify-avatar.is-received .passenger-notify-avatar-check {
+            display: flex;
+        }
+        .passenger-notify-avatar.is-received img {
+            border-color: #10b981;
+        }
+        @keyframes passenger-notify-pop {
+            0% { transform: scale(1); }
+            45% { transform: scale(1.12); }
+            100% { transform: scale(1); }
+        }
+        .passenger-notify-name-line {
+            margin: 0.35rem 0.25rem 0;
+            font-size: 0.72rem;
+            font-weight: 900;
+            color: #1e3a8a;
+            line-height: 1.3;
+            letter-spacing: 0.01em;
+            min-height: 1.7rem;
+        }
+        .passenger-notify-name-line .passenger-notify-ok {
+            color: #059669;
+            margin-right: 0.15rem;
+        }
+        .passenger-notify-name-progress {
+            margin: 0.1rem 0 0;
+            font-size: 0.55rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+        .passenger-pending-countdown-hint {
+            transition: opacity 0.35s ease;
+        }
+        html[data-theme="dark"] .passenger-notify-fly-stage {
+            background: #0f172a;
+            border-color: #1e3a8a;
+        }
+        html[data-theme="dark"] .passenger-notify-name-line {
+            color: #93c5fd;
+        }
+        html[data-theme="dark"] .passenger-notify-name-progress {
+            color: #94a3b8;
+        }
+        html[data-theme="dark"] .passenger-notify-avatar-label {
+            color: #94a3b8;
+        }
+        html[data-theme="dark"] .passenger-notify-avatar img {
+            border-color: #334155;
+        }
+
+        .passenger-pending-countdown {
+            margin: 0.85rem auto 0;
+            max-width: 17rem;
+            padding: 0.75rem 0.9rem 0.85rem;
+            border-radius: 1rem;
+            background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+            border: 1px solid #bfdbfe;
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.08);
+        }
+        .passenger-pending-countdown-label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #1e40af;
+            line-height: 1.35;
+            margin: 0 0 0.55rem;
+        }
+        .passenger-pending-countdown-ring {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 4.25rem;
+            height: 4.25rem;
+            margin: 0 auto;
+            border-radius: 9999px;
+            background: #fff;
+            border: 3px solid #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.12);
+            animation: pulse-blue 2s infinite;
+        }
+        .passenger-pending-countdown-time {
+            font-size: 1.45rem;
+            font-weight: 900;
+            color: #1d4ed8;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+        .passenger-pending-countdown-unit {
+            font-size: 0.58rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+            margin-top: 0.1rem;
+        }
+        .passenger-pending-countdown-hint {
+            margin: 0.55rem 0 0;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #475569;
+            line-height: 1.3;
         }
         .passenger-pending-route {
             margin: 0 0.25rem 0.75rem;
@@ -6151,7 +6518,7 @@
         }
         .passenger-pending-cancel {
             margin-top: 0.85rem;
-            font-size: 0.68rem;
+            font-size: 0.75rem;
             font-weight: 900;
             color: #ef4444;
             text-decoration: underline;
@@ -6162,6 +6529,9 @@
             padding: 0 1rem;
             background: transparent;
             border: none;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
         }
 
         .survey-option {
@@ -10461,7 +10831,7 @@
 
         .live-trip-gps-pill {
             position: fixed;
-            top: calc(env(safe-area-inset-top, 0px) + 56px);
+            top: calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 56px);
             left: 50%;
             transform: translateX(-50%);
             z-index: 12000;
@@ -11365,7 +11735,7 @@
             }
 
             .passenger-tutorial-card--docked-top {
-                top: max(0.45rem, env(safe-area-inset-top, 0px)) !important;
+                top: max(0.45rem, var(--safe-top, env(safe-area-inset-top, 0px))) !important;
                 left: 0.5rem !important;
                 right: 0.5rem !important;
                 bottom: auto !important;
@@ -11448,7 +11818,7 @@
             position: fixed;
             left: 0.55rem;
             right: auto;
-            top: calc(4.6rem + env(safe-area-inset-top, 0px));
+            top: calc(4.6rem + var(--safe-top, env(safe-area-inset-top, 0px)));
             bottom: auto;
             z-index: 70;
             max-width: min(16.5rem, calc(100vw - 1.1rem));
@@ -11931,7 +12301,7 @@
         .app-download-badge {
             position: absolute;
             right: 0.45rem;
-            top: calc(4.5rem + env(safe-area-inset-top, 0px));
+            top: calc(4.5rem + var(--safe-top, env(safe-area-inset-top, 0px)));
             z-index: 39;
             display: flex;
             align-items: stretch;

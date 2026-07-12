@@ -116,6 +116,7 @@ function buildDollarMarkerContent(count, tier) {
 
 function placeHotspot(center, count, tier) {
     if (!window.gMap || !window.mapLoaded || !tier) return;
+    if (typeof google === 'undefined' || !google?.maps) return;
     const style = heatStyle(tier);
 
     const circle = new google.maps.Circle({
