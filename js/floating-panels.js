@@ -781,7 +781,15 @@ export function syncTripFloatPanels(data) {
         }
     }
 
+    // Chat visible para pasajero y conductor en accepted / in_progress (incluye espera de PIN)
     chatPill?.classList.remove('hidden');
+    if (isDriver) {
+        // Asegurar pastilla de chat usable y por encima del panel inferior
+        chatPill?.classList.add('trip-chat-pill--driver');
+        document.getElementById('driver-active-tools')?.classList.remove('hidden');
+    } else {
+        chatPill?.classList.remove('trip-chat-pill--driver');
+    }
     if (window.chatOpen) {
         chatFloat?.classList.remove('hidden');
         document.body.classList.add('trip-chat-open');

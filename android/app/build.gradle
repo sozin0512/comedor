@@ -7,8 +7,8 @@ android {
         applicationId "honduraite.com"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 202607112
-        versionName "2026.07.11.2"
+        versionCode 202607121
+        versionName "2026.07.12.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

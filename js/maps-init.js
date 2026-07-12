@@ -1638,6 +1638,35 @@ window.gMap = null;
                 etaFull?.classList.add('hidden');
                 etaMin?.classList.add('hidden');
             }
+
+            // WhatsApp del conductor: SOLO si va en camino al origen (accepted y aún no marcó llegada)
+            const waBox = document.getElementById('client-trip-wa-contact');
+            const waBtn = document.getElementById('client-trip-wa-btn');
+            const waPhoneEl = document.getElementById('client-trip-wa-phone');
+            const showWa = data.status === 'accepted' && !data.driverArrived && !!data.driverId;
+            if (waBox) {
+                const rawPhone = data.driverPhone || '';
+                const phone = (typeof window.formatHondurasPhone === 'function'
+                    ? window.formatHondurasPhone(rawPhone)
+                    : rawPhone) || '';
+                const link = (typeof window.getWhatsAppLink === 'function' && rawPhone)
+                    ? window.getWhatsAppLink(rawPhone, `Hola ${driverName.split(' ')[0] || ''}, soy el pasajero de HonduRaite.`)
+                    : '';
+                if (showWa && phone && link && link !== 'https://wa.me/') {
+                    waBox.classList.remove('hidden');
+                    if (waBtn) {
+                        waBtn.href = link;
+                        waBtn.removeAttribute('aria-disabled');
+                    }
+                    if (waPhoneEl) waPhoneEl.textContent = phone;
+                } else {
+                    waBox.classList.add('hidden');
+                    if (waBtn) {
+                        waBtn.removeAttribute('href');
+                        waBtn.setAttribute('aria-disabled', 'true');
+                    }
+                }
+            }
         };
 
         window.renderTripPartnerInfo = (data, role) => {
@@ -2061,7 +2090,7 @@ window.gMap = null;
 
             if (window.chatOpen) {
                 window.bindFloatingTripPanels?.();
-                ['chat-badge', 'chat-badge-driver'].forEach((id) => {
+                ['chat-badge', 'chat-badge-driver', 'driver-tools-chat-badge', 'driver-pin-chat-badge'].forEach((id) => {
                     const badge = document.getElementById(id);
                     if (!badge) return;
                     badge.classList.add('hidden');
@@ -2071,7 +2100,12 @@ window.gMap = null;
                 setTimeout(() => {
                     const chatMsgs = document.getElementById('chat-messages');
                     if (chatMsgs) chatMsgs.scrollTop = chatMsgs.scrollHeight;
-                    document.getElementById('chat-input')?.focus?.();
+                    // En conductor no forzar focus al teclado del chat si está en PIN (evita pelear con el input del PIN)
+                    const pinOpen = !document.getElementById('driver-pin-float')?.classList.contains('hidden')
+                        && !document.getElementById('pin-input-group')?.classList.contains('hidden');
+                    if (!(window.userProfile?.role === 'driver' && pinOpen)) {
+                        document.getElementById('chat-input')?.focus?.({ preventScroll: true });
+                    }
                 }, 100);
             }
         };
@@ -2785,7 +2819,7 @@ window.gMap = null;
         };
 
         // Radio para activar llegada al destino (conductor presiona botón → pasajero confirma).
-        const DESTINATION_ARRIVAL_RADIUS_M = 200;
+        const DESTINATION_ARRIVAL_RADIUS_M = 1000;
 
         window.clearRoutePolylinesOnly = (options = {}) => {
             if (!options?.force && window.shouldPreserveDriverNavRoute?.()) return;
@@ -3524,7 +3558,7 @@ window.gMap = null;
             for (const step of steps) {
                 if (!step.endLocation) continue;
                 const distM = window.getDistanceToNavPoint(pos, step.endLocation);
-                // Para el último paso (destino) usamos el radio de llegada ~200m
+                // Para el último paso (destino) usamos el radio de llegada ~1 km
                 const threshold = (step === steps[steps.length-1]) ? DESTINATION_ARRIVAL_RADIUS_M : 40;
                 if (distM > threshold) return step;
             }
@@ -3913,7 +3947,7 @@ window.gMap = null;
 
             if (phase === 'destination') {
                 if (stepText) {
-                    // A 200m o menos consideramos que el conductor "ya llegó" (no entra a la casa)
+                    // A 1 km o menos consideramos que el conductor "ya llegó" (no entra a la casa)
                     if (meters != null && meters <= DESTINATION_ARRIVAL_RADIUS_M) {
                         const trip = window.currentActiveTripData || window.activeTrip;
                         stepText.textContent = trip?.driverArrivedDestination
@@ -3936,7 +3970,7 @@ window.gMap = null;
                         const trip = window.currentActiveTripData || window.activeTrip;
                         stepDist.textContent = trip?.driverArrivedDestination
                             ? 'Toca SÍ, YA LLEGUÉ AL DESTINO'
-                            : 'A ~200 m — espera confirmación del conductor';
+                            : 'A ~1 km — espera confirmación del conductor';
                     } else {
                         stepDist.textContent = km && etaTime
                             ? `${km} km · llegada ${etaTime}`

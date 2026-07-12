@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.11.2">
+    <meta name="hr-app-version" content="2026.07.12.1">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.11.2">
+    <link rel="manifest" href="manifest.json?v=2026.07.12.1">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,13 +30,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.11.2">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.12.1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.11.2">
-    <script src="js/maps-init.js?v=2026.07.11.2"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.12.1">
+    <script src="js/maps-init.js?v=2026.07.12.1"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.11.2';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.12.1';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -96,10 +96,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.11.2';
+        window.__HR_BUILD_VERSION__ = '2026.07.12.1';
         (function () {
             try {
-                var build = '2026.07.11.2';
+                var build = '2026.07.12.1';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -331,6 +331,23 @@
                             <p id="client-trip-vehicle" class="client-trip-vehicle">Vehículo</p>
                         </div>
                     </div>
+                    <!-- WhatsApp SOLO mientras el conductor va al origen (antes de marcar llegada). Luego se oculta para siempre en el viaje. -->
+                    <div id="client-trip-wa-contact" class="client-trip-wa-contact hidden" data-no-drag>
+                        <a id="client-trip-wa-btn" href="#" target="_blank" rel="noopener" class="client-trip-wa-btn" data-no-drag>
+                            <i class="fab fa-whatsapp"></i>
+                            <span class="client-trip-wa-copy">
+                                <strong>WhatsApp al conductor</strong>
+                                <small id="client-trip-wa-phone">Solo disponible antes de la recogida</small>
+                            </span>
+                        </a>
+                        <p class="client-trip-wa-hint">Si tarda o necesitas ubicarle, escríbele aquí. Cuando marque llegada, el número se oculta y solo queda el chat de la app.</p>
+                    </div>
+                    <div class="client-trip-contact-row" data-no-drag>
+                        <button type="button" id="client-trip-open-chat" class="client-trip-chat-btn trip-touch-btn" data-trip-action="toggle-chat" data-no-drag title="Abrir chat del viaje">
+                            <i class="fas fa-comments pointer-events-none"></i>
+                            <span class="pointer-events-none">Chat del viaje</span>
+                        </button>
+                    </div>
                     <div id="client-trip-vehicle-photos" class="client-trip-vehicle-photos hidden">
                         <p class="client-trip-vehicle-photos-label"><i class="fas fa-car"></i> Referencia del vehículo</p>
                         <div class="client-trip-vehicle-photos-grid">
@@ -389,6 +406,11 @@
             <div id="driver-pin-hero" class="hidden driver-pin-hero trip-float-body">
                 <p class="driver-pin-hero-kicker"><i class="fas fa-key"></i> Paso 2 · PIN del pasajero</p>
                 <p id="driver-pin-hint" class="driver-pin-hero-hint">Pide el PIN al pasajero e ingrésalo para iniciar el viaje</p>
+                <button type="button" id="driver-pin-open-chat" data-trip-action="toggle-chat" data-no-drag class="driver-pin-chat-btn trip-touch-btn w-full mb-2" title="Escribirle al pasajero">
+                    <i class="fas fa-comments pointer-events-none"></i>
+                    <span class="pointer-events-none">Chat con el pasajero</span>
+                    <span id="driver-pin-chat-badge" class="hidden driver-active-tool-badge">0</span>
+                </button>
                 <div id="pin-input-group" class="hidden driver-pin-input-group mt-2">
                     <input id="driver-pin-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="PIN" aria-label="PIN del pasajero" class="driver-pin-input w-full min-w-0 px-3 py-3 border-2 border-blue-100 rounded-2xl outline-none text-center font-black text-2xl tracking-[0.25em]">
                     <button type="button" data-trip-action="verify-pin" class="driver-pin-submit bg-blue-600 text-white w-full rounded-2xl font-black text-xs uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]"><span class="pointer-events-none">INICIAR VIAJE</span></button>
@@ -1920,13 +1942,14 @@
                         <p class="driver-pin-hero-kicker"><i class="fas fa-flag-checkered"></i> Llegada al destino</p>
                         <p id="driver-dest-distance-hint" class="driver-pin-hero-hint">Calculando distancia al destino…</p>
                         <button type="button" id="btn-driver-arrived-dest" data-trip-action="driver-arrived-dest" disabled class="driver-pin-hero-btn driver-active-primary-btn trip-touch-btn w-full disabled:bg-slate-300 disabled:text-slate-500 disabled:opacity-80"><span class="pointer-events-none">LLEGUÉ AL DESTINO</span></button>
-                        <p class="text-[9px] text-center text-slate-500 font-bold leading-snug">Se activa a 200 m del punto. Finaliza el viaje al presionarlo.</p>
+                        <p class="text-[9px] text-center text-slate-500 font-bold leading-snug">Se activa a 1 km del punto. Finaliza el viaje al presionarlo.</p>
                     </div>
 
-                    <div id="driver-active-tools" class="driver-active-tools hidden">
+                    <div id="driver-active-tools" class="driver-active-tools">
                         <button type="button" data-trip-action="toggle-chat" class="driver-active-tool-btn trip-touch-btn" title="Chat del viaje">
                             <i class="fas fa-comments pointer-events-none"></i>
                             <span class="pointer-events-none">Chat</span>
+                            <span id="driver-tools-chat-badge" class="hidden driver-active-tool-badge">0</span>
                         </button>
                         <button type="button" data-trip-action="center-map" class="driver-active-tool-btn trip-touch-btn" title="Centrar mapa">
                             <i class="fas fa-location-arrow pointer-events-none"></i>
@@ -1941,7 +1964,7 @@
                         <p id="client-driver-busy-text" class="text-xs text-amber-900 font-semibold leading-snug">Tu conductor está terminando otro viaje pero llegará pronto. Espéralo atentamente.</p>
                     </div>
 
-                    <p class="trip-passenger-only text-[9px] text-center text-gray-400 font-semibold mb-3 leading-snug">Comunícate solo por el chat flotante. Los números de teléfono no se comparten.</p>
+                    <p class="trip-passenger-only text-[9px] text-center text-gray-400 font-semibold mb-3 leading-snug">Puedes chatear en la app en todo el viaje. El WhatsApp del conductor solo se muestra mientras va a recogerte.</p>
 
                     <button type="button" data-trip-action="cancel" class="trip-passenger-only w-full py-3 text-[10px] font-black text-red-500 uppercase tracking-widest border border-red-100 rounded-xl mb-4 hover:bg-red-50 active:scale-95 transition-all text-center trip-touch-btn"><span class="pointer-events-none">Cancelar Servicio</span></button>
                     </div>
@@ -1997,6 +2020,6 @@
         </main>
     </div>
 
-    <script type="module" src="js/app.js?v=2026.07.11.2"></script>
+    <script type="module" src="js/app.js?v=2026.07.12.1"></script>
 </body>
 </html>

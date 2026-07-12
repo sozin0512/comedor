@@ -9,10 +9,10 @@ const { getMessaging } = require('firebase-admin/messaging');
 
 const PROJECT_ID = 'comedor-86278';
 const APP_ID = 'comayagua-vip-pro-v4';
-const VERSION = '2026.07.11.2';
+const VERSION = '2026.07.12.1';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
-    `Actualización ${VERSION}: más espacio arriba en admin, conductor y pasajero (ya no choca con notificaciones), nombres reales del mapa en A/B, y texto de flota corregido. Abre o actualiza la app. ¡Gracias!`;
+    `Actualización ${VERSION}: chat del conductor (también en PIN), WhatsApp al conductor solo antes de la recogida, regateo sin teclado en bucle, admin/supervisor marca llegada y edita ruta/precio, comisión de depósito al % real del admin, y bloqueo por horario (plazo 12 p.m. del día siguiente + aviso 2 h antes). Actualiza ahora. ¡Gracias!`;
 
 initializeApp({
     credential: applicationDefault(),

@@ -522,7 +522,7 @@ exports.getMyDriverPayoutRecords = onCall(async (request) => {
 });
 
 const ACCEPT_TRIP_FIELDS = new Set([
-    'status', 'driverId', 'driverName', 'driverPhoto', 'driverVehicle', 'driverVehiclePhotos',
+    'status', 'driverId', 'driverName', 'driverPhone', 'driverPhoto', 'driverVehicle', 'driverVehiclePhotos',
     'driverDocumentsPhotos', 'driverVehicleType', 'serviceType', 'driverIdentity', 'driverRating',
     'pin', 'driverArrived', 'acceptedAt', 'offeredToDriverId', 'offeredToDriverName', 'offerSentAt',
     'offerDistanceKm', 'driverFinishingOtherTrip', 'driverBusyOnTripId',
@@ -2032,6 +2032,186 @@ exports.driverDepositReminder9pm = onSchedule(
                 body: `${u.name || 'Conductor'} aún debe depositar L. ${owed.toFixed(2)}. Tel: ${u.phone || 'N/D'} · ${u.payoutEmail || ''}`,
                 data: { type: 'deposit_reminder_mod', tag: `9pm-mod-${doc.id}` }
             });
+        }
+    }
+);
+
+/** Honduras sin DST: mediodía local = 18:00 UTC. */
+function getDepositDeadlineMsFromWorkStartAdmin(workStartMs) {
+    const start = Number(workStartMs);
+    if (!Number.isFinite(start) || start <= 0) return 0;
+    const fmt = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Tegucigalpa',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric'
+    });
+    const parts = fmt.formatToParts(new Date(start));
+    const get = (type) => parseInt(parts.find((p) => p.type === type)?.value || '0', 10);
+    const year = get('year');
+    const month = get('month');
+    const day = get('day');
+    return Date.UTC(year, month - 1, day + 1, 18, 0, 0);
+}
+
+function toMsAdmin(raw) {
+    if (raw == null) return 0;
+    try {
+        if (typeof raw.toDate === 'function') return raw.toDate().getTime();
+        if (raw.seconds != null) return raw.seconds * 1000;
+        if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+        const t = new Date(raw).getTime();
+        return Number.isFinite(t) ? t : 0;
+    } catch (_) {
+        return 0;
+    }
+}
+
+function isStaffGraceActiveAdmin(u, nowMs) {
+    const until = toMsAdmin(u?.depositGraceUntil);
+    return until > nowMs;
+}
+
+/**
+ * Plazo de depósito: 12:00 p.m. del día siguiente al inicio de trabajo.
+ * - 2 h antes: push "tienes 2 horas para depositar o se inhabilita la cuenta"
+ * - Al vencer con deuda: force offline + driverOnBreak + depositAutoBlocked
+ */
+exports.enforceDriverDepositDeadlines = onSchedule(
+    {
+        schedule: 'every 15 minutes',
+        timeZone: 'America/Tegucigalpa'
+    },
+    async () => {
+        const snap = await db.collection(`artifacts/${APP_ID}/public/data/users`).get();
+        const now = Date.now();
+        const twoH = 2 * 60 * 60 * 1000;
+        let warned = 0;
+        let blocked = 0;
+
+        for (const userDoc of snap.docs) {
+            const u = userDoc.data() || {};
+            if (u.role !== 'driver') continue;
+            if (u.approvalStatus === 'suspended') continue;
+            if (isStaffGraceActiveAdmin(u, now)) continue;
+
+            const debt = Math.max(
+                0,
+                parseFloat(u.pendingDepositDebt) || 0,
+                parseFloat(u.driverLastDepositOwed) || 0
+            );
+            if (debt <= 0.009) continue;
+
+            let workStart = toMsAdmin(u.depositWorkStartedAt) || Number(u.depositWorkStartedAtMs) || 0;
+            let deadline = toMsAdmin(u.depositDeadlineAt) || Number(u.depositDeadlineAtMs) || 0;
+            if (!workStart && !deadline) {
+                // Sin ancla: no inventamos bloqueo aquí; el cliente fija al ir online
+                continue;
+            }
+            if (!deadline && workStart) {
+                deadline = getDepositDeadlineMsFromWorkStartAdmin(workStart);
+            }
+            if (!deadline) continue;
+
+            const uid = userDoc.id;
+            const userRef = db.doc(`artifacts/${APP_ID}/public/data/users/${uid}`);
+            const privRef = db.doc(`artifacts/${APP_ID}/users/${uid}/profile/data`);
+            const msLeft = deadline - now;
+
+            // Aviso 2 horas antes
+            if (msLeft > 0 && msLeft <= twoH && !u.depositWarning2hSent) {
+                const body = `Tienes 2 horas para el depósito (L. ${debt.toFixed(2)}). Si no, tu cuenta será inhabilitada por incumplir con pagos pendientes.`;
+                await userRef.set({
+                    depositWarning2hSent: true,
+                    depositWarning2hSentAt: FieldValue.serverTimestamp(),
+                    depositDeadlineAtMs: deadline,
+                    depositDeadlineAt: Timestamp.fromMillis(deadline)
+                }, { merge: true });
+                try {
+                    await privRef.set({
+                        depositWarning2hSent: true,
+                        depositWarning2hSentAt: FieldValue.serverTimestamp()
+                    }, { merge: true });
+                } catch (_) {}
+
+                await sendPushToUser(APP_ID, uid, {
+                    title: 'Aviso: depósito pendiente',
+                    body,
+                    data: { type: 'deposit_deadline_warning', tag: `dep-warn-${uid}` },
+                    highPriority: true
+                });
+                await db.collection(`artifacts/${APP_ID}/public/data/notifications`).add({
+                    targetUserId: uid,
+                    targetRole: 'driver',
+                    personal: true,
+                    type: 'deposit_deadline_warning',
+                    title: 'Aviso: depósito pendiente',
+                    message: body,
+                    sentBy: 'system',
+                    sentByName: 'Sistema',
+                    createdAt: FieldValue.serverTimestamp(),
+                    createdAtMs: now
+                });
+                warned += 1;
+            }
+
+            // Plazo vencido → inhabilitar
+            if (msLeft <= 0 && !u.depositAutoBlocked) {
+                const body = `Tu cuenta fue inhabilitada: no depositaste L. ${debt.toFixed(2)} a tiempo (plazo 12:00 p.m. del día siguiente a tu inicio de trabajo). Envía el comprobante para reactivarte.`;
+                await userRef.set({
+                    driverOnBreak: true,
+                    depositAutoBlocked: true,
+                    depositAutoBlockedAt: FieldValue.serverTimestamp(),
+                    depositAutoBlockedReason: 'deposit_deadline_missed',
+                    driverLastDepositOwed: debt,
+                    updatedAt: FieldValue.serverTimestamp()
+                }, { merge: true });
+                try {
+                    await privRef.set({
+                        driverOnBreak: true,
+                        depositAutoBlocked: true,
+                        depositAutoBlockedAt: FieldValue.serverTimestamp(),
+                        depositAutoBlockedReason: 'deposit_deadline_missed',
+                        driverLastDepositOwed: debt
+                    }, { merge: true });
+                } catch (_) {}
+
+                try {
+                    await db.doc(`artifacts/${APP_ID}/public/data/drivers_location/${uid}`).set({
+                        online: false,
+                        updatedAt: now
+                    }, { merge: true });
+                } catch (_) {}
+
+                await sendPushToUser(APP_ID, uid, {
+                    title: 'Cuenta inhabilitada — depósito',
+                    body,
+                    data: { type: 'deposit_auto_blocked', tag: `dep-block-${uid}` },
+                    highPriority: true
+                });
+                await notifyModerators(APP_ID, {
+                    title: 'Conductor inhabilitado por depósito',
+                    body: `${u.name || 'Conductor'} no depositó L. ${debt.toFixed(2)} a tiempo. Tel: ${u.phone || 'N/D'}`,
+                    data: { type: 'deposit_auto_blocked_mod', tag: `dep-block-mod-${uid}` }
+                });
+                await db.collection(`artifacts/${APP_ID}/public/data/notifications`).add({
+                    targetUserId: uid,
+                    targetRole: 'driver',
+                    personal: true,
+                    type: 'deposit_auto_blocked',
+                    title: 'Cuenta inhabilitada — depósito',
+                    message: body,
+                    sentBy: 'system',
+                    sentByName: 'Sistema',
+                    createdAt: FieldValue.serverTimestamp(),
+                    createdAtMs: now
+                });
+                blocked += 1;
+            }
+        }
+
+        if (warned || blocked) {
+            console.log(`enforceDriverDepositDeadlines: warned=${warned} blocked=${blocked}`);
         }
     }
 );
