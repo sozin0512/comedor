@@ -35,6 +35,29 @@ import {
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
 } from "./trip-notifications.js";
+import {
+    installNotificationTonesApi,
+    loadTonePrefs,
+    saveTonePrefs,
+    applyRemoteToneConfig,
+    TONE_EVENTS,
+    listTones,
+    playToneById,
+    getCustomTones,
+    upsertCustomTone,
+    removeCustomTone,
+    isAllowedAudioFile,
+    makeCustomToneId,
+    getMaxCustomBytes,
+    buildToneOptionsHtml,
+    getPlatformToneLabel,
+    startPassengerWaitingLoop,
+    stopPassengerWaitingLoop,
+    playPassengerAcceptedTone,
+    stopLoopingTone
+} from "./notification-tones.js";
+
+installNotificationTonesApi();
 
 window.triggerSuperTripVibration = triggerSuperTripVibration;
 window.triggerSuperFreightVibration = triggerSuperFreightVibration;
@@ -92,7 +115,8 @@ import {
 } from "./demand-heatmap.js";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
-    pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers
+    pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
+    getFleetActiveTripForDriver
 } from "./ops-fleet-map.js";
 import { syncLiveTripKeepalive, registerLiveTripGpsPulse } from "./live-trip-keepalive.js";
 import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js";
@@ -982,6 +1006,18 @@ window.loadAppCustomization = async () => {
         window.showLoginLogo?.();
         window.showCustomLogoInHeader?.();
 
+        // Tonos globales (Personalización): mapa + archivos custom para todos
+        try {
+            if (s.toneMap || s.customTones) {
+                applyRemoteToneConfig({
+                    toneMap: s.toneMap || null,
+                    customTones: s.customTones || null
+                });
+            }
+        } catch (toneErr) {
+            console.warn('loadAppCustomization tones:', toneErr);
+        }
+
     } catch(e) {
         console.error("Error en loadAppCustomization:", e);
     } finally {
@@ -1633,127 +1669,8 @@ if (document.readyState === 'loading') {
             }, 4000);
         };
 
-        // AudioContext compartido: en WebView Android hay que reanudarlo tras un gesto del usuario
-        let sharedNotifAudioCtx = null;
-        function getNotifAudioContext() {
-            try {
-                const AC = window.AudioContext || window.webkitAudioContext;
-                if (!AC) return null;
-                if (!sharedNotifAudioCtx || sharedNotifAudioCtx.state === 'closed') {
-                    sharedNotifAudioCtx = new AC();
-                }
-                if (sharedNotifAudioCtx.state === 'suspended') {
-                    sharedNotifAudioCtx.resume().catch(() => {});
-                }
-                return sharedNotifAudioCtx;
-            } catch (_) {
-                return null;
-            }
-        }
-        const unlockNotifAudio = () => {
-            const ctx = getNotifAudioContext();
-            if (ctx?.state === 'suspended') ctx.resume().catch(() => {});
-        };
-        ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((evt) => {
-            document.addEventListener(evt, unlockNotifAudio, { passive: true, capture: true });
-        });
-
-        // === Sonido de notificación (ding agradable) ===
-        window.playNotificationSound = () => {
-            try {
-                const audioContext = getNotifAudioContext();
-                if (!audioContext) return;
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                const filter = audioContext.createBiquadFilter();
-
-                oscillator.type = 'sine';
-                oscillator.frequency.value = 880;
-
-                filter.type = 'lowpass';
-                filter.frequency.value = 1400;
-
-                gainNode.gain.value = 0.25;
-
-                const now = audioContext.currentTime;
-                gainNode.gain.setValueAtTime(0.25, now);
-                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
-
-                oscillator.connect(filter);
-                filter.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-
-                oscillator.start(now);
-                oscillator.stop(now + 0.75);
-            } catch (e) {
-                // Silencioso si el navegador bloquea audio automático
-            }
-        };
-
-        // === Alerta sonora exclusiva para conductores (nuevo viaje / oferta) ===
-        window.playDriverTripOfferSound = () => {
-            try {
-                const ctx = getNotifAudioContext();
-                if (!ctx) return;
-
-                const tone = (freq, start, duration, volume = 0.32) => {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.type = 'triangle';
-                    osc.frequency.value = freq;
-                    const t0 = ctx.currentTime + start;
-                    gain.gain.setValueAtTime(0.0001, t0);
-                    gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.025);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(t0);
-                    osc.stop(t0 + duration + 0.04);
-                };
-
-                tone(784, 0, 0.16);
-                tone(1046, 0.2, 0.16);
-                tone(1318, 0.4, 0.32, 0.38);
-            } catch (_) {}
-        };
-
-        // === Sonido SUPER diferente para Supervisor / Admin (nuevo viaje pendiente)
-        // Sonido más urgente, "alerta de control" con patrón repetido y tono más grave + agudo
-        window.playStaffTripAlertSound = () => {
-            try {
-                const ctx = getNotifAudioContext();
-                if (!ctx) return;
-
-                const urgentBeep = (freq, start, dur, vol = 0.45) => {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    const filter = ctx.createBiquadFilter();
-                    osc.type = 'sawtooth';
-                    osc.frequency.value = freq;
-                    filter.type = 'bandpass';
-                    filter.frequency.value = freq;
-                    filter.Q.value = 6;
-
-                    const t0 = ctx.currentTime + start;
-                    gain.gain.setValueAtTime(0.0001, t0);
-                    gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
-                    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-
-                    osc.connect(filter);
-                    filter.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.start(t0);
-                    osc.stop(t0 + dur + 0.05);
-                };
-
-                // Patrón "alerta de despacho" distinto al del conductor
-                urgentBeep(620, 0, 0.18);
-                urgentBeep(920, 0.22, 0.18);
-                urgentBeep(620, 0.48, 0.22, 0.5);
-                urgentBeep(1150, 0.78, 0.35, 0.42);
-                urgentBeep(620, 1.2, 0.15);
-            } catch (_) {}
-        };
+        // Tonos: ver notification-tones.js (Web Audio propio, no el sonido del sistema del celular)
+        // window.playNotificationSound / playDriverTripOfferSound / playStaffTripAlertSound / playChatSound
 
         function getDriverOfferAlertKey(trip) {
             const ts = trip.offerSentAt?.seconds ?? trip.offerSentAt?.toMillis?.() ?? 0;
@@ -6495,7 +6412,7 @@ if (document.readyState === 'loading') {
             return (snap?.docs || []).map((d) => {
                 const base = { id: d.id, ...d.data() };
                 return tripPatches[d.id] ? { ...base, ...tripPatches[d.id] } : base;
-            });
+            }).filter((t) => !t.__deleted && t.status !== '__deleted');
         }
 
         function refreshStaffTripsPanels(tripPatches = {}) {
@@ -6561,7 +6478,7 @@ if (document.readyState === 'loading') {
 
             return U.section({
                 title: 'Cancelados (finalización manual)',
-                subtitle: 'Si el servicio sí se realizó, finaliza manualmente para cargar comisión y depósito del conductor',
+                subtitle: 'Si el servicio sí se realizó, finaliza para comisión/depósito. Si no aplica, bórralo con BORRAR (admin/supervisor).',
                 icon: 'fa-ban',
                 variant: 'red',
                 badge: cancelledTrips.length,
@@ -6572,16 +6489,355 @@ if (document.readyState === 'loading') {
         }
 
         function buildStaffCancelledTripActionsHtml(t) {
-            if (!isStaffManualCompletionPending(t)) {
-                return '<p class="ops-toolbar-hint text-emerald-400 font-bold">Finalizado manualmente · ya no aparece en pendientes.</p>';
-            }
             const U = window.OpsUi;
+            const canDelete = window.userProfile?.role === 'supervisor' || isAdminUser(currentUser, window.userProfile);
+            const deleteBtn = canDelete
+                ? `<button type="button" onclick="window.deleteActiveTrip('${t.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white text-[10px] py-2 rounded-xl font-black uppercase flex items-center justify-center gap-1"><i class="fas fa-trash"></i> BORRAR</button>`
+                : '';
+
+            if (!isStaffManualCompletionPending(t)) {
+                return `<div class="ops-trip-actions flex flex-wrap gap-2">
+                    <p class="ops-toolbar-hint text-emerald-400 font-bold w-full">Finalizado manualmente · ya no aparece en pendientes.</p>
+                    ${deleteBtn}
+                </div>`;
+            }
             const priceNum = parseTripPrice(t);
             const hint = priceNum > 0
                 ? ` · L. ${priceNum.toFixed(2)}`
                 : '';
             return `<div class="ops-trip-actions flex flex-wrap gap-2">
                 ${U.btn(`Finalizar manualmente${hint}`, `window.staffManualCompleteTrip('${t.id}')`, { variant: 'emerald', icon: 'fa-check-double' })}
+                ${deleteBtn}
+            </div>`;
+        }
+
+        function getStaffActiveTripPhase(t) {
+            if (!t) return 'other';
+            if (t.status === 'pending') return 'pending';
+            if (t.status === 'accepted' && !t.driverArrived) return 'to_pickup';
+            if (t.status === 'accepted' && t.driverArrived) return 'at_pickup';
+            if (t.status === 'in_progress') return 'in_progress';
+            return 'other';
+        }
+
+        function getStaffActiveTripPhaseMeta(phase) {
+            const map = {
+                pending: {
+                    key: 'pending',
+                    title: 'Buscando conductor',
+                    sub: 'Pendientes con ofertas o en cola',
+                    icon: 'fa-satellite-dish',
+                    variant: 'amber',
+                    accent: 'amber'
+                },
+                to_pickup: {
+                    key: 'to_pickup',
+                    title: 'En camino al pasajero',
+                    sub: 'Aceptados · aún no marcan llegada',
+                    icon: 'fa-car-side',
+                    variant: 'emerald',
+                    accent: 'emerald'
+                },
+                at_pickup: {
+                    key: 'at_pickup',
+                    title: 'En origen / PIN',
+                    sub: 'Llegó al pasajero · esperando PIN',
+                    icon: 'fa-key',
+                    variant: 'violet',
+                    accent: 'violet'
+                },
+                in_progress: {
+                    key: 'in_progress',
+                    title: 'Viaje en curso',
+                    sub: 'Hacia destino o paradas',
+                    icon: 'fa-route',
+                    variant: 'cyan',
+                    accent: 'cyan'
+                }
+            };
+            return map[phase] || {
+                key: phase,
+                title: 'Otros',
+                sub: '',
+                icon: 'fa-circle',
+                variant: 'default',
+                accent: 'default'
+            };
+        }
+
+        window.setStaffActiveTripFilter = (filterKey, btnEl) => {
+            const root = btnEl?.closest?.('.ops-trips-dash') || document.querySelector('.ops-trips-dash');
+            if (!root) return;
+            const key = String(filterKey || 'all');
+            root.dataset.activeFilter = key;
+            root.querySelectorAll('[data-staff-trip-filter]').forEach((chip) => {
+                const on = chip.getAttribute('data-staff-trip-filter') === key;
+                chip.classList.toggle('ops-chip--active', on);
+            });
+            root.querySelectorAll('[data-trip-phase]').forEach((card) => {
+                const phase = card.getAttribute('data-trip-phase');
+                const show = key === 'all' || phase === key;
+                card.classList.toggle('ops-trip-card--filtered-out', !show);
+            });
+            root.querySelectorAll('[data-phase-col]').forEach((col) => {
+                const phase = col.getAttribute('data-phase-col');
+                if (key === 'all') {
+                    col.classList.remove('ops-trips-col--hidden');
+                    return;
+                }
+                col.classList.toggle('ops-trips-col--hidden', phase !== key);
+            });
+        };
+
+        window.setStaffActiveTripsView = (mode, btnEl) => {
+            window._staffActiveTripsView = mode === 'board' ? 'board' : 'list';
+            const root = btnEl?.closest?.('.ops-trips-dash') || document.querySelector('.ops-trips-dash');
+            // Re-render current trips page if possible
+            try {
+                if (window.currentAdminTab === 'trips' && window._adminTripsLastSnap) {
+                    const container = document.getElementById('admin-users-list');
+                    if (container) {
+                        container.innerHTML = buildAdminTripsPageHtml(
+                            mapStaffTripsSnapshot(window._adminTripsLastSnap)
+                        );
+                        return;
+                    }
+                }
+                const tripsTabActive = document.querySelector('#supervisor-panel .ops-nav-item[data-sup-tab="trips"].ops-nav-item--active');
+                if (window._supervisorTripsLastSnap && tripsTabActive) {
+                    const container = document.getElementById('supervisor-pending-list');
+                    if (container) {
+                        container.innerHTML = buildSupervisorTripsPageHtml(
+                            mapStaffTripsSnapshot(window._supervisorTripsLastSnap)
+                        );
+                    }
+                }
+            } catch (e) {
+                console.warn('setStaffActiveTripsView:', e);
+            }
+        };
+
+        function buildStaffActiveTripCompactRow(t, phase, cardOpts = {}) {
+            const meta = getStaffActiveTripPhaseMeta(phase);
+            const client = escapeViewerText(t.clientName || 'Pasajero');
+            const driver = escapeViewerText(t.driverName || (phase === 'pending' ? 'Buscando…' : 'Conductor'));
+            const price = escapeViewerText(t.price || '—');
+            const origin = escapeViewerText(
+                (window.shortenMapPlaceLabel?.(t.origin) || t.origin || 'Origen').toString().slice(0, 42)
+            );
+            const dest = escapeViewerText(
+                (window.shortenMapPlaceLabel?.(t.destination) || t.destination || 'Destino').toString().slice(0, 42)
+            );
+            const clientPhone = t.clientPhone || t.phone || '';
+            const driverPhone = t.driverPhone || '';
+            const clientWa = clientPhone ? getWhatsAppLink(clientPhone) : '';
+            const driverWa = driverPhone ? getWhatsAppLink(driverPhone) : '';
+            const expandId = `staff-trip-expand-${t.id}`;
+            const fullCard = renderOpsTripCard(t, {
+                showStaffPin: true,
+                showRoute: true,
+                maxChatHeight: cardOpts.maxChatHeight || '7rem',
+                phase,
+                actionsHtml: buildStaffActiveTripActionsHtml(t, {
+                    includeDelete: cardOpts.includeDelete !== false,
+                    includeInvoice: !!cardOpts.includeInvoice,
+                    includeCancel: cardOpts.includeCancel !== false
+                })
+            });
+            return `
+            <article class="ops-trip-compact ops-trip-compact--${meta.accent}" data-trip-phase="${phase}" data-trip-id="${t.id}">
+                <button type="button" class="ops-trip-compact-main" onclick="window.toggleStaffTripCompactExpand('${expandId}')">
+                    <span class="ops-trip-compact-phase"><i class="fas ${meta.icon}"></i></span>
+                    <span class="ops-trip-compact-body">
+                        <span class="ops-trip-compact-people"><b>${client}</b> · ${driver}</span>
+                        <span class="ops-trip-compact-route">${origin} → ${dest}</span>
+                    </span>
+                    <span class="ops-trip-compact-price">${price}</span>
+                    <i class="fas fa-chevron-down ops-trip-compact-chevron"></i>
+                </button>
+                <div class="ops-trip-compact-quick">
+                    ${t.driverId ? `<button type="button" class="ops-trip-quick-btn" title="Ver en mapa" onclick="window.focusStaffTripOnMap('${t.id}', '${t.driverId}')"><i class="fas fa-map-marker-alt"></i></button>` : ''}
+                    ${clientWa ? `<a class="ops-trip-quick-btn ops-trip-quick-btn--wa" href="${clientWa}" target="_blank" rel="noopener" title="WhatsApp pasajero"><i class="fab fa-whatsapp"></i></a>` : ''}
+                    ${driverWa ? `<a class="ops-trip-quick-btn ops-trip-quick-btn--wa" href="${driverWa}" target="_blank" rel="noopener" title="WhatsApp conductor"><i class="fab fa-whatsapp"></i></a>` : ''}
+                </div>
+                <div id="${expandId}" class="ops-trip-compact-expand hidden">${fullCard}</div>
+            </article>`;
+        }
+
+        window.toggleStaffTripCompactExpand = (expandId) => {
+            const el = document.getElementById(expandId);
+            if (!el) return;
+            el.classList.toggle('hidden');
+            const row = el.closest('.ops-trip-compact');
+            row?.classList.toggle('ops-trip-compact--open', !el.classList.contains('hidden'));
+        };
+
+        window.focusStaffTripOnMap = async (tripId, driverId) => {
+            try {
+                document.getElementById('admin-panel')?.classList.remove('ops-drawer-open');
+                document.getElementById('supervisor-panel')?.classList.remove('ops-drawer-open');
+            } catch (_) {}
+            if (driverId) {
+                window.openStaffFleetDriverPanel?.(driverId);
+                return;
+            }
+            if (tripId) {
+                try {
+                    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId));
+                    if (snap.exists()) {
+                        window.showStaffLiveTripMapSheet?.({ id: tripId, ...snap.data() });
+                    }
+                } catch (_) {}
+            }
+        };
+
+        function buildStaffActiveTripsDashboardHtml(otherActive, cardOpts = {}) {
+            const U = window.OpsUi;
+            const phases = ['pending', 'to_pickup', 'at_pickup', 'in_progress'];
+            const groups = {
+                pending: [],
+                to_pickup: [],
+                at_pickup: [],
+                in_progress: []
+            };
+            (otherActive || []).forEach((t) => {
+                const phase = getStaffActiveTripPhase(t);
+                if (groups[phase]) groups[phase].push(t);
+                else groups.pending.push(t);
+            });
+
+            phases.forEach((p) => {
+                groups[p].sort((a, b) => {
+                    const ta = a.acceptedAt?.seconds || a.createdAt?.seconds || 0;
+                    const tb = b.acceptedAt?.seconds || b.createdAt?.seconds || 0;
+                    return tb - ta;
+                });
+            });
+
+            const total = otherActive.length;
+            // Con muchos viajes la lista compacta escala mejor; tablero solo si hay pocos
+            const autoList = total > 6;
+            const viewMode = window._staffActiveTripsView
+                || (autoList ? 'list' : 'board');
+            window._staffActiveTripsView = viewMode;
+
+            const filterChips = [
+                { key: 'all', label: `Todos (${total})`, variant: 'purple' },
+                ...phases.map((p) => {
+                    const meta = getStaffActiveTripPhaseMeta(p);
+                    return {
+                        key: p,
+                        label: `${meta.title.split(' ')[0]} (${groups[p].length})`,
+                        variant: meta.variant
+                    };
+                })
+            ].map((c) => {
+                const active = c.key === 'all' ? ' ops-chip--active' : '';
+                return `<button type="button" class="ops-chip ops-chip--${c.variant}${active}" data-staff-trip-filter="${c.key}" onclick="window.setStaffActiveTripFilter('${c.key}', this)">${c.label}</button>`;
+            }).join('');
+
+            const viewToggle = `
+                <div class="ops-trips-view-toggle">
+                    <button type="button" class="ops-chip ${viewMode === 'list' ? 'ops-chip--active ops-chip--purple' : 'ops-chip--muted'}" onclick="window.setStaffActiveTripsView('list', this)">Lista</button>
+                    <button type="button" class="ops-chip ${viewMode === 'board' ? 'ops-chip--active ops-chip--purple' : 'ops-chip--muted'}" onclick="window.setStaffActiveTripsView('board', this)">Tablero</button>
+                </div>`;
+
+            if (!total) {
+                return `
+                <div class="ops-trips-dash">
+                    <div class="ops-trips-dash-hero">
+                        <div>
+                            <p class="ops-trips-dash-kicker"><i class="fas fa-broadcast-tower"></i> Live ops</p>
+                            <h3 class="ops-trips-dash-title">Viajes activos</h3>
+                            <p class="ops-trips-dash-sub">Lista compacta o tablero · se adapta cuando hay muchos</p>
+                        </div>
+                        <div class="ops-trips-dash-live"><span class="ops-trips-live-dot"></span> En vivo</div>
+                    </div>
+                    ${U.empty('fa-route', 'No hay viajes activos', 'Cuando un pasajero solicite o un conductor acepte, aparecerán aquí por fase.')}
+                </div>`;
+            }
+
+            const miniKpis = phases.map((p) => {
+                const meta = getStaffActiveTripPhaseMeta(p);
+                const n = groups[p].length;
+                return `<div class="ops-trips-mini-kpi ops-trips-mini-kpi--${meta.accent}">
+                    <span class="ops-trips-mini-kpi-val">${n}</span>
+                    <span class="ops-trips-mini-kpi-lab"><i class="fas ${meta.icon}"></i> ${meta.title}</span>
+                </div>`;
+            }).join('');
+
+            let mainBody = '';
+            if (viewMode === 'list') {
+                // Lista compacta: escala a docenas de viajes sin reventar el DOM con 4 columnas de tarjetas grandes
+                mainBody = phases.map((p) => {
+                    const meta = getStaffActiveTripPhaseMeta(p);
+                    const list = groups[p];
+                    if (!list.length) return '';
+                    const rows = list.map((t) => buildStaffActiveTripCompactRow(t, p, cardOpts)).join('');
+                    return `
+                    <section class="ops-trips-list-section ops-trips-list-section--${meta.accent}" data-phase-col="${p}">
+                        <header class="ops-trips-list-head">
+                            <span class="ops-trips-col-icon"><i class="fas ${meta.icon}"></i></span>
+                            <div>
+                                <h4 class="ops-trips-col-title">${meta.title}</h4>
+                                <p class="ops-trips-col-sub">${list.length} viaje${list.length === 1 ? '' : 's'} · ${meta.sub}</p>
+                            </div>
+                            <span class="ops-trips-col-count">${list.length}</span>
+                        </header>
+                        <div class="ops-trips-list-body">${rows}</div>
+                    </section>`;
+                }).join('') || U.empty('fa-filter', 'Sin viajes en este filtro', '');
+                mainBody = `<div class="ops-trips-list">${mainBody}</div>`;
+            } else {
+                const cols = phases.map((p) => {
+                    const meta = getStaffActiveTripPhaseMeta(p);
+                    const list = groups[p];
+                    // En tablero limitar tarjetas grandes para no saturar (resto en “ver más” vía lista)
+                    const MAX_BOARD = 8;
+                    const shown = list.slice(0, MAX_BOARD);
+                    const extra = list.length - shown.length;
+                    let cards = '';
+                    if (!shown.length) {
+                        cards = `<div class="ops-trips-col-empty">Sin viajes en esta fase</div>`;
+                    } else {
+                        shown.forEach((t) => {
+                            cards += buildStaffActiveTripCompactRow(t, p, cardOpts);
+                        });
+                        if (extra > 0) {
+                            cards += `<button type="button" class="ops-trips-col-more" onclick="window.setStaffActiveTripsView('list', this)">+${extra} más · ver lista completa</button>`;
+                        }
+                    }
+                    return `
+                    <section class="ops-trips-col ops-trips-col--${meta.accent}" data-phase-col="${p}">
+                        <header class="ops-trips-col-head">
+                            <div class="ops-trips-col-title-wrap">
+                                <span class="ops-trips-col-icon"><i class="fas ${meta.icon}"></i></span>
+                                <div>
+                                    <h4 class="ops-trips-col-title">${meta.title}</h4>
+                                    <p class="ops-trips-col-sub">${meta.sub}</p>
+                                </div>
+                            </div>
+                            <span class="ops-trips-col-count">${list.length}</span>
+                        </header>
+                        <div class="ops-trips-col-body">${cards}</div>
+                    </section>`;
+                }).join('');
+                mainBody = `<div class="ops-trips-board">${cols}</div>`;
+            }
+
+            return `
+            <div class="ops-trips-dash" data-active-filter="all" data-view="${viewMode}">
+                <div class="ops-trips-dash-hero">
+                    <div>
+                        <p class="ops-trips-dash-kicker"><i class="fas fa-broadcast-tower"></i> Live ops</p>
+                        <h3 class="ops-trips-dash-title">Viajes activos</h3>
+                        <p class="ops-trips-dash-sub">${total} en vivo · ${viewMode === 'list' ? 'lista compacta (ideal con muchos)' : 'tablero por fase'}</p>
+                    </div>
+                    <div class="ops-trips-dash-live"><span class="ops-trips-live-dot"></span> En vivo · ${total}</div>
+                </div>
+                <div class="ops-trips-mini-kpi-row">${miniKpis}</div>
+                <div class="ops-trips-filter-bar">${filterChips}${viewToggle}</div>
+                ${mainBody}
             </div>`;
         }
 
@@ -6596,41 +6852,42 @@ if (document.readyState === 'loading') {
             const U = window.OpsUi;
             const completedTotal = allTrips.filter((t) => t.status === 'completed').length;
             const unseenLive = unanswered.filter((t) => getStaffPendingAttentionMeta(t).nobodySaw).length;
-            let body = U.hero('Viajes en tiempo real', 'Activos, búsquedas canceladas (nombre y teléfono) y sin atención', U.kpiRow([
-                { value: unanswered.length, label: 'Ahora sin atención', variant: unanswered.length ? 'red' : 'default' },
-                { value: cancelledSearches.length, label: 'Búsquedas canceladas', variant: cancelledSearches.length ? 'cyan' : 'default' },
-                { value: histUnattended.length, label: 'Hist. sin atención', variant: histUnattended.length ? 'amber' : 'default' },
-                { value: unseenLive, label: 'Nadie vio (ahora)', variant: unseenLive ? 'amber' : 'default' },
-                { value: activeTrips.length, label: 'Activos', variant: 'purple' },
-                { value: cancelledPending.length, label: 'Cancel. c/conductor', variant: 'red' },
-                { value: completedTotal, label: 'Completados', variant: 'emerald' }
-            ]));
+            const phaseCounts = {
+                pending: 0,
+                to_pickup: 0,
+                at_pickup: 0,
+                in_progress: 0
+            };
+            otherActive.forEach((t) => {
+                const p = getStaffActiveTripPhase(t);
+                if (phaseCounts[p] != null) phaseCounts[p] += 1;
+            });
+
+            let body = `
+            <div class="ops-trips-page-hero">
+                <div class="ops-trips-page-hero-text">
+                    <p class="ops-trips-page-kicker"><i class="fas fa-gauge-high"></i> Centro de operaciones</p>
+                    <h2 class="ops-trips-page-title">Viajes en tiempo real</h2>
+                    <p class="ops-trips-page-sub">Dashboard de activos, búsquedas canceladas y sin atención</p>
+                </div>
+                <div class="ops-trips-page-kpis">
+                    ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
+                    ${U.kpi(phaseCounts.to_pickup + phaseCounts.at_pickup, 'Con conductor', 'emerald')}
+                    ${U.kpi(phaseCounts.in_progress, 'En curso', 'cyan')}
+                    ${U.kpi(activeTrips.length, 'Activos', 'purple')}
+                    ${U.kpi(cancelledSearches.length, 'Búsquedas cancel.', cancelledSearches.length ? 'cyan' : 'default')}
+                    ${U.kpi(cancelledPending.length, 'Cancel. c/cond.', cancelledPending.length ? 'red' : 'default')}
+                    ${U.kpi(completedTotal, 'Completados', 'emerald')}
+                </div>
+            </div>`;
             body += U.tripToolbar(activeTrips.length, completedTotal, "window.renderAdminTab('trips')", 'window.showPastTripsInAdmin()');
             body += buildStaffUnansweredTripsSectionHtml(allTrips, { includeDelete: true, includeCancel: true });
             body += buildStaffCancelledSearchContactSectionHtml(allTrips, { includeDelete: true });
             body += buildStaffHistoricalUnattendedSectionHtml(allTrips, { includeDelete: true });
-
-            let activeBody = '';
-            if (otherActive.length === 0) {
-                activeBody = unanswered.length
-                    ? '<p class="ops-toolbar-hint">Las pendientes sin atención están arriba. No hay otros viajes activos.</p>'
-                    : U.empty('fa-route', 'No hay viajes activos', 'Seguimos escuchando… cuando un pasajero solicite viaje aparecerá aquí al instante.');
-            } else {
-                otherActive.forEach((t) => {
-                    activeBody += renderOpsTripCard(t, {
-                        showStaffPin: true,
-                        showRoute: true,
-                        actionsHtml: buildStaffActiveTripActionsHtml(t, { includeDelete: true, includeCancel: true })
-                    });
-                });
-            }
-            body += U.section({
-                title: 'Viajes activos',
-                subtitle: 'Con ofertas, aceptados y en curso',
-                icon: 'fa-broadcast-tower',
-                variant: 'purple',
-                badge: otherActive.length,
-                body: activeBody
+            body += buildStaffActiveTripsDashboardHtml(otherActive, {
+                includeDelete: true,
+                includeCancel: true,
+                includeInvoice: false
             });
             body += buildStaffCancelledTripsSectionHtml(allTrips);
             return U.page(body);
@@ -6724,11 +6981,11 @@ if (document.readyState === 'loading') {
                 return;
             }
 
-            // === NUEVA PESTAÑA: PERSONALIZACIÓN DEL LOGIN ===
+            // === PESTAÑA: PERSONALIZACIÓN (logo, push, tonos de notificación) ===
             if (role === 'customization') {
                 const U = window.OpsUi;
                 container.innerHTML = U.page(
-                    U.hero('Personalización', 'Marca, login y notificaciones push') +
+                    U.hero('Personalización', 'Marca, push y tonos de notificación (web ≠ nativo)') +
                     U.formPanel('Logo de login', 'PNG transparente · ideal 200×200px', `
                         <div class="border-2 border-dashed border-slate-600 rounded-2xl p-4 text-center">
                             <div id="login-logo-preview" class="w-36 h-36 mx-auto bg-slate-900 rounded-2xl flex items-center justify-center overflow-hidden mb-3 border border-slate-700">
@@ -6743,10 +7000,12 @@ if (document.readyState === 'loading') {
                         <div class="mb-4">${U.fieldLabel('Mensaje de bienvenida')}<textarea id="welcome-message" rows="3" class="ops-input mt-1" placeholder="Bienvenido a HonduRaite…"></textarea></div>
                         <div class="mb-4">${U.fieldLabel('Clave VAPID (push)')}<input id="fcm-vapid-key" type="text" class="ops-input mt-1 font-mono text-xs" placeholder="Firebase → Cloud Messaging → Certificados web"></div>
                         <button onclick="window.saveLoginCustomization(this)" class="ops-btn ops-btn--emerald ops-btn--full">Guardar cambios</button>
-                    `)
+                    `) +
+                    `<div id="admin-tones-root"></div>`
                 );
 
                 window.loadCurrentLoginCustomization();
+                window.renderAdminTonesPanel?.(document.getElementById('admin-tones-root'));
                 return;
             }
 
@@ -7048,17 +7307,30 @@ if (document.readyState === 'loading') {
                         `;
                     }
 
-                    // Nuevos: descansando y saldo pendiente (solo drivers)
+                    // Nuevos: descansando y depósito (solo drivers)
                     const stats = driverStats[u.uid] || {};
-                    const pendingDep = (stats.pendingDepositDebt != null ? stats.pendingDepositDebt : (stats.remainingToDeposit || 0)) || 0;
+                    const debtConsol = Math.max(0, Number(stats.pendingDepositDebt) || parseFloat(u.pendingDepositDebt) || 0);
+                    const remainTodayCard = Math.max(0, Number(stats.remainingToDeposit) || 0);
+                    const pendingDep = (stats.totalOwed != null)
+                        ? Number(stats.totalOwed) || 0
+                        : (debtConsol + remainTodayCard);
                     const isResting = !!u.driverOnBreak;
                     if (isResting) {
                         daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-orange-500/20 text-orange-400">DESCANSANDO</span>`;
                     }
                     const graceOnCard = isDriverDepositGraceActive(u);
-                    // Con prórroga: no mostrar rojo "Pendiente" bloqueante → disponible
-                    if (pendingDep > 0 && !graceOnCard) {
-                        daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-red-500/20 text-red-400">Pend. L.${pendingDep.toFixed(0)}</span>`;
+                    const deadlineMsCard = getDriverDepositDeadlineMs(u);
+                    const overdueCard = !graceOnCard && pendingDep > 0.009
+                        && ((deadlineMsCard > 0 && Date.now() >= deadlineMsCard) || !!u.depositAutoBlocked);
+                    // Antes del plazo: comisión del día. Después del plazo: deuda vencida (no cada viaje es deuda al instante).
+                    if (pendingDep > 0.009 && !graceOnCard) {
+                        if (overdueCard) {
+                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-red-500/20 text-red-400">Deuda venc. L.${pendingDep.toFixed(0)}</span>`;
+                        } else if (remainTodayCard > 0.009 && debtConsol <= 0.009) {
+                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-amber-500/20 text-amber-400">Dep. hoy L.${remainTodayCard.toFixed(0)}</span>`;
+                        } else {
+                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-amber-500/20 text-amber-400">A dep. L.${pendingDep.toFixed(0)}</span>`;
+                        }
                     }
                     if (graceOnCard) {
                         const gLabel = formatDepositGraceLabel(u);
@@ -7074,6 +7346,9 @@ if (document.readyState === 'loading') {
                             ? `<button type="button" onclick="window.clearDriverDepositGrace('${u.uid}', '${safeDriverName}')" class="flex-1 min-w-[110px] bg-slate-600 hover:bg-slate-500 text-white text-[10px] py-2.5 rounded-xl font-bold"><i class="fas fa-clock"></i> QUITAR PRÓRROGA</button>`
                             : `<button type="button" onclick="window.grantDriverDepositGrace('${u.uid}', '${safeDriverName}')" class="flex-1 min-w-[110px] bg-sky-600 hover:bg-sky-500 text-white text-[10px] py-2.5 rounded-xl font-bold"><i class="fas fa-clock"></i> PRÓRROGA</button>`)
                         : '';
+                    const clearDebtBtn = (parseFloat(u.pendingDepositDebt) || 0) > 0.009
+                        ? `<button type="button" onclick="window.staffClearDriverAccumulatedDebt('${u.uid}', '${safeDriverName}')" class="flex-1 min-w-[110px] bg-rose-700 hover:bg-rose-600 text-white text-[10px] py-2.5 rounded-xl font-bold"><i class="fas fa-eraser"></i> BORRAR DEUDA</button>`
+                        : '';
 
                     actionBtn = `
                         <div class="flex flex-wrap gap-2 w-full mt-3">
@@ -7083,6 +7358,7 @@ if (document.readyState === 'loading') {
                                 <i class="fab fa-whatsapp"></i> <span>CONTACTAR</span>
                             </a>` : ''}
                             ${graceBtn}
+                            ${clearDebtBtn}
                             <button onclick="window.sendIndividualNotification('${u.uid}', '${u.name.replace(/'/g, "\\'")}', 'driver')" 
                                     class="flex-1 min-w-[110px] bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] py-2.5 rounded-xl font-bold flex items-center justify-center gap-1 active:scale-[0.985]">
                                 <i class="fas fa-bell"></i> <span>NOTIFICAR</span>
@@ -7427,7 +7703,7 @@ if (document.readyState === 'loading') {
 
             let body = `<p class="ops-trip-unanswered-summary">
                 <b>${list.length}</b> búsquedas canceladas recientes
-                <span class="ops-trip-unanswered-note">Usa WhatsApp o el número para contactar al pasajero. Estos registros no se borran al cancelar.</span>
+                <span class="ops-trip-unanswered-note">Usa WhatsApp o el número para contactar. Puedes borrar el registro con <b>BORRAR</b> (admin/supervisor).</span>
             </p>`;
 
             list.forEach((t) => {
@@ -7979,9 +8255,8 @@ if (document.readyState === 'loading') {
                     tripUpdate.commissionPercent = commissionPercent;
                     tripUpdate.commissionAmount = split.commissionAmount;
                     tripUpdate.commissionWaivedBirthday = false;
-                    const newDebt = await addToDriverPendingDepositDebt(trip.driverId, split.commissionAmount);
-                    toastMsg = `Viaje finalizado. Comisión L. ${split.commissionAmount.toFixed(2)} cargada al conductor`
-                        + (newDebt > 0 ? ` (deuda depósito: L. ${newDebt.toFixed(2)}).` : '.');
+                    // Comisión del día (no deuda aún): solo se consolida a deuda al vencer el plazo o al cerrar turno.
+                    toastMsg = `Viaje finalizado. Comisión a depositar L. ${split.commissionAmount.toFixed(2)} (pendiente del día, no deuda vencida).`;
                 }
 
                 await updateDoc(tripRef, tripUpdate);
@@ -8254,9 +8529,8 @@ if (document.readyState === 'loading') {
                 tripUpdate.commissionPercent = commissionPercent;
                 tripUpdate.commissionAmount = split.commissionAmount;
                 tripUpdate.commissionWaivedBirthday = false;
-                const newDebt = await addToDriverPendingDepositDebt(trip.driverId, split.commissionAmount);
-                toastMsg = `Viaje finalizado. Comisión L. ${split.commissionAmount.toFixed(2)} cargada al conductor`
-                    + (newDebt > 0 ? ` (deuda depósito: L. ${newDebt.toFixed(2)}).` : '.');
+                // Comisión del día (no deuda aún): se consolida al vencer plazo o cerrar turno.
+                toastMsg = `Viaje finalizado. Comisión a depositar L. ${split.commissionAmount.toFixed(2)} (pendiente del día).`;
             }
 
             await updateDoc(tripRef, tripUpdate);
@@ -8717,7 +8991,8 @@ if (document.readyState === 'loading') {
                     }
                 });
 
-                // Panel flotante con km por tramo
+                // Una sola tarjeta en el mapa: oculta la ficha de viaje mientras se ve el trazo
+                window.staffSetLiveTripSheetHidden?.(true);
                 document.getElementById('staff-route-map-panel')?.remove();
                 const panel = document.createElement('div');
                 panel.id = 'staff-route-map-panel';
@@ -8735,15 +9010,25 @@ if (document.readyState === 'loading') {
                     <p class="staff-route-map-hint">${metrics.pointsCount >= 3
                         ? `✅ Ruta de ${metrics.pointsCount} puntos cargada en el mapa`
                         : `⚠️ Solo ${metrics.pointsCount || 2} puntos — agrega parada/destino para 3+`}</p>
-                    <button type="button" id="staff-route-map-clear" class="staff-route-map-clear">Quitar trazo del mapa</button>`;
+                    <div class="staff-route-map-actions">
+                        <button type="button" id="staff-route-map-back" class="staff-route-map-back">
+                            <i class="fas fa-arrow-left"></i> Volver a ficha
+                        </button>
+                        <button type="button" id="staff-route-map-clear" class="staff-route-map-clear">Quitar trazo</button>
+                    </div>`;
                 document.body.appendChild(panel);
-                panel.querySelector('#staff-route-map-close')?.addEventListener('click', () => panel.remove());
-                panel.querySelector('#staff-route-map-clear')?.addEventListener('click', () => {
-                    window.clearRoutePolylines?.({ force: true });
-                    window.clearStopMarkers?.();
-                    window.clearOriginDestinationMarkers?.();
+                const closeRoutePanel = (clearMap = false) => {
+                    if (clearMap) {
+                        window.clearRoutePolylines?.({ force: true });
+                        window.clearStopMarkers?.();
+                        window.clearOriginDestinationMarkers?.();
+                    }
                     panel.remove();
-                });
+                    window.staffSetLiveTripSheetHidden?.(false);
+                };
+                panel.querySelector('#staff-route-map-close')?.addEventListener('click', () => closeRoutePanel(false));
+                panel.querySelector('#staff-route-map-back')?.addEventListener('click', () => closeRoutePanel(false));
+                panel.querySelector('#staff-route-map-clear')?.addEventListener('click', () => closeRoutePanel(true));
                 return true;
             } catch (e) {
                 console.error('staffDrawRouteMetricsOnMap:', e);
@@ -8826,6 +9111,9 @@ if (document.readyState === 'loading') {
                 }
 
                 document.getElementById('staff-trip-route-modal')?.remove();
+                // Evitar ficha + modal apilados en el mapa
+                document.getElementById('staff-route-map-panel')?.remove();
+                window.staffSetLiveTripSheetHidden?.(true);
 
                 const stops = Array.isArray(trip.additionalStops) ? trip.additionalStops : [];
                 const pointsNow = 1 + stops.length + (trip.destination ? 1 : 0);
@@ -8852,7 +9140,7 @@ if (document.readyState === 'loading') {
 
                 const modal = document.createElement('div');
                 modal.id = 'staff-trip-route-modal';
-                modal.className = 'fixed inset-0 bg-black/70 z-[40000] flex items-center justify-center p-4';
+                modal.className = 'fixed inset-0 bg-black/70 z-[46000] flex items-center justify-center p-4';
                 modal.dataset.suggestedPrice = initialSuggested != null ? String(initialSuggested) : '';
                 modal.dataset.priceMode = 'recalc'; // recalc | keep | manual
                 modal.innerHTML = `
@@ -8955,7 +9243,13 @@ if (document.readyState === 'loading') {
                     modal.dataset.priceMode = 'manual';
                 });
 
-                const close = () => modal.remove();
+                const close = () => {
+                    modal.remove();
+                    // Si no hay panel de trazo abierto, remostrar ficha del mapa
+                    if (!document.getElementById('staff-route-map-panel')) {
+                        window.staffSetLiveTripSheetHidden?.(false);
+                    }
+                };
                 modal.querySelector('#staff-route-close')?.addEventListener('click', close);
                 modal.addEventListener('click', (e) => {
                     if (e.target === modal) close();
@@ -9310,14 +9604,24 @@ if (document.readyState === 'loading') {
             }
         };
 
-        function renderOpsTripCard(t, { actionsHtml = '', showRoute = false, maxChatHeight = '8rem', showStaffPin = false } = {}) {
+        function renderOpsTripCard(t, {
+            actionsHtml = '',
+            showRoute = false,
+            maxChatHeight = '8rem',
+            showStaffPin = false,
+            phase = null
+        } = {}) {
             const U = window.OpsUi;
             const bothRated = t.status === 'completed' && t.ratedByClient && t.ratedByDriver;
             const attention = showStaffPin ? getStaffPendingAttentionMeta(t) : null;
+            const tripPhase = phase || getStaffActiveTripPhase(t);
+            const phaseMeta = getStaffActiveTripPhaseMeta(tripPhase);
             let statusVariant = t.status === 'pending' ? 'amber'
                 : (t.status === 'in_progress' ? 'cyan'
                     : (t.status === 'completed' ? (bothRated ? 'default' : 'amber')
                         : (t.status === 'cancelled' ? 'red' : 'emerald')));
+            if (tripPhase === 'to_pickup') statusVariant = 'emerald';
+            if (tripPhase === 'at_pickup') statusVariant = 'violet';
             if (attention?.isUnattended && attention.nobodySaw) statusVariant = 'red';
             else if (attention?.isUnattended && attention.nobodyResponded) statusVariant = 'amber';
             const statusLabels = {
@@ -9328,6 +9632,8 @@ if (document.readyState === 'loading') {
                 cancelled: 'CANCELADO'
             };
             let statusLabel = statusLabels[t.status] || String(t.status || '').toUpperCase();
+            if (tripPhase === 'to_pickup') statusLabel = 'EN CAMINO';
+            if (tripPhase === 'at_pickup') statusLabel = 'EN ORIGEN · PIN';
             if (t.status === 'completed') {
                 statusLabel = bothRated ? 'FINALIZADO' : 'COMPLETADO (calif.)';
             }
@@ -9382,9 +9688,20 @@ if (document.readyState === 'loading') {
                     ? `<span class="ops-trip-wait-hint">${escapeViewerText(attention.whenLabel)}</span>`
                     : '');
 
+            const phaseChip = (tripPhase && ['pending', 'to_pickup', 'at_pickup', 'in_progress'].includes(tripPhase))
+                ? `<span class="ops-trip-phase-chip ops-trip-phase-chip--${phaseMeta.accent}"><i class="fas ${phaseMeta.icon}"></i> ${phaseMeta.title}</span>`
+                : '';
+            const svcType = t.serviceType
+                ? `<span class="ops-trip-svc-chip">${escapeViewerText(String(t.serviceType).toUpperCase())}</span>`
+                : '';
+
             return U.card(`
                 <div class="ops-trip-card-head">
-                    <span class="ops-badge ops-badge--${statusVariant}">${statusLabel}</span>
+                    <div class="ops-trip-card-head-left">
+                        <span class="ops-badge ops-badge--${statusVariant}">${statusLabel}</span>
+                        ${phaseChip}
+                        ${svcType}
+                    </div>
                     <div class="ops-trip-head-right">
                         ${waitHint}
                         <span class="ops-trip-price">${t.price || ''}</span>
@@ -9408,7 +9725,10 @@ if (document.readyState === 'loading') {
                     ${chatHtml}
                 </div>
                 ${actionsHtml ? `<div class="ops-trip-actions">${actionsHtml}</div>` : ''}
-            `, 'trip');
+            `, 'trip', {
+                extraClass: `ops-trip-card ops-trip-card--phase-${phaseMeta.accent}`,
+                attrs: `data-trip-phase="${tripPhase}" data-trip-id="${t.id || ''}"`
+            });
         }
 
         function renderAdminTestTripCard(t, testDriver) {
@@ -9528,7 +9848,7 @@ if (document.readyState === 'loading') {
             return simDocs.length;
         }
 
-        // Admin / Supervisor: Borrar viajes activos atascados (no atendidos)
+        // Admin / Supervisor: borrar viajes (activos atascados o cancelados)
         window.deleteActiveTrip = async (tripId) => {
             if (!tripId) return;
             const isStaff = window.userProfile?.role === 'supervisor' || isAdminUser(currentUser, window.userProfile);
@@ -9536,15 +9856,47 @@ if (document.readyState === 'loading') {
                 window.showToast?.('Solo supervisores y administradores pueden borrar viajes.', 'warning');
                 return;
             }
-            if (!confirm('¿BORRAR este viaje activo?\n\nÚsalo solo para viajes que no fueron atendidos y están atascados.\nEsta acción es permanente y elimina el registro.')) return;
+
+            let statusHint = 'viaje';
+            try {
+                const preview = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId));
+                if (!preview.exists()) {
+                    window.showToast?.('El viaje ya no existe.', 'info');
+                    refreshStaffTripsPanels?.();
+                    return;
+                }
+                const st = preview.data()?.status || '';
+                if (st === 'cancelled' || st === 'canceled') statusHint = 'viaje cancelado';
+                else if (st === 'completed') statusHint = 'viaje completado';
+                else if (st === 'pending') statusHint = 'viaje pendiente / sin atender';
+                else if (['accepted', 'in_progress'].includes(st)) statusHint = 'viaje activo';
+            } catch (_) {}
+
+            if (!confirm(
+                `¿BORRAR este ${statusHint}?\n\n`
+                + 'Se elimina el registro de forma permanente (chat, ruta y datos del viaje).\n'
+                + 'No se puede deshacer.'
+            )) return;
 
             try {
                 const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
                 await deleteDoc(tripRef);
 
+                // Quitar de caches locales de paneles staff para que desaparezca al instante
+                try {
+                    if (window._adminTripsLastSnap?.docs) {
+                        // el listener refrescará; parche vacío fuerza re-render filtrando el id borrado
+                        refreshStaffTripsPanels({ [tripId]: { __deleted: true, status: '__deleted' } });
+                    }
+                } catch (_) {}
+
+                // Ocultar tarjeta en DOM si sigue visible
+                try {
+                    document.querySelectorAll(`[data-trip-id="${tripId}"]`).forEach((el) => el.remove());
+                } catch (_) {}
+
                 window.showToast?.('Viaje borrado correctamente.', 'success');
 
-                // Refrescar vistas de admin/supervisor
                 setTimeout(() => {
                     try {
                         if (window.currentAdminTab === 'trips' && typeof window.renderAdminTab === 'function') {
@@ -9554,7 +9906,6 @@ if (document.readyState === 'loading') {
 
                     try {
                         if (typeof window.loadSupervisorTrips === 'function') {
-                            // Solo recargar si el panel está visible para no molestar
                             const supPanel = document.getElementById('supervisor-panel');
                             if (supPanel && !supPanel.classList.contains('hidden')) {
                                 window.loadSupervisorTrips();
@@ -9564,7 +9915,12 @@ if (document.readyState === 'loading') {
                 }, 350);
             } catch (e) {
                 console.error('deleteActiveTrip error:', e);
-                window.showToast?.('No se pudo borrar el viaje (verifica permisos).', 'error');
+                window.showToast?.(
+                    e?.code === 'permission-denied'
+                        ? 'Sin permiso para borrar (solo admin/supervisor).'
+                        : 'No se pudo borrar el viaje (verifica permisos).',
+                    'error'
+                );
             }
         };
 
@@ -10909,11 +11265,7 @@ if (document.readyState === 'loading') {
                         const split = calcTripCommissionSplit(priceNum, commissionPercent);
                         completeFields.commissionPercent = commissionPercent;
                         completeFields.commissionAmount = split.commissionAmount;
-
-                        // Importante para test: acumular deuda de depósito pendiente (como en finish normal)
-                        if (testDriver?.uid) {
-                            await addToDriverPendingDepositDebt(testDriver.uid, split.commissionAmount).catch(() => {});
-                        }
+                        // Test: solo registra comisión del viaje; no convierte a deuda hasta vencer plazo / cerrar turno.
                     }
 
                     await updateDoc(tripRef, completeFields);
@@ -11669,19 +12021,475 @@ if (document.readyState === 'loading') {
         };
 
         // Ver detalles completos de un conductor (Admin/Supervisor)
+        /**
+         * Clic en conductor del mapa de flota:
+         * - Viaje activo → panel de viaje en vivo
+         * - Sin viaje → ficha de finanzas del conductor (admin/supervisor)
+         */
+        window.openStaffFleetDriverPanel = async (driverId, driverName = '') => {
+            if (!window.canViewOpsFleetMap?.()) {
+                window.showToast?.('Solo administradores y supervisores pueden ver detalles de flota.');
+                return;
+            }
+            if (!driverId) return;
+            const live = getFleetActiveTripForDriver?.(driverId);
+            if (live?.trip) {
+                window.showStaffLiveTripMapSheet(live.trip, {
+                    driverId,
+                    driverName: driverName || live.trip.driverName || 'Conductor'
+                });
+                return;
+            }
+            // Intento fresco por si el mapa aún no cacheó el viaje
+            try {
+                const qSnap = await getDocs(query(
+                    collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
+                    where('driverId', '==', driverId),
+                    where('status', 'in', ['accepted', 'in_progress'])
+                ));
+                if (!qSnap.empty) {
+                    const d = qSnap.docs[0];
+                    window.showStaffLiveTripMapSheet({ id: d.id, ...d.data() }, {
+                        driverId,
+                        driverName: driverName || d.data().driverName || 'Conductor'
+                    });
+                    return;
+                }
+            } catch (_) {}
+            // Libre (sin viaje): finanzas del conductor en ficha del mapa
+            window.showStaffDriverFinanceMapSheet?.(driverId, driverName || 'Conductor');
+        };
+
+        /**
+         * Ficha de finanzas al tocar un carro libre en el mapa (admin/supervisor).
+         */
+        window.showStaffDriverFinanceMapSheet = async (driverId, driverName = 'Conductor') => {
+            if (!driverId) return;
+            if (!window.canViewOpsFleetMap?.() && !isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor.');
+            }
+
+            document.getElementById('staff-route-map-panel')?.remove();
+            document.getElementById('staff-live-trip-sheet')?.remove();
+            document.getElementById('staff-driver-finance-sheet')?.remove();
+
+            const sheet = document.createElement('div');
+            sheet.id = 'staff-driver-finance-sheet';
+            sheet.className = 'staff-live-trip-sheet staff-driver-finance-sheet';
+            sheet.innerHTML = `
+                <div class="staff-live-trip-sheet-inner">
+                    <div class="staff-live-trip-sheet-head">
+                        <div>
+                            <p class="staff-live-trip-kicker staff-driver-finance-kicker">
+                                <i class="fas fa-wallet"></i> Finanzas · mapa
+                            </p>
+                            <h3 class="staff-live-trip-title">${escapeViewerText(driverName)}</h3>
+                            <p class="staff-driver-finance-sub">Cargando datos…</p>
+                        </div>
+                        <button type="button" class="staff-live-trip-close" id="staff-driver-finance-close" aria-label="Cerrar">&times;</button>
+                    </div>
+                    <div id="staff-driver-finance-body" class="staff-driver-finance-body">
+                        <div class="staff-driver-finance-loading">
+                            <i class="fas fa-spinner fa-spin"></i> Calculando ganancias y depósitos…
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(sheet);
+            sheet.querySelector('#staff-driver-finance-close')?.addEventListener('click', () => sheet.remove());
+
+            try {
+                const userSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', driverId));
+                let userData = userSnap.exists() ? userSnap.data() : {};
+                [userData] = await enrichUsersWithContact([{ ...userData, uid: driverId }]);
+
+                const name = (userData.name || driverName || 'Conductor').toString();
+                const phone = getUserDisplayPhone(userData) || userData.phone || '';
+                const phoneFmt = formatHondurasPhone(phone) || phone || 'Sin número';
+                const wa = phone ? getWhatsAppLink(phone) : '';
+                const stats = typeof computeDriverDayStats === 'function'
+                    ? await computeDriverDayStats(driverId)
+                    : (await window.computeDriverDayStats?.(driverId)) || {};
+
+                let locLabel = 'Sin GPS reciente';
+                let online = false;
+                try {
+                    const locSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
+                    if (locSnap.exists()) {
+                        const loc = locSnap.data() || {};
+                        online = !!isDriverOnline?.(loc);
+                        if (loc.appVisible === false) locLabel = 'App en segundo plano';
+                        else if (online) locLabel = 'En línea · disponible';
+                        else if (loc.updatedAt && Date.now() - Number(loc.updatedAt) < 900000) locLabel = 'GPS reciente';
+                        else locLabel = 'Última posición conocida';
+                        if (userData.driverOnBreak) locLabel = 'Descansando';
+                    }
+                } catch (_) {}
+
+                const totalOwed = Number(stats.totalOwed != null
+                    ? stats.totalOwed
+                    : ((stats.pendingDepositDebt || 0) + (stats.remainingToDeposit || 0))) || 0;
+                const debt = Number(stats.pendingDepositDebt || 0) || 0;
+                const remainToday = Number(stats.remainingToDeposit || 0) || 0;
+                const earned = Number(stats.totalEarnedToday || 0) || 0;
+                const trips = Number(stats.tripCount || 0) || 0;
+                const cash = Number(stats.cashEarnedToday || 0) || 0;
+                const saldo = Number(stats.saldoEarnedToday || 0) || 0;
+                const cashComm = Number(stats.cashCommissionOwed || 0) || 0;
+                const covered = Number(stats.saldoCommissionCovered || 0) || 0;
+                const validated = Number(stats.validatedDepositsToday || 0) || 0;
+                const pendingVal = Number(stats.pendingDepositsToday || 0) || 0;
+                const wallet = Number(userData.driverBalance || 0) || 0;
+                const graceActive = !!stats.graceActive || isDriverDepositGraceActive(userData);
+                const graceLabel = graceActive ? (formatDepositGraceLabel(userData) || 'activa') : '';
+                const commissionPct = stats.commission != null ? Number(stats.commission) : (APP_CONFIG.commissionPercent ?? 25);
+                const safeName = name.replace(/'/g, "\\'");
+                const debtClass = totalOwed > 0
+                    ? (graceActive ? 'staff-driver-finance-debt--grace' : 'staff-driver-finance-debt--due')
+                    : 'staff-driver-finance-debt--ok';
+
+                const subEl = sheet.querySelector('.staff-driver-finance-sub');
+                if (subEl) {
+                    subEl.textContent = `${locLabel}${userData.vehicleType ? ` · ${String(userData.vehicleType).toUpperCase()}` : ''}`;
+                }
+                const titleEl = sheet.querySelector('.staff-live-trip-title');
+                if (titleEl) titleEl.textContent = name;
+
+                const body = sheet.querySelector('#staff-driver-finance-body');
+                if (!body) return;
+
+                body.innerHTML = `
+                    <div class="staff-driver-finance-status">
+                        <span class="staff-driver-finance-chip ${online && !userData.driverOnBreak ? 'is-online' : 'is-idle'}">
+                            <i class="fas fa-circle"></i> ${escapeViewerText(locLabel)}
+                        </span>
+                        ${graceActive ? `<span class="staff-driver-finance-chip is-grace"><i class="fas fa-clock"></i> Prórroga ${escapeViewerText(graceLabel)}</span>` : ''}
+                        ${totalOwed > 0 && !graceActive ? `<span class="staff-driver-finance-chip is-debt"><i class="fas fa-exclamation-triangle"></i> Debe depositar</span>` : ''}
+                    </div>
+
+                    <div class="staff-driver-finance-kpis">
+                        <div class="staff-driver-finance-kpi">
+                            <p class="staff-driver-finance-kpi-label">Ganado hoy</p>
+                            <p class="staff-driver-finance-kpi-value">L. ${earned.toFixed(2)}</p>
+                            <p class="staff-driver-finance-kpi-meta">${trips} viaje${trips !== 1 ? 's' : ''}</p>
+                        </div>
+                        <div class="staff-driver-finance-kpi ${debtClass}">
+                            <p class="staff-driver-finance-kpi-label">Total a depositar</p>
+                            <p class="staff-driver-finance-kpi-value">L. ${totalOwed.toFixed(2)}</p>
+                            <p class="staff-driver-finance-kpi-meta">Com. ${commissionPct}%</p>
+                        </div>
+                    </div>
+
+                    <div class="staff-driver-finance-grid">
+                        <div><span>Efectivo hoy</span><b>L. ${cash.toFixed(2)}</b></div>
+                        <div><span>Saldo recibido</span><b>L. ${saldo.toFixed(2)}</b></div>
+                        <div><span>Com. efectivo</span><b>L. ${cashComm.toFixed(2)}</b></div>
+                        <div><span>Cubierta (saldo)</span><b>L. ${covered.toFixed(2)}</b></div>
+                        <div><span>Deuda acumulada</span><b class="${debt > 0 ? 'text-rose' : ''}">L. ${debt.toFixed(2)}</b></div>
+                        <div><span>Pendiente de hoy</span><b>L. ${remainToday.toFixed(2)}</b></div>
+                        <div><span>Depósitos validados hoy</span><b>L. ${validated.toFixed(2)}</b></div>
+                        <div><span>En revisión</span><b>L. ${pendingVal.toFixed(2)}</b></div>
+                        <div><span>Billetera conductor</span><b>L. ${wallet.toFixed(2)}</b></div>
+                        <div><span>Viajes hoy</span><b>${trips}</b></div>
+                    </div>
+
+                    <div class="staff-live-trip-person staff-driver-finance-contact">
+                        <p class="staff-live-trip-role"><i class="fas fa-phone"></i> Contacto</p>
+                        <p class="staff-live-trip-name">${escapeViewerText(name)}</p>
+                        ${wa
+                            ? `<a class="staff-live-trip-wa" href="${wa}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> ${escapeViewerText(phoneFmt)}</a>`
+                            : `<span class="staff-live-trip-wa-miss">${escapeViewerText(phoneFmt)}</span>`}
+                    </div>
+
+                    <div class="staff-live-trip-actions">
+                        <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-driver-finance-full">
+                            <i class="fas fa-id-badge"></i> Ficha completa
+                        </button>
+                        <button type="button" class="staff-live-trip-btn" id="staff-driver-finance-deposits">
+                            <i class="fas fa-receipt"></i> Depósitos
+                        </button>
+                        <button type="button" class="staff-live-trip-btn" id="staff-driver-finance-center">
+                            <i class="fas fa-crosshairs"></i> Centrar
+                        </button>
+                        ${totalOwed > 0
+                            ? (graceActive
+                                ? `<button type="button" class="staff-live-trip-btn" id="staff-driver-finance-grace" data-mode="clear">
+                                    <i class="fas fa-clock"></i> Quitar prórroga
+                                   </button>`
+                                : `<button type="button" class="staff-live-trip-btn" id="staff-driver-finance-grace" data-mode="grant">
+                                    <i class="fas fa-clock"></i> Dar prórroga
+                                   </button>`)
+                            : ''}
+                        ${debt > 0.009
+                            ? `<button type="button" class="staff-live-trip-btn staff-live-trip-btn--danger" id="staff-driver-finance-clear-debt">
+                                <i class="fas fa-eraser"></i> Borrar deuda acumulada
+                               </button>`
+                            : ''}
+                    </div>
+                    <p class="staff-live-trip-hint">
+                        Sin viaje activo. El depósito del día no le quita viajes; solo se inhabilita si vence la deuda acumulada (plazo 12 p.m. día siguiente) y no hay prórroga.
+                    </p>
+                `;
+
+                body.querySelector('#staff-driver-finance-full')?.addEventListener('click', () => {
+                    // Ocultar ficha del mapa para no apilar recuadros con el modal
+                    window.staffParkMapSheetsForModal?.(true);
+                    window.showDriverFullDetails?.(driverId, name);
+                });
+                body.querySelector('#staff-driver-finance-deposits')?.addEventListener('click', () => {
+                    window.showDriverDepositHistory?.(driverId, body.querySelector('#staff-driver-finance-deposits'));
+                });
+                body.querySelector('#staff-driver-finance-center')?.addEventListener('click', async () => {
+                    try {
+                        const locSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
+                        if (locSnap.exists() && window.gMap) {
+                            const loc = locSnap.data();
+                            if (loc.lat != null && loc.lng != null) {
+                                window.gMap.panTo({ lat: Number(loc.lat), lng: Number(loc.lng) });
+                                window.gMap.setZoom?.(Math.max(window.gMap.getZoom?.() || 14, 15));
+                            }
+                        }
+                    } catch (_) {}
+                });
+                body.querySelector('#staff-driver-finance-grace')?.addEventListener('click', async (ev) => {
+                    const mode = ev.currentTarget?.dataset?.mode;
+                    if (mode === 'clear') {
+                        await window.clearDriverDepositGrace?.(driverId, safeName);
+                    } else {
+                        await window.grantDriverDepositGrace?.(driverId, safeName);
+                    }
+                    // Refrescar ficha con nuevos datos
+                    window.showStaffDriverFinanceMapSheet?.(driverId, name);
+                });
+                body.querySelector('#staff-driver-finance-clear-debt')?.addEventListener('click', async () => {
+                    await window.staffClearDriverAccumulatedDebt?.(driverId, name);
+                });
+            } catch (e) {
+                console.error('showStaffDriverFinanceMapSheet:', e);
+                const body = sheet.querySelector('#staff-driver-finance-body');
+                if (body) {
+                    body.innerHTML = `<p class="staff-driver-finance-error">No se pudieron cargar las finanzas del conductor.</p>`;
+                }
+            }
+        };
+
+        /** Oculta/muestra la ficha del mapa sin destruirla (evita tarjetas apiladas). */
+        window.staffSetLiveTripSheetHidden = (hidden) => {
+            const sheet = document.getElementById('staff-live-trip-sheet');
+            if (!sheet) return;
+            sheet.classList.toggle('staff-live-trip-sheet--parked', !!hidden);
+            sheet.setAttribute('aria-hidden', hidden ? 'true' : 'false');
+        };
+
+        /**
+         * Aparca todas las fichas flotantes del mapa (viaje en vivo + finanzas)
+         * para que no queden detrás/encima de un modal de ficha completa.
+         */
+        window.staffParkMapSheetsForModal = (parked) => {
+            window.staffSetLiveTripSheetHidden?.(!!parked);
+            const finance = document.getElementById('staff-driver-finance-sheet');
+            if (finance) {
+                finance.classList.toggle('staff-live-trip-sheet--parked', !!parked);
+                finance.setAttribute('aria-hidden', parked ? 'true' : 'false');
+            }
+            // Panel de trazo también debe ceder el foco visual al modal
+            const route = document.getElementById('staff-route-map-panel');
+            if (route) {
+                route.classList.toggle('staff-route-map-panel--parked', !!parked);
+                route.setAttribute('aria-hidden', parked ? 'true' : 'false');
+            }
+        };
+
+        window.showStaffLiveTripMapSheet = async (trip, opts = {}) => {
+            if (!trip?.id) return;
+            if (!window.canViewOpsFleetMap?.() && !isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor.');
+            }
+
+            // Solo una tarjeta a la vez en el mapa
+            document.getElementById('staff-route-map-panel')?.remove();
+            document.getElementById('staff-live-trip-sheet')?.remove();
+            document.getElementById('staff-driver-finance-sheet')?.remove();
+
+            const driverId = opts.driverId || trip.driverId || '';
+            let driverName = opts.driverName || trip.driverName || 'Conductor';
+            let driverPhone = trip.driverPhone || '';
+            let clientName = trip.clientName || 'Pasajero';
+            let clientPhone = trip.clientPhone || trip.phone || '';
+
+            // Completar teléfonos desde perfiles si faltan
+            try {
+                const loads = [];
+                if (driverId && !driverPhone) {
+                    loads.push(getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', driverId)).then((s) => {
+                        if (s.exists()) {
+                            driverPhone = s.data().phone || driverPhone;
+                            driverName = s.data().name || driverName;
+                        }
+                    }));
+                }
+                if (trip.clientId && !clientPhone) {
+                    loads.push(getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', trip.clientId)).then((s) => {
+                        if (s.exists()) {
+                            clientPhone = s.data().phone || clientPhone;
+                            clientName = s.data().name || clientName;
+                        }
+                    }));
+                }
+                await Promise.all(loads);
+            } catch (_) {}
+
+            const phase = getStaffActiveTripPhase(trip);
+            const phaseMeta = getStaffActiveTripPhaseMeta(phase);
+            const phaseClass = phase === 'in_progress'
+                ? 'staff-live-trip-sheet--dest'
+                : (phase === 'at_pickup'
+                    ? 'staff-live-trip-sheet--wait'
+                    : (phase === 'to_pickup' ? 'staff-live-trip-sheet--pickup' : ''));
+            const phaseLegend = phase === 'in_progress'
+                ? '🚗 Rojo = hacia destino final'
+                : (phase === 'at_pickup'
+                    ? '📍 Morado = en origen esperando PIN'
+                    : (phase === 'to_pickup'
+                        ? '🚗 Verde = en camino al pasajero'
+                        : 'Colores: verde pickup · morado espera · rojo destino'));
+            const price = trip.price || (trip.priceNum != null ? `L. ${Number(trip.priceNum).toFixed(2)}` : '—');
+            const statusLabel = phaseMeta.title || trip.status || 'Viaje';
+            const origin = trip.origin || '—';
+            const dest = trip.destination || '—';
+            const clientWa = clientPhone ? getWhatsAppLink(clientPhone) : '';
+            const driverWa = driverPhone ? getWhatsAppLink(driverPhone) : '';
+            const clientPhoneFmt = formatHondurasPhone(clientPhone) || clientPhone || 'Sin número';
+            const driverPhoneFmt = formatHondurasPhone(driverPhone) || driverPhone || 'Sin número';
+            const stopsN = Array.isArray(trip.additionalStops) ? trip.additionalStops.length : 0;
+            const pointsLabel = stopsN > 0
+                ? `${stopsN + 2} puntos en ruta`
+                : 'Origen → destino';
+            const chatHtml = buildTripChatHtml(trip);
+            const chatCount = Array.isArray(trip.chat) ? trip.chat.length : 0;
+
+            const sheet = document.createElement('div');
+            sheet.id = 'staff-live-trip-sheet';
+            sheet.className = `staff-live-trip-sheet ${phaseClass}`.trim();
+            sheet.innerHTML = `
+                <div class="staff-live-trip-sheet-inner">
+                    <div class="staff-live-trip-sheet-head">
+                        <div>
+                            <p class="staff-live-trip-kicker"><i class="fas fa-circle staff-live-trip-dot"></i> Viaje en vivo · mapa</p>
+                            <h3 class="staff-live-trip-title">${escapeViewerText(statusLabel)}</h3>
+                            <p class="staff-live-trip-price">${escapeViewerText(String(price))}</p>
+                        </div>
+                        <button type="button" class="staff-live-trip-close" id="staff-live-trip-close" aria-label="Cerrar">&times;</button>
+                    </div>
+                    <div class="staff-live-trip-people">
+                        <div class="staff-live-trip-person">
+                            <p class="staff-live-trip-role"><i class="fas fa-user"></i> Pasajero</p>
+                            <p class="staff-live-trip-name">${escapeViewerText(clientName)}</p>
+                            ${clientWa
+                                ? `<a class="staff-live-trip-wa" href="${clientWa}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> ${escapeViewerText(clientPhoneFmt)}</a>`
+                                : `<span class="staff-live-trip-wa-miss">${escapeViewerText(clientPhoneFmt)}</span>`}
+                        </div>
+                        <div class="staff-live-trip-person">
+                            <p class="staff-live-trip-role"><i class="fas fa-id-card"></i> Conductor</p>
+                            <p class="staff-live-trip-name">${escapeViewerText(driverName)}</p>
+                            ${driverWa
+                                ? `<a class="staff-live-trip-wa" href="${driverWa}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> ${escapeViewerText(driverPhoneFmt)}</a>`
+                                : `<span class="staff-live-trip-wa-miss">${escapeViewerText(driverPhoneFmt)}</span>`}
+                        </div>
+                    </div>
+                    <div class="staff-live-trip-route">
+                        <p><i class="fas fa-circle text-emerald-500 text-[8px]"></i> ${escapeViewerText(origin)}</p>
+                        <p class="staff-live-trip-route-arrow"><i class="fas fa-arrow-down"></i> ${escapeViewerText(pointsLabel)}</p>
+                        <p><i class="fas fa-flag-checkered text-red-500 text-[10px]"></i> ${escapeViewerText(dest)}</p>
+                    </div>
+                    <div class="staff-live-trip-chat">
+                        <button type="button" class="staff-live-trip-chat-toggle" id="staff-live-trip-chat-toggle" aria-expanded="true">
+                            <span><i class="fas fa-comments"></i> Chat del viaje${chatCount ? ` · ${chatCount}` : ''}</span>
+                            <i class="fas fa-chevron-up staff-live-trip-chat-chevron"></i>
+                        </button>
+                        <div class="staff-live-trip-chat-body" id="staff-live-trip-chat-body">
+                            ${chatHtml}
+                        </div>
+                    </div>
+                    <div class="staff-live-trip-actions">
+                        <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-live-trip-route">
+                            <i class="fas fa-route"></i> Cargar trazo / km
+                        </button>
+                        <button type="button" class="staff-live-trip-btn" id="staff-live-trip-center">
+                            <i class="fas fa-crosshairs"></i> Centrar conductor
+                        </button>
+                        <button type="button" class="staff-live-trip-btn" id="staff-live-trip-edit">
+                            <i class="fas fa-pen"></i> Ruta / precio
+                        </button>
+                        <button type="button" class="staff-live-trip-btn" id="staff-live-trip-profile">
+                            <i class="fas fa-id-badge"></i> Ficha conductor
+                        </button>
+                    </div>
+                    <p class="staff-live-trip-hint">${phaseLegend}. Ruta o precio reemplazan esta ficha (no se apilan).</p>
+                </div>`;
+            document.body.appendChild(sheet);
+
+            // Centrar mapa en el conductor si hay GPS
+            const centerOnDriver = async () => {
+                if (!driverId || !window.gMap) return;
+                try {
+                    const locSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
+                    if (locSnap.exists()) {
+                        const loc = locSnap.data();
+                        if (loc.lat != null && loc.lng != null) {
+                            window.gMap.panTo({ lat: Number(loc.lat), lng: Number(loc.lng) });
+                            window.gMap.setZoom?.(Math.max(window.gMap.getZoom?.() || 14, 15));
+                        }
+                    }
+                } catch (_) {}
+            };
+            centerOnDriver();
+
+            sheet.querySelector('#staff-live-trip-close')?.addEventListener('click', () => sheet.remove());
+            sheet.querySelector('#staff-live-trip-center')?.addEventListener('click', () => centerOnDriver());
+            sheet.querySelector('#staff-live-trip-route')?.addEventListener('click', () => {
+                window.staffShowTripRouteOnMap?.(trip.id);
+            });
+            sheet.querySelector('#staff-live-trip-edit')?.addEventListener('click', () => {
+                window.staffOpenTripRouteEditor?.(trip.id);
+            });
+            sheet.querySelector('#staff-live-trip-profile')?.addEventListener('click', () => {
+                window.staffParkMapSheetsForModal?.(true);
+                window.showDriverFullDetails?.(driverId, driverName);
+            });
+            sheet.querySelector('#staff-live-trip-chat-toggle')?.addEventListener('click', () => {
+                const body = sheet.querySelector('#staff-live-trip-chat-body');
+                const btn = sheet.querySelector('#staff-live-trip-chat-toggle');
+                if (!body || !btn) return;
+                const open = body.classList.toggle('is-collapsed');
+                btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+                btn.classList.toggle('is-collapsed', open);
+            });
+        };
+
         window.showDriverFullDetails = async (driverId, driverName) => {
             if (!window.canViewOpsFleetMap?.()) {
                 window.showToast?.('Solo administradores y supervisores pueden ver detalles completos de conductores.');
                 return;
             }
+            // Quitar modal previo y aparcar fichas del mapa (finanzas / viaje) para no apilar recuadros
+            document.getElementById('driver-full-details-modal')?.remove();
+            window.staffParkMapSheetsForModal?.(true);
+
             const modal = document.createElement('div');
-            modal.className = `fixed inset-0 bg-black/70 z-[40000] flex items-center justify-center p-4`;
+            modal.id = 'driver-full-details-modal';
+            // z-index por encima de fichas del mapa (45550) para que el overlay las tape si algo falla
+            modal.className = `fixed inset-0 bg-black/70 z-[50000] flex items-center justify-center p-4`;
+
+            const closeFullDetails = () => {
+                modal.remove();
+                window.staffParkMapSheetsForModal?.(false);
+            };
             
             modal.innerHTML = `
-                <div class="bg-white rounded-3xl w-full max-w-2xl p-6 max-h-[92vh] overflow-auto">
+                <div class="bg-white rounded-3xl w-full max-w-2xl p-6 max-h-[92vh] overflow-auto shadow-2xl">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="font-black text-xl">${driverName}</h3>
-                        <button onclick="this.closest('.fixed').remove()" class="text-2xl text-gray-400">&times;</button>
+                        <button type="button" id="driver-full-details-close" class="text-2xl text-gray-400 leading-none px-2" aria-label="Cerrar">&times;</button>
                     </div>
 
                     <div id="driver-details-content">
@@ -11690,6 +12498,10 @@ if (document.readyState === 'loading') {
                 </div>
             `;
             document.body.appendChild(modal);
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeFullDetails();
+            });
+            modal.querySelector('#driver-full-details-close')?.addEventListener('click', closeFullDetails);
 
             const content = modal.querySelector('#driver-details-content');
 
@@ -11721,18 +12533,88 @@ if (document.readyState === 'loading') {
                     }
                 });
 
+                // Finanzas del día (misma lógica que el panel del conductor)
+                let dayStats = null;
+                try {
+                    dayStats = typeof computeDriverDayStats === 'function'
+                        ? await computeDriverDayStats(driverId)
+                        : await window.computeDriverDayStats?.(driverId);
+                } catch (_) {}
+                if (dayStats) {
+                    todayTrips = dayStats.tripCount || todayTrips;
+                    todayEarned = dayStats.totalEarnedToday || todayEarned;
+                }
+                const totalOwed = dayStats
+                    ? Number(dayStats.totalOwed != null
+                        ? dayStats.totalOwed
+                        : ((dayStats.pendingDepositDebt || 0) + (dayStats.remainingToDeposit || 0))) || 0
+                    : 0;
+                const graceOn = dayStats?.graceActive || isDriverDepositGraceActive(userData);
+
                 let html = `
-                    <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="grid grid-cols-2 gap-3 mb-4">
                         <div class="bg-blue-50 rounded-2xl p-4 text-center">
                             <p class="text-xs text-blue-600 font-black">VIAJES HOY</p>
                             <p class="text-4xl font-black text-blue-700">${todayTrips}</p>
                         </div>
                         <div class="bg-emerald-50 rounded-2xl p-4 text-center">
                             <p class="text-xs text-emerald-600 font-black">GANADO HOY</p>
-                            <p class="text-4xl font-black text-emerald-700">L. ${todayEarned.toFixed(2)}</p>
+                            <p class="text-4xl font-black text-emerald-700">L. ${Number(todayEarned).toFixed(2)}</p>
                         </div>
                     </div>
                 `;
+
+                if (dayStats) {
+                    html += `
+                    <div class="mb-4 p-4 rounded-2xl border ${totalOwed > 0 ? (graceOn ? 'border-sky-200 bg-sky-50' : 'border-rose-200 bg-rose-50') : 'border-emerald-200 bg-emerald-50'}">
+                        <p class="text-[10px] font-black uppercase tracking-wide ${totalOwed > 0 ? (graceOn ? 'text-sky-700' : 'text-rose-700') : 'text-emerald-700'} mb-2">
+                            <i class="fas fa-wallet"></i> Finanzas · depósito
+                        </p>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="bg-white/80 rounded-xl p-2.5">
+                                <p class="text-slate-500 font-bold">Efectivo hoy</p>
+                                <p class="font-black text-slate-800">L. ${Number(dayStats.cashEarnedToday || 0).toFixed(2)}</p>
+                            </div>
+                            <div class="bg-white/80 rounded-xl p-2.5">
+                                <p class="text-slate-500 font-bold">Saldo recibido</p>
+                                <p class="font-black text-slate-800">L. ${Number(dayStats.saldoEarnedToday || 0).toFixed(2)}</p>
+                            </div>
+                            <div class="bg-white/80 rounded-xl p-2.5">
+                                <p class="text-slate-500 font-bold">Com. efectivo</p>
+                                <p class="font-black text-slate-800">L. ${Number(dayStats.cashCommissionOwed || 0).toFixed(2)}</p>
+                            </div>
+                            <div class="bg-white/80 rounded-xl p-2.5">
+                                <p class="text-slate-500 font-bold">Cubierta</p>
+                                <p class="font-black text-emerald-700">L. ${Number(dayStats.saldoCommissionCovered || 0).toFixed(2)}</p>
+                            </div>
+                            <div class="bg-white/80 rounded-xl p-2.5">
+                                <p class="text-slate-500 font-bold">Deuda acumulada</p>
+                                <p class="font-black ${Number(dayStats.pendingDepositDebt || 0) > 0 ? 'text-rose-600' : 'text-slate-800'}">L. ${Number(dayStats.pendingDepositDebt || 0).toFixed(2)}</p>
+                            </div>
+                            <div class="bg-white/80 rounded-xl p-2.5">
+                                <p class="text-slate-500 font-bold">Pendiente hoy</p>
+                                <p class="font-black text-slate-800">L. ${Number(dayStats.remainingToDeposit || 0).toFixed(2)}</p>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-center font-black text-sm ${totalOwed > 0 ? (graceOn ? 'text-sky-800' : 'text-rose-700') : 'text-emerald-700'}">
+                            TOTAL A DEPOSITAR: L. ${totalOwed.toFixed(2)}
+                            ${graceOn ? ` · Prórroga ${escapeViewerText(formatDepositGraceLabel(userData) || 'activa')}` : ''}
+                        </p>
+                        <p class="text-center text-[10px] text-slate-500 font-bold mt-1">
+                            Billetera: L. ${Number(userData.driverBalance || 0).toFixed(2)}
+                            · Dep. validados hoy: L. ${Number(dayStats.validatedDepositsToday || 0).toFixed(2)}
+                            ${Number(dayStats.pendingDepositsToday || 0) > 0 ? ` · En revisión: L. ${Number(dayStats.pendingDepositsToday).toFixed(2)}` : ''}
+                        </p>
+                        <p class="text-center text-[10px] text-slate-500 font-bold mt-1">
+                            No se cortan viajes solo por deber el depósito del día; el bloqueo es si vence la <b>deuda acumulada</b> (o sin prórroga).
+                        </p>
+                        ${Number(dayStats.pendingDepositDebt || 0) > 0.009 ? `
+                        <button type="button" onclick="window.staffClearDriverAccumulatedDebt('${driverId}', '${String(driverName || '').replace(/'/g, "\\'")}')"
+                            class="mt-3 w-full bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black uppercase py-2.5 rounded-xl">
+                            <i class="fas fa-eraser"></i> Borrar deuda acumulada (L. ${Number(dayStats.pendingDepositDebt).toFixed(2)})
+                        </button>` : ''}
+                    </div>`;
+                }
 
                 // Mostrar historial de depósitos
                 html += `
@@ -12762,7 +13644,7 @@ if (document.readyState === 'loading') {
 
             if (isDriverDepositGraceActive(window.userProfile)) return;
 
-            // Asegurar plazo si hay deuda
+            // Asegurar plazo si hay algo por depositar
             if (!getDriverDepositDeadlineMs(window.userProfile)) {
                 await ensureDriverDepositWorkSchedule(currentUser.uid, { forceNew: false });
             }
@@ -12773,10 +13655,10 @@ if (document.readyState === 'loading') {
             const twoH = 2 * 60 * 60 * 1000;
             const msLeft = deadline - now;
 
-            // Aviso 2 horas antes (una sola vez)
+            // Aviso 2 horas antes (una sola vez) — aún es "pendiente", no deuda vencida
             if (msLeft > 0 && msLeft <= twoH && !window.userProfile?.depositWarning2hSent) {
                 const hoursLabel = Math.max(1, Math.ceil(msLeft / (60 * 60 * 1000)));
-                const body = `Tienes ${hoursLabel === 1 ? '1 hora' : '2 horas'} para el depósito (L. ${debt.toFixed(2)}). Si no, tu cuenta será inhabilitada por incumplir con pagos pendientes. Plazo: ${formatDepositDeadlineLabel(window.userProfile)}.`;
+                const body = `Tienes ${hoursLabel === 1 ? '1 hora' : '2 horas'} para el depósito (L. ${debt.toFixed(2)}). Si no, tu cuenta será inhabilitada. Plazo: ${formatDepositDeadlineLabel(window.userProfile)}.`;
                 try {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
                         depositWarning2hSent: true,
@@ -12788,7 +13670,7 @@ if (document.readyState === 'loading') {
                 } catch (_) {}
                 window.showToast?.(body, 'warning');
                 notifyTripEvent?.({
-                    title: 'Aviso: depósito pendiente',
+                    title: 'Aviso: depósito del día por vencer',
                     body,
                     tag: `deposit-warn-2h-${currentUser.uid}`,
                     force: true
@@ -12799,7 +13681,7 @@ if (document.readyState === 'loading') {
                         targetRole: 'driver',
                         personal: true,
                         type: 'deposit_deadline_warning',
-                        title: 'Aviso: depósito pendiente',
+                        title: 'Aviso: depósito del día por vencer',
                         message: body,
                         sentBy: 'system',
                         sentByName: 'Sistema',
@@ -12808,8 +13690,16 @@ if (document.readyState === 'loading') {
                 } catch (_) {}
             }
 
-            // Venció el plazo con deuda → inhabilitar
+            // Venció el plazo → consolidar pendiente de hoy como DEUDA y bloquear
             if (msLeft <= 0) {
+                try {
+                    const roll = await rollTodayCommissionIntoDebt(currentUser.uid, { reason: 'deadline' });
+                    if (roll.totalDebt > 0) debt = roll.totalDebt;
+                    else if (roll.rolled > 0) debt = (parseFloat(window.userProfile?.pendingDepositDebt) || 0) + roll.rolled;
+                } catch (e) {
+                    console.warn('deadline roll debt:', e);
+                }
+
                 try {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
                         driverOnBreak: true,
@@ -12822,6 +13712,7 @@ if (document.readyState === 'loading') {
                     if (window.userProfile) {
                         window.userProfile.driverOnBreak = true;
                         window.userProfile.depositAutoBlocked = true;
+                        window.userProfile.driverLastDepositOwed = debt;
                     }
                 } catch (_) {}
 
@@ -12835,10 +13726,10 @@ if (document.readyState === 'loading') {
                     window.updateDriverOnlineBadge?.(false);
                 } catch (_) {}
 
-                const msg = `Tu cuenta fue inhabilitada: no depositaste L. ${debt.toFixed(2)} a tiempo (plazo: 12:00 p.m. del día siguiente a que empezaste a trabajar). Envía tu comprobante para reactivarte.`;
+                const msg = `Tu cuenta fue inhabilitada: no depositaste L. ${debt.toFixed(2)} a tiempo (plazo: 12:00 p.m. del día siguiente). Eso ya es deuda vencida. Envía tu comprobante para reactivarte.`;
                 window.showToast?.(msg, 'error');
                 notifyTripEvent?.({
-                    title: 'Cuenta inhabilitada — depósito',
+                    title: 'Cuenta inhabilitada — deuda vencida',
                     body: msg,
                     tag: `deposit-blocked-${currentUser.uid}`,
                     force: true
@@ -12869,17 +13760,13 @@ if (document.readyState === 'loading') {
             const until = new Date(Date.now() + hours * 60 * 60 * 1000);
             const staffName = window.userProfile?.name || 'Staff';
 
-            // Unificar deuda: lo pendiente de HOY se suma a la deuda acumulada (una sola bolsa)
+            // Unificar: pendiente de HOY → deuda acumulada (solo al dar prórroga, no por cada viaje)
             let rolledToday = 0;
             let totalDebtAfter = 0;
             try {
-                const stats = await computeDriverDayStats(driverId);
-                rolledToday = Math.max(0, Math.round((stats.remainingToDeposit || 0) * 100) / 100);
-                if (rolledToday > 0) {
-                    totalDebtAfter = await addToDriverPendingDepositDebt(driverId, rolledToday);
-                } else {
-                    totalDebtAfter = await getDriverPendingDepositDebt(driverId);
-                }
+                const roll = await rollTodayCommissionIntoDebt(driverId, { reason: 'grace' });
+                rolledToday = roll.rolled || 0;
+                totalDebtAfter = roll.totalDebt || 0;
             } catch (e) {
                 console.warn('grace roll debt:', e);
                 totalDebtAfter = await getDriverPendingDepositDebt(driverId);
@@ -12895,11 +13782,12 @@ if (document.readyState === 'loading') {
                 depositGraceGrantedBy: currentUser.uid,
                 depositGraceGrantedByName: staffName,
                 depositGraceGrantedAt: serverTimestamp(),
-                // Marca que el pendiente de hoy ya está dentro de pendingDepositDebt
+                // Compat UI: el monto consolidado vive en depositDayRolled* (evita doble resta en stats)
                 depositGraceRolledDate: todayKey,
-                depositGraceRolledAmount: rolledToday,
+                depositGraceRolledAmount: 0,
                 // Disponible: quitar estado de descanso / bloqueo
                 driverOnBreak: false,
+                depositAutoBlocked: false,
                 updatedAt: serverTimestamp()
             };
 
@@ -12937,6 +13825,115 @@ if (document.readyState === 'loading') {
             } catch (e) {
                 console.error('grantDriverDepositGrace:', e);
                 window.showToast?.(e?.message || 'No se pudo guardar la prórroga.', 'error');
+            }
+        };
+
+        /**
+         * Admin/supervisor: borra la deuda acumulada (pendingDepositDebt).
+         * La comisión del día (remainingToDeposit) se recalcula por viajes de hoy y no se “borra”
+         * como campo: solo la deuda acumulada en el perfil.
+         * Recibir viajes: no se corta solo por deber depositar; solo si vence el plazo (12 p.m. del
+         * día siguiente) o el staff no dio prórroga.
+         */
+        window.staffClearDriverAccumulatedDebt = async (driverId, driverName = '') => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor puede borrar deudas acumuladas.', 'error');
+            }
+            if (!driverId) return;
+
+            try {
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', driverId);
+                const snap = await getDoc(userRef);
+                if (!snap.exists()) return window.showToast?.('Conductor no encontrado.');
+                const u = snap.data() || {};
+                const currentDebt = Math.max(0, parseFloat(u.pendingDepositDebt) || 0);
+                if (currentDebt <= 0.009) {
+                    return window.showToast?.('Este conductor no tiene deuda acumulada.', 'info');
+                }
+
+                const label = driverName || u.name || 'conductor';
+                if (!confirm(
+                    `¿Borrar la DEUDA ACUMULADA de ${label}?\n\n`
+                    + `Monto: L. ${currentDebt.toFixed(2)}\n\n`
+                    + 'Queda en L. 0.00 la deuda acumulada.\n'
+                    + 'La comisión de viajes de HOY (si aún no deposita) se calcula aparte.\n'
+                    + 'No se puede deshacer.'
+                )) return;
+
+                const staffName = window.userProfile?.name
+                    || (isAdminUser(currentUser, window.userProfile) ? 'Administrador' : 'Supervisor');
+                const wasAutoBlocked = !!u.depositAutoBlocked
+                    || u.depositAutoBlockedReason === 'deposit_deadline_missed';
+
+                const patch = {
+                    pendingDepositDebt: 0,
+                    driverLastDepositOwed: 0,
+                    depositDebtClearedBy: currentUser.uid,
+                    depositDebtClearedByName: staffName,
+                    depositDebtClearedAt: serverTimestamp(),
+                    depositDebtClearedAmount: currentDebt,
+                    depositAutoBlocked: false,
+                    depositAutoBlockedAt: null,
+                    depositAutoBlockedReason: null,
+                    updatedAt: serverTimestamp()
+                };
+                if (wasAutoBlocked && u.driverOnBreak) {
+                    patch.driverOnBreak = false;
+                }
+
+                await setDoc(userRef, patch, { merge: true });
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'users', driverId, 'profile', 'data'), {
+                        pendingDepositDebt: 0,
+                        driverLastDepositOwed: 0,
+                        depositAutoBlocked: false,
+                        depositAutoBlockedAt: null,
+                        depositAutoBlockedReason: null,
+                        ...(wasAutoBlocked && u.driverOnBreak ? { driverOnBreak: false } : {}),
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                } catch (_) {}
+
+                await clearDriverDepositScheduleIfPaid(driverId, 0);
+
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'), {
+                        driverId,
+                        driverName: label,
+                        amount: 0,
+                        type: 'staff_debt_clear',
+                        note: `Deuda acumulada condonada por staff (era L. ${currentDebt.toFixed(2)})`,
+                        clearedAmount: currentDebt,
+                        clearedBy: currentUser.uid,
+                        clearedByName: staffName,
+                        date: new Date().toISOString(),
+                        createdAt: serverTimestamp()
+                    });
+                } catch (_) {}
+
+                window.showToast?.(
+                    `Deuda acumulada borrada: L. ${currentDebt.toFixed(2)} · ${label}`,
+                    'success'
+                );
+
+                try {
+                    if (document.getElementById('staff-driver-finance-sheet')) {
+                        window.showStaffDriverFinanceMapSheet?.(driverId, label);
+                    }
+                } catch (_) {}
+                try {
+                    if (typeof window.loadSupervisorDeposits === 'function') {
+                        window.loadSupervisorDeposits?.();
+                    }
+                } catch (_) {}
+                try {
+                    if (typeof window.loadDriverDepositRequests === 'function') {
+                        window.loadDriverDepositRequests?.();
+                    }
+                } catch (_) {}
+            } catch (e) {
+                console.error('staffClearDriverAccumulatedDebt:', e);
+                window.showToast?.(e?.message || 'No se pudo borrar la deuda.', 'error');
             }
         };
 
@@ -12987,6 +13984,68 @@ if (document.readyState === 'loading') {
                 console.error('addToDriverPendingDepositDebt error:', e);
                 return 0;
             }
+        }
+
+        /**
+         * Consolida la comisión pendiente de HOY en deuda acumulada.
+         * Se usa al: cerrar turno / descanso, prórroga staff, o vencer el plazo de depósito.
+         * No se llama al completar cada viaje (eso era el bug de "todo es deuda pendiente").
+         */
+        async function rollTodayCommissionIntoDebt(driverId, { reason = 'day_roll' } = {}) {
+            if (!driverId) return { rolled: 0, totalDebt: 0 };
+            let toRoll = 0;
+            try {
+                const stats = await computeDriverDayStats(driverId);
+                toRoll = Math.max(0, Math.round((stats.remainingToDeposit || 0) * 100) / 100);
+            } catch (e) {
+                console.warn('rollTodayCommissionIntoDebt stats:', e);
+            }
+
+            const { year, month, day } = getHondurasDateParts();
+            const todayKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+            let prevDayRolled = 0;
+            try {
+                const uSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', driverId));
+                if (uSnap.exists()) {
+                    const ud = uSnap.data() || {};
+                    if (ud.depositDayRolledDate === todayKey) {
+                        prevDayRolled = Math.max(0, parseFloat(ud.depositDayRolledAmount) || 0);
+                    }
+                }
+            } catch (_) {}
+
+            let totalDebt = await getDriverPendingDepositDebt(driverId);
+            if (toRoll > 0.009) {
+                totalDebt = await addToDriverPendingDepositDebt(driverId, toRoll);
+                const rolledTotal = Math.round((prevDayRolled + toRoll) * 100) / 100;
+                const patch = {
+                    depositDayRolledDate: todayKey,
+                    depositDayRolledAmount: rolledTotal,
+                    depositDayRolledReason: reason,
+                    depositDayRolledAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                };
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', driverId), patch, { merge: true });
+                    try {
+                        await setDoc(doc(db, 'artifacts', appId, 'users', driverId, 'profile', 'data'), {
+                            ...patch,
+                            pendingDepositDebt: totalDebt
+                        }, { merge: true });
+                    } catch (_) {}
+                    if (window.userProfile && currentUser?.uid === driverId) {
+                        Object.assign(window.userProfile, {
+                            depositDayRolledDate: todayKey,
+                            depositDayRolledAmount: rolledTotal,
+                            pendingDepositDebt: totalDebt
+                        });
+                    }
+                } catch (e) {
+                    console.warn('rollTodayCommissionIntoDebt patch:', e);
+                }
+            }
+            return { rolled: toRoll, totalDebt };
         }
 
         async function subtractFromDriverPendingDepositDebt(driverId, amount) {
@@ -13255,7 +14314,8 @@ if (document.readyState === 'loading') {
                 cashTripCount: 0, saldoTripCount: 0, commission, commissionAmount: 0,
                 cashCommissionOwed: 0, saldoCommissionCovered: 0,
                 validatedDepositsToday: 0, pendingDepositsToday: 0, remainingToDeposit: 0,
-                pendingDepositDebt: 0, totalOwed: 0, graceActive: false, graceRolledToday: false
+                pendingDepositDebt: 0, totalOwed: 0, graceActive: false, graceRolledToday: false,
+                dayRolledToday: false
             };
             if (!driverId) return empty;
 
@@ -13310,12 +14370,14 @@ if (document.readyState === 'loading') {
                 validatedToday: validatedDepositsToday,
                 pendingValidationToday: pendingDepositsToday
             } = await computeDriverDepositStats(driverId, today, tomorrow);
+            // Comisión del día aún no consolidada (no es deuda vencida)
             let remainingToDeposit = Math.max(0, cashCommissionOwed - saldoCommissionCovered - validatedDepositsToday);
 
-            // Deuda persistente (acumulada + lo consolidado al dar prórroga)
+            // Deuda persistente: solo lo consolidado (días anteriores, cierre de turno, prórroga o plazo vencido)
             let pendingDepositDebt = await getDriverPendingDepositDebt(driverId);
             let graceActive = false;
             let graceRolledToday = false;
+            let dayRolledToday = false;
             try {
                 const uSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', driverId));
                 if (uSnap.exists()) {
@@ -13323,15 +14385,24 @@ if (document.readyState === 'loading') {
                     graceActive = isDriverDepositGraceActive(ud);
                     const { year, month, day } = getHondurasDateParts();
                     const todayKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    // Si hoy se unificó la deuda al dar prórroga, no mostrar "pendiente de hoy" aparte
-                    if (ud.depositGraceRolledDate === todayKey) {
-                        remainingToDeposit = 0;
+                    // Si hoy ya se consolidó parte a deuda, restar ese monto (viajes nuevos del día siguen en "pendiente hoy").
+                    // Preferir depositDayRolled* (cierre/plazo/prórroga nueva); grace amount solo si no hubo day-roll.
+                    let rolledTodayAmt = 0;
+                    if (ud.depositDayRolledDate === todayKey) {
+                        rolledTodayAmt = Math.max(0, parseFloat(ud.depositDayRolledAmount) || 0);
+                        dayRolledToday = true;
+                    } else if (ud.depositGraceRolledDate === todayKey) {
+                        rolledTodayAmt = Math.max(0, parseFloat(ud.depositGraceRolledAmount) || 0);
                         graceRolledToday = true;
+                    }
+                    if (ud.depositGraceRolledDate === todayKey) graceRolledToday = true;
+                    if (rolledTodayAmt > 0) {
+                        remainingToDeposit = Math.max(0, Math.round((remainingToDeposit - rolledTodayAmt) * 100) / 100);
                     }
                 }
             } catch (_) {}
 
-            // Con prórroga: una sola bolsa de deuda (ya unificada); disponible para trabajar
+            // totalOwed = deuda consolidada + pendiente de hoy (sin doble conteo)
             const totalOwed = pendingDepositDebt + remainingToDeposit;
 
             return {
@@ -13351,7 +14422,8 @@ if (document.readyState === 'loading') {
                 pendingDepositDebt,
                 totalOwed,
                 graceActive,
-                graceRolledToday
+                graceRolledToday,
+                dayRolledToday
             };
         }
 
@@ -13895,12 +14967,16 @@ if (document.readyState === 'loading') {
                                         <p class="driver-earnings-comm-value driver-earnings-comm-value--ok">L. ${s.saldoCommissionCovered.toFixed(2)}</p>
                                     </div>
                                     <div>
+                                        <p class="driver-earnings-comm-label">Hoy a dep.</p>
+                                        <p class="driver-earnings-comm-value">L. ${(s.remainingToDeposit || 0).toFixed(2)}</p>
+                                    </div>
+                                    <div>
                                         <p class="driver-earnings-comm-label driver-earnings-comm-label--debt">Deuda</p>
                                         <p class="driver-earnings-comm-value driver-earnings-comm-value--debt">L. ${(s.pendingDepositDebt || 0).toFixed(2)}</p>
                                     </div>
                                 </div>
                                 ${(s.totalOwed || ((s.pendingDepositDebt || 0) + (s.remainingToDeposit || 0))) > 0 ? `
-                                <p class="driver-earnings-owed">TOTAL DEBES: L. ${((s.totalOwed != null ? s.totalOwed : ((s.pendingDepositDebt || 0) + (s.remainingToDeposit || 0)))).toFixed(2)}</p>` : ''}
+                                <p class="driver-earnings-owed">TOTAL A DEPOSITAR: L. ${((s.totalOwed != null ? s.totalOwed : ((s.pendingDepositDebt || 0) + (s.remainingToDeposit || 0)))).toFixed(2)}</p>` : ''}
                                 ${s.pendingDepositsToday > 0 ? `<p class="driver-earnings-pending"><i class="fas fa-clock"></i> L. ${s.pendingDepositsToday.toFixed(2)} en revisión</p>` : ''}
                             </div>
                         </div>
@@ -14016,15 +15092,21 @@ if (document.readyState === 'loading') {
                                 <p class="text-[9px] text-gray-500">Solo tras aprobación</p>
                             </div>
                             <div class="bg-red-50 border border-red-200 rounded-2xl p-3 text-center">
-                                <p class="text-[10px] text-red-700 font-black uppercase">Deuda acumulada (días anteriores)</p>
+                                <p class="text-[10px] text-red-700 font-black uppercase">Deuda consolidada (vencida / días ant.)</p>
                                 <p class="text-xl font-black text-red-700">L. ${(s.pendingDepositDebt || 0).toFixed(2)}</p>
                             </div>
+                        </div>
+
+                        <div class="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-center">
+                            <p class="text-[10px] text-amber-800 font-black uppercase">Pendiente de hoy (aún no es deuda vencida)</p>
+                            <p class="text-xl font-black text-amber-700">L. ${(s.remainingToDeposit || 0).toFixed(2)}</p>
+                            <p class="text-[9px] text-amber-700 mt-0.5">Se vuelve deuda si no depositas antes de las 12:00 p.m. del día siguiente o al cerrar turno</p>
                         </div>
 
                         <div class="bg-red-100 border-2 border-red-500 rounded-2xl p-4 text-center mt-1">
                             <p class="text-[10px] text-red-800 font-black uppercase tracking-widest">TOTAL QUE DEBES DEPOSITAR</p>
                             <p class="text-3xl font-black text-red-700">L. ${totalOwed.toFixed(2)}</p>
-                            <p class="text-[10px] text-red-600 mt-0.5">Acumulado + comisión de hoy pendiente</p>
+                            <p class="text-[10px] text-red-600 mt-0.5">Deuda consolidada + pendiente de hoy</p>
                         </div>
 
                         ${s.pendingDepositsToday > 0 ? `
@@ -15373,15 +16455,18 @@ window.saveProfileChanges = async () => {
                                         ${wa ? `<a href="${wa}" target="_blank" class="text-emerald-400 text-xs"><i class="fab fa-whatsapp"></i> ${phone}</a>` : ''}
                                         ${graceOn
                                             ? `<p class="text-[10px] text-emerald-300 font-bold mt-1"><i class="fas fa-check-circle"></i> DISPONIBLE · prórroga hasta ${graceLbl || '—'}</p>`
-                                            : `<p class="text-[10px] text-red-300 font-bold mt-1">Bloqueado hasta depositar</p>`}
+                                            : `<p class="text-[10px] text-red-300 font-bold mt-1">Deuda acumulada · se bloquea al vencer el plazo</p>`}
                                     </div>
                                     <div class="text-right flex flex-col items-stretch sm:items-end gap-1.5">
                                         <p class="${graceOn ? 'text-amber-300' : 'text-red-400'} font-black text-lg">L. ${debt.toFixed(2)}</p>
-                                        <p class="text-[9px] text-gray-400">${graceOn ? 'Deuda unificada (paga al vencer prórroga)' : 'Deuda pendiente (bloquea activación)'}</p>
+                                        <p class="text-[9px] text-gray-400">${graceOn ? 'Deuda unificada (paga al vencer prórroga)' : 'Deuda pendiente (bloquea al vencer plazo)'}</p>
+                                        <div class="flex flex-wrap gap-1.5 justify-end">
                                         ${graceOn
                                             ? `<button type="button" onclick="window.clearDriverDepositGrace('${d.id}', '${safeName}')" class="text-[10px] px-2 py-1.5 rounded-lg bg-slate-600 text-white font-bold">Quitar prórroga</button>`
                                             : `<button type="button" onclick="window.grantDriverDepositGrace('${d.id}', '${safeName}')" class="text-[10px] px-2 py-1.5 rounded-lg bg-sky-600 text-white font-bold"><i class="fas fa-clock"></i> Dar prórroga</button>`
                                         }
+                                        <button type="button" onclick="window.staffClearDriverAccumulatedDebt('${d.id}', '${safeName}')" class="text-[10px] px-2 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-white font-bold"><i class="fas fa-eraser"></i> Borrar deuda</button>
+                                        </div>
                                     </div>
                                 </div>
                             `;
@@ -18219,7 +19304,9 @@ onAuthStateChanged(auth, async (user) => {
                             // Only clear break if no pending deposit debt (o hay prórroga o aún no vence el plazo 12pm día sig.)
                             try {
                                 const stats = await computeDriverDayStats(currentUser.uid);
-                                const debt = stats.pendingDepositDebt || stats.remainingToDeposit || 0;
+                                const debt = (stats.totalOwed != null)
+                                    ? stats.totalOwed
+                                    : ((stats.pendingDepositDebt || 0) + (stats.remainingToDeposit || 0));
                                 const blocked = isDriverBlockedByDepositDebt(debt, window.userProfile);
                                 if (debt <= 0 || !blocked) {
                                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
@@ -18893,6 +19980,9 @@ function _initDestinationArrivalPanel() {
                 window.pendingOfferWatch = null;
             }
             window.stopNoDriversNotifyCountdown?.();
+            try { stopPassengerWaitingLoop(); } catch (_) {}
+            try { stopLoopingTone(); } catch (_) {}
+            window._passengerAcceptSoundKey = null;
             activeTrip = null;
             window.currentActiveTripData = null;
             window.lastMessageCount = 0;
@@ -19956,6 +21046,8 @@ function _initDestinationArrivalPanel() {
 
         function handleTripCancelled(tripId, data) {
             if (window.handledCancelledTripIds.has(tripId)) return;
+            // Si el pasajero estaba en espera, cortar el sonido en bucle
+            try { stopPassengerWaitingLoop(); } catch (_) {}
 
             // Pre-accept (pending) cancel must NEVER trigger the cancellation questionnaire
             const fromStatus = data?.cancelledFromStatus;
@@ -21008,6 +22100,15 @@ function _initDestinationArrivalPanel() {
             const role = options.role || window.userProfile?.role;
             const toastKey = `${data.id}:${role}`;
 
+            if (role === 'client' || data.clientId === currentUser?.uid) {
+                try { stopPassengerWaitingLoop(); } catch (_) {}
+                // Tono de aceptado (una vez por viaje; evita doble con processActiveTripUpdate)
+                if (!options.skipAcceptSound && window._passengerAcceptSoundKey !== data.id) {
+                    window._passengerAcceptSoundKey = data.id;
+                    try { playPassengerAcceptedTone(); } catch (_) {}
+                }
+            }
+
             if (!options.silentToast && window._tripAcceptedToastKey !== toastKey) {
                 window._tripAcceptedToastKey = toastKey;
                 const followUp = role === 'driver'
@@ -21025,7 +22126,8 @@ function _initDestinationArrivalPanel() {
                         body: `Tu PIN es ${data.pin}. Muéstraselo al subir al vehículo.`,
                         tag: `trip-pin-${data.id}`,
                         tripId: data.id,
-                        force: true
+                        force: true,
+                        sound: 'none'
                     });
                 }
             }
@@ -21241,6 +22343,8 @@ function _initDestinationArrivalPanel() {
             document.body.classList.remove('trip-active', 'panel-minimized', 'panel-collapsed');
             syncPromoUi();
             window.showControlPanel?.();
+            // Sonido en bucle mientras el cliente espera que acepten el viaje
+            try { startPassengerWaitingLoop(); } catch (_) {}
 
             const panel = document.getElementById('control-panel');
             panel?.classList.remove('panel-collapsed', 'panel-hidden');
@@ -21351,6 +22455,8 @@ function _initDestinationArrivalPanel() {
                         });
                     }
                     window.renderTripViewersPanel?.(data);
+                    // Mantener / reanudar bucle de espera si ya está en UI de búsqueda
+                    try { startPassengerWaitingLoop(); } catch (_) {}
                 }
 
                 window._lastPendingTripUiSig = pendingSig;
@@ -21406,6 +22512,12 @@ function _initDestinationArrivalPanel() {
 
             if (prevStatus !== null && window.userProfile?.role === 'client') {
                 if (prevStatus === 'pending' && data.status === 'accepted') {
+                    // Parar espera en bucle + tono de “viaje aceptado” (una sola vez)
+                    try { stopPassengerWaitingLoop(); } catch (_) {}
+                    if (window._passengerAcceptSoundKey !== data.id) {
+                        window._passengerAcceptSoundKey = data.id;
+                        try { playPassengerAcceptedTone(); } catch (_) {}
+                    }
                     const busyMsg = data.driverFinishingOtherTrip
                         ? `${data.driverName || 'Tu conductor'} termina otro viaje y luego va hacia ti.`
                         : `${data.driverName || 'Tu conductor'} va en camino.`;
@@ -21413,7 +22525,8 @@ function _initDestinationArrivalPanel() {
                         title: '¡Viaje aceptado!',
                         body: busyMsg,
                         tag: `trip-accepted-${data.id}`,
-                        tripId: data.id
+                        tripId: data.id,
+                        sound: 'none'
                     });
                     if (window._tripAcceptedToastKey !== `${data.id}:client`) {
                         window._tripAcceptedToastKey = `${data.id}:client`;
@@ -21504,6 +22617,10 @@ function _initDestinationArrivalPanel() {
                 if (window.pendingOfferWatch) {
                     clearInterval(window.pendingOfferWatch);
                     window.pendingOfferWatch = null;
+                }
+                // Ya no está buscando: cortar bucle de espera del pasajero
+                if (data.clientId === currentUser?.uid) {
+                    try { stopPassengerWaitingLoop(); } catch (_) {}
                 }
                 setStoredClientTripId(data.id);
                 window.stopNearbyDriversListener?.();
@@ -22677,25 +23794,7 @@ window.saveSimplePassengerProfile = async () => {
             }
         };
 
-        // Mejorar notificaciones de chat
-        window.playChatSound = () => {
-            try {
-                const audio = new AudioContext();
-                const osc = audio.createOscillator();
-                const gain = audio.createGain();
-                osc.type = 'sine';
-                osc.frequency.value = 1200;
-                gain.gain.value = 0.2;
-                const now = audio.currentTime;
-                gain.gain.setValueAtTime(0.2, now);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-                osc.connect(gain);
-                gain.connect(audio.destination);
-                osc.start(now);
-                osc.stop(now + 0.35);
-            } catch(e){}
-        };
-
+        // Chat: window.playChatSound viene de notification-tones.js
         let lastChatMessageTime = 0;
 
         window.driverApplyStaffRouteChange = async (opts = {}) => {
@@ -23344,10 +24443,8 @@ window.saveSimplePassengerProfile = async () => {
             const email = window.userProfile.payoutEmail || currentUser.email || '';
             const remainingToday = stats.remainingToDeposit || 0;
             const currentPending = stats.pendingDepositDebt || 0;
-            // Only persist the *new* daily debt (from today's cash trips).
-            // Never re-add the already recorded pending debt. This was the cause of multiplication on close/break.
-            const amountToAdd = remainingToday;
-            const depositOwed = currentPending + remainingToday;  // what we show in toasts
+            // Al cerrar turno / descanso: consolidar pendiente de HOY → deuda (una sola vez; no por cada viaje).
+            const depositOwed = currentPending + remainingToday;
             const saldoOwed = parseFloat(window.userProfile.driverBalance) || 0;
 
             try {
@@ -23374,10 +24471,10 @@ window.saveSimplePassengerProfile = async () => {
                     driverLastLogoutEmail: email
                 }, { merge: true });
 
-                // Only add the *new* daily commission to persistent debt.
-                // Never re-add the already-pending debt (this was causing multiplication on every break/close).
-                if (amountToAdd > 0) {
-                    await addToDriverPendingDepositDebt(currentUser.uid, amountToAdd);
+                if (remainingToday > 0.009) {
+                    await rollTodayCommissionIntoDebt(currentUser.uid, {
+                        reason: type === 'break' ? 'break' : 'logout'
+                    });
                 }
 
                 if (type === 'deposit') {
@@ -25198,24 +26295,8 @@ window.cancelSetupAndLogout = () => {
                     if (commissionWaivedBirthday) {
                         toastMsg = `Viaje finalizado. Ganancia: L. ${priceNum.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
                     }
-
-                    // Acumular deuda de comisión en efectivo para depósitos futuros
-                    // Solo si no tiene depósitos pendientes sin verificar (para que la deuda se mantenga estable hasta verificación)
-                    if (activeTrip.driverId) {
-                        let hasPending = false;
-                        try {
-                            const pendingQ = query(
-                                collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposit_requests'),
-                                where('driverId', '==', activeTrip.driverId),
-                                where('status', '==', 'pending')
-                            );
-                            const pendingSnap = await getDocs(pendingQ);
-                            hasPending = !pendingSnap.empty;
-                        } catch (_) {}
-                        if (!hasPending) {
-                            await addToDriverPendingDepositDebt(activeTrip.driverId, split.commissionAmount);
-                        }
-                    }
+                    // La comisión en efectivo es "pendiente del día" (se calcula por viajes).
+                    // NO se convierte en deuda acumulada hasta: cerrar turno, prórroga staff, o vencer el plazo (12 p.m. día siguiente).
                 }
 
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), tripUpdate);
@@ -28243,16 +29324,29 @@ window.addEventListener('map-route-trigger', () => {
 
             const U = window.OpsUi;
             const completedTotal = allTrips.filter((t) => t.status === 'completed').length;
-            const unseenLive = unanswered.filter((t) => getStaffPendingAttentionMeta(t).nobodySaw).length;
-            let body = U.hero('Viajes', 'Activos, búsquedas canceladas (nombre/teléfono) y sin atención', U.kpiRow([
-                { value: unanswered.length, label: 'Ahora sin atención', variant: unanswered.length ? 'red' : 'default' },
-                { value: cancelledSearches.length, label: 'Búsquedas canceladas', variant: cancelledSearches.length ? 'cyan' : 'default' },
-                { value: histUnattended.length, label: 'Hist. sin atención', variant: histUnattended.length ? 'amber' : 'default' },
-                { value: unseenLive, label: 'Nadie vio (ahora)', variant: unseenLive ? 'amber' : 'default' },
-                { value: activeTrips.length, label: 'Activos', variant: 'purple' },
-                { value: cancelledPending.length, label: 'Cancel. c/conductor', variant: 'red' },
-                { value: pastTrips.length, label: 'Recientes', variant: 'default' }
-            ]));
+            const phaseCounts = { pending: 0, to_pickup: 0, at_pickup: 0, in_progress: 0 };
+            otherActive.forEach((t) => {
+                const p = getStaffActiveTripPhase(t);
+                if (phaseCounts[p] != null) phaseCounts[p] += 1;
+            });
+
+            let body = `
+            <div class="ops-trips-page-hero ops-trips-page-hero--supervisor">
+                <div class="ops-trips-page-hero-text">
+                    <p class="ops-trips-page-kicker"><i class="fas fa-gauge-high"></i> Supervisión</p>
+                    <h2 class="ops-trips-page-title">Viajes en tiempo real</h2>
+                    <p class="ops-trips-page-sub">Dashboard de activos, búsquedas canceladas y sin atención</p>
+                </div>
+                <div class="ops-trips-page-kpis">
+                    ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
+                    ${U.kpi(phaseCounts.to_pickup + phaseCounts.at_pickup, 'Con conductor', 'emerald')}
+                    ${U.kpi(phaseCounts.in_progress, 'En curso', 'cyan')}
+                    ${U.kpi(activeTrips.length, 'Activos', 'purple')}
+                    ${U.kpi(cancelledSearches.length, 'Búsquedas cancel.', cancelledSearches.length ? 'cyan' : 'default')}
+                    ${U.kpi(cancelledPending.length, 'Cancel. c/cond.', cancelledPending.length ? 'red' : 'default')}
+                    ${U.kpi(pastTrips.length, 'Recientes', 'default')}
+                </div>
+            </div>`;
             body += U.tripToolbar(activeTrips.length, completedTotal, 'window.loadSupervisorTrips()', 'window.loadSupervisorPastTrips()');
             body += buildStaffUnansweredTripsSectionHtml(allTrips, {
                 includeDelete: true,
@@ -28268,29 +29362,11 @@ window.addEventListener('map-route-trigger', () => {
                 includeDelete: true,
                 maxChatHeight: '8rem'
             });
-
-            let activeBody = '';
-            if (otherActive.length === 0) {
-                activeBody = unanswered.length
-                    ? '<p class="ops-toolbar-hint">Las pendientes sin atención están arriba. No hay otros viajes activos.</p>'
-                    : U.empty('fa-route', 'No hay viajes activos', 'Los viajes en curso aparecerán aquí.');
-            } else {
-                otherActive.forEach((t) => {
-                    activeBody += renderOpsTripCard(t, {
-                        showStaffPin: true,
-                        showRoute: true,
-                        maxChatHeight: '10rem',
-                        actionsHtml: buildStaffActiveTripActionsHtml(t, { includeDelete: true, includeInvoice: true, includeCancel: true })
-                    });
-                });
-            }
-            body += U.section({
-                title: 'Viajes activos',
-                subtitle: 'Con ofertas, aceptados y en curso',
-                icon: 'fa-broadcast-tower',
-                variant: 'emerald',
-                badge: otherActive.length,
-                body: activeBody
+            body += buildStaffActiveTripsDashboardHtml(otherActive, {
+                includeDelete: true,
+                includeInvoice: true,
+                includeCancel: true,
+                maxChatHeight: '10rem'
             });
             body += buildStaffCancelledTripsSectionHtml(allTrips);
 
@@ -30369,6 +31445,19 @@ window.loadCurrentLoginCustomization = async () => {
         const vapidInput = document.getElementById('fcm-vapid-key');
         if (vapidInput) vapidInput.value = s.fcmVapidKey || '';
 
+        // Cargar tonos globales (mapa + personalizados) y refrescar panel si está abierto
+        try {
+            if (s.toneMap || s.customTones) {
+                applyRemoteToneConfig({
+                    toneMap: s.toneMap || null,
+                    customTones: s.customTones || null
+                });
+            }
+            window.refreshAdminTonesSamples?.();
+            window.refreshAdminCustomTonesList?.();
+            window.refreshAdminToneMapSelects?.();
+        } catch (_) {}
+
         // Configurar el input de subida
         const up = document.getElementById('login-logo-upload');
         if (up) {
@@ -30462,5 +31551,413 @@ window.saveLoginCustomization = async (btn) => {
         alert("Error al guardar los cambios");
         btn.innerText = "GUARDAR CAMBIOS";
         btn.disabled = false;
+    }
+};
+
+// ─── Tonos de notificación (Personalización) ───────────────────────────────
+window.renderAdminTonesPanel = (rootEl) => {
+    if (!rootEl) return;
+    const U = window.OpsUi;
+    const maxMb = (getMaxCustomBytes() / (1024 * 1024)).toFixed(1);
+    const platformNow = getPlatformToneLabel();
+
+    rootEl.innerHTML =
+        U.formPanel(
+            'Tonos de notificación',
+            `Sonidos propios de la app (no el del celular). Ahora estás en: <b>${platformNow}</b>. Al guardar, aplica a todos.`,
+            `
+            <p class="text-[11px] text-slate-400 font-bold mb-3 leading-relaxed">
+                Mismas notificaciones · tonos distintos en <b>Web/PWA</b> y <b>App nativa</b>.
+                Puedes probar cada muestra y asignar uno por tipo de aviso. También sube o arrastra un audio (MP3/WAV/OGG, máx. ${maxMb} MB).
+            </p>
+
+            <div class="mb-4">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Muestras integradas</p>
+                <div id="admin-tones-samples" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+            </div>
+
+            <div class="mb-4">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Subir / arrastrar tono nuevo</p>
+                <div id="admin-tone-dropzone" class="admin-tone-dropzone border-2 border-dashed border-slate-600 rounded-2xl p-5 text-center cursor-pointer hover:border-emerald-500/60 hover:bg-slate-900/40 transition">
+                    <i class="fas fa-music text-2xl text-emerald-400 mb-2"></i>
+                    <p class="text-sm font-black text-white">Arrastra un audio aquí</p>
+                    <p class="text-[10px] text-slate-400 font-bold mt-1">o toca para elegir archivo · MP3, WAV, OGG, M4A</p>
+                    <input type="file" id="admin-tone-file" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.webm" class="hidden">
+                </div>
+                <div class="mt-2 flex flex-wrap gap-2 items-center">
+                    <input id="admin-tone-custom-name" type="text" maxlength="60" class="ops-input flex-1 min-w-[140px]" placeholder="Nombre del tono (opcional)">
+                    <button type="button" id="admin-tone-upload-btn" class="ops-btn ops-btn--emerald" disabled>
+                        <i class="fas fa-cloud-upload-alt"></i> Subir tono
+                    </button>
+                </div>
+                <p id="admin-tone-upload-hint" class="text-[10px] text-slate-500 font-bold mt-1"></p>
+            </div>
+
+            <div class="mb-4">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Tonos personalizados</p>
+                <div id="admin-tones-custom-list" class="space-y-2"></div>
+            </div>
+
+            <div class="mb-3">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Asignar por tipo de aviso</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+                    <div>
+                        <p class="text-[10px] font-black text-sky-400 mb-1"><i class="fas fa-globe"></i> Web / PWA</p>
+                        <div id="admin-tone-map-web" class="space-y-2"></div>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-black text-emerald-400 mb-1"><i class="fab fa-android"></i> App nativa</p>
+                        <div id="admin-tone-map-native" class="space-y-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+                <button type="button" onclick="window.saveAdminToneConfig(this)" class="ops-btn ops-btn--emerald flex-1 min-w-[140px]">
+                    <i class="fas fa-save"></i> Guardar tonos para todos
+                </button>
+                <button type="button" onclick="window.resetAdminToneDefaults(this)" class="ops-btn ops-btn--ghost flex-1 min-w-[120px]">
+                    Restablecer defaults
+                </button>
+            </div>
+            `
+        );
+
+    window.refreshAdminTonesSamples?.();
+    window.refreshAdminCustomTonesList?.();
+    window.refreshAdminToneMapSelects?.();
+    window.bindAdminToneDropzone?.();
+};
+
+window.refreshAdminTonesSamples = () => {
+    const box = document.getElementById('admin-tones-samples');
+    if (!box) return;
+    const tones = listTones({ includeCustom: false });
+    box.innerHTML = tones.map((t) => {
+        const flavor =
+            t.flavor === 'web' ? 'WEB'
+            : t.flavor === 'native' ? 'NATIVO'
+            : 'AMBOS';
+        const color =
+            t.flavor === 'web' ? 'text-sky-400'
+            : t.flavor === 'native' ? 'text-emerald-400'
+            : 'text-amber-400';
+        return `
+            <div class="flex items-center gap-2 bg-slate-900/60 border border-slate-700 rounded-xl px-3 py-2">
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-black text-white truncate">${escapeHtmlLite(t.name)}</p>
+                    <p class="text-[9px] ${color} font-bold">${flavor} · ${escapeHtmlLite(t.blurb || '')}</p>
+                </div>
+                <button type="button" class="ops-btn ops-btn--ghost text-[10px] py-1.5 px-2.5 shrink-0"
+                    onclick="window.playToneSample('${t.id}')" title="Escuchar">
+                    <i class="fas fa-play"></i>
+                </button>
+            </div>`;
+    }).join('');
+};
+
+window.refreshAdminCustomTonesList = () => {
+    const box = document.getElementById('admin-tones-custom-list');
+    if (!box) return;
+    const customs = getCustomTones();
+    if (!customs.length) {
+        box.innerHTML = `<p class="text-[11px] text-slate-500 font-bold py-2">Aún no hay tonos subidos. Arrastra un audio arriba.</p>`;
+        return;
+    }
+    box.innerHTML = customs.map((t) => `
+        <div class="flex items-center gap-2 bg-slate-900/60 border border-emerald-900/40 rounded-xl px-3 py-2">
+            <div class="flex-1 min-w-0">
+                <p class="text-xs font-black text-white truncate">${escapeHtmlLite(t.name)}</p>
+                <p class="text-[9px] text-slate-400 font-bold truncate">${escapeHtmlLite(t.fileName || t.id)}</p>
+            </div>
+            <button type="button" class="ops-btn ops-btn--ghost text-[10px] py-1.5 px-2.5" onclick="window.playToneSample('${t.id}')">
+                <i class="fas fa-play"></i>
+            </button>
+            <button type="button" class="ops-btn ops-btn--ghost text-[10px] py-1.5 px-2.5 text-rose-400"
+                onclick="window.deleteAdminCustomTone('${t.id}')" title="Eliminar">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    `).join('');
+};
+
+window.refreshAdminToneMapSelects = () => {
+    const prefs = loadTonePrefs();
+    const fill = (platform, containerId) => {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        const map = prefs[platform] || {};
+        el.innerHTML = TONE_EVENTS.map((ev) => {
+            const sel = map[ev.id] || '';
+            const opts = buildToneOptionsHtml(sel);
+            return `
+                <div class="bg-slate-900/50 border border-slate-700 rounded-xl p-2.5">
+                    <div class="flex items-start justify-between gap-2 mb-1.5">
+                        <div class="min-w-0">
+                            <p class="text-[11px] font-black text-white">${escapeHtmlLite(ev.label)}</p>
+                            <p class="text-[9px] text-slate-500 font-bold leading-snug">${escapeHtmlLite(ev.desc)}</p>
+                        </div>
+                        <button type="button" class="text-[10px] text-sky-400 font-black shrink-0"
+                            onclick="window.previewAdminToneSelect('${platform}','${ev.id}')" title="Probar">
+                            <i class="fas fa-volume-up"></i>
+                        </button>
+                    </div>
+                    <select data-tone-platform="${platform}" data-tone-event="${ev.id}"
+                        class="ops-input text-xs py-2 admin-tone-select w-full">
+                        ${opts}
+                    </select>
+                </div>`;
+        }).join('');
+    };
+    fill('web', 'admin-tone-map-web');
+    fill('native', 'admin-tone-map-native');
+};
+
+function escapeHtmlLite(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+window.playToneSample = (toneId) => {
+    try {
+        const ok = playToneById(toneId);
+        if (!ok) window.showToast?.('No se pudo reproducir ese tono.', 'warning');
+    } catch (_) {
+        window.showToast?.('Error al reproducir.', 'error');
+    }
+};
+
+window.previewAdminToneSelect = (platform, eventId) => {
+    const sel = document.querySelector(
+        `select.admin-tone-select[data-tone-platform="${platform}"][data-tone-event="${eventId}"]`
+    );
+    const id = sel?.value;
+    if (id) window.playToneSample(id);
+};
+
+window.collectAdminToneMapFromUI = () => {
+    const web = {};
+    const native = {};
+    document.querySelectorAll('select.admin-tone-select').forEach((sel) => {
+        const p = sel.dataset.tonePlatform;
+        const ev = sel.dataset.toneEvent;
+        if (!p || !ev) return;
+        if (p === 'web') web[ev] = sel.value;
+        if (p === 'native') native[ev] = sel.value;
+    });
+    return { web, native };
+};
+
+window.bindAdminToneDropzone = () => {
+    const zone = document.getElementById('admin-tone-dropzone');
+    const input = document.getElementById('admin-tone-file');
+    const btn = document.getElementById('admin-tone-upload-btn');
+    const hint = document.getElementById('admin-tone-upload-hint');
+    if (!zone || !input) return;
+
+    window._pendingToneFile = null;
+
+    const setFile = (file) => {
+        if (!file) return;
+        if (!isAllowedAudioFile(file)) {
+            const maxMb = (getMaxCustomBytes() / (1024 * 1024)).toFixed(1);
+            window.showToast?.(`Archivo no válido. Usa MP3/WAV/OGG/M4A (máx. ${maxMb} MB).`, 'warning');
+            window._pendingToneFile = null;
+            if (btn) btn.disabled = true;
+            if (hint) hint.textContent = '';
+            return;
+        }
+        window._pendingToneFile = file;
+        if (btn) btn.disabled = false;
+        if (hint) {
+            hint.textContent = `Listo: ${file.name} (${(file.size / 1024).toFixed(0)} KB) — dale a Subir tono`;
+        }
+        const nameInput = document.getElementById('admin-tone-custom-name');
+        if (nameInput && !nameInput.value.trim()) {
+            nameInput.value = file.name.replace(/\.[^.]+$/, '').slice(0, 60);
+        }
+        // Preview local inmediato
+        try {
+            const url = URL.createObjectURL(file);
+            const audio = new Audio(url);
+            audio.volume = 0.9;
+            audio.play().catch(() => {});
+            setTimeout(() => URL.revokeObjectURL(url), 15000);
+        } catch (_) {}
+    };
+
+    zone.onclick = () => input.click();
+    input.onchange = () => {
+        const f = input.files?.[0];
+        if (f) setFile(f);
+        input.value = '';
+    };
+
+    ['dragenter', 'dragover'].forEach((ev) => {
+        zone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.add('admin-tone-dropzone--active');
+        });
+    });
+    ['dragleave', 'drop'].forEach((ev) => {
+        zone.addEventListener(ev, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.remove('admin-tone-dropzone--active');
+        });
+    });
+    zone.addEventListener('drop', (e) => {
+        const f = e.dataTransfer?.files?.[0];
+        if (f) setFile(f);
+    });
+
+    if (btn) {
+        btn.onclick = () => window.uploadAdminCustomTone?.(btn);
+    }
+};
+
+window.uploadAdminCustomTone = async (btn) => {
+    const file = window._pendingToneFile;
+    if (!file) return window.showToast?.('Elige o arrastra un audio primero.', 'warning');
+    if (!isAllowedAudioFile(file)) return window.showToast?.('Archivo de audio no válido.', 'warning');
+
+    const nameInput = document.getElementById('admin-tone-custom-name');
+    const name = (nameInput?.value || file.name || 'Tono personalizado').trim().slice(0, 60);
+    const toneId = makeCustomToneId();
+    const safeFile = file.name.replace(/[^\w.\-]+/g, '_').slice(0, 80);
+    const path = `artifacts/${appId}/public/tones/${toneId}_${safeFile}`;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo…';
+    }
+
+    try {
+        if (!storage) throw new Error('Storage no disponible');
+        const url = await uploadFile(storage, file, path);
+        upsertCustomTone({
+            id: toneId,
+            name,
+            kind: 'file',
+            flavor: 'custom',
+            url,
+            fileName: file.name,
+            blurb: 'Subido por admin',
+            createdAt: Date.now()
+        });
+
+        // Persistir en appSettings (con el mapa actual) para todos
+        const toneMap = window.collectAdminToneMapFromUI?.() || loadTonePrefs();
+        saveTonePrefs(toneMap);
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'), {
+            customTones: getCustomTones(),
+            toneMap,
+            tonesUpdatedAt: serverTimestamp()
+        }, { merge: true });
+
+        window._pendingToneFile = null;
+        const hint = document.getElementById('admin-tone-upload-hint');
+        if (hint) hint.textContent = `✓ Subido: ${name}`;
+        if (nameInput) nameInput.value = '';
+        window.refreshAdminCustomTonesList?.();
+        window.refreshAdminToneMapSelects?.();
+        window.showToast?.(`Tono “${name}” listo. Ya puedes asignarlo a un aviso.`, 'success');
+        playToneById(toneId);
+    } catch (e) {
+        console.error('uploadAdminCustomTone:', e);
+        window.showToast?.(e?.message || 'No se pudo subir el audio. Revisa permisos de Storage.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = !window._pendingToneFile;
+            btn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Subir tono';
+        }
+    }
+};
+
+window.deleteAdminCustomTone = async (toneId) => {
+    if (!toneId) return;
+    if (!confirm('¿Eliminar este tono personalizado? Si estaba asignado a un aviso, vuelve al default.')) return;
+    removeCustomTone(toneId);
+    const toneMap = window.collectAdminToneMapFromUI?.() || loadTonePrefs();
+    // Limpiar referencias huérfanas en el mapa
+    ['web', 'native'].forEach((p) => {
+        Object.keys(toneMap[p] || {}).forEach((ev) => {
+            if (toneMap[p][ev] === toneId) {
+                const defaults = window.HonduTones?.defaults?.[p] || {};
+                toneMap[p][ev] = defaults[ev] || 'soft_ding';
+            }
+        });
+    });
+    saveTonePrefs(toneMap);
+    try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'), {
+            customTones: getCustomTones(),
+            toneMap,
+            tonesUpdatedAt: serverTimestamp()
+        }, { merge: true });
+    } catch (e) {
+        console.warn('deleteAdminCustomTone persist:', e);
+    }
+    window.refreshAdminCustomTonesList?.();
+    window.refreshAdminToneMapSelects?.();
+    window.showToast?.('Tono eliminado.', 'success');
+};
+
+window.saveAdminToneConfig = async (btn) => {
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando…';
+    }
+    try {
+        const toneMap = window.collectAdminToneMapFromUI?.() || loadTonePrefs();
+        saveTonePrefs(toneMap);
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'), {
+            toneMap,
+            customTones: getCustomTones(),
+            tonesUpdatedAt: serverTimestamp()
+        }, { merge: true });
+        window.showToast?.('Tonos guardados para todos (web y app).', 'success');
+    } catch (e) {
+        console.error('saveAdminToneConfig:', e);
+        window.showToast?.(e?.message || 'No se pudieron guardar los tonos.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save"></i> Guardar tonos para todos';
+        }
+    }
+};
+
+window.resetAdminToneDefaults = async (btn) => {
+    if (!confirm('¿Restablecer los tonos por defecto de web y nativo? (Los personalizados subidos se conservan)')) return;
+    const defaults = window.HonduTones?.defaults || {};
+    const toneMap = {
+        web: { ...(defaults.web || {}) },
+        native: { ...(defaults.native || {}) }
+    };
+    saveTonePrefs(toneMap);
+    window.refreshAdminToneMapSelects?.();
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Guardando…';
+    }
+    try {
+        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'), {
+            toneMap,
+            customTones: getCustomTones(),
+            tonesUpdatedAt: serverTimestamp()
+        }, { merge: true });
+        window.showToast?.('Defaults de tonos restablecidos.', 'success');
+    } catch (e) {
+        window.showToast?.('Defaults locales listos; error al guardar en nube.', 'warning');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Restablecer defaults';
+        }
     }
 };

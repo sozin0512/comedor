@@ -107,12 +107,14 @@ export async function showTripNotification({
     if (!isNotificationSupported() || Notification.permission !== 'granted') return false;
     if (!title || !body) return false;
 
+    // silent: el tono lo pone la app (Web Audio), no el del sistema del teléfono
     const options = {
         body: String(body).slice(0, 180),
         icon: ICON,
         badge: BADGE,
         tag: tag || 'honduber-trip',
         renotify: true,
+        silent: true,
         data: {
             tripId: tripId || null,
             openChat: !!openChat,
@@ -135,14 +137,36 @@ export async function showTripNotification({
     }
 }
 
-function playEventSound(sound = 'default', tag = '') {
-    if (sound === 'none' || String(tag || '').startsWith('trip-offer-')) return;
+/**
+ * Sonido propio de la app (Web Audio). No usa el tono del sistema del celular.
+ * sound: 'none' | 'chat' | 'driver' | 'staff' | 'freight' | 'deposit' | 'ride_demand' | 'default' | eventId
+ */
+function playEventSound(sound = 'default', tag = '', extra = {}) {
+    if (sound === 'none') return;
+    // trip-offer- ya dispara playDriverTripOfferSound en el listener de ofertas
+    if (String(tag || '').startsWith('trip-offer-') && sound === 'default') return;
     try {
-        if (sound === 'chat') {
-            window.playChatSound?.();
-        } else {
-            window.playNotificationSound?.();
+        if (typeof window.playEventNotificationTone === 'function') {
+            const map = {
+                default: 'general',
+                chat: 'chat',
+                driver: 'driver_offer',
+                staff: 'staff_trip',
+                freight: 'freight',
+                deposit: 'deposit',
+                ride_demand: 'ride_demand',
+                general: 'general'
+            };
+            const eventId = map[sound] || sound || 'general';
+            window.playEventNotificationTone(eventId);
+            return;
         }
+        if (sound === 'chat') window.playChatSound?.();
+        else if (sound === 'driver') window.playDriverTripOfferSound?.();
+        else if (sound === 'staff') window.playStaffTripAlertSound?.();
+        else if (sound === 'freight') window.playFreightAlertSound?.();
+        else if (sound === 'deposit') window.playDepositAlertSound?.();
+        else window.playNotificationSound?.();
     } catch (_) {}
 }
 
@@ -195,7 +219,7 @@ export async function notifySuperDemandAlert({
 }
 
 export async function notifyFreightTripAlert(args) {
-    return notifySuperDemandAlert({ ...args, vibrate: SUPER_FREIGHT_VIBRATE, sound: 'default' });
+    return notifySuperDemandAlert({ ...args, vibrate: SUPER_FREIGHT_VIBRATE, sound: 'freight' });
 }
 
 /** VIP / taxi / moto / envío: avisar a conductores fuera de línea para que se activen. */
@@ -203,7 +227,7 @@ export async function notifyRideDemandAlert(args) {
     return notifySuperDemandAlert({
         ...args,
         vibrate: HONDU_RIDE_DEMAND_VIBRATE,
-        sound: 'driver'
+        sound: 'ride_demand'
     });
 }
 
@@ -234,7 +258,7 @@ export async function notifyTripEvent({ title, body, tag, tripId, openChat = fal
 export async function notifyStaffNewTripAlert({ title, body, tag, tripId, force = true }) {
     if (!title || !body) return false;
     triggerSuperTripVibration();
-    try { window.playStaffTripAlertSound?.(); } catch (_) {}
+    try { playEventSound('staff', tag); } catch (_) {}
     const shown = await showTripNotification({
         title,
         body,

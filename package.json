@@ -16,7 +16,7 @@
   "devDependencies": {
     "tailwindcss": "^3.4.17"
   },
-  "version": "2026.07.12.1",
+  "version": "2026.07.12.2",
   "description": "",
   "main": "firebase-messaging-sw.js",
   "dependencies": {

@@ -74,6 +74,44 @@ function shouldShowFleetDriver(uid, data) {
     return true;
 }
 
+/** Fases de viaje en mapa: verde → pasajero, morado → espera PIN, rojo → destino. */
+function getFleetTripPhase(tripOrMeta) {
+    if (!tripOrMeta) return null;
+    const status = tripOrMeta.status;
+    if (status === 'in_progress') return 'in_progress';
+    if (status === 'accepted' && tripOrMeta.driverArrived) return 'at_pickup';
+    if (status === 'accepted') return 'to_pickup';
+    return tripOrMeta.phase || null;
+}
+
+function getFleetPhaseStyle(phase) {
+    if (phase === 'in_progress') {
+        return {
+            phase: 'in_progress',
+            color: '#dc2626',
+            glow: '0 0 8px rgba(220, 38, 38, 0.9), 0 0 14px rgba(239, 68, 68, 0.45)',
+            label: 'Hacia destino final'
+        };
+    }
+    if (phase === 'at_pickup') {
+        return {
+            phase: 'at_pickup',
+            color: '#8b5cf6',
+            glow: '0 0 8px rgba(139, 92, 246, 0.95), 0 0 14px rgba(167, 139, 250, 0.5)',
+            label: 'En origen · esperando PIN'
+        };
+    }
+    if (phase === 'to_pickup') {
+        return {
+            phase: 'to_pickup',
+            color: '#10b981',
+            glow: '0 0 8px rgba(16, 185, 129, 0.9), 0 0 14px rgba(52, 211, 153, 0.45)',
+            label: 'En camino al pasajero'
+        };
+    }
+    return null;
+}
+
 function buildMarkerTitle(profile, data, uid) {
     let title = `Conductor: ${profile.name}`;
     if (window.canViewOpsFleetMap?.() && profile.phone) {
@@ -81,8 +119,9 @@ function buildMarkerTitle(profile, data, uid) {
     }
     const trip = activeTripDrivers.get(uid);
     if (trip) {
-        const tripLabel = trip.status === 'in_progress' ? 'En curso' : 'Hacia pickup';
-        title += ` • Viaje ${tripLabel}`;
+        const phase = getFleetTripPhase(trip);
+        const style = getFleetPhaseStyle(phase);
+        title += ` • ${style?.label || 'En viaje'}`;
     } else if (isDriverOnline(data)) {
         title += ' • En línea';
     } else if (isFreshGps(data)) {
@@ -95,27 +134,35 @@ function buildMarkerTitle(profile, data, uid) {
     return title;
 }
 
-function buildCarMarkerContent(vehicleType = 'auto', heading = 0, onTrip = false) {
+function resolveFleetVehicleColor(vehicleType = 'auto', phase = null) {
+    const phaseStyle = getFleetPhaseStyle(phase);
+    if (phaseStyle) return phaseStyle.color;
     const type = vehicleType || 'auto';
+    if (type === 'moto') return '#8b5cf6';
+    if (type === 'taxi' || type === 'taxi_vip' || type === 'vip') return '#facc15';
+    if (type === 'paila') return '#10b981';
+    if (type === 'camion') return '#64748b';
+    return '#3b82f6';
+}
+
+function buildCarMarkerContent(vehicleType = 'auto', heading = 0, onTrip = false, phase = null) {
+    const type = vehicleType || 'auto';
+    const phaseStyle = getFleetPhaseStyle(phase);
+    const active = onTrip || !!phaseStyle;
     const wrap = document.createElement('div');
-    wrap.style.width = onTrip ? '46px' : '42px';
-    wrap.style.height = onTrip ? '38px' : '34px';
+    wrap.style.width = active ? '48px' : '42px';
+    wrap.style.height = active ? '40px' : '34px';
     wrap.style.display = 'flex';
     wrap.style.alignItems = 'center';
     wrap.style.justifyContent = 'center';
     wrap.style.transform = `rotate(${heading}deg)`;
     wrap.style.transition = 'transform 0.15s linear';
-    if (onTrip) {
-        wrap.style.filter = 'drop-shadow(0 0 6px rgba(220, 38, 38, 0.75))';
+    if (phaseStyle) {
+        // Halo por estado (no humo rojo genérico)
+        wrap.style.filter = `drop-shadow(${phaseStyle.glow})`;
     }
 
-    let iconColor = '#10b981';
-    if (type === 'moto') iconColor = '#8b5cf6';
-    else if (type === 'taxi' || type === 'taxi_vip' || type === 'vip') iconColor = '#facc15';
-    else if (type === 'paila') iconColor = '#10b981';
-    else if (type === 'camion') iconColor = '#64748b';
-    else iconColor = '#3b82f6';
-
+    const iconColor = resolveFleetVehicleColor(type, phase);
     const iconUrl = (window.createVehicleIcon || function () {
         return 'data:image/svg+xml;base64,' + btoa('<svg width="40" height="26"><text x="20" y="18" font-size="20" text-anchor="middle">🚕</text></svg>');
     })(type, iconColor);
@@ -146,12 +193,13 @@ function upsertFleetMarker(driverId, lat, lng, name, vehicleType = 'auto', headi
     const latLng = toLatLng(lat, lng);
     if (!latLng) return;
 
-    const onTrip = !!options.onTrip;
+    const phase = options.phase || getFleetTripPhase(options.tripMeta) || null;
+    const onTrip = !!options.onTrip || !!phase;
     const title = options.title || (name ? `Conductor: ${name}` : 'Conductor verificado');
     const useAdvanced = canUseAdvanced();
-    const styleKey = `${vehicleType}|${Math.round(heading || 0)}|${onTrip ? 1 : 0}`;
+    const styleKey = `${vehicleType}|${Math.round(heading || 0)}|${phase || (onTrip ? 'trip' : 'idle')}`;
     const prev = markerMeta[driverId];
-    const forceMove = !!options.forceReposition || !!options.onTrip;
+    const forceMove = !!options.forceReposition || onTrip;
     const posChanged = forceMove
         || !prev
         || Math.hypot(Number(lat) - Number(prev.lat), Number(lng) - Number(prev.lng)) > 0.0000001;
@@ -166,30 +214,31 @@ function upsertFleetMarker(driverId, lat, lng, name, vehicleType = 'auto', headi
             m.title = title;
             m.zIndex = onTrip ? 28 : 20;
             if (m._lastStyleKey !== styleKey) {
-                m.content = buildCarMarkerContent(vehicleType, heading || 0, onTrip);
+                m.content = buildCarMarkerContent(vehicleType, heading || 0, onTrip, phase);
                 m._lastStyleKey = styleKey;
             }
         } else {
             const m = new google.maps.marker.AdvancedMarkerElement({
                 position: latLng,
                 map: window.gMap,
-                content: buildCarMarkerContent(vehicleType, heading || 0, onTrip),
+                content: buildCarMarkerContent(vehicleType, heading || 0, onTrip, phase),
                 title,
                 zIndex: onTrip ? 28 : 20
             });
             m._lastStyleKey = styleKey;
             markers[driverId] = m;
-            if (window.canViewOpsFleetMap?.()) {
+            if (window.canViewOpsFleetMap?.() && !m._fleetClickBound) {
+                m._fleetClickBound = true;
                 m.addListener('gmp-click', () => {
-                    window.showDriverFullDetails?.(driverId, name || title);
+                    window.openStaffFleetDriverPanel?.(driverId, name || title);
                 });
             }
         }
-        markerMeta[driverId] = { lat: Number(lat), lng: Number(lng), heading, onTrip };
+        markerMeta[driverId] = { lat: Number(lat), lng: Number(lng), heading, onTrip, phase };
         return;
     }
 
-    const iconColor = getFleetIconColor(vehicleType);
+    const iconColor = resolveFleetVehicleColor(vehicleType, phase);
     const iconUrl = (window.createVehicleIcon || defaultVehicleIcon)(vehicleType, iconColor);
     const icon = {
         url: iconUrl,
@@ -213,9 +262,10 @@ function upsertFleetMarker(driverId, lat, lng, name, vehicleType = 'auto', headi
                 title,
                 zIndex: onTrip ? 28 : 20
             });
-            if (window.canViewOpsFleetMap?.()) {
+            if (window.canViewOpsFleetMap?.() && !markers[driverId]._fleetClickBound) {
+                markers[driverId]._fleetClickBound = true;
                 google.maps.event.addListener(markers[driverId], 'click', () => {
-                    window.showDriverFullDetails?.(driverId, name || title);
+                    window.openStaffFleetDriverPanel?.(driverId, name || title);
                 });
             }
         }
@@ -228,21 +278,13 @@ function upsertFleetMarker(driverId, lat, lng, name, vehicleType = 'auto', headi
             zIndex: onTrip ? 28 : 20
         });
         if (window.canViewOpsFleetMap?.()) {
+            markers[driverId]._fleetClickBound = true;
             google.maps.event.addListener(markers[driverId], 'click', () => {
-                window.showDriverFullDetails?.(driverId, name || title);
+                window.openStaffFleetDriverPanel?.(driverId, name || title);
             });
         }
     }
-    markerMeta[driverId] = { lat: Number(lat), lng: Number(lng), heading, onTrip };
-}
-
-function getFleetIconColor(vehicleType = 'auto') {
-    const type = vehicleType || 'auto';
-    if (type === 'moto') return '#8b5cf6';
-    if (type === 'taxi' || type === 'taxi_vip' || type === 'vip') return '#facc15';
-    if (type === 'paila') return '#10b981';
-    if (type === 'camion') return '#64748b';
-    return '#3b82f6';
+    markerMeta[driverId] = { lat: Number(lat), lng: Number(lng), heading, onTrip, phase };
 }
 
 function defaultVehicleIcon(type, color) {
@@ -262,7 +304,9 @@ function paintFleetDriver(uid, data) {
         return;
     }
     const profile = fleetDriverProfile(uid, data);
-    const onTrip = isOnActiveTrip(uid);
+    const tripMeta = activeTripDrivers.get(uid) || null;
+    const phase = getFleetTripPhase(tripMeta);
+    const onTrip = !!tripMeta;
     upsertFleetMarker(
         uid,
         data.lat,
@@ -273,6 +317,8 @@ function paintFleetDriver(uid, data) {
         profile.phone,
         {
             onTrip,
+            phase,
+            tripMeta,
             forceReposition: true,
             title: buildMarkerTitle(profile, data, uid)
         }
@@ -340,15 +386,34 @@ function processFleetDocChanges(snap) {
 function syncActiveTripDrivers(snap) {
     activeTripDrivers.clear();
     snap?.forEach?.((docSnap) => {
-        const data = docSnap.data();
-        if (!data?.driverId) return;
+        const data = docSnap.data() || {};
+        if (!data.driverId) return;
+        const phase = getFleetTripPhase(data);
         activeTripDrivers.set(data.driverId, {
             tripId: docSnap.id,
-            status: data.status
+            status: data.status,
+            driverArrived: !!data.driverArrived,
+            phase,
+            // Datos completos para panel de mapa (precio, teléfonos, ruta, chat)
+            trip: { id: docSnap.id, ...data }
         });
     });
     if (lastSnap) renderOpsFleetMap(lastSnap);
     syncFleetLiveRepaint();
+}
+
+/** API para el panel staff: viaje activo del conductor en rojo (si hay). */
+export function getFleetActiveTripForDriver(driverId) {
+    if (!driverId) return null;
+    return activeTripDrivers.get(driverId) || null;
+}
+
+export function getFleetActiveTripsSnapshot() {
+    const out = [];
+    activeTripDrivers.forEach((v, driverId) => {
+        out.push({ driverId, ...v });
+    });
+    return out;
 }
 
 function syncFleetLiveRepaint() {

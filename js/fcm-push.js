@@ -19,8 +19,11 @@ const LocalNotifications = registerPlugin('LocalNotifications');
  * Canales v2: Android no permite cambiar sound/vibration de un canal ya creado.
  * Subir el id fuerza canales nuevos con sonido + vibración.
  */
-export const HONDU_RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v2';
-const HONDU_DEFAULT_CHANNEL_ID = 'hondu_default_v2';
+// v3: canales con sonido desactivado a nivel sistema — el tono lo pone la app (Web Audio)
+export const HONDU_RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v3';
+const HONDU_DEFAULT_CHANNEL_ID = 'hondu_default_v3';
+// Canales solo para primer plano: sin sound del SO (evita el “ping” del celular)
+const HONDU_FG_LOCAL_CHANNEL_ID = 'hondu_fg_local_v3';
 
 export function isAndroidFcmConfigured() {
     return APP_CONFIG.androidFcmEnabled === true;
@@ -40,17 +43,22 @@ function isRideAlertData(data = {}) {
         || tag.startsWith('staff-trip-');
 }
 
-/** Crea canales nativos con sonido + vibración (requerido en Android 8+). */
+/**
+ * Canales nativos.
+ * - Push en background: vibración alta (Android aún puede usar un tono de canal si el SO lo exige).
+ * - Local en foreground: canal sin sound del sistema; la app reproduce tono propio (Web Audio).
+ */
 async function ensureAndroidPushChannels() {
     if (!isCapacitorAndroid()) return;
 
     const rideChannel = {
         id: HONDU_RIDE_ALERT_CHANNEL_ID,
         name: 'Viajes HonduRaite',
-        description: 'Ofertas y demanda de VIP, taxi, moto y envíos. Sonido y vibración fuerte.',
+        description: 'Ofertas y demanda. Vibración fuerte. El tono de la app se oye con la app abierta.',
         importance: 5,
         visibility: 1,
-        sound: 'default',
+        // Sin 'default' del teléfono: preferimos tono de la app en foreground
+        sound: undefined,
         vibration: true,
         lights: true,
         lightColor: '#2563eb'
@@ -58,31 +66,39 @@ async function ensureAndroidPushChannels() {
     const defaultChannel = {
         id: HONDU_DEFAULT_CHANNEL_ID,
         name: 'Avisos HonduRaite',
-        description: 'Notificaciones generales de HonduRaite (sonido y vibración)',
+        description: 'Avisos generales. Vibración; tono propio de la app en primer plano.',
         importance: 5,
         visibility: 1,
-        sound: 'default',
+        sound: undefined,
+        vibration: true,
+        lights: true,
+        lightColor: '#2563eb'
+    };
+    const fgLocalChannel = {
+        id: HONDU_FG_LOCAL_CHANNEL_ID,
+        name: 'HonduRaite (app abierta)',
+        description: 'Banner local sin sonido del sistema. El tono lo genera HonduRaite.',
+        importance: 4,
+        visibility: 1,
+        sound: undefined,
         vibration: true,
         lights: true,
         lightColor: '#2563eb'
     };
 
-    try {
-        await PushNotifications.createChannel(rideChannel);
-    } catch (e) {
-        console.warn('[push] canal ride:', e);
-    }
-    try {
-        await PushNotifications.createChannel(defaultChannel);
-    } catch (e) {
-        console.warn('[push] canal default:', e);
+    for (const ch of [rideChannel, defaultChannel, fgLocalChannel]) {
+        try {
+            await PushNotifications.createChannel(ch);
+        } catch (e) {
+            console.warn('[push] canal', ch.id, e);
+        }
     }
 
-    // LocalNotifications usa los mismos ids (foreground con app abierta)
     try {
         if (LocalNotifications?.createChannel) {
             await LocalNotifications.createChannel(rideChannel);
             await LocalNotifications.createChannel(defaultChannel);
+            await LocalNotifications.createChannel(fgLocalChannel);
         }
     } catch (e) {
         console.warn('[push] local channels:', e);
@@ -107,8 +123,8 @@ async function showAndroidForegroundLocalNotification(payload = {}) {
         || '';
     if (!title && !body) return false;
 
-    const ride = isRideAlertData(data);
-    const channelId = ride ? HONDU_RIDE_ALERT_CHANNEL_ID : HONDU_DEFAULT_CHANNEL_ID;
+    // Foreground: canal sin tono del SO. El sonido lo pone notification-tones.js
+    const channelId = HONDU_FG_LOCAL_CHANNEL_ID;
     localNotifIdSeq = (localNotifIdSeq + 1) % 900000;
     const id = 100000 + localNotifIdSeq;
 
@@ -119,7 +135,8 @@ async function showAndroidForegroundLocalNotification(payload = {}) {
                 title: String(title).slice(0, 80),
                 body: String(body).slice(0, 180),
                 channelId,
-                sound: 'default',
+                // Sin sound del sistema del celular
+                sound: null,
                 smallIcon: 'ic_launcher',
                 largeIcon: 'ic_launcher',
                 extra: {
@@ -199,7 +216,7 @@ function routeForegroundPush(payload) {
     const tripId = data.tripId || null;
     const type = data.type || '';
 
-    // Android foreground: sistema no suena → notificación local + haptics/audio
+    // Android foreground: banner local SIN sonido del SO + vibración + tono propio de la app
     if (isCapacitorAndroid()) {
         showAndroidForegroundLocalNotification({
             notification: { title, body },
@@ -224,8 +241,7 @@ function routeForegroundPush(payload) {
             force: true
         });
     } else if (type === 'ride_demand_alert') {
-        // Demanda con app en primer plano: sonido de oferta HonduRaite + vibración fuerte
-        try { window.playDriverTripOfferSound?.(); } catch (_) {}
+        try { window.playRideDemandSound?.() || window.playDriverTripOfferSound?.(); } catch (_) {}
         notifyRideDemandAlert({
             title,
             body,
@@ -247,6 +263,9 @@ function routeForegroundPush(payload) {
             || type === 'ride_demand_alert'
             || type === 'trip_offer'
             || type === 'new_trip_staff';
+        const toneSound = type === 'trip_offer'
+            ? 'driver'
+            : (type?.includes('deposit') ? 'deposit' : 'default');
         notifyTripEvent({
             title,
             body,
@@ -254,7 +273,7 @@ function routeForegroundPush(payload) {
             tripId,
             openChat: data.openChat === 'true',
             force: true,
-            sound: 'default',
+            sound: toneSound,
             superVibrate
         });
     }

@@ -1367,7 +1367,10 @@ window.gMap = null;
             };
             if (window.canViewOpsFleetMap?.()) {
                 window.driverMarkers[driverId].addListener?.('gmp-click', () => {
-                    if (!isSelf) window.showDriverFullDetails?.(driverId, driverName || title);
+                    if (!isSelf) {
+                        // Mismo flujo que flota: viaje activo → ficha viaje; libre → finanzas
+                        (window.openStaffFleetDriverPanel || window.showDriverFullDetails)?.(driverId, driverName || title);
+                    }
                 });
             }
         } else {
@@ -1458,7 +1461,9 @@ window.gMap = null;
             }
             if (window.canViewOpsFleetMap?.()) {
                 google.maps.event.addListener(window.driverMarkers[driverId], 'click', () => {
-                    if (!isSelf) window.showDriverFullDetails?.(driverId, driverName || title);
+                    if (!isSelf) {
+                        (window.openStaffFleetDriverPanel || window.showDriverFullDetails)?.(driverId, driverName || title);
+                    }
                 });
             }
         }

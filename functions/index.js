@@ -988,8 +988,9 @@ function rideDemandTitle(serviceType) {
 }
 
 /** Canal Android de alta prioridad (v2: fuerza sonido+vibración en clientes viejos). */
-const RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v2';
-const DEFAULT_ALERT_CHANNEL_ID = 'hondu_default_v2';
+// v3: alineado con app — preferimos tono propio en primer plano; canales sin default del SO
+const RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v3';
+const DEFAULT_ALERT_CHANNEL_ID = 'hondu_default_v3';
 /** Patrón de vibración fuerte (ms) — distintivo HonduRaite. */
 const HONDU_SUPER_VIBRATE_MS = [0, 450, 100, 450, 100, 550, 120, 750, 100, 950];
 const HONDU_DEFAULT_VIBRATE_MS = [0, 250, 100, 250, 80, 350];
@@ -2074,8 +2075,10 @@ function isStaffGraceActiveAdmin(u, nowMs) {
 
 /**
  * Plazo de depósito: 12:00 p.m. del día siguiente al inicio de trabajo.
- * - 2 h antes: push "tienes 2 horas para depositar o se inhabilita la cuenta"
- * - Al vencer con deuda: force offline + driverOnBreak + depositAutoBlocked
+ * - La comisión de viajes del día NO es deuda hasta consolidar (cierre de turno / cliente / vencer plazo).
+ * - 2 h antes: push "tienes 2 horas para depositar"
+ * - Al vencer con monto a depositar: force offline + driverOnBreak + depositAutoBlocked
+ *   (usa pendingDepositDebt y/o driverLastDepositOwed ya consolidado en cliente al cerrar turno)
  */
 exports.enforceDriverDepositDeadlines = onSchedule(
     {
@@ -2095,6 +2098,8 @@ exports.enforceDriverDepositDeadlines = onSchedule(
             if (u.approvalStatus === 'suspended') continue;
             if (isStaffGraceActiveAdmin(u, now)) continue;
 
+            // Solo montos ya consolidados a deuda (o último cierre de turno).
+            // La comisión "pendiente de hoy" se consolida en el cliente al vencer / cerrar turno.
             const debt = Math.max(
                 0,
                 parseFloat(u.pendingDepositDebt) || 0,
@@ -2118,9 +2123,9 @@ exports.enforceDriverDepositDeadlines = onSchedule(
             const privRef = db.doc(`artifacts/${APP_ID}/users/${uid}/profile/data`);
             const msLeft = deadline - now;
 
-            // Aviso 2 horas antes
+            // Aviso 2 horas antes (aún es plazo de depósito del ciclo, no necesariamente "vencida")
             if (msLeft > 0 && msLeft <= twoH && !u.depositWarning2hSent) {
-                const body = `Tienes 2 horas para el depósito (L. ${debt.toFixed(2)}). Si no, tu cuenta será inhabilitada por incumplir con pagos pendientes.`;
+                const body = `Tienes 2 horas para el depósito (L. ${debt.toFixed(2)}). Si no, tu cuenta será inhabilitada por incumplir con el pago.`;
                 await userRef.set({
                     depositWarning2hSent: true,
                     depositWarning2hSentAt: FieldValue.serverTimestamp(),
@@ -2135,7 +2140,7 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                 } catch (_) {}
 
                 await sendPushToUser(APP_ID, uid, {
-                    title: 'Aviso: depósito pendiente',
+                    title: 'Aviso: depósito del día por vencer',
                     body,
                     data: { type: 'deposit_deadline_warning', tag: `dep-warn-${uid}` },
                     highPriority: true
@@ -2145,7 +2150,7 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                     targetRole: 'driver',
                     personal: true,
                     type: 'deposit_deadline_warning',
-                    title: 'Aviso: depósito pendiente',
+                    title: 'Aviso: depósito del día por vencer',
                     message: body,
                     sentBy: 'system',
                     sentByName: 'Sistema',
@@ -2155,9 +2160,9 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                 warned += 1;
             }
 
-            // Plazo vencido → inhabilitar
+            // Plazo vencido → inhabilitar (deuda vencida, no "pendiente del día")
             if (msLeft <= 0 && !u.depositAutoBlocked) {
-                const body = `Tu cuenta fue inhabilitada: no depositaste L. ${debt.toFixed(2)} a tiempo (plazo 12:00 p.m. del día siguiente a tu inicio de trabajo). Envía el comprobante para reactivarte.`;
+                const body = `Tu cuenta fue inhabilitada: no depositaste L. ${debt.toFixed(2)} a tiempo (plazo 12:00 p.m. del día siguiente). Eso ya es deuda vencida. Envía el comprobante para reactivarte.`;
                 await userRef.set({
                     driverOnBreak: true,
                     depositAutoBlocked: true,
@@ -2184,13 +2189,13 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                 } catch (_) {}
 
                 await sendPushToUser(APP_ID, uid, {
-                    title: 'Cuenta inhabilitada — depósito',
+                    title: 'Cuenta inhabilitada — deuda vencida',
                     body,
                     data: { type: 'deposit_auto_blocked', tag: `dep-block-${uid}` },
                     highPriority: true
                 });
                 await notifyModerators(APP_ID, {
-                    title: 'Conductor inhabilitado por depósito',
+                    title: 'Conductor inhabilitado por deuda vencida',
                     body: `${u.name || 'Conductor'} no depositó L. ${debt.toFixed(2)} a tiempo. Tel: ${u.phone || 'N/D'}`,
                     data: { type: 'deposit_auto_blocked_mod', tag: `dep-block-mod-${uid}` }
                 });
@@ -2199,7 +2204,7 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                     targetRole: 'driver',
                     personal: true,
                     type: 'deposit_auto_blocked',
-                    title: 'Cuenta inhabilitada — depósito',
+                    title: 'Cuenta inhabilitada — deuda vencida',
                     message: body,
                     sentBy: 'system',
                     sentByName: 'Sistema',
