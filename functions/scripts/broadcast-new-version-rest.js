@@ -43,6 +43,23 @@ function request(method, url, headers, body) {
     });
 }
 
+function loadFirebaseToolsOAuth() {
+    // Preferir clientSecret del firebase-tools instalado (cambia entre versiones)
+    try {
+        const api = require(path.join(
+            process.env.APPDATA || '',
+            'npm/node_modules/firebase-tools/lib/api.js'
+        ));
+        if (typeof api.clientId === 'function' && typeof api.clientSecret === 'function') {
+            return { clientId: api.clientId(), clientSecret: api.clientSecret() };
+        }
+    } catch (_) {}
+    return {
+        clientId: '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com',
+        clientSecret: 'FAKESECRET_m4n5o6p7q8r9s0t1u2v3'
+    };
+}
+
 async function getAccessToken(cfg) {
     const tokens = cfg.tokens || {};
     let access = tokens.access_token;
@@ -50,10 +67,10 @@ async function getAccessToken(cfg) {
     if (access && Date.now() < exp - 60000) return access;
 
     console.log('Refrescando token de Firebase…');
-    // Client id/secret públicos de firebase-tools
+    const { clientId, clientSecret } = loadFirebaseToolsOAuth();
     const form = new URLSearchParams({
-        client_id: '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com',
-        client_secret: 'FAKESECRET_u4v5w6x7y8z9a0b1c2d3',
+        client_id: clientId,
+        client_secret: clientSecret,
         refresh_token: tokens.refresh_token,
         grant_type: 'refresh_token'
     });
