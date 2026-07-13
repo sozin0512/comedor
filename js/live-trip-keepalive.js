@@ -4,7 +4,12 @@
  */
 
 import { isCapacitorAndroid } from './capacitor-native.js';
-import { syncAndroidLiveTripKeepalive } from './session-keepalive.js';
+import { syncAndroidLiveTripKeepalive as syncAndroidLiveTripKeepaliveImpl } from './session-keepalive.js';
+
+/** Re-export estable para app.js (evita fallos de resolución de named export). */
+export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
+    return syncAndroidLiveTripKeepaliveImpl(trip, roleHint);
+}
 
 const LIVE_STATUSES = new Set(['accepted', 'in_progress']);
 
@@ -128,14 +133,14 @@ async function onVisibilityChange() {
         updateStatusPill(trip, wakeOk);
         pulseGps('visible');
         // Reafirmar servicio nativo al volver
-        if (trip) syncAndroidLiveTripKeepalive(trip).catch(() => {});
+        if (trip) syncAndroidLiveTripKeepaliveImpl(trip).catch(() => {});
         window.__liveTripRepaintPassenger?.();
         // En APK seguimos pulsando GPS en primer plano (más fluido)
         if (isCapacitorAndroid()) startBackgroundPulse();
     } else {
         startBackgroundPulse();
         updateStatusPill(trip, false);
-        if (trip) syncAndroidLiveTripKeepalive(trip).catch(() => {});
+        if (trip) syncAndroidLiveTripKeepaliveImpl(trip).catch(() => {});
         if (bgNotifySentForTrip !== activeLiveTripId && !isCapacitorAndroid()) {
             bgNotifySentForTrip = activeLiveTripId;
             window.notifyTripEvent?.({
@@ -191,7 +196,7 @@ export async function syncLiveTripKeepalive(trip) {
     updateStatusPill(trip, wakeOk);
 
     // Foreground service nativo: "Viaje en curso" (tipo LOCATION)
-    syncAndroidLiveTripKeepalive(trip).catch(() => {});
+    syncAndroidLiveTripKeepaliveImpl(trip).catch(() => {});
 
     // Conductor: tracking de ubicación siempre en viaje
     if (trip.driverId && trip.driverId === window.currentUser?.uid) {
