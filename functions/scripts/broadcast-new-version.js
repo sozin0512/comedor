@@ -9,10 +9,10 @@ const { getMessaging } = require('firebase-admin/messaging');
 
 const PROJECT_ID = 'comedor-86278';
 const APP_ID = 'comayagua-vip-pro-v4';
-const VERSION = '2026.07.13.1';
+const VERSION = '2026.07.13.2';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
-    `Actualización ${VERSION}: notificaciones APK con tono HonduRaite, mapa con humo de colores por fase, omitir PIN en panel del mapa, WhatsApp manual en tiempo real para supervisores, y más. Actualiza la web o instala la APK nueva. ¡Gracias!`;
+    `Actualización ${VERSION}: viaje activo estilo Uber (GPS + notificación \"Viaje en curso\" en segundo plano), tonos APK, PIN en mapa, y más. Actualiza web o instala la APK. ¡Gracias!`;
 
 initializeApp({
     credential: applicationDefault(),

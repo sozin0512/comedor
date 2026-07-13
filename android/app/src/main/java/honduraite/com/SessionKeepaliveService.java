@@ -12,6 +12,12 @@ import android.os.Build;
 import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
 
+/**
+ * Foreground service estilo Uber:
+ * - Sesión en línea (baja prioridad)
+ * - Viaje activo (mayor prioridad + texto "Viaje en curso")
+ * Mantiene proceso vivo para GPS/WebView en segundo plano.
+ */
 public class SessionKeepaliveService extends Service {
 
     public static final String ACTION_START = "honduraite.com.action.START_KEEPALIVE";
@@ -19,28 +25,34 @@ public class SessionKeepaliveService extends Service {
     public static final String EXTRA_TITLE = "title";
     public static final String EXTRA_BODY = "body";
     public static final String EXTRA_DRIVER_MODE = "driverMode";
+    public static final String EXTRA_TRIP_MODE = "tripMode";
 
     private static final String CHANNEL_ID = "honduraite_session_keepalive";
+    private static final String TRIP_CHANNEL_ID = "honduraite_live_trip_v1";
     private static final int NOTIFICATION_ID = 41001;
 
     private static volatile boolean running = false;
     private static volatile boolean driverMode = false;
+    private static volatile boolean tripMode = false;
     private static volatile boolean bubbleEnabled = true;
+    private static volatile String lastTitle = "";
+    private static volatile String lastBody = "";
 
     public static boolean isRunning() {
         return running;
     }
 
+    public static boolean isTripMode() {
+        return tripMode;
+    }
+
     public static void notifyAppBackgrounded(Context context) {
         if (!running || !bubbleEnabled) return;
-        // Al salir de la app siempre se puede mostrar la burbuja de nuevo
-        // (aunque el usuario la haya cerrado con X la vez anterior)
         BubbleOverlayHelper.resetDismissForNextBackground();
         BubbleOverlayHelper.show(context);
     }
 
     public static void notifyAppForegrounded() {
-        // Dentro de la app no se ve la burbuja; al salir reaparecerá
         BubbleOverlayHelper.hide();
         BubbleOverlayHelper.resetDismissForNextBackground();
     }
@@ -54,7 +66,10 @@ public class SessionKeepaliveService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) {
             if (running) {
-                promoteToForeground(getString(R.string.keepalive_title), getString(R.string.keepalive_body));
+                promoteToForeground(
+                    lastTitle.isEmpty() ? getString(R.string.keepalive_title) : lastTitle,
+                    lastBody.isEmpty() ? getString(R.string.keepalive_body) : lastBody
+                );
                 return START_STICKY;
             }
             stopSelf();
@@ -65,6 +80,9 @@ public class SessionKeepaliveService extends Service {
         if (ACTION_STOP.equals(action)) {
             running = false;
             driverMode = false;
+            tripMode = false;
+            lastTitle = "";
+            lastBody = "";
             BubbleOverlayHelper.hide();
             stopForeground(true);
             stopSelf();
@@ -74,18 +92,29 @@ public class SessionKeepaliveService extends Service {
         String title = intent.getStringExtra(EXTRA_TITLE);
         String body = intent.getStringExtra(EXTRA_BODY);
         driverMode = intent.getBooleanExtra(EXTRA_DRIVER_MODE, false);
+        tripMode = intent.getBooleanExtra(EXTRA_TRIP_MODE, false);
         bubbleEnabled = true;
         running = true;
 
         if (title == null || title.isEmpty()) {
-            title = getString(R.string.keepalive_title);
+            title = tripMode
+                ? getString(R.string.live_trip_title)
+                : getString(R.string.keepalive_title);
         }
         if (body == null || body.isEmpty()) {
-            body = driverMode
-                ? getString(R.string.keepalive_body_driver)
-                : getString(R.string.keepalive_body);
+            if (tripMode) {
+                body = driverMode
+                    ? getString(R.string.live_trip_body_driver)
+                    : getString(R.string.live_trip_body_passenger);
+            } else {
+                body = driverMode
+                    ? getString(R.string.keepalive_body_driver)
+                    : getString(R.string.keepalive_body);
+            }
         }
 
+        lastTitle = title;
+        lastBody = body;
         promoteToForeground(title, body);
         return START_STICKY;
     }
@@ -96,6 +125,9 @@ public class SessionKeepaliveService extends Service {
             Intent restart = new Intent(getApplicationContext(), SessionKeepaliveService.class);
             restart.setAction(ACTION_START);
             restart.putExtra(EXTRA_DRIVER_MODE, driverMode);
+            restart.putExtra(EXTRA_TRIP_MODE, tripMode);
+            restart.putExtra(EXTRA_TITLE, lastTitle);
+            restart.putExtra(EXTRA_BODY, lastBody);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(restart);
             } else {
@@ -113,10 +145,11 @@ public class SessionKeepaliveService extends Service {
     }
 
     private void promoteToForeground(String title, String body) {
-        createChannel();
+        createChannels();
         Notification notification = buildNotification(title, body);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            int type = driverMode
+            // En viaje o conductor: LOCATION + DATA_SYNC (GPS en background)
+            int type = (driverMode || tripMode)
                 ? (ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION | ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
                 : ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
             startForeground(NOTIFICATION_ID, notification, type);
@@ -125,19 +158,30 @@ public class SessionKeepaliveService extends Service {
         }
     }
 
-    private void createChannel() {
+    private void createChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-        NotificationChannel channel = new NotificationChannel(
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager == null) return;
+
+        NotificationChannel session = new NotificationChannel(
             CHANNEL_ID,
             getString(R.string.keepalive_channel_name),
             NotificationManager.IMPORTANCE_LOW
         );
-        channel.setDescription(getString(R.string.keepalive_channel_desc));
-        channel.setShowBadge(false);
-        NotificationManager manager = getSystemService(NotificationManager.class);
-        if (manager != null) {
-            manager.createNotificationChannel(channel);
-        }
+        session.setDescription(getString(R.string.keepalive_channel_desc));
+        session.setShowBadge(false);
+        manager.createNotificationChannel(session);
+
+        // Viaje: importancia DEFAULT para que el SO no mate el servicio tan fácil
+        NotificationChannel trip = new NotificationChannel(
+            TRIP_CHANNEL_ID,
+            getString(R.string.live_trip_channel_name),
+            NotificationManager.IMPORTANCE_DEFAULT
+        );
+        trip.setDescription(getString(R.string.live_trip_channel_desc));
+        trip.setShowBadge(true);
+        trip.setSound(null, null);
+        manager.createNotificationChannel(trip);
     }
 
     private Notification buildNotification(String title, String body) {
@@ -150,15 +194,22 @@ public class SessionKeepaliveService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
+        String channel = tripMode ? TRIP_CHANNEL_ID : CHANNEL_ID;
+        int priority = tripMode
+            ? NotificationCompat.PRIORITY_DEFAULT
+            : NotificationCompat.PRIORITY_LOW;
+
+        return new NotificationCompat.Builder(this, channel)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(title)
             .setContentText(body)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setCategory(tripMode
+                ? NotificationCompat.CATEGORY_NAVIGATION
+                : NotificationCompat.CATEGORY_SERVICE)
             .setContentIntent(pendingIntent)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(priority)
             .build();
     }
 }

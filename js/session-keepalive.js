@@ -40,32 +40,93 @@ export async function startAndroidSessionKeepalive(options = {}) {
     if (!isCapacitorAndroid()) return;
     const {
         driverMode = false,
-        title = 'HonduRaite activo',
-        body = driverMode
-            ? 'Conductor en línea. Tu sesión sigue activa.'
-            : 'Tu sesión sigue abierta. Toca para volver a la app.',
+        tripMode = false,
+        title,
+        body,
     } = options;
 
+    const resolvedTitle = title
+        || (tripMode ? 'Viaje en curso · HonduRaite' : 'HonduRaite activo');
+    const resolvedBody = body || (
+        tripMode
+            ? (driverMode
+                ? 'Ubicación en vivo. No cierres la app. Toca para volver.'
+                : 'Tu viaje sigue activo. Toca para ver el mapa.')
+            : (driverMode
+                ? 'Conductor en línea. Tu sesión sigue activa.'
+                : 'Tu sesión sigue abierta. Toca para volver a la app.')
+    );
+
     try {
-        await SessionKeepalive.start({ title, body, driverMode });
+        await SessionKeepalive.start({
+            title: resolvedTitle,
+            body: resolvedBody,
+            driverMode: !!(driverMode || tripMode),
+            tripMode: !!tripMode,
+        });
         await ensureOverlayPermission();
-        await ensureBatteryExemption(driverMode);
+        await ensureBatteryExemption(!!(driverMode || tripMode));
     } catch (err) {
         console.warn('session-keepalive start:', err);
     }
+}
+
+/**
+ * Modo Uber: durante accepted/in_progress fuerza servicio foreground de viaje
+ * con GPS (LOCATION) y texto "Viaje en curso".
+ */
+export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
+    if (!isCapacitorAndroid()) return false;
+    const live = trip?.id && ['accepted', 'in_progress'].includes(trip.status);
+    const role = roleHint || window.userProfile?.role || '';
+    const isDriver = role === 'driver' || trip?.driverId === window.currentUser?.uid;
+    const isPassenger = role === 'client' || trip?.clientId === window.currentUser?.uid;
+
+    if (!live || (!isDriver && !isPassenger)) {
+        // Volver a keepalive normal si el conductor sigue en línea
+        const online = window.driverLocationWatchId != null && role === 'driver';
+        if (online) {
+            await startAndroidSessionKeepalive({ driverMode: true, tripMode: false });
+        }
+        return false;
+    }
+
+    const phaseLabel = trip.status === 'in_progress'
+        ? (isDriver ? 'Hacia el destino' : 'Viaje en curso')
+        : (isDriver ? 'En camino al pasajero' : 'Conductor en camino');
+
+    await startAndroidSessionKeepalive({
+        driverMode: isDriver || true, // LOCATION type for both during live trip
+        tripMode: true,
+        title: 'Viaje en curso · HonduRaite',
+        body: isDriver
+            ? `${phaseLabel}. GPS en vivo — no cierres la app.`
+            : `${phaseLabel}. Toca para volver al mapa.`,
+    });
+
+    // Conductor: asegurar tracking GPS
+    if (isDriver && typeof window.startDriverLocationTracking === 'function') {
+        try {
+            await window.startDriverLocationTracking();
+        } catch (_) {}
+    }
+    return true;
 }
 
 export async function ensureAndroidSessionKeepalive(options = {}) {
     if (!isCapacitorAndroid()) return;
     const driverMode = options.driverMode
         ?? (window.userProfile?.role === 'driver' && window.driverLocationWatchId != null);
+    const tripMode = !!options.tripMode;
     try {
-        const { active } = await SessionKeepalive.isActive();
-        if (!active) {
-            await startAndroidSessionKeepalive({ ...options, driverMode });
+        const state = await SessionKeepalive.isActive();
+        const needTrip = tripMode && !state?.tripMode;
+        const needStart = !state?.active || needTrip;
+        if (needStart) {
+            await startAndroidSessionKeepalive({ ...options, driverMode, tripMode });
         }
     } catch (_) {
-        await startAndroidSessionKeepalive({ ...options, driverMode });
+        await startAndroidSessionKeepalive({ ...options, driverMode, tripMode });
     }
 }
 
@@ -80,10 +141,17 @@ export async function stopAndroidSessionKeepalive() {
 
 export async function syncDriverSessionKeepalive(isDriverOnline) {
     if (!isCapacitorAndroid()) return;
+    // Si hay viaje vivo, no bajar de tripMode
+    const trip = window.currentActiveTripData;
+    if (trip?.id && ['accepted', 'in_progress'].includes(trip.status)
+        && (trip.driverId === window.currentUser?.uid || window.userProfile?.role === 'driver')) {
+        await syncAndroidLiveTripKeepalive(trip, 'driver');
+        return;
+    }
     if (isDriverOnline) {
-        await startAndroidSessionKeepalive({ driverMode: true });
+        await startAndroidSessionKeepalive({ driverMode: true, tripMode: false });
     } else {
-        await startAndroidSessionKeepalive({ driverMode: false });
+        await startAndroidSessionKeepalive({ driverMode: false, tripMode: false });
     }
 }
 

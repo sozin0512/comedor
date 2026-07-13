@@ -18,12 +18,14 @@ public class SessionKeepalivePlugin extends Plugin {
         String title = call.getString("title", getContext().getString(R.string.keepalive_title));
         String body = call.getString("body", getContext().getString(R.string.keepalive_body));
         boolean driverMode = Boolean.TRUE.equals(call.getBoolean("driverMode", false));
+        boolean tripMode = Boolean.TRUE.equals(call.getBoolean("tripMode", false));
 
         Intent intent = new Intent(getContext(), SessionKeepaliveService.class);
         intent.setAction(SessionKeepaliveService.ACTION_START);
         intent.putExtra(SessionKeepaliveService.EXTRA_TITLE, title);
         intent.putExtra(SessionKeepaliveService.EXTRA_BODY, body);
         intent.putExtra(SessionKeepaliveService.EXTRA_DRIVER_MODE, driverMode);
+        intent.putExtra(SessionKeepaliveService.EXTRA_TRIP_MODE, tripMode);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getContext().startForegroundService(intent);
@@ -66,6 +68,7 @@ public class SessionKeepalivePlugin extends Plugin {
     public void isActive(PluginCall call) {
         com.getcapacitor.JSObject ret = new com.getcapacitor.JSObject();
         ret.put("active", SessionKeepaliveService.isRunning());
+        ret.put("tripMode", SessionKeepaliveService.isTripMode());
         call.resolve(ret);
     }
 

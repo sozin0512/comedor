@@ -125,6 +125,7 @@ import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
+    syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
 } from "./session-keepalive.js";
@@ -1197,10 +1198,11 @@ if (document.readyState === 'loading') {
             if (!trip?.id || !['accepted', 'in_progress'].includes(trip.status)) return;
 
             const hidden = document.hidden;
+            // En viaje: alta precisión siempre (estilo Uber), incluso minimizado
             const geoOpts = {
-                enableHighAccuracy: !hidden || trip.status === 'in_progress',
-                maximumAge: hidden ? 6000 : 2500,
-                timeout: hidden ? 15000 : 10000
+                enableHighAccuracy: true,
+                maximumAge: hidden ? 3000 : 1500,
+                timeout: hidden ? 12000 : 8000
             };
 
             navigator.geolocation.getCurrentPosition(
@@ -1209,12 +1211,37 @@ if (document.readyState === 'loading') {
                     const lng = position.coords.longitude;
                     const heading = position.coords.heading;
                     const accuracy = position.coords.accuracy;
-                    const force = hidden;
+                    const force = true;
 
-                    if (window.userProfile?.role === 'driver' && trip.driverId === currentUser.uid) {
-                        window.__publishDriverGpsPulse?.(lat, lng, heading, accuracy);
+                    window.currentDriverPos = { lat, lng };
+                    if (heading != null && Number.isFinite(heading)) {
+                        window.currentDriverHeading = heading;
                     }
-                    if (window.userProfile?.role === 'client' && trip.clientId === currentUser.uid && trip.status === 'in_progress') {
+
+                    if (trip.driverId === currentUser.uid) {
+                        if (window.__publishDriverGpsPulse) {
+                            window.__publishDriverGpsPulse(lat, lng, heading, accuracy);
+                        } else {
+                            // Fallback: escribir drivers_location directo
+                            setDoc(
+                                doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid),
+                                {
+                                    lat,
+                                    lng,
+                                    heading: Number.isFinite(heading) ? heading : null,
+                                    accuracy: accuracy != null ? Number(accuracy) : null,
+                                    online: true,
+                                    appVisible: !document.hidden,
+                                    appVisibleAt: Date.now(),
+                                    updatedAt: Date.now(),
+                                    name: window.userProfile?.name || '',
+                                    approvalStatus: window.userProfile?.approvalStatus || 'approved'
+                                },
+                                { merge: true }
+                            ).catch(() => {});
+                        }
+                    }
+                    if (trip.clientId === currentUser.uid && trip.status === 'in_progress') {
                         window.__publishPassengerGpsPulse?.(lat, lng, heading, accuracy, force);
                     }
                 },
@@ -19223,24 +19250,36 @@ window.saveProfileChanges = async () => {
         };
 
         function ensureInProgressLiveTracking(trip) {
-            if (!trip || trip.status !== 'in_progress') return;
+            if (!trip || !['accepted', 'in_progress'].includes(trip.status)) return;
+
+            // Keepalive nativo + GPS agresivo (accepted e in_progress)
+            syncLiveTripKeepalive(trip);
+            syncAndroidLiveTripKeepalive(trip).catch(() => {});
+
             if (trip.clientId === currentUser?.uid) {
-                window.startPassengerLiveLocationSharing?.(trip.id);
+                if (trip.status === 'in_progress') {
+                    window.startPassengerLiveLocationSharing?.(trip.id);
+                }
                 ensurePassengerTrackingForTrip(trip);
             }
             if (trip.driverId === currentUser?.uid) {
-                const legIdx = window.getTripCurrentLegIndex?.(trip) || 1;
-                const legTarget = window.getTripCurrentLegNavTarget?.(trip);
-                const navBootKey = `${trip.id}:live:${legIdx}:${legTarget?.lat || ''}:${legTarget?.lng || ''}:${legTarget?.address || trip.destination || ''}`;
-                const hasRoute = window.hasActiveDriverNavRoute?.();
-                if (window._inProgressNavBootKey !== navBootKey || !hasRoute) {
-                    window._inProgressNavBootKey = navBootKey;
-                    const dest = legTarget || (trip.destinationLat != null
-                        ? { lat: trip.destinationLat, lng: trip.destinationLng, address: trip.destination }
-                        : trip.destination);
-                    if (dest) window.updateNavigation?.(dest, true);
+                window.startDriverLocationTracking?.().catch?.(() => {});
+                if (trip.status === 'in_progress') {
+                    const legIdx = window.getTripCurrentLegIndex?.(trip) || 1;
+                    const legTarget = window.getTripCurrentLegNavTarget?.(trip);
+                    const navBootKey = `${trip.id}:live:${legIdx}:${legTarget?.lat || ''}:${legTarget?.lng || ''}:${legTarget?.address || trip.destination || ''}`;
+                    const hasRoute = window.hasActiveDriverNavRoute?.();
+                    if (window._inProgressNavBootKey !== navBootKey || !hasRoute) {
+                        window._inProgressNavBootKey = navBootKey;
+                        const dest = legTarget || (trip.destinationLat != null
+                            ? { lat: trip.destinationLat, lng: trip.destinationLng, address: trip.destination }
+                            : trip.destination);
+                        if (dest) window.updateNavigation?.(dest, true);
+                    }
+                    window.ensureDriverNavRouteVisible?.();
+                } else if (!trip.driverArrived) {
+                    startDriverPickupNavigation?.(trip);
                 }
-                window.ensureDriverNavRouteVisible?.();
             }
         }
 
@@ -23359,6 +23398,9 @@ function _initDestinationArrivalPanel() {
             const isParticipant = data.clientId === currentUser.uid || data.driverId === currentUser.uid;
             if (isParticipant) {
                 syncLiveTripKeepalive(data);
+                if (['accepted', 'in_progress'].includes(data.status)) {
+                    ensureInProgressLiveTracking(data);
+                }
             }
 
             if (data.clientId === currentUser.uid) {

@@ -9,4 +9,9 @@
     <string name="keepalive_title">HonduRaite activo</string>
     <string name="keepalive_body">Tu sesión sigue abierta. Toca para volver a la app.</string>
     <string name="keepalive_body_driver">Conductor en línea. Tu sesión sigue activa.</string>
+    <string name="live_trip_channel_name">Viaje en curso</string>
+    <string name="live_trip_channel_desc">GPS y conexión activos durante el viaje (como Uber)</string>
+    <string name="live_trip_title">Viaje en curso · HonduRaite</string>
+    <string name="live_trip_body_driver">Ubicación en vivo. No cierres la app. Toca para volver.</string>
+    <string name="live_trip_body_passenger">Tu viaje sigue activo. Toca para ver el mapa.</string>
 </resources>

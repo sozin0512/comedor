@@ -1,8 +1,10 @@
 /**
- * Mantiene GPS y tracking lo más activo posible durante viajes en curso.
- * Los navegadores limitan geolocalización en pestañas ocultas; esto mitiga el retraso
- * con Wake Lock, pulsos de respaldo y sincronización al volver a primer plano.
+ * Mantiene GPS y tracking lo más activo posible durante viajes (accepted / in_progress).
+ * Estilo Uber: wake lock + pulsos GPS frecuentes + foreground service nativo en APK.
  */
+
+import { isCapacitorAndroid } from './capacitor-native.js';
+import { syncAndroidLiveTripKeepalive } from './session-keepalive.js';
 
 const LIVE_STATUSES = new Set(['accepted', 'in_progress']);
 
@@ -17,6 +19,14 @@ let statusEl = null;
 function isLiveTrip(trip) {
     if (!trip?.id || !LIVE_STATUSES.has(trip.status)) return false;
     return true;
+}
+
+function pulseIntervalMs() {
+    // APK: más agresivo (como Uber). Web: un poco más suave por límites del navegador.
+    if (isCapacitorAndroid()) {
+        return document.hidden ? 2500 : 4000;
+    }
+    return document.hidden ? 4500 : 10000;
 }
 
 async function requestTripWakeLock() {
@@ -57,12 +67,17 @@ function updateStatusPill(trip, wakeOk) {
         return;
     }
     const span = el.querySelector('span');
+    const native = isCapacitorAndroid();
     if (document.hidden) {
-        span.textContent = 'Viaje activo — vuelve a HonduRaite para GPS en vivo';
+        span.textContent = native
+            ? 'Viaje activo · GPS en segundo plano'
+            : 'Viaje activo — vuelve a HonduRaite para GPS en vivo';
         el.classList.remove('hidden', 'live-trip-gps-pill--ok');
         el.classList.add('live-trip-gps-pill--warn');
-    } else if (wakeOk) {
-        span.textContent = 'GPS activo · pantalla encendida';
+    } else if (wakeOk || native) {
+        span.textContent = native
+            ? 'Viaje activo · servicio nativo + GPS'
+            : 'GPS activo · pantalla encendida';
         el.classList.remove('hidden', 'live-trip-gps-pill--warn');
         el.classList.add('live-trip-gps-pill--ok');
     } else {
@@ -80,9 +95,16 @@ function pulseGps(reason = 'interval') {
 }
 
 function startBackgroundPulse() {
-    if (bgPulseTimer) return;
-    const ms = document.hidden ? 4500 : 12000;
-    bgPulseTimer = setInterval(() => pulseGps('background'), ms);
+    stopBackgroundPulse();
+    const ms = pulseIntervalMs();
+    bgPulseTimer = setInterval(() => {
+        // Reprogramar si cambió foreground/background
+        if (bgPulseTimer && Math.abs(ms - pulseIntervalMs()) > 500) {
+            startBackgroundPulse();
+            return;
+        }
+        pulseGps('background');
+    }, ms);
     pulseGps(document.hidden ? 'background-start' : 'foreground-backup');
 }
 
@@ -105,11 +127,16 @@ async function onVisibilityChange() {
         const wakeOk = await requestTripWakeLock();
         updateStatusPill(trip, wakeOk);
         pulseGps('visible');
+        // Reafirmar servicio nativo al volver
+        if (trip) syncAndroidLiveTripKeepalive(trip).catch(() => {});
         window.__liveTripRepaintPassenger?.();
+        // En APK seguimos pulsando GPS en primer plano (más fluido)
+        if (isCapacitorAndroid()) startBackgroundPulse();
     } else {
         startBackgroundPulse();
         updateStatusPill(trip, false);
-        if (bgNotifySentForTrip !== activeLiveTripId) {
+        if (trip) syncAndroidLiveTripKeepalive(trip).catch(() => {});
+        if (bgNotifySentForTrip !== activeLiveTripId && !isCapacitorAndroid()) {
             bgNotifySentForTrip = activeLiveTripId;
             window.notifyTripEvent?.({
                 title: 'Viaje en curso',
@@ -144,6 +171,14 @@ export async function syncLiveTripKeepalive(trip) {
         stopBackgroundPulse();
         await releaseTripWakeLock();
         updateStatusPill(null, false);
+        // Bajar de tripMode a sesión normal
+        try {
+            const online = window.userProfile?.role === 'driver' && window.driverLocationWatchId != null;
+            if (online) {
+                const { startAndroidSessionKeepalive } = await import('./session-keepalive.js');
+                await startAndroidSessionKeepalive({ driverMode: true, tripMode: false });
+            }
+        } catch (_) {}
         return;
     }
 
@@ -155,10 +190,17 @@ export async function syncLiveTripKeepalive(trip) {
     const wakeOk = await requestTripWakeLock();
     updateStatusPill(trip, wakeOk);
 
-    if (document.hidden) {
-        startBackgroundPulse();
-    } else {
-        stopBackgroundPulse();
+    // Foreground service nativo: "Viaje en curso" (tipo LOCATION)
+    syncAndroidLiveTripKeepalive(trip).catch(() => {});
+
+    // Conductor: tracking de ubicación siempre en viaje
+    if (trip.driverId && trip.driverId === window.currentUser?.uid) {
+        window.startDriverLocationTracking?.().catch?.(() => {});
+    }
+
+    // Pulsos GPS (foreground y background)
+    startBackgroundPulse();
+    if (!document.hidden) {
         pulseGps('sync');
     }
 }
