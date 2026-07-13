@@ -118,14 +118,16 @@ import {
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
 } from "./ops-fleet-map.js";
-import { syncLiveTripKeepalive, registerLiveTripGpsPulse } from "./live-trip-keepalive.js";
+import {
+    syncLiveTripKeepalive,
+    registerLiveTripGpsPulse,
+    syncAndroidLiveTripKeepalive
+} from "./live-trip-keepalive.js";
 import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js";
-markCapacitorBodyClasses();
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
-    syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
 } from "./session-keepalive.js";
@@ -139,6 +141,9 @@ import {
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
 } from "./driver-tutorial.js";
+
+// Solo después de todos los imports (evita romper el grafo de módulos ESM)
+markCapacitorBodyClasses();
 
 window.showDriverBackgroundModeModal = showDriverBackgroundModeModal;
 
