@@ -121,7 +121,6 @@ import {
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-    syncAndroidLiveTripKeepalive
 } from "./live-trip-keepalive.js";
 import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js";
 import {
@@ -19257,9 +19256,9 @@ window.saveProfileChanges = async () => {
         function ensureInProgressLiveTracking(trip) {
             if (!trip || !['accepted', 'in_progress'].includes(trip.status)) return;
 
-            // Keepalive nativo + GPS agresivo (accepted e in_progress)
+            // Keepalive nativo + GPS agresivo (accepted e in_progress).
+            // syncLiveTripKeepalive ya activa el FGS Android vía session-keepalive.
             syncLiveTripKeepalive(trip);
-            syncAndroidLiveTripKeepalive(trip).catch(() => {});
 
             if (trip.clientId === currentUser?.uid) {
                 if (trip.status === 'in_progress') {

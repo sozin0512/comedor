@@ -1,15 +1,13 @@
 /**
  * Mantiene GPS y tracking lo más activo posible durante viajes (accepted / in_progress).
  * Estilo Uber: wake lock + pulsos GPS frecuentes + foreground service nativo en APK.
+ *
+ * Exports públicos: syncLiveTripKeepalive, registerLiveTripGpsPulse, isLiveTripKeepaliveActive.
+ * El FGS nativo vive en session-keepalive.js (no re-exportar para evitar errores ESM de caché).
  */
 
 import { isCapacitorAndroid } from './capacitor-native.js';
 import { syncAndroidLiveTripKeepalive as syncAndroidLiveTripKeepaliveImpl } from './session-keepalive.js';
-
-/** Re-export estable para app.js (evita fallos de resolución de named export). */
-export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
-    return syncAndroidLiveTripKeepaliveImpl(trip, roleHint);
-}
 
 const LIVE_STATUSES = new Set(['accepted', 'in_progress']);
 
