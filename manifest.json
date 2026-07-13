@@ -2,14 +2,14 @@
   "name": "HonduRaite",
   "short_name": "HonduRaite",
   "description": "Transporte seguro en Honduras. © Empresa SOZIN. Todos los derechos reservados.",
-  "start_url": "/?v=2026.07.12.2",
+  "start_url": "/?v=2026.07.13.1",
   "display": "standalone",
   "background_color": "#2563eb",
   "theme_color": "#2563eb",
   "orientation": "portrait",
   "lang": "es-HN",
   "scope": "/",
-  "id": "/?v=2026.07.12.2",
+  "id": "/?v=2026.07.13.1",
   "icons": [
     {
       "src": "icons/icon-192.png",

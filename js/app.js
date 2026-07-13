@@ -199,6 +199,7 @@ import {
 import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js";
 import { initAppDownload } from "./app-download.js";
 
+
 const app = initializeApp(APP_CONFIG.firebase);
 const auth = getAuth(app);
 const cloudFunctions = getFunctions(app);
@@ -420,9 +421,10 @@ function formatHondurasPhone(raw) {
 function getWhatsAppLink(rawPhone, message = '') {
   const norm = normalizeHondurasPhone(rawPhone);
   if (!norm) return 'https://wa.me/';
-  let url = `https://wa.me/${norm}`;
-  if (message) url += `?text=${encodeURIComponent(message)}`;
-  return url;
+  // api.whatsapp.com conserva mejor emojis/acentos que solo wa.me en algunos clientes
+  const text = message != null ? String(message) : '';
+  if (!text) return `https://wa.me/${norm}`;
+  return `https://api.whatsapp.com/send?phone=${norm}&text=${encodeURIComponent(text)}`;
 }
 
 // Expose globally for easy use in console/debug or other scripts
@@ -2388,6 +2390,7 @@ if (document.readyState === 'loading') {
             else if (action === 'more') window.toggleHeaderMoreMenu?.();
             else if (action === 'theme') { window.toggleTheme?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'whatsapp') { window.openSupportWhatsApp?.(); window.closeHeaderMoreMenu?.(); }
+
             else if (action === 'push') { window.enableTripNotifications?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'admin') { window.openAdminPanel?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'supervisor') { window.openSupervisorPanel?.(); window.closeHeaderMoreMenu?.(); }
@@ -2428,16 +2431,23 @@ if (document.readyState === 'loading') {
         bindMobileHeaderTouch();
 
         function blurTripAutocompletes() {
-            ['origin-autocomplete', 'destination-autocomplete'].forEach((id) => {
+            if (typeof window.hideTripKeyboard === 'function') {
+                window.hideTripKeyboard();
+                return;
+            }
+            ['origin-autocomplete', 'destination-autocomplete', 'extra-stop-autocomplete'].forEach((id) => {
                 const el = document.getElementById(id);
                 if (!el) return;
                 try {
-                    const input = el.shadowRoot?.querySelector('input') || el.querySelector('input');
+                    const input = el.shadowRoot?.querySelector('input')
+                        || el.shadowRoot?.querySelector('[part="input"]')
+                        || el.querySelector('input');
                     input?.blur();
+                    el.blur?.();
                 } catch (_) {}
             });
             const active = document.activeElement;
-            if (active?.closest?.('#chat-float, #chat-compose-form, #chat-input, [data-no-drag]')) return;
+            if (active?.closest?.('#chat-float, #chat-compose-form, #chat-input, [data-no-drag], [data-keep-keyboard]')) return;
             if (active && active !== document.body && typeof active.blur === 'function') {
                 active.blur();
             }
@@ -2485,6 +2495,7 @@ if (document.readyState === 'loading') {
                 else if (action === 'arrived') window.markArrival?.();
                 else if (action === 'driver-arrived-dest') window.driverSignalDestinationArrival?.();
                 else if (action === 'verify-pin') window.verifyPin?.();
+                else if (action === 'skip-pin') window.driverSkipPinAndStart?.();
                 else if (action === 'driver-route') window.openDriverRouteInGoogleMaps?.();
                 else if (action === 'client-route-gmaps') window.openPassengerTripRouteInGoogleMaps?.();
                 else if (action === 'copy-pin') window.copyClientTripPin?.();
@@ -6311,6 +6322,26 @@ if (document.readyState === 'loading') {
             }
         };
 
+        /** Panel completo Notificar (push + programar + WhatsApp sin viaje) para supervisores */
+        window.loadSupervisorNotify = async () => {
+            const supContainer = document.getElementById('supervisor-pending-list');
+            if (!supContainer) return;
+
+            window.setSupervisorNavActive?.('notify');
+            window.setSupervisorQuickActive?.('notify');
+            supContainer.innerHTML = window.OPS_LOADING_HTML
+                || '<div class="ops-loading"><div class="ops-loading-ring"><i class="fas fa-spinner fa-spin"></i></div><p class="ops-loading-text">Cargando notificaciones…</p></div>';
+
+            if (typeof window.loadAdminUsers === 'function') {
+                try {
+                    await window.loadAdminUsers();
+                } catch (_) {}
+            }
+            if (typeof window.renderAdminTab === 'function') {
+                window.renderAdminTab('notify', supContainer);
+            }
+        };
+
         window.loadSupervisorStats = () => {
             const supContainer = document.getElementById('supervisor-pending-list');
             if (!supContainer) return;
@@ -7127,9 +7158,17 @@ if (document.readyState === 'loading') {
             // NUEVO: Pestaña para enviar notificaciones globales (Admin + Supervisor)
             if (role === 'notify') {
                 const U = window.OpsUi;
+                const isStaff = isAdminUser(currentUser, window.userProfile)
+                    || window.userProfile?.role === 'supervisor';
+                if (!isStaff) {
+                    container.innerHTML = U.page(
+                        U.empty('fa-lock', 'Sin permiso', 'Solo admin y supervisores pueden notificar.')
+                    );
+                    return;
+                }
                 container.innerHTML = U.page(
-                    U.hero('Notificaciones', 'Push con app abierta o cerrada · ahora, una vez o recurrentes a pasajeros') +
-                    U.formPanel('Nuevo mensaje', 'Por defecto: pasajeros. Conductores solo si lo eliges.', `
+                    U.hero('Notificaciones', 'Admin y supervisores · push ahora / programado · WhatsApp manual a sin viaje (tiempo real entre el equipo)') +
+                    U.formPanel('Nuevo mensaje', 'Por defecto: pasajeros. Conductores solo si lo eliges. Visible para todo el equipo de supervisión.', `
                         <div class="mb-4">
                             ${U.fieldLabel('Destinatarios')}
                             <div class="ops-chipbar mt-1">
@@ -7192,6 +7231,34 @@ if (document.readyState === 'loading') {
                         ${U.btn('Enviar / guardar', 'window.sendGlobalNotification()', { variant: 'emerald', icon: 'fa-paper-plane', full: true })}
                     `) +
                     U.section({
+                        title: 'WhatsApp manual · sin primer viaje',
+                        icon: 'fa-whatsapp',
+                        body: `
+                            <p class="text-[10px] text-slate-400 mb-3 leading-snug">
+                                Lista de <b>pasajeros que aún no han pedido un viaje</b>.
+                                Varios supervisores pueden trabajar a la vez: al tocar <b>Enviar</b> se marca en
+                                <b>tiempo real</b> para todo el equipo (no se vuelve a mostrar si ocultan contactados).
+                                Usa <code class="text-[9px]">{name}</code> para el primer nombre.
+                            </p>
+                            <div class="mb-3">
+                                ${U.fieldLabel('Mensaje guardado')}
+                                <textarea id="wa-invite-message" rows="4" class="ops-input mt-1" placeholder="Hola {name} ... escribe tu mensaje con emojis aqui" style="font-family:Inter,system-ui,'Segoe UI',Arial,'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif;font-variant-emoji:emoji;"></textarea>
+                            </div>
+                            <div class="flex flex-wrap gap-2 mb-4">
+                                ${U.btn('Guardar mensaje', 'window.saveWaInviteMessage()', { variant: 'emerald', icon: 'fa-save' })}
+                                <button type="button" onclick="window.loadNeverRodePassengers()" class="ops-btn ops-btn--ghost text-xs">
+                                    <i class="fas fa-sync-alt mr-1"></i> Actualizar lista
+                                </button>
+                                <label class="flex items-center gap-2 text-[11px] text-slate-400 ml-auto cursor-pointer">
+                                    <input type="checkbox" id="wa-hide-contacted" class="rounded border-slate-600" onchange="window.renderNeverRodePassengersList?.()">
+                                    Ocultar ya contactados
+                                </label>
+                            </div>
+                            <div id="wa-invite-stats" class="text-[11px] text-slate-400 mb-2">Cargando pasajeros sin viaje…</div>
+                            <div id="wa-invite-list" class="max-h-[28rem] overflow-auto space-y-2 text-xs"></div>
+                        `
+                    }) +
+                    U.section({
                         title: 'Campañas recurrentes (pasajeros)',
                         icon: 'fa-redo',
                         body: `<div class="flex justify-end mb-2"><button type="button" onclick="window.loadRecurringCampaigns()" class="ops-btn ops-btn--ghost">Actualizar</button></div><div id="recurring-campaigns-list" class="max-h-56 overflow-auto text-xs space-y-2"></div>`
@@ -7220,6 +7287,7 @@ if (document.readyState === 'loading') {
                 setTimeout(() => {
                     window.loadNotificationHistory();
                     window.loadRecurringCampaigns();
+                    window.initWaInvitePanel?.();
                 }, 300);
                 return;
             }
@@ -7980,6 +8048,12 @@ if (document.readyState === 'loading') {
                 }).join('')
                 : '<p class="ops-trip-viewers-empty">Ningún conductor la ha abierto en su pantalla todavía.</p>';
 
+            const anyDriverBtn = canStaffAssign
+                ? `<button type="button" class="ops-trip-assign-any-btn" onclick="window.staffOpenAssignAnyDriver('${t.id}')" title="Asignar u ofertar a cualquier conductor, aunque no haya visto la solicitud">
+                        <i class="fas fa-user-plus"></i> Asignar a cualquier conductor
+                   </button>`
+                : '';
+
             return `
                 <div class="ops-trip-viewers-panel">
                     <div class="ops-trip-viewers-label">
@@ -7988,6 +8062,7 @@ if (document.readyState === 'loading') {
                     </div>
                     ${offerLine}
                     <div class="ops-trip-viewers-list">${listHtml}</div>
+                    ${anyDriverBtn}
                 </div>`;
         }
 
@@ -8107,6 +8182,19 @@ if (document.readyState === 'loading') {
             if (includeCancel && isStaffUser(currentUser, window.userProfile) && ['pending', 'accepted', 'in_progress'].includes(t.status)) {
                 rowBtns.push(U.btn('Cancelar viaje', `window.staffCancelTrip('${t.id}')`, { variant: 'warn', icon: 'fa-ban' }));
             }
+            if (isStaffUser(currentUser, window.userProfile) && t.status === 'completed' && t.driverId) {
+                const needDriverRate = !t.ratedByClient;
+                const needPaxRate = !t.ratedByDriver;
+                if (needDriverRate || needPaxRate || t.staffAssignedBy) {
+                    const label = needDriverRate
+                        ? 'Calificar conductor'
+                        : (needPaxRate ? 'Calificar pasajero' : 'Recalificar (staff)');
+                    rowBtns.push(U.btn(label, `window.staffOpenRateTrip('${t.id}')`, {
+                        variant: 'amber',
+                        icon: 'fa-star'
+                    }));
+                }
+            }
             if (includeDelete && (window.userProfile?.role === 'supervisor' || isAdminUser(currentUser, window.userProfile))) {
                 rowBtns.push(`<button onclick="window.deleteActiveTrip('${t.id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white text-[10px] py-2 rounded-xl font-black uppercase flex items-center justify-center gap-1"><i class="fas fa-trash"></i> BORRAR</button>`);
             }
@@ -8118,6 +8206,308 @@ if (document.readyState === 'loading') {
             }
             return parts.filter(Boolean).join('');
         }
+
+        /**
+         * Admin/supervisor: calificar al conductor (y opcionalmente al pasajero) de un viaje completado,
+         * p. ej. cuando staff asignó el conductor y el pasajero no calificó.
+         */
+        window.staffOpenRateTrip = async (tripId) => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor puede calificar por staff.', 'warning');
+            }
+            if (!tripId) return;
+
+            try {
+                const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+                const snap = await getDoc(tripRef);
+                if (!snap.exists()) return window.showToast?.('El viaje ya no existe.');
+                const trip = { id: tripId, ...snap.data() };
+
+                if (trip.status !== 'completed') {
+                    return window.showToast?.('Solo se puede calificar viajes ya completados.');
+                }
+                if (!trip.driverId) {
+                    return window.showToast?.('Este viaje no tiene conductor asignado.');
+                }
+
+                const driverName = escapeViewerText(trip.driverName || 'Conductor');
+                const clientName = escapeViewerText(trip.clientName || 'Pasajero');
+                const alreadyDriver = !!trip.ratedByClient;
+                const alreadyPax = !!trip.ratedByDriver;
+                const assignedNote = trip.staffAssignedByName
+                    ? `<p class="ops-staff-rate-note">Conductor designado por staff: <b>${escapeViewerText(trip.staffAssignedByName)}</b></p>`
+                    : '';
+
+                document.getElementById('staff-rate-trip-modal')?.remove();
+                const modal = document.createElement('div');
+                modal.id = 'staff-rate-trip-modal';
+                modal.className = 'fixed inset-0 bg-black/75 z-[46000] flex items-center justify-center p-3';
+                modal.innerHTML = `
+                    <div class="ops-staff-rate-card">
+                        <div class="ops-staff-rate-head">
+                            <div>
+                                <h3 class="ops-staff-rate-title"><i class="fas fa-star"></i> Calificar como staff</h3>
+                                <p class="ops-staff-rate-sub">${clientName} · ${driverName}</p>
+                            </div>
+                            <button type="button" id="staff-rate-close" class="ops-assign-any-close" aria-label="Cerrar">&times;</button>
+                        </div>
+                        ${assignedNote}
+                        <p class="ops-staff-rate-hint">Puedes calificar al <b>conductor que designaste</b> aunque el pasajero no lo haya hecho. Opcional: también al pasajero.</p>
+
+                        <div class="ops-staff-rate-block">
+                            <label class="ops-staff-rate-label">
+                                <input type="checkbox" id="staff-rate-driver-on" ${alreadyDriver ? '' : 'checked'}>
+                                Calificar conductor: <b>${driverName}</b>
+                                ${alreadyDriver ? '<span class="ops-staff-rate-badge">ya calificado</span>' : ''}
+                            </label>
+                            <div class="ops-staff-rate-stars" id="staff-rate-driver-stars" data-value="5">
+                                ${[1, 2, 3, 4, 5].map((n) => `
+                                    <button type="button" class="ops-staff-star-btn text-amber-400" data-stars="${n}" data-for="driver" aria-label="${n} estrellas">
+                                        <i class="fas fa-star pointer-events-none"></i>
+                                    </button>`).join('')}
+                            </div>
+                        </div>
+
+                        <div class="ops-staff-rate-block">
+                            <label class="ops-staff-rate-label">
+                                <input type="checkbox" id="staff-rate-pax-on" ${alreadyPax ? '' : ''}>
+                                Calificar pasajero: <b>${clientName}</b>
+                                ${alreadyPax ? '<span class="ops-staff-rate-badge">ya calificado</span>' : ''}
+                            </label>
+                            <div class="ops-staff-rate-stars" id="staff-rate-pax-stars" data-value="5">
+                                ${[1, 2, 3, 4, 5].map((n) => `
+                                    <button type="button" class="ops-staff-star-btn text-amber-400" data-stars="${n}" data-for="pax" aria-label="${n} estrellas">
+                                        <i class="fas fa-star pointer-events-none"></i>
+                                    </button>`).join('')}
+                            </div>
+                        </div>
+
+                        <label class="ops-staff-rate-label ops-staff-rate-label--note">Nota interna (opcional)</label>
+                        <textarea id="staff-rate-note" class="ops-input ops-staff-rate-textarea" rows="2" placeholder="Motivo o comentario del staff…"></textarea>
+
+                        <button type="button" id="staff-rate-save" class="ops-staff-rate-save">
+                            <i class="fas fa-check"></i> Guardar calificación
+                        </button>
+                    </div>`;
+                document.body.appendChild(modal);
+
+                const close = () => modal.remove();
+                modal.querySelector('#staff-rate-close')?.addEventListener('click', close);
+                modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+                const paintStars = (container, value) => {
+                    if (!container) return;
+                    container.dataset.value = String(value);
+                    container.querySelectorAll('.ops-staff-star-btn').forEach((btn) => {
+                        const n = parseInt(btn.getAttribute('data-stars'), 10);
+                        const on = n <= value;
+                        btn.classList.toggle('text-amber-400', on);
+                        btn.classList.toggle('text-gray-500', !on);
+                    });
+                };
+                paintStars(modal.querySelector('#staff-rate-driver-stars'), 5);
+                paintStars(modal.querySelector('#staff-rate-pax-stars'), 5);
+
+                modal.querySelectorAll('.ops-staff-star-btn').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        const n = parseInt(btn.getAttribute('data-stars'), 10) || 5;
+                        const which = btn.getAttribute('data-for');
+                        const box = which === 'pax'
+                            ? modal.querySelector('#staff-rate-pax-stars')
+                            : modal.querySelector('#staff-rate-driver-stars');
+                        paintStars(box, n);
+                        if (which === 'driver') {
+                            const cb = modal.querySelector('#staff-rate-driver-on');
+                            if (cb) cb.checked = true;
+                        } else {
+                            const cb = modal.querySelector('#staff-rate-pax-on');
+                            if (cb) cb.checked = true;
+                        }
+                    });
+                });
+
+                modal.querySelector('#staff-rate-save')?.addEventListener('click', async () => {
+                    const rateDriver = !!modal.querySelector('#staff-rate-driver-on')?.checked;
+                    const ratePax = !!modal.querySelector('#staff-rate-pax-on')?.checked;
+                    if (!rateDriver && !ratePax) {
+                        return window.showToast?.('Marca al menos calificar conductor o pasajero.');
+                    }
+                    const driverStars = parseInt(modal.querySelector('#staff-rate-driver-stars')?.dataset?.value, 10) || 5;
+                    const paxStars = parseInt(modal.querySelector('#staff-rate-pax-stars')?.dataset?.value, 10) || 5;
+                    const note = (modal.querySelector('#staff-rate-note')?.value || '').trim();
+                    const saveBtn = modal.querySelector('#staff-rate-save');
+                    if (saveBtn) {
+                        saveBtn.disabled = true;
+                        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando…';
+                    }
+                    try {
+                        await window.staffSubmitTripRating(tripId, {
+                            rateDriver,
+                            driverStars,
+                            ratePassenger: ratePax,
+                            passengerStars: paxStars,
+                            note,
+                            allowReRate: alreadyDriver || alreadyPax
+                        });
+                        close();
+                    } catch (err) {
+                        console.error('staffOpenRateTrip save:', err);
+                        window.showToast?.(err?.message || 'No se pudo guardar la calificación.');
+                        if (saveBtn) {
+                            saveBtn.disabled = false;
+                            saveBtn.innerHTML = '<i class="fas fa-check"></i> Guardar calificación';
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('staffOpenRateTrip:', e);
+                window.showToast?.(e?.message || 'No se pudo abrir la calificación.');
+            }
+        };
+
+        window.staffSubmitTripRating = async (tripId, opts = {}) => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                throw new Error('Solo admin o supervisor puede calificar por staff.');
+            }
+            const {
+                rateDriver = false,
+                driverStars = 5,
+                ratePassenger = false,
+                passengerStars = 5,
+                note = '',
+                allowReRate = false
+            } = opts;
+
+            const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+            const snap = await getDoc(tripRef);
+            if (!snap.exists()) throw new Error('El viaje ya no existe.');
+            const trip = snap.data();
+            if (trip.status !== 'completed') throw new Error('El viaje debe estar completado.');
+            if (!trip.driverId) throw new Error('Sin conductor.');
+
+            const staffName = window.userProfile?.name
+                || (isAdminUser(currentUser, window.userProfile) ? 'Administrador' : 'Supervisor');
+            const tripUpdates = {
+                staffRatedBy: currentUser.uid,
+                staffRatedByName: staffName,
+                staffRatedAt: serverTimestamp()
+            };
+
+            const applyUserRating = async (userId, stars, roleLabel) => {
+                if (!userId || !stars) return;
+                const s = Math.min(5, Math.max(1, Math.round(Number(stars) || 5)));
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', userId);
+                const userSnap = await getDoc(userRef);
+                if (!userSnap.exists()) {
+                    console.warn(`staff rating: ${roleLabel} no encontrado`, userId);
+                    return;
+                }
+                const u = userSnap.data();
+                const updates = {
+                    ratingSum: (Number(u.ratingSum) || 0) + s,
+                    ratingCount: (Number(u.ratingCount) || 0) + 1,
+                    totalTrips: (Number(u.totalTrips) || 0) + 1
+                };
+                await updateDoc(userRef, updates);
+                try {
+                    await updateDoc(doc(db, 'artifacts', appId, 'users', userId, 'profile', 'data'), updates);
+                } catch (profileErr) {
+                    console.warn('staff rating private profile:', profileErr);
+                }
+            };
+
+            let didDriver = false;
+            let didPax = false;
+
+            // ratedByClient = el pasajero calificó al conductor
+            if (rateDriver) {
+                if (trip.ratedByClient && !allowReRate) {
+                    // ya calificado: no sumar de nuevo a menos que sea re-rate explícito staff
+                } else if (trip.ratedByClient && allowReRate && trip.staffRatedDriverStars != null) {
+                    // re-rate staff previo: no duplicar totalTrips/sum — se permite solo marcar de nuevo sin sumar
+                    tripUpdates.staffRatedDriverStars = Math.min(5, Math.max(1, Math.round(Number(driverStars) || 5)));
+                    tripUpdates.staffRatedDriver = true;
+                } else if (!trip.ratedByClient) {
+                    await applyUserRating(trip.driverId, driverStars, 'conductor');
+                    tripUpdates.ratedByClient = true;
+                    tripUpdates.staffRatedDriver = true;
+                    tripUpdates.staffRatedDriverStars = Math.min(5, Math.max(1, Math.round(Number(driverStars) || 5)));
+                    didDriver = true;
+                } else {
+                    // Pasajero ya calificó: staff solo deja constancia sin sumar otra vez al promedio
+                    tripUpdates.staffRatedDriver = true;
+                    tripUpdates.staffRatedDriverStars = Math.min(5, Math.max(1, Math.round(Number(driverStars) || 5)));
+                    tripUpdates.staffRatedDriverNote = 'Pasajero ya había calificado; staff no sumó estrellas de nuevo.';
+                }
+            }
+
+            // ratedByDriver = el conductor calificó al pasajero
+            if (ratePassenger && trip.clientId) {
+                if (!trip.ratedByDriver) {
+                    await applyUserRating(trip.clientId, passengerStars, 'pasajero');
+                    tripUpdates.ratedByDriver = true;
+                    tripUpdates.staffRatedPassenger = true;
+                    tripUpdates.staffRatedPassengerStars = Math.min(5, Math.max(1, Math.round(Number(passengerStars) || 5)));
+                    didPax = true;
+                } else {
+                    tripUpdates.staffRatedPassenger = true;
+                    tripUpdates.staffRatedPassengerStars = Math.min(5, Math.max(1, Math.round(Number(passengerStars) || 5)));
+                    tripUpdates.staffRatedPassengerNote = 'Conductor ya había calificado; staff no sumó estrellas de nuevo.';
+                }
+            }
+
+            if (note) {
+                tripUpdates.staffRatingNote = note.slice(0, 500);
+            }
+
+            await updateDoc(tripRef, tripUpdates);
+
+            if (note || didDriver || didPax) {
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reports'), {
+                        tripId,
+                        stars: didDriver ? Math.min(5, Math.max(1, Math.round(Number(driverStars) || 5))) : null,
+                        text: note || (didDriver
+                            ? `Staff calificó al conductor con ${driverStars}★`
+                            : `Staff calificó al pasajero con ${passengerStars}★`),
+                        reportedRole: didDriver ? 'driver' : 'client',
+                        reportedUserId: didDriver ? trip.driverId : trip.clientId,
+                        reportedUserName: didDriver ? trip.driverName : trip.clientName,
+                        clientId: trip.clientId || null,
+                        driverId: trip.driverId || null,
+                        clientName: trip.clientName || null,
+                        driverName: trip.driverName || null,
+                        reportedByName: staffName,
+                        reportedBy: currentUser.uid,
+                        staffRating: true,
+                        createdAt: serverTimestamp()
+                    });
+                } catch (repErr) {
+                    console.warn('staff rating report log:', repErr);
+                }
+            }
+
+            refreshStaffTripsPanels?.({
+                [tripId]: {
+                    ...tripUpdates,
+                    ratedByClient: tripUpdates.ratedByClient ?? trip.ratedByClient,
+                    ratedByDriver: tripUpdates.ratedByDriver ?? trip.ratedByDriver
+                }
+            });
+
+            const parts = [];
+            if (didDriver) parts.push(`conductor ${Math.min(5, Math.max(1, Math.round(Number(driverStars) || 5)))}★`);
+            else if (rateDriver && trip.ratedByClient) parts.push('conductor (ya estaba calificado)');
+            if (didPax) parts.push(`pasajero ${Math.min(5, Math.max(1, Math.round(Number(passengerStars) || 5)))}★`);
+            else if (ratePassenger && trip.ratedByDriver) parts.push('pasajero (ya estaba calificado)');
+
+            window.showToast?.(
+                parts.length
+                    ? `Calificación staff guardada: ${parts.join(' · ')}.`
+                    : 'Sin cambios de calificación (ya estaban calificados).',
+                'success'
+            );
+        };
 
         window.staffCancelTrip = async (tripId) => {
             if (!isStaffUser(currentUser, window.userProfile)) {
@@ -8276,6 +8666,9 @@ if (document.readyState === 'loading') {
                 }
 
                 window.showToast?.(toastMsg, 'success');
+                if (trip.driverId && confirm('¿Calificar ahora al conductor de este viaje?')) {
+                    await window.staffOpenRateTrip?.(tripId);
+                }
             } catch (e) {
                 console.error('staffManualCompleteTrip:', e);
                 window.showToast?.(e?.message || 'No se pudo finalizar el viaje manualmente.');
@@ -8323,6 +8716,7 @@ if (document.readyState === 'loading') {
                 });
 
                 window.showToast?.(`Oferta enviada a ${driverName}.`, 'success');
+                document.getElementById('staff-assign-any-driver-modal')?.remove();
             } catch (e) {
                 console.error('staffSendTripOfferToViewer:', e);
                 window.showToast?.(e?.message || 'No se pudo enviar la oferta.');
@@ -8397,7 +8791,7 @@ if (document.readyState === 'loading') {
                     staffAssignedBy: currentUser.uid,
                     staffAssignedByName: staffName,
                     staffAssignedAt: serverTimestamp(),
-                    staffAssignedFromViewers: true,
+                    staffAssignedFromViewers: !!(trip.viewedBy && trip.viewedBy[driverId]),
                     ...saldoHoldFields
                 };
 
@@ -8422,9 +8816,160 @@ if (document.readyState === 'loading') {
                 } catch (_) {}
 
                 window.showToast?.(`Viaje asignado a ${driverName}. PIN: ${pin}`, 'success');
+                document.getElementById('staff-assign-any-driver-modal')?.remove();
             } catch (e) {
                 console.error('staffAssignTripToViewer:', e);
                 window.showToast?.(e?.message || 'No se pudo asignar el viaje.');
+            }
+        };
+
+        /**
+         * Staff: abrir selector de CUALQUIER conductor para asignar/ofertar un viaje pendiente,
+         * aunque no lo haya visto (viewedBy).
+         */
+        window.staffOpenAssignAnyDriver = async (tripId) => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor puede asignar viajes.');
+            }
+            if (!tripId) return;
+
+            try {
+                const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+                const tripSnap = await getDoc(tripRef);
+                if (!tripSnap.exists()) return window.showToast?.('El viaje ya no existe.');
+                const trip = { id: tripId, ...tripSnap.data() };
+                if (trip.status !== 'pending' || trip.driverId) {
+                    return window.showToast?.('Solo se puede asignar en viajes pendientes sin conductor.');
+                }
+
+                let drivers = (window.allUsersData || []).filter((u) =>
+                    u.role === 'driver'
+                    && u.uid
+                    && (u.approvalStatus === 'approved' || typeof u.approvalStatus === 'undefined')
+                );
+
+                if (!drivers.length) {
+                    try {
+                        const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+                        drivers = [];
+                        snap.forEach((d) => {
+                            const u = { uid: d.id, ...d.data() };
+                            if (u.role === 'driver'
+                                && (u.approvalStatus === 'approved' || typeof u.approvalStatus === 'undefined')) {
+                                drivers.push(u);
+                            }
+                        });
+                    } catch (loadErr) {
+                        console.warn('staffOpenAssignAnyDriver load users:', loadErr);
+                    }
+                }
+
+                drivers.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
+
+                const clientLabel = escapeViewerText(trip.clientName || 'Pasajero');
+                const originLabel = escapeViewerText((trip.origin || '—').toString().slice(0, 48));
+                const destLabel = escapeViewerText((trip.destination || '—').toString().slice(0, 48));
+                const priceLabel = escapeViewerText(String(trip.price || (trip.priceNum != null ? `L. ${trip.priceNum}` : '—')));
+
+                document.getElementById('staff-assign-any-driver-modal')?.remove();
+                const modal = document.createElement('div');
+                modal.id = 'staff-assign-any-driver-modal';
+                modal.className = 'fixed inset-0 bg-black/75 z-[46000] flex items-center justify-center p-3';
+
+                const rowsHtml = drivers.length
+                    ? drivers.map((u) => {
+                        const name = escapeViewerText(u.name || 'Conductor');
+                        const plate = escapeViewerText(u.vehicle?.plate || 'Sin placa');
+                        const phone = escapeViewerText(u.phone || '');
+                        const rating = (u.ratingCount > 0 && u.ratingSum != null)
+                            ? (u.ratingSum / u.ratingCount).toFixed(1)
+                            : '5.0';
+                        const vType = escapeViewerText(String(u.vehicleType || u.vehicle?.type || 'auto').toUpperCase());
+                        const searchBits = [
+                            u.name || '',
+                            u.phone || '',
+                            u.email || u.contactEmail || '',
+                            u.vehicle?.plate || '',
+                            u.identity || '',
+                            u.vehicleType || ''
+                        ].join(' ').toLowerCase();
+                        return `
+                            <div class="ops-assign-any-row" data-search="${escapeViewerText(searchBits)}">
+                                <div class="ops-assign-any-info">
+                                    <span class="ops-assign-any-name">${name}</span>
+                                    <span class="ops-assign-any-meta">★ ${rating} · ${vType} · ${plate}${phone ? ` · ${phone}` : ''}</span>
+                                </div>
+                                <div class="ops-assign-any-actions">
+                                    <button type="button" class="ops-trip-viewer-assign-btn" data-action="assign" data-uid="${u.uid}" title="Asignar viaje directo">ASIGNAR</button>
+                                    <button type="button" class="ops-trip-viewer-offer-btn" data-action="offer" data-uid="${u.uid}" title="Enviar oferta; el conductor debe aceptar">OFERTA</button>
+                                </div>
+                            </div>`;
+                    }).join('')
+                    : '<p class="ops-trip-viewers-empty">No hay conductores aprobados en la lista.</p>';
+
+                modal.innerHTML = `
+                    <div class="ops-assign-any-modal-card">
+                        <div class="ops-assign-any-modal-head">
+                            <div>
+                                <h3 class="ops-assign-any-modal-title"><i class="fas fa-user-plus"></i> Asignar a cualquier conductor</h3>
+                                <p class="ops-assign-any-modal-sub">${clientLabel} · ${priceLabel}</p>
+                                <p class="ops-assign-any-modal-route">${originLabel} → ${destLabel}</p>
+                            </div>
+                            <button type="button" id="staff-assign-any-close" class="ops-assign-any-close" aria-label="Cerrar">&times;</button>
+                        </div>
+                        <p class="ops-assign-any-hint">Puedes asignar u ofertar aunque el conductor <b>no haya visto</b> la solicitud en su app.</p>
+                        <input type="search" id="staff-assign-any-search" class="ops-input ops-assign-any-search" placeholder="Buscar nombre, WhatsApp, placa o correo…" autocomplete="off">
+                        <div class="ops-assign-any-list" id="staff-assign-any-list">${rowsHtml}</div>
+                        <p class="ops-assign-any-count" id="staff-assign-any-count">${drivers.length} conductor${drivers.length === 1 ? '' : 'es'}</p>
+                    </div>`;
+
+                document.body.appendChild(modal);
+
+                const close = () => modal.remove();
+                modal.querySelector('#staff-assign-any-close')?.addEventListener('click', close);
+                modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+                const searchInput = modal.querySelector('#staff-assign-any-search');
+                const listEl = modal.querySelector('#staff-assign-any-list');
+                const countEl = modal.querySelector('#staff-assign-any-count');
+                const applyFilter = () => {
+                    const term = (searchInput?.value || '').toLowerCase().trim();
+                    let visible = 0;
+                    listEl?.querySelectorAll('.ops-assign-any-row').forEach((row) => {
+                        const hay = (row.getAttribute('data-search') || '');
+                        const show = !term || hay.includes(term);
+                        row.style.display = show ? '' : 'none';
+                        if (show) visible++;
+                    });
+                    if (countEl) {
+                        countEl.textContent = term
+                            ? `${visible} de ${drivers.length} conductores`
+                            : `${drivers.length} conductor${drivers.length === 1 ? '' : 'es'}`;
+                    }
+                };
+                searchInput?.addEventListener('input', applyFilter);
+                setTimeout(() => searchInput?.focus(), 50);
+
+                listEl?.addEventListener('click', async (e) => {
+                    const btn = e.target.closest('button[data-action][data-uid]');
+                    if (!btn) return;
+                    const uid = btn.getAttribute('data-uid');
+                    const action = btn.getAttribute('data-action');
+                    if (!uid) return;
+                    btn.disabled = true;
+                    try {
+                        if (action === 'assign') {
+                            await window.staffAssignTripToViewer(tripId, uid);
+                        } else if (action === 'offer') {
+                            await window.staffSendTripOfferToViewer(tripId, uid);
+                        }
+                    } finally {
+                        btn.disabled = false;
+                    }
+                });
+            } catch (e) {
+                console.error('staffOpenAssignAnyDriver:', e);
+                window.showToast?.(e?.message || 'No se pudo abrir el selector de conductores.');
             }
         };
 
@@ -8633,6 +9178,9 @@ if (document.readyState === 'loading') {
                     name: staffName
                 });
                 window.showToast?.(toastMsg, 'success');
+                if (trip.driverId && confirm('¿Calificar ahora al conductor de este viaje?')) {
+                    await window.staffOpenRateTrip?.(tripId);
+                }
             } catch (e) {
                 console.error('staffMarkDestinationArrival:', e);
                 window.showToast?.(e?.message || 'No se pudo marcar la llegada a destino.');
@@ -11643,6 +12191,329 @@ if (document.readyState === 'loading') {
             active?.classList.add('ops-chip--active');
         };
 
+        // ── WhatsApp manual: pasajeros sin viaje (marcado EN TIEMPO REAL en Firestore) ──
+        // Colección: artifacts/{appId}/public/data/wa_invite_contacted/{uid}
+        // Todo el equipo (admin + supervisores) ve al instante quién ya recibió mensaje.
+        const WA_INVITE_MSG_KEY = 'hondu_wa_invite_message_v1';
+        const WA_INVITE_DEFAULT =
+            'Hola {name} \u{1F44B}\n\n' +
+            'Te escribimos de *HonduRaite*.\n\n' +
+            'Notamos que ya tienes cuenta y a\u00fan no has pedido tu primer viaje. ' +
+            '\u00a1Estamos listos cuando t\u00fa lo est\u00e9s!\n\n' +
+            'Abre la app y pide tu viaje \u{1F697}';
+
+        window._neverRodePassengers = [];
+        /** @type {Record<string, {contactedByName?: string, contactedAtMs?: number, name?: string}>} */
+        window._waContactedMap = {};
+        window._waContactedUnsub = null;
+
+        function waContactedCol() {
+            return collection(db, 'artifacts', appId, 'public', 'data', 'wa_invite_contacted');
+        }
+
+        function formatWaContactedAgo(ms) {
+            const t = Number(ms) || 0;
+            if (!t) return '';
+            const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+            if (sec < 60) return 'hace un momento';
+            if (sec < 3600) return `hace ${Math.floor(sec / 60)} min`;
+            if (sec < 86400) return `hace ${Math.floor(sec / 3600)} h`;
+            return `hace ${Math.floor(sec / 86400)} d`;
+        }
+
+        function renderWaInviteTemplate(template, user) {
+            const full = String(user?.name || '').trim();
+            const first = full.split(/\s+/)[0] || 'amigo/a';
+            return String(template || '')
+                .replaceAll('{name}', first)
+                .replaceAll('{fullName}', full || first)
+                .replaceAll('{phone}', formatHondurasPhone(user?.phone) || user?.phone || '')
+                .trim();
+        }
+
+        function stopWaContactedLive() {
+            try {
+                window._waContactedUnsub?.();
+            } catch (_) {}
+            window._waContactedUnsub = null;
+        }
+
+        /** Escucha en vivo: cuando alguien del equipo marca, se actualiza en todos */
+        function startWaContactedLive() {
+            stopWaContactedLive();
+            if (!db) return;
+            window._waContactedUnsub = onSnapshot(
+                waContactedCol(),
+                (snap) => {
+                    const map = {};
+                    snap.forEach((d) => {
+                        map[d.id] = { uid: d.id, ...d.data() };
+                    });
+                    window._waContactedMap = map;
+                    window.renderNeverRodePassengersList?.();
+                },
+                (err) => {
+                    console.warn('wa_invite_contacted live:', err);
+                }
+            );
+        }
+
+        window.initWaInvitePanel = () => {
+            const ta = document.getElementById('wa-invite-message');
+            if (ta) {
+                const saved = localStorage.getItem(WA_INVITE_MSG_KEY);
+                ta.value = saved && saved.trim() ? saved : WA_INVITE_DEFAULT;
+            }
+            startWaContactedLive();
+            window.loadNeverRodePassengers?.();
+        };
+
+        window.saveWaInviteMessage = async () => {
+            const ta = document.getElementById('wa-invite-message');
+            const msg = ta?.value?.trim() || '';
+            if (!msg) return window.showToast('Escribe un mensaje antes de guardar.');
+            localStorage.setItem(WA_INVITE_MSG_KEY, msg);
+            try {
+                const staff = isAdminUser(currentUser, window.userProfile)
+                    || window.userProfile?.role === 'supervisor';
+                if (staff && db) {
+                    await setDoc(
+                        doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'),
+                        {
+                            waInviteMessage: msg,
+                            waInviteMessageUpdatedAt: serverTimestamp(),
+                            waInviteMessageBy: currentUser.uid,
+                            waInviteMessageByName: window.getSenderDisplayName?.() || ''
+                        },
+                        { merge: true }
+                    );
+                }
+            } catch (e) {
+                console.warn('waInviteMessage firestore:', e);
+            }
+            window.showToast('Mensaje guardado para todo el equipo.', 'success');
+        };
+
+        window.loadNeverRodePassengers = async () => {
+            const listEl = document.getElementById('wa-invite-list');
+            const statsEl = document.getElementById('wa-invite-stats');
+            if (!listEl) return;
+            listEl.innerHTML = '<div class="text-center py-4 text-slate-500"><i class="fas fa-spinner fa-spin"></i> Cargando…</div>';
+            if (statsEl) statsEl.textContent = 'Calculando pasajeros sin viaje…';
+
+            try {
+                if (!window._waContactedUnsub) startWaContactedLive();
+
+                const ta = document.getElementById('wa-invite-message');
+                if (ta) {
+                    try {
+                        const setSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'));
+                        const remote = setSnap.exists() ? setSnap.data()?.waInviteMessage : '';
+                        if (remote && String(remote).trim()) {
+                            ta.value = remote;
+                            localStorage.setItem(WA_INVITE_MSG_KEY, remote);
+                        } else if (!ta.value.trim()) {
+                            ta.value = localStorage.getItem(WA_INVITE_MSG_KEY) || WA_INVITE_DEFAULT;
+                        }
+                    } catch (_) {
+                        if (!ta.value.trim()) {
+                            ta.value = localStorage.getItem(WA_INVITE_MSG_KEY) || WA_INVITE_DEFAULT;
+                        }
+                    }
+                }
+
+                if (!window.allUsersData?.length && typeof window.loadAdminUsers === 'function') {
+                    await window.loadAdminUsers();
+                }
+
+                const clientsWithTrips = new Set();
+                const tripsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
+                tripsSnap.forEach((d) => {
+                    const t = d.data() || {};
+                    const st = String(t.status || '');
+                    if (!st || st === 'cancelled' || st === 'canceled' || st === 'pending' || st === 'scheduled') return;
+                    if (t.clientId) clientsWithTrips.add(String(t.clientId));
+                });
+
+                const clients = (window.allUsersData || []).filter((u) => {
+                    const role = String(u.role || 'client').toLowerCase();
+                    return role === 'client' || role === '';
+                });
+
+                const neverRode = [];
+                for (const u of clients) {
+                    const uid = u.uid || u.id;
+                    if (!uid) continue;
+                    const profileTrips = Number(u.totalTrips) || 0;
+                    if (clientsWithTrips.has(String(uid)) || profileTrips >= 1) continue;
+                    const phoneRaw = u.phone || '';
+                    const phone = formatHondurasPhone(phoneRaw) || phoneRaw;
+                    const phoneNorm = String(phoneRaw).replace(/\D/g, '');
+                    if (!phoneNorm || phoneNorm.length < 8) continue;
+                    neverRode.push({
+                        uid,
+                        name: u.name || u.displayName || 'Sin nombre',
+                        phone: phoneRaw,
+                        phoneLabel: phone,
+                        email: u.email || ''
+                    });
+                }
+
+                neverRode.sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'));
+                window._neverRodePassengers = neverRode;
+                window.renderNeverRodePassengersList();
+            } catch (e) {
+                console.error(e);
+                listEl.innerHTML = `<p class="text-rose-400 text-center py-3">Error: ${e.message || e}</p>`;
+                if (statsEl) statsEl.textContent = 'Error al cargar.';
+            }
+        };
+
+        window.renderNeverRodePassengersList = () => {
+            const listEl = document.getElementById('wa-invite-list');
+            const statsEl = document.getElementById('wa-invite-stats');
+            if (!listEl) return;
+
+            const contacted = window._waContactedMap || {};
+            const hideContacted = Boolean(document.getElementById('wa-hide-contacted')?.checked);
+            let rows = window._neverRodePassengers || [];
+            const total = rows.length;
+            const contactedCount = rows.filter((r) => contacted[r.uid]).length;
+
+            if (hideContacted) {
+                rows = rows.filter((r) => !contacted[r.uid]);
+            }
+
+            if (statsEl) {
+                statsEl.innerHTML =
+                    `<span class="text-emerald-400 font-semibold">${total}</span> sin viaje · ` +
+                    `<span class="text-sky-300">${contactedCount}</span> contactados (en vivo) · ` +
+                    `mostrando <span class="text-slate-300">${rows.length}</span> · ` +
+                    `<span class="text-emerald-500/90"><i class="fas fa-circle text-[7px] mr-0.5"></i>tiempo real</span>`;
+            }
+
+            if (!rows.length) {
+                listEl.innerHTML = total
+                    ? '<p class="text-center text-slate-500 py-4">No hay más pendientes (el equipo ya contactó a todos en la lista).</p>'
+                    : '<p class="text-center text-slate-500 py-4">No hay pasajeros sin viaje con WhatsApp.</p>';
+                return;
+            }
+
+            listEl.innerHTML = rows.map((u) => {
+                const info = contacted[u.uid];
+                const done = Boolean(info);
+                const by = info?.contactedByName || info?.contactedBy || '';
+                const ago = formatWaContactedAgo(info?.contactedAtMs);
+                const meta = done
+                    ? `<div class="text-[10px] text-emerald-400/90 mt-0.5 truncate">✓ ${escapeNotifHtml?.(by) || by || 'equipo'}${ago ? ` · ${ago}` : ''}</div>`
+                    : '';
+                const safeName = String(u.name || '').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+                const safePhone = String(u.phoneLabel || u.phone || '').replace(/</g, '&lt;');
+                const safeUid = String(u.uid).replace(/'/g, '');
+                return `
+                <div class="flex flex-wrap items-center gap-2 p-2.5 rounded-xl border ${done ? 'border-emerald-800/50 bg-emerald-950/20 opacity-75' : 'border-slate-700/80 bg-slate-900/40'}">
+                    <div class="min-w-0 flex-1">
+                        <div class="font-semibold text-slate-100 truncate">${safeName}</div>
+                        <div class="text-slate-400 truncate"><i class="fab fa-whatsapp text-emerald-500 mr-1"></i>${safePhone}</div>
+                        ${meta}
+                    </div>
+                    <button type="button"
+                        class="ops-btn ops-btn--emerald text-[11px] px-3 py-1.5 shrink-0"
+                        onclick="window.openWaInviteForPassenger('${safeUid}')">
+                        <i class="fab fa-whatsapp mr-1"></i> ${done ? 'Reenviar' : 'Enviar'}
+                    </button>
+                    ${done
+                        ? `<button type="button" class="text-[10px] text-slate-500 underline shrink-0" onclick="window.unmarkWaInviteContacted('${safeUid}')">Desmarcar</button>`
+                        : `<button type="button" class="text-[10px] text-slate-500 underline shrink-0" onclick="window.markWaInviteContacted('${safeUid}', false)">Solo marcar</button>`
+                    }
+                </div>`;
+            }).join('');
+        };
+
+        window.openWaInviteForPassenger = async (uid) => {
+            const user = (window._neverRodePassengers || []).find((u) => u.uid === uid);
+            if (!user) return window.showToast('Pasajero no encontrado. Actualiza la lista.');
+
+            // Si otro del equipo ya lo marcó hace poco, avisar
+            const existing = window._waContactedMap?.[uid];
+            if (existing?.contactedBy && existing.contactedBy !== currentUser?.uid) {
+                const who = existing.contactedByName || 'Otro supervisor';
+                const ok = confirm(
+                    `${who} ya contactó a esta persona${existing.contactedAtMs ? ` (${formatWaContactedAgo(existing.contactedAtMs)})` : ''}.\n\n¿Abrir WhatsApp de todas formas?`
+                );
+                if (!ok) return;
+            }
+
+            const ta = document.getElementById('wa-invite-message');
+            const template = (ta?.value || localStorage.getItem(WA_INVITE_MSG_KEY) || WA_INVITE_DEFAULT).trim();
+            if (!template) return window.showToast('Escribe y guarda un mensaje primero.');
+
+            localStorage.setItem(WA_INVITE_MSG_KEY, template);
+
+            // Marcar EN FIRESTORE ANTES de abrir (los otros 2 lo ven al instante)
+            await window.markWaInviteContacted(uid, true, user);
+
+            const text = renderWaInviteTemplate(template, user);
+            const url = getWhatsAppLink(user.phone, text);
+            if (!url || url === 'https://wa.me/' || !url.includes('phone=')) {
+                return window.showToast('Ese pasajero no tiene WhatsApp válido.');
+            }
+            window.open(url, '_blank', 'noopener,noreferrer');
+        };
+
+        window.markWaInviteContacted = async (uid, silent, userHint) => {
+            if (!uid || !db || !currentUser) return;
+            const user = userHint || (window._neverRodePassengers || []).find((u) => u.uid === uid) || {};
+            // Optimistic UI: se ve al instante en esta pantalla
+            window._waContactedMap = {
+                ...(window._waContactedMap || {}),
+                [uid]: {
+                    uid,
+                    contactedAtMs: Date.now(),
+                    contactedBy: currentUser.uid,
+                    contactedByName: window.getSenderDisplayName?.() || currentUser.email || 'Staff',
+                    name: user.name || '',
+                    phone: user.phone || ''
+                }
+            };
+            window.renderNeverRodePassengersList();
+
+            try {
+                await setDoc(
+                    doc(db, 'artifacts', appId, 'public', 'data', 'wa_invite_contacted', uid),
+                    {
+                        uid,
+                        name: user.name || '',
+                        phone: user.phone || '',
+                        contactedAt: serverTimestamp(),
+                        contactedAtMs: Date.now(),
+                        contactedBy: currentUser.uid,
+                        contactedByName: window.getSenderDisplayName?.() || currentUser.email || 'Staff'
+                    },
+                    { merge: true }
+                );
+                if (!silent) window.showToast('Marcado para todo el equipo.', 'success');
+            } catch (e) {
+                console.error(e);
+                window.showToast('No se pudo marcar en el servidor. Revisa permisos.');
+            }
+        };
+
+        window.unmarkWaInviteContacted = async (uid) => {
+            if (!uid || !db) return;
+            const next = { ...(window._waContactedMap || {}) };
+            delete next[uid];
+            window._waContactedMap = next;
+            window.renderNeverRodePassengersList();
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'wa_invite_contacted', uid));
+                window.showToast('Desmarcado.', 'success');
+            } catch (e) {
+                console.error(e);
+                window.showToast('No se pudo desmarcar.');
+            }
+        };
+
         window.getNotifyTripFilter = () => {
             const v = document.getElementById('notify-trip-filter')?.value || 'all';
             if (v === 'has_trips' || v === 'no_trips') return v;
@@ -11656,6 +12527,12 @@ if (document.readyState === 'loading') {
         };
 
         window.sendGlobalNotification = async () => {
+            const isStaff = isAdminUser(currentUser, window.userProfile)
+                || window.userProfile?.role === 'supervisor';
+            if (!isStaff) {
+                return window.showToast('Solo admin y supervisores pueden enviar notificaciones.');
+            }
+
             const message = document.getElementById('notify-message')?.value.trim();
             if (!message) return window.showToast('Escribe un mensaje.');
 
@@ -12367,6 +13244,46 @@ if (document.readyState === 'loading') {
             const chatHtml = buildTripChatHtml(trip);
             const chatCount = Array.isArray(trip.chat) ? trip.chat.length : 0;
 
+            // PIN + acciones de control (llegada / saltar PIN / destino) — visibles en el panel del mapa
+            const pinCode = trip.pin != null && trip.pin !== '' ? String(trip.pin) : '';
+            const pinArrived = !!trip.driverArrived;
+            const pinSkipped = !!(trip.pinSkippedByStaff || trip.pinSkippedByDriver);
+            let pinStateHtml = '';
+            if (trip.status === 'accepted' && !pinArrived) {
+                pinStateHtml = '<span class="staff-live-pin-state">En camino al origen</span>';
+            } else if (trip.status === 'accepted' && pinArrived) {
+                pinStateHtml = '<span class="staff-live-pin-state staff-live-pin-state--wait">En origen · esperando PIN</span>';
+            } else if (trip.status === 'in_progress') {
+                pinStateHtml = pinSkipped
+                    ? `<span class="staff-live-pin-state staff-live-pin-state--warn">Iniciado sin PIN${trip.pinSkippedByName ? ` · ${escapeViewerText(trip.pinSkippedByName)}` : ''}</span>`
+                    : '<span class="staff-live-pin-state staff-live-pin-state--ok">Viaje en curso</span>';
+            }
+
+            let pinActionsHtml = '';
+            if (isStaffUser(currentUser, window.userProfile) && trip.driverId) {
+                if (trip.status === 'accepted') {
+                    if (!pinArrived) {
+                        pinActionsHtml = `
+                            <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-live-pin-arrived">
+                                <i class="fas fa-map-marker-alt"></i> Marcar llegada
+                            </button>
+                            <button type="button" class="staff-live-trip-btn staff-live-trip-btn--warn" id="staff-live-pin-full">
+                                <i class="fas fa-forward"></i> Llegada + iniciar sin PIN
+                            </button>`;
+                    } else {
+                        pinActionsHtml = `
+                            <button type="button" class="staff-live-trip-btn staff-live-trip-btn--warn" id="staff-live-pin-start">
+                                <i class="fas fa-forward"></i> Iniciar sin PIN
+                            </button>`;
+                    }
+                } else if (trip.status === 'in_progress' && !trip.driverArrivedDestination) {
+                    pinActionsHtml = `
+                        <button type="button" class="staff-live-trip-btn staff-live-trip-btn--emerald" id="staff-live-pin-dest">
+                            <i class="fas fa-flag-checkered"></i> Llegó al destino
+                        </button>`;
+                }
+            }
+
             const sheet = document.createElement('div');
             sheet.id = 'staff-live-trip-sheet';
             sheet.className = `staff-live-trip-sheet ${phaseClass}`.trim();
@@ -12401,6 +13318,21 @@ if (document.readyState === 'loading') {
                         <p class="staff-live-trip-route-arrow"><i class="fas fa-arrow-down"></i> ${escapeViewerText(pointsLabel)}</p>
                         <p><i class="fas fa-flag-checkered text-red-500 text-[10px]"></i> ${escapeViewerText(dest)}</p>
                     </div>
+                    <div class="staff-live-pin-box" id="staff-live-pin-box">
+                        <div class="staff-live-pin-head">
+                            <span><i class="fas fa-key"></i> PIN del pasajero</span>
+                            ${pinStateHtml}
+                        </div>
+                        <div class="staff-live-pin-code-row">
+                            ${pinCode
+                                ? `<span class="staff-live-pin-code" id="staff-live-pin-code">${escapeViewerText(pinCode)}</span>
+                                   <button type="button" class="staff-live-trip-btn staff-live-pin-copy" id="staff-live-pin-copy" title="Copiar PIN">
+                                     <i class="fas fa-copy"></i> Copiar
+                                   </button>`
+                                : `<span class="staff-live-pin-miss">${trip.driverId ? 'Sin PIN en el viaje' : 'Sin conductor'}</span>`}
+                        </div>
+                        ${pinActionsHtml ? `<div class="staff-live-pin-actions">${pinActionsHtml}</div>` : ''}
+                    </div>
                     <div class="staff-live-trip-chat">
                         <button type="button" class="staff-live-trip-chat-toggle" id="staff-live-trip-chat-toggle" aria-expanded="true">
                             <span><i class="fas fa-comments"></i> Chat del viaje${chatCount ? ` · ${chatCount}` : ''}</span>
@@ -12424,7 +13356,7 @@ if (document.readyState === 'loading') {
                             <i class="fas fa-id-badge"></i> Ficha conductor
                         </button>
                     </div>
-                    <p class="staff-live-trip-hint">${phaseLegend}. Ruta o precio reemplazan esta ficha (no se apilan).</p>
+                    <p class="staff-live-trip-hint">${phaseLegend}. Usa los botones de PIN arriba para marcar llegada o iniciar sin PIN.</p>
                 </div>`;
             document.body.appendChild(sheet);
 
@@ -12444,6 +13376,18 @@ if (document.readyState === 'loading') {
             };
             centerOnDriver();
 
+            const reopenLiveSheet = async () => {
+                try {
+                    const fresh = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id));
+                    if (fresh.exists()) {
+                        window.showStaffLiveTripMapSheet({ id: fresh.id, ...fresh.data() }, {
+                            driverId,
+                            driverName
+                        });
+                    }
+                } catch (_) {}
+            };
+
             sheet.querySelector('#staff-live-trip-close')?.addEventListener('click', () => sheet.remove());
             sheet.querySelector('#staff-live-trip-center')?.addEventListener('click', () => centerOnDriver());
             sheet.querySelector('#staff-live-trip-route')?.addEventListener('click', () => {
@@ -12455,6 +13399,35 @@ if (document.readyState === 'loading') {
             sheet.querySelector('#staff-live-trip-profile')?.addEventListener('click', () => {
                 window.staffParkMapSheetsForModal?.(true);
                 window.showDriverFullDetails?.(driverId, driverName);
+            });
+            sheet.querySelector('#staff-live-pin-copy')?.addEventListener('click', async () => {
+                if (!pinCode) return;
+                try {
+                    await navigator.clipboard.writeText(pinCode);
+                    window.showToast?.(`PIN ${pinCode} copiado.`, 'success');
+                } catch (_) {
+                    window.showToast?.(`PIN: ${pinCode}`, 'success');
+                }
+            });
+            sheet.querySelector('#staff-live-pin-arrived')?.addEventListener('click', async () => {
+                await window.staffSkipTripPin?.(trip.id, 'arrived');
+                sheet.remove();
+                await reopenLiveSheet();
+            });
+            sheet.querySelector('#staff-live-pin-full')?.addEventListener('click', async () => {
+                await window.staffSkipTripPin?.(trip.id, 'full');
+                sheet.remove();
+                await reopenLiveSheet();
+            });
+            sheet.querySelector('#staff-live-pin-start')?.addEventListener('click', async () => {
+                await window.staffSkipTripPin?.(trip.id, 'start');
+                sheet.remove();
+                await reopenLiveSheet();
+            });
+            sheet.querySelector('#staff-live-pin-dest')?.addEventListener('click', async () => {
+                await window.staffMarkDestinationArrival?.(trip.id);
+                sheet.remove();
+                await reopenLiveSheet();
             });
             sheet.querySelector('#staff-live-trip-chat-toggle')?.addEventListener('click', () => {
                 const body = sheet.querySelector('#staff-live-trip-chat-body');
@@ -26200,24 +27173,62 @@ window.cancelSetupAndLogout = () => {
             }
         };
 
+        async function refreshActiveTripFromServer() {
+            const tripId = (activeTrip && activeTrip.id)
+                || (window.currentActiveTripData && window.currentActiveTripData.id)
+                || getStoredClientTripId();
+            if (!tripId) return null;
+            try {
+                const freshSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId));
+                if (freshSnap.exists()) {
+                    activeTrip = { id: freshSnap.id, ...freshSnap.data() };
+                    window.currentActiveTripData = { ...activeTrip };
+                    return activeTrip;
+                }
+            } catch (_) {}
+            return activeTrip || null;
+        }
+
+        async function startActiveTripAfterPin({ skipped = false, skipBy = 'driver' } = {}) {
+            if (!activeTrip?.id) throw new Error('Sin viaje activo');
+            const patch = {
+                status: 'in_progress',
+                startedAt: serverTimestamp(),
+                routeLegIndex: 1,
+                driverArrived: true
+            };
+            if (skipped) {
+                patch.pinSkippedByDriver = skipBy === 'driver';
+                patch.pinSkippedByStaff = skipBy === 'staff';
+                patch.pinSkippedAt = serverTimestamp();
+                patch.pinSkipMode = 'driver_ui';
+                if (skipBy === 'driver') {
+                    patch.pinSkippedBy = currentUser?.uid || null;
+                    patch.pinSkippedByName = window.userProfile?.name || 'Conductor';
+                }
+            }
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), patch);
+            activeTrip = { ...activeTrip, ...patch, status: 'in_progress', routeLegIndex: 1, driverArrived: true };
+            window.currentActiveTripData = { ...activeTrip };
+            const correctedTrip = await ensureTripOriginAtPinStart(activeTrip);
+            if (correctedTrip) {
+                activeTrip = { ...activeTrip, ...correctedTrip };
+                window.currentActiveTripData = { ...activeTrip };
+            }
+            ensureInProgressLiveTracking(activeTrip);
+            ensureDriverTripNavRoute(activeTrip);
+            syncDriverTripControls?.(activeTrip);
+            window.syncTripFloatPanels?.(activeTrip);
+        }
+
         window.verifyPin = async () => {
             let entered = document.getElementById('driver-pin-input')?.value?.trim();
             if (!entered) {
                 return window.showToast("Ingresa el PIN que te dio el pasajero.");
             }
 
-            // Defensive recovery: if activeTrip is missing or stale right after arrived, fetch fresh
             if (!activeTrip || !activeTrip.id || activeTrip.pin == null) {
-                const tripId = (activeTrip && activeTrip.id) || (window.currentActiveTripData && window.currentActiveTripData.id) || getStoredClientTripId();
-                if (tripId) {
-                    try {
-                        const freshSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId));
-                        if (freshSnap.exists()) {
-                            activeTrip = { id: freshSnap.id, ...freshSnap.data() };
-                            window.currentActiveTripData = { ...activeTrip };
-                        }
-                    } catch (_) {}
-                }
+                await refreshActiveTripFromServer();
             }
 
             if (!activeTrip) {
@@ -26228,7 +27239,6 @@ window.cancelSetupAndLogout = () => {
                 return window.showToast("PIN incorrecto. Pide el código al pasajero.");
             }
 
-            // Guard: must be in arrived state
             if (activeTrip.status !== 'accepted' || !activeTrip.driverArrived) {
                 if (activeTrip.status === 'in_progress') {
                     document.getElementById('pin-input-group')?.classList.add('hidden');
@@ -26238,26 +27248,42 @@ window.cancelSetupAndLogout = () => {
             }
 
             try {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), {
-                    status: 'in_progress',
-                    startedAt: serverTimestamp(),
-                    routeLegIndex: 1,
-                });
-                activeTrip = { ...activeTrip, status: 'in_progress', routeLegIndex: 1 };
-                window.currentActiveTripData = { ...activeTrip };
-                const correctedTrip = await ensureTripOriginAtPinStart(activeTrip);
-                if (correctedTrip) {
-                    activeTrip = { ...activeTrip, ...correctedTrip };
-                    window.currentActiveTripData = { ...activeTrip };
-                }
-                ensureInProgressLiveTracking(activeTrip);
-                ensureDriverTripNavRoute(activeTrip);
-                syncDriverTripControls?.(activeTrip);
-
+                await startActiveTripAfterPin({ skipped: false });
                 window.showToast("¡Viaje iniciado! Sigue la ruta al destino.", "success");
             } catch (e) {
                 console.error('verifyPin error:', e);
                 window.showToast("Error al iniciar el viaje.");
+            }
+        };
+
+        /** Conductor: iniciar viaje sin PIN (como antes), tras marcar llegada. */
+        window.driverSkipPinAndStart = async () => {
+            if (window.userProfile?.role !== 'driver') {
+                return window.showToast('Solo el conductor puede usar este botón.');
+            }
+            await refreshActiveTripFromServer();
+            if (!activeTrip?.id) {
+                return window.showToast('No hay viaje activo.');
+            }
+            if (activeTrip.status === 'in_progress') {
+                document.getElementById('pin-input-group')?.classList.add('hidden');
+                return window.showToast('El viaje ya está en curso.');
+            }
+            if (activeTrip.status !== 'accepted') {
+                return window.showToast('El viaje no está listo para iniciar.');
+            }
+            if (!activeTrip.driverArrived) {
+                return window.showToast('Primero marca ¡HE LLEGADO! y luego puedes iniciar sin PIN.');
+            }
+            if (!confirm('¿Iniciar el viaje SIN PIN del pasajero?\n\nÚsalo solo si no puede darte el código ahora.')) {
+                return;
+            }
+            try {
+                await startActiveTripAfterPin({ skipped: true, skipBy: 'driver' });
+                window.showToast('Viaje iniciado sin PIN. Sigue al destino.', 'success');
+            } catch (e) {
+                console.error('driverSkipPinAndStart:', e);
+                window.showToast(e?.message || 'No se pudo iniciar sin PIN.');
             }
         };
 
@@ -26634,7 +27660,12 @@ window.cancelSetupAndLogout = () => {
                 // Nota: para queries OR complejas se puede usar dos queries, pero para simplicidad filtramos en cliente
                 const snap = await getDocs(query(tripsRef, orderBy('completedAt', 'desc'), limit(30)));
                 let trips = snap.docs.map(d => ({id: d.id, ...d.data()}))
-                    .filter(t => t.status === 'completed' && t.ratedByClient && t.ratedByDriver);
+                    .filter(t => {
+                        if (t.status !== 'completed') return false;
+                        // Staff ve completados aunque falte calificación (para poder calificar al conductor designado)
+                        if (isAdminOrSup) return true;
+                        return t.ratedByClient && t.ratedByDriver;
+                    });
 
                 // Solo filtrar por usuario si NO es supervisor/admin (para que sup vean todos los pasados)
                 if (!isAdminOrSup) {
@@ -26684,7 +27715,13 @@ window.cancelSetupAndLogout = () => {
                                 </details>
                             ` : ''}
 
-                            <div class="flex gap-2 mt-3">
+                            <div class="flex gap-2 mt-3 flex-wrap">
+                                ${isAdminOrSup && t.driverId ? `
+                                    <button onclick="window.staffOpenRateTrip('${t.id}')"
+                                            class="flex-1 min-w-[7rem] bg-amber-500 text-black py-2 rounded-xl text-xs font-black">
+                                        ⭐ ${!t.ratedByClient ? 'Calificar conductor' : (!t.ratedByDriver ? 'Calificar pasajero' : 'Calificar (staff)')}
+                                    </button>
+                                ` : ''}
                                 <button onclick="window.showFacturaForTrip('${t.id}', '${isMineAsClient ? (t.clientEmail || '') : (t.driverEmail || '')}')" 
                                         class="flex-1 bg-purple-600 text-white py-2 rounded-xl text-xs font-black">
                                     📄 Ver Factura
@@ -26699,6 +27736,9 @@ window.cancelSetupAndLogout = () => {
                                     </button>
                                 ` : ''}
                             </div>
+                            ${isAdminOrSup && t.driverId && (!t.ratedByClient || !t.ratedByDriver)
+                                ? `<p class="text-[10px] text-amber-300/90 mt-2 font-bold">Falta calificación: ${!t.ratedByClient ? 'conductor' : ''}${!t.ratedByClient && !t.ratedByDriver ? ' y ' : ''}${!t.ratedByDriver ? 'pasajero' : ''}</p>`
+                                : ''}
                         </div>
                     `;
                 }
@@ -26720,9 +27760,9 @@ window.cancelSetupAndLogout = () => {
             try {
                 const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
                 const past = snap.docs.map(d => ({id: d.id, ...d.data()}))
-                    .filter(t => t.status === 'completed' && t.ratedByClient && t.ratedByDriver)
+                    .filter(t => t.status === 'completed')
                     .sort((a,b) => (b.completedAt?.seconds || 0) - (a.completedAt?.seconds || 0))
-                    .slice(0, 20);
+                    .slice(0, 30);
 
                 if (past.length === 0) {
                     container.innerHTML = `<p class="text-center text-gray-400 py-10">No hay viajes completados.</p>`;
@@ -26732,12 +27772,15 @@ window.cancelSetupAndLogout = () => {
                 let html = `<div class="mb-3"><button onclick="window.renderAdminTab('trips')" class="text-xs px-3 py-1 bg-gray-700 rounded">← Volver a Activos</button></div>`;
                 past.forEach(t => {
                     const chatCount = (t.chat || []).length;
+                    const needRate = t.driverId && (!t.ratedByClient || !t.ratedByDriver);
                     html += `
                         <div class="bg-gray-800 p-4 rounded-2xl mb-3 border border-gray-700">
                             <div class="text-sm font-black">${t.clientName} → ${t.driverName || '—'} • L.${t.price || '—'}</div>
                             <div class="text-xs text-gray-400">${t.origin} → ${t.destination}</div>
                             ${chatCount ? `<div class="text-emerald-400 text-xs mt-1">${chatCount} mensajes en chat</div>` : ''}
-                            <div class="flex gap-2 mt-2">
+                            ${needRate ? `<div class="text-amber-300 text-xs mt-1 font-bold">Falta calificación${!t.ratedByClient ? ' del conductor' : ''}${!t.ratedByClient && !t.ratedByDriver ? ' y' : ''}${!t.ratedByDriver ? ' del pasajero' : ''}</div>` : ''}
+                            <div class="flex gap-2 mt-2 flex-wrap">
+                                ${t.driverId ? `<button onclick="window.staffOpenRateTrip('${t.id}')" class="flex-1 min-w-[7rem] bg-amber-500 text-black py-2 rounded-xl text-xs font-black">⭐ ${!t.ratedByClient ? 'Calificar conductor' : 'Calificar (staff)'}</button>` : ''}
                                 <button onclick="window.showFacturaForTrip('${t.id}')" class="flex-1 bg-purple-600 text-white py-2 rounded-xl text-xs font-black">📄 Ver Factura</button>
                                 <button onclick="window.sendInvoiceForTrip('${t.id}')" class="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-xs font-black">📨 Enviar Factura</button>
                             </div>
@@ -28047,7 +29090,8 @@ window.cancelSetupAndLogout = () => {
             );
 
             // Heartbeat: mantiene actualizado el updatedAt aunque no haya movimiento GPS.
-            // Esto ayuda mucho a que los pasajeros vean al conductor "en línea" solo con iniciar sesión.
+            // Si falta lat/lng (permiso/GPS lento), fuerza un getCurrentPosition para no
+            // quedar "online" sin coordenadas (admin no lo ve en el mapa).
             if (window.driverHeartbeatInterval) clearInterval(window.driverHeartbeatInterval);
             window.driverHeartbeatInterval = setInterval(() => {
                 if (!currentUser || !window.driverLocationWatchId) return;
@@ -28055,26 +29099,70 @@ window.cancelSetupAndLogout = () => {
                 const hbZone = getZoneById(hbZoneId);
                 const hbVehicle = getActiveVehicle(window.userProfile);
                 const hbNow = Date.now();
-                const hbPatch = {
-                    online: true,
-                    appVisible: isDriverAppForeground(),
-                    appVisibleAt: hbNow,
-                    updatedAt: hbNow,
-                    serviceZoneId: hbZoneId,
-                    serviceZoneName: hbZone?.name || null,
-                    vehicleType: hbVehicle?.type || window.userProfile?.vehicleType || 'auto',
-                    vehiclePlate: hbVehicle?.vehicle?.plate || window.userProfile?.vehicle?.plate || null
+                const writeHb = (extra = {}) => {
+                    const hbPatch = {
+                        online: true,
+                        appVisible: isDriverAppForeground(),
+                        appVisibleAt: hbNow,
+                        updatedAt: Date.now(),
+                        serviceZoneId: hbZoneId,
+                        serviceZoneName: hbZone?.name || null,
+                        vehicleType: hbVehicle?.type || window.userProfile?.vehicleType || 'auto',
+                        vehiclePlate: hbVehicle?.vehicle?.plate || window.userProfile?.vehicle?.plate || null,
+                        name: window.userProfile?.name || '',
+                        phone: normalizeHondurasPhone(window.userProfile?.phone || ''),
+                        approvalStatus: window.userProfile?.approvalStatus || 'approved',
+                        ...extra
+                    };
+                    if (hbPatch.lat == null && window.currentDriverPos?.lat != null) {
+                        hbPatch.lat = window.currentDriverPos.lat;
+                        hbPatch.lng = window.currentDriverPos.lng;
+                        if (window.currentDriverHeading != null) hbPatch.heading = window.currentDriverHeading;
+                    }
+                    setDoc(
+                        doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid),
+                        hbPatch,
+                        { merge: true }
+                    ).catch(() => {});
                 };
+
                 if (window.currentDriverPos?.lat != null && window.currentDriverPos?.lng != null) {
-                    hbPatch.lat = window.currentDriverPos.lat;
-                    hbPatch.lng = window.currentDriverPos.lng;
-                    if (window.currentDriverHeading != null) hbPatch.heading = window.currentDriverHeading;
+                    writeHb({
+                        lat: window.currentDriverPos.lat,
+                        lng: window.currentDriverPos.lng,
+                        heading: window.currentDriverHeading ?? null
+                    });
+                    return;
                 }
-                setDoc(
-                    doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid),
-                    hbPatch,
-                    { merge: true }
-                ).catch(() => {});
+
+                // Sin posición en memoria: pedir GPS ya (crítico en viaje activo)
+                if (navigator.geolocation?.getCurrentPosition) {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                            const lat = pos.coords.latitude;
+                            const lng = pos.coords.longitude;
+                            const heading = pos.coords.heading;
+                            window.currentDriverPos = { lat, lng };
+                            if (heading != null && Number.isFinite(heading)) {
+                                window.currentDriverHeading = heading;
+                            }
+                            writeHb({
+                                lat,
+                                lng,
+                                heading: Number.isFinite(heading) ? heading : null,
+                                accuracy: pos.coords.accuracy != null ? Number(pos.coords.accuracy) : null
+                            });
+                        },
+                        () => writeHb(),
+                        {
+                            enableHighAccuracy: true,
+                            maximumAge: 15000,
+                            timeout: 10000
+                        }
+                    );
+                } else {
+                    writeHb();
+                }
             }, 12000);
         };
 
@@ -29375,11 +30463,15 @@ window.addEventListener('map-route-trigger', () => {
                 pastBody = '<p class="ops-toolbar-hint">No hay viajes pasados registrados.</p>';
             } else {
                 pastTrips.forEach((t) => {
+                    const needRate = t.driverId && (!t.ratedByClient || !t.ratedByDriver);
                     const actions = [
+                        needRate
+                            ? U.btn(!t.ratedByClient ? 'Calificar conductor' : 'Calificar pasajero', `window.staffOpenRateTrip('${t.id}')`, { variant: 'amber', icon: 'fa-star' })
+                            : (t.driverId ? U.btn('Calificar (staff)', `window.staffOpenRateTrip('${t.id}')`, { variant: 'ghost', icon: 'fa-star' }) : ''),
                         U.btn('Factura', `window.sendInvoiceForTrip('${t.id}')`, { variant: 'primary', icon: 'fa-paper-plane' }),
                         U.btn('Ver', `window.showFacturaForTrip('${t.id}')`, { variant: 'ghost', icon: 'fa-eye' }),
                         U.btn('WhatsApp', `window.sendFacturaViaWhatsAppById('${t.id}')`, { variant: 'emerald', icon: 'fa-whatsapp' })
-                    ].join('');
+                    ].filter(Boolean).join('');
                     pastBody += renderOpsTripCard(t, { actionsHtml: actions, showRoute: true, maxChatHeight: '8rem' });
                 });
             }
@@ -30823,26 +31915,39 @@ window.addEventListener('map-route-trigger', () => {
         };
 
         window.sendQuickNotification = async (targetRole, btn) => {
+            const isStaff = isAdminUser(currentUser, window.userProfile)
+                || window.userProfile?.role === 'supervisor';
+            if (!isStaff) return alert('Sin permiso.');
+
             const msg = document.getElementById('quick-notify-msg').value.trim();
-            if (!msg) return alert("Escribe un mensaje");
+            if (!msg) return alert('Escribe un mensaje');
 
             btn.disabled = true;
-            btn.innerText = "ENVIANDO...";
+            btn.innerText = 'ENVIANDO...';
 
             try {
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
-                    targetRole: targetRole,
+                    targetRole: targetRole || 'all',
                     message: msg,
+                    title: 'HonduRaite',
+                    body: msg,
+                    broadcast: true,
+                    broadcastPush: true,
+                    sendPush: true,
+                    pushDispatched: false,
+                    type: 'admin_notify',
                     sentBy: currentUser.uid,
                     sentByName: window.getSenderDisplayName(),
-                    createdAt: serverTimestamp()
+                    createdAt: serverTimestamp(),
+                    createdAtMs: Date.now()
                 });
-                window.showToast("Notificación enviada correctamente.", "success");
+                window.showToast('Notificación enviada (push + campana).', 'success');
                 btn.closest('.fixed').remove();
-            } catch(e) {
-                alert("Error al enviar");
+            } catch (e) {
+                console.error(e);
+                alert('Error al enviar');
                 btn.disabled = false;
-                btn.innerText = "ENVIAR";
+                btn.innerText = 'ENVIAR';
             }
         };
 

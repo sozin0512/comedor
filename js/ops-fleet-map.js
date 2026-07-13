@@ -145,28 +145,118 @@ function resolveFleetVehicleColor(vehicleType = 'auto', phase = null) {
     return '#3b82f6';
 }
 
+/** Inyecta CSS del humo una sola vez (partículas detrás del vehículo). */
+function ensureFleetSmokeStyles() {
+    if (document.getElementById('fleet-smoke-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'fleet-smoke-styles';
+    style.textContent = `
+      .fleet-marker-root {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        overflow: visible;
+      }
+      .fleet-marker-root img {
+        position: relative;
+        z-index: 2;
+        display: block;
+        object-fit: contain;
+      }
+      /* Humo sale de la parte trasera del vehículo (local -Y al rotar con heading) */
+      .fleet-smoke {
+        position: absolute;
+        left: 50%;
+        top: 55%;
+        width: 0;
+        height: 0;
+        z-index: 1;
+        transform: translate(-50%, 0);
+        pointer-events: none;
+      }
+      .fleet-smoke span {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 10px;
+        height: 10px;
+        margin-left: -5px;
+        margin-top: -5px;
+        border-radius: 50%;
+        opacity: 0;
+        background: radial-gradient(circle, var(--smoke-color, #94a3b8) 0%, transparent 70%);
+        box-shadow: 0 0 6px var(--smoke-color, #94a3b8);
+        animation: fleet-smoke-puff 1.35s ease-out infinite;
+      }
+      .fleet-smoke span:nth-child(1) { animation-delay: 0s; }
+      .fleet-smoke span:nth-child(2) { animation-delay: 0.35s; width: 12px; height: 12px; margin-left: -6px; margin-top: -6px; }
+      .fleet-smoke span:nth-child(3) { animation-delay: 0.7s; width: 14px; height: 14px; margin-left: -7px; margin-top: -7px; }
+      .fleet-smoke span:nth-child(4) { animation-delay: 1.05s; width: 11px; height: 11px; margin-left: -5.5px; margin-top: -5.5px; }
+      @keyframes fleet-smoke-puff {
+        0% {
+          transform: translate(0, 0) scale(0.35);
+          opacity: 0.85;
+        }
+        55% {
+          opacity: 0.45;
+        }
+        100% {
+          transform: translate(var(--sx, -6px), var(--sy, 22px)) scale(1.65);
+          opacity: 0;
+        }
+      }
+      .fleet-smoke--to_pickup { --smoke-color: #10b981; }
+      .fleet-smoke--at_pickup { --smoke-color: #8b5cf6; }
+      .fleet-smoke--in_progress { --smoke-color: #ef4444; }
+      .fleet-smoke--idle { --smoke-color: #60a5fa; }
+      .fleet-smoke--to_pickup span:nth-child(2) { --sx: 4px; --sy: 26px; }
+      .fleet-smoke--to_pickup span:nth-child(3) { --sx: -10px; --sy: 28px; }
+      .fleet-smoke--to_pickup span:nth-child(4) { --sx: 8px; --sy: 20px; }
+      .fleet-smoke--at_pickup span:nth-child(2) { --sx: 5px; --sy: 24px; }
+      .fleet-smoke--at_pickup span:nth-child(3) { --sx: -9px; --sy: 30px; }
+      .fleet-smoke--at_pickup span:nth-child(4) { --sx: 7px; --sy: 18px; }
+      .fleet-smoke--in_progress span:nth-child(2) { --sx: 6px; --sy: 28px; }
+      .fleet-smoke--in_progress span:nth-child(3) { --sx: -12px; --sy: 32px; }
+      .fleet-smoke--in_progress span:nth-child(4) { --sx: 10px; --sy: 22px; }
+    `;
+    document.head.appendChild(style);
+}
+
 function buildCarMarkerContent(vehicleType = 'auto', heading = 0, onTrip = false, phase = null) {
+    ensureFleetSmokeStyles();
     const type = vehicleType || 'auto';
     const phaseStyle = getFleetPhaseStyle(phase);
     const active = onTrip || !!phaseStyle;
+    const smokePhase = phase || (onTrip ? 'to_pickup' : 'idle');
+
     const wrap = document.createElement('div');
-    wrap.style.width = active ? '48px' : '42px';
-    wrap.style.height = active ? '40px' : '34px';
-    wrap.style.display = 'flex';
-    wrap.style.alignItems = 'center';
-    wrap.style.justifyContent = 'center';
-    wrap.style.transform = `rotate(${heading}deg)`;
+    wrap.className = 'fleet-marker-root';
+    wrap.style.width = active ? '56px' : '46px';
+    wrap.style.height = active ? '64px' : '48px';
+    wrap.style.transform = `rotate(${heading || 0}deg)`;
     wrap.style.transition = 'transform 0.15s linear';
-    if (phaseStyle) {
-        // Halo por estado (no humo rojo genérico)
-        wrap.style.filter = `drop-shadow(${phaseStyle.glow})`;
-    }
 
     const iconColor = resolveFleetVehicleColor(type, phase);
     const iconUrl = (window.createVehicleIcon || function () {
         return 'data:image/svg+xml;base64,' + btoa('<svg width="40" height="26"><text x="20" y="18" font-size="20" text-anchor="middle">🚕</text></svg>');
     })(type, iconColor);
-    wrap.innerHTML = `<img src="${iconUrl}" style="width:40px; height:28px; object-fit:contain;" />`;
+
+    // Humo de colores “saliendo” del vehículo (detrás al rotar con heading)
+    const smoke = document.createElement('div');
+    smoke.className = `fleet-smoke fleet-smoke--${smokePhase}`;
+    smoke.setAttribute('aria-hidden', 'true');
+    smoke.innerHTML = '<span></span><span></span><span></span><span></span>';
+
+    const img = document.createElement('img');
+    img.src = iconUrl;
+    img.alt = '';
+    img.style.width = active ? '42px' : '38px';
+    img.style.height = active ? '30px' : '26px';
+
+    wrap.appendChild(smoke);
+    wrap.appendChild(img);
     return wrap;
 }
 
@@ -325,6 +415,60 @@ function paintFleetDriver(uid, data) {
     );
 }
 
+/**
+ * Si el conductor está en viaje pero su drivers_location no trae lat/lng
+ * (GPS apagado, permiso, app en background), igual lo mostramos en el mapa
+ * con la posición del viaje (origen o destino) para que admin/sup no “pierdan” la flota.
+ */
+function paintActiveTripFallbacks(visibleIds) {
+    activeTripDrivers.forEach((meta, driverId) => {
+        if (!driverId || visibleIds.has(driverId)) return;
+        const trip = meta.trip || {};
+        let lat = null;
+        let lng = null;
+        let approxLabel = 'posición aprox.';
+
+        if (meta.status === 'in_progress' && trip.destinationLat != null && trip.destinationLng != null) {
+            // En ruta: si no hay GPS, anclar cerca del destino como referencia débil
+            lat = Number(trip.destinationLat);
+            lng = Number(trip.destinationLng);
+            approxLabel = 'SIN GPS · ref. destino';
+        }
+        if ((lat == null || lng == null) && trip.originLat != null && trip.originLng != null) {
+            lat = Number(trip.originLat);
+            lng = Number(trip.originLng);
+            approxLabel = meta.status === 'accepted' && meta.driverArrived
+                ? 'SIN GPS · en origen (viaje)'
+                : 'SIN GPS · ref. recogida';
+        }
+        if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+        const user = (window.allUsersData || []).find((x) => x.uid === driverId) || {};
+        const name = (user.name || trip.driverName || 'Conductor').toString().trim();
+        const phone = user.phone || trip.driverPhone || null;
+        const phase = getFleetTripPhase(meta);
+        const title = `Conductor: ${name} • ${approxLabel}${phone ? ` • ${phone}` : ''}`;
+
+        upsertFleetMarker(
+            driverId,
+            lat,
+            lng,
+            name,
+            trip.driverVehicleType || user.vehicleType || 'auto',
+            0,
+            phone,
+            {
+                onTrip: true,
+                phase,
+                tripMeta: meta,
+                forceReposition: true,
+                title
+            }
+        );
+        visibleIds.add(driverId);
+    });
+}
+
 export function renderOpsFleetMap(snap) {
     if (!window.gMap || !window.mapLoaded) return;
     if (!viewerCanSeeFleet()) {
@@ -341,6 +485,9 @@ export function renderOpsFleetMap(snap) {
         visibleIds.add(uid);
         paintFleetDriver(uid, data);
     });
+
+    // Conductores en viaje activo sin GPS en Firebase
+    paintActiveTripFallbacks(visibleIds);
 
     const activeSim = window.tripSimDriverUid || (window.lastSimTrip ? window.lastSimTrip.driverId : null);
     if (activeSim) visibleIds.add(activeSim);

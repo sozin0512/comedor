@@ -22,6 +22,7 @@ const SUP_TAB_META = {
     trips: { label: 'Viajes', icon: 'fa-route', group: 'ops' },
     reports: { label: 'Reportes', icon: 'fa-flag', group: 'ops' },
     tickets: { label: 'Tickets', icon: 'fa-ticket-alt', group: 'ops' },
+    notify: { label: 'Notificar', icon: 'fa-bell', group: 'ops' },
     deposits: { label: 'Depósitos', icon: 'fa-piggy-bank', group: 'finance' },
     payouts: { label: 'Pagos', icon: 'fa-hand-holding-usd', group: 'finance' },
     promotions: { label: 'Promociones', icon: 'fa-gift', group: 'finance' }

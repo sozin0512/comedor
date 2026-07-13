@@ -445,9 +445,8 @@ export function updateServiceZoneSummary() {
 }
 
 function shouldHideMapLocationChip() {
-    if (typeof window.canViewDemandHeatmap === "function" && window.canViewDemandHeatmap()) {
-        return true;
-    }
+    // No ocultar el chip solo por poder ver el heatmap: conductores también deben cambiar ciudad.
+    // Solo ocultar si la leyenda del heatmap está abierta y tapa el área.
     const legend = document.getElementById("demand-heatmap-legend");
     return !!legend && !legend.classList.contains("hidden");
 }

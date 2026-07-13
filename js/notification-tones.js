@@ -626,6 +626,8 @@ export function buildToneOptionsHtml(selectedId = '') {
 export function installNotificationTonesApi() {
     initCustomTonesFromCache();
 
+    window.resolveToneEventFromPush = resolveToneEventFromPush;
+    window.playEventNotificationTone = (eventId) => playEventTone(eventId);
     window.HonduTones = {
         catalog: TONE_CATALOG,
         events: TONE_EVENTS,

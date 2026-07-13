@@ -19,11 +19,12 @@ const LocalNotifications = registerPlugin('LocalNotifications');
  * Canales v2: Android no permite cambiar sound/vibration de un canal ya creado.
  * Subir el id fuerza canales nuevos con sonido + vibración.
  */
-// v3: canales con sonido desactivado a nivel sistema — el tono lo pone la app (Web Audio)
-export const HONDU_RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v3';
-const HONDU_DEFAULT_CHANNEL_ID = 'hondu_default_v3';
-// Canales solo para primer plano: sin sound del SO (evita el “ping” del celular)
-const HONDU_FG_LOCAL_CHANNEL_ID = 'hondu_fg_local_v3';
+// v4: canales con sonido propio en res/raw (hondu_ride / hondu_alert).
+// Android solo usa archivos en res/raw cuando la app está en segundo plano.
+export const HONDU_RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v4';
+const HONDU_DEFAULT_CHANNEL_ID = 'hondu_default_v4';
+// Primer plano: sin sound del SO (el tono configurado lo pone notification-tones.js)
+const HONDU_FG_LOCAL_CHANNEL_ID = 'hondu_fg_local_v4';
 
 export function isAndroidFcmConfigured() {
     return APP_CONFIG.androidFcmEnabled === true;
@@ -51,14 +52,14 @@ function isRideAlertData(data = {}) {
 async function ensureAndroidPushChannels() {
     if (!isCapacitorAndroid()) return;
 
+    // sound = nombre del archivo en android/app/src/main/res/raw/ sin extensión
     const rideChannel = {
         id: HONDU_RIDE_ALERT_CHANNEL_ID,
         name: 'Viajes HonduRaite',
-        description: 'Ofertas y demanda. Vibración fuerte. El tono de la app se oye con la app abierta.',
+        description: 'Ofertas y demanda con tono HonduRaite + vibración fuerte.',
         importance: 5,
         visibility: 1,
-        // Sin 'default' del teléfono: preferimos tono de la app en foreground
-        sound: undefined,
+        sound: 'hondu_ride',
         vibration: true,
         lights: true,
         lightColor: '#2563eb'
@@ -66,10 +67,10 @@ async function ensureAndroidPushChannels() {
     const defaultChannel = {
         id: HONDU_DEFAULT_CHANNEL_ID,
         name: 'Avisos HonduRaite',
-        description: 'Avisos generales. Vibración; tono propio de la app en primer plano.',
+        description: 'Avisos generales con tono HonduRaite + vibración.',
         importance: 5,
         visibility: 1,
-        sound: undefined,
+        sound: 'hondu_alert',
         vibration: true,
         lights: true,
         lightColor: '#2563eb'
@@ -77,8 +78,8 @@ async function ensureAndroidPushChannels() {
     const fgLocalChannel = {
         id: HONDU_FG_LOCAL_CHANNEL_ID,
         name: 'HonduRaite (app abierta)',
-        description: 'Banner local sin sonido del sistema. El tono lo genera HonduRaite.',
-        importance: 4,
+        description: 'Banner local. El tono configurado lo reproduce la app.',
+        importance: 5,
         visibility: 1,
         sound: undefined,
         vibration: true,
@@ -209,6 +210,30 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     } catch (_) {}
 }
 
+function playConfiguredToneFromPush(data = {}) {
+    try {
+        // Preferir tonos configurados por admin (Personalización)
+        if (typeof window.playEventNotificationTone === 'function') {
+            const eventId = typeof window.resolveToneEventFromPush === 'function'
+                ? window.resolveToneEventFromPush(data)
+                : (window.HonduTones?.resolveToneEventFromPush?.(data) || 'general');
+            window.playEventNotificationTone(eventId);
+            return;
+        }
+        if (window.HonduTones?.playEventTone) {
+            const eventId = window.HonduTones.resolveToneEventFromPush?.(data) || 'general';
+            window.HonduTones.playEventTone(eventId);
+            return;
+        }
+        const type = String(data.type || '');
+        if (type === 'chat') window.playChatSound?.();
+        else if (type === 'trip_offer' || type === 'ride_demand_alert') window.playDriverTripOfferSound?.();
+        else if (type === 'new_trip_staff') window.playStaffTripAlertSound?.();
+        else if (type.includes('deposit')) window.playDepositAlertSound?.();
+        else window.playNotificationSound?.();
+    } catch (_) {}
+}
+
 function routeForegroundPush(payload) {
     const data = payload.data || payload.notification?.data || {};
     const title = payload.notification?.title || data.title || payload.title || 'HonduRaite';
@@ -216,7 +241,10 @@ function routeForegroundPush(payload) {
     const tripId = data.tripId || null;
     const type = data.type || '';
 
-    // Android foreground: banner local SIN sonido del SO + vibración + tono propio de la app
+    // Siempre: tono configurado por el admin (Web Audio / archivo subido)
+    playConfiguredToneFromPush(data);
+
+    // Android foreground: banner local + vibración (el tono ya lo puso playConfiguredToneFromPush)
     if (isCapacitorAndroid()) {
         showAndroidForegroundLocalNotification({
             notification: { title, body },
@@ -241,7 +269,6 @@ function routeForegroundPush(payload) {
             force: true
         });
     } else if (type === 'ride_demand_alert') {
-        try { window.playRideDemandSound?.() || window.playDriverTripOfferSound?.(); } catch (_) {}
         notifyRideDemandAlert({
             title,
             body,

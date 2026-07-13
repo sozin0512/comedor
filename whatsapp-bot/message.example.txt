@@ -1,0 +1,7 @@
+Hola {name} 👋
+
+Te escribimos de *HonduRaite*.
+
+[Escribe aquí tu mensaje: nueva versión, promo, recordatorio, etc.]
+
+Si no quieres recibir avisos por este canal, responde STOP.

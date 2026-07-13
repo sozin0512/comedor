@@ -21,7 +21,8 @@ export function formatHondurasPhone(raw) {
 export function getWhatsAppLink(rawPhone, message = '') {
     const norm = normalizeHondurasPhone(rawPhone);
     if (!norm) return 'https://wa.me/';
-    let url = `https://wa.me/${norm}`;
-    if (message) url += `?text=${encodeURIComponent(message)}`;
-    return url;
+    const text = message != null ? String(message) : '';
+    if (!text) return `https://wa.me/${norm}`;
+    // encodeURIComponent mantiene emojis/acentos; api.whatsapp.com es más fiable en desktop
+    return `https://api.whatsapp.com/send?phone=${norm}&text=${encodeURIComponent(text)}`;
 }

@@ -1,0 +1,16 @@
+{
+  "projectId": "comedor-86278",
+  "appId": "comayagua-vip-pro-v4",
+  "role": "driver",
+  "csvPath": "out/phones-driver.csv",
+  "messageFile": "message.txt",
+  "delayMsMin": 30000,
+  "delayMsMax": 55000,
+  "batchSize": 25,
+  "batchPauseMs": 420000,
+  "limit": 20,
+  "dryRun": true,
+  "skipPhones": ["50495733866"],
+  "authDir": "auth_session",
+  "progressFile": "progress-last.json"
+}

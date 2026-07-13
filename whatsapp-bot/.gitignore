@@ -1,0 +1,12 @@
+node_modules/
+auth_session/
+auth_session_*/
+out/
+*.csv
+!recipients.example.csv
+message.txt
+config.local.json
+progress-*.json
+.wwebjs_auth/
+.wwebjs_cache/
+*.log

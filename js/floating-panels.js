@@ -427,8 +427,14 @@ export function bindFloatingEarningsPanel() {
 }
 
 const TRIP_FLOAT_MIN_KEY = 'honduber_trip_float_min_';
+/** Estado en memoria (web): localStorage a veces falla o el sync reabre el PIN si solo leemos LS. */
+const tripFloatMinMemory = Object.create(null);
 
 function isTripFloatMinimized(key) {
+    if (!key) return false;
+    if (Object.prototype.hasOwnProperty.call(tripFloatMinMemory, key)) {
+        return !!tripFloatMinMemory[key];
+    }
     try {
         return localStorage.getItem(TRIP_FLOAT_MIN_KEY + key) === '1';
     } catch (_) {
@@ -437,6 +443,8 @@ function isTripFloatMinimized(key) {
 }
 
 function setTripFloatMinimized(key, minimized) {
+    if (!key) return;
+    tripFloatMinMemory[key] = !!minimized;
     try {
         if (minimized) localStorage.setItem(TRIP_FLOAT_MIN_KEY + key, '1');
         else localStorage.removeItem(TRIP_FLOAT_MIN_KEY + key);
@@ -619,13 +627,17 @@ export function bindFloatingTripPanels() {
         const minimize = (e) => {
             e.preventDefault();
             e.stopPropagation();
+            if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
             const key = btn.dataset.tripFloatMin;
-            if (key) window.toggleTripFloatMinimized?.(key, true);
+            if (key) toggleTripFloatMinimized(key, true);
         };
-        // pointerup + click: iOS/Android a veces pierden click en paneles flotantes
-        btn.addEventListener('pointerdown', (e) => e.stopPropagation(), { passive: true });
-        btn.addEventListener('pointerup', minimize);
-        btn.addEventListener('click', minimize);
+        // capture + pointerdown/up/click: en web a veces el click se pierde o el drag lo cancela
+        btn.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        }, { capture: true, passive: true });
+        btn.addEventListener('pointerup', minimize, { capture: true });
+        btn.addEventListener('click', minimize, { capture: true });
     });
 
     layer.querySelectorAll('[data-trip-float-expand]').forEach((el) => {
@@ -635,7 +647,13 @@ export function bindFloatingTripPanels() {
             if (wasRecentPanelDrag()) return;
             if (isInteractiveTarget(e.target) && !e.target.closest?.('[data-trip-float-expand]')) return;
             const key = el.dataset.tripFloatExpand;
-            if (key) window.toggleTripFloatMinimized?.(key, false);
+            if (key) toggleTripFloatMinimized(key, false);
+        });
+        el.addEventListener('click', (e) => {
+            if (wasRecentPanelDrag()) return;
+            if (isInteractiveTarget(e.target) && !e.target.closest?.('[data-trip-float-expand]')) return;
+            const key = el.dataset.tripFloatExpand;
+            if (key) toggleTripFloatMinimized(key, false);
         });
     });
 }
@@ -649,7 +667,15 @@ export function toggleTripFloatMinimized(key, minimized) {
         if (minimized) {
             floatEl.style.width = 'auto';
             floatEl.style.maxWidth = '';
-            floatEl.style.right = 'auto';
+            if (key === 'driver-pin') {
+                // Mantener esquina inferior derecha en web/móvil
+                floatEl.style.left = 'auto';
+                floatEl.style.right = '0.65rem';
+                floatEl.style.bottom = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
+                floatEl.style.top = 'auto';
+            } else {
+                floatEl.style.right = 'auto';
+            }
         } else if (key === 'client-pin' || key === 'client-trip' || key === 'driver-pin') {
             defaultTripFloatPosition(floatEl, key);
         }
@@ -660,9 +686,22 @@ export function toggleTripFloatMinimized(key, minimized) {
 
 function applyTripFloatMinState(floatEl, key, minimized) {
     if (!floatEl) return;
-    floatEl.classList.toggle('trip-float--min', minimized);
-    floatEl.querySelector('.trip-float-min-view')?.classList.toggle('hidden', !minimized);
-    floatEl.querySelector('.trip-float-full-view')?.classList.toggle('hidden', minimized);
+    floatEl.classList.toggle('trip-float--min', !!minimized);
+    floatEl.setAttribute('data-min', minimized ? '1' : '0');
+    const minView = floatEl.querySelector('.trip-float-min-view');
+    const fullView = floatEl.querySelector('.trip-float-full-view');
+    if (minView) {
+        minView.classList.toggle('hidden', !minimized);
+        minView.style.display = minimized ? '' : 'none';
+    }
+    if (fullView) {
+        fullView.classList.toggle('hidden', !!minimized);
+        fullView.style.display = minimized ? 'none' : '';
+    }
+    // Si está minimizado, no dejar que el hero del PIN force foco/teclado
+    if (minimized && key === 'driver-pin') {
+        try { document.getElementById('driver-pin-input')?.blur?.(); } catch (_) {}
+    }
 }
 
 export function syncTripFloatPanels(data) {
@@ -729,7 +768,7 @@ export function syncTripFloatPanels(data) {
             const clientMin = isTripFloatMinimized('client-trip');
             applyTripFloatMinState(clientTripFloat, 'client-trip', clientMin);
             clientTripFloat.classList.remove('hidden');
-            if (!clientTripFloat.classList.contains('is-drag-positioned')) {
+            if (!clientMin && !clientTripFloat.classList.contains('is-drag-positioned')) {
                 dockTripFloat(clientTripFloat, 'client-trip');
             }
             if (clientMin) {
@@ -764,13 +803,21 @@ export function syncTripFloatPanels(data) {
     if (driverPinFloat && driverPinHero) {
         if (showDriverPin) {
             const driverMin = isTripFloatMinimized('driver-pin');
-            dockTripFloat(driverPinFloat, 'driver-pin');
-            driverPinHero.classList.remove('hidden');
-            pinInputGroup?.classList.remove('hidden');
+            // Solo re-anclar posición si NO está minimizado (evita reabrir el PIN en cada sync en web)
+            if (!driverMin) {
+                dockTripFloat(driverPinFloat, 'driver-pin');
+                driverPinHero.classList.remove('hidden');
+                pinInputGroup?.classList.remove('hidden');
+            } else {
+                // Mantener datos listos al expandir, pero no forzar el panel completo
+                pinInputGroup?.classList.remove('hidden');
+            }
             applyTripFloatMinState(driverPinFloat, 'driver-pin', driverMin);
             driverPinFloat.classList.remove('hidden');
             if (!driverMin) {
                 window.setTimeout(() => {
+                    // No enfocar si el usuario minimizó en el ínterin
+                    if (isTripFloatMinimized('driver-pin')) return;
                     document.getElementById('driver-pin-input')?.focus?.();
                 }, 280);
             }
@@ -778,6 +825,9 @@ export function syncTripFloatPanels(data) {
             driverPinFloat.classList.add('hidden');
             driverPinHero.classList.add('hidden');
             pinInputGroup?.classList.add('hidden');
+            // Al salir de la fase PIN, limpiar min para el próximo viaje
+            setTripFloatMinimized('driver-pin', false);
+            applyTripFloatMinState(driverPinFloat, 'driver-pin', false);
         }
     }
 

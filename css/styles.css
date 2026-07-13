@@ -3,7 +3,8 @@
 }
 
 html, body { 
-    font-family: 'Inter', sans-serif; 
+    font-family: 'Inter', system-ui, 'Segoe UI', Roboto, Arial, 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+    font-variant-emoji: emoji; 
     background-color: #f8fafc; 
     overflow: hidden; 
     height: 100dvh;

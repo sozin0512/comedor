@@ -442,6 +442,7 @@ window.gMap = null;
                 return window.showToast?.('Selección en mapa solo para destino, paradas o entregas.');
             }
             window.cancelMapPickMode?.({ silent: true });
+            window.hideTripKeyboard?.();
             window._mapPickDragged = false;
             window._mapPickSavedRouteSlot = 2; // slots deprecated for ordering; destination always final, stops follow list order + reordering arrows
             window._mapPickPanelRestore = window.savePanelStateForMapPick?.();
@@ -713,8 +714,49 @@ window.gMap = null;
             };
 
             const clearAutocompleteStack = (el) => {
-                const wrap = el?.closest?.('.trip-origin-wrap, .trip-dest-wrap') || el?.parentElement;
+                const wrap = el?.closest?.('.trip-origin-wrap, .trip-dest-wrap, .trip-extra-stop-wrap') || el?.parentElement;
                 wrap?.classList.remove('is-autocomplete-active');
+                try { el?._clearAutocompleteStack?.(); } catch (_) {}
+            };
+
+            /** Blur de gmp-place-autocomplete (shadow input). En APK el teclado no se cierra solo al elegir lugar. */
+            const blurAutocompleteEl = (el) => {
+                if (!el) return;
+                try {
+                    const input = el.shadowRoot?.querySelector('input')
+                        || el.shadowRoot?.querySelector('[part="input"]')
+                        || el.querySelector?.('input');
+                    input?.blur?.();
+                } catch (_) {}
+                try { el.blur?.(); } catch (_) {}
+            };
+
+            /**
+             * Cierra teclado Android/WebView al confirmar origen/destino.
+             * Google a veces re-enfoca el input; por eso se reintenta en frames cortos.
+             */
+            window.hideTripKeyboard = (preferredEl = null) => {
+                const ids = ['origin-autocomplete', 'destination-autocomplete', 'extra-stop-autocomplete'];
+                if (preferredEl) blurAutocompleteEl(preferredEl);
+                ids.forEach((id) => blurAutocompleteEl(document.getElementById(id)));
+                try {
+                    const active = document.activeElement;
+                    if (active && active !== document.body && typeof active.blur === 'function') {
+                        // No robar foco del chat u otros formularios
+                        if (!active.closest?.('#chat-float, #chat-compose-form, #chat-input, [data-keep-keyboard]')) {
+                            active.blur();
+                        }
+                    }
+                } catch (_) {}
+            };
+
+            const dismissAutocompleteUi = (el) => {
+                clearAutocompleteStack(el);
+                window.hideTripKeyboard?.(el);
+                // Reintentos: Places a veces devuelve el foco al input tras gmp-select
+                requestAnimationFrame(() => window.hideTripKeyboard?.(el));
+                setTimeout(() => window.hideTripKeyboard?.(el), 80);
+                setTimeout(() => window.hideTripKeyboard?.(el), 220);
             };
 
             const applyEndpointLabelToInput = (el, label) => {
@@ -747,7 +789,7 @@ window.gMap = null;
                         const ok = await window.guardRouteEndpointChange?.(el, nextAddr);
                         if (!ok) {
                             window.restoreRouteFieldSnapshot?.(el, snap);
-                            clearAutocompleteStack(el);
+                            dismissAutocompleteUi(el);
                             return;
                         }
                         el._selectedPlace = place;
@@ -757,7 +799,7 @@ window.gMap = null;
                         applyEndpointLabelToInput(el, nextAddr);
                     }
                 } catch (_) {}
-                clearAutocompleteStack(el);
+                dismissAutocompleteUi(el);
                 // Importante: limpiar currentRouteData para que al elegir otra ruta se recalculen los precios de moto, taxi y VIP
                 window.currentRouteData = null;
                 window.dispatchEvent(new CustomEvent('map-route-trigger'));

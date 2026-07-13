@@ -9,10 +9,10 @@ const { getMessaging } = require('firebase-admin/messaging');
 
 const PROJECT_ID = 'comedor-86278';
 const APP_ID = 'comayagua-vip-pro-v4';
-const VERSION = '2026.07.12.2';
+const VERSION = '2026.07.13.1';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
-    `Actualización ${VERSION}: tonos propios de la app (sin sonido del celular), dashboard de viajes admin/supervisor por fases, mapa de flota con colores por estado, panel de viaje desde el mapa, borrar cancelados, y plazos de depósito más claros. Actualiza ahora. ¡Gracias!`;
+    `Actualización ${VERSION}: notificaciones APK con tono HonduRaite, mapa con humo de colores por fase, omitir PIN en panel del mapa, WhatsApp manual en tiempo real para supervisores, y más. Actualiza la web o instala la APK nueva. ¡Gracias!`;
 
 initializeApp({
     credential: applicationDefault(),
@@ -57,8 +57,8 @@ async function sendPush(uid, tokens) {
         android: {
             priority: 'high',
             notification: {
-                channelId: 'hondu_ride_alerts_v2',
-                sound: 'default',
+                channelId: 'hondu_ride_alerts_v4',
+                sound: 'hondu_ride',
                 defaultSound: true,
                 priority: 'high',
                 visibility: 'public',

@@ -989,8 +989,9 @@ function rideDemandTitle(serviceType) {
 
 /** Canal Android de alta prioridad (v2: fuerza sonido+vibración en clientes viejos). */
 // v3: alineado con app — preferimos tono propio en primer plano; canales sin default del SO
-const RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v3';
-const DEFAULT_ALERT_CHANNEL_ID = 'hondu_default_v3';
+// Debe coincidir con js/fcm-push.js (canales v4 + res/raw/hondu_ride|hondu_alert)
+const RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v4';
+const DEFAULT_ALERT_CHANNEL_ID = 'hondu_default_v4';
 /** Patrón de vibración fuerte (ms) — distintivo HonduRaite. */
 const HONDU_SUPER_VIBRATE_MS = [0, 450, 100, 450, 100, 550, 120, 750, 100, 950];
 const HONDU_DEFAULT_VIBRATE_MS = [0, 250, 100, 250, 80, 350];
@@ -1396,8 +1397,9 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             ttl: useHigh ? 120 * 1000 : 3600 * 1000,
             notification: {
                 channelId: androidChannelId,
-                sound: 'default',
-                defaultSound: true,
+                // Archivos en android/.../res/raw/ (sin extensión). Tonos HonduRaite, no el del sistema.
+                sound: rideAlert ? 'hondu_ride' : 'hondu_alert',
+                defaultSound: false,
                 priority: useHigh ? 'high' : 'default',
                 visibility: 'public',
                 defaultVibrateTimings: false,
