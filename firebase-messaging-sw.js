@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.07.17.11';
+const HR_SW_VERSION = '2026.07.17.12';
 /* HonduRaite — Service Worker + FCM: TODAS las notificaciones emergentes tipo Temu */
 
 importScripts('https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js');
