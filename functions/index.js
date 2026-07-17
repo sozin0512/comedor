@@ -1068,6 +1068,8 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     if (!isRideService(serviceType)) return;
     if (trip.rideOfflineAlertSent || trip.isDemandSimulation) return;
     if (trip.status !== 'pending') return;
+    // No avisar conductores si el cliente aún no reclamó el viaje de staff
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
     if (trip.originLat == null || trip.originLng == null) return;
 
     const requiredType = requiredRideVehicleType(serviceType);
@@ -1145,6 +1147,7 @@ async function notifyOfflineFreightDrivers(appId, tripId, trip) {
     const serviceType = trip.serviceType || 'auto';
     if (!isFreightService(serviceType)) return;
     if (trip.freightOfflineAlertSent) return;
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
 
     const requiredType = requiredFreightVehicleType(serviceType);
     if (!requiredType) return;
@@ -1320,6 +1323,8 @@ async function assignNextTripOfferServer(appId, tripId) {
     const trip = { id: tripSnap.id, ...tripSnap.data() };
     if (trip.isDemandSimulation) return;
     if (trip.status !== 'pending' || trip.driverId) return;
+    // Staff armó el viaje: NO ofertar a conductores hasta que el cliente toque «Quiero este viaje»
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
     const bidCount = trip.driverBids && typeof trip.driverBids === 'object'
         ? Object.keys(trip.driverBids).length
         : 0;
@@ -1713,10 +1718,16 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
     }
 );
 
+function isStaffTripWaitingClientClaim(t) {
+    return !!(t?.staffCreatedBy && t.staffCreatedClientClaimed !== true);
+}
+
 exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
     const tripDocs = await fetchPendingTripDocs(APP_ID);
     for (const d of tripDocs) {
         const t = d.data();
+        // No rotar ofertas de viajes que el cliente aún no reclamó
+        if (isStaffTripWaitingClientClaim(t)) continue;
         if (!t.offeredToDriverId || !isOfferExpired(t)) continue;
         try {
             await db.doc(`artifacts/${APP_ID}/public/data/trips/${d.id}`).update({
@@ -1734,6 +1745,7 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
 
     for (const d of tripDocs) {
         const t = d.data();
+        if (isStaffTripWaitingClientClaim(t)) continue;
         if (t.offeredToDriverId || t.driverId || t.isDemandSimulation) continue;
         const bidCount = t.driverBids && typeof t.driverBids === 'object'
             ? Object.keys(t.driverBids).length
