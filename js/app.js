@@ -1367,6 +1367,36 @@ if (document.readyState === 'loading') {
             });
         }
 
+        /** Banner visible para conductores: programado + día + hora (no enterrado en “detalles”). */
+        function buildDriverScheduledBannerHtml(trip) {
+            const scheduledMs = getScheduledTripMs(trip);
+            if (!scheduledMs) return '';
+            const when = formatScheduledTripWhen(trip);
+            const mins = getScheduledTripMinutesUntil(trip);
+            let until = '';
+            if (mins != null && mins > 0) {
+                if (mins < 60) until = ` · en ${mins} min`;
+                else {
+                    const h = Math.floor(mins / 60);
+                    const m = mins % 60;
+                    until = m ? ` · en ${h} h ${m} min` : ` · en ${h} h`;
+                }
+            } else if (mins === 0) {
+                until = ' · ya es la hora de recogida';
+            }
+            return `
+                <div class="driver-offer-sched-banner" role="status">
+                    <p class="driver-offer-sched-banner-title"><i class="fas fa-calendar-check"></i> VIAJE PROGRAMADO</p>
+                    <p class="driver-offer-sched-banner-when">${when}${until}</p>
+                    <p class="driver-offer-sched-banner-sub">No es inmediato: recoge al pasajero a esa hora (puedes aceptar/negociar ya).</p>
+                </div>`;
+        }
+
+        function getDriverScheduledBadgeHtml(trip) {
+            if (!getScheduledTripMs(trip)) return '';
+            return `<span class="driver-offer-sched-badge" title="${formatScheduledTripWhen(trip)}"><i class="fas fa-calendar-alt"></i> Programado</span>`;
+        }
+
         window.activateScheduledTripIfDue = async (tripId) => {
             if (!tripId) return false;
             window._activatingScheduledTrips = window._activatingScheduledTrips || new Set();
@@ -5877,9 +5907,16 @@ if (document.readyState === 'loading') {
             if (t.serviceZoneName) {
                 detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-map-marker-alt"></i> ${t.serviceZoneName}</p>`);
             }
-            const scheduledMins = getScheduledTripMinutesUntil(t);
-            if (scheduledMins != null && scheduledMins > 0) {
-                detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-calendar-alt"></i> Programado · recogida en ${scheduledMins} min (${formatScheduledTripWhen(t)})</p>`);
+            // Programado: también en detalles (el banner grande va arriba de la tarjeta)
+            if (getScheduledTripMs(t)) {
+                const scheduledMins = getScheduledTripMinutesUntil(t);
+                const until = scheduledMins != null && scheduledMins > 0
+                    ? ` · en ${scheduledMins} min`
+                    : '';
+                detailParts.push(
+                    `<p class="driver-offer-detail-line" style="color:#b45309;font-weight:900;">`
+                    + `<i class="fas fa-calendar-alt"></i> <b>PROGRAMADO</b> · ${formatScheduledTripWhen(t)}${until}</p>`
+                );
             }
             if (driverBusy) {
                 detailParts.push('<p class="driver-offer-detail-line"><i class="fas fa-info-circle"></i> Tienes un viaje en curso; este iría después de terminar y calificar.</p>');
@@ -5954,12 +5991,16 @@ if (document.readyState === 'loading') {
                 idPrefix: pfx
             });
 
+            const schedBadge = getDriverScheduledBadgeHtml(t);
+            const schedBanner = buildDriverScheduledBannerHtml(t);
+
             return `
-                <div class="trip-request-card driver-offer-card ${compact ? 'driver-offer-card--highlight' : ''}" data-preview-offer="${tripId}" data-offer-id-prefix="${pfx}">
+                <div class="trip-request-card driver-offer-card ${compact ? 'driver-offer-card--highlight' : ''}${getScheduledTripMs(t) ? ' driver-offer-card--scheduled' : ''}" data-preview-offer="${tripId}" data-offer-id-prefix="${pfx}">
                     <div class="driver-offer-top">
                         <p class="driver-offer-name client-name-${tripId}">${t.clientName || 'Pasajero'}</p>
-                        <div class="driver-offer-badges">${firstTripBadge}${queueBadge}${serviceBadge}${distBadge}</div>
+                        <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${serviceBadge}${distBadge}</div>
                     </div>
+                    ${schedBanner}
                     <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Baja el panel y dibuja la ruta en el mapa (solo orientación)">
                         <i class="fas fa-map-marked-alt" aria-hidden="true"></i> Ver en el mapa
                     </button>
@@ -6334,7 +6375,8 @@ if (document.readyState === 'loading') {
             const sent = trip.offerSentAt?.seconds
                 ?? trip.offerSentAt?.toMillis?.()
                 ?? '';
-            return [trip.id, sent, neg, negBy, bidP, rej, trip.price || ''].join('|');
+            // Incluir scheduledFor para re-render del popup si cambia la hora programada
+            return [trip.id, sent, neg, negBy, bidP, rej, trip.price || '', trip.scheduledFor || ''].join('|');
         }
 
         function syncDriverTripOfferPopup(myOffers, { onActiveTrip = false, forceShow = false } = {}) {
@@ -6404,15 +6446,29 @@ if (document.readyState === 'loading') {
 
             if (needsFullRender) {
                 const svcCopy = getTripOfferNotificationCopy(trip.serviceType || '');
-                if (titleEl) titleEl.textContent = svcCopy?.title || 'Nueva solicitud';
+                const isSched = !!getScheduledTripMs(trip);
+                if (titleEl) {
+                    titleEl.textContent = isSched
+                        ? '📅 Viaje programado'
+                        : (svcCopy?.title || 'Nueva solicitud');
+                }
                 if (subEl) {
                     const pay = trip.paymentMethod === 'saldo' ? 'Saldo' : 'Efectivo';
                     const dist = trip.offerDistanceKm != null
                         ? ` · ${parseFloat(trip.offerDistanceKm).toFixed(1)} km a recogida`
                         : '';
-                    subEl.textContent = onActiveTrip
-                        ? `Viaje en cola después del actual · ${pay}${dist}`
-                        : `Responde ya · ${pay}${dist}`;
+                    if (isSched) {
+                        const when = formatScheduledTripWhen(trip);
+                        const mins = getScheduledTripMinutesUntil(trip);
+                        const until = mins != null && mins > 0 ? ` · en ${mins} min` : '';
+                        subEl.textContent = onActiveTrip
+                            ? `Cola · recogida ${when}${until} · ${pay}${dist}`
+                            : `Recogida: ${when}${until} · ${pay}${dist}`;
+                    } else {
+                        subEl.textContent = onActiveTrip
+                            ? `Viaje en cola después del actual · ${pay}${dist}`
+                            : `Responde ya · ${pay}${dist}`;
+                    }
                 }
                 body.innerHTML = buildTripOfferCardHtml(trip.id, trip, {
                     distanceKm: trip.offerDistanceKm,
