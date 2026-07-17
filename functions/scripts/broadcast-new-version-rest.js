@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const VERSION = '2026.07.16.1';
+const VERSION = '2026.07.17.10';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
     `Actualización ${VERSION}: notificaciones emergentes tipo Temu, viajes programados (negociar → reservar → avisos 1h/30/10/5 min + botón iniciar YA), subir tarifa si nadie responde, y más. Actualiza la web o instala la APK. ¡Gracias!`;

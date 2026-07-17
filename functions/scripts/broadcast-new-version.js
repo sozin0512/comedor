@@ -9,7 +9,7 @@ const { getMessaging } = require('firebase-admin/messaging');
 
 const PROJECT_ID = 'comedor-86278';
 const APP_ID = 'comayagua-vip-pro-v4';
-const VERSION = '2026.07.16.1';
+const VERSION = '2026.07.17.10';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
     `Actualización ${VERSION}: notificaciones emergentes tipo Temu, viajes programados (negociar → reservar → avisos 1h/30/10/5 min + botón iniciar YA), subir tarifa si nadie responde, contraoferta solo la acepta el conductor, y más. Actualiza la web o instala la APK. ¡Gracias!`;
