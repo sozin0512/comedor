@@ -19,18 +19,32 @@ import {
 } from './service-types.js';
 import { getDefaultZoneId, getZoneById, getZoneConfig, getCityCoverageKm } from './zones.js';
 
+/** Host público siempre (WhatsApp no linkifica capacitor:// ni localhost). */
+const STAFF_TRIP_PUBLIC_BASE = 'https://comedor-86278.web.app';
+
+function getPublicAppBaseUrl() {
+    try {
+        const origin = String(window.location?.origin || '').replace(/\/$/, '');
+        // Solo confiar en https público real (no app nativa / dev)
+        if (
+            origin
+            && /^https:\/\//i.test(origin)
+            && !/localhost|127\.0\.0\.1|capacitor|android_asset|chrome-extension/i.test(origin)
+        ) {
+            return origin;
+        }
+    } catch (_) {}
+    return STAFF_TRIP_PUBLIC_BASE;
+}
+
 /** Link que el cliente abre para ver/reclamar el viaje armado por staff */
 function buildStaffTripShareLink(tripId) {
     const id = String(tripId || '').trim();
     if (!id) return '';
-    let base = '';
-    try {
-        base = String(window.location?.origin || '').replace(/\/$/, '');
-    } catch (_) {}
-    if (!base || base === 'null' || base.startsWith('file:')) {
-        base = 'https://comedor-86278.web.app';
-    }
-    return `${base}/?staffTrip=${encodeURIComponent(id)}`;
+    // URL limpia: https + path + query. WhatsApp la pinta azul si va sola en su línea.
+    const base = getPublicAppBaseUrl();
+    // Preferir index.html? para que siempre se vea como URL web completa
+    return `${base}/index.html?staffTrip=${encodeURIComponent(id)}`;
 }
 
 function buildStaffTripWhatsAppMessage({
@@ -40,23 +54,27 @@ function buildStaffTripWhatsAppMessage({
     const link = buildStaffTripShareLink(tripId);
     const name = (clientName || 'Cliente').split(' ')[0];
     const pax = Math.max(1, parseInt(passengers, 10) || 1);
+    // Formato pensado para WhatsApp: el link en su propia línea, con https://,
+    // sin * ni emojis pegados (así se vuelve enlace azul tocable).
     const lines = [
-        `🚕 *HonduRaite* — viaje listo para ti, ${name}`,
+        `HonduRaite — viaje listo para ti, ${name}`,
         '',
-        `📍 *Origen:* ${origin || '—'}`,
-        `🏁 *Destino:* ${destination || '—'}`,
-        priceLabel ? `💰 *Tarifa:* ${priceLabel}` : null,
+        `Origen: ${origin || '—'}`,
+        `Destino: ${destination || '—'}`,
+        priceLabel ? `Tarifa: ${priceLabel}` : null,
         clientChoosesPassengers
-            ? '👥 Al abrir eliges *cuántas personas* van (máx. 4).'
-            : (pax > 1 ? `👥 *Personas:* ${pax}` : null),
+            ? 'Personas: al abrir eliges cuántas van (máx. 4).'
+            : (pax > 1 ? `Personas: ${pax}` : null),
         clientChoosesSchedule
-            ? '📅 Es un *viaje programado*: al abrir eliges *fecha y hora*.'
+            ? 'Programado: al abrir eliges fecha y hora.'
             : null,
         '',
-        'Toca el enlace, inicia sesión si hace falta y confirma el viaje:',
+        'Abre tu viaje aquí (toca el enlace):',
+        '',
         link,
         '',
-        'Si tienes la app HonduRaite, también te llega una notificación.'
+        'Si no se ve azul, copia y pega el enlace en el navegador.',
+        'También te llega una notificación en la app HonduRaite.'
     ].filter((x) => x != null);
     return lines.join('\n');
 }
@@ -80,8 +98,11 @@ function showStaffTripSharePanel({
         tripId, clientName, origin, destination, priceLabel,
         clientChoosesSchedule, passengers, clientChoosesPassengers
     });
+    // wa.me suele prellenar mejor el texto con URLs; api.whatsapp.com a veces trunca
     const waUrl = phone ? getWhatsAppLink(phone, msg) : '';
-    const waGeneric = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+    const waGeneric = phone
+        ? `https://wa.me/${normalizeHondurasPhone(phone)}?text=${encodeURIComponent(msg)}`
+        : `https://wa.me/?text=${encodeURIComponent(msg)}`;
 
     const panel = document.createElement('div');
     panel.id = 'staff-trip-share-modal';

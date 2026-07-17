@@ -23,6 +23,7 @@ export function getWhatsAppLink(rawPhone, message = '') {
     if (!norm) return 'https://wa.me/';
     const text = message != null ? String(message) : '';
     if (!text) return `https://wa.me/${norm}`;
-    // encodeURIComponent mantiene emojis/acentos; api.whatsapp.com es más fiable en desktop
-    return `https://api.whatsapp.com/send?phone=${norm}&text=${encodeURIComponent(text)}`;
+    // wa.me + encodeURIComponent: el chat del cliente recibe https://… como enlace azul tocable.
+    // (api.whatsapp.com a veces deforma URLs largas con query params)
+    return `https://wa.me/${norm}?text=${encodeURIComponent(text)}`;
 }
