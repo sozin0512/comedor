@@ -179,19 +179,25 @@ export async function getBackgroundModeStatus() {
         };
     }
     try {
-        const [overlay, battery, keepalive] = await Promise.all([
+        const [overlay, battery, keepalive, fullScreen, notifSys] = await Promise.all([
             SessionKeepalive.hasOverlayPermission(),
             SessionKeepalive.hasBatteryExemption(),
             SessionKeepalive.isActive(),
+            SessionKeepalive.hasFullScreenIntentPermission?.().catch(() => ({ granted: true })),
+            SessionKeepalive.areNotificationsEnabled?.().catch(() => ({ enabled: true })),
         ]);
+        const notifGranted = (typeof Notification !== 'undefined' && Notification.permission === 'granted')
+            || localStorage.getItem('honduber_push_enabled') === '1'
+            || notifSys?.enabled === true;
         return {
             supported: true,
             platform: 'android',
             overlay: !!overlay?.granted,
             battery: !!battery?.granted,
             keepalive: !!keepalive?.active,
+            fullScreen: fullScreen?.granted !== false,
             driverOnline: window.driverLocationWatchId != null,
-            notifications: typeof Notification !== 'undefined' && Notification.permission === 'granted',
+            notifications: notifGranted,
         };
     } catch (_) {
         return {
@@ -200,6 +206,7 @@ export async function getBackgroundModeStatus() {
             overlay: false,
             battery: false,
             keepalive: false,
+            fullScreen: false,
             driverOnline: window.driverLocationWatchId != null,
             notifications: false,
         };
@@ -316,7 +323,8 @@ export async function showDriverBackgroundModeModal() {
         return;
     }
 
-    const allOk = status.keepalive && status.overlay && status.battery && status.notifications;
+    const allOk = status.keepalive && status.overlay && status.battery
+        && status.notifications && status.fullScreen !== false;
 
     modal.innerHTML = `
         <div class="bg-white rounded-3xl w-full max-w-md p-6 max-h-[92dvh] overflow-y-auto">
@@ -359,6 +367,13 @@ export async function showDriverBackgroundModeModal() {
                     </div>
                     ${statusBadge(status.notifications)}
                 </div>
+                <div class="flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-200 bg-slate-50">
+                    <div class="min-w-0">
+                        <p class="text-xs font-black text-gray-800">Avisos emergentes (Temu)</p>
+                        <p class="text-[10px] text-gray-500">Banner a pantalla completa / heads-up</p>
+                    </div>
+                    ${statusBadge(status.fullScreen !== false)}
+                </div>
             </div>
 
             ${allOk
@@ -375,6 +390,9 @@ export async function showDriverBackgroundModeModal() {
                 ${!status.notifications ? `<button type="button" data-bg-action="notifications"
                     class="w-full py-3 rounded-2xl bg-violet-600 text-white text-sm font-black flex items-center justify-center gap-2">
                     <i class="fas fa-bell"></i><span>Activar notificaciones</span></button>` : ''}
+                ${status.fullScreen === false ? `<button type="button" data-bg-action="fullscreen"
+                    class="w-full py-3 rounded-2xl bg-rose-600 text-white text-sm font-black flex items-center justify-center gap-2">
+                    <i class="fas fa-expand"></i><span>Permitir avisos emergentes</span></button>` : ''}
                 ${!status.keepalive ? `<button type="button" data-bg-action="keepalive"
                     class="w-full py-3 rounded-2xl bg-emerald-600 text-white text-sm font-black flex items-center justify-center gap-2">
                     <i class="fas fa-play"></i><span>Reiniciar servicio en segundo plano</span></button>` : ''}
@@ -401,11 +419,18 @@ export async function showDriverBackgroundModeModal() {
             await SessionKeepalive.requestOverlayPermission();
         } else if (action === 'battery') {
             await SessionKeepalive.requestBatteryExemption();
+        } else if (action === 'fullscreen') {
+            await SessionKeepalive.requestFullScreenIntentPermission?.();
+            window.showToast?.('Activa el permiso en Ajustes y vuelve a la app.', 'warning');
         } else if (action === 'notifications') {
-            if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-                try { await Notification.requestPermission(); } catch (_) {}
-            } else {
-                await SessionKeepalive.openNotificationSettings();
+            try {
+                await window.enableTripNotifications?.();
+            } catch (_) {
+                if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                    try { await Notification.requestPermission(); } catch (_) {}
+                } else {
+                    await SessionKeepalive.openNotificationSettings();
+                }
             }
         } else if (action === 'keepalive') {
             await startAndroidSessionKeepalive({

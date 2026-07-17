@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.13.4">
+    <meta name="hr-app-version" content="2026.07.16.1">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.13.4">
+    <link rel="manifest" href="manifest.json?v=2026.07.16.1">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,13 +30,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.13.4">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.16.1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.13.4">
-    <script src="js/maps-init.js?v=2026.07.13.4"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.16.1">
+    <script src="js/maps-init.js?v=2026.07.16.1"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.13.4';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.16.1';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -96,10 +96,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.13.4';
+        window.__HR_BUILD_VERSION__ = '2026.07.16.1';
         (function () {
             try {
-                var build = '2026.07.13.4';
+                var build = '2026.07.16.1';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -1412,6 +1412,9 @@
                             <p id="driver-offer-map-hint-title" class="driver-offer-map-hint-title">Ruta de orientación</p>
                             <p id="driver-offer-map-hint-sub" class="driver-offer-map-hint-sub">Solo referencia — no es navegación activa</p>
                         </div>
+                        <button type="button" id="driver-offer-map-hint-back" class="driver-offer-map-hint-back hidden trip-touch-btn" data-driver-offer-map-back aria-label="Volver a la oferta">
+                            <span class="pointer-events-none"><i class="fas fa-arrow-left"></i> Oferta</span>
+                        </button>
                     </div>
                 </div>
                 <div id="nearby-drivers-indicator" class="hidden absolute top-4 left-1/2 -translate-x-1/2 bg-white px-4 py-2 rounded-full shadow-2xl border border-emerald-100 z-40">
@@ -1758,7 +1761,9 @@
         <i class="fas fa-calendar-check text-amber-500 text-3xl mb-2"></i>
         <p class="font-black text-amber-800 text-sm">Viaje programado</p>
         <p id="scheduled-trip-when" class="text-xs text-amber-700 mt-1"></p>
-        <p class="text-[10px] text-amber-600 mt-2">Te avisaremos cuando se active la búsqueda de conductor.</p>
+        <div id="scheduled-trip-detail" class="text-left px-1"></div>
+        <div id="scheduled-trip-actions"></div>
+        <p class="text-[10px] text-amber-600 mt-2">Primero se negocia y un conductor acepta; luego queda reservado hasta la hora.</p>
     </div>
 
     <div id="searching-state" class="mt-6 hidden passenger-pending-wrap">
@@ -1785,6 +1790,20 @@
             </div>
         </div>
         <div id="searching-trip-summary" class="passenger-pending-route"></div>
+
+        <!-- Subir tarifa si nadie ve / toma la solicitud -->
+        <div id="passenger-boost-price-panel" class="passenger-boost-price hidden" aria-live="polite">
+            <p class="passenger-boost-price-title"><i class="fas fa-bolt" aria-hidden="true"></i> ¿Nadie responde?</p>
+            <p class="passenger-boost-price-sub">Sube solo la tarifa de tu solicitud (solo hacia arriba) para atraer más conductores. Si ya te ofrecieron un precio, acéptalo o propón otro — no uses esto para auto-aceptar.</p>
+            <p id="passenger-boost-current" class="passenger-boost-price-current">Tu tarifa: —</p>
+            <div class="passenger-boost-price-row">
+                <button type="button" data-trip-action="boost-price" data-boost-delta="10" class="passenger-boost-price-btn trip-touch-btn">+ L. 10</button>
+                <button type="button" data-trip-action="boost-price" data-boost-delta="20" class="passenger-boost-price-btn trip-touch-btn">+ L. 20</button>
+                <button type="button" data-trip-action="boost-price" data-boost-delta="50" class="passenger-boost-price-btn trip-touch-btn passenger-boost-price-btn--hot">+ L. 50</button>
+            </div>
+            <button type="button" data-trip-action="boost-price-custom" class="passenger-boost-price-custom trip-touch-btn">Escribir otro monto</button>
+        </div>
+
         <div id="trip-viewers-panel" class="hidden passenger-offers-panel">
             <p id="trip-viewers-count" class="passenger-offers-title">Ofertas de conductores</p>
             <div id="trip-viewers-list" class="passenger-offers-list"></div>
@@ -2026,6 +2045,32 @@
         </main>
     </div>
 
-    <script type="module" src="js/app.js?v=2026.07.13.4"></script>
+    <!-- Pantalla emergente tipo Uber: oferta de viaje al conductor -->
+    <div id="driver-trip-offer-popup" class="driver-trip-offer-popup hidden" aria-hidden="true" role="dialog" aria-labelledby="driver-trip-offer-popup-title">
+        <div class="driver-trip-offer-popup-backdrop" data-driver-offer-popup-dismiss></div>
+        <div class="driver-trip-offer-popup-sheet" role="document">
+            <div class="driver-trip-offer-popup-handle" aria-hidden="true"></div>
+            <div class="driver-trip-offer-popup-top">
+                <div class="driver-trip-offer-popup-timer-wrap" aria-live="polite">
+                    <svg class="driver-trip-offer-popup-timer-svg" viewBox="0 0 56 56" aria-hidden="true">
+                        <circle class="driver-trip-offer-popup-timer-track" cx="28" cy="28" r="24"></circle>
+                        <circle id="driver-trip-offer-popup-timer-arc" class="driver-trip-offer-popup-timer-arc" cx="28" cy="28" r="24"></circle>
+                    </svg>
+                    <span id="driver-trip-offer-popup-timer-sec" class="driver-trip-offer-popup-timer-sec">120</span>
+                </div>
+                <div class="driver-trip-offer-popup-headline min-w-0">
+                    <p id="driver-trip-offer-popup-title" class="driver-trip-offer-popup-title">Nueva solicitud</p>
+                    <p id="driver-trip-offer-popup-sub" class="driver-trip-offer-popup-sub">Responde antes de que expire</p>
+                </div>
+                <button type="button" id="driver-trip-offer-popup-close" class="driver-trip-offer-popup-close trip-touch-btn" data-driver-offer-popup-dismiss aria-label="Cerrar y ver en lista">
+                    <i class="fas fa-times pointer-events-none" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div id="driver-trip-offer-popup-body" class="driver-trip-offer-popup-body"></div>
+            <p id="driver-trip-offer-popup-queue" class="driver-trip-offer-popup-queue hidden"></p>
+        </div>
+    </div>
+
+    <script type="module" src="js/app.js?v=2026.07.16.1"></script>
 </body>
 </html>

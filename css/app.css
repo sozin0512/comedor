@@ -4079,6 +4079,100 @@
             padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px)) !important;
         }
 
+        /* Subir tarifa mientras busca conductor */
+        .passenger-boost-price {
+            margin: 0.55rem 0 0.65rem;
+            padding: 0.75rem 0.85rem;
+            border-radius: 1rem;
+            background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 55%, #fef3c7 100%);
+            border: 1px solid #fdba74;
+            box-shadow: 0 6px 18px rgba(234, 88, 12, 0.12);
+        }
+
+        .passenger-boost-price.hidden {
+            display: none !important;
+        }
+
+        .passenger-boost-price-title {
+            margin: 0;
+            font-size: 0.78rem;
+            font-weight: 900;
+            color: #9a3412;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .passenger-boost-price-sub {
+            margin: 0.25rem 0 0.55rem;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #9a3412;
+            line-height: 1.35;
+            opacity: 0.92;
+        }
+
+        .passenger-boost-price-current {
+            margin: 0 0 0.55rem;
+            font-size: 0.95rem;
+            font-weight: 900;
+            color: #7c2d12;
+        }
+
+        .passenger-boost-price-row {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.45rem;
+        }
+
+        .passenger-boost-price-btn {
+            min-height: 2.75rem;
+            border-radius: 0.85rem;
+            border: 1px solid #fb923c;
+            background: #fff;
+            color: #c2410c;
+            font-size: 0.78rem;
+            font-weight: 900;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .passenger-boost-price-btn--hot {
+            background: #ea580c;
+            border-color: #c2410c;
+            color: #fff;
+        }
+
+        .passenger-boost-price-custom {
+            width: 100%;
+            margin-top: 0.45rem;
+            min-height: 2.5rem;
+            border-radius: 0.85rem;
+            border: 1px dashed #fdba74;
+            background: transparent;
+            color: #9a3412;
+            font-size: 0.68rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        html[data-theme="dark"] .passenger-boost-price {
+            background: linear-gradient(135deg, #431407 0%, #7c2d12 100%);
+            border-color: #ea580c;
+        }
+
+        html[data-theme="dark"] .passenger-boost-price-title,
+        html[data-theme="dark"] .passenger-boost-price-sub,
+        html[data-theme="dark"] .passenger-boost-price-current,
+        html[data-theme="dark"] .passenger-boost-price-custom {
+            color: #ffedd5;
+        }
+
+        html[data-theme="dark"] .passenger-boost-price-btn {
+            background: #0f172a;
+            border-color: #ea580c;
+            color: #fdba74;
+        }
+
         /* Cancelar SIEMPRE visible (fijo abajo) mientras se busca conductor */
         body.is-searching #searching-cancel-btn,
         body.is-searching #searching-state .passenger-pending-cancel {
@@ -4329,6 +4423,39 @@
             border: 1px solid #a7f3d0;
             box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
             backdrop-filter: blur(8px);
+        }
+
+        .driver-offer-map-hint-back {
+            flex-shrink: 0;
+            align-self: center;
+            min-height: 2.5rem;
+            padding: 0.4rem 0.7rem;
+            border-radius: 0.75rem;
+            border: 1px solid #059669;
+            background: #059669;
+            color: #fff;
+            font-size: 0.62rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .driver-offer-map-hint-back.hidden {
+            display: none !important;
+        }
+
+        body.driver-offer-map-peek #driver-offer-map-hint {
+            z-index: 36000;
+            top: max(0.75rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.5rem));
+            max-width: min(28rem, calc(100% - 1rem));
+        }
+
+        body.driver-offer-map-peek #driver-offer-map-hint-back {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
         }
 
         .driver-offer-map-hint-icon {
@@ -6379,6 +6506,14 @@
             color: #fff;
             border: none;
         }
+        .passenger-offer-accept:disabled,
+        .passenger-offer-accept--waiting {
+            background: #94a3b8 !important;
+            color: #f8fafc !important;
+            box-shadow: none !important;
+            cursor: not-allowed;
+            opacity: 0.95;
+        }
         .passenger-offer-accept--hero {
             flex: none !important;
             width: 100%;
@@ -6387,6 +6522,27 @@
             letter-spacing: 0.05em;
             border-radius: 1rem;
             box-shadow: 0 8px 22px rgba(5, 150, 105, 0.28);
+        }
+        .passenger-offer-card--waiting-driver {
+            border-color: #fcd34d;
+            background: linear-gradient(180deg, #fffbeb 0%, #fff 55%);
+        }
+        .passenger-offer-driver-ask {
+            margin: 0.15rem 0 0;
+            font-size: 0.58rem;
+            font-weight: 800;
+            color: #64748b;
+        }
+        .passenger-offer-counter-sent {
+            margin: 0.35rem 0 0;
+            padding: 0.4rem 0.5rem;
+            border-radius: 0.65rem;
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+            font-size: 0.62rem;
+            font-weight: 800;
+            line-height: 1.35;
         }
         .passenger-offer-listed-tag {
             display: inline-flex;
@@ -14941,4 +15097,366 @@
             background: #1e293b;
             border-color: #334155;
             color: #f8fafc;
+        }
+
+        /* —— Conductor: pantalla emergente tipo Uber (oferta de viaje) —— */
+        .driver-trip-offer-popup {
+            position: fixed;
+            inset: 0;
+            z-index: 35000;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            pointer-events: none;
+            /* Cubre notch / barra de estado en APK y PWA */
+            padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+            overscroll-behavior: none;
+            touch-action: manipulation;
+        }
+
+        .driver-trip-offer-popup:not(.hidden) {
+            pointer-events: auto;
+        }
+
+        .driver-trip-offer-popup.hidden {
+            display: none !important;
+        }
+
+        .driver-trip-offer-popup-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+            animation: driver-offer-popup-fade 0.22s ease-out;
+        }
+
+        .driver-trip-offer-popup-sheet {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 480px;
+            /* vh + dvh: evita que se corte con la barra del navegador en Android/iOS */
+            max-height: min(92vh, 920px);
+            max-height: min(92dvh, 920px);
+            display: flex;
+            flex-direction: column;
+            margin: 0 auto;
+            padding:
+                0.35rem
+                max(0.75rem, var(--safe-left, env(safe-area-inset-left, 0px)))
+                max(0.75rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.35rem))
+                max(0.75rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 1.35rem 1.35rem 0 0;
+            box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.28);
+            animation: driver-offer-popup-slide 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+            overflow: hidden;
+            /* Mejor composición en GPUs móviles */
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+        }
+
+        .driver-trip-offer-popup-handle {
+            width: 2.5rem;
+            height: 0.28rem;
+            border-radius: 999px;
+            background: #cbd5e1;
+            margin: 0.15rem auto 0.45rem;
+            flex-shrink: 0;
+        }
+
+        .driver-trip-offer-popup-top {
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            margin-bottom: 0.45rem;
+            flex-shrink: 0;
+            min-width: 0;
+        }
+
+        .driver-trip-offer-popup-headline {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .driver-trip-offer-popup-timer-wrap {
+            position: relative;
+            width: 3.1rem;
+            height: 3.1rem;
+            flex-shrink: 0;
+        }
+
+        .driver-trip-offer-popup-timer-svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .driver-trip-offer-popup-timer-track {
+            fill: none;
+            stroke: #e2e8f0;
+            stroke-width: 4;
+        }
+
+        .driver-trip-offer-popup-timer-arc {
+            fill: none;
+            stroke: #059669;
+            stroke-width: 4;
+            stroke-linecap: round;
+            stroke-dasharray: 150.8;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 0.35s linear, stroke 0.2s ease;
+        }
+
+        .driver-trip-offer-popup-timer-arc.is-urgent {
+            stroke: #ea580c;
+        }
+
+        .driver-trip-offer-popup-timer-arc.is-critical {
+            stroke: #e11d48;
+        }
+
+        .driver-trip-offer-popup-timer-sec {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.78rem;
+            font-weight: 900;
+            color: #0f172a;
+            letter-spacing: -0.02em;
+        }
+
+        .driver-trip-offer-popup-title {
+            margin: 0;
+            font-size: 0.88rem;
+            font-weight: 900;
+            color: #0f172a;
+            line-height: 1.2;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .driver-trip-offer-popup-sub {
+            margin: 0.15rem 0 0;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #64748b;
+            line-height: 1.3;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .driver-trip-offer-popup-close {
+            flex-shrink: 0;
+            width: 2.75rem;
+            height: 2.75rem;
+            min-width: 44px;
+            min-height: 44px;
+            border-radius: 999px;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .driver-trip-offer-popup-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            padding-bottom: 0.35rem;
+            /* Espacio extra para el teclado numérico al ofertar */
+            scroll-padding-bottom: 6rem;
+        }
+
+        .driver-trip-offer-popup-body .driver-offer-card {
+            border: 2px solid #10b981;
+            box-shadow: 0 10px 28px rgba(16, 185, 129, 0.18);
+            background: #fff;
+            margin: 0;
+        }
+
+        /* Botones más grandes y fáciles de tocar en el popup del celular */
+        .driver-trip-offer-popup-body .driver-offer-decision-accept,
+        .driver-trip-offer-popup-body .driver-offer-decision-accept--go {
+            min-height: 3.25rem;
+            font-size: 0.95rem;
+            border-radius: 0.95rem;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .driver-trip-offer-popup-body .driver-offer-decision-skip {
+            min-height: 2.75rem;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .driver-trip-offer-popup-body .driver-offer-quick-btn {
+            min-height: 2.6rem;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .driver-trip-offer-popup-queue {
+            flex-shrink: 0;
+            margin: 0.35rem 0 0;
+            text-align: center;
+            font-size: 0.62rem;
+            font-weight: 800;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            line-height: 1.3;
+            padding: 0 0.25rem;
+        }
+
+        body.driver-offer-popup-open {
+            overflow: hidden;
+            /* Evita scroll del mapa/fondo detrás en iOS */
+            position: relative;
+            touch-action: none;
+        }
+
+        body.driver-offer-popup-open .driver-trip-offer-popup {
+            touch-action: manipulation;
+        }
+
+        body.driver-offer-popup-open .driver-trip-offer-popup-body {
+            touch-action: pan-y;
+        }
+
+        body.driver-rating-active .driver-trip-offer-popup:not(.hidden) {
+            z-index: 14000;
+        }
+
+        @keyframes driver-offer-popup-fade {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes driver-offer-popup-slide {
+            from { transform: translate3d(0, 110%, 0); }
+            to { transform: translate3d(0, 0, 0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .driver-trip-offer-popup-backdrop,
+            .driver-trip-offer-popup-sheet {
+                animation: none !important;
+            }
+        }
+
+        /* Celulares chicos (SE, A-series, etc.) */
+        @media (max-width: 380px) {
+            .driver-trip-offer-popup-sheet {
+                max-height: min(94vh, 920px);
+                max-height: min(94dvh, 920px);
+                padding-left: max(0.55rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+                padding-right: max(0.55rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+            }
+
+            .driver-trip-offer-popup-title {
+                font-size: 0.78rem;
+            }
+
+            .driver-trip-offer-popup-timer-wrap {
+                width: 2.85rem;
+                height: 2.85rem;
+            }
+
+            .driver-trip-offer-popup-body .driver-offer-card {
+                padding: 0.6rem;
+                gap: 0.45rem;
+            }
+
+            .driver-trip-offer-popup-body .driver-offer-decision-accept,
+            .driver-trip-offer-popup-body .driver-offer-decision-accept--go {
+                min-height: 3rem;
+                font-size: 0.88rem;
+            }
+        }
+
+        /* Pantallas bajas (landscape o altura corta) */
+        @media (max-height: 560px) {
+            .driver-trip-offer-popup-sheet {
+                max-height: min(96vh, 100%);
+                max-height: min(96dvh, 100%);
+            }
+
+            .driver-trip-offer-popup-handle {
+                margin-bottom: 0.25rem;
+            }
+
+            .driver-trip-offer-popup-top {
+                margin-bottom: 0.3rem;
+            }
+        }
+
+        /* APK Capacitor: un poco más de aire abajo (gesto home) */
+        body.capacitor-native .driver-trip-offer-popup-sheet,
+        body.capacitor-android .driver-trip-offer-popup-sheet {
+            padding-bottom: max(1rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.5rem));
+        }
+
+        html[data-theme="dark"] .driver-trip-offer-popup-sheet {
+            background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.55);
+        }
+
+        html[data-theme="dark"] .driver-trip-offer-popup-handle {
+            background: #334155;
+        }
+
+        html[data-theme="dark"] .driver-trip-offer-popup-title {
+            color: #f8fafc;
+        }
+
+        html[data-theme="dark"] .driver-trip-offer-popup-sub,
+        html[data-theme="dark"] .driver-trip-offer-popup-queue {
+            color: #94a3b8;
+        }
+
+        html[data-theme="dark"] .driver-trip-offer-popup-timer-sec {
+            color: #f1f5f9;
+        }
+
+        html[data-theme="dark"] .driver-trip-offer-popup-timer-track {
+            stroke: #334155;
+        }
+
+        html[data-theme="dark"] .driver-trip-offer-popup-close {
+            background: #1e293b;
+            border-color: #334155;
+            color: #cbd5e1;
+        }
+
+        html[data-theme="dark"] .driver-trip-offer-popup-body .driver-offer-card {
+            background: #0f172a;
+            border-color: #059669;
+        }
+
+        @media (min-width: 768px) {
+            .driver-trip-offer-popup {
+                align-items: center;
+                padding: 1rem;
+                padding-top: max(1rem, var(--safe-top, env(safe-area-inset-top, 0px)));
+            }
+
+            .driver-trip-offer-popup-sheet {
+                border-radius: 1.35rem;
+                max-height: min(88vh, 860px);
+                max-height: min(88dvh, 860px);
+            }
         }

@@ -11,25 +11,53 @@ const CUSTOM_KEY = 'honduraite_custom_tones_v1';
 const MAX_CUSTOM_BYTES = 2.5 * 1024 * 1024; // 2.5 MB
 const ALLOWED_AUDIO = /audio\/(mpeg|mp3|wav|wave|x-wav|ogg|webm|mp4|aac|x-m4a|m4a)|application\/ogg/i;
 
-/** Eventos de notificación que se pueden mapear a un tono */
+/** Eventos de notificación que se pueden mapear a un tono (Personalización admin) */
 export const TONE_EVENTS = [
     { id: 'general', label: 'Aviso general', desc: 'Notificaciones normales (admin, versión, etc.)' },
     { id: 'chat', label: 'Chat', desc: 'Mensajes del chat de viaje' },
-    { id: 'driver_offer', label: 'Oferta al conductor', desc: 'Nuevo viaje / oferta' },
-    { id: 'ride_demand', label: 'Demanda (activar)', desc: 'Conductores offline: ponerse en línea' },
-    { id: 'staff_trip', label: 'Staff · viaje nuevo', desc: 'Admin / supervisor: viaje pendiente' },
-    { id: 'freight', label: 'Flete / carga', desc: 'Alertas de flete o paila' },
-    { id: 'deposit', label: 'Depósito / plazo', desc: 'Recordatorios y bloqueos de depósito' },
+    {
+        id: 'driver_offer',
+        label: 'Conductor · nuevo viaje',
+        desc: 'Push de oferta de viaje (app abierta o al tocar el aviso)'
+    },
+    {
+        id: 'trip_price_boost',
+        label: 'Conductor · cliente subió tarifa',
+        desc: 'Cuando el pasajero aumenta el precio de la solicitud'
+    },
+    {
+        id: 'passenger_counter',
+        label: 'Conductor · contraoferta del pasajero',
+        desc: 'El pasajero propone otro precio a tu oferta'
+    },
+    {
+        id: 'ride_demand',
+        label: 'Conductor · demanda (activar)',
+        desc: 'Aviso para conductores offline: ponerse en línea'
+    },
+    {
+        id: 'passenger_offer',
+        label: 'Pasajero · oferta de precio',
+        desc: 'Un conductor te ofreció / actualizó un precio'
+    },
     {
         id: 'passenger_waiting',
-        label: 'Cliente · esperando conductor',
+        label: 'Pasajero · esperando conductor',
         desc: 'Se repite mientras busca conductor (hasta que acepten)'
     },
     {
         id: 'passenger_accepted',
-        label: 'Cliente · viaje aceptado',
-        desc: 'Suena una vez cuando un conductor acepta el viaje'
-    }
+        label: 'Pasajero · viaje aceptado',
+        desc: 'Cuando un conductor acepta el viaje'
+    },
+    {
+        id: 'passenger_arrived',
+        label: 'Pasajero · conductor llegó',
+        desc: 'El conductor marcó llegada al punto de encuentro'
+    },
+    { id: 'staff_trip', label: 'Staff · viaje nuevo', desc: 'Admin / supervisor: viaje pendiente' },
+    { id: 'freight', label: 'Flete / carga', desc: 'Alertas de flete o paila' },
+    { id: 'deposit', label: 'Depósito / plazo', desc: 'Recordatorios y bloqueos de depósito' }
 ];
 
 /** Catálogo de tonos sintetizados (id estable) */
@@ -200,24 +228,32 @@ const DEFAULT_MAP_WEB = {
     general: 'web_chime',
     chat: 'chat_pip',
     driver_offer: 'trip_offer_rise',
+    trip_price_boost: 'trip_offer_rise',
+    passenger_counter: 'trip_offer_rise',
     ride_demand: 'trip_offer_rise',
+    passenger_offer: 'success_ping',
+    passenger_waiting: 'wait_tick',
+    passenger_accepted: 'accepted_fanfare',
+    passenger_arrived: 'accepted_fanfare',
     staff_trip: 'staff_dispatch',
     freight: 'freight_horn',
-    deposit: 'deposit_warn',
-    passenger_waiting: 'wait_tick',
-    passenger_accepted: 'accepted_fanfare'
+    deposit: 'deposit_warn'
 };
 
 const DEFAULT_MAP_NATIVE = {
     general: 'native_pulse',
     chat: 'chat_double',
     driver_offer: 'native_siren',
+    trip_price_boost: 'native_siren',
+    passenger_counter: 'native_siren',
     ride_demand: 'native_siren',
+    passenger_offer: 'success_ping',
+    passenger_waiting: 'wait_pulse',
+    passenger_accepted: 'accepted_fanfare',
+    passenger_arrived: 'accepted_fanfare',
     staff_trip: 'staff_dispatch',
     freight: 'freight_horn',
-    deposit: 'deposit_warn',
-    passenger_waiting: 'wait_pulse',
-    passenger_accepted: 'accepted_fanfare'
+    deposit: 'deposit_warn'
 };
 
 /** Intervalo del bucle de espera (ms) */
@@ -465,8 +501,19 @@ export function playToneById(toneId) {
 }
 
 export function playEventTone(eventId, { platform = platformKey() } = {}) {
-    const toneId = getEventToneId(eventId, platform);
-    return playToneById(toneId);
+    try {
+        unlockNotificationTones();
+        const toneId = getEventToneId(eventId, platform);
+        const ok = playToneById(toneId);
+        // Si el AudioContext sigue suspendido, reportar fallo para que Android use canal nativo
+        try {
+            const ctx = sharedCtx;
+            if (ctx && ctx.state === 'suspended') return false;
+        } catch (_) {}
+        return !!ok;
+    } catch (_) {
+        return false;
+    }
 }
 
 export function playGeneralTone() {
@@ -568,6 +615,11 @@ export function resolveToneEventFromPush(data = {}) {
     if (type === 'ride_demand_alert' || tag.startsWith('ride-demand-')) return 'ride_demand';
     if (type === 'new_trip_staff' || tag.startsWith('staff-trip-')) return 'staff_trip';
     if (type === 'trip_offer' || tag.startsWith('trip-offer-')) return 'driver_offer';
+    if (type === 'trip_price_boost' || tag.startsWith('trip-price-boost-')) return 'trip_price_boost';
+    if (type === 'passenger_counter' || tag.startsWith('passenger-counter-')) return 'passenger_counter';
+    if (type === 'driver_bid' || tag.startsWith('driver-bid-')) return 'passenger_offer';
+    if (type === 'trip_accepted' || tag.startsWith('trip-accepted-')) return 'passenger_accepted';
+    if (type === 'trip_arrived' || tag.startsWith('trip-arrived-')) return 'passenger_arrived';
     if (
         type === 'deposit_deadline_warning'
         || type === 'deposit_auto_blocked'

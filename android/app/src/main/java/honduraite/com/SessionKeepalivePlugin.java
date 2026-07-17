@@ -1,10 +1,12 @@
 package honduraite.com;
 
+import android.app.NotificationManager;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -120,5 +122,78 @@ public class SessionKeepalivePlugin extends Plugin {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getActivity().startActivity(intent);
         call.resolve();
+    }
+
+    /**
+     * Android 14+ (API 34): permiso de pantalla completa / heads-up agresivo (estilo Temu).
+     * En versiones anteriores se considera concedido si las notificaciones están activas.
+     */
+    @PluginMethod
+    public void hasFullScreenIntentPermission(PluginCall call) {
+        JSObject ret = new JSObject();
+        boolean granted = true;
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                NotificationManager nm =
+                    (NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+                granted = nm != null && nm.canUseFullScreenIntent();
+            }
+        } catch (Exception e) {
+            granted = true;
+        }
+        ret.put("granted", granted);
+        call.resolve(ret);
+    }
+
+    /**
+     * Abre el ajuste del sistema para permitir full-screen intent (notificaciones emergentes).
+     */
+    @PluginMethod
+    public void requestFullScreenIntentPermission(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                NotificationManager nm =
+                    (NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+                boolean already = nm != null && nm.canUseFullScreenIntent();
+                if (!already) {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT);
+                    intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getActivity().startActivity(intent);
+                }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // Fallback: ajustes de notificaciones de la app
+                Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                intent.putExtra(Settings.EXTRA_APP_PACKAGE, getContext().getPackageName());
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getActivity().startActivity(intent);
+            }
+        } catch (Exception e) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getActivity().startActivity(intent);
+            } catch (Exception ignored) {}
+        }
+        call.resolve();
+    }
+
+    /** Estado de notificaciones del sistema (canales / bloqueo total). */
+    @PluginMethod
+    public void areNotificationsEnabled(PluginCall call) {
+        JSObject ret = new JSObject();
+        boolean enabled = true;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                NotificationManager nm =
+                    (NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+                enabled = nm != null && nm.areNotificationsEnabled();
+            }
+        } catch (Exception e) {
+            enabled = true;
+        }
+        ret.put("enabled", enabled);
+        call.resolve(ret);
     }
 }

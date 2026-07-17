@@ -642,7 +642,16 @@ exports.acceptDriverTrip = onCall(async (request) => {
     }
 
     const patch = sanitizeTripAcceptFields(request.data?.acceptFields);
-    patch.status = 'accepted';
+    // Viaje programado a futuro: se RESERVA (status scheduled + driver), no arranca aún.
+    // Se activa a accepted ~10 min antes (o si el conductor toca “Iniciar ya”).
+    const scheduledMs = getScheduledTripMs(trip);
+    const reserveScheduled = !!(scheduledMs
+        && Date.now() < scheduledMs - SCHEDULED_TRIP_PREP_MS);
+    patch.status = reserveScheduled ? 'scheduled' : 'accepted';
+    if (reserveScheduled) {
+        patch.scheduledDriverReserved = true;
+        patch.scheduledReservedAt = FieldValue.serverTimestamp();
+    }
     patch.driverId = uid;
     patch.offeredToDriverId = null;
     patch.offeredToDriverName = null;
@@ -987,20 +996,58 @@ function rideDemandTitle(serviceType) {
     return 'HonduRaite · 🏍️ ¡Cliente pide moto!';
 }
 
-/** Canal Android de alta prioridad (v2: fuerza sonido+vibración en clientes viejos). */
-// v3: alineado con app — preferimos tono propio en primer plano; canales sin default del SO
-// Debe coincidir con js/fcm-push.js (canales v4 + res/raw/hondu_ride|hondu_alert)
-const RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v4';
-const DEFAULT_ALERT_CHANNEL_ID = 'hondu_default_v4';
-/** Patrón de vibración fuerte (ms) — distintivo HonduRaite. */
+/**
+ * Canal Android emergente tipo Temu (todas las notificaciones).
+ * v6: un solo canal MAX importance + hondu_ride para heads-up en otra app.
+ * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
+ */
+const ANDROID_PUSH_CHANNEL_VERSION = 'v6';
+const TEMU_ALL_CHANNEL_ID = `hondu_temu_all_${ANDROID_PUSH_CHANNEL_VERSION}`;
+const RIDE_ALERT_CHANNEL_ID = TEMU_ALL_CHANNEL_ID;
+const DEFAULT_ALERT_CHANNEL_ID = TEMU_ALL_CHANNEL_ID;
+/** Vibración fuerte estilo Temu (ms). */
 const HONDU_SUPER_VIBRATE_MS = [0, 450, 100, 450, 100, 550, 120, 750, 100, 950];
-const HONDU_DEFAULT_VIBRATE_MS = [0, 250, 100, 250, 80, 350];
+const HONDU_DEFAULT_VIBRATE_MS = HONDU_SUPER_VIBRATE_MS;
+const HONDU_TEMU_VIBRATE_MS = [0, 500, 80, 500, 80, 600, 100, 800, 80, 1000, 150, 500];
 
 function isHonduRideAlertType(type) {
     return type === 'ride_demand_alert'
         || type === 'trip_offer'
         || type === 'freight_trip_alert'
-        || type === 'new_trip_staff';
+        || type === 'new_trip_staff'
+        // Ofertas de precio al pasajero / contraofertas al conductor (tipo Temu: suenan fuera de la app)
+        || type === 'driver_bid'
+        || type === 'passenger_counter'
+        || type === 'trip_accepted'
+        || type === 'trip_arrived'
+        || type === 'trip_price_boost'
+        || type === 'trip_started'
+        || type === 'scheduled_trip_active'
+        || type === 'scheduled_reminder'
+        || type === 'trip_scheduled_reserved';
+}
+
+/** Snapshot comparable de ofertas de conductores (para detectar cambios y mandar push). */
+function snapshotDriverBids(bids) {
+    const out = {};
+    if (!bids || typeof bids !== 'object') return out;
+    for (const [id, b] of Object.entries(bids)) {
+        if (!b || typeof b !== 'object') continue;
+        out[id] = {
+            price: b.price != null ? Number(b.price) : null,
+            at: b.at || b.updatedAt || 0,
+            name: b.name || b.driverName || '',
+            counter: b.passengerCounterPrice != null ? Number(b.passengerCounterPrice) : null,
+            counterAt: b.passengerCounterAt || 0
+        };
+    }
+    return out;
+}
+
+function formatMoneyL(n) {
+    const v = Number(n);
+    if (!Number.isFinite(v)) return '';
+    return `L. ${v.toFixed(v % 1 === 0 ? 0 : 2)}`;
 }
 
 function offlineDriverNearTrip(loc, trip, radiusKm) {
@@ -1038,8 +1085,8 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     const originShort = (trip.origin || '').slice(0, 48);
     const bodyCore = [String(price), originShort].filter(Boolean).join(' · ');
     const body = hasOnlineCoverage
-        ? `${bodyCore} — Hay demanda en tu zona. ¡Entrá en línea!`
-        : `${bodyCore} — ¡Nadie en línea cerca! Ponéte en línea YA.`;
+        ? `${bodyCore} — Hay pedidos cerca. Abrí HonduRaite y ponete en línea.`
+        : `${bodyCore} — ¡Nadie en línea cerca! Abrí la app y ponete en línea YA.`;
 
     const [driversLocSnap, usersSnap] = await Promise.all([
         db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
@@ -1326,29 +1373,56 @@ async function assignNextTripOfferServer(appId, tripId) {
     });
 }
 
-async function getUserTokens(appId, uid) {
-    if (!uid) return [];
+async function getUserPushMeta(appId, uid) {
+    if (!uid) return { tokens: [], pushSoundMode: 'temu' };
     const snap = await db.doc(`artifacts/${appId}/public/data/users/${uid}`).get();
-    if (!snap.exists) return [];
-    const raw = snap.data().fcmTokens || {};
-    return Object.values(raw)
+    if (!snap.exists) return { tokens: [], pushSoundMode: 'temu' };
+    const u = snap.data() || {};
+    const raw = u.fcmTokens || {};
+    const tokens = Object.values(raw)
         .map((entry) => (typeof entry === 'string' ? entry : entry?.token))
         .filter(Boolean);
+    const mode = u.pushSoundMode === 'soft' || u.pushSoundMode === 'normal'
+        ? u.pushSoundMode
+        : 'temu';
+    return { tokens, pushSoundMode: mode };
 }
 
-async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = false }) {
-    const tokens = await getUserTokens(appId, uid);
+async function getUserTokens(appId, uid) {
+    const meta = await getUserPushMeta(appId, uid);
+    return meta.tokens;
+}
+
+/**
+ * TODAS las notificaciones: emergentes tipo Temu (otra app / bloqueada / primer plano).
+ * Canal MAX + hondu_ride + sticky + high priority.
+ */
+function resolveAndroidPushAudio() {
+    return {
+        channelId: TEMU_ALL_CHANNEL_ID,
+        sound: 'hondu_ride',
+        vibrate: HONDU_TEMU_VIBRATE_MS,
+        sticky: true,
+        forceHigh: true
+    };
+}
+
+async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true }) {
+    const { tokens } = await getUserPushMeta(appId, uid);
     if (!tokens.length) return;
 
     const type = String(data.type || '');
-    const rideAlert = data.superVibrate === 'true' || isHonduRideAlertType(type);
-    const useHigh = highPriority || rideAlert;
+    const rideAlert = true; // todas se tratan como urgentes / heads-up
+    const audio = resolveAndroidPushAudio();
+    const useHigh = true;
 
-    // Click del push: viajes → conductor; resto → centro de notificaciones
+    // Click del push: viajes → conductor; ofertas → pasajero; resto → centro de notificaciones
     const openNotifications = data.openNotifications === 'true'
         || (
             data.openChat !== 'true'
             && data.openDriver !== 'true'
+            && data.openPassenger !== 'true'
+            && data.openClient !== 'true'
             && data.openAdmin !== 'true'
             && data.openReports !== 'true'
             && !isHonduRideAlertType(type)
@@ -1359,6 +1433,16 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     if (data.openReports === 'true') link = '/#admin-reports';
     else if (type === 'trip_offer' || type === 'ride_demand_alert' || data.openDriver === 'true') {
         link = '/#driver';
+    } else if (
+        type === 'driver_bid'
+        || type === 'trip_accepted'
+        || type === 'trip_arrived'
+        || type === 'passenger_counter'
+        || data.openPassenger === 'true'
+        || data.openClient === 'true'
+    ) {
+        // Pasajero: abrir búsqueda / panel de ofertas al tocar el push
+        link = type === 'passenger_counter' ? '/#driver' : '/#client';
     } else if (openNotifications || type === 'admin_notify' || type === 'app_update' || type === 'recurring_notify' || type === 'promo_new') {
         link = '/#notifications';
     }
@@ -1370,10 +1454,11 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         openNotifications: openNotifications ? 'true' : String(data.openNotifications || 'false')
     };
 
-    // Siempre enviar bloque android con canal+sonido+vibración.
-    // Sin channelId, Android 8+ usa un canal silencioso / genérico y "no suena ni vibra".
-    const androidChannelId = rideAlert ? RIDE_ALERT_CHANNEL_ID : DEFAULT_ALERT_CHANNEL_ID;
-    const androidVibrate = rideAlert ? HONDU_SUPER_VIBRATE_MS : HONDU_DEFAULT_VIBRATE_MS;
+    // Android: canal + sound en res/raw (solo así suena con la app en otra app).
+    // Sin channelId, Android 8+ cae a un canal silencioso/genérico.
+    const androidChannelId = audio.channelId;
+    const androidVibrate = audio.vibrate;
+    const androidSound = audio.sound;
 
     const payload = {
         tokens,
@@ -1382,42 +1467,47 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
         ),
         webpush: {
-            headers: useHigh ? { Urgency: 'high' } : undefined,
+            headers: { Urgency: 'high' },
             notification: {
                 icon: PUSH_ICON,
-                requireInteraction: useHigh || undefined,
-                renotify: rideAlert || undefined,
+                // Emergente / se queda hasta tocar (estilo Temu)
+                requireInteraction: true,
+                renotify: true,
                 tag: data.tag || undefined,
-                vibrate: rideAlert ? HONDU_SUPER_VIBRATE_MS : HONDU_DEFAULT_VIBRATE_MS
+                vibrate: androidVibrate
             },
             fcmOptions: { link }
         },
         android: {
-            priority: useHigh ? 'high' : 'normal',
-            ttl: useHigh ? 120 * 1000 : 3600 * 1000,
+            // high = heads-up aunque la app esté en segundo plano / otra app
+            priority: 'high',
+            ttl: 300 * 1000,
             notification: {
                 channelId: androidChannelId,
-                // Archivos en android/.../res/raw/ (sin extensión). Tonos HonduRaite, no el del sistema.
-                sound: rideAlert ? 'hondu_ride' : 'hondu_alert',
+                // res/raw/hondu_ride.wav (sin extensión)
+                sound: androidSound,
                 defaultSound: false,
-                priority: useHigh ? 'high' : 'default',
+                // PRIORITY_MAX / high → banner emergente
+                priority: 'max',
                 visibility: 'public',
                 defaultVibrateTimings: false,
                 vibrateTimingsMillis: androidVibrate,
                 notificationCount: 1,
-                // Mantener en pantalla hasta que el conductor actúe (ofertas)
-                sticky: rideAlert || undefined
+                sticky: true,
+                // Muestra en pantalla de bloqueo y como heads-up
+                defaultLightSettings: true
             }
         },
         apns: {
             headers: {
-                'apns-priority': useHigh ? '10' : '5',
+                'apns-priority': '10',
                 'apns-push-type': 'alert'
             },
             payload: {
                 aps: {
                     sound: 'default',
-                    'interruption-level': useHigh ? 'time-sensitive' : 'active'
+                    'interruption-level': 'time-sensitive',
+                    'content-available': 1
                 }
             }
         }
@@ -1438,6 +1528,88 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         });
         await db.doc(`artifacts/${appId}/public/data/users/${uid}`).update(updates).catch(() => {});
     }
+}
+
+/**
+ * Cuando el pasajero sube la tarifa: push fuerte a conductores online de la zona
+ * y a los que ya habían visto el viaje (aunque estén en otra app).
+ */
+async function notifyDriversTripPriceBoost(appId, tripId, after, before) {
+    if (!after || after.status !== 'pending' || after.driverId) return;
+    const priceLabel = after.price || formatMoneyL(after.priceNum);
+    const fromLabel = before?.price || formatMoneyL(before?.priceNum);
+    const originShort = (after.origin || '').slice(0, 42);
+    const title = '🔥 Cliente subió el precio';
+    const body = `${fromLabel ? `${fromLabel} → ` : ''}${priceLabel || 'Más tarifa'}${originShort ? ` · ${originShort}` : ''}. ¡Entrá ya!`;
+
+    const recipients = new Set();
+    if (after.offeredToDriverId) recipients.add(String(after.offeredToDriverId));
+    (after.candidateDriverIds || []).forEach((id) => { if (id) recipients.add(String(id)); });
+    Object.keys(after.viewedBy || {}).forEach((id) => recipients.add(String(id)));
+    Object.keys(after.driverBids || {}).forEach((id) => recipients.add(String(id)));
+
+    // Ampliar a online en zona / cerca
+    try {
+        const tripDocs = await fetchTripDocsForOffer(appId);
+        const { candidates } = await findDriversForTripOffer(appId, after, tripDocs);
+        (candidates || []).forEach((c) => {
+            if (c?.driverId) recipients.add(String(c.driverId));
+        });
+    } catch (_) {}
+
+    // Offline de la zona (mismo tipo de vehículo) — para que se activen
+    try {
+        const serviceType = after.serviceType || 'auto';
+        if (isRideService(serviceType)) {
+            const requiredType = requiredRideVehicleType(serviceType);
+            const tripZone = after.serviceZoneId || null;
+            const radius = after.searchRadiusKm || 25;
+            const [driversLocSnap, usersSnap] = await Promise.all([
+                db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
+                db.collection(`artifacts/${appId}/public/data/users`).where('role', '==', 'driver').get()
+            ]);
+            const locByDriver = new Map();
+            driversLocSnap.docs.forEach((d) => locByDriver.set(d.id, d.data()));
+            for (const userDoc of usersSnap.docs) {
+                const uid = userDoc.id;
+                const u = userDoc.data() || {};
+                if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
+                if (requiredType && !driverHasApprovedVehicleType(u, requiredType)) continue;
+                const loc = locByDriver.get(uid);
+                const driverZone = u.serviceZoneId || loc?.serviceZoneId || null;
+                if (tripZone && driverZone && tripZone !== driverZone) continue;
+                if (loc && isDriverOnline(loc)) {
+                    recipients.add(uid);
+                    continue;
+                }
+                if (!offlineDriverNearTrip(loc, after, radius)) continue;
+                recipients.add(uid);
+            }
+        }
+    } catch (_) {}
+
+    const list = [...recipients].filter(Boolean).slice(0, 100);
+    await Promise.all(list.map((driverId) => sendPushToUser(appId, driverId, {
+        title,
+        body,
+        data: {
+            type: 'trip_price_boost',
+            tripId,
+            serviceType: after.serviceType || '',
+            price: String(after.priceNum ?? ''),
+            tag: `trip-price-boost-${tripId}-${afterBoostTag(after)}`,
+            openDriver: 'true',
+            superVibrate: 'true'
+        },
+        highPriority: true
+    })));
+}
+
+function afterBoostTag(trip) {
+    const n = Number(trip?.priceBoostCount) || 0;
+    const ms = trip?.priceBoostedAt?.toMillis?.()
+        || (trip?.priceBoostedAt?.seconds ? trip.priceBoostedAt.seconds * 1000 : Date.now());
+    return `${n}-${ms}`;
 }
 
 async function notifyModerators(appId, { title, body, data = {} }) {
@@ -1493,7 +1665,8 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
     async (event) => {
         const trip = event.data.data() || {};
         const { appId, tripId } = event.params;
-        if (trip.status !== 'pending' || trip.isDemandSimulation || trip.scheduledFor) return;
+        // Programados también empiezan en pending (negociar/aceptar antes de reservar)
+        if (trip.status !== 'pending' || trip.isDemandSimulation) return;
         await assignNextTripOfferServer(appId, tripId);
         await notifyOfflineFreightDrivers(appId, tripId, trip).catch(() => {});
         await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip).catch(() => {});
@@ -1604,6 +1777,103 @@ exports.onTripUpdatePush = onDocumentUpdated(
             });
         }
 
+        // —— Oferta de precio del conductor → push al pasajero (aunque esté en otra app) ——
+        if (after.status === 'pending' && after.clientId && !after.driverId) {
+            const beforeBids = snapshotDriverBids(before.driverBids);
+            const afterBids = snapshotDriverBids(after.driverBids);
+            let newestDriverBid = null;
+
+            for (const [driverId, bid] of Object.entries(afterBids)) {
+                const prev = beforeBids[driverId];
+                const isNew = !prev;
+                const priceChanged = prev && prev.price !== bid.price;
+                // Nueva oferta o cambio de precio del conductor (no solo contraoferta del pasajero)
+                if (isNew || priceChanged) {
+                    // Evitar re-notificar si solo cambió el counter del pasajero
+                    if (prev && prev.price === bid.price && prev.counter !== bid.counter) continue;
+                    if (!newestDriverBid
+                        || Number(bid.at || 0) >= Number(newestDriverBid.at || 0)) {
+                        newestDriverBid = { driverId, ...bid, isNew };
+                    }
+                }
+            }
+
+            // Legacy: negotiatedPrice propuesto por el conductor
+            if (
+                after.negotiatedBy === 'driver'
+                && after.negotiatedPrice != null
+                && (
+                    before.negotiatedBy !== 'driver'
+                    || Number(before.negotiatedPrice) !== Number(after.negotiatedPrice)
+                )
+            ) {
+                newestDriverBid = {
+                    driverId: after.offeredToDriverId || 'driver',
+                    price: Number(after.negotiatedPrice),
+                    name: after.offeredToDriverName || after.negotiatedDriverName || 'Un conductor',
+                    at: Date.now(),
+                    isNew: true
+                };
+            }
+
+            if (newestDriverBid && newestDriverBid.price != null) {
+                const priceLabel = formatMoneyL(newestDriverBid.price);
+                const name = (newestDriverBid.name || 'Un conductor').split(' ')[0];
+                await sendPushToUser(appId, after.clientId, {
+                    title: newestDriverBid.isNew
+                        ? '💰 ¡Te ofrecieron un precio!'
+                        : '💰 Oferta actualizada',
+                    body: `${name} ofrece ${priceLabel || 'un precio'} por tu viaje. Ábrelo para aceptar o negociar.`,
+                    data: {
+                        type: 'driver_bid',
+                        tripId,
+                        driverId: newestDriverBid.driverId || '',
+                        price: String(newestDriverBid.price ?? ''),
+                        tag: `driver-bid-${tripId}-${newestDriverBid.driverId || 'x'}`,
+                        openPassenger: 'true',
+                        openClient: 'true',
+                        superVibrate: 'true'
+                    },
+                    highPriority: true
+                });
+            }
+
+            // —— Contraoferta del pasajero → push al conductor (aunque esté en otra app) ——
+            for (const [driverId, bid] of Object.entries(afterBids)) {
+                const prev = beforeBids[driverId];
+                if (bid.counter == null) continue;
+                const counterNew = !prev || prev.counter !== bid.counter;
+                if (!counterNew) continue;
+                const priceLabel = formatMoneyL(bid.counter);
+                await sendPushToUser(appId, driverId, {
+                    title: '📨 Contraoferta del pasajero',
+                    body: `El pasajero ofrece ${priceLabel || 'otro precio'}. Acepta o pide más.`,
+                    data: {
+                        type: 'passenger_counter',
+                        tripId,
+                        price: String(bid.counter ?? ''),
+                        tag: `passenger-counter-${tripId}-${driverId}`,
+                        openDriver: 'true',
+                        superVibrate: 'true'
+                    },
+                    highPriority: true
+                });
+            }
+
+            // —— Pasajero subió la tarifa → avisar flota (nuevo viaje con más plata) ——
+            const beforeBoostMs = before.priceBoostedAt?.toMillis?.()
+                || (before.priceBoostedAt?.seconds ? before.priceBoostedAt.seconds * 1000 : 0);
+            const afterBoostMs = after.priceBoostedAt?.toMillis?.()
+                || (after.priceBoostedAt?.seconds ? after.priceBoostedAt.seconds * 1000 : 0);
+            const priceBoosted = afterBoostMs > 0 && afterBoostMs !== beforeBoostMs
+                && Number(after.priceNum) > Number(before.priceNum || 0);
+            if (priceBoosted) {
+                await notifyDriversTripPriceBoost(appId, tripId, after, before).catch((e) => {
+                    console.warn('notifyDriversTripPriceBoost:', e?.message || e);
+                });
+            }
+        }
+
         if (before.status === 'pending' && after.status === 'accepted' && after.clientId) {
             const busyBody = after.driverFinishingOtherTrip
                 ? `${after.driverName || 'Tu conductor'} ya te reservó. Termina su viaje actual y va hacia ti.`
@@ -1611,7 +1881,44 @@ exports.onTripUpdatePush = onDocumentUpdated(
             await sendPushToUser(appId, after.clientId, {
                 title: after.driverFinishingOtherTrip ? '¡Conductor reservado!' : '¡Conductor asignado!',
                 body: busyBody,
-                data: { type: 'trip_accepted', tripId, tag: `trip-accepted-${tripId}` }
+                data: {
+                    type: 'trip_accepted',
+                    tripId,
+                    tag: `trip-accepted-${tripId}`,
+                    openPassenger: 'true',
+                    openClient: 'true',
+                    superVibrate: 'true'
+                },
+                highPriority: true
+            });
+        }
+
+        // Conductor reservó viaje PROGRAMADO (status scheduled con driver)
+        if (before.status === 'pending' && after.status === 'scheduled' && after.driverId && after.clientId) {
+            const whenLabel = formatScheduledTripWhen(after.scheduledFor);
+            await sendPushToUser(appId, after.clientId, {
+                title: '📅 Conductor confirmado para tu viaje programado',
+                body: `${after.driverName || 'Un conductor'} te recogerá el ${whenLabel}. Te avisaremos antes de la hora.`,
+                data: {
+                    type: 'trip_scheduled_reserved',
+                    tripId,
+                    tag: `trip-sched-res-${tripId}`,
+                    openPassenger: 'true',
+                    superVibrate: 'true'
+                },
+                highPriority: true
+            });
+            await sendPushToUser(appId, after.driverId, {
+                title: '📅 Viaje programado reservado',
+                body: `Recogida ${whenLabel}. Te alertaremos 1 h, 30, 10 y 5 min antes. Puedes iniciar antes desde la app.`,
+                data: {
+                    type: 'trip_scheduled_reserved',
+                    tripId,
+                    tag: `trip-sched-drv-${tripId}`,
+                    openDriver: 'true',
+                    superVibrate: 'true'
+                },
+                highPriority: true
             });
         }
 
@@ -1619,7 +1926,15 @@ exports.onTripUpdatePush = onDocumentUpdated(
             await sendPushToUser(appId, after.clientId, {
                 title: 'Tu conductor llegó',
                 body: 'Ya está en el punto de encuentro.',
-                data: { type: 'trip_arrived', tripId, tag: `trip-arrived-${tripId}` }
+                data: {
+                    type: 'trip_arrived',
+                    tripId,
+                    tag: `trip-arrived-${tripId}`,
+                    openPassenger: 'true',
+                    openClient: 'true',
+                    superVibrate: 'true'
+                },
+                highPriority: true
             });
         }
 
@@ -1627,7 +1942,14 @@ exports.onTripUpdatePush = onDocumentUpdated(
             await sendPushToUser(appId, after.driverId, {
                 title: 'Viaje iniciado',
                 body: 'El pasajero confirmó el PIN. Ve al destino.',
-                data: { type: 'trip_started', tripId, tag: `trip-started-${tripId}` }
+                data: {
+                    type: 'trip_started',
+                    tripId,
+                    tag: `trip-started-${tripId}`,
+                    openDriver: 'true',
+                    superVibrate: 'true'
+                },
+                highPriority: true
             });
         }
 
@@ -1769,6 +2091,12 @@ exports.onSupportTicketPush = onDocumentCreated(
     }
 );
 
+/**
+ * Viajes programados YA RESERVADOS (con conductor):
+ * - Alertas 60 / 30 / 10 / 5 min antes al conductor (y aviso al pasajero en 10 y 5)
+ * - Activar a status=accepted ~10 min antes (listo para ir al origen)
+ * Legacy sin conductor: vuelve a pending y asigna oferta (compatibilidad)
+ */
 exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
     const appId = APP_ID;
     const now = Date.now();
@@ -1776,18 +2104,111 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
         .where('status', '==', 'scheduled')
         .get();
 
+    const REMINDER_THRESHOLDS = [60, 30, 10, 5];
+
     for (const docSnap of snap.docs) {
-        const trip = docSnap.data();
+        const trip = { id: docSnap.id, ...docSnap.data() };
         const scheduledMs = getScheduledTripMs(trip);
         if (!scheduledMs) continue;
 
-        // Activar 10 minutos antes para que conductores reciban oferta y notificación push
+        const whenLabel = formatScheduledTripWhen(trip.scheduledFor);
+        const minsLeft = Math.ceil((scheduledMs - now) / 60000);
+        const hasDriver = !!trip.driverId;
+
+        // —— Recordatorios al conductor reservado ——
+        if (hasDriver && minsLeft > 0) {
+            const sent = (trip.scheduledRemindersSent && typeof trip.scheduledRemindersSent === 'object')
+                ? { ...trip.scheduledRemindersSent }
+                : {};
+            const newlySent = {};
+            for (const th of REMINDER_THRESHOLDS) {
+                if (minsLeft <= th && !sent[String(th)]) {
+                    newlySent[String(th)] = true;
+                    const title = th >= 60
+                        ? '📅 Viaje en 1 hora'
+                        : (th >= 30 ? '📅 Viaje en 30 min' : (th >= 10 ? '📅 Viaje en 10 min' : '📅 Viaje en 5 min'));
+                    const body = `Recogida ${whenLabel}. ${(trip.origin || '').slice(0, 48) || 'Revisa la ruta'}.`;
+                    await sendPushToUser(appId, trip.driverId, {
+                        title,
+                        body,
+                        data: {
+                            type: 'scheduled_reminder',
+                            tripId: docSnap.id,
+                            minutesLeft: String(th),
+                            tag: `sched-rem-${th}-${docSnap.id}`,
+                            openDriver: 'true',
+                            superVibrate: 'true'
+                        },
+                        highPriority: true
+                    }).catch(() => {});
+                    if (trip.clientId && (th === 10 || th === 5)) {
+                        await sendPushToUser(appId, trip.clientId, {
+                            title: th === 10 ? 'Tu viaje empieza pronto' : 'Tu viaje es en 5 minutos',
+                            body: `${trip.driverName || 'Tu conductor'} te recogerá a las ${whenLabel}.`,
+                            data: {
+                                type: 'scheduled_reminder',
+                                tripId: docSnap.id,
+                                minutesLeft: String(th),
+                                tag: `sched-rem-pax-${th}-${docSnap.id}`,
+                                openPassenger: 'true',
+                                superVibrate: 'true'
+                            },
+                            highPriority: true
+                        }).catch(() => {});
+                    }
+                }
+            }
+            if (Object.keys(newlySent).length) {
+                const merged = { ...sent, ...newlySent };
+                await docSnap.ref.update({ scheduledRemindersSent: merged }).catch(() => {});
+                trip.scheduledRemindersSent = merged;
+            }
+        }
+
+        // —— Activar ~10 min antes ——
         const activateAt = scheduledMs - SCHEDULED_TRIP_PREP_MS;
         if (now < activateAt) continue;
 
         const isEarly = now < scheduledMs;
-        const whenLabel = formatScheduledTripWhen(trip.scheduledFor);
 
+        if (hasDriver) {
+            // Ya hay conductor: pasar a accepted (flujo normal de viaje)
+            await docSnap.ref.update({
+                status: 'accepted',
+                activatedAt: FieldValue.serverTimestamp(),
+                scheduledEarlyActivated: isEarly,
+                scheduledActivatedFrom: 'auto_prep',
+            });
+            await sendPushToUser(appId, trip.driverId, {
+                title: '🚗 Viaje programado ACTIVO',
+                body: `Es hora de moverte. Recogida ${whenLabel}. Abre la app y ve al origen.`,
+                data: {
+                    type: 'scheduled_trip_active',
+                    tripId: docSnap.id,
+                    tag: `scheduled-active-${docSnap.id}`,
+                    openDriver: 'true',
+                    superVibrate: 'true'
+                },
+                highPriority: true
+            }).catch(() => {});
+            if (trip.clientId) {
+                await sendPushToUser(appId, trip.clientId, {
+                    title: 'Tu viaje programado ya está activo',
+                    body: `${trip.driverName || 'Tu conductor'} se dirige al punto de recogida (${whenLabel}).`,
+                    data: {
+                        type: 'scheduled_trip_active',
+                        tripId: docSnap.id,
+                        tag: `scheduled-active-pax-${docSnap.id}`,
+                        openPassenger: 'true',
+                        superVibrate: 'true'
+                    },
+                    highPriority: true
+                }).catch(() => {});
+            }
+            continue;
+        }
+
+        // Legacy: programado sin conductor → pending + buscar ofertas
         await docSnap.ref.update({
             status: 'pending',
             activatedAt: FieldValue.serverTimestamp(),

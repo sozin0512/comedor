@@ -1276,6 +1276,13 @@ if (document.readyState === 'loading') {
             return Number.isFinite(ms) ? ms : 0;
         }
 
+        /** Si al aceptar aún falta más de ~10 min, se reserva como scheduled (no arranca ya). */
+        function shouldReserveAsScheduledTrip(trip) {
+            const scheduledMs = getScheduledTripMs(trip);
+            if (!scheduledMs) return false;
+            return Date.now() < scheduledMs - SCHEDULED_TRIP_PREP_MS;
+        }
+
         function isScheduledTripDueForActivation(trip) {
             const scheduledMs = getScheduledTripMs(trip);
             if (!scheduledMs || trip?.status !== 'scheduled') return false;
@@ -1309,20 +1316,25 @@ if (document.readyState === 'loading') {
             try {
                 const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
                 let activated = false;
+                let hasDriver = false;
                 await runTransaction(db, async (tx) => {
                     const snap = await tx.get(tripRef);
                     if (!snap.exists()) return;
                     const t = snap.data();
                     if (!isScheduledTripDueForActivation(t)) return;
                     const scheduledMs = getScheduledTripMs(t);
+                    hasDriver = !!t.driverId;
+                    // Con conductor: activar a accepted (flujo normal)
+                    // Sin conductor (legacy): pending + buscar
                     tx.update(tripRef, {
-                        status: 'pending',
+                        status: hasDriver ? 'accepted' : 'pending',
                         scheduledEarlyActivated: Date.now() < scheduledMs,
-                        activatedAt: serverTimestamp()
+                        activatedAt: serverTimestamp(),
+                        scheduledActivatedFrom: 'client_auto'
                     });
                     activated = true;
                 });
-                if (activated) {
+                if (activated && !hasDriver) {
                     await window.assignNextTripOffer?.(tripId);
                 }
                 return activated;
@@ -1338,6 +1350,74 @@ if (document.readyState === 'loading') {
             const due = tripDocs.filter((t) => isScheduledTripDueForActivation(t));
             for (const t of due) {
                 await window.activateScheduledTripIfDue?.(t.id);
+            }
+        };
+
+        /**
+         * Conductor: iniciar YA un viaje programado reservado (antes de la hora).
+         * Pasa a accepted y carga la ruta / flujo normal.
+         */
+        window.startScheduledTripNow = async (tripId, btnEl = null) => {
+            if (!tripId || !currentUser) return;
+            if (btnEl) {
+                btnEl.disabled = true;
+                if (!btnEl.dataset.origHtml) btnEl.dataset.origHtml = btnEl.innerHTML;
+                btnEl.innerHTML = '<span class="pointer-events-none">Iniciando…</span>';
+            }
+            try {
+                const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+                const snap = await getDoc(tripRef);
+                if (!snap.exists()) throw new Error('Viaje no encontrado.');
+                const t = snap.data();
+                if (t.driverId !== currentUser.uid) throw new Error('Este viaje no es tuyo.');
+                if (t.status === 'accepted' || t.status === 'in_progress') {
+                    const data = { id: tripId, ...t };
+                    activeTrip = data;
+                    window.currentActiveTripData = data;
+                    window.presentTripAcceptedUi?.(data, { role: 'driver' });
+                    window.showToast?.('El viaje ya está activo.', 'success');
+                    return;
+                }
+                if (t.status !== 'scheduled') {
+                    throw new Error('Este viaje ya no está programado.');
+                }
+                await updateDoc(tripRef, {
+                    status: 'accepted',
+                    activatedAt: serverTimestamp(),
+                    scheduledEarlyActivated: true,
+                    scheduledActivatedFrom: 'driver_early_start',
+                    acceptedAt: t.acceptedAt || serverTimestamp()
+                });
+                const data = {
+                    id: tripId,
+                    ...t,
+                    status: 'accepted',
+                    scheduledEarlyActivated: true,
+                    scheduledActivatedFrom: 'driver_early_start'
+                };
+                activeTrip = data;
+                window.currentActiveTripData = data;
+                hideDriverTripOfferPopup?.();
+                window.presentTripAcceptedUi?.(data, { role: 'driver' });
+                // Ruta / mapa
+                try {
+                    if (data.originLat != null && data.originLng != null) {
+                        window.placePickupMarker?.({ lat: data.originLat, lng: data.originLng }, 'Origen');
+                    }
+                    if (data.destinationLat != null && data.destinationLng != null) {
+                        window.placeDestinationMarker?.({ lat: data.destinationLat, lng: data.destinationLng }, 'Destino');
+                    }
+                    window.selectDriverOfferForPreview?.(tripId, data);
+                    window.openDriverRouteInGoogleMaps?.();
+                } catch (_) {}
+                window.showToast?.('Viaje programado iniciado. Ve al origen del pasajero.', 'success');
+            } catch (e) {
+                console.error('startScheduledTripNow:', e);
+                window.showToast?.(e?.message || 'No se pudo iniciar el viaje programado.');
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = btnEl.dataset.origHtml || btnEl.innerHTML;
+                }
             }
         };
 
@@ -1491,6 +1571,17 @@ if (document.readyState === 'loading') {
                     window.showControlPanel?.();
                     return;
                 }
+                // Oferta del conductor / viaje al pasajero
+                if (event.data.openPassenger || event.data.openClient
+                    || event.data.notifType === 'driver_bid'
+                    || event.data.notifType === 'trip_accepted'
+                    || event.data.notifType === 'trip_arrived') {
+                    document.getElementById('client-view')?.classList.remove('hidden');
+                    document.getElementById('driver-view')?.classList.add('hidden');
+                    window.resetTripPanelCollapse?.();
+                    window.showControlPanel?.();
+                    return;
+                }
                 if ((event.data.openAdmin || event.data.type === 'new_trip_staff') && (window.userProfile?.role === 'supervisor' || isAdminUser(currentUser, window.userProfile))) {
                     // Open admin/supervisor panel on trips tab
                     const adminPanel = document.getElementById('admin-panel');
@@ -1512,8 +1603,7 @@ if (document.readyState === 'loading') {
                     || event.data.type === 'admin_notify'
                     || event.data.type === 'app_update'
                     || event.data.type === 'recurring_notify'
-                    || event.data.type === 'promo_new'
-                    || !event.data.openDriver) {
+                    || event.data.type === 'promo_new') {
                     setTimeout(() => window.showNotificationsModal?.(), 150);
                     setTimeout(() => window.showNotificationsModal?.(), 800);
                 }
@@ -1582,7 +1672,12 @@ if (document.readyState === 'loading') {
                         'warning'
                     );
                 } else {
-                    window.showToast('¡Listo! Recibirás avisos de viajes, chat y actualizaciones.', 'success');
+                    window.showToast(
+                        isCapacitorAndroid()
+                            ? '¡Listo! Avisos emergentes activados. Si Android abrió un ajuste extra, actívalo y vuelve a la app.'
+                            : '¡Listo! Recibirás avisos de viajes, chat y actualizaciones.',
+                        'success'
+                    );
                     localStorage.setItem('honduber_push_enabled', '1');
                     setHeaderTwinVisible('push-enable-btn', false);
                 }
@@ -1590,7 +1685,7 @@ if (document.readyState === 'loading') {
                 if (modal) modal.remove();
             } else if (result === 'denied') {
                 const hint = isCapacitorAndroid()
-                    ? 'Bloqueaste las notificaciones. Actívalas en Ajustes → HonduRaite → Notificaciones.'
+                    ? 'Bloqueaste las notificaciones. Actívalas en Ajustes → HonduRaite → Notificaciones (y “emergente / pantalla completa” si aparece).'
                     : 'Bloqueaste las notificaciones. Actívalas manualmente en los ajustes de tu navegador.';
                 window.showToast(hint);
             }
@@ -1628,15 +1723,18 @@ if (document.readyState === 'loading') {
                     <div style="width:64px;height:64px;background:#dbeafe;border-radius:9999px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
                         <i class="fas fa-bell" style="font-size:28px;color:#2563eb;"></i>
                     </div>
-                    <h3 style="font-size:18px;font-weight:900;margin:0 0 8px;color:#1e2937;">Activa tus notificaciones</h3>
+                    <h3 style="font-size:18px;font-weight:900;margin:0 0 8px;color:#1e2937;">Activa avisos emergentes</h3>
                     <p style="font-size:13px;color:#475569;margin-bottom:16px;line-height:1.4;">
                         ${notifDetail}
+                        ${isCapacitorAndroid()
+                            ? '<br><br><strong>Android pedirá permiso</strong> para notificaciones y, si hace falta, para mostrar avisos <strong>emergentes (estilo Temu)</strong> aunque estés en otra app.'
+                            : ''}
                     </p>
 
                     <div style="display:flex;flex-direction:column;gap:10px;">
                         <button id="btn-enable-notif" 
                                 style="width:100%;background:#2563eb;color:white;font-weight:700;padding:14px 0;border-radius:14px;border:none;font-size:14px;cursor:pointer;">
-                            🔔 ACTIVAR NOTIFICACIONES AHORA
+                            🔔 ACTIVAR AVISOS EMERGENTES
                         </button>
                         <button id="btn-later-notif" 
                                 style="width:100%;background:#f1f5f9;color:#334155;font-weight:600;padding:12px 0;border-radius:14px;border:none;font-size:13px;cursor:pointer;">
@@ -1713,10 +1811,16 @@ if (document.readyState === 'loading') {
         // Staff (supervisor / admin) alert for NEW pending trips - super + different sound
         // Works even if not viewing the trips tab (as long as app is open)
         let _staffSeenPending = new Set();
-        function alertStaffNewPendingTrips(pendingTrips) {
+        function isStaffForTripAlerts() {
             const role = window.userProfile?.role;
-            const isStaff = role === 'supervisor' || isAdminUser(currentUser, window.userProfile);
-            if (!isStaff || !pendingTrips?.length) return;
+            return role === 'supervisor'
+                || role === 'admin'
+                || isAdminUser(currentUser, window.userProfile)
+                || isSupervisorUser?.(currentUser, window.userProfile);
+        }
+
+        function alertStaffNewPendingTrips(pendingTrips) {
+            if (!isStaffForTripAlerts() || !pendingTrips?.length) return;
 
             const fresh = pendingTrips.filter(t => {
                 const key = t.id;
@@ -1739,21 +1843,41 @@ if (document.readyState === 'loading') {
             const svcCopy = getTripOfferNotificationCopy(svc);
             const label = svcCopy.short;
             const dist = t0.offerDistanceKm ? ` · ${parseFloat(t0.offerDistanceKm).toFixed(1)} km` : '';
+            const title = `🆕 ${svcCopy.staff}`;
+            const body = `${t0.price || 'Nueva solicitud'}${dist} · ${t0.origin || ''}`;
 
-            // Super vibration + DIFFERENT sound
+            // Super vibration + tono staff (Personalización → Staff · viaje nuevo)
             try { triggerSuperTripVibration?.(); } catch (_) {}
-            try { window.playStaffTripAlertSound?.(); } catch (_) {}
+            try {
+                window.playEventNotificationTone?.('staff_trip')
+                    || window.playStaffTripAlertSound?.();
+            } catch (_) {}
 
             window.showToast?.(`🆕 ${label} nuevo: ${t0.price || ''}${dist} — Revisa panel de Viajes`, 'warning');
 
-            // Also surface a system notification if background-ish or forced
+            // Banner + canal nativo Android (si Web Audio está bloqueado, igual suena el canal)
+            try {
+                window.showAndroidAlertNotification?.({
+                    title,
+                    body,
+                    data: {
+                        type: 'new_trip_staff',
+                        tripId: t0.id,
+                        tag: `staff-trip-${t0.id}`,
+                        openAdmin: 'true',
+                        superVibrate: 'true'
+                    }
+                });
+            } catch (_) {}
+
+            // Web/PWA: notificación del sistema (sin segundo tono — sound none)
             notifyTripEvent({
-                title: `🆕 ${svcCopy.staff}`,
-                body: `${t0.price || 'Nueva solicitud'}${dist} · ${t0.origin || ''}`,
+                title,
+                body,
                 tag: `staff-trip-${t0.id}`,
                 tripId: t0.id,
                 force: true,
-                sound: 'default',
+                sound: 'none',
                 superVibrate: true
             }).catch(() => {});
         }
@@ -1825,6 +1949,15 @@ if (document.readyState === 'loading') {
             const svcCopy = getTripOfferNotificationCopy(t.serviceType || '');
             const toastTitle = `${svcCopy.toast} ${t.price || ''}${dist} · ${payLabel}`;
             window.showToast(toastTitle, 'success');
+
+            // Forzar pantalla emergente tipo Uber al llegar oferta nueva
+            try {
+                _driverOfferPopupDismissedKey = null;
+                window.syncDriverTripOfferPopup?.(offers, {
+                    onActiveTrip: !!(activeTrip && CONFIRMED_TRIP_STATUSES.includes(activeTrip.status)),
+                    forceShow: true
+                });
+            } catch (_) {}
 
             if (!LOW) {
                 notifyTripEvent({
@@ -2519,6 +2652,12 @@ if (document.readyState === 'loading') {
                 } else if (action === 'save-favorite') window.openSaveFavoriteModal?.();
                 else if (action === 'claim-promo') window.showClaimPromoModal?.();
                 else if (action === 'cancel') await window.cancelOrder?.();
+                else if (action === 'boost-price') {
+                    const delta = parseFloat(btn.dataset.boostDelta || '0');
+                    if (delta > 0) await window.raisePendingTripPrice?.({ delta });
+                } else if (action === 'boost-price-custom') {
+                    await window.raisePendingTripPrice?.({ promptCustom: true });
+                }
                 else if (action === 'toggle-panel') window.toggleActivePanel?.();
                 else if (action === 'toggle-chat') window.toggleChat?.();
                 else if (action === 'send-chat') window.sendChatMessage?.();
@@ -2610,6 +2749,14 @@ if (document.readyState === 'loading') {
                 return;
             }
 
+            const mapBackBtn = e.target.closest('[data-driver-offer-map-back]');
+            if (mapBackBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.restoreDriverOfferPopupFromMapPeek?.();
+                return;
+            }
+
             const previewOfferEl = e.target.closest('[data-preview-offer]');
             if (previewOfferEl) {
                 const blocked = e.target.closest(
@@ -2619,7 +2766,17 @@ if (document.readyState === 'loading') {
                     e.preventDefault();
                     e.stopPropagation();
                     const tripId = previewOfferEl.dataset.previewOffer;
-                    if (tripId) window.selectDriverOfferForPreview?.(tripId);
+                    if (!tripId) return;
+                    // Si la oferta está en el popup, hay que bajarlo para ver el mapa de fondo
+                    const fromPopup = !!previewOfferEl.closest('#driver-trip-offer-popup');
+                    if (fromPopup) {
+                        window.enterDriverOfferMapPeek?.(tripId);
+                    }
+                    window.selectDriverOfferForPreview?.(tripId);
+                    if (!fromPopup && document.body.classList.contains('panel-minimized') === false) {
+                        // Desde la lista: minimizar un poco el panel ayuda a ver la ruta
+                        // (no forzar si ya está minimizado)
+                    }
                     return;
                 }
             }
@@ -2642,7 +2799,7 @@ if (document.readyState === 'loading') {
                 e.preventDefault();
                 e.stopPropagation();
                 const tid = negBtn.dataset.negotiateTrip;
-                const inp = document.getElementById(`neg-price-${tid}`);
+                const inp = getDriverOfferNegPriceInput(tid, negBtn);
                 const val = parseFloat(inp ? inp.value : 0);
                 if (val > 0) {
                     window.proposeTripPrice?.(tid, val, negBtn);
@@ -3369,7 +3526,7 @@ if (document.readyState === 'loading') {
                     ? `window.declineNegotiation('${tripId}')`
                     : `window.declineDriverBid('${tripId}', '${b.driverId}')`;
                 const counterSentNote = counterAlreadySent
-                    ? `<p class="passenger-offer-counter-sent"><i class="fas fa-paper-plane"></i> Tu contraoferta: <b>L. ${sentCounter.toFixed(2)}</b> — esperando respuesta</p>`
+                    ? `<p class="passenger-offer-counter-sent"><i class="fas fa-hourglass-half"></i> Enviaste <b>L. ${sentCounter.toFixed(2)}</b> — el <b>conductor</b> debe aceptarlo. Tú no puedes aceptar tu propia oferta.</p>`
                     : '';
                 const listedTag = matchesListed
                     ? '<p class="passenger-offer-listed-tag"><i class="fas fa-check"></i> Mismo precio que pediste</p>'
@@ -3404,13 +3561,27 @@ if (document.readyState === 'loading') {
                                 class="passenger-offer-counter-toggle"
                                 data-counter-sent="${counterAlreadySent ? '1' : '0'}"
                                 onclick="window.togglePassengerOfferCounter('${tripId}', '${b.driverId}')">${toggleLabel}</button>`;
-                const acceptLabel = singleOffer
-                    ? `ACEPTAR L. ${effectivePrice.toFixed(2)} — IR AHORA`
-                    : 'Aceptar';
-                const acceptClass = singleOffer ? 'passenger-offer-accept passenger-offer-accept--hero' : 'passenger-offer-accept';
+                // Con contraoferta pendiente: el pasajero NO puede aceptar (eso lo hace el conductor)
+                const acceptLabel = counterAlreadySent
+                    ? (singleOffer ? 'ESPERANDO AL CONDUCTOR…' : 'Esperando…')
+                    : (singleOffer
+                        ? `ACEPTAR L. ${effectivePrice.toFixed(2)} — IR AHORA`
+                        : 'Aceptar');
+                const acceptClass = singleOffer
+                    ? `passenger-offer-accept passenger-offer-accept--hero${counterAlreadySent ? ' passenger-offer-accept--waiting' : ''}`
+                    : `passenger-offer-accept${counterAlreadySent ? ' passenger-offer-accept--waiting' : ''}`;
                 const declineClass = singleOffer ? 'passenger-offer-decline passenger-offer-decline--compact' : 'passenger-offer-decline';
+                const acceptBtnHtml = counterAlreadySent
+                    ? `<button type="button" class="${acceptClass}" disabled aria-disabled="true" title="El conductor debe aceptar tu contraoferta">${acceptLabel}</button>`
+                    : `<button type="button" onclick="${acceptFn}" class="${acceptClass}">${acceptLabel}</button>`;
+                const priceDisplay = counterAlreadySent
+                    ? `L. ${sentCounter.toFixed(2)}`
+                    : `L. ${effectivePrice.toFixed(2)}`;
+                const driverOfferLine = counterAlreadySent && !Number.isNaN(driverOffer)
+                    ? `<p class="passenger-offer-driver-ask">Su oferta era L. ${driverOffer.toFixed(2)}</p>`
+                    : '';
                 return `
-                    <article class="passenger-offer-card${idx === 0 ? ' passenger-offer-card--top' : ''}">
+                    <article class="passenger-offer-card${idx === 0 ? ' passenger-offer-card--top' : ''}${counterAlreadySent ? ' passenger-offer-card--waiting-driver' : ''}">
                         <div class="passenger-offer-head">
                             <img src="${photo}" alt="${fullName}" class="passenger-offer-photo"
                                  onerror="this.src='https://placehold.co/96x96/e2e8f0/64748b?text=C'">
@@ -3418,15 +3589,16 @@ if (document.readyState === 'loading') {
                                 <p class="passenger-offer-name">${firstName} ${closestTag}</p>
                                 <p class="passenger-offer-sub">${ratingValue} ★${distLabel ? ` · ${distLabel}` : ''}</p>
                                 ${listedTag}
+                                ${driverOfferLine}
                             </div>
                             <div class="passenger-offer-price-wrap">
-                                <p class="passenger-offer-price">L. ${effectivePrice.toFixed(2)}</p>
+                                <p class="passenger-offer-price">${priceDisplay}</p>
                                 ${counterAlreadySent ? `<span class="passenger-offer-your-counter">Tu contraoferta</span>` : ''}
                             </div>
                         </div>
                         ${counterSentNote}
                         <div class="passenger-offer-actions">
-                            <button type="button" onclick="${acceptFn}" class="${acceptClass}">${acceptLabel}</button>
+                            ${acceptBtnHtml}
                             <button type="button" onclick="${declineFn}" class="${declineClass}">No</button>
                         </div>
                         ${counterRow}
@@ -3529,18 +3701,31 @@ if (document.readyState === 'loading') {
                    <i class="fas fa-chevron-down driver-offer-kbd-toggle-chevron" aria-hidden="true"></i>`;
         }
 
-        window.toggleDriverOfferKeyboard = (tripId) => {
-            const drawer = document.getElementById(`driver-kbd-row-${tripId}`);
-            const toggle = document.getElementById(`driver-kbd-toggle-${tripId}`);
+        window.toggleDriverOfferKeyboard = (tripId, idPrefix = '') => {
+            const p = String(idPrefix || '');
+            const drawer = document.getElementById(`${p}driver-kbd-row-${tripId}`);
+            const toggle = document.getElementById(`${p}driver-kbd-toggle-${tripId}`);
             if (!drawer || !toggle) return;
             const open = drawer.classList.toggle('driver-offer-kbd-drawer--open');
             toggle.classList.toggle('driver-offer-kbd-toggle--open', open);
             toggle.innerHTML = buildDriverKbdToggleInnerHtml(open);
             if (open) {
-                const inp = document.getElementById(`neg-price-${tripId}`);
+                const inp = document.getElementById(`${p}neg-price-${tripId}`);
                 inp?.focus?.();
             }
         };
+
+        function getDriverOfferNegPriceInput(tripId, fromEl = null) {
+            const root = fromEl?.closest?.('#driver-trip-offer-popup, .driver-offer-card, .trip-request-card');
+            if (root) {
+                const local = root.querySelector(`[data-neg-price-for="${tripId}"]`)
+                    || root.querySelector(`#popup-neg-price-${tripId}`)
+                    || root.querySelector(`#neg-price-${tripId}`);
+                if (local) return local;
+            }
+            return document.querySelector(`#popup-neg-price-${tripId}`)
+                || document.getElementById(`neg-price-${tripId}`);
+        }
 
         function roundDriverOfferPrice(n) {
             const v = Math.round(Number(n) || 0);
@@ -3601,8 +3786,10 @@ if (document.readyState === 'loading') {
             rejectedPriceNum,
             paymentBadge,
             priceLabel,
-            distSummary
-        }) {
+            distSummary,
+            idPrefix = ''
+        } = {}) {
+            const pfx = String(idPrefix || '');
             const waitingOnPax = !!(myBid && !hasPassengerCounter && !passengerRejectedMyPrice);
             let statusLabel = 'Te pagan';
             let statusSub = 'Solo botones — sin escribir';
@@ -3675,14 +3862,14 @@ if (document.readyState === 'loading') {
                     ${primaryBtn}
                     ${quickBidsHtml}
                     ${waitingOnPax ? '' : `
-                        <button type="button" id="driver-kbd-toggle-${tripId}" class="driver-offer-kbd-toggle trip-touch-btn" onclick="window.toggleDriverOfferKeyboard('${tripId}')">
+                        <button type="button" id="${pfx}driver-kbd-toggle-${tripId}" class="driver-offer-kbd-toggle trip-touch-btn" onclick="window.toggleDriverOfferKeyboard('${tripId}', '${pfx}')">
                             ${buildDriverKbdToggleInnerHtml(false)}
                         </button>
-                        <div id="driver-kbd-row-${tripId}" class="driver-offer-kbd-drawer">
+                        <div id="${pfx}driver-kbd-row-${tripId}" class="driver-offer-kbd-drawer">
                             <div class="driver-offer-kbd-panel">
                                 <p class="driver-offer-kbd-panel-label">Tu precio en lempiras</p>
                                 <div class="driver-offer-kbd-inner">
-                                    <input type="number" id="neg-price-${tripId}" step="5" inputmode="decimal" placeholder="${negPlaceholder}"
+                                    <input type="number" id="${pfx}neg-price-${tripId}" data-neg-price-for="${tripId}" step="5" inputmode="decimal" placeholder="${negPlaceholder}"
                                            class="driver-offer-kbd-input" aria-label="Tu precio en lempiras"
                                            value="${kbdPrefill || ''}">
                                     <button type="button" data-negotiate-trip="${tripId}" class="driver-offer-kbd-send trip-touch-btn">
@@ -4677,7 +4864,9 @@ if (document.readyState === 'loading') {
             const clientName = (trip?.clientName || 'Cliente').split(' ')[0];
             if (loading) {
                 titleEl.textContent = `Calculando ruta hacia ${clientName}…`;
-                subEl.textContent = 'Solo orientación — puedes minimizar el panel';
+                subEl.textContent = _driverOfferPopupMapPeek
+                    ? 'Dibujando en el mapa…'
+                    : 'Solo orientación — puedes minimizar el panel';
                 return;
             }
 
@@ -4687,7 +4876,9 @@ if (document.readyState === 'loading') {
             titleEl.textContent = etaBits
                 ? `Ruta hacia ${clientName} · ${etaBits}`
                 : `Ruta hacia ${clientName}`;
-            subEl.textContent = 'Solo orientación por calles — no es navegación activa';
+            subEl.textContent = _driverOfferPopupMapPeek
+                ? 'Orientación por calles — toca «Oferta» para volver'
+                : 'Solo orientación por calles — no es navegación activa';
         }
 
         async function buildDriverOfferPreviewRoute(t, driverPos) {
@@ -4911,8 +5102,8 @@ if (document.readyState === 'loading') {
         }
 
         function syncDriverOfferFairCta(t, summary) {
-            const card = document.getElementById(`driver-offer-dist-${t.id}`)?.closest('.driver-offer-card');
-            if (!card) return;
+            const cards = document.querySelectorAll(`.driver-offer-stats[data-trip-id="${t.id}"]`);
+            if (!cards.length) return;
 
             const listedPriceNum = parseTripPrice(t);
             if (!(listedPriceNum > 0)) return;
@@ -4940,32 +5131,36 @@ if (document.readyState === 'loading') {
                 : (t.paymentMethod === 'birthday_gift'
                     ? '<span class="trip-pay-badge trip-pay-saldo">Cumpleaños</span>'
                     : '<span class="trip-pay-badge trip-pay-cash">Efectivo</span>');
-
-            const decision = card.querySelector('.driver-offer-decision');
-            if (!decision) return;
-
             const rejectedPriceNum = passengerRejectedMyPrice ? parseFloat(t.lastRejectedDriverPrice) : null;
 
-            decision.outerHTML = buildDriverOfferDecisionHtml(t.id, t, {
-                listedPriceNum,
-                acceptPriceNum,
-                showDirectAccept,
-                hasPassengerCounter,
-                passengerCounterPrice,
-                priceFair,
-                myBid,
-                passengerRejectedMyPrice,
-                rejectedPriceNum,
-                paymentBadge,
-                priceLabel,
-                distSummary: summary
+            cards.forEach((statsEl) => {
+                const card = statsEl.closest('.driver-offer-card');
+                if (!card) return;
+                const decision = card.querySelector('.driver-offer-decision');
+                if (!decision) return;
+                const idPrefix = card.dataset.offerIdPrefix || '';
+                decision.outerHTML = buildDriverOfferDecisionHtml(t.id, t, {
+                    listedPriceNum,
+                    acceptPriceNum,
+                    showDirectAccept,
+                    hasPassengerCounter,
+                    passengerCounterPrice,
+                    priceFair,
+                    myBid,
+                    passengerRejectedMyPrice,
+                    rejectedPriceNum,
+                    paymentBadge,
+                    priceLabel,
+                    distSummary: summary,
+                    idPrefix
+                });
             });
         }
 
         async function hydrateDriverOfferDistances(offers) {
             if (!offers?.length) return;
             await Promise.all(offers.map(async (t) => {
-                const el = document.getElementById(`driver-offer-dist-${t.id}`);
+                const el = document.querySelector(`.driver-offer-stats[data-trip-id="${t.id}"]`);
                 if (!el) return;
 
                 let enriched = { ...t };
@@ -4980,22 +5175,30 @@ if (document.readyState === 'loading') {
                 }
 
                 const summary = buildDriverOfferDistanceSummary(enriched, { pickupKm });
-                el.innerHTML = renderDriverOfferStatsContent(summary);
+                const statsEls = document.querySelectorAll(`.driver-offer-stats[data-trip-id="${t.id}"]`);
+                const html = renderDriverOfferStatsContent(summary);
+                if (statsEls.length) {
+                    statsEls.forEach((node) => { node.innerHTML = html; });
+                } else {
+                    el.innerHTML = html;
+                }
                 syncDriverOfferFairCta(enriched, summary);
 
-                const negInp = document.getElementById(`neg-price-${t.id}`);
-                if (negInp && summary.suggestPrice && !negInp.value) {
-                    negInp.placeholder = `Ej. L. ${Math.round(summary.suggestPrice)}`;
-                }
+                document.querySelectorAll(`[data-neg-price-for="${t.id}"]`).forEach((negInp) => {
+                    if (summary.suggestPrice && !negInp.value) {
+                        negInp.placeholder = `Ej. L. ${Math.round(summary.suggestPrice)}`;
+                    }
+                });
             }));
         }
 
-        function buildDriverOfferDistanceHeroHtml(tripId, t, { distanceKm } = {}) {
+        function buildDriverOfferDistanceHeroHtml(tripId, t, { distanceKm, idPrefix = '' } = {}) {
+            const pfx = String(idPrefix || '');
             const pickupKm = distanceKm ?? getLiveDriverPickupKm(t);
             const summary = buildDriverOfferDistanceSummary(t, { pickupKm });
             const needsCalc = !summary.isHourly && summary.tripKm <= 0 && t.originLat != null && t.destinationLat != null;
             if (needsCalc) summary.loading = true;
-            return `<div class="driver-offer-stats" id="driver-offer-dist-${tripId}" data-trip-id="${tripId}">${renderDriverOfferStatsContent(summary)}</div>`;
+            return `<div class="driver-offer-stats" id="${pfx}driver-offer-dist-${tripId}" data-trip-id="${tripId}">${renderDriverOfferStatsContent(summary)}</div>`;
         }
 
         function getTripCreatedAtMs(t) {
@@ -5055,7 +5258,8 @@ if (document.readyState === 'loading') {
             window.syncDriverRadarFloatPanel?.();
         }
 
-        function buildTripOfferCardHtml(tripId, t, { distanceKm, driverBusy = false, compact = false, queueIndex = null } = {}) {
+        function buildTripOfferCardHtml(tripId, t, { distanceKm, driverBusy = false, compact = false, queueIndex = null, idPrefix = '' } = {}) {
+            const pfx = String(idPrefix || '');
             const dist = distanceKm ?? getLiveDriverPickupKm(t) ?? t.offerDistanceKm;
             const distSummary = buildDriverOfferDistanceSummary(t, { pickupKm: dist });
             const passengerRejectedMyPrice = t.lastRejectedDriverPrice != null
@@ -5170,22 +5374,23 @@ if (document.readyState === 'loading') {
                 rejectedPriceNum,
                 paymentBadge,
                 priceLabel,
-                distSummary
+                distSummary,
+                idPrefix: pfx
             });
 
             return `
-                <div class="trip-request-card driver-offer-card ${compact ? 'driver-offer-card--highlight' : ''}" data-preview-offer="${tripId}">
+                <div class="trip-request-card driver-offer-card ${compact ? 'driver-offer-card--highlight' : ''}" data-preview-offer="${tripId}" data-offer-id-prefix="${pfx}">
                     <div class="driver-offer-top">
                         <p class="driver-offer-name client-name-${tripId}">${t.clientName || 'Pasajero'}</p>
                         <div class="driver-offer-badges">${firstTripBadge}${queueBadge}${serviceBadge}${distBadge}</div>
                     </div>
-                    <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Ver ruta por calles en el mapa">
-                        <i class="fas fa-route" aria-hidden="true"></i> Ver ruta en mapa
+                    <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Baja el panel y dibuja la ruta en el mapa (solo orientación)">
+                        <i class="fas fa-map-marked-alt" aria-hidden="true"></i> Ver en el mapa
                     </button>
                     ${firstTripAlert}
                     ${unverifiedAlert}
                     ${buildDriverOfferRouteHtml(t)}
-                    ${buildDriverOfferDistanceHeroHtml(tripId, t, { distanceKm: dist })}
+                    ${buildDriverOfferDistanceHeroHtml(tripId, t, { distanceKm: dist, idPrefix: pfx })}
                     ${detailsHtml}
                     ${decisionHtml}
                 </div>
@@ -5200,9 +5405,9 @@ if (document.readyState === 'loading') {
                 const cRef = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', t.clientId));
                 if (!cRef.exists()) return;
                 const cData = cRef.data();
-                const nameEl = document.querySelector(`.client-name-${tripId}`);
+                const nameEls = document.querySelectorAll(`.client-name-${tripId}`);
                 const rating = cData.ratingCount > 0 ? (cData.ratingSum / cData.ratingCount).toFixed(1) : '5.0';
-                if (nameEl) {
+                if (nameEls.length) {
                     const isVerified = cData.approvalStatus === 'approved' || cData.verified === true || cData.clientVerified === true;
                     const verifyBadge = isVerified 
                         ? `<span class="text-[9px] ml-1 text-blue-600"><i class="fas fa-check-circle"></i></span>` 
@@ -5213,23 +5418,26 @@ if (document.readyState === 'loading') {
                     const firstBadge = isFirst
                         ? `<span class="driver-offer-first-badge ml-1"><i class="fas fa-star"></i> 1er viaje</span>`
                         : '';
-                    nameEl.innerHTML = `${cData.name} <span class="text-amber-500 text-[10px]"><i class="fas fa-star"></i> ${rating}</span> ${verifyBadge}${firstBadge}`;
-                    // Si el viaje no traía el flag, pintar aviso en la tarjeta
-                    if (isFirst) {
-                        const card = nameEl.closest('.driver-offer-card');
-                        if (card && !card.querySelector('.driver-offer-alert--first')) {
-                            const alert = document.createElement('p');
-                            alert.className = 'driver-offer-alert driver-offer-alert--first';
-                            alert.innerHTML = '<i class="fas fa-star"></i> Primer viaje del cliente';
-                            const route = card.querySelector('.driver-offer-route, .driver-offer-route-chain, .driver-offer-preview-btn');
-                            if (route) route.insertAdjacentElement('beforebegin', alert);
-                            else card.appendChild(alert);
+                    const nameHtml = `${cData.name} <span class="text-amber-500 text-[10px]"><i class="fas fa-star"></i> ${rating}</span> ${verifyBadge}${firstBadge}`;
+                    nameEls.forEach((nameEl) => {
+                        nameEl.innerHTML = nameHtml;
+                        // Si el viaje no traía el flag, pintar aviso en la tarjeta
+                        if (isFirst) {
+                            const card = nameEl.closest('.driver-offer-card');
+                            if (card && !card.querySelector('.driver-offer-alert--first')) {
+                                const alert = document.createElement('p');
+                                alert.className = 'driver-offer-alert driver-offer-alert--first';
+                                alert.innerHTML = '<i class="fas fa-star"></i> Primer viaje del cliente';
+                                const route = card.querySelector('.driver-offer-route, .driver-offer-route-chain, .driver-offer-preview-btn');
+                                if (route) route.insertAdjacentElement('beforebegin', alert);
+                                else card.appendChild(alert);
+                            }
+                            const badges = card?.querySelector('.driver-offer-badges');
+                            if (badges && !badges.querySelector('.driver-offer-first-badge')) {
+                                badges.insertAdjacentHTML('afterbegin', '<span class="driver-offer-first-badge"><i class="fas fa-star"></i> 1er viaje</span>');
+                            }
                         }
-                        const badges = card?.querySelector('.driver-offer-badges');
-                        if (badges && !badges.querySelector('.driver-offer-first-badge')) {
-                            badges.insertAdjacentHTML('afterbegin', '<span class="driver-offer-first-badge"><i class="fas fa-star"></i> 1er viaje</span>');
-                        }
-                    }
+                    });
                 }
             } catch (_) {}
         }
@@ -5265,6 +5473,11 @@ if (document.readyState === 'loading') {
                 };
                 await updateDoc(tripRef, patch);
 
+                if (_driverOfferPopupTripId === tripId || window._driverPreviewOfferTripId === tripId) {
+                    _driverOfferPopupMapPeek = false;
+                    setDriverOfferMapPeekUi(false);
+                    hideDriverTripOfferPopup();
+                }
                 window.showToast('Viaje ocultado de tu lista.', 'success');
             } catch (e) {
                 console.error('declineTripOffer:', e);
@@ -5380,6 +5593,287 @@ if (document.readyState === 'loading') {
             }
         };
 
+        // —— Pantalla emergente tipo Uber para ofertas de viaje al conductor ——
+        const DRIVER_OFFER_POPUP_CIRC = 2 * Math.PI * 24; // r=24 en el SVG del timer
+        let _driverOfferPopupTripId = null;
+        let _driverOfferPopupRenderKey = '';
+        let _driverOfferPopupTimer = null;
+        let _driverOfferPopupDismissedKey = null;
+        let _driverOfferPopupBound = false;
+        /** true = el conductor bajó el popup para mirar la ruta en el mapa */
+        let _driverOfferPopupMapPeek = false;
+
+        function stopDriverOfferPopupTimer() {
+            if (_driverOfferPopupTimer) {
+                clearInterval(_driverOfferPopupTimer);
+                _driverOfferPopupTimer = null;
+            }
+        }
+
+        function hideDriverTripOfferPopup({ soft = false } = {}) {
+            const popup = document.getElementById('driver-trip-offer-popup');
+            if (!popup) return;
+            stopDriverOfferPopupTimer();
+            popup.classList.add('hidden');
+            popup.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('driver-offer-popup-open');
+            const body = document.getElementById('driver-trip-offer-popup-body');
+            if (body && !soft) body.innerHTML = '';
+            if (!soft) {
+                _driverOfferPopupTripId = null;
+                _driverOfferPopupRenderKey = '';
+                if (!_driverOfferPopupMapPeek) {
+                    document.body.classList.remove('driver-offer-map-peek');
+                }
+            }
+        }
+
+        function setDriverOfferMapPeekUi(active) {
+            const backBtn = document.getElementById('driver-offer-map-hint-back');
+            document.body.classList.toggle('driver-offer-map-peek', !!active);
+            if (backBtn) backBtn.classList.toggle('hidden', !active);
+        }
+
+        /**
+         * Baja la pantalla emergente para que se vea el mapa con la ruta.
+         * No es que el botón “no haga nada”: la ruta se dibuja detrás del popup.
+         */
+        window.enterDriverOfferMapPeek = function (tripId) {
+            if (!tripId) return;
+            _driverOfferPopupMapPeek = true;
+            // Soft: conserva el HTML de la oferta para restaurar sin re-fetch
+            hideDriverTripOfferPopup({ soft: true });
+            setDriverOfferMapPeekUi(true);
+
+            // Minimizar panel del conductor para dejar ver casi todo el mapa
+            const panel = document.getElementById('control-panel');
+            if (panel && !document.body.classList.contains('panel-minimized')) {
+                panel.classList.add('panel-collapsed');
+                document.body.classList.add('panel-minimized');
+                try { window.syncDriverRadarFloatPanel?.(); } catch (_) {}
+                try { window.syncPassengerPanelToggleLabel?.(); } catch (_) {}
+            }
+
+            window.showToast?.('Ruta en el mapa. Toca «Oferta» arriba para volver.', 'success');
+        };
+
+        window.restoreDriverOfferPopupFromMapPeek = function () {
+            if (!_driverOfferPopupTripId && !window._driverPreviewOfferTripId) {
+                _driverOfferPopupMapPeek = false;
+                setDriverOfferMapPeekUi(false);
+                return;
+            }
+            _driverOfferPopupMapPeek = false;
+            setDriverOfferMapPeekUi(false);
+            _driverOfferPopupDismissedKey = null;
+
+            // Expandir panel y reabrir popup
+            try { window.showControlPanel?.(); } catch (_) {}
+
+            const popup = document.getElementById('driver-trip-offer-popup');
+            const body = document.getElementById('driver-trip-offer-popup-body');
+            if (popup && body && body.innerHTML.trim()) {
+                popup.classList.remove('hidden');
+                popup.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('driver-offer-popup-open');
+                // Reanudar timer si aún hay datos de la oferta en el body
+                // (el snapshot siguiente re-sincroniza con datos frescos)
+            } else {
+                // Forzar re-render en el próximo sync
+                _driverOfferPopupRenderKey = '';
+            }
+            // Pedir re-sync inmediato si hay ofertas en memoria del listener
+            try {
+                window.syncDriverTripOfferPopup?.(
+                    window._lastDriverMyOffers || [],
+                    { forceShow: true }
+                );
+            } catch (_) {}
+        };
+
+        function getDriverOfferPopupRemainingSec(trip) {
+            const sentMs = trip?.offerSentAt?.toMillis?.()
+                || (trip?.offerSentAt?.seconds ? trip.offerSentAt.seconds * 1000 : 0)
+                || getTripCreatedAtMs(trip)
+                || Date.now();
+            const elapsed = Math.max(0, Date.now() - sentMs);
+            return Math.max(0, Math.ceil((TRIP_OFFER_TIMEOUT_SEC * 1000 - elapsed) / 1000));
+        }
+
+        function paintDriverOfferPopupTimer(trip) {
+            const secEl = document.getElementById('driver-trip-offer-popup-timer-sec');
+            const arc = document.getElementById('driver-trip-offer-popup-timer-arc');
+            if (!secEl || !arc) return;
+            const remaining = getDriverOfferPopupRemainingSec(trip);
+            const total = TRIP_OFFER_TIMEOUT_SEC || 120;
+            const ratio = Math.max(0, Math.min(1, remaining / total));
+            secEl.textContent = String(remaining);
+            arc.style.strokeDasharray = String(DRIVER_OFFER_POPUP_CIRC);
+            arc.style.strokeDashoffset = String(DRIVER_OFFER_POPUP_CIRC * (1 - ratio));
+            arc.classList.toggle('is-urgent', remaining <= 45 && remaining > 15);
+            arc.classList.toggle('is-critical', remaining <= 15);
+        }
+
+        function startDriverOfferPopupTimer(trip) {
+            stopDriverOfferPopupTimer();
+            paintDriverOfferPopupTimer(trip);
+            _driverOfferPopupTimer = setInterval(() => {
+                if (!_driverOfferPopupTripId || _driverOfferPopupTripId !== trip.id) {
+                    stopDriverOfferPopupTimer();
+                    return;
+                }
+                paintDriverOfferPopupTimer(trip);
+                if (getDriverOfferPopupRemainingSec(trip) <= 0) {
+                    // El snapshot ocultará la oferta al expirar; no forzar hide aquí
+                    stopDriverOfferPopupTimer();
+                }
+            }, 1000);
+        }
+
+        function bindDriverTripOfferPopupOnce() {
+            if (_driverOfferPopupBound) return;
+            const popup = document.getElementById('driver-trip-offer-popup');
+            if (!popup) return;
+            _driverOfferPopupBound = true;
+            popup.addEventListener('click', (e) => {
+                const dismiss = e.target.closest('[data-driver-offer-popup-dismiss]');
+                if (!dismiss) return;
+                e.preventDefault();
+                e.stopPropagation();
+                // El conductor puede cerrar para ver la lista; se reabre si llega otra oferta nueva
+                if (_driverOfferPopupTripId) {
+                    _driverOfferPopupDismissedKey = `${_driverOfferPopupTripId}:${_driverOfferPopupRenderKey}`;
+                }
+                hideDriverTripOfferPopup();
+            });
+        }
+
+        function buildDriverOfferPopupRenderKey(trip) {
+            if (!trip) return '';
+            const neg = trip.negotiatedPrice != null ? String(trip.negotiatedPrice) : '';
+            const negBy = trip.negotiatedBy || '';
+            const bid = getMyDriverBid(trip);
+            const bidP = bid?.price != null ? String(bid.price) : '';
+            const rej = trip.lastRejectedDriverPrice != null ? String(trip.lastRejectedDriverPrice) : '';
+            const sent = trip.offerSentAt?.seconds
+                ?? trip.offerSentAt?.toMillis?.()
+                ?? '';
+            return [trip.id, sent, neg, negBy, bidP, rej, trip.price || ''].join('|');
+        }
+
+        function syncDriverTripOfferPopup(myOffers, { onActiveTrip = false, forceShow = false } = {}) {
+            bindDriverTripOfferPopupOnce();
+            const popup = document.getElementById('driver-trip-offer-popup');
+            const body = document.getElementById('driver-trip-offer-popup-body');
+            const titleEl = document.getElementById('driver-trip-offer-popup-title');
+            const subEl = document.getElementById('driver-trip-offer-popup-sub');
+            const queueEl = document.getElementById('driver-trip-offer-popup-queue');
+            if (!popup || !body) return;
+
+            // Cache para restaurar el popup al volver del mapa
+            window._lastDriverMyOffers = Array.isArray(myOffers) ? myOffers : [];
+
+            const isDriver = window.userProfile?.role === 'driver' || isTestDriverProfile();
+            if (!isDriver || document.body.classList.contains('driver-rating-active')) {
+                _driverOfferPopupMapPeek = false;
+                setDriverOfferMapPeekUi(false);
+                hideDriverTripOfferPopup();
+                return;
+            }
+
+            if (!myOffers?.length) {
+                _driverOfferPopupMapPeek = false;
+                setDriverOfferMapPeekUi(false);
+                hideDriverTripOfferPopup();
+                _driverOfferPopupDismissedKey = null;
+                return;
+            }
+
+            const trip = myOffers[0];
+            const renderKey = buildDriverOfferPopupRenderKey(trip);
+            const dismissKey = `${trip.id}:${renderKey}`;
+
+            // Oferta nueva: salir del modo mapa y mostrar popup
+            if (forceShow) {
+                _driverOfferPopupMapPeek = false;
+                setDriverOfferMapPeekUi(false);
+            }
+
+            // Conductor mirando el mapa: no volver a tapar la ruta
+            if (!forceShow && _driverOfferPopupMapPeek) {
+                // Si cambió el viaje principal, actualizar cache de id y dejar el mapa
+                if (_driverOfferPopupTripId !== trip.id) {
+                    _driverOfferPopupTripId = trip.id;
+                    _driverOfferPopupRenderKey = renderKey;
+                }
+                return;
+            }
+
+            // Si el conductor cerró esta misma oferta y no cambió, respetar; si es nueva o cambió, reabrir
+            if (!forceShow && _driverOfferPopupDismissedKey === dismissKey && popup.classList.contains('hidden')) {
+                return;
+            }
+            if (_driverOfferPopupDismissedKey && _driverOfferPopupDismissedKey !== dismissKey) {
+                _driverOfferPopupDismissedKey = null;
+            }
+
+            // Abrir panel si estaba minimizado (igual que con notificaciones de oferta)
+            if (!onActiveTrip && document.body.classList.contains('panel-minimized')) {
+                window.showControlPanel?.();
+            }
+
+            const needsFullRender = _driverOfferPopupTripId !== trip.id
+                || _driverOfferPopupRenderKey !== renderKey
+                || popup.classList.contains('hidden');
+
+            if (needsFullRender) {
+                const svcCopy = getTripOfferNotificationCopy(trip.serviceType || '');
+                if (titleEl) titleEl.textContent = svcCopy?.title || 'Nueva solicitud';
+                if (subEl) {
+                    const pay = trip.paymentMethod === 'saldo' ? 'Saldo' : 'Efectivo';
+                    const dist = trip.offerDistanceKm != null
+                        ? ` · ${parseFloat(trip.offerDistanceKm).toFixed(1)} km a recogida`
+                        : '';
+                    subEl.textContent = onActiveTrip
+                        ? `Viaje en cola después del actual · ${pay}${dist}`
+                        : `Responde ya · ${pay}${dist}`;
+                }
+                body.innerHTML = buildTripOfferCardHtml(trip.id, trip, {
+                    distanceKm: trip.offerDistanceKm,
+                    driverBusy: onActiveTrip,
+                    compact: true,
+                    queueIndex: 1,
+                    idPrefix: 'popup-'
+                });
+                window.recordDriverTripView?.(trip.id);
+                hydrateTripOfferClientNames(trip.id);
+                hydrateDriverOfferDistances([trip]);
+                // Preparar la ruta en segundo plano (el usuario la ve al tocar «Ver en el mapa»)
+                try { window.selectDriverOfferForPreview?.(trip.id, trip); } catch (_) {}
+
+                if (queueEl) {
+                    if (myOffers.length > 1) {
+                        queueEl.classList.remove('hidden');
+                        queueEl.textContent = `+${myOffers.length - 1} viaje${myOffers.length > 2 ? 's' : ''} más en tu lista`;
+                    } else {
+                        queueEl.classList.add('hidden');
+                        queueEl.textContent = '';
+                    }
+                }
+
+                _driverOfferPopupTripId = trip.id;
+                _driverOfferPopupRenderKey = renderKey;
+            }
+
+            popup.classList.remove('hidden');
+            popup.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('driver-offer-popup-open');
+            startDriverOfferPopupTimer(trip);
+        }
+
+        window.hideDriverTripOfferPopup = hideDriverTripOfferPopup;
+        window.syncDriverTripOfferPopup = syncDriverTripOfferPopup;
+
         window.startDriverListener = function() {
             if (!currentUser) return;
 
@@ -5457,6 +5951,9 @@ if (document.readyState === 'loading') {
                     });
 
                 alertDriverNewTripOffers(myOffers);
+
+                // Pantalla emergente tipo Uber: siempre que haya viaje disponible
+                syncDriverTripOfferPopup(myOffers, { onActiveTrip });
 
                 const renderOffers = (targetEl, compact) => {
                     if (!targetEl) return;
@@ -5562,6 +6059,11 @@ if (document.readyState === 'loading') {
             if (!id || !currentUser) return;
 
             window.clearDriverOfferRoutePreview?.({ force: true });
+            if (_driverOfferPopupTripId === id || window._driverPreviewOfferTripId === id) {
+                _driverOfferPopupMapPeek = false;
+                setDriverOfferMapPeekUi(false);
+                hideDriverTripOfferPopup();
+            }
 
             remindInstallIfNeeded('driver_accept');
 
@@ -5701,8 +6203,9 @@ if (document.readyState === 'loading') {
                 }
                 const isBirthdayGift = t.birthdayFree || t.paymentMethod === 'birthday_gift';
 
+                const reserveScheduled = shouldReserveAsScheduledTrip(t);
                 const acceptFields = {
-                    status: 'accepted',
+                    status: reserveScheduled ? 'scheduled' : 'accepted',
                     driverId: currentUser.uid,
                     driverName: window.userProfile.name,
                     driverPhone: normalizeHondurasPhone(window.userProfile.phone) || '',
@@ -5725,6 +6228,10 @@ if (document.readyState === 'loading') {
                     driverFinishingOtherTrip: driverBusy,
                     driverBusyOnTripId: busyTripId,
                 };
+                if (reserveScheduled) {
+                    acceptFields.scheduledDriverReserved = true;
+                    acceptFields.scheduledReservedAt = serverTimestamp();
+                }
 
                 let acceptedViaCloud = false;
                 try {
@@ -5808,7 +6315,13 @@ if (document.readyState === 'loading') {
                 activeTrip = optimisticTrip;
                 window.currentActiveTripData = optimisticTrip;
 
-                if (driverBusy) {
+                if (reserveScheduled) {
+                    window.showToast(
+                        `Viaje programado reservado para ${formatScheduledTripWhen(optimisticTrip)}. Te avisaremos 1 h, 30, 10 y 5 min antes. Puedes iniciar antes con el botón.`,
+                        'success'
+                    );
+                    window.presentScheduledReservedUi?.(optimisticTrip, { role: 'driver' });
+                } else if (driverBusy) {
                     window.showToast('Viaje reservado. Termina el actual y te cargará la nueva ruta al calificar.', 'success');
                 } else {
                     window.presentTripAcceptedUi?.(optimisticTrip, { role: 'driver' });
@@ -19857,7 +20370,7 @@ onAuthStateChanged(auth, async (user) => {
 
                 // Start super trip alert listener for staff (new pending trips / deliveries)
                 // This + push notifications ensure alerts even if supervisor not viewing Viajes tab
-                if (staffAccess) {
+                if (staffAccess || profile.role === 'admin' || profile.role === 'supervisor') {
                     setTimeout(() => window.startStaffTripAlertsListener?.(), 800);
                 }
                 if (profile.role === 'driver' && profile.queuedTripId) {
@@ -22379,7 +22892,7 @@ function _initDestinationArrivalPanel() {
         }
 
         function findMyRelevantTrip(snap) {
-            const statusPriority = { in_progress: 50, accepted: 40, pending: 30, completed: 10, cancelled: 5 };
+            const statusPriority = { in_progress: 50, accepted: 40, scheduled: 35, pending: 30, completed: 10, cancelled: 5 };
             const role = window.userProfile?.role;
 
             if (role === 'client') {
@@ -22391,7 +22904,7 @@ function _initDestinationArrivalPanel() {
                         if (isDemandSimulationTrip(t)) { /* ignorar prueba admin */ }
                         else if (t.status === 'completed' && t[getRatedFieldForUser(t)]) { /* continuar */ }
                         else if (t.status === 'cancelled' && window.handledCancelledTripIds.has(t.id)) { /* continuar */ }
-                        else if (['pending', 'accepted', 'in_progress', 'completed', 'cancelled'].includes(t.status)) {
+                        else if (['pending', 'accepted', 'in_progress', 'scheduled', 'completed', 'cancelled'].includes(t.status)) {
                             return t;
                         }
                     }
@@ -22399,6 +22912,14 @@ function _initDestinationArrivalPanel() {
 
                 const pending = findMyPendingClientTrip(snap);
                 if (pending) return pending;
+
+                // Programado ya reservado con conductor
+                const scheduledReserved = snap.docs
+                    .map((d) => ({ id: d.id, ...d.data() }))
+                    .filter((t) => t.status === 'scheduled' && t.clientId === currentUser.uid && t.driverId && !isDemandSimulationTrip(t));
+                if (scheduledReserved.length) {
+                    return sortTripsByNewest(scheduledReserved)[0];
+                }
 
                 const active = findMyActiveClientTrip(snap);
                 if (active) return active;
@@ -22412,6 +22933,8 @@ function _initDestinationArrivalPanel() {
                     const isMine = t.clientId === currentUser.uid || t.driverId === currentUser.uid;
                     if (!isMine) return false;
                     if (t.status === 'completed') return !t[getRatedFieldForUser(t)];
+                    // scheduled con driver: reserva programada del conductor
+                    if (t.status === 'scheduled') return !!t.driverId && t.driverId === currentUser.uid;
                     return ['pending', 'accepted', 'cancelled', 'in_progress'].includes(t.status);
                 });
 
@@ -22611,6 +23134,166 @@ function _initDestinationArrivalPanel() {
                 : 'Conductores están siendo notificados';
         }
 
+        function syncPassengerBoostPricePanel(data) {
+            const panel = document.getElementById('passenger-boost-price-panel');
+            const curEl = document.getElementById('passenger-boost-current');
+            if (!panel) return;
+
+            const baseOk = !!(
+                data
+                && data.id
+                && data.status === 'pending'
+                && !data.driverId
+                && data.clientId === currentUser?.uid
+                && data.paymentMethod !== 'birthday_gift'
+                && data.birthdayFree !== true
+            );
+
+            // Solo “subir tarifa” si no hay oferta del conductor que el pasajero pueda aceptar.
+            // Si un conductor ofreció precio, el pasajero acepta o contraoferta (no sube la base).
+            // Si no hay ofertas, o solo espera respuesta a su contraoferta → sí puede subir para atraer más.
+            const offers = baseOk ? getPassengerDriverOffers(data) : [];
+            const hasDriverOfferToAccept = offers.some((o) => {
+                const c = o?.passengerCounterPrice;
+                return c == null || Number.isNaN(parseFloat(c));
+            });
+            const canBoost = baseOk && !hasDriverOfferToAccept;
+
+            if (!canBoost) {
+                panel.classList.add('hidden');
+                return;
+            }
+
+            panel.classList.remove('hidden');
+            const priceNum = parseTripPrice(data);
+            const label = data.price || (priceNum > 0 ? `L. ${priceNum.toFixed(2)}` : '—');
+            if (curEl) {
+                const boosts = Number(data.priceBoostCount) || 0;
+                curEl.textContent = boosts > 0
+                    ? `Tu tarifa: ${label} · subiste ${boosts} vez${boosts === 1 ? '' : 'es'}`
+                    : `Tu tarifa: ${label}`;
+            }
+        }
+
+        /**
+         * Pasajero sube el monto de su solicitud pendiente para atraer conductores.
+         * options: { delta: number } o { newPrice: number } o { promptCustom: true }
+         */
+        window.raisePendingTripPrice = async (options = {}) => {
+            const trip = activeTrip?.status === 'pending' && activeTrip.clientId === currentUser?.uid
+                ? activeTrip
+                : null;
+            if (!trip?.id) {
+                return window.showToast('No hay una solicitud activa para subir el precio.');
+            }
+            if (trip.driverId) {
+                return window.showToast('Ya tienes conductor asignado.');
+            }
+            if (trip.paymentMethod === 'birthday_gift' || trip.birthdayFree) {
+                return window.showToast('El viaje de cumpleaños es gratis; no se puede subir el precio.');
+            }
+
+            const current = parseTripPrice(trip);
+            if (!(current > 0)) {
+                return window.showToast('No se pudo leer el precio actual.');
+            }
+
+            let next = null;
+            if (options.promptCustom) {
+                const raw = prompt(`Tu tarifa actual es L. ${current.toFixed(2)}.\n¿A cuánto quieres subirla?`, String(Math.ceil(current + 20)));
+                if (raw == null) return;
+                next = parseFloat(String(raw).replace(/,/g, '.').trim());
+            } else if (options.newPrice != null) {
+                next = parseFloat(options.newPrice);
+            } else if (options.delta != null) {
+                next = current + parseFloat(options.delta);
+            }
+
+            next = Math.round((Number(next) || 0) * 100) / 100;
+            if (!(next > current)) {
+                return window.showToast(`El nuevo precio debe ser mayor a L. ${current.toFixed(2)}.`);
+            }
+            if (next > current * 4 && next > current + 200) {
+                if (!confirm(`Vas a subir de L. ${current.toFixed(2)} a L. ${next.toFixed(2)}. ¿Confirmas?`)) return;
+            }
+
+            // Saldo: validar que alcance el nuevo monto
+            if (trip.paymentMethod === 'saldo') {
+                const bal = Number(window.userProfile?.balance) || 0;
+                const charge = trip.passengerPaysAmount != null ? Math.min(next, Number(trip.passengerPaysAmount) || next) : next;
+                // Si no hay promo, el cobro es el precio completo
+                const need = trip.promoDiscountApplied ? (Number(trip.passengerPaysAmount) || next) : next;
+                // Al subir tarifa con saldo, el cobro será el nuevo precio (promos fijas se recalculan simple)
+                const needPay = next;
+                if (bal < needPay) {
+                    window.showToast(`Saldo insuficiente para L. ${needPay.toFixed(2)}. Recarga o elige efectivo al cancelar y volver a pedir.`, 'warning');
+                    setTimeout(() => window.showRechargeModal?.(), 900);
+                    return;
+                }
+            }
+
+            try {
+                const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id);
+                const snap = await getDoc(tripRef);
+                if (!snap.exists()) return window.showToast('El viaje ya no está disponible.');
+                const t = snap.data();
+                if (t.status !== 'pending' || t.clientId !== currentUser.uid || t.driverId) {
+                    return window.showToast('Este viaje ya no se puede modificar.');
+                }
+                const liveCurrent = parseTripPrice(t);
+                if (!(next > liveCurrent)) {
+                    return window.showToast(`El precio actual ya es L. ${liveCurrent.toFixed(2)}.`);
+                }
+
+                const priceText = `L. ${next.toFixed(2)}`;
+                await updateDoc(tripRef, {
+                    price: priceText,
+                    priceNum: next,
+                    previousPriceNum: liveCurrent,
+                    priceBoostedAt: serverTimestamp(),
+                    priceBoostCount: (Number(t.priceBoostCount) || 0) + 1,
+                    // Reabrir rueda de ofertas con el nuevo precio
+                    offeredToDriverId: null,
+                    offeredToDriverName: null,
+                    offerSentAt: null,
+                    offerDistanceKm: null,
+                    candidateDriverIds: [],
+                    offerToBusyDriver: false,
+                    offerSearchTier: null,
+                    // Quitar rechazos previos para que vuelvan a ver el viaje mejor pagado
+                    declinedDriverIds: [],
+                    negotiationLog: arrayUnion({
+                        by: 'passenger',
+                        action: 'price_boost',
+                        from: liveCurrent,
+                        price: next,
+                        name: window.userProfile?.name || 'Pasajero',
+                        clientId: currentUser.uid,
+                        at: Timestamp.now()
+                    }),
+                    lastNegotiationAt: serverTimestamp()
+                });
+
+                if (activeTrip?.id === trip.id) {
+                    activeTrip.price = priceText;
+                    activeTrip.priceNum = next;
+                    activeTrip.previousPriceNum = liveCurrent;
+                    activeTrip.priceBoostCount = (Number(t.priceBoostCount) || 0) + 1;
+                    activeTrip.declinedDriverIds = [];
+                    activeTrip.offeredToDriverId = null;
+                    updateSearchingStatusUI(activeTrip);
+                }
+
+                window.assignNextTripOffer?.(trip.id)?.catch?.(() => {});
+                window.showToast(`Tarifa subida a ${priceText}. Notificando conductores…`, 'success');
+            } catch (e) {
+                console.error('raisePendingTripPrice:', e);
+                window.showToast(e?.message?.includes('permission')
+                    ? 'No tienes permiso para cambiar el precio.'
+                    : 'No se pudo subir la tarifa. Intenta de nuevo.');
+            }
+        };
+
         function updateSearchingStatusUI(data) {
             const headline = document.getElementById('searching-status-headline');
             const sub = document.getElementById('searching-status-sub');
@@ -22632,16 +23315,29 @@ function _initDestinationArrivalPanel() {
             let showNotifyCountdown = false;
 
             const scheduledMins = getScheduledTripMinutesUntil(data);
-            if (scheduledMins != null && scheduledMins > 0) {
+            if (data.scheduledFor && !data.driverId && data.status === 'pending') {
+                statusLine = scheduledMins != null && scheduledMins > 0
+                    ? `Programado · en ${scheduledMins} min`
+                    : 'Viaje programado';
+                subLine = `Recogida: ${formatScheduledTripWhen(data)}. Buscando conductor que acepte o negocie.`;
+            } else if (scheduledMins != null && scheduledMins > 0 && data.status === 'scheduled') {
                 statusLine = `Programado · ${scheduledMins} min`;
                 subLine = formatScheduledTripWhen(data);
             } else if (offers.length > 0) {
                 const name = (closest?.name || 'Un conductor').split(' ')[0];
-                statusLine = offers.length === 1 ? `${name} te ofreció un precio` : `${offers.length} conductores te ofrecieron`;
-                subLine = 'Acepta, rechaza o envía una contraoferta debajo.';
+                const waitingDriverReply = offers.some((o) => o.passengerCounterPrice != null);
+                if (waitingDriverReply) {
+                    statusLine = offers.length === 1
+                        ? `Esperando a ${name}`
+                        : 'Esperando respuesta de conductores';
+                    subLine = 'Enviaste una contraoferta: el conductor debe aceptarla (tú no puedes aceptar la tuya).';
+                } else {
+                    statusLine = offers.length === 1 ? `${name} te ofreció un precio` : `${offers.length} conductores te ofrecieron`;
+                    subLine = 'Acepta su precio, rechaza o propón otro (el conductor decide si acepta tu precio).';
+                }
             } else if (data.negotiatedBy === 'passenger' && data.negotiatedPrice != null) {
-                statusLine = 'Esperando respuesta';
-                subLine = `Tu precio: L. ${parseFloat(data.negotiatedPrice).toFixed(2)}`;
+                statusLine = 'Esperando al conductor';
+                subLine = `Tu contraoferta: L. ${parseFloat(data.negotiatedPrice).toFixed(2)} — debe aceptarla el conductor`;
             } else if (waitingForOffer) {
                 // “Estos N conductores están siendo notificados” + mensajes volando a fotos
                 if (regN > 0) {
@@ -22690,6 +23386,9 @@ function _initDestinationArrivalPanel() {
                     <p class="passenger-pending-listed-price">Tu tarifa: <strong>${listedPrice}</strong></p>
                 `;
             }
+
+            // Panel “subir tarifa” si aún no hay conductor / o hay pocas ofertas
+            syncPassengerBoostPricePanel(data);
 
             if (footEl) {
                 if (offers.length > 0) {
@@ -22797,8 +23496,28 @@ function _initDestinationArrivalPanel() {
                 const bid = trip.driverBids?.[driverId];
                 if (!bid || !bid.price) return window.showToast('Esta oferta ya no está disponible.');
 
+                // Si el pasajero ya mandó contraoferta, no puede “aceptar” su propio precio:
+                // debe esperar a que el CONDUCTOR acepte (o cambie el precio).
+                const pendingCounter = bid.passengerCounterPrice != null
+                    ? parseFloat(bid.passengerCounterPrice)
+                    : null;
+                if (pendingCounter != null && !Number.isNaN(pendingCounter) && pendingCounter > 0) {
+                    return window.showToast(
+                        'Ya enviaste una contraoferta. Espera a que el conductor la acepte o cambia tu precio.',
+                        'warning'
+                    );
+                }
+                if (trip.negotiatedBy === 'passenger' && trip.negotiatedPrice != null
+                    && (trip.passengerCounterTargetDriverId === driverId || !trip.passengerCounterTargetDriverId)) {
+                    return window.showToast(
+                        'Tu contraoferta está pendiente. El conductor debe aceptarla.',
+                        'warning'
+                    );
+                }
+
                 const driverName = bid.name || d.name || 'Conductor';
-                const effectivePrice = getEffectiveBidPrice(bid);
+                // Solo se acepta el precio que ofreció el conductor (no una auto-aceptación de la contraoferta)
+                const effectivePrice = parseFloat(bid.price);
                 const skipConfirm = options.skipConfirm === true
                     || getPassengerDriverOffers({ ...trip, id: tripId }).length === 1;
                 if (!skipConfirm && !confirm(`¿Irte con ${driverName} por L. ${effectivePrice.toFixed(2)}?`)) return;
@@ -22818,10 +23537,12 @@ function _initDestinationArrivalPanel() {
                 }
 
                 const driverPhone = normalizeHondurasPhone(d.phone || bid.phone || '') || '';
+                const reserveScheduled = shouldReserveAsScheduledTrip(trip);
+                const nextStatus = reserveScheduled ? 'scheduled' : 'accepted';
                 const acceptedTrip = {
                     ...trip,
                     id: tripId,
-                    status: 'accepted',
+                    status: nextStatus,
                     driverId,
                     driverName,
                     driverPhone,
@@ -22847,11 +23568,12 @@ function _initDestinationArrivalPanel() {
                     driverBids: {},
                     chosenDriverBid: bid,
                     clientId: trip.clientId || currentUser.uid,
+                    scheduledDriverReserved: reserveScheduled || undefined,
                     ...saldoHoldFields
                 };
 
                 await updateDoc(tripRef, {
-                    status: 'accepted',
+                    status: nextStatus,
                     driverId,
                     driverName,
                     driverPhone,
@@ -22878,12 +23600,20 @@ function _initDestinationArrivalPanel() {
                     driverBids: {},
                     chosenDriverBid: bid,
                     passengerChoseDriverAt: serverTimestamp(),
+                    ...(reserveScheduled ? {
+                        scheduledDriverReserved: true,
+                        scheduledReservedAt: serverTimestamp()
+                    } : {}),
                     ...saldoHoldFields
                 });
 
                 activeTrip = acceptedTrip;
                 window.currentActiveTripData = acceptedTrip;
-                window.presentTripAcceptedUi?.(acceptedTrip, { role: 'client' });
+                if (reserveScheduled) {
+                    window.presentScheduledReservedUi?.(acceptedTrip, { role: 'client' });
+                } else {
+                    window.presentTripAcceptedUi?.(acceptedTrip, { role: 'client' });
+                }
             } catch (e) {
                 console.error('acceptDriverBid:', e);
                 window.showToast(e?.message || 'No se pudo elegir al conductor.');
@@ -23111,9 +23841,82 @@ function _initDestinationArrivalPanel() {
                 : `Ir al origen en Google Maps${short ? ` · ${short}` : ''}`;
         };
 
+        /**
+         * UI de viaje programado YA RESERVADO (con conductor), aún no en camino.
+         */
+        window.presentScheduledReservedUi = (data, options = {}) => {
+            if (!data?.id) return;
+            const role = options.role || window.userProfile?.role;
+            const when = formatScheduledTripWhen(data);
+
+            try { stopPassengerWaitingLoop(); } catch (_) {}
+            document.body.classList.remove('is-searching', 'trip-active');
+            syncPromoUi();
+            clearPassengerSearchPanelLayout?.();
+            document.getElementById('searching-state')?.classList.add('hidden');
+            document.getElementById('trip-viewers-panel')?.classList.add('hidden');
+            document.getElementById('fare-card')?.classList.add('hidden');
+            document.getElementById('active-trip-panel')?.classList.add('hidden');
+
+            const card = document.getElementById('scheduled-trip-card');
+            const whenEl = document.getElementById('scheduled-trip-when');
+            const detailEl = document.getElementById('scheduled-trip-detail');
+            const actionsEl = document.getElementById('scheduled-trip-actions');
+            card?.classList.remove('hidden');
+
+            if (whenEl) whenEl.textContent = when || 'Fecha por confirmar';
+
+            if (role === 'driver' || data.driverId === currentUser?.uid) {
+                document.getElementById('driver-view')?.classList.remove('hidden');
+                document.getElementById('client-view')?.classList.add('hidden');
+                if (detailEl) {
+                    detailEl.innerHTML = `
+                        <p class="text-xs font-bold text-amber-900 mt-2">Pasajero: <b>${escapeViewerText(data.clientName || 'Cliente')}</b></p>
+                        <p class="text-[11px] text-amber-800 mt-1"><i class="fas fa-map-marker-alt"></i> ${escapeViewerText(data.origin || 'Origen')}</p>
+                        <p class="text-[11px] text-amber-800"><i class="fas fa-flag-checkered"></i> ${escapeViewerText(data.destination || 'Destino')}</p>
+                        <p class="text-[10px] text-amber-700 mt-2">Te avisamos 1 h, 30, 10 y 5 min antes. O inicia cuando quieras.</p>`;
+                }
+                if (actionsEl) {
+                    actionsEl.innerHTML = `
+                        <button type="button" id="btn-start-scheduled-now" data-trip-id="${data.id}"
+                            class="w-full mt-3 py-3 rounded-xl bg-emerald-600 text-white text-sm font-black trip-touch-btn">
+                            <i class="fas fa-play"></i> Hacer viaje programado YA
+                        </button>
+                        <button type="button" class="w-full mt-2 py-2.5 rounded-xl border border-amber-300 bg-white text-amber-900 text-xs font-black"
+                            onclick="window.openDriverRouteInGoogleMaps?.()">
+                            <i class="fas fa-route"></i> Ver ruta en Google Maps
+                        </button>`;
+                    const startBtn = actionsEl.querySelector('#btn-start-scheduled-now');
+                    startBtn?.addEventListener('click', () => {
+                        window.startScheduledTripNow?.(data.id, startBtn);
+                    });
+                }
+            } else {
+                document.getElementById('client-view')?.classList.remove('hidden');
+                document.getElementById('driver-view')?.classList.add('hidden');
+                if (detailEl) {
+                    detailEl.innerHTML = `
+                        <p class="text-xs font-bold text-amber-900 mt-2">Conductor: <b>${escapeViewerText(data.driverName || 'Asignado')}</b>
+                        ${data.pin ? ` · PIN <b>${escapeViewerText(data.pin)}</b>` : ''}</p>
+                        <p class="text-[11px] text-amber-800 mt-1"><i class="fas fa-map-marker-alt"></i> ${escapeViewerText(data.origin || 'Origen')}</p>
+                        <p class="text-[10px] text-amber-700 mt-2">Te avisaremos cuando se active (~10 min antes). El conductor puede iniciar antes.</p>`;
+                }
+                if (actionsEl) actionsEl.innerHTML = '';
+            }
+            window.showControlPanel?.();
+            setStoredClientTripId?.(data.id);
+        };
+
         window.presentTripAcceptedUi = (data, options = {}) => {
             if (!data?.id) return;
             const role = options.role || window.userProfile?.role;
+
+            // Si sigue programado con conductor, UI de reserva (no en camino aún)
+            if (data.status === 'scheduled' && data.driverId && shouldReserveAsScheduledTrip(data)) {
+                window.presentScheduledReservedUi?.(data, options);
+                return;
+            }
+
             const toastKey = `${data.id}:${role}`;
 
             if (role === 'client' || data.clientId === currentUser?.uid) {
@@ -23124,6 +23927,8 @@ function _initDestinationArrivalPanel() {
                     try { playPassengerAcceptedTone(); } catch (_) {}
                 }
             }
+
+            document.getElementById('scheduled-trip-card')?.classList.add('hidden');
 
             if (!options.silentToast && window._tripAcceptedToastKey !== toastKey) {
                 window._tripAcceptedToastKey = toastKey;
@@ -23485,6 +24290,20 @@ function _initDestinationArrivalPanel() {
                 return;
             }
 
+            // Programado reservado (con conductor): no arranca nav aún
+            if (data.status === 'scheduled' && data.driverId) {
+                activeTrip = { id: data.id, ...data };
+                window.currentActiveTripData = data;
+                if (isScheduledTripDueForActivation(data)) {
+                    window.activateScheduledTripIfDue?.(data.id).catch(() => {});
+                } else {
+                    const role = data.driverId === currentUser?.uid ? 'driver' : 'client';
+                    window.presentScheduledReservedUi?.(data, { role });
+                }
+                window._lastNotifiedTripStatus = 'scheduled';
+                return;
+            }
+
             const stateSig = `${data.id}:${data.status}:${!!data.driverArrived}:${!!data.driverArrivedDestination}:${data.routeLegIndex || 1}:${data.chat?.length || 0}`;
             if (window._lastTripUiState === stateSig) return;
             window._lastTripUiState = stateSig;
@@ -23530,6 +24349,21 @@ function _initDestinationArrivalPanel() {
             }
 
             if (prevStatus !== null && window.userProfile?.role === 'client') {
+                if (prevStatus === 'pending' && data.status === 'scheduled' && data.driverId) {
+                    try { stopPassengerWaitingLoop(); } catch (_) {}
+                    if (window._passengerAcceptSoundKey !== data.id) {
+                        window._passengerAcceptSoundKey = data.id;
+                        try { playPassengerAcceptedTone(); } catch (_) {}
+                    }
+                    window.presentScheduledReservedUi?.(data, { role: 'client' });
+                    window.showToast?.(
+                        `Conductor confirmado para ${formatScheduledTripWhen(data)}. Te avisaremos antes de la hora.`,
+                        'success'
+                    );
+                }
+                if (prevStatus === 'scheduled' && data.status === 'accepted') {
+                    window.presentTripAcceptedUi?.(data, { role: 'client', skipAcceptSound: true });
+                }
                 if (prevStatus === 'pending' && data.status === 'accepted') {
                     // Parar espera en bucle + tono de “viaje aceptado” (una sola vez)
                     try { stopPassengerWaitingLoop(); } catch (_) {}
@@ -23564,6 +24398,13 @@ function _initDestinationArrivalPanel() {
             }
 
             if (prevStatus !== null && window.userProfile?.role === 'driver') {
+                if (prevStatus === 'pending' && data.status === 'scheduled' && data.driverId === currentUser.uid) {
+                    window.presentScheduledReservedUi?.(data, { role: 'driver' });
+                }
+                if (prevStatus === 'scheduled' && data.status === 'accepted' && data.driverId === currentUser.uid) {
+                    window.presentTripAcceptedUi?.(data, { role: 'driver' });
+                    window.showToast?.('Viaje programado activo. Ve al origen del pasajero.', 'success');
+                }
                 if (prevStatus === 'pending' && data.status === 'accepted' && data.driverId === currentUser.uid) {
                     const body = `${data.clientName || 'El pasajero'} confirmó contigo. Abre Google Maps y ve al origen.`;
                     notifyTripEvent({
@@ -23972,10 +24813,21 @@ function _initDestinationArrivalPanel() {
                         setStoredClientTripId(scheduledTrip.id);
                         if (isScheduledTripDueForActivation(scheduledTrip)) {
                             window.activateScheduledTripIfDue?.(scheduledTrip.id).catch(() => {});
-                        } else {
-                            document.getElementById('scheduled-trip-card')?.classList.remove('hidden');
-                            const whenEl = document.getElementById('scheduled-trip-when');
-                            if (whenEl) whenEl.innerText = formatScheduledTripWhen(scheduledTrip);
+                        } else if (scheduledTrip.driverId) {
+                            window.presentScheduledReservedUi?.(scheduledTrip, { role: 'client' });
+                        }
+                    }
+                } else {
+                    // Conductor: reservas programadas mías
+                    const myScheduled = snap.docs
+                        .map((d) => ({ id: d.id, ...d.data() }))
+                        .filter((t) => t.status === 'scheduled' && t.driverId === currentUser.uid && !isDemandSimulationTrip(t));
+                    if (myScheduled.length) {
+                        const st = sortTripsByNewest(myScheduled)[0];
+                        if (isScheduledTripDueForActivation(st)) {
+                            window.activateScheduledTripIfDue?.(st.id).catch(() => {});
+                        } else if (!activeTrip || activeTrip.id === st.id || activeTrip.status === 'scheduled') {
+                            window.presentScheduledReservedUi?.(st, { role: 'driver' });
                         }
                     }
                 }
@@ -26986,28 +27838,21 @@ window.cancelSetupAndLogout = () => {
 
             document.getElementById('fare-card')?.classList.add('hidden');
 
-            if (isScheduled) {
-                document.getElementById('searching-state')?.classList.add('hidden');
-                document.body.classList.remove('is-searching');
-                clearPassengerSearchPanelLayout();
-            } else {
-                // Immediately prepare searching UI (form parts will be cleaned in restore too)
-                document.getElementById('client-trip-headline')?.classList.add('hidden');
-                document.getElementById('client-trip-subline')?.classList.add('hidden');
-                document.getElementById('favorites-bar')?.classList.add('hidden');
-                document.getElementById('delivery-details-panel')?.classList.add('hidden');
-                document.getElementById('freight-details-panel')?.classList.add('hidden');
-                document.getElementById('trip-options-panel')?.classList.add('hidden');
-                document.getElementById('hourly-options')?.classList.add('hidden');
-                // Do not hide saldo for clients - always show balance
-                // document.getElementById('main-client-saldo')?.classList.add('hidden');
-                document.querySelector('.trip-route-fields')?.classList.add('hidden');
-                if (window.userProfile?.role === 'client') document.getElementById('client-view')?.classList.remove('hidden');
-                document.getElementById('searching-state')?.classList.remove('hidden');
-                document.body.classList.add('is-searching');
-                syncPromoUi();
-                window.showControlPanel?.();
-            }
+            // Programado también entra en búsqueda: primero ofertar/negociar/aceptar, luego se reserva
+            document.getElementById('client-trip-headline')?.classList.add('hidden');
+            document.getElementById('client-trip-subline')?.classList.add('hidden');
+            document.getElementById('favorites-bar')?.classList.add('hidden');
+            document.getElementById('delivery-details-panel')?.classList.add('hidden');
+            document.getElementById('freight-details-panel')?.classList.add('hidden');
+            document.getElementById('trip-options-panel')?.classList.add('hidden');
+            document.getElementById('hourly-options')?.classList.add('hidden');
+            document.querySelector('.trip-route-fields')?.classList.add('hidden');
+            if (window.userProfile?.role === 'client') document.getElementById('client-view')?.classList.remove('hidden');
+            document.getElementById('searching-state')?.classList.remove('hidden');
+            document.getElementById('scheduled-trip-card')?.classList.add('hidden');
+            document.body.classList.add('is-searching');
+            syncPromoUi();
+            window.showControlPanel?.();
 
             let preferredDriverId = null;
             let clientHasCompletedTrip = (Number(window.userProfile?.totalTrips) || 0) > 0;
@@ -27063,7 +27908,8 @@ window.cancelSetupAndLogout = () => {
 
             try {
                 const tripPayload = {
-                    status: isScheduled ? 'scheduled' : 'pending',
+                    // Siempre pending al crear: el programado se confirma al aceptar conductor
+                    status: 'pending',
                     scheduledFor: tripOptions.scheduledFor || null,
                     // Force the live selected service type one last time so a switch (moto → Taxi VIP) can never result in the wrong type being saved
                     serviceType: normalizeServiceType(window.currentServiceType),
@@ -27121,18 +27967,10 @@ window.cancelSetupAndLogout = () => {
                 };
                 const tripRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), tripPayload);
 
-                if (isScheduled) {
-                    setStoredClientTripId(tripRef.id);
-                    document.getElementById('scheduled-trip-card')?.classList.remove('hidden');
-                    const whenEl = document.getElementById('scheduled-trip-when');
-                    if (whenEl) whenEl.innerText = new Date(tripOptions.scheduledFor).toLocaleString('es-HN');
-                    window.showToast(`Viaje programado. Los conductores verán la solicitud ${SCHEDULED_TRIP_PREP_MINUTES} min antes.`, 'success');
-                    return;
-                }
-
                 const newTrip = {
                     id: tripRef.id,
                     status: 'pending',
+                    scheduledFor: tripOptions.scheduledFor || null,
                     serviceType,
                     bookingType: isHourly ? 'hourly' : 'standard',
                     reservedHours: isHourly ? (window.currentReservedHours || 1) : null,
@@ -27158,6 +27996,12 @@ window.cancelSetupAndLogout = () => {
                     declinedDriverIds: []
                 };
                 restorePendingTripUI(newTrip);
+                if (isScheduled) {
+                    window.showToast(
+                        `Viaje para ${formatScheduledTripWhen(newTrip)}. Primero un conductor debe aceptar/negociar; luego queda reservado.`,
+                        'success'
+                    );
+                }
                 window.assignNextTripOffer(tripRef.id).catch(() => {});
             } catch (e) {
                 console.error('sendTripRequest:', e);
@@ -32718,8 +33562,9 @@ window.renderAdminTonesPanel = (rootEl) => {
             `Sonidos propios de la app (no el del celular). Ahora estás en: <b>${platformNow}</b>. Al guardar, aplica a todos.`,
             `
             <p class="text-[11px] text-slate-400 font-bold mb-3 leading-relaxed">
-                Mismas notificaciones · tonos distintos en <b>Web/PWA</b> y <b>App nativa</b>.
-                Puedes probar cada muestra y asignar uno por tipo de aviso. También sube o arrastra un audio (MP3/WAV/OGG, máx. ${maxMb} MB).
+                Asigna un tono por cada tipo de aviso (nuevo viaje, contraoferta, subida de tarifa, oferta al pasajero, etc.).
+                <b>Web/PWA</b> y <b>App nativa</b> pueden ser distintos. Sube MP3/WAV/OGG (máx. ${maxMb} MB) y asígnalo a cualquier evento.
+                Con la app abierta suena el tono que elijas; con la app en otra pantalla Android también vibra y usa el canal nativo de viajes.
             </p>
 
             <div class="mb-4">

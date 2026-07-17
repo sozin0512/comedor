@@ -9,10 +9,10 @@ const { getMessaging } = require('firebase-admin/messaging');
 
 const PROJECT_ID = 'comedor-86278';
 const APP_ID = 'comayagua-vip-pro-v4';
-const VERSION = '2026.07.13.2';
+const VERSION = '2026.07.16.1';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
-    `Actualización ${VERSION}: viaje activo estilo Uber (GPS + notificación \"Viaje en curso\" en segundo plano), tonos APK, PIN en mapa, y más. Actualiza web o instala la APK. ¡Gracias!`;
+    `Actualización ${VERSION}: notificaciones emergentes tipo Temu, viajes programados (negociar → reservar → avisos 1h/30/10/5 min + botón iniciar YA), subir tarifa si nadie responde, contraoferta solo la acepta el conductor, y más. Actualiza la web o instala la APK. ¡Gracias!`;
 
 initializeApp({
     credential: applicationDefault(),
@@ -22,6 +22,7 @@ initializeApp({
 const db = getFirestore();
 const messaging = getMessaging();
 const PUSH_ICON = `https://${PROJECT_ID}.web.app/icons/icon-192.png`;
+const TEMU_CHANNEL = 'hondu_temu_all_v6';
 
 async function getUserTokens(uid) {
     const snap = await db.doc(`artifacts/${APP_ID}/public/data/users/${uid}`).get();
@@ -42,7 +43,8 @@ async function sendPush(uid, tokens) {
             title: TITLE,
             body: BODY,
             tag: `app-update-${VERSION}`,
-            version: VERSION
+            version: VERSION,
+            superVibrate: 'true'
         },
         webpush: {
             headers: { Urgency: 'high' },
@@ -50,25 +52,27 @@ async function sendPush(uid, tokens) {
                 icon: PUSH_ICON,
                 requireInteraction: true,
                 renotify: true,
-                tag: `app-update-${VERSION}`
+                tag: `app-update-${VERSION}`,
+                vibrate: [0, 500, 80, 500, 80, 600, 100, 800]
             },
             fcmOptions: { link: '/' }
         },
         android: {
             priority: 'high',
             notification: {
-                channelId: 'hondu_ride_alerts_v4',
+                channelId: TEMU_CHANNEL,
                 sound: 'hondu_ride',
-                defaultSound: true,
-                priority: 'high',
+                defaultSound: false,
+                priority: 'max',
                 visibility: 'public',
+                sticky: true,
                 defaultVibrateTimings: false,
-                vibrateTimingsMillis: [0, 350, 100, 350, 100, 500]
+                vibrateTimingsMillis: [0, 500, 80, 500, 80, 600, 100, 800, 80, 1000]
             }
         },
         apns: {
             headers: { 'apns-priority': '10', 'apns-push-type': 'alert' },
-            payload: { aps: { sound: 'default' } }
+            payload: { aps: { sound: 'default', 'interruption-level': 'time-sensitive' } }
         }
     };
     const res = await messaging.sendEachForMulticast(payload);
@@ -78,57 +82,54 @@ async function sendPush(uid, tokens) {
 async function main() {
     console.log('Broadcast nueva versión →', PROJECT_ID, VERSION);
     const usersSnap = await db.collection(`artifacts/${APP_ID}/public/data/users`).get();
-    console.log('Usuarios en Firestore:', usersSnap.size);
+    let totalUsers = 0;
+    let totalOk = 0;
+    let totalFail = 0;
+    let withTokens = 0;
 
-    await db.collection(`artifacts/${APP_ID}/public/data/notifications`).add({
-        targetRole: 'all',
-        title: TITLE,
-        body: BODY,
-        message: `${TITLE} — ${BODY}`,
-        broadcast: true,
-        broadcastPush: true,
-        pushDispatched: true,
-        type: 'app_update',
-        version: VERSION,
-        sentBy: 'system',
-        sentByName: 'HonduRaite',
-        createdAt: FieldValue.serverTimestamp(),
-        createdAtMs: Date.now()
-    });
-    console.log('Aviso en campana (notificaciones) creado para todos.');
-
-    let pushedUsers = 0;
-    let successTotal = 0;
-    let failureTotal = 0;
-    let noToken = 0;
+    // Notificación en feed de la app (campana)
+    try {
+        await db.collection(`artifacts/${APP_ID}/public/data/notifications`).add({
+            title: TITLE,
+            body: BODY,
+            type: 'app_update',
+            tag: `app-update-${VERSION}`,
+            version: VERSION,
+            broadcastPush: true,
+            sendPush: true,
+            createdAt: FieldValue.serverTimestamp(),
+            targetRole: 'all'
+        });
+        console.log('Notificación en feed (notifications) creada.');
+    } catch (e) {
+        console.warn('No se pudo escribir en notifications:', e.message);
+    }
 
     for (const doc of usersSnap.docs) {
+        totalUsers++;
         const tokens = await getUserTokens(doc.id);
-        if (!tokens.length) {
-            noToken += 1;
-            continue;
-        }
+        if (!tokens.length) continue;
+        withTokens++;
         try {
             const r = await sendPush(doc.id, tokens);
-            pushedUsers += 1;
-            successTotal += r.success;
-            failureTotal += r.failure;
-            console.log(`  ${doc.id.slice(0, 8)}… tokens=${tokens.length} ok=${r.success} fail=${r.failure}`);
+            totalOk += r.success;
+            totalFail += r.failure;
+            if (withTokens % 25 === 0) {
+                console.log(`… ${withTokens} usuarios con token | ok=${totalOk} fail=${totalFail}`);
+            }
         } catch (e) {
-            failureTotal += 1;
-            console.warn(`  ERROR ${doc.id}:`, e.message || e);
+            totalFail += tokens.length;
+            console.warn('push fail', doc.id, e.message);
         }
     }
 
-    console.log('---');
-    console.log(JSON.stringify({
-        totalUsers: usersSnap.size,
-        pushedUsers,
-        noToken,
-        fcmSuccess: successTotal,
-        fcmFailure: failureTotal,
+    console.log('Listo.', {
+        totalUsers,
+        withTokens,
+        pushOk: totalOk,
+        pushFail: totalFail,
         version: VERSION
-    }, null, 2));
+    });
 }
 
 main().catch((e) => {

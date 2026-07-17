@@ -16,78 +16,85 @@ const PushNotifications = registerPlugin('PushNotifications');
 const LocalNotifications = registerPlugin('LocalNotifications');
 
 /**
- * Canales v2: Android no permite cambiar sound/vibration de un canal ya creado.
- * Subir el id fuerza canales nuevos con sonido + vibración.
+ * Canales Android — TODAS las notificaciones emergentes tipo Temu (v6).
+ * Un canal MAX + hondu_ride: heads-up aunque estés en otra app.
+ * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
  */
-// v4: canales con sonido propio en res/raw (hondu_ride / hondu_alert).
-// Android solo usa archivos en res/raw cuando la app está en segundo plano.
-export const HONDU_RIDE_ALERT_CHANNEL_ID = 'hondu_ride_alerts_v4';
-const HONDU_DEFAULT_CHANNEL_ID = 'hondu_default_v4';
-// Primer plano: sin sound del SO (el tono configurado lo pone notification-tones.js)
-const HONDU_FG_LOCAL_CHANNEL_ID = 'hondu_fg_local_v4';
+export const ANDROID_PUSH_CHANNEL_VERSION = 'v6';
+export const HONDU_TEMU_ALL_CHANNEL_ID = `hondu_temu_all_${ANDROID_PUSH_CHANNEL_VERSION}`;
+export const HONDU_RIDE_ALERT_CHANNEL_ID = HONDU_TEMU_ALL_CHANNEL_ID;
+export const HONDU_DEFAULT_CHANNEL_ID = HONDU_TEMU_ALL_CHANNEL_ID;
+// Misma importancia MAX también para banners locales en primer plano
+const HONDU_FG_LOCAL_CHANNEL_ID = HONDU_TEMU_ALL_CHANNEL_ID;
+
+/** Modos de sonido nativo (fuera de la app). Guardado en user.pushSoundMode */
+export const PUSH_SOUND_MODES = [
+    {
+        id: 'temu',
+        label: 'Fuerte tipo Temu',
+        desc: 'Máximo volumen de atención: tono de viaje + vibración fuerte (recomendado)'
+    },
+    {
+        id: 'normal',
+        label: 'Normal',
+        desc: 'Viajes con tono fuerte; avisos generales más suaves'
+    },
+    {
+        id: 'soft',
+        label: 'Suave',
+        desc: 'Menos agresivo (puede pasar más desapercibido)'
+    }
+];
+
+const PUSH_SOUND_MODE_KEY = 'honduber_push_sound_mode';
+
+export function getLocalPushSoundMode() {
+    try {
+        const m = localStorage.getItem(PUSH_SOUND_MODE_KEY)
+            || window.userProfile?.pushSoundMode
+            || 'temu';
+        if (m === 'soft' || m === 'normal' || m === 'temu') return m;
+    } catch (_) {}
+    return 'temu';
+}
+
+export function setLocalPushSoundMode(mode) {
+    const m = mode === 'soft' || mode === 'normal' ? mode : 'temu';
+    try { localStorage.setItem(PUSH_SOUND_MODE_KEY, m); } catch (_) {}
+    return m;
+}
 
 export function isAndroidFcmConfigured() {
     return APP_CONFIG.androidFcmEnabled === true;
 }
 
-function isRideAlertData(data = {}) {
-    const type = String(data.type || '');
-    const tag = String(data.tag || '');
-    return data.superVibrate === 'true'
-        || type === 'ride_demand_alert'
-        || type === 'trip_offer'
-        || type === 'freight_trip_alert'
-        || type === 'new_trip_staff'
-        || tag.startsWith('trip-offer-')
-        || tag.startsWith('freight-alert-')
-        || tag.startsWith('ride-demand-')
-        || tag.startsWith('staff-trip-');
+/** Todas las notificaciones se tratan como urgentes / heads-up Temu. */
+function isRideAlertData(_data = {}) {
+    return true;
 }
 
 /**
- * Canales nativos.
- * - Push en background: vibración alta (Android aún puede usar un tono de canal si el SO lo exige).
- * - Local en foreground: canal sin sound del sistema; la app reproduce tono propio (Web Audio).
+ * Canales nativos (app en otra app / cerrada).
+ * Android 8+ solo usa el sound del canal; no el Web Audio de Personalización.
  */
-async function ensureAndroidPushChannels() {
+export async function ensureAndroidPushChannels() {
     if (!isCapacitorAndroid()) return;
 
-    // sound = nombre del archivo en android/app/src/main/res/raw/ sin extensión
-    const rideChannel = {
-        id: HONDU_RIDE_ALERT_CHANNEL_ID,
-        name: 'Viajes HonduRaite',
-        description: 'Ofertas y demanda con tono HonduRaite + vibración fuerte.',
-        importance: 5,
-        visibility: 1,
+    // Un solo canal MAX: heads-up tipo Temu para TODAS las notificaciones
+    // sound = res/raw/hondu_ride (sin extensión)
+    const temuChannel = {
+        id: HONDU_TEMU_ALL_CHANNEL_ID,
+        name: 'HonduRaite emergente (Temu)',
+        description: 'Todas las notificaciones con banner emergente, tono fuerte y vibración (incluso en otra app).',
+        importance: 5, // IMPORTANCE_MAX → heads-up
+        visibility: 1, // public / lockscreen
         sound: 'hondu_ride',
         vibration: true,
         lights: true,
         lightColor: '#2563eb'
     };
-    const defaultChannel = {
-        id: HONDU_DEFAULT_CHANNEL_ID,
-        name: 'Avisos HonduRaite',
-        description: 'Avisos generales con tono HonduRaite + vibración.',
-        importance: 5,
-        visibility: 1,
-        sound: 'hondu_alert',
-        vibration: true,
-        lights: true,
-        lightColor: '#2563eb'
-    };
-    const fgLocalChannel = {
-        id: HONDU_FG_LOCAL_CHANNEL_ID,
-        name: 'HonduRaite (app abierta)',
-        description: 'Banner local. El tono configurado lo reproduce la app.',
-        importance: 5,
-        visibility: 1,
-        sound: undefined,
-        vibration: true,
-        lights: true,
-        lightColor: '#2563eb'
-    };
 
-    for (const ch of [rideChannel, defaultChannel, fgLocalChannel]) {
+    for (const ch of [temuChannel]) {
         try {
             await PushNotifications.createChannel(ch);
         } catch (e) {
@@ -97,9 +104,7 @@ async function ensureAndroidPushChannels() {
 
     try {
         if (LocalNotifications?.createChannel) {
-            await LocalNotifications.createChannel(rideChannel);
-            await LocalNotifications.createChannel(defaultChannel);
-            await LocalNotifications.createChannel(fgLocalChannel);
+            await LocalNotifications.createChannel(temuChannel);
         }
     } catch (e) {
         console.warn('[push] local channels:', e);
@@ -107,10 +112,53 @@ async function ensureAndroidPushChannels() {
 }
 
 /**
- * Con app en primer plano Android no muestra el push del sistema.
- * Publicamos notificación local en el canal con sonido + vibración.
+ * Prueba el sonido nativo de canal (como cuando estás en otra app).
+ * mode: 'temu' | 'normal' | 'soft'
  */
-async function showAndroidForegroundLocalNotification(payload = {}) {
+export async function previewAndroidSystemPushSound(mode = 'temu') {
+    if (!isCapacitorAndroid() || !LocalNotifications?.schedule) {
+        return { ok: false, reason: 'android_only' };
+    }
+    await ensureAndroidPushChannels();
+    const m = mode === 'soft' ? 'soft' : (mode === 'normal' ? 'normal' : 'temu');
+    const channelId = m === 'soft' ? HONDU_DEFAULT_CHANNEL_ID : HONDU_RIDE_ALERT_CHANNEL_ID;
+    const sound = m === 'soft' ? 'hondu_alert' : 'hondu_ride';
+    localNotifIdSeq = (localNotifIdSeq + 1) % 900000;
+    const id = 200000 + localNotifIdSeq;
+    try {
+        await LocalNotifications.schedule({
+            notifications: [{
+                id,
+                title: m === 'temu' ? '🔊 Prueba estilo Temu' : (m === 'soft' ? 'Prueba suave' : 'Prueba normal'),
+                body: 'Así suena si estás en otra app o con la pantalla bloqueada.',
+                channelId,
+                sound,
+                smallIcon: 'ic_launcher',
+                largeIcon: 'ic_launcher',
+                extra: { type: 'sound_preview', tag: 'sound-preview' }
+            }]
+        });
+        try {
+            const pattern = m === 'soft'
+                ? [0, 250, 100, 250]
+                : [0, 450, 100, 450, 100, 550, 120, 750];
+            navigator.vibrate?.(pattern);
+        } catch (_) {}
+        return { ok: true, channelId, sound };
+    } catch (e) {
+        console.warn('[push] preview sound:', e);
+        return { ok: false, reason: e?.message || 'schedule_failed' };
+    }
+}
+
+/**
+ * Notificación local Android con canal correcto.
+ * - Urgentes (viajes/staff/ofertas): canal ride + hondu_ride → SIEMPRE suena
+ *   (Web Audio a menudo está muteado hasta un toque del usuario).
+ * - Generales: canal default + hondu_alert.
+ * - forceSilent: solo banner (cuando ya sonó Web Audio custom y no queremos doble).
+ */
+async function showAndroidForegroundLocalNotification(payload = {}, { forceSilent = false } = {}) {
     if (!isCapacitorAndroid() || !LocalNotifications?.schedule) return false;
 
     const data = payload.data || payload.notification?.data || {};
@@ -124,8 +172,15 @@ async function showAndroidForegroundLocalNotification(payload = {}) {
         || '';
     if (!title && !body) return false;
 
-    // Foreground: canal sin tono del SO. El sonido lo pone notification-tones.js
-    const channelId = HONDU_FG_LOCAL_CHANNEL_ID;
+    await ensureAndroidPushChannels();
+
+    // Siempre canal Temu (heads-up) salvo forceSilent explícito
+    let channelId = HONDU_TEMU_ALL_CHANNEL_ID;
+    let sound = forceSilent ? null : 'hondu_ride';
+    if (forceSilent) {
+        channelId = HONDU_TEMU_ALL_CHANNEL_ID;
+    }
+
     localNotifIdSeq = (localNotifIdSeq + 1) % 900000;
     const id = 100000 + localNotifIdSeq;
 
@@ -136,8 +191,7 @@ async function showAndroidForegroundLocalNotification(payload = {}) {
                 title: String(title).slice(0, 80),
                 body: String(body).slice(0, 180),
                 channelId,
-                // Sin sound del sistema del celular
-                sound: null,
+                sound,
                 smallIcon: 'ic_launcher',
                 largeIcon: 'ic_launcher',
                 extra: {
@@ -154,6 +208,19 @@ async function showAndroidForegroundLocalNotification(payload = {}) {
         console.warn('[push] local schedule:', e);
         return false;
     }
+}
+
+/** API pública para alertas in-app (admin staff, etc.) en APK. */
+export async function showAndroidAlertNotification({ title, body, data = {} } = {}) {
+    return showAndroidForegroundLocalNotification({
+        notification: { title, body },
+        data: { ...data, title, body }
+    });
+}
+
+// Exponer para app.js (staff alerts sin import circular)
+if (typeof window !== 'undefined') {
+    window.showAndroidAlertNotification = showAndroidAlertNotification;
 }
 
 function ensureFirebaseApp(firebaseConfig) {
@@ -217,21 +284,23 @@ function playConfiguredToneFromPush(data = {}) {
             const eventId = typeof window.resolveToneEventFromPush === 'function'
                 ? window.resolveToneEventFromPush(data)
                 : (window.HonduTones?.resolveToneEventFromPush?.(data) || 'general');
-            window.playEventNotificationTone(eventId);
-            return;
+            return !!window.playEventNotificationTone(eventId);
         }
         if (window.HonduTones?.playEventTone) {
             const eventId = window.HonduTones.resolveToneEventFromPush?.(data) || 'general';
-            window.HonduTones.playEventTone(eventId);
-            return;
+            return !!window.HonduTones.playEventTone(eventId);
         }
         const type = String(data.type || '');
-        if (type === 'chat') window.playChatSound?.();
-        else if (type === 'trip_offer' || type === 'ride_demand_alert') window.playDriverTripOfferSound?.();
-        else if (type === 'new_trip_staff') window.playStaffTripAlertSound?.();
-        else if (type.includes('deposit')) window.playDepositAlertSound?.();
-        else window.playNotificationSound?.();
-    } catch (_) {}
+        if (type === 'chat') return !!window.playChatSound?.();
+        if (type === 'trip_offer' || type === 'ride_demand_alert' || type === 'trip_price_boost') {
+            return !!window.playDriverTripOfferSound?.();
+        }
+        if (type === 'new_trip_staff') return !!window.playStaffTripAlertSound?.();
+        if (type.includes('deposit')) return !!window.playDepositAlertSound?.();
+        return !!window.playNotificationSound?.();
+    } catch (_) {
+        return false;
+    }
 }
 
 function routeForegroundPush(payload) {
@@ -241,32 +310,31 @@ function routeForegroundPush(payload) {
     const tripId = data.tripId || null;
     const type = data.type || '';
 
-    // Siempre: tono configurado por el admin (Web Audio / archivo subido)
-    playConfiguredToneFromPush(data);
+    // Tono de Personalización (Web Audio). En Android puede fallar si el AudioContext está bloqueado.
+    const webToneOk = playConfiguredToneFromPush(data);
 
-    // Android foreground: banner local + vibración (el tono ya lo puso playConfiguredToneFromPush)
+    // Android: SIEMPRE banner emergente Temu (canal MAX + hondu_ride), aunque estés en la app
     if (isCapacitorAndroid()) {
-        showAndroidForegroundLocalNotification({
-            notification: { title, body },
-            data
-        }).catch(() => {});
+        showAndroidForegroundLocalNotification(
+            { notification: { title, body }, data },
+            { forceSilent: false }
+        ).catch(() => {});
         try {
-            const pattern = isRideAlertData(data)
-                ? [0, 450, 100, 450, 100, 550, 120, 750, 100, 950]
-                : [0, 250, 100, 250, 80, 350];
-            navigator.vibrate?.(pattern);
+            navigator.vibrate?.([0, 500, 80, 500, 80, 600, 100, 800, 80, 1000]);
         } catch (_) {}
     }
 
+    // Helpers de UI: sound 'none' para no volver a sonar (ya se reprodujo arriba)
     if (type === 'chat' || data.openChat === 'true') {
-        notifyChatMessage({ senderName: title, text: body, tripId, force: true });
+        notifyChatMessage({ senderName: title, text: body, tripId, force: true, playSound: false });
     } else if (type === 'freight_trip_alert') {
         notifyFreightTripAlert({
             title,
             body,
             tag: data.tag || `freight-alert-${tripId || 'x'}`,
             tripId,
-            force: true
+            force: true,
+            sound: 'none'
         });
     } else if (type === 'ride_demand_alert') {
         notifyRideDemandAlert({
@@ -274,7 +342,8 @@ function routeForegroundPush(payload) {
             body,
             tag: data.tag || `ride-demand-${tripId || 'x'}`,
             tripId,
-            force: true
+            force: true,
+            sound: 'none'
         });
     } else if (type === 'new_trip_staff') {
         notifyStaffNewTripAlert({
@@ -282,17 +351,11 @@ function routeForegroundPush(payload) {
             body,
             tag: data.tag || `staff-trip-${tripId || 'x'}`,
             tripId,
-            force: true
+            force: true,
+            sound: 'none'
         });
     } else {
-        const superVibrate = data.superVibrate === 'true'
-            || type === 'freight_trip_alert'
-            || type === 'ride_demand_alert'
-            || type === 'trip_offer'
-            || type === 'new_trip_staff';
-        const toneSound = type === 'trip_offer'
-            ? 'driver'
-            : (type?.includes('deposit') ? 'deposit' : 'default');
+        const superVibrate = data.superVibrate === 'true' || isRideAlertData(data);
         notifyTripEvent({
             title,
             body,
@@ -300,7 +363,7 @@ function routeForegroundPush(payload) {
             tripId,
             openChat: data.openChat === 'true',
             force: true,
-            sound: toneSound,
+            sound: 'none',
             superVibrate
         });
     }
@@ -312,7 +375,11 @@ function shouldOpenNotificationsCenter(data = {}) {
     if (data.openNotifications === 'true' || data.openNotifications === true) return true;
     if (data.openChat === 'true' || data.openChat === true) return false;
     if (data.openDriver === 'true' || data.openDriver === true) return false;
+    if (data.openPassenger === 'true' || data.openPassenger === true) return false;
+    if (data.openClient === 'true' || data.openClient === true) return false;
     if (data.openAdmin === 'true' || data.openAdmin === true) return false;
+    if (type === 'driver_bid' || type === 'trip_accepted' || type === 'trip_arrived'
+        || type === 'passenger_counter' || type === 'trip_offer') return false;
     // Avisos admin / versión / campañas / promos → campana de notificaciones
     return type === 'admin_notify'
         || type === 'app_update'
@@ -348,10 +415,24 @@ function handleNotificationNavigation(data = {}) {
         || type === 'freight_trip_alert'
         || type === 'ride_demand_alert'
         || type === 'new_trip_staff'
+        || type === 'passenger_counter'
+        || type === 'trip_price_boost'
         || tag.startsWith('trip-offer-')
         || tag.startsWith('freight-alert-')
         || tag.startsWith('ride-demand-')
-        || tag.startsWith('staff-trip-');
+        || tag.startsWith('staff-trip-')
+        || tag.startsWith('passenger-counter-')
+        || tag.startsWith('trip-price-boost-');
+    const isPassengerTrip = type === 'driver_bid'
+        || type === 'trip_accepted'
+        || type === 'trip_arrived'
+        || data.openPassenger === 'true'
+        || data.openPassenger === true
+        || data.openClient === 'true'
+        || data.openClient === true
+        || tag.startsWith('driver-bid-')
+        || tag.startsWith('trip-accepted-')
+        || tag.startsWith('trip-arrived-');
 
     if (data.openChat === 'true' || data.openChat === true) {
         location.hash = 'chat';
@@ -366,6 +447,15 @@ function handleNotificationNavigation(data = {}) {
             document.getElementById('client-view')?.classList.add('hidden');
             window.showControlPanel?.();
         }
+        return;
+    }
+    if (isPassengerTrip) {
+        location.hash = 'client';
+        try {
+            document.getElementById('client-view')?.classList.remove('hidden');
+            document.getElementById('driver-view')?.classList.add('hidden');
+            window.showControlPanel?.();
+        } catch (_) {}
         return;
     }
     if (type === 'new_trip_staff' || data.openAdmin === 'true' || data.openAdmin === true) {
@@ -414,6 +504,87 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
     }
 }
 
+/**
+ * Pide permisos para notificaciones emergentes tipo Temu:
+ * 1) Notificaciones (Android 13+)
+ * 2) Local notifications
+ * 3) Full-screen intent / heads-up (Android 14+)
+ * 4) Crea canal MAX
+ * 5) (opcional) batería sin optimizar
+ */
+export async function requestAndroidTemuNotificationPermissions({
+    requestFullScreen = true,
+    requestBattery = false
+} = {}) {
+    if (!isCapacitorAndroid()) return { ok: false, reason: 'not_android' };
+
+    const result = {
+        ok: false,
+        push: 'default',
+        local: 'default',
+        fullScreen: null,
+        battery: null
+    };
+
+    try {
+        let perm = await PushNotifications.checkPermissions();
+        if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
+            perm = await PushNotifications.requestPermissions();
+        }
+        result.push = perm.receive || 'default';
+    } catch (e) {
+        console.warn('[push] request push perm:', e);
+    }
+
+    try {
+        if (LocalNotifications?.checkPermissions) {
+            let lp = await LocalNotifications.checkPermissions();
+            if (lp.display === 'prompt' || lp.display === 'prompt-with-rationale') {
+                lp = await LocalNotifications.requestPermissions();
+            }
+            result.local = lp.display || 'default';
+        }
+    } catch (e) {
+        console.warn('[push] request local perm:', e);
+    }
+
+    await ensureAndroidPushChannels();
+
+    // Full-screen intent (banner emergente agresivo en Android 14+)
+    if (requestFullScreen) {
+        try {
+            const SK = registerPlugin('SessionKeepalive');
+            const fs = await SK.hasFullScreenIntentPermission?.();
+            result.fullScreen = !!fs?.granted;
+            if (!fs?.granted) {
+                // Abre ajustes del sistema para activar “mostrar a pantalla completa / emergente”
+                await SK.requestFullScreenIntentPermission?.();
+                // Marcar para re-chequear al volver a la app
+                try { sessionStorage.setItem('honduber_await_fullscreen_perm', '1'); } catch (_) {}
+            }
+        } catch (e) {
+            console.warn('[push] fullScreen intent:', e);
+        }
+    }
+
+    if (requestBattery) {
+        try {
+            const SK = registerPlugin('SessionKeepalive');
+            const bat = await SK.hasBatteryExemption?.();
+            result.battery = !!bat?.granted;
+            if (!bat?.granted) {
+                await SK.requestBatteryExemption?.();
+            }
+        } catch (e) {
+            console.warn('[push] battery:', e);
+        }
+    }
+
+    result.ok = result.push === 'granted' || result.local === 'granted'
+        || localStorage.getItem('honduber_push_enabled') === '1';
+    return result;
+}
+
 /** APK Android: push nativo vía Capacitor. No registra SW ni toca tokens web. */
 export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest = false }) {
     if (!isCapacitorAndroid() || !uid) return null;
@@ -427,24 +598,17 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
     androidPushInitPromise = (async () => {
         try {
             if (!skipPermissionRequest) {
-                let perm = await PushNotifications.checkPermissions();
-                if (perm.receive === 'prompt') {
-                    perm = await PushNotifications.requestPermissions();
+                const temu = await requestAndroidTemuNotificationPermissions({
+                    requestFullScreen: true,
+                    requestBattery: false
+                });
+                if (temu.push !== 'granted' && temu.local !== 'granted') {
+                    // Si el SO no reporta bien, igual intentamos registrar si el usuario ya dio permiso antes
+                    if (localStorage.getItem('honduber_push_enabled') !== '1') return null;
                 }
-                if (perm.receive !== 'granted') return null;
+            } else {
+                await ensureAndroidPushChannels();
             }
-
-            // Local notifications también necesitan permiso en Android 13+
-            try {
-                if (LocalNotifications?.checkPermissions) {
-                    let lp = await LocalNotifications.checkPermissions();
-                    if (lp.display === 'prompt' || lp.display === 'prompt-with-rationale') {
-                        lp = await LocalNotifications.requestPermissions();
-                    }
-                }
-            } catch (_) {}
-
-            await ensureAndroidPushChannels();
 
             let tokenValue = null;
             const tokenPromise = new Promise((resolve) => {

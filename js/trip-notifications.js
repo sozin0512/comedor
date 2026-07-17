@@ -52,9 +52,21 @@ export async function requestTripNotificationPermission() {
 
     if (isCapacitorAndroid()) {
         try {
+            // Permisos completos Temu: notificaciones + local + full-screen intent
+            try {
+                const { requestAndroidTemuNotificationPermissions } = await import('./fcm-push.js');
+                const temu = await requestAndroidTemuNotificationPermissions({
+                    requestFullScreen: true,
+                    requestBattery: false
+                });
+                if (temu.push === 'granted' || temu.local === 'granted') return 'granted';
+                if (temu.push === 'denied' && temu.local === 'denied') return 'denied';
+            } catch (e) {
+                console.warn('requestAndroidTemuNotificationPermissions:', e);
+            }
             const PushNotifications = registerPlugin('PushNotifications');
             let perm = await PushNotifications.checkPermissions();
-            if (perm.receive === 'prompt') {
+            if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
                 perm = await PushNotifications.requestPermissions();
             }
             if (perm.receive === 'granted') return 'granted';
@@ -170,7 +182,7 @@ function playEventSound(sound = 'default', tag = '', extra = {}) {
     } catch (_) {}
 }
 
-export async function notifyChatMessage({ senderName, text, tripId, force = false }) {
+export async function notifyChatMessage({ senderName, text, tripId, force = false, playSound = true }) {
     const chatHidden = !window.chatOpen;
     const inBackground = shouldNotifyInBackground();
     if (!force && !inBackground && !chatHidden) return false;
@@ -183,7 +195,8 @@ export async function notifyChatMessage({ senderName, text, tripId, force = fals
         openChat: true
     });
 
-    if (force || inBackground) {
+    // Si el tono ya se reprodujo en FCM (playConfiguredToneFromPush), pasar playSound: false
+    if ((force || inBackground) && playSound) {
         playEventSound('chat', `chat-${tripId}`);
     }
 
@@ -208,7 +221,7 @@ export async function notifySuperDemandAlert({
         tripId,
         vibrate
     });
-    if (force) {
+    if (force && sound && sound !== 'none') {
         if (sound === 'driver') {
             try { window.playDriverTripOfferSound?.(); } catch (_) {}
         } else {
@@ -219,15 +232,19 @@ export async function notifySuperDemandAlert({
 }
 
 export async function notifyFreightTripAlert(args) {
-    return notifySuperDemandAlert({ ...args, vibrate: SUPER_FREIGHT_VIBRATE, sound: 'freight' });
+    return notifySuperDemandAlert({
+        vibrate: SUPER_FREIGHT_VIBRATE,
+        sound: 'freight',
+        ...args
+    });
 }
 
 /** VIP / taxi / moto / envío: avisar a conductores fuera de línea para que se activen. */
 export async function notifyRideDemandAlert(args) {
     return notifySuperDemandAlert({
-        ...args,
         vibrate: HONDU_RIDE_DEMAND_VIBRATE,
-        sound: 'ride_demand'
+        sound: 'ride_demand',
+        ...args
     });
 }
 
@@ -250,15 +267,20 @@ export async function notifyTripEvent({ title, body, tag, tripId, openChat = fal
         });
     }
 
-    playEventSound(sound, tag);
+    if (sound && sound !== 'none') {
+        playEventSound(sound, tag);
+    }
 
     return shown || !inBackground;
 }
 
-export async function notifyStaffNewTripAlert({ title, body, tag, tripId, force = true }) {
+export async function notifyStaffNewTripAlert({ title, body, tag, tripId, force = true, sound = 'staff' }) {
     if (!title || !body) return false;
     triggerSuperTripVibration();
-    try { playEventSound('staff', tag); } catch (_) {}
+    // sound: 'none' si el tono ya se reprodujo (evita general/doble tono)
+    if (sound && sound !== 'none') {
+        try { playEventSound(sound, tag || `staff-trip-${tripId || 'x'}`); } catch (_) {}
+    }
     const shown = await showTripNotification({
         title,
         body,
