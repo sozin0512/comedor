@@ -87,13 +87,26 @@ function clearPendingStaffTripId() {
 
 function buildStaffTripWhatsAppMessage({
     tripId, clientName, origin, destination, priceLabel,
-    clientChoosesSchedule, passengers, clientChoosesPassengers
+    clientChoosesSchedule, passengers, clientChoosesPassengers, scheduledFor
 }) {
     const link = buildStaffTripShareLink(tripId);
     const name = (clientName || 'Cliente').split(' ')[0];
     const pax = Math.max(1, parseInt(passengers, 10) || 1);
-    // Formato pensado para WhatsApp: el link en su propia línea, con https://,
-    // sin * ni emojis pegados (así se vuelve enlace azul tocable).
+    let whenLine = null;
+    if (clientChoosesSchedule) {
+        whenLine = 'Programado: al abrir eliges fecha y hora.';
+    } else if (scheduledFor) {
+        try {
+            const when = new Date(scheduledFor).toLocaleString('es-HN', {
+                weekday: 'short', day: 'numeric', month: 'short',
+                hour: '2-digit', minute: '2-digit'
+            });
+            whenLine = `Programado: ${when}`;
+        } catch (_) {
+            whenLine = 'Viaje programado.';
+        }
+    }
+    // Formato pensado para WhatsApp: el link en su propia línea, con https://
     const lines = [
         `HonduRaite — viaje listo para ti, ${name}`,
         '',
@@ -103,9 +116,7 @@ function buildStaffTripWhatsAppMessage({
         clientChoosesPassengers
             ? 'Personas: al abrir eliges cuántas van (máx. 4).'
             : (pax > 1 ? `Personas: ${pax}` : null),
-        clientChoosesSchedule
-            ? 'Programado: al abrir eliges fecha y hora.'
-            : null,
+        whenLine,
         '',
         'Abre tu viaje aquí (toca el enlace):',
         '',
@@ -127,6 +138,7 @@ function showStaffTripSharePanel({
     clientChoosesSchedule,
     passengers,
     clientChoosesPassengers,
+    scheduledFor,
     showToast,
     resend = false
 }) {
@@ -135,7 +147,7 @@ function showStaffTripSharePanel({
     const phone = normalizeHondurasPhone(clientPhone) || clientPhone || '';
     const msg = buildStaffTripWhatsAppMessage({
         tripId, clientName, origin, destination, priceLabel,
-        clientChoosesSchedule, passengers, clientChoosesPassengers
+        clientChoosesSchedule, passengers, clientChoosesPassengers, scheduledFor
     });
     // wa.me suele prellenar mejor el texto con URLs; api.whatsapp.com a veces trunca
     const waUrl = phone ? getWhatsAppLink(phone, msg) : '';
@@ -159,7 +171,9 @@ function showStaffTripSharePanel({
                 <p style="margin:0.35rem 0 0;font-size:12px;color:#94a3b8;font-weight:700;line-height:1.4;">
                     ${resend ? 'Vuelve a mandar el link a' : 'Notificación enviada a'}
                     <b style="color:#6ee7b7;">${escapeHtml(clientName || 'cliente')}</b>.
-                    ${clientChoosesSchedule ? ' Es programado: el cliente elige fecha y hora.' : ''}
+                    ${clientChoosesSchedule
+                        ? ' Es programado: el cliente elige fecha y hora.'
+                        : (scheduledFor ? ' Es programado con fecha/hora fija.' : '')}
                 </p>
             </div>
             <div style="padding:0.65rem 0.75rem;border-radius:0.85rem;background:#020617;border:1px solid #1e293b;margin-bottom:0.75rem;">
@@ -394,13 +408,34 @@ export function installStaffCreateClientTrip({
                     <div style="margin-bottom:0.5rem;padding:0.65rem;border-radius:0.85rem;border:1px solid #b45309;background:rgba(120,53,15,0.35);">
                         <label style="display:flex;align-items:flex-start;gap:0.5rem;font-size:12px;font-weight:800;color:#fde68a;cursor:pointer;">
                             <input type="checkbox" id="staff-cct-scheduled" style="margin-top:0.15rem;">
-                            <span>
-                                Viaje programado
-                                <span style="display:block;font-size:10px;font-weight:700;color:#fde68a;opacity:.9;margin-top:0.25rem;line-height:1.35;">
-                                    El cliente elige fecha y hora cuando reciba la notificación (no las pones tú).
-                                </span>
-                            </span>
+                            <span>Viaje programado</span>
                         </label>
+                        <div id="staff-cct-sched-fields" style="display:none;margin-top:0.55rem;">
+                            <p style="margin:0 0 0.4rem;font-size:10px;font-weight:900;text-transform:uppercase;color:#fbbf24;">¿Quién elige fecha y hora?</p>
+                            <div style="display:flex;flex-direction:column;gap:0.35rem;margin-bottom:0.5rem;">
+                                <label style="display:flex;align-items:center;gap:0.45rem;font-size:12px;font-weight:800;color:#fde68a;cursor:pointer;">
+                                    <input type="radio" name="staff-cct-sched-who" id="staff-cct-sched-client" value="client" checked>
+                                    Cliente elige (al abrir el aviso)
+                                </label>
+                                <label style="display:flex;align-items:center;gap:0.45rem;font-size:12px;font-weight:800;color:#fde68a;cursor:pointer;">
+                                    <input type="radio" name="staff-cct-sched-who" id="staff-cct-sched-staff" value="staff">
+                                    Yo pongo fecha y hora
+                                </label>
+                            </div>
+                            <div id="staff-cct-sched-datetime" style="display:none;grid-template-columns:1fr 1fr;gap:0.5rem;">
+                                <div>
+                                    <label style="font-size:10px;font-weight:900;color:#fbbf24;">Fecha</label>
+                                    <input type="date" id="staff-cct-date" class="ops-input" style="width:100%;">
+                                </div>
+                                <div>
+                                    <label style="font-size:10px;font-weight:900;color:#fbbf24;">Hora</label>
+                                    <input type="time" id="staff-cct-time" class="ops-input" style="width:100%;">
+                                </div>
+                            </div>
+                            <p id="staff-cct-sched-hint" style="margin:0.4rem 0 0;font-size:10px;font-weight:700;color:#fde68a;opacity:.9;line-height:1.35;">
+                                Por defecto el cliente elige cuándo lo recogen.
+                            </p>
+                        </div>
                     </div>
 
                     <div id="staff-cct-route-box" style="display:none;margin-bottom:0.65rem;padding:0.7rem 0.8rem;border-radius:0.85rem;border:1px solid #065f46;background:rgba(6,78,59,0.45);">
@@ -443,6 +478,39 @@ export function installStaffCreateClientTrip({
 
             document.body.appendChild(modal);
             console.log('[staff] modal DOM insertado', !!document.getElementById('staff-create-client-trip-modal'));
+
+            // Programado: staff fija fecha/hora O deja que el cliente elija
+            const schedCb = modal.querySelector('#staff-cct-scheduled');
+            const schedFields = modal.querySelector('#staff-cct-sched-fields');
+            const schedDatetime = modal.querySelector('#staff-cct-sched-datetime');
+            const schedClientRadio = modal.querySelector('#staff-cct-sched-client');
+            const schedStaffRadio = modal.querySelector('#staff-cct-sched-staff');
+            const schedHint = modal.querySelector('#staff-cct-sched-hint');
+            const schedDateInput = modal.querySelector('#staff-cct-date');
+            const schedTimeInput = modal.querySelector('#staff-cct-time');
+
+            // Mínimo ~20 min
+            try {
+                const minD = new Date(Date.now() + 20 * 60 * 1000);
+                if (schedDateInput) schedDateInput.min = minD.toISOString().slice(0, 10);
+            } catch (_) {}
+
+            const syncSchedUi = () => {
+                const on = !!schedCb?.checked;
+                if (schedFields) schedFields.style.display = on ? 'block' : 'none';
+                if (!on) return;
+                const staffPicks = !!schedStaffRadio?.checked;
+                if (schedDatetime) schedDatetime.style.display = staffPicks ? 'grid' : 'none';
+                if (schedHint) {
+                    schedHint.textContent = staffPicks
+                        ? 'El cliente verá la fecha/hora que pongas. Debe ser en el futuro.'
+                        : 'El cliente elige fecha y hora al abrir la notificación o el link de WhatsApp.';
+                }
+            };
+            schedCb?.addEventListener('change', syncSchedUi);
+            schedClientRadio?.addEventListener('change', syncSchedUi);
+            schedStaffRadio?.addEventListener('change', syncSchedUi);
+            syncSchedUi();
 
             // Estado de coords elegidas (búsqueda o pin) + última ruta calculada
             const placeState = {
@@ -1068,8 +1136,13 @@ export function installStaffCreateClientTrip({
             || getDefaultZoneId?.()
             || null;
         const priceOverride = parseFloat(modal.querySelector('#staff-cct-price')?.value || '');
-        // Programado: el cliente elige fecha/hora al reclamar; staff solo marca la intención
-        const clientChoosesSchedule = !!modal.querySelector('#staff-cct-scheduled')?.checked;
+        // Programado: staff fija fecha/hora O el cliente la elige al reclamar
+        const isScheduled = !!modal.querySelector('#staff-cct-scheduled')?.checked;
+        const staffPicksSchedule = isScheduled
+            && !!modal.querySelector('#staff-cct-sched-staff')?.checked;
+        const clientChoosesSchedule = isScheduled && !staffPicksSchedule;
+        const dateStr = modal.querySelector('#staff-cct-date')?.value || '';
+        const timeStr = modal.querySelector('#staff-cct-time')?.value || '';
         const hint = modal.querySelector('#staff-cct-hint');
 
         // Coords del pin / sugerencia (si las hay)
@@ -1085,6 +1158,17 @@ export function installStaffCreateClientTrip({
         if (!clientId) return toast(showToast, 'Selecciona un cliente (o ábrelo desde su tarjeta).');
         if (!origin || origin.length < 3) return toast(showToast, 'Escribe o marca el origen (búsqueda o pin).');
         if (!destination || destination.length < 3) return toast(showToast, 'Escribe o marca el destino.');
+
+        let scheduledFor = null;
+        if (isScheduled && staffPicksSchedule) {
+            if (!dateStr || !timeStr) {
+                return toast(showToast, 'Pon fecha y hora del programado, o marca «Cliente elige».');
+            }
+            scheduledFor = new Date(`${dateStr}T${timeStr}:00`).toISOString();
+            if (new Date(scheduledFor).getTime() <= Date.now() + 5 * 60 * 1000) {
+                return toast(showToast, 'La fecha/hora debe ser al menos unos minutos en el futuro.');
+            }
+        }
 
         if (btnEl) {
             btnEl.disabled = true;
@@ -1199,9 +1283,10 @@ export function installStaffCreateClientTrip({
             const staffName = profile?.name || currentUser?.email || 'Staff';
             const tripPayload = {
                 status: 'pending',
-                // Fecha/hora: null hasta que el cliente las elija al reclamar
-                scheduledFor: null,
+                // Staff fijó fecha/hora O null si el cliente elige al reclamar
+                scheduledFor: scheduledFor || null,
                 clientChoosesSchedule: clientChoosesSchedule === true,
+                staffSetSchedule: !!(isScheduled && staffPicksSchedule && scheduledFor),
                 serviceType,
                 bookingType: 'standard',
                 origin,
@@ -1258,8 +1343,10 @@ export function installStaffCreateClientTrip({
             toast(
                 showToast,
                 clientChoosesSchedule
-                    ? `Viaje programado armado. Compártelo por WhatsApp o espera a que abra la notificación.`
-                    : `Viaje armado. Compártelo por WhatsApp o el cliente usa la notificación.`,
+                    ? `Viaje programado armado (cliente elige fecha/hora). Compártelo por WhatsApp.`
+                    : (scheduledFor
+                        ? `Viaje programado con fecha/hora fija. Compártelo por WhatsApp.`
+                        : `Viaje armado. Compártelo por WhatsApp o el cliente usa la notificación.`),
                 'success'
             );
 
@@ -1273,6 +1360,7 @@ export function installStaffCreateClientTrip({
                 clientChoosesSchedule,
                 passengers: tripPayload.passengers,
                 clientChoosesPassengers: tripPayload.clientChoosesPassengers,
+                scheduledFor: tripPayload.scheduledFor,
                 showToast
             });
         } catch (e) {
@@ -1658,6 +1746,7 @@ export function installStaffCreateClientTrip({
                     clientChoosesSchedule: t.clientChoosesSchedule === true && !t.scheduledFor,
                     passengers: t.passengers,
                     clientChoosesPassengers: t.clientChoosesPassengers === true,
+                    scheduledFor: t.scheduledFor || null,
                     showToast,
                     resend: true
                 });
@@ -1692,6 +1781,7 @@ export function installStaffCreateClientTrip({
                 clientChoosesSchedule: t.clientChoosesSchedule === true && !t.scheduledFor,
                 passengers: t.passengers,
                 clientChoosesPassengers: t.clientChoosesPassengers === true,
+                scheduledFor: t.scheduledFor || null,
                 showToast,
                 resend: true
             });
