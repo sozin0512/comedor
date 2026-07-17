@@ -7827,7 +7827,13 @@ if (document.readyState === 'loading') {
         function buildStaffActiveTripCompactRow(t, phase, cardOpts = {}) {
             const meta = getStaffActiveTripPhaseMeta(phase);
             const client = escapeViewerText(t.clientName || 'Pasajero');
-            const driver = escapeViewerText(t.driverName || (phase === 'pending' ? 'Buscando…' : 'Conductor'));
+            const waitingClient = !!(t.staffCreatedBy && t.staffCreatedClientClaimed !== true && t.status === 'pending');
+            const driver = escapeViewerText(
+                t.driverName
+                    || (waitingClient
+                        ? 'Espera cliente…'
+                        : (phase === 'pending' ? 'Buscando…' : 'Conductor'))
+            );
             const price = escapeViewerText(t.price || '—');
             const origin = escapeViewerText(
                 (window.shortenMapPlaceLabel?.(t.origin) || t.origin || 'Origen').toString().slice(0, 42)
@@ -7835,6 +7841,17 @@ if (document.readyState === 'loading') {
             const dest = escapeViewerText(
                 (window.shortenMapPlaceLabel?.(t.destination) || t.destination || 'Destino').toString().slice(0, 42)
             );
+            const viewersN = (t.viewedBy && typeof t.viewedBy === 'object')
+                ? Object.values(t.viewedBy).filter((v) => v && (v.name || v.driverId)).length
+                : 0;
+            const bidsN = (t.driverBids && typeof t.driverBids === 'object')
+                ? Object.keys(t.driverBids).length
+                : 0;
+            const metaBits = waitingClient
+                ? ' · ⏳ cliente'
+                : (viewersN || bidsN
+                    ? ` · 👁 ${viewersN}${bidsN ? ` · 💰 ${bidsN}` : ''}`
+                    : '');
             const clientPhone = t.clientPhone || t.phone || '';
             const driverPhone = t.driverPhone || '';
             const clientWa = clientPhone ? getWhatsAppLink(clientPhone) : '';
@@ -7856,7 +7873,7 @@ if (document.readyState === 'loading') {
                 <button type="button" class="ops-trip-compact-main" onclick="window.toggleStaffTripCompactExpand('${expandId}')">
                     <span class="ops-trip-compact-phase"><i class="fas ${meta.icon}"></i></span>
                     <span class="ops-trip-compact-body">
-                        <span class="ops-trip-compact-people"><b>${client}</b> · ${driver}</span>
+                        <span class="ops-trip-compact-people"><b>${client}</b> · ${driver}${metaBits}</span>
                         <span class="ops-trip-compact-route">${origin} → ${dest}</span>
                     </span>
                     <span class="ops-trip-compact-price">${price}</span>
@@ -9210,6 +9227,26 @@ if (document.readyState === 'loading') {
         function buildStaffTripViewersHtml(t) {
             if (!isStaffUser(currentUser, window.userProfile)) return '';
 
+            // Viaje armado por staff: hasta que el cliente acepte, NO es visible a conductores
+            const waitingClient = !!(t.staffCreatedBy && t.staffCreatedClientClaimed !== true && t.status === 'pending');
+            if (waitingClient) {
+                return `
+                <div class="ops-trip-viewers-panel ops-trip-viewers-panel--wait-client">
+                    <div class="ops-trip-viewers-label">
+                        <i class="fas fa-user-clock"></i> Esperando al cliente
+                    </div>
+                    <p class="ops-trip-viewers-empty" style="color:#fbbf24;font-weight:800;line-height:1.4;">
+                        El viaje <b>aún no sale a conductores</b>. Por eso no hay vistas ni ofertas.
+                        Cuando <b>${escapeViewerText(t.clientName || 'el cliente')}</b> abra el aviso/link y toque
+                        «Quiero este viaje», aquí verás quién lo mira y las ofertas.
+                    </p>
+                    <button type="button" class="ops-trip-assign-any-btn" onclick="window.staffResendTripWhatsApp?.('${t.id}')"
+                        title="Reenviar link por WhatsApp">
+                        <i class="fab fa-whatsapp"></i> Reenviar WhatsApp al cliente
+                    </button>
+                </div>`;
+            }
+
             const viewers = t.viewedBy && typeof t.viewedBy === 'object'
                 ? Object.values(t.viewedBy)
                     .filter((v) => v && (v.name || v.driverId))
@@ -9226,7 +9263,11 @@ if (document.readyState === 'loading') {
                     ? `${viewers.length} vieron la solicitud`
                     : 'Sin vistas aún';
 
-            const canStaffAssign = t.status === 'pending' && !t.driverId;
+            const canStaffAssign = t.status === 'pending' && !t.driverId && t.staffCreatedClientClaimed !== false;
+            // Si no es staff-created, can assign; si es staff-created, only after claim
+            const canAssign = t.status === 'pending' && !t.driverId
+                && !(t.staffCreatedBy && t.staffCreatedClientClaimed !== true);
+
             const listHtml = viewers.length
                 ? viewers.map((v) => {
                     const driverId = v.driverId || '';
@@ -9237,7 +9278,7 @@ if (document.readyState === 'loading') {
                     const metaParts = [`★ ${rating}`];
                     if (when) metaParts.push(when);
                     if (isOffered) metaParts.push('<span class="ops-trip-viewer-tag">OFERTA</span>');
-                    const assignBtns = (canStaffAssign && driverId)
+                    const assignBtns = (canAssign && driverId)
                         ? `<div class="ops-trip-viewer-actions">
                             <button type="button" class="ops-trip-viewer-assign-btn" onclick="window.staffAssignTripToViewer('${t.id}', '${driverId}')" title="Asignar viaje directamente a este conductor">ASIGNAR</button>
                             <button type="button" class="ops-trip-viewer-offer-btn" onclick="window.staffSendTripOfferToViewer('${t.id}', '${driverId}')" title="Enviar oferta; el conductor debe aceptar">OFERTA</button>
@@ -9252,9 +9293,13 @@ if (document.readyState === 'loading') {
                             ${assignBtns}
                         </div>`;
                 }).join('')
-                : '<p class="ops-trip-viewers-empty">Ningún conductor la ha abierto en su pantalla todavía.</p>';
+                : `<p class="ops-trip-viewers-empty">${
+                    t.staffCreatedClientClaimed === true
+                        ? 'Cliente ya tomó el viaje. Aún ningún conductor lo abrió en pantalla.'
+                        : 'Ningún conductor la ha abierto en su pantalla todavía.'
+                }</p>`;
 
-            const anyDriverBtn = canStaffAssign
+            const anyDriverBtn = canAssign
                 ? `<button type="button" class="ops-trip-assign-any-btn" onclick="window.staffOpenAssignAnyDriver('${t.id}')" title="Asignar u ofertar a cualquier conductor, aunque no haya visto la solicitud">
                         <i class="fas fa-user-plus"></i> Asignar a cualquier conductor
                    </button>`
@@ -9266,6 +9311,9 @@ if (document.readyState === 'loading') {
                         <i class="fas fa-eye"></i> Conductores que vieron la solicitud
                         <span class="ops-trip-viewers-count">${countLabel}</span>
                     </div>
+                    ${t.staffCreatedBy && t.staffCreatedClientClaimed === true
+                        ? '<p class="ops-trip-viewers-offer" style="background:rgba(16,185,129,.12);border-color:#059669;"><i class="fas fa-check"></i> Cliente ya aceptó · viaje visible a conductores</p>'
+                        : ''}
                     ${offerLine}
                     <div class="ops-trip-viewers-list">${listHtml}</div>
                     ${anyDriverBtn}
@@ -9275,8 +9323,43 @@ if (document.readyState === 'loading') {
         function buildStaffTripNegotiationsHtml(t) {
             if (!isStaffUser(currentUser, window.userProfile)) return '';
 
+            if (t.staffCreatedBy && t.staffCreatedClientClaimed !== true && t.status === 'pending') {
+                return `
+                <div class="ops-trip-neg-panel">
+                    <div class="ops-trip-neg-label">
+                        <i class="fas fa-comments-dollar"></i> Ofertas de precio
+                    </div>
+                    <p class="ops-trip-neg-empty" style="color:#fbbf24;font-weight:800;line-height:1.4;">
+                        Sin ofertas todavía: el cliente no ha confirmado el viaje. Los conductores no lo ven hasta entonces.
+                    </p>
+                </div>`;
+            }
+
             const log = Array.isArray(t.negotiationLog) ? [...t.negotiationLog] : [];
             log.sort((a, b) => getNegEntryTime(b) - getNegEntryTime(a));
+
+            // También listar ofertas del marketplace (driverBids)
+            const bidRows = [];
+            if (t.driverBids && typeof t.driverBids === 'object') {
+                Object.entries(t.driverBids).forEach(([driverId, b]) => {
+                    if (!b || typeof b !== 'object') return;
+                    const price = b.price != null ? Number(b.price) : (b.passengerCounterPrice != null ? Number(b.passengerCounterPrice) : null);
+                    if (!(price > 0) && b.passengerCounterPrice == null && b.price == null) return;
+                    bidRows.push({
+                        by: 'driver',
+                        driverId,
+                        name: b.driverName || b.name || 'Conductor',
+                        price: b.price != null ? Number(b.price) : null,
+                        counter: b.passengerCounterPrice != null ? Number(b.passengerCounterPrice) : null,
+                        at: b.at || b.updatedAt || 0
+                    });
+                });
+            }
+            bidRows.sort((a, b) => {
+                const ta = typeof a.at === 'number' ? a.at : (a.at?.seconds ? a.at.seconds * 1000 : 0);
+                const tb = typeof b.at === 'number' ? b.at : (b.at?.seconds ? b.at.seconds * 1000 : 0);
+                return tb - ta;
+            });
 
             const basePrice = t.priceNum != null
                 ? `L. ${parseFloat(t.priceNum).toFixed(2)}`
@@ -9293,7 +9376,7 @@ if (document.readyState === 'loading') {
                 pendingLine = `<p class="ops-trip-neg-pending"><i class="fas fa-hand-holding-usd"></i> <b>${roleLabel}:</b> ${who} · <b>L. ${pendingPrice}</b></p>`;
             }
 
-            const listHtml = log.length
+            const logHtml = log.length
                 ? log.map((entry) => {
                     const isDriver = entry.by === 'driver';
                     const name = escapeViewerText(
@@ -9313,10 +9396,33 @@ if (document.readyState === 'loading') {
                             <span class="ops-trip-neg-price">${price}${when ? ` · ${when}` : ''}</span>
                         </div>`;
                 }).join('')
+                : '';
+
+            const bidsHtml = bidRows.length
+                ? bidRows.map((b) => {
+                    const name = escapeViewerText(b.name || 'Conductor');
+                    const price = b.price != null ? `L. ${b.price.toFixed(2)}` : '—';
+                    const counter = b.counter != null
+                        ? ` · pasajero ofrece L. ${b.counter.toFixed(2)}`
+                        : '';
+                    return `
+                        <div class="ops-trip-neg-row ops-trip-neg-row--driver">
+                            <div class="ops-trip-neg-row-head">
+                                <span class="ops-trip-neg-actor"><i class="fas fa-motorcycle"></i> ${name}</span>
+                                <span class="ops-trip-neg-tag">OFERTA</span>
+                            </div>
+                            <span class="ops-trip-neg-price">${price}${counter}</span>
+                        </div>`;
+                }).join('')
+                : '';
+
+            const listHtml = (bidsHtml || logHtml)
+                ? `${bidsHtml}${logHtml}`
                 : '<p class="ops-trip-neg-empty">Nadie ha propuesto otro precio todavía.</p>';
 
-            const countLabel = log.length
-                ? `${log.length} movimiento${log.length === 1 ? '' : 's'}`
+            const totalMoves = bidRows.length + log.length;
+            const countLabel = totalMoves
+                ? `${totalMoves} oferta${totalMoves === 1 ? '' : 's'} / movimiento${totalMoves === 1 ? '' : 's'}`
                 : 'Sin movimientos';
 
             return `
@@ -11390,6 +11496,20 @@ if (document.readyState === 'loading') {
             if (tripPhase === 'at_pickup') statusLabel = 'EN ORIGEN · PIN';
             if (t.status === 'completed') {
                 statusLabel = bothRated ? 'FINALIZADO' : 'COMPLETADO (calif.)';
+            }
+            // Staff armó viaje: estados claros para el panel
+            if (t.staffCreatedBy && t.status === 'pending' && !t.driverId) {
+                if (t.staffCreatedClientClaimed !== true) {
+                    statusLabel = 'ESPERA CLIENTE';
+                    statusVariant = 'amber';
+                } else {
+                    statusLabel = 'CLIENTE OK · BUSCANDO';
+                    statusVariant = 'cyan';
+                }
+            }
+            if (t.status === 'scheduled' && t.driverId) {
+                statusLabel = 'PROGRAMADO · RESERVADO';
+                statusVariant = 'amber';
             }
             if (attention?.isUnattended) {
                 if (attention.isHistorical) {
