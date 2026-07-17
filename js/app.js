@@ -1934,7 +1934,11 @@ if (document.readyState === 'loading') {
             if (document.getElementById('staff-claim-trip-modal')) return;
 
             const staffName = (trip.staffCreatedByName || 'Soporte HonduRaite').split(' ')[0];
-            const needsSchedule = trip.clientChoosesSchedule === true && !trip.scheduledFor;
+            // Programado sin fecha/hora → el cliente DEBE elegirlas
+            const needsSchedule = (
+                trip.clientChoosesSchedule === true
+                || (!!trip.scheduledFor === false && trip.bookingType === 'scheduled')
+            ) && !trip.scheduledFor;
             const when = trip.scheduledFor
                 ? (typeof formatScheduledTripWhen === 'function'
                     ? formatScheduledTripWhen(trip)
@@ -1942,20 +1946,21 @@ if (document.readyState === 'loading') {
                 : '';
             const svcType = normalizeServiceType(trip.serviceType || 'auto');
             const maxPax = getMaxPassengers(svcType);
-            // Cliente puede elegir siempre (auto/taxi/moto). Si staff no fijó → se resalta que debe elegir.
+            // Auto/taxi/moto: mostrar personas. Si staff no fijó (Cliente elige / vacío) → obligatorio.
             const canChoosePax = maxPax > 1 && svcType !== 'delivery' && !isFreightService(svcType);
             const clientMustPickPax = canChoosePax && (
                 trip.clientChoosesPassengers === true
+                || trip.staffSetPassengers !== true
                 || trip.passengers == null
                 || trip.passengers === ''
             );
             let claimPassengers = clientMustPickPax
-                ? 1
+                ? null
                 : normalizePassengerCount(svcType, trip.passengers || 1);
             let clientDidPickPax = !clientMustPickPax;
+            let clientDidPickSchedule = !needsSchedule;
             const baseKm = Number(trip.tripDistanceKm) || 0;
             const baseFareWithoutPax = (() => {
-                // Reconstruir tarifa base sin personas (aprox) restando surcharge guardado
                 const listed = Number(trip.priceNum) || 0;
                 const storedSur = Number(trip.passengerSurcharge) || 0;
                 if (listed > 0 && storedSur > 0) return Math.max(0, listed - storedSur);
@@ -1963,16 +1968,30 @@ if (document.readyState === 'loading') {
                 return listed || 0;
             })();
             const priceForPax = (p) => {
-                if (baseKm > 0) return calculateServiceFare(svcType, baseKm, null, p);
-                return applyPassengerSurcharge(baseFareWithoutPax || 50, svcType, p);
+                const n = Math.max(1, parseInt(p, 10) || 1);
+                if (baseKm > 0) return calculateServiceFare(svcType, baseKm, null, n);
+                return applyPassengerSurcharge(baseFareWithoutPax || 50, svcType, n);
             };
-            let livePrice = priceForPax(claimPassengers);
+            let livePrice = priceForPax(claimPassengers || 1);
             const priceLabel = () => `L. ${livePrice.toFixed(2)}`;
 
-            // Mínimo: ahora + 20 min para programados
+            // Mínimo ~20 min (solo límite; campos vacíos para forzar elección consciente)
             const minDate = new Date(Date.now() + 20 * 60 * 1000);
             const minDateStr = minDate.toISOString().slice(0, 10);
-            const minTimeStr = `${String(minDate.getHours()).padStart(2, '0')}:${String(minDate.getMinutes()).padStart(2, '0')}`;
+
+            const missingBits = [];
+            if (clientMustPickPax) missingBits.push('cuántas personas');
+            if (needsSchedule) missingBits.push('fecha y hora');
+            const mustFillIntro = missingBits.length
+                ? `Antes de confirmar elige: <b>${missingBits.join(' y ')}</b>.`
+                : 'Si la tomas, verás ofertas de conductores.';
+
+            const confirmLabel = () => {
+                if (needsSchedule && clientMustPickPax) return 'Confirmar personas, fecha y viaje';
+                if (needsSchedule) return 'Confirmar fecha y quiero el viaje';
+                if (clientMustPickPax) return 'Confirmar personas y quiero el viaje';
+                return 'Sí, quiero este viaje';
+            };
 
             const modal = document.createElement('div');
             modal.id = 'staff-claim-trip-modal';
@@ -1984,9 +2003,7 @@ if (document.readyState === 'loading') {
                         <h3 class="text-lg font-black text-gray-900">${needsSchedule ? 'Viaje programado para ti' : 'Te armamos un viaje'}</h3>
                         <p class="text-xs text-gray-500 font-bold mt-1 leading-snug">
                             <b>${staffName}</b> (admin/supervisor) creó esta solicitud por ti.
-                            ${needsSchedule
-                                ? 'Elige <b>cuándo</b> te recogen y confirma. Después verás ofertas de conductores.'
-                                : 'Si la tomas, verás ofertas de conductores y eliges con quién ir.'}
+                            ${mustFillIntro}
                         </p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left space-y-1.5 mb-4">
@@ -1999,37 +2016,41 @@ if (document.readyState === 'loading') {
                         ${when ? `<p class="text-[11px] font-bold text-amber-700 mt-2"><i class="fas fa-calendar"></i> Programado: ${when}</p>` : ''}
                     </div>
                     ${canChoosePax ? `
-                    <div class="rounded-2xl border ${clientMustPickPax ? 'border-blue-400 ring-2 ring-blue-200' : 'border-blue-200'} bg-blue-50 p-3 mb-4">
+                    <div id="staff-claim-pax-box" class="rounded-2xl border ${clientMustPickPax ? 'border-blue-400 ring-2 ring-blue-200' : 'border-blue-200'} bg-blue-50 p-3 mb-4">
                         <p class="text-[10px] font-black uppercase text-blue-700 mb-2">
                             <i class="fas fa-users"></i> ¿Cuántas personas van?
-                            ${clientMustPickPax ? '<span class="ml-1 text-blue-500 normal-case">(elige tú · máx. 4)</span>' : ''}
+                            ${clientMustPickPax ? '<span class="ml-1 text-blue-600 normal-case font-black">· obligatorio</span>' : ''}
                         </p>
                         <div id="staff-claim-pax-chips" class="flex flex-wrap gap-1.5"></div>
                         <p id="staff-claim-pax-hint" class="text-[10px] font-bold text-blue-800/80 mt-2 leading-snug"></p>
                     </div>
                     ` : ''}
                     ${needsSchedule ? `
-                    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-3 mb-4">
-                        <p class="text-[10px] font-black uppercase text-amber-700 mb-2"><i class="fas fa-clock"></i> Elige fecha y hora de recogida</p>
+                    <div id="staff-claim-sched-box" class="rounded-2xl border border-amber-300 ring-2 ring-amber-100 bg-amber-50 p-3 mb-4">
+                        <p class="text-[10px] font-black uppercase text-amber-700 mb-2">
+                            <i class="fas fa-clock"></i> Fecha y hora de recogida
+                            <span class="ml-1 text-amber-600 normal-case font-black">· obligatorio</span>
+                        </p>
                         <div class="grid grid-cols-2 gap-2">
                             <div>
                                 <label class="block text-[10px] font-black text-amber-800 mb-1" for="staff-claim-date">Fecha</label>
-                                <input type="date" id="staff-claim-date" min="${minDateStr}" value="${minDateStr}"
+                                <input type="date" id="staff-claim-date" min="${minDateStr}" value=""
                                     class="w-full rounded-xl border border-amber-200 bg-white px-2 py-2.5 text-sm font-bold text-gray-900">
                             </div>
                             <div>
                                 <label class="block text-[10px] font-black text-amber-800 mb-1" for="staff-claim-time">Hora</label>
-                                <input type="time" id="staff-claim-time" value="${minTimeStr}"
+                                <input type="time" id="staff-claim-time" value=""
                                     class="w-full rounded-xl border border-amber-200 bg-white px-2 py-2.5 text-sm font-bold text-gray-900">
                             </div>
                         </div>
                         <p id="staff-claim-sched-hint" class="text-[10px] font-bold text-amber-800/80 mt-2 leading-snug">
-                            Mínimo ~20 minutos desde ahora. Te avisaremos antes de la hora.
+                            Elige fecha y hora (mínimo ~20 min desde ahora). El conductor lo verá.
                         </p>
                     </div>
                     ` : ''}
+                    <p id="staff-claim-block-hint" class="hidden text-[11px] font-bold text-red-600 text-center mb-2"></p>
                     <button type="button" id="staff-claim-yes" class="w-full py-3.5 rounded-2xl bg-emerald-600 text-white text-sm font-black mb-2">
-                        ${needsSchedule ? 'Confirmar fecha y quiero el viaje' : 'Sí, quiero este viaje'}
+                        ${confirmLabel()}
                     </button>
                     <button type="button" id="staff-claim-no" class="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 text-xs font-black">
                         No, cancelar solicitud
@@ -2043,32 +2064,48 @@ if (document.readyState === 'loading') {
             const priceEl = modal.querySelector('#staff-claim-price');
             const paxChips = modal.querySelector('#staff-claim-pax-chips');
             const paxHint = modal.querySelector('#staff-claim-pax-hint');
+            const blockHint = modal.querySelector('#staff-claim-block-hint');
+            const dateEl = modal.querySelector('#staff-claim-date');
+            const timeEl = modal.querySelector('#staff-claim-time');
+
+            const markScheduleTouched = () => {
+                if (dateEl?.value && timeEl?.value) clientDidPickSchedule = true;
+            };
+            dateEl?.addEventListener('change', markScheduleTouched);
+            timeEl?.addEventListener('change', markScheduleTouched);
+            dateEl?.addEventListener('input', markScheduleTouched);
+            timeEl?.addEventListener('input', markScheduleTouched);
 
             const renderClaimPax = () => {
                 if (!canChoosePax || !paxChips) return;
                 const fee = getExtraPassengerFee(svcType);
-                const sur = getPassengerSurcharge(svcType, claimPassengers);
-                livePrice = priceForPax(claimPassengers);
+                const paxN = claimPassengers != null ? claimPassengers : 0;
+                const sur = paxN > 0 ? getPassengerSurcharge(svcType, paxN) : 0;
+                livePrice = priceForPax(paxN || 1);
                 if (priceEl) priceEl.textContent = priceLabel();
                 paxChips.innerHTML = '';
                 for (let p = 1; p <= maxPax; p++) {
                     const btn = document.createElement('button');
                     btn.type = 'button';
-                    const active = clientDidPickPax && p === claimPassengers;
-                    btn.className = `px-3 py-1.5 rounded-xl text-xs font-black border ${
+                    const active = clientDidPickPax && claimPassengers === p;
+                    btn.className = `px-3 py-2 min-w-[2.75rem] rounded-xl text-xs font-black border ${
                         active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-800 border-blue-200'
                     }`;
-                    btn.textContent = p === 1 ? '1' : String(p);
+                    btn.textContent = String(p);
                     btn.addEventListener('click', () => {
                         claimPassengers = p;
                         clientDidPickPax = true;
+                        if (blockHint) {
+                            blockHint.classList.add('hidden');
+                            blockHint.textContent = '';
+                        }
                         renderClaimPax();
                     });
                     paxChips.appendChild(btn);
                 }
                 if (paxHint) {
                     if (clientMustPickPax && !clientDidPickPax) {
-                        paxHint.innerHTML = '<span class="text-blue-700">Toca cuántas personas van (1–' + maxPax + '). La tarifa se ajusta y el conductor lo verá.</span>';
+                        paxHint.innerHTML = '<span class="text-blue-700 font-black">Toca 1, 2, 3 o 4. Sin esto no puedes confirmar.</span>';
                     } else if (sur > 0) {
                         paxHint.textContent = `${formatPassengersLabel(claimPassengers)} · +L. ${sur.toFixed(0)} extra (L. ${fee} c/u). El conductor lo verá.`;
                     } else {
@@ -2080,41 +2117,63 @@ if (document.readyState === 'loading') {
 
             yesBtn?.addEventListener('click', async () => {
                 let scheduledFor = null;
+                const missing = [];
+
+                if (canChoosePax && clientMustPickPax && (!clientDidPickPax || !(claimPassengers >= 1))) {
+                    missing.push('cuántas personas van');
+                    if (paxHint) {
+                        paxHint.innerHTML = '<span class="text-red-600 font-black">Elige el número de personas para continuar.</span>';
+                    }
+                    modal.querySelector('#staff-claim-pax-box')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+                }
+
                 if (needsSchedule) {
-                    const dateStr = modal.querySelector('#staff-claim-date')?.value || '';
-                    const timeStr = modal.querySelector('#staff-claim-time')?.value || '';
+                    const dateStr = dateEl?.value || '';
+                    const timeStr = timeEl?.value || '';
                     const hintEl = modal.querySelector('#staff-claim-sched-hint');
                     if (!dateStr || !timeStr) {
-                        if (hintEl) hintEl.textContent = 'Elige fecha y hora para continuar.';
-                        window.showToast?.('Elige la fecha y hora de recogida.');
-                        return;
-                    }
-                    scheduledFor = new Date(`${dateStr}T${timeStr}:00`).toISOString();
-                    if (new Date(scheduledFor).getTime() < Date.now() + 10 * 60 * 1000) {
-                        if (hintEl) hintEl.textContent = 'La hora debe ser al menos 10–20 minutos en el futuro.';
-                        window.showToast?.('Elige una hora más adelante (mínimo ~10–20 min).');
-                        return;
+                        missing.push('fecha y hora');
+                        if (hintEl) hintEl.innerHTML = '<span class="text-red-600 font-black">Elige fecha y hora para continuar.</span>';
+                        modal.querySelector('#staff-claim-sched-box')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+                    } else {
+                        scheduledFor = new Date(`${dateStr}T${timeStr}:00`).toISOString();
+                        if (new Date(scheduledFor).getTime() < Date.now() + 10 * 60 * 1000) {
+                            missing.push('una hora más adelante');
+                            if (hintEl) {
+                                hintEl.innerHTML = '<span class="text-red-600 font-black">La hora debe ser al menos ~10–20 min en el futuro.</span>';
+                            }
+                            scheduledFor = null;
+                        } else {
+                            clientDidPickSchedule = true;
+                        }
                     }
                 }
-                if (canChoosePax && clientMustPickPax && !clientDidPickPax) {
-                    window.showToast?.('Elige cuántas personas van (1 a ' + maxPax + ').');
-                    if (paxHint) {
-                        paxHint.innerHTML = '<span class="text-red-600">Elige el número de personas para continuar.</span>';
+
+                if (missing.length) {
+                    const msg = `Completa: ${missing.join(' y ')}.`;
+                    if (blockHint) {
+                        blockHint.textContent = msg;
+                        blockHint.classList.remove('hidden');
                     }
+                    window.showToast?.(msg);
                     return;
                 }
+
                 yesBtn.disabled = true;
                 yesBtn.textContent = 'Activando…';
                 try {
+                    const paxFinal = canChoosePax
+                        ? normalizePassengerCount(svcType, claimPassengers || 1)
+                        : 1;
                     await window.claimStaffCreatedTrip?.(trip.id, {
-                        scheduledFor,
-                        passengers: canChoosePax ? claimPassengers : undefined,
-                        priceNum: canChoosePax ? livePrice : undefined
+                        scheduledFor: needsSchedule ? scheduledFor : undefined,
+                        passengers: canChoosePax ? paxFinal : undefined,
+                        priceNum: canChoosePax ? priceForPax(paxFinal) : undefined
                     });
                     modal.remove();
                 } catch (e) {
                     yesBtn.disabled = false;
-                    yesBtn.textContent = needsSchedule ? 'Confirmar fecha y quiero el viaje' : 'Sí, quiero este viaje';
+                    yesBtn.textContent = confirmLabel();
                     window.showToast?.(e?.message || 'No se pudo tomar el viaje.');
                 }
             });
@@ -2145,7 +2204,10 @@ if (document.readyState === 'loading') {
                 return;
             }
 
-            const needsSchedule = t.clientChoosesSchedule === true && !t.scheduledFor;
+            const needsSchedule = (
+                t.clientChoosesSchedule === true
+                || (!t.scheduledFor && t.bookingType === 'scheduled')
+            ) && !t.scheduledFor;
             let scheduledFor = opts?.scheduledFor || t.scheduledFor || null;
             if (needsSchedule) {
                 if (!scheduledFor) throw new Error('Elige la fecha y hora del viaje programado.');
@@ -2155,6 +2217,18 @@ if (document.readyState === 'loading') {
             }
 
             const svc = normalizeServiceType(t.serviceType || 'auto');
+            const mustPickPax = getMaxPassengers(svc) > 1
+                && svc !== 'delivery'
+                && !isFreightService(svc)
+                && (
+                    t.clientChoosesPassengers === true
+                    || t.staffSetPassengers !== true
+                    || t.passengers == null
+                    || t.passengers === ''
+                );
+            if (mustPickPax && (opts?.passengers == null || !(Number(opts.passengers) >= 1))) {
+                throw new Error('Elige cuántas personas van en el viaje.');
+            }
             const pax = opts?.passengers != null
                 ? normalizePassengerCount(svc, opts.passengers)
                 : normalizePassengerCount(svc, t.passengers || 1);

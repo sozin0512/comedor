@@ -1194,8 +1194,9 @@ export function installStaffCreateClientTrip({
                 passengers,
                 passengerSurcharge,
                 extraPassengers: Math.max(0, passengers - 1),
-                // Si staff no fijó número → el cliente elige al reclamar
+                // Si staff no fijó número → el cliente DEBE elegir al reclamar
                 clientChoosesPassengers: clientChoosesPassengers === true,
+                staffSetPassengers: clientChoosesPassengers !== true,
                 createdAt: serverTimestamp(),
                 chat: [],
                 viewedBy: {},
