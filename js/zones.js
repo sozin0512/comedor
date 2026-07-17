@@ -208,6 +208,8 @@ export function tripMatchesZone(trip, zoneId, radiusKm = null) {
 export function tripVisibleToDriver(trip, options = {}) {
     const { zoneId } = options;
     if (!trip || trip.isDemandSimulation) return false;
+    // Viaje armado por staff: oculto a conductores hasta que el cliente lo reclame
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return false;
     return tripSameCity(trip, zoneId);
 }
 

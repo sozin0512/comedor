@@ -1024,7 +1024,8 @@ function isHonduRideAlertType(type) {
         || type === 'trip_started'
         || type === 'scheduled_trip_active'
         || type === 'scheduled_reminder'
-        || type === 'trip_scheduled_reserved';
+        || type === 'trip_scheduled_reserved'
+        || type === 'staff_created_trip';
 }
 
 /** Snapshot comparable de ofertas de conductores (para detectar cambios y mandar push). */
@@ -1667,6 +1668,44 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
         const { appId, tripId } = event.params;
         // Programados también empiezan en pending (negociar/aceptar antes de reservar)
         if (trip.status !== 'pending' || trip.isDemandSimulation) return;
+
+        // Viaje armado por staff: primero notificar al cliente; NO ofertar a conductores
+        // hasta que el cliente reclame (staffCreatedClientClaimed).
+        if (trip.staffCreatedBy && trip.clientId && trip.staffCreatedClientClaimed !== true) {
+            const staffName = (trip.staffCreatedByName || 'Soporte').split(' ')[0];
+            const destShort = String(trip.destination || 'tu destino').slice(0, 40);
+            // Programado: el cliente elige fecha/hora al abrir (clientChoosesSchedule)
+            // o ya viene con scheduledFor (legacy / staff lo fijó).
+            const clientPicksWhen = trip.clientChoosesSchedule === true && !trip.scheduledFor;
+            const whenLabel = trip.scheduledFor
+                ? formatScheduledTripWhen(trip.scheduledFor)
+                : '';
+            let title = '🚕 Te armamos un viaje';
+            let body = `${staffName} (staff) creó tu viaje a ${destShort}. Ábrelo y toca «Quiero este viaje» si lo tomas.`;
+            if (clientPicksWhen) {
+                title = '📅 Te armamos un viaje programado';
+                body = `${staffName} (staff) armó tu viaje a ${destShort}. Ábrelo, elige fecha y hora, y confirma.`;
+            } else if (trip.scheduledFor) {
+                title = '📅 Te armamos un viaje programado';
+                body = `${staffName} (staff) creó tu viaje para ${whenLabel}. Ábrelo y toca «Quiero este viaje» si lo tomas.`;
+            }
+            await sendPushToUser(appId, trip.clientId, {
+                title,
+                body,
+                data: {
+                    type: 'staff_created_trip',
+                    tripId,
+                    tag: `staff-created-${tripId}`,
+                    openPassenger: 'true',
+                    openClient: 'true',
+                    superVibrate: 'true',
+                    clientChoosesSchedule: clientPicksWhen ? 'true' : 'false'
+                },
+                highPriority: true
+            }).catch(() => {});
+            return;
+        }
+
         await assignNextTripOfferServer(appId, tripId);
         await notifyOfflineFreightDrivers(appId, tripId, trip).catch(() => {});
         await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip).catch(() => {});
@@ -1891,6 +1930,20 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 },
                 highPriority: true
             });
+        }
+
+        // Cliente se adueñó del viaje creado por staff → abrir mercado de conductores
+        if (
+            after.status === 'pending'
+            && after.staffCreatedBy
+            && after.staffCreatedClientClaimed === true
+            && before.staffCreatedClientClaimed !== true
+            && !after.driverId
+        ) {
+            await assignNextTripOfferServer(appId, tripId).catch(() => {});
+            await notifyOfflineFreightDrivers(appId, tripId, after).catch(() => {});
+            await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, after).catch(() => {});
+            await notifyStaffNewTrip(appId, tripId, after).catch(() => {});
         }
 
         // Conductor reservó viaje PROGRAMADO (status scheduled con driver)

@@ -187,7 +187,77 @@ export function applyRouteConditionAdjustments(fare, conditions = {}) {
     return Math.round(adjusted * 100) / 100;
 }
 
-export function calculateServiceFare(type, km, conditions = null) {
+/**
+ * Personas en el viaje (cliente común elige al pedir). Incluye al solicitante.
+ * Límite general: 4 en auto/taxi. Moto: 2. Delivery/flete: 1.
+ */
+export const MAX_TRIP_PASSENGERS = 4;
+
+export const MAX_PASSENGERS_BY_SERVICE = {
+    moto: 2,
+    auto: MAX_TRIP_PASSENGERS,
+    taxi: MAX_TRIP_PASSENGERS,
+    delivery: 1,
+    flete_paila: 1,
+    flete_camion: 1,
+};
+
+/** Cobro fijo por cada persona extra (después de la 1.ª). */
+export const EXTRA_PASSENGER_FEE = {
+    moto: 12,
+    auto: 20,
+    taxi: 15,
+    delivery: 0,
+    flete_paila: 0,
+    flete_camion: 0,
+};
+
+export function getMaxPassengers(type) {
+    const t = normalizeServiceType(type);
+    return MAX_PASSENGERS_BY_SERVICE[t] ?? 4;
+}
+
+export function getExtraPassengerFee(type) {
+    const t = normalizeServiceType(type);
+    return Number(EXTRA_PASSENGER_FEE[t]) || 0;
+}
+
+/** Normaliza 1..max. Delivery/flete siempre 1. */
+export function normalizePassengerCount(type, count) {
+    const t = normalizeServiceType(type);
+    const max = getMaxPassengers(t);
+    if (max <= 1) return 1;
+    const n = parseInt(count, 10);
+    if (!Number.isFinite(n) || n < 1) return 1;
+    return Math.min(max, n);
+}
+
+/** Monto extra por personas adicionales (0 si va 1). */
+export function getPassengerSurcharge(type, passengers = 1) {
+    const pax = normalizePassengerCount(type, passengers);
+    const extra = Math.max(0, pax - 1);
+    if (extra <= 0) return 0;
+    return Math.round(extra * getExtraPassengerFee(type) * 100) / 100;
+}
+
+export function applyPassengerSurcharge(baseFare, type, passengers = 1) {
+    const base = Math.max(0, parseFloat(baseFare) || 0);
+    const surcharge = getPassengerSurcharge(type, passengers);
+    return Math.round((base + surcharge) * 100) / 100;
+}
+
+export function formatPassengersLabel(passengers = 1) {
+    const n = Math.max(1, parseInt(passengers, 10) || 1);
+    return n === 1 ? '1 persona' : `${n} personas`;
+}
+
+/**
+ * @param {string} type
+ * @param {number} km
+ * @param {object|null} conditions
+ * @param {number|{passengers?: number}|null} passengersOrOpts - personas o { passengers }
+ */
+export function calculateServiceFare(type, km, conditions = null, passengersOrOpts = null) {
     const meta = getServiceMeta(type);
     if (isFreightService(type)) {
         return calculateFreightFare(type, km, {}, conditions).total;
@@ -195,6 +265,12 @@ export function calculateServiceFare(type, km, conditions = null) {
     const distance = Math.max(0, parseFloat(km) || 0);
     let fare = meta.base + distance * meta.perKm;
     if (conditions) fare = applyRouteConditionAdjustments(fare, conditions);
+    let passengers = 1;
+    if (typeof passengersOrOpts === 'number') passengers = passengersOrOpts;
+    else if (passengersOrOpts && typeof passengersOrOpts === 'object') {
+        passengers = passengersOrOpts.passengers ?? 1;
+    }
+    fare = applyPassengerSurcharge(fare, type, passengers);
     return Math.round(fare * 100) / 100;
 }
 
@@ -693,6 +769,11 @@ export function calculateHourlyFare(type, hours = 1, options = {}, conditions = 
 
     if (conditions?.weatherSurchargePercent > 0) {
         total = total * (1 + conditions.weatherSurchargePercent / 100);
+    }
+
+    // Personas extra (mismo cobro fijo por persona adicional)
+    if (options.passengers != null) {
+        total = applyPassengerSurcharge(total, type, options.passengers);
     }
 
     return Math.round(total * 100) / 100;

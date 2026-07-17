@@ -97,7 +97,9 @@ import {
     isValidTaxiPlate,
     getServiceBadgeHtml, getServiceLabel, getDriverVehicleTypeLabel, getTripOfferNotificationCopy,
     getDriverVehicleBadgeHtml, getDriverVehicleEmoji, getDriverVehicleTypeColorClass, getDriverVehicleNoun,
-    getHourlyRate, calculateHourlyFare, getHourlyLabel
+    getHourlyRate, calculateHourlyFare, getHourlyLabel,
+    getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
+    formatPassengersLabel, applyPassengerSurcharge
 } from "./service-types.js";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
@@ -135,6 +137,7 @@ import {
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
 } from "./passenger-tutorial.js";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
@@ -357,6 +360,44 @@ initAppUpdateCheck();
 initOpsPanels();
 initOpsUi();
 initFloatingPanels();
+
+// Registrar «Pedir viaje por cliente» (isStaffUser se resuelve al hacer clic, no al instalar)
+installStaffCreateClientTrip({
+    db,
+    appId,
+    getCurrentUser: () => currentUser || window.currentUser || null,
+    getUserProfile: () => window.userProfile,
+    isStaffUser: (u, p) => {
+        try {
+            if (typeof isStaffUser === 'function') return isStaffUser(u, p);
+        } catch (_) {}
+        const role = p?.role || '';
+        return role === 'admin' || role === 'supervisor' || !!p?.staffGrantedBy;
+    },
+    showToast: (...args) => {
+        if (typeof window.showToast === 'function') return window.showToast(...args);
+        try { window.alert(String(args[0] || '')); } catch (_) {}
+    },
+    assignNextTripOffer: (id) => window.assignNextTripOffer?.(id)
+});
+
+// Clic global solo en botones data-staff-create-client-trip (NO pointerup: evita doble disparo)
+document.addEventListener('click', (e) => {
+    const btn = e.target?.closest?.('[data-staff-create-client-trip]');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+        if (typeof window.staffOpenCreateTripForClient === 'function') {
+            window.staffOpenCreateTripForClient();
+        } else {
+            window.alert('Función no cargada. Recarga con Ctrl+F5.');
+        }
+    } catch (err) {
+        console.error(err);
+        window.alert(err?.message || 'Error al abrir el formulario');
+    }
+}, true);
 initPassengerTutorial();
 initDriverTutorial();
 window.updatePassengerProximityAlerts = updatePassengerProximityAlerts;
@@ -718,7 +759,10 @@ const isSupervisorUser = (user, profile) => {
 };
 
 const isStaffUser = (user, profile) =>
-    isAdminUser(user, profile) || isSupervisorUser(user, profile);
+    isAdminUser(user, profile)
+    || isSupervisorUser(user, profile)
+    || profile?.role === 'admin'
+    || profile?.role === 'supervisor';
 
 /** Solo pasajeros regulares (role client) usan saldo de pasajero y solicitan viajes. */
 const canUsePassengerSaldo = (profile) => {
@@ -1629,6 +1673,71 @@ if (document.readyState === 'loading') {
             setTimeout(() => window.showNotificationsModal?.(), 1800);
         }
 
+        /** Link compartido por WhatsApp: ?staffTrip=ID o #staffTrip=ID */
+        function peekStaffTripShareId() {
+            try {
+                const q = new URLSearchParams(location.search || '');
+                let id = q.get('staffTrip') || q.get('staff_trip') || '';
+                if (!id && location.hash) {
+                    const h = String(location.hash).replace(/^#/, '');
+                    if (h.startsWith('staffTrip=')) id = decodeURIComponent(h.slice('staffTrip='.length));
+                    else {
+                        const hp = new URLSearchParams(h.includes('=') ? h : '');
+                        id = hp.get('staffTrip') || '';
+                    }
+                }
+                if (!id) {
+                    try { id = sessionStorage.getItem('honduraite_pending_staff_trip') || ''; } catch (_) {}
+                }
+                return String(id || '').trim();
+            } catch (_) {
+                return '';
+            }
+        }
+
+        function clearStaffTripShareFromUrl(id) {
+            try {
+                if (id) sessionStorage.removeItem('honduraite_pending_staff_trip');
+            } catch (_) {}
+            try {
+                const url = new URL(location.href);
+                if (url.searchParams.has('staffTrip') || url.searchParams.has('staff_trip')) {
+                    url.searchParams.delete('staffTrip');
+                    url.searchParams.delete('staff_trip');
+                    history.replaceState({}, '', url.pathname + url.search + url.hash);
+                }
+            } catch (_) {}
+        }
+
+        window.consumeStaffTripShareLink = async () => {
+            const id = peekStaffTripShareId();
+            if (!id || !currentUser) return;
+            if (window._staffTripShareConsumed === id) return;
+            window._staffTripShareConsumed = id;
+            try {
+                sessionStorage.setItem('honduraite_pending_staff_trip', id);
+            } catch (_) {}
+            const opened = await window.openStaffTripFromShareLink?.(id);
+            if (opened) clearStaffTripShareFromUrl(id);
+            else if (currentUser) {
+                // Si falló por cuenta incorrecta, no borrar del todo el id guardado
+                try {
+                    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
+                    if (snap.exists() && snap.data()?.clientId === currentUser.uid) {
+                        clearStaffTripShareFromUrl(id);
+                    }
+                } catch (_) {}
+            }
+        };
+
+        // Guardar link de WA antes de login (si abrió sin sesión)
+        (() => {
+            const early = peekStaffTripShareId();
+            if (early) {
+                try { sessionStorage.setItem('honduraite_pending_staff_trip', early); } catch (_) {}
+            }
+        })();
+
         async function registerPushServices() {
             if (!currentUser?.uid) return;
             if (isCapacitorNative()) {
@@ -1798,6 +1907,325 @@ if (document.readyState === 'loading') {
                 toast.classList.add('translate-y-4', 'opacity-0');
                 setTimeout(() => toast.remove(), 300);
             }, 4000);
+        };
+
+        // staff create-client-trip ya se instaló al cargar el módulo
+
+        /** Modal: cliente acepta adueñarse del viaje armado por staff */
+        window.showStaffCreatedTripClaimModal = (trip) => {
+            if (!trip?.id || trip.clientId !== currentUser?.uid) return;
+            if (trip.staffCreatedClientClaimed === true) return;
+            if (document.getElementById('staff-claim-trip-modal')) return;
+
+            const staffName = (trip.staffCreatedByName || 'Soporte HonduRaite').split(' ')[0];
+            const needsSchedule = trip.clientChoosesSchedule === true && !trip.scheduledFor;
+            const when = trip.scheduledFor
+                ? (typeof formatScheduledTripWhen === 'function'
+                    ? formatScheduledTripWhen(trip)
+                    : new Date(trip.scheduledFor).toLocaleString('es-HN'))
+                : '';
+            const svcType = normalizeServiceType(trip.serviceType || 'auto');
+            const maxPax = getMaxPassengers(svcType);
+            // Cliente puede elegir siempre (auto/taxi/moto). Si staff no fijó → se resalta que debe elegir.
+            const canChoosePax = maxPax > 1 && svcType !== 'delivery' && !isFreightService(svcType);
+            const clientMustPickPax = canChoosePax && (
+                trip.clientChoosesPassengers === true
+                || trip.passengers == null
+                || trip.passengers === ''
+            );
+            let claimPassengers = clientMustPickPax
+                ? 1
+                : normalizePassengerCount(svcType, trip.passengers || 1);
+            let clientDidPickPax = !clientMustPickPax;
+            const baseKm = Number(trip.tripDistanceKm) || 0;
+            const baseFareWithoutPax = (() => {
+                // Reconstruir tarifa base sin personas (aprox) restando surcharge guardado
+                const listed = Number(trip.priceNum) || 0;
+                const storedSur = Number(trip.passengerSurcharge) || 0;
+                if (listed > 0 && storedSur > 0) return Math.max(0, listed - storedSur);
+                if (baseKm > 0) return calculateServiceFare(svcType, baseKm, null, 1);
+                return listed || 0;
+            })();
+            const priceForPax = (p) => {
+                if (baseKm > 0) return calculateServiceFare(svcType, baseKm, null, p);
+                return applyPassengerSurcharge(baseFareWithoutPax || 50, svcType, p);
+            };
+            let livePrice = priceForPax(claimPassengers);
+            const priceLabel = () => `L. ${livePrice.toFixed(2)}`;
+
+            // Mínimo: ahora + 20 min para programados
+            const minDate = new Date(Date.now() + 20 * 60 * 1000);
+            const minDateStr = minDate.toISOString().slice(0, 10);
+            const minTimeStr = `${String(minDate.getHours()).padStart(2, '0')}:${String(minDate.getMinutes()).padStart(2, '0')}`;
+
+            const modal = document.createElement('div');
+            modal.id = 'staff-claim-trip-modal';
+            modal.className = 'fixed inset-0 z-[47000] flex items-center justify-center p-4 bg-black/75';
+            modal.innerHTML = `
+                <div class="bg-white rounded-3xl w-full max-w-md p-5 shadow-2xl max-h-[92dvh] overflow-y-auto">
+                    <div class="text-center mb-3">
+                        <div class="w-14 h-14 mx-auto mb-2 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">${needsSchedule ? '📅' : '🚕'}</div>
+                        <h3 class="text-lg font-black text-gray-900">${needsSchedule ? 'Viaje programado para ti' : 'Te armamos un viaje'}</h3>
+                        <p class="text-xs text-gray-500 font-bold mt-1 leading-snug">
+                            <b>${staffName}</b> (admin/supervisor) creó esta solicitud por ti.
+                            ${needsSchedule
+                                ? 'Elige <b>cuándo</b> te recogen y confirma. Después verás ofertas de conductores.'
+                                : 'Si la tomas, verás ofertas de conductores y eliges con quién ir.'}
+                        </p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left space-y-1.5 mb-4">
+                        <p class="text-[10px] font-black uppercase text-slate-400">Origen</p>
+                        <p class="text-sm font-bold text-gray-900">${String(trip.origin || '—')}</p>
+                        <p class="text-[10px] font-black uppercase text-slate-400 mt-2">Destino</p>
+                        <p class="text-sm font-bold text-gray-900">${String(trip.destination || '—')}</p>
+                        <p class="text-[10px] font-black uppercase text-slate-400 mt-2">Tarifa</p>
+                        <p id="staff-claim-price" class="text-base font-black text-emerald-700">${priceLabel()}</p>
+                        ${when ? `<p class="text-[11px] font-bold text-amber-700 mt-2"><i class="fas fa-calendar"></i> Programado: ${when}</p>` : ''}
+                    </div>
+                    ${canChoosePax ? `
+                    <div class="rounded-2xl border ${clientMustPickPax ? 'border-blue-400 ring-2 ring-blue-200' : 'border-blue-200'} bg-blue-50 p-3 mb-4">
+                        <p class="text-[10px] font-black uppercase text-blue-700 mb-2">
+                            <i class="fas fa-users"></i> ¿Cuántas personas van?
+                            ${clientMustPickPax ? '<span class="ml-1 text-blue-500 normal-case">(elige tú · máx. 4)</span>' : ''}
+                        </p>
+                        <div id="staff-claim-pax-chips" class="flex flex-wrap gap-1.5"></div>
+                        <p id="staff-claim-pax-hint" class="text-[10px] font-bold text-blue-800/80 mt-2 leading-snug"></p>
+                    </div>
+                    ` : ''}
+                    ${needsSchedule ? `
+                    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-3 mb-4">
+                        <p class="text-[10px] font-black uppercase text-amber-700 mb-2"><i class="fas fa-clock"></i> Elige fecha y hora de recogida</p>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[10px] font-black text-amber-800 mb-1" for="staff-claim-date">Fecha</label>
+                                <input type="date" id="staff-claim-date" min="${minDateStr}" value="${minDateStr}"
+                                    class="w-full rounded-xl border border-amber-200 bg-white px-2 py-2.5 text-sm font-bold text-gray-900">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black text-amber-800 mb-1" for="staff-claim-time">Hora</label>
+                                <input type="time" id="staff-claim-time" value="${minTimeStr}"
+                                    class="w-full rounded-xl border border-amber-200 bg-white px-2 py-2.5 text-sm font-bold text-gray-900">
+                            </div>
+                        </div>
+                        <p id="staff-claim-sched-hint" class="text-[10px] font-bold text-amber-800/80 mt-2 leading-snug">
+                            Mínimo ~20 minutos desde ahora. Te avisaremos antes de la hora.
+                        </p>
+                    </div>
+                    ` : ''}
+                    <button type="button" id="staff-claim-yes" class="w-full py-3.5 rounded-2xl bg-emerald-600 text-white text-sm font-black mb-2">
+                        ${needsSchedule ? 'Confirmar fecha y quiero el viaje' : 'Sí, quiero este viaje'}
+                    </button>
+                    <button type="button" id="staff-claim-no" class="w-full py-3 rounded-2xl bg-slate-100 text-slate-700 text-xs font-black">
+                        No, cancelar solicitud
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            const yesBtn = modal.querySelector('#staff-claim-yes');
+            const noBtn = modal.querySelector('#staff-claim-no');
+            const priceEl = modal.querySelector('#staff-claim-price');
+            const paxChips = modal.querySelector('#staff-claim-pax-chips');
+            const paxHint = modal.querySelector('#staff-claim-pax-hint');
+
+            const renderClaimPax = () => {
+                if (!canChoosePax || !paxChips) return;
+                const fee = getExtraPassengerFee(svcType);
+                const sur = getPassengerSurcharge(svcType, claimPassengers);
+                livePrice = priceForPax(claimPassengers);
+                if (priceEl) priceEl.textContent = priceLabel();
+                paxChips.innerHTML = '';
+                for (let p = 1; p <= maxPax; p++) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    const active = clientDidPickPax && p === claimPassengers;
+                    btn.className = `px-3 py-1.5 rounded-xl text-xs font-black border ${
+                        active ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-blue-800 border-blue-200'
+                    }`;
+                    btn.textContent = p === 1 ? '1' : String(p);
+                    btn.addEventListener('click', () => {
+                        claimPassengers = p;
+                        clientDidPickPax = true;
+                        renderClaimPax();
+                    });
+                    paxChips.appendChild(btn);
+                }
+                if (paxHint) {
+                    if (clientMustPickPax && !clientDidPickPax) {
+                        paxHint.innerHTML = '<span class="text-blue-700">Toca cuántas personas van (1–' + maxPax + '). La tarifa se ajusta y el conductor lo verá.</span>';
+                    } else if (sur > 0) {
+                        paxHint.textContent = `${formatPassengersLabel(claimPassengers)} · +L. ${sur.toFixed(0)} extra (L. ${fee} c/u). El conductor lo verá.`;
+                    } else {
+                        paxHint.textContent = `1 persona incluida. Extra L. ${fee} por cada persona más (máx ${maxPax}).`;
+                    }
+                }
+            };
+            renderClaimPax();
+
+            yesBtn?.addEventListener('click', async () => {
+                let scheduledFor = null;
+                if (needsSchedule) {
+                    const dateStr = modal.querySelector('#staff-claim-date')?.value || '';
+                    const timeStr = modal.querySelector('#staff-claim-time')?.value || '';
+                    const hintEl = modal.querySelector('#staff-claim-sched-hint');
+                    if (!dateStr || !timeStr) {
+                        if (hintEl) hintEl.textContent = 'Elige fecha y hora para continuar.';
+                        window.showToast?.('Elige la fecha y hora de recogida.');
+                        return;
+                    }
+                    scheduledFor = new Date(`${dateStr}T${timeStr}:00`).toISOString();
+                    if (new Date(scheduledFor).getTime() < Date.now() + 10 * 60 * 1000) {
+                        if (hintEl) hintEl.textContent = 'La hora debe ser al menos 10–20 minutos en el futuro.';
+                        window.showToast?.('Elige una hora más adelante (mínimo ~10–20 min).');
+                        return;
+                    }
+                }
+                if (canChoosePax && clientMustPickPax && !clientDidPickPax) {
+                    window.showToast?.('Elige cuántas personas van (1 a ' + maxPax + ').');
+                    if (paxHint) {
+                        paxHint.innerHTML = '<span class="text-red-600">Elige el número de personas para continuar.</span>';
+                    }
+                    return;
+                }
+                yesBtn.disabled = true;
+                yesBtn.textContent = 'Activando…';
+                try {
+                    await window.claimStaffCreatedTrip?.(trip.id, {
+                        scheduledFor,
+                        passengers: canChoosePax ? claimPassengers : undefined,
+                        priceNum: canChoosePax ? livePrice : undefined
+                    });
+                    modal.remove();
+                } catch (e) {
+                    yesBtn.disabled = false;
+                    yesBtn.textContent = needsSchedule ? 'Confirmar fecha y quiero el viaje' : 'Sí, quiero este viaje';
+                    window.showToast?.(e?.message || 'No se pudo tomar el viaje.');
+                }
+            });
+
+            noBtn?.addEventListener('click', async () => {
+                if (!confirm('¿Cancelar el viaje que armó el staff?')) return;
+                noBtn.disabled = true;
+                try {
+                    await window.declineStaffCreatedTrip?.(trip.id);
+                    modal.remove();
+                } catch (e) {
+                    noBtn.disabled = false;
+                    window.showToast?.(e?.message || 'No se pudo cancelar.');
+                }
+            });
+        };
+
+        window.claimStaffCreatedTrip = async (tripId, opts = {}) => {
+            if (!tripId || !currentUser) return;
+            const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+            const snap = await getDoc(tripRef);
+            if (!snap.exists()) throw new Error('El viaje ya no existe.');
+            const t = snap.data();
+            if (t.clientId !== currentUser.uid) throw new Error('Este viaje no es tuyo.');
+            if (t.status !== 'pending') throw new Error('El viaje ya no está disponible.');
+            if (t.staffCreatedClientClaimed === true) {
+                restorePendingTripUI?.({ id: tripId, ...t });
+                return;
+            }
+
+            const needsSchedule = t.clientChoosesSchedule === true && !t.scheduledFor;
+            let scheduledFor = opts?.scheduledFor || t.scheduledFor || null;
+            if (needsSchedule) {
+                if (!scheduledFor) throw new Error('Elige la fecha y hora del viaje programado.');
+                if (new Date(scheduledFor).getTime() < Date.now() + 5 * 60 * 1000) {
+                    throw new Error('La fecha/hora debe ser en el futuro.');
+                }
+            }
+
+            const svc = normalizeServiceType(t.serviceType || 'auto');
+            const pax = opts?.passengers != null
+                ? normalizePassengerCount(svc, opts.passengers)
+                : normalizePassengerCount(svc, t.passengers || 1);
+            const paxSurcharge = getPassengerSurcharge(svc, pax);
+            let priceNum = opts?.priceNum != null ? Number(opts.priceNum) : null;
+            if (!(priceNum > 0) && Number(t.tripDistanceKm) > 0) {
+                priceNum = calculateServiceFare(svc, t.tripDistanceKm, null, pax);
+            } else if (!(priceNum > 0)) {
+                priceNum = Number(t.priceNum) || 0;
+                // Ajustar si cambiaron personas respecto al precio guardado
+                if (pax !== (Number(t.passengers) || 1) && Number(t.priceNum) > 0) {
+                    const oldSur = Number(t.passengerSurcharge) || 0;
+                    const base = Math.max(0, Number(t.priceNum) - oldSur);
+                    priceNum = applyPassengerSurcharge(base, svc, pax);
+                }
+            }
+            priceNum = Math.round((priceNum || 0) * 100) / 100;
+
+            const patch = {
+                staffCreatedClientClaimed: true,
+                staffCreatedClaimedAt: serverTimestamp(),
+                staffCreatedClaimedBy: currentUser.uid,
+                passengers: pax,
+                passengerSurcharge: paxSurcharge,
+                extraPassengers: Math.max(0, pax - 1),
+                clientChoosesPassengers: false,
+                clientChosePassengersAt: serverTimestamp(),
+                priceNum,
+                price: `L. ${priceNum.toFixed(2)}`
+            };
+            if (scheduledFor) {
+                patch.scheduledFor = scheduledFor;
+                patch.clientChoseScheduleAt = serverTimestamp();
+            }
+
+            await updateDoc(tripRef, patch);
+            setStoredClientTripId?.(tripId);
+            const claimed = {
+                id: tripId,
+                ...t,
+                ...patch,
+                staffCreatedClientClaimed: true,
+                scheduledFor: scheduledFor || t.scheduledFor || null,
+                passengers: pax,
+                passengerSurcharge: paxSurcharge,
+                priceNum,
+                price: patch.price
+            };
+            activeTrip = claimed;
+            window.currentActiveTripData = claimed;
+            restorePendingTripUI?.(claimed);
+            try { startPassengerWaitingLoop?.(); } catch (_) {}
+            window.assignNextTripOffer?.(tripId)?.catch?.(() => {});
+            if (scheduledFor) {
+                const whenLabel = typeof formatScheduledTripWhen === 'function'
+                    ? formatScheduledTripWhen(claimed)
+                    : new Date(scheduledFor).toLocaleString('es-HN');
+                window.showToast?.(
+                    `¡Listo! Viaje programado para ${whenLabel}. Buscando conductor…`,
+                    'success'
+                );
+            } else {
+                window.showToast?.('¡Listo! Ya es tu viaje. Esperando ofertas de conductores…', 'success');
+            }
+        };
+
+        window.declineStaffCreatedTrip = async (tripId) => {
+            if (!tripId || !currentUser) return;
+            const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+            const snap = await getDoc(tripRef);
+            if (!snap.exists()) return;
+            const t = snap.data();
+            if (t.clientId !== currentUser.uid) throw new Error('Este viaje no es tuyo.');
+            if (t.status !== 'pending' || t.driverId) throw new Error('Ya no se puede cancelar así.');
+            await updateDoc(tripRef, {
+                status: 'cancelled',
+                cancelledAt: serverTimestamp(),
+                cancelledBy: currentUser.uid,
+                cancelledByRole: 'client',
+                cancelReason: 'client_declined_staff_created_trip',
+                cancelledFromStatus: 'pending'
+            });
+            activeTrip = null;
+            window.currentActiveTripData = null;
+            document.getElementById('searching-state')?.classList.add('hidden');
+            document.body.classList.remove('is-searching');
+            window.showToast?.('Solicitud cancelada.', 'success');
         };
 
         // Tonos: ver notification-tones.js (Web Audio propio, no el sonido del sistema del celular)
@@ -2098,6 +2526,9 @@ if (document.readyState === 'loading') {
             // Selector completo siempre visible (moto, envío, fletes…) para todos los pasajeros
             if (wrap) wrap.classList.remove('hidden');
 
+            // Clientes comunes: chips de personas (máx 4 auto/taxi)
+            window.renderTripPassengerChips?.();
+
             if (showRideCards) {
                 if (rideOptions) rideOptions.classList.remove('hidden');
                 document.getElementById('trip-instructions')?.classList.add('hidden');
@@ -2171,13 +2602,17 @@ if (document.readyState === 'loading') {
             const quickConditions = buildRouteConditions(analyzeTrafficFromRoute(route), null);
             const isHourly = window.currentBookingMode === 'hourly';
             const hours = window.currentReservedHours || 1;
+            const pax = normalizePassengerCount(serviceType, window.currentPassengers || 1);
+            window.currentPassengers = pax;
+            const paxSurcharge = getPassengerSurcharge(serviceType, pax);
             let price;
             if (isHourly) {
                 const hourlyOpts = getCurrentHourlyOptions();
                 if (km > 0) hourlyOpts.distanceKm = km;
+                hourlyOpts.passengers = pax;
                 price = calculateHourlyFare(serviceType, hours, hourlyOpts, quickConditions);
             } else {
-                price = calculateServiceFare(serviceType, km, quickConditions);
+                price = calculateServiceFare(serviceType, km, quickConditions, pax);
             }
 
             const originText = window.readAutocompleteText?.(document.getElementById('origin-autocomplete')) || '';
@@ -2197,7 +2632,8 @@ if (document.readyState === 'loading') {
                 bookingMode: isHourly ? 'hourly' : 'standard',
                 reservedHours: isHourly ? hours : null,
                 hourlyRate: isHourly ? getHourlyRate(serviceType) : null,
-                passengers: isHourly ? Math.min(4, window.currentPassengers || 1) : null,
+                passengers: pax,
+                passengerSurcharge: paxSurcharge,
                 priceNum: price
             };
 
@@ -2216,12 +2652,11 @@ if (document.readyState === 'loading') {
             const summary = document.getElementById('route-summary');
             if (summary) {
                 if (isHourly) {
-                    const p = Math.min(4, window.currentPassengers || 1);
                     const stopInfo = window.currentHourlyStopType === 'multi' ? 'múltiples paradas' : '2 paradas';
-                    summary.innerText = `${getHourlyLabel(hours)} · ${p} persona${p > 1 ? 's' : ''} · ${stopInfo}`;
+                    summary.innerText = `${getHourlyLabel(hours)} · ${formatPassengersLabel(pax)} · ${stopInfo}${paxSurcharge > 0 ? ` · +L. ${paxSurcharge.toFixed(0)} pers.` : ''}`;
                 } else {
                     const duration = typeof window.formatRouteDuration === 'function' ? window.formatRouteDuration(route) : '';
-                    summary.innerText = `${km.toFixed(1)} km${duration ? ` · ${duration}` : ''}`;
+                    summary.innerText = `${km.toFixed(1)} km${duration ? ` · ${duration}` : ''} · ${formatPassengersLabel(pax)}${paxSurcharge > 0 ? ` · +L. ${paxSurcharge.toFixed(0)} extra` : ''}`;
                 }
             }
             const conditionsNote = document.getElementById('route-conditions-note');
@@ -2286,21 +2721,23 @@ if (document.readyState === 'loading') {
 
             types.forEach(type => {
                 const meta = getServiceMeta(type);
+                const pax = normalizePassengerCount(type, window.currentPassengers || 1);
                 let price, priceLabel, subLabel;
                 if (isHourly) {
                     const hourlyOpts = getCurrentHourlyOptions();
                     if (km > 0) hourlyOpts.distanceKm = km;
+                    hourlyOpts.passengers = pax;
                     price = calculateHourlyFare(type, hours, hourlyOpts, quickConditions);
                     priceLabel = `L. ${price.toFixed(2)}`;
-                    const pp = window.currentPassengers || 1;
                     subLabel = `${getHourlyRate(type)}/h × ${getHourlyLabel(hours)}`;
                     if (hourlyOpts.isNight) subLabel += ' · +25% noche';
                     if (hourlyOpts.distanceKm > 25) subLabel += ' · +km';
-                    subLabel += ` · ${pp} pers · ${hourlyOpts.multipleStops ? 'múltiples' : '2 paradas'}`;
+                    subLabel += ` · ${pax} pers · ${hourlyOpts.multipleStops ? 'múltiples' : '2 paradas'}`;
                 } else {
-                    price = calculateServiceFare(type, km, quickConditions);
+                    price = calculateServiceFare(type, km, quickConditions, pax);
                     priceLabel = `L. ${price.toFixed(2)}`;
                     subLabel = quickConditions?.traffic?.trafficAware ? 'con tráfico' : 'aprox';
+                    if (pax > 1) subLabel += ` · ${pax} pers`;
                 }
                 const isSelected = window.currentServiceType === type;
 
@@ -2309,11 +2746,13 @@ if (document.readyState === 'loading') {
                 let iconBg = type === 'moto' ? 'bg-violet-100 text-violet-600' : type === 'auto' ? 'bg-blue-100 text-blue-600' : type === 'taxi' ? 'bg-yellow-100 text-yellow-700' : 'bg-amber-100 text-amber-600';
                 let paxText;
                 if (isHourly) {
-                    const p = window.currentPassengers || 1;
                     const stopType = window.currentHourlyStopType === 'multi' ? 'múltiples paradas' : '2 paradas';
-                    paxText = `${p} pers. · ${stopType}`;
+                    paxText = `${formatPassengersLabel(pax)} · ${stopType}`;
                 } else {
-                    paxText = type === 'moto' ? '1 pasajero' : '1-4 pasajeros';
+                    const maxP = getMaxPassengers(type);
+                    paxText = pax > 1
+                        ? `${formatPassengersLabel(pax)} · +extra`
+                        : (maxP <= 1 ? '1 persona' : `Hasta ${maxP} personas`);
                 }
                 card.innerHTML = `
                     <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center ${iconBg}">
@@ -2331,6 +2770,7 @@ if (document.readyState === 'loading') {
                 card.onclick = async () => {
                     window.selectServiceType(type, { keepFareVisible: true });
                     window.syncFareCardFromRoute(route, { scroll: false });
+                    window.renderTripPassengerChips?.();
                     if (isHourly && typeof renderHourlyPassengerChips === 'function') {
                         renderHourlyPassengerChips();
                     }
@@ -2428,13 +2868,18 @@ if (document.readyState === 'loading') {
                 window.currentTripQuote = null;
             }
 
-            // Cap passengers (máx 4 personas total, moto máx 2)
-            if (window.currentBookingMode === 'hourly') {
-                let maxP = (window.currentServiceType === 'moto') ? 2 : 4;
-                if (window.currentPassengers > maxP) {
+            // Cap passengers (moto máx 2, auto/taxi máx 4)
+            {
+                const maxP = getMaxPassengers(window.currentServiceType);
+                if ((window.currentPassengers || 1) > maxP) {
                     window.currentPassengers = maxP;
-                    if (typeof renderHourlyPassengerChips === 'function') renderHourlyPassengerChips();
                 }
+                window.currentPassengers = normalizePassengerCount(
+                    window.currentServiceType,
+                    window.currentPassengers || 1
+                );
+                if (typeof renderHourlyPassengerChips === 'function') renderHourlyPassengerChips();
+                window.renderTripPassengerChips?.();
             }
 
             const fareBtn = document.getElementById('fare-request-btn');
@@ -4664,7 +5109,12 @@ if (document.readyState === 'loading') {
             let suggestPrice = null;
             if (!isHourly && tripKm > 0) {
                 try {
-                    suggestPrice = calculateServiceFare(t.serviceType || 'auto', tripKm);
+                    suggestPrice = calculateServiceFare(
+                        t.serviceType || 'auto',
+                        tripKm,
+                        null,
+                        t.passengers || 1
+                    );
                 } catch (_) {}
             }
             return { pickup, tripKm, chargeKm, totalKm, tripMin, isHourly, reservedHours: t.reservedHours, suggestPrice, loading: false };
@@ -5331,6 +5781,21 @@ if (document.readyState === 'loading') {
             }
             if (t.riderInfo?.name) {
                 detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-user-friends"></i> Viaja ${t.riderInfo.name} (${t.riderInfo.relation || 'tercero'}) · ${formatHondurasPhone(t.riderInfo.phone) || 'N/D'}</p>`);
+            }
+            // Personas en el viaje (pasajero eligió)
+            {
+                const paxN = Math.max(1, parseInt(t.passengers, 10) || 1);
+                if (paxN > 1) {
+                    const surcharge = Number(t.passengerSurcharge) > 0
+                        ? ` · +L. ${Number(t.passengerSurcharge).toFixed(0)} extra`
+                        : '';
+                    detailParts.push(
+                        `<p class="driver-offer-detail-line driver-offer-detail-line--pax" style="color:#b45309;font-weight:900;">`
+                        + `<i class="fas fa-users"></i> <b>${paxN} PERSONAS</b> en este viaje${surcharge}</p>`
+                    );
+                } else if (t.bookingType !== 'hourly' && t.serviceType !== 'delivery' && !isFreightService(t.serviceType)) {
+                    detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-user"></i> 1 persona</p>`);
+                }
             }
             if (t.additionalStops?.length > 0) {
                 detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-map-signs"></i> ${t.additionalStops.length + 2} puntos en la ruta (origen + paradas + destino)</p>`);
@@ -7444,6 +7909,10 @@ if (document.readyState === 'loading') {
                     <p class="ops-trips-page-kicker"><i class="fas fa-gauge-high"></i> Centro de operaciones</p>
                     <h2 class="ops-trips-page-title">Viajes en tiempo real</h2>
                     <p class="ops-trips-page-sub">Dashboard de activos, búsquedas canceladas y sin atención</p>
+                    <button type="button" data-staff-create-client-trip
+                        class="mt-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg">
+                        <i class="fas fa-user-plus"></i> Pedir viaje por cliente
+                    </button>
                 </div>
                 <div class="ops-trips-page-kpis">
                     ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
@@ -7856,7 +8325,7 @@ if (document.readyState === 'loading') {
             
             if (role === 'driver' && filteredUsers.length > 0) {
                 body += U.toolbar({
-                    searchHtml: `<input type="text" id="driver-search-input" placeholder="Buscar nombre, WhatsApp, correo o placa…" class="ops-input" onkeyup="window.filterAdminDrivers()">`,
+                    searchHtml: `<input type="text" id="driver-search-input" placeholder="Buscar nombre, WhatsApp, correo o placa…" class="ops-input" oninput="window.filterAdminDrivers()">`,
                     chipsHtml: [
                         U.chip('Descansando', "window.filterAdminDriversByStatus('resting')", { variant: 'muted' }),
                         U.chip('Depósito pendiente', "window.filterAdminDriversByStatus('pending')", { variant: 'muted' }),
@@ -7878,6 +8347,23 @@ if (document.readyState === 'loading') {
                 driverList.forEach((u, i) => {
                     driverStats[u.uid] = statsResults[i];
                 });
+            } else if (role === 'client' && filteredUsers.length > 0) {
+                body += U.toolbar({
+                    searchHtml: `<input type="search" id="client-search-input" placeholder="Buscar pasajero: nombre, WhatsApp, correo o código referido…" class="ops-input" oninput="window.filterAdminClients()">`,
+                    chipsHtml: [
+                        U.chip('Todos', "window.filterAdminClientsByStatus('all')", { active: true, variant: 'emerald' }),
+                        U.chip('Pendientes', "window.filterAdminClientsByStatus('pending')", { variant: 'amber' }),
+                        U.chip('Bloqueados', "window.filterAdminClientsByStatus('suspended')", { variant: 'red' }),
+                        U.chip('Papelera', "window.filterAdminClientsByStatus('rejected')", { variant: 'muted' })
+                    ].join(''),
+                    hint: 'Busca por nombre, teléfono, correo o código de referido.'
+                }) + U.userListOpen() + `<div id="admin-clients-container" class="ops-user-list">`;
+            } else if (role === 'supervisor' && filteredUsers.length > 0) {
+                body += U.toolbar({
+                    searchHtml: `<input type="search" id="supervisor-search-input" placeholder="Buscar supervisor: nombre, WhatsApp o correo…" class="ops-input" oninput="window.filterAdminSupervisors()">`,
+                    chipsHtml: '',
+                    hint: 'Busca supervisores por nombre, WhatsApp o correo.'
+                }) + U.userListOpen() + `<div id="admin-supervisors-container" class="ops-user-list">`;
             } else if (role !== 'driver') {
                 body += U.userListOpen();
             }
@@ -7887,9 +8373,9 @@ if (document.readyState === 'loading') {
                 let approvalBadge = '';
                 let daysLeftBadge = '';
                 let balanceBadge = '';
+                const status = u.approvalStatus || 'approved';
                 
                 if (role === 'driver') {
-                    const status = u.approvalStatus || 'approved';
                     let badgeClass = 'bg-emerald-500/20 text-emerald-400';
                     let badgeText = 'APROBADO';
                     if (status === 'pending') { badgeClass = 'bg-amber-500/20 text-amber-400'; badgeText = 'PENDIENTE'; }
@@ -7990,7 +8476,6 @@ if (document.readyState === 'loading') {
                             ${isFullAdmin ? `<button onclick="window.adminDeleteUser('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}')" class="flex-1 bg-red-800 text-white text-[10px] py-2.5 rounded-xl font-bold">🗑 ELIMINAR (ADMIN)</button>` : ''}
                         </div>`;
                 } else if (role === 'client') {
-                    const status = u.approvalStatus || 'approved';
                     let badgeClass = 'bg-emerald-500/20 text-emerald-400';
                     let badgeText = 'APROBADO';
                     if (status === 'pending') { badgeClass = 'bg-amber-500/20 text-amber-400'; badgeText = 'PENDIENTE'; }
@@ -8026,7 +8511,8 @@ if (document.readyState === 'loading') {
                                 ? renderAdminPassengerToDriverButton(u.uid, u.name)
                                 : `<button onclick="window.changeUserRole('${u.uid}', 'driver')" class="flex-1 min-w-[120px] bg-blue-600 text-white text-[10px] py-2 rounded-lg font-bold">HACER CONDUCTOR</button>`}
                             ${isFullAdmin ? `<button onclick="window.changeUserRole('${u.uid}', 'supervisor')" class="flex-1 min-w-[120px] bg-purple-600 text-white text-[10px] py-2 rounded-lg font-bold">HACER SUPERVISOR</button>` : ''}
-                            <button onclick="window.sendIndividualNotification('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}', 'client')" class="flex-1 min-w-[100px] bg-emerald-600 text-white text-[10px] py-2 rounded-lg font-bold"><i class="fas fa-bell"></i> NOTIFICAR</button>
+                            <button type="button" onclick="event.stopPropagation(); window.staffOpenCreateTripForClient({ uid: '${u.uid}', name: '${(u.name || 'Cliente').replace(/'/g, "\\'")}', phone: '${(formatHondurasPhone(u.phone) || u.phone || '').replace(/'/g, "\\'")}' })" class="flex-1 min-w-[120px] bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] py-2 rounded-lg font-bold"><i class="fas fa-taxi"></i> PEDIR VIAJE</button>
+                            <button onclick="window.sendIndividualNotification('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}', 'client')" class="flex-1 min-w-[100px] bg-teal-600 text-white text-[10px] py-2 rounded-lg font-bold"><i class="fas fa-bell"></i> NOTIFICAR</button>
                             <button onclick="((window.downloadPassengerImages)||(function(){}))('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}')" class="flex-1 min-w-[100px] bg-sky-600 text-white text-[10px] py-2 rounded-lg font-bold">⬇ IMÁGENES</button>
                             <button onclick="((window.downloadPassengerRegistrationReport)||(function(){}))('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}')" class="flex-1 min-w-[110px] bg-indigo-600 text-white text-[10px] py-2 rounded-lg font-bold">⬇ REPORTE PDF</button>
                             <button onclick="window.showPassengerPhotos('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}')" class="flex-1 min-w-[90px] bg-violet-600 text-white text-[10px] py-2 rounded-lg font-bold">👁 VER FOTOS</button>
@@ -8045,9 +8531,12 @@ if (document.readyState === 'loading') {
                 const hasPendingForCard = !isDriverDepositGraceActive(u)
                     && (pendingFromDoc || (statsForCard.pendingDepositDebt || 0) || (statsForCard.remainingToDeposit || 0)) > 0;
 
+                const referralCodeData = (u.referralCode || '').toLowerCase();
                 body += `
-                    <div class="ops-user-card driver-card flex flex-col items-start gap-2" 
+                    <div class="ops-user-card driver-card admin-user-card flex flex-col items-start gap-2" 
+                         data-role="${role}"
                          data-name="${(u.name || '').toLowerCase()}" data-phone="${u.phone || ''}" data-email="${(getUserDisplayEmail(u) || '').toLowerCase()}" data-plate="${(u.vehicle?.plate || '').toLowerCase()}"
+                         data-referral="${referralCodeData}"
                          data-resting="${isRestingForCard ? 1 : 0}" data-pending="${hasPendingForCard ? 1 : 0}"
                          data-status="${status}">
                         <div class="flex items-center gap-3 w-full">
@@ -9836,7 +10325,7 @@ if (document.readyState === 'loading') {
                     { durationMs: durationMs || trip.tripDurationMs || 0 }
                 ).total;
             }
-            return calculateServiceFare(serviceType, distance, conditions);
+            return calculateServiceFare(serviceType, distance, conditions, trip.passengers || 1);
         }
 
         function staffBuildPricePatch(trip, priceNum, meta = {}) {
@@ -13399,40 +13888,86 @@ if (document.readyState === 'loading') {
 
         // === NUEVAS FUNCIONES: Notificación individual + Buscador ===
 
+        function adminUserCardMatchesSearch(card, term) {
+            if (!term) return true;
+            const t = term.toLowerCase().trim();
+            if (!t) return true;
+            const name = card.dataset.name || '';
+            const phoneRaw = String(card.dataset.phone || '');
+            const phoneFmt = formatHondurasPhone(phoneRaw);
+            const phoneDigits = phoneRaw.replace(/\D/g, '');
+            const termDigits = t.replace(/\D/g, '');
+            const email = card.dataset.email || '';
+            const plate = card.dataset.plate || '';
+            const referral = card.dataset.referral || '';
+            if (name.includes(t) || email.includes(t) || plate.includes(t) || referral.includes(t)) return true;
+            if (phoneFmt.toLowerCase().includes(t) || phoneRaw.toLowerCase().includes(t)) return true;
+            if (termDigits && phoneDigits.includes(termDigits)) return true;
+            return false;
+        }
+
         window.filterAdminDrivers = () => {
             const searchInput = document.getElementById('driver-search-input');
             if (!searchInput) return;
-
-            const term = searchInput.value.toLowerCase().trim();
-            const cards = document.querySelectorAll('.driver-card');
-
-            cards.forEach(card => {
-                const name = card.dataset.name || '';
-                const phone = formatHondurasPhone(card.dataset.phone || '');
-                const email = card.dataset.email || '';
-                const plate = card.dataset.plate || '';
-
-                if (name.includes(term) || phone.includes(term) || email.includes(term) || plate.includes(term)) {
-                    card.style.display = '';
-                } else {
-                    card.style.display = 'none';
-                }
+            const term = searchInput.value;
+            const statusFilter = window._adminDriverStatusFilter || 'all';
+            document.querySelectorAll('.driver-card[data-role="driver"], .driver-card:not([data-role])').forEach((card) => {
+                // Solo tarjetas de conductores en la lista de drivers (compat: sin data-role)
+                if (card.dataset.role && card.dataset.role !== 'driver') return;
+                const isResting = card.dataset.resting === '1';
+                const hasPending = card.dataset.pending === '1';
+                const cardStatus = (card.dataset.status || '').toLowerCase();
+                let show = true;
+                if (statusFilter === 'resting') show = isResting;
+                else if (statusFilter === 'pending') show = hasPending;
+                else if (statusFilter === 'papelera' || statusFilter === 'rejected') show = cardStatus === 'rejected';
+                if (show) show = adminUserCardMatchesSearch(card, term);
+                card.style.display = show ? '' : 'none';
             });
         };
 
         window.filterAdminDriversByStatus = (status) => {
-            const cards = document.querySelectorAll('.driver-card');
-            cards.forEach(card => {
-                const isResting = card.dataset.resting === '1';
-                const hasPending = card.dataset.pending === '1';
-                const cardStatus = (card.dataset.status || '').toLowerCase();
+            window._adminDriverStatusFilter = status || 'all';
+            window.filterAdminDrivers?.();
+        };
 
+        window.filterAdminClients = () => {
+            const searchInput = document.getElementById('client-search-input');
+            if (!searchInput) return;
+            const term = searchInput.value;
+            const statusFilter = window._adminClientStatusFilter || 'all';
+            document.querySelectorAll('.admin-user-card[data-role="client"]').forEach((card) => {
+                const cardStatus = (card.dataset.status || 'approved').toLowerCase();
                 let show = true;
-                if (status === 'resting') show = isResting;
-                else if (status === 'pending') show = hasPending;
-                else if (status === 'papelera' || status === 'rejected') show = cardStatus === 'rejected';
-
+                if (statusFilter === 'pending') show = cardStatus === 'pending';
+                else if (statusFilter === 'suspended') show = cardStatus === 'suspended' || card.innerHTML.includes('RESTRINGIDO');
+                else if (statusFilter === 'rejected') show = cardStatus === 'rejected';
+                if (show) show = adminUserCardMatchesSearch(card, term);
                 card.style.display = show ? '' : 'none';
+            });
+        };
+
+        window.filterAdminClientsByStatus = (status) => {
+            window._adminClientStatusFilter = status || 'all';
+            // Resaltar chip activo
+            const bar = document.getElementById('client-search-input')?.closest('.ops-toolbar');
+            bar?.querySelectorAll('.ops-chip').forEach((chip) => {
+                const label = (chip.textContent || '').toLowerCase();
+                const on = (status === 'all' && label.includes('todos'))
+                    || (status === 'pending' && label.includes('pendiente'))
+                    || (status === 'suspended' && label.includes('bloqueado'))
+                    || (status === 'rejected' && label.includes('papelera'));
+                chip.classList.toggle('ops-chip--active', !!on);
+            });
+            window.filterAdminClients?.();
+        };
+
+        window.filterAdminSupervisors = () => {
+            const searchInput = document.getElementById('supervisor-search-input');
+            if (!searchInput) return;
+            const term = searchInput.value;
+            document.querySelectorAll('.admin-user-card[data-role="supervisor"]').forEach((card) => {
+                card.style.display = adminUserCardMatchesSearch(card, term) ? '' : 'none';
             });
         };
 
@@ -20396,6 +20931,10 @@ onAuthStateChanged(auth, async (user) => {
                     userRole = 'client';
                 }
 
+                // Link de WhatsApp del viaje armado por staff (?staffTrip=)
+                setTimeout(() => window.consumeStaffTripShareLink?.(), 1200);
+                setTimeout(() => window.consumeStaffTripShareLink?.(), 2800);
+
                 if (profile.referredByUid || profile.referralProcessed) {
                     clearPendingReferralCode();
                 }
@@ -21573,11 +22112,12 @@ function _initDestinationArrivalPanel() {
                 // reset hourly
                 window.currentBookingMode = 'standard';
                 window.currentReservedHours = 1;
-                window.currentPassengers = 1; // máx 4 personas
+                window.currentPassengers = 1; // máx 4 personas (auto/taxi)
                 window.currentHourlyStopType = 'standard';
                 const hToggle = document.getElementById('trip-hourly-toggle');
                 if (hToggle) hToggle.checked = false;
                 document.getElementById('hourly-options')?.classList.add('hidden');
+                window.renderTripPassengerChips?.();
             }
 
             if (navigationInterval) clearInterval(navigationInterval);
@@ -24262,11 +24802,18 @@ function _initDestinationArrivalPanel() {
             }
 
             if (data.status === 'pending' && data.clientId === currentUser.uid) {
+                activeTrip = { id: data.id, ...data };
+
+                // Viaje creado por staff: el cliente debe adueñarse antes de ver ofertas
+                if (data.staffCreatedBy && data.staffCreatedClientClaimed !== true) {
+                    window.showStaffCreatedTripClaimModal?.(data);
+                    window._lastNotifiedTripStatus = 'pending';
+                    return;
+                }
+
                 const pendingSig = getPendingTripUiSig(data);
                 const searchingVisible = !document.getElementById('searching-state')?.classList.contains('hidden');
                 const pendingChanged = window._lastPendingTripUiSig !== pendingSig;
-
-                activeTrip = { id: data.id, ...data };
 
                 if (!searchingVisible) {
                     restorePendingTripUI(data);
@@ -24527,21 +25074,23 @@ function _initDestinationArrivalPanel() {
                         ? getDriverTripPointLabel(data, 'destination')
                         : (data.destinationPlaceName || window.shortenMapPlaceLabel?.(data.destination) || data.destination || '');
                 }
-                // Hourly note
+                // Hourly note + personas (también en viaje normal)
                 const hourlyNote = document.getElementById('active-hourly-note');
                 if (hourlyNote) {
+                    const paxN = Math.max(1, parseInt(data.passengers, 10) || 1);
                     if (data.bookingType === 'hourly' && data.reservedHours) {
                         let note = `<span class="inline-block mt-1 text-emerald-700 font-black text-[9px]"><i class="fas fa-clock"></i> ${data.reservedHours} HORA(S)`;
                         if (data.hourlyStartTime) note += ` · inicia ${data.hourlyStartTime}`;
                         if (data.isNightSurcharge) note += ` · +25% noche`;
                         note += `</span>`;
-                        if (data.passengers) {
-                            note += ` <span class="inline-block mt-1 ml-1 text-emerald-700 font-black text-[9px]"><i class="fas fa-users"></i> ${data.passengers} pers. · ${data.multipleStops ? 'múltiples' : '2'} paradas</span>`;
-                        }
+                        note += ` <span class="inline-block mt-1 ml-1 text-amber-700 font-black text-[9px]"><i class="fas fa-users"></i> ${paxN} pers. · ${data.multipleStops ? 'múltiples' : '2'} paradas</span>`;
                         if (data.distanceKmForCharge > 25) {
                             note += ` <span class="inline-block mt-1 ml-1 text-emerald-700 font-black text-[9px]"><i class="fas fa-road"></i> +km</span>`;
                         }
                         hourlyNote.innerHTML = note;
+                        hourlyNote.classList.remove('hidden');
+                    } else if (paxN > 1 && data.serviceType !== 'delivery' && !isFreightService(data.serviceType)) {
+                        hourlyNote.innerHTML = `<span class="inline-block mt-1 text-amber-700 font-black text-[10px]"><i class="fas fa-users"></i> ${paxN} PERSONAS en este viaje${Number(data.passengerSurcharge) > 0 ? ` · +L. ${Number(data.passengerSurcharge).toFixed(0)}` : ''}</span>`;
                         hourlyNote.classList.remove('hidden');
                     } else {
                         hourlyNote.classList.add('hidden');
@@ -26663,10 +27212,12 @@ window.cancelSetupAndLogout = () => {
         // ===== HOURLY BOOKING (por horas) =====
         window.currentBookingMode = 'standard';
         window.currentReservedHours = 1; // máximo 24 horas
-        window.currentPassengers = 1;    // cuántas personas viajan (máx 4)
+        window.currentPassengers = 1;    // cuántas personas viajan (máx 4; moto 2)
         window.currentHourlyStopType = 'standard'; // 'standard' (2 paradas) o 'multi'
         window.currentHourlyAdditionalStops = []; // for multi: additional stops to sum in route
         window.tripAdditionalStops = []; // for standard trips: extra charged stops
+        // Chips de personas (viaje normal)
+        setTimeout(() => window.renderTripPassengerChips?.(), 200);
 
         window.toggleHourlyBooking = () => {
             const on = !!document.getElementById('trip-hourly-toggle')?.checked;
@@ -26739,6 +27290,8 @@ window.cancelSetupAndLogout = () => {
                 }
             }, 80);
 
+            window.renderTripPassengerChips?.();
+
             // Show/hide standard stops button
             const stdAddBtn = document.getElementById('add-extra-stop-btn');
             if (stdAddBtn) {
@@ -26803,11 +27356,13 @@ window.cancelSetupAndLogout = () => {
             const container = document.getElementById('hourly-passenger-chips');
             if (!container) return;
             container.innerHTML = '';
-            const current = Math.min(4, window.currentPassengers || 1);
+            const svc = normalizeServiceType(window.currentServiceType || 'auto');
+            // Por horas: auto/taxi máx 4 (igual que clientes comunes)
+            const maxP = Math.min(4, getMaxPassengers(svc));
+            const current = normalizePassengerCount(svc, window.currentPassengers || 1);
             window.currentPassengers = current;
-            const passengerOptions = [1, 2, 3, 4]; // máximo 4 personas
 
-            passengerOptions.forEach(p => {
+            for (let p = 1; p <= maxP; p++) {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = `px-3 py-1 rounded-xl text-xs font-black border transition-all ${p === current ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-100'}`;
@@ -26815,8 +27370,7 @@ window.cancelSetupAndLogout = () => {
                 btn.onclick = () => {
                     window.currentPassengers = p;
                     renderHourlyPassengerChips();
-
-                    // re-calc / re-render options if possible
+                    window.renderTripPassengerChips?.();
                     const fareCard = document.getElementById('fare-card');
                     if (fareCard && !fareCard.classList.contains('hidden')) {
                         window.calculateTripRoute?.({ silent: true });
@@ -26828,8 +27382,122 @@ window.cancelSetupAndLogout = () => {
                     }
                 };
                 container.appendChild(btn);
-            });
+            }
         }
+
+        /** Recalcula tarifa al cambiar # de personas (clientes comunes + por horas). */
+        function recalcFareAfterPassengerChange() {
+            if (typeof renderHourlyPassengerChips === 'function') renderHourlyPassengerChips();
+            const fareCard = document.getElementById('fare-card');
+            if (fareCard && !fareCard.classList.contains('hidden')) {
+                window.calculateTripRoute?.({ silent: true });
+            } else if (window.currentRouteData) {
+                window.syncFareCardFromRoute?.(window.currentRouteData, { scroll: false });
+                window.renderRideOptions?.(window.currentRouteData, { syncFare: false });
+            } else {
+                const o = document.getElementById('origin-autocomplete');
+                const d = document.getElementById('destination-autocomplete');
+                const hasO = o && (window.readAutocompleteText?.(o) || o._routeEndpoint?.address);
+                const hasD = d && (window.readAutocompleteText?.(d) || d._routeEndpoint?.address);
+                if (hasO && hasD) window.calculateTripRoute?.({ silent: true });
+            }
+        }
+
+        /**
+         * Selector de personas para CLIENTES COMUNES al pedir viaje.
+         * Auto/taxi: máx 4. Moto: máx 2. Delivery/flete: oculto.
+         */
+        window.renderTripPassengerChips = () => {
+            const wrap = document.getElementById('trip-passengers-wrap');
+            const container = document.getElementById('trip-passenger-chips');
+            const hint = document.getElementById('trip-passenger-hint');
+            if (!container) return;
+
+            const svc = normalizeServiceType(window.currentServiceType || 'auto');
+            const isSpecial = svc === 'delivery' || isFreightService(svc);
+            const isHourly = window.currentBookingMode === 'hourly';
+
+            // Por-horas: selector en hourly-options. Delivery/flete: no aplica.
+            if (wrap) {
+                wrap.classList.toggle('hidden', isSpecial || isHourly);
+            }
+            if (isSpecial || isHourly) return;
+
+            // Límite: 4 en auto/taxi; moto 2
+            const maxP = getMaxPassengers(svc);
+            let current = normalizePassengerCount(svc, window.currentPassengers || 1);
+            window.currentPassengers = current;
+            const fee = getExtraPassengerFee(svc);
+            const surcharge = getPassengerSurcharge(svc, current);
+
+            // Chips fijos 1–4 en HTML (clientes comunes); habilitar según servicio
+            let chips = container.querySelectorAll('[data-trip-pax]');
+            if (!chips.length) {
+                container.innerHTML = '';
+                for (let p = 1; p <= 4; p++) {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.dataset.tripPax = String(p);
+                    btn.className = 'trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border';
+                    btn.textContent = String(p);
+                    container.appendChild(btn);
+                }
+                chips = container.querySelectorAll('[data-trip-pax]');
+            }
+
+            chips.forEach((btn) => {
+                const p = parseInt(btn.dataset.tripPax || '1', 10);
+                const allowed = p <= maxP;
+                const active = allowed && p === current;
+                btn.disabled = !allowed;
+                btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+                btn.className = `trip-pax-chip px-3 py-2 min-w-[2.75rem] rounded-xl text-xs font-black border transition-all ${
+                    !allowed
+                        ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed opacity-50'
+                        : active
+                            ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'
+                }`;
+                btn.title = !allowed
+                    ? (svc === 'moto' ? 'En moto máximo 2 personas' : 'No disponible')
+                    : (p === 1 ? '1 persona' : `${p} personas`);
+            });
+
+            if (!container.dataset.paxBound) {
+                container.dataset.paxBound = '1';
+                container.addEventListener('click', (e) => {
+                    const btn = e.target.closest?.('[data-trip-pax]');
+                    if (!btn || btn.disabled) return;
+                    const p = parseInt(btn.dataset.tripPax || '1', 10);
+                    const svcNow = normalizeServiceType(window.currentServiceType || 'auto');
+                    const maxNow = getMaxPassengers(svcNow);
+                    if (p < 1 || p > maxNow) {
+                        if (svcNow === 'moto' && p > 2) {
+                            window.showToast?.('En moto el máximo es 2 personas (conductor + 1 pasajero). Usa Taxi VIP o taxi para más.', 'warning');
+                        }
+                        return;
+                    }
+                    window.currentPassengers = p;
+                    window.renderTripPassengerChips();
+                    recalcFareAfterPassengerChange();
+                });
+            }
+
+            if (hint) {
+                if (maxP <= 1) {
+                    hint.textContent = 'Este servicio no admite pasajeros extra.';
+                } else if (surcharge > 0) {
+                    hint.innerHTML = `<span class="text-amber-800 font-black">Van ${current} · +L. ${surcharge.toFixed(0)} extra</span> (L. ${fee} c/u). El conductor verá que son ${current} personas.`;
+                } else if (svc === 'moto') {
+                    hint.textContent = `Moto: máximo 2 personas. Extra L. ${fee} por la 2.ª. Para 3–4 elige Taxi VIP o taxi (máx 4).`;
+                } else {
+                    hint.textContent = `1 persona incluida. Extra L. ${fee} por cada persona más. Límite ${maxP} personas. El conductor lo verá.`;
+                }
+            }
+        };
+
+        // Asegurar chips al cargar UI de pasajero
+        window.renderTripPassengerChips();
 
         // Hourly stop type selector (standard = 2 paradas, multi = múltiples)
         function bindHourlyStopType() {
@@ -27773,10 +28441,17 @@ window.cancelSetupAndLogout = () => {
             const optCheck = validateTripOptions(tripOptions);
             if (!optCheck.ok) return window.showToast(optCheck.message);
 
+            const tripPassengers = (serviceType === 'delivery' || isFreightService(serviceType))
+                ? 1
+                : normalizePassengerCount(serviceType, window.currentPassengers || window.currentTripQuote?.passengers || 1);
+            window.currentPassengers = tripPassengers;
+            const tripPassengerSurcharge = getPassengerSurcharge(serviceType, tripPassengers);
+
             let priceNum;
             if (isHourly) {
                 const opts = getCurrentHourlyOptions();
                 if (window.currentTripQuote?.distanceKmForCharge) opts.distanceKm = window.currentTripQuote.distanceKmForCharge;
+                opts.passengers = tripPassengers;
                 priceNum = calculateHourlyFare(serviceType, window.currentReservedHours || window.currentTripQuote?.reservedHours || 1, opts, window.currentTripQuote?.routeConditions || null);
             } else if (isFreightService(serviceType) && window.currentTripQuote?.km != null) {
                 priceNum = calculateFreightFare(
@@ -27790,7 +28465,8 @@ window.cancelSetupAndLogout = () => {
                 priceNum = calculateServiceFare(
                     serviceType,
                     window.currentTripQuote.km,
-                    window.currentTripQuote.routeConditions || null
+                    window.currentTripQuote.routeConditions || null,
+                    tripPassengers
                 );
             } else {
                 priceNum = parsePriceText(document.getElementById('price-display')?.innerText || 'L. 0.00');
@@ -27916,7 +28592,9 @@ window.cancelSetupAndLogout = () => {
                     bookingType: isHourly ? 'hourly' : 'standard',
                     reservedHours: isHourly ? (window.currentReservedHours || window.currentTripQuote?.reservedHours || 1) : null,
                     hourlyRate: isHourly ? getHourlyRate(serviceType) : null,
-                    passengers: isHourly ? Math.min(4, window.currentPassengers || window.currentTripQuote?.passengers || 1) : null,
+                    passengers: tripPassengers,
+                    passengerSurcharge: tripPassengerSurcharge,
+                    extraPassengers: Math.max(0, tripPassengers - 1),
                     hourlyStartTime: isHourly ? (document.getElementById('hourly-start-time')?.value || window.currentTripQuote?.hourlyStartTime) : null,
                     isNightSurcharge: isHourly ? (getCurrentHourlyOptions().isNight || window.currentTripQuote?.isNightSurcharge || false) : false,
                     multipleStops: isHourly ? (window.currentHourlyStopType === 'multi' || window.currentTripQuote?.multipleStops) : (window.tripAdditionalStops && window.tripAdditionalStops.length > 0),
@@ -27974,7 +28652,9 @@ window.cancelSetupAndLogout = () => {
                     serviceType,
                     bookingType: isHourly ? 'hourly' : 'standard',
                     reservedHours: isHourly ? (window.currentReservedHours || 1) : null,
-                    passengers: isHourly ? Math.min(4, window.currentPassengers || 1) : null,
+                    passengers: tripPassengers,
+                    passengerSurcharge: tripPassengerSurcharge,
+                    extraPassengers: Math.max(0, tripPassengers - 1),
                     hourlyStartTime: isHourly ? (document.getElementById('hourly-start-time')?.value || null) : null,
                     isNightSurcharge: isHourly ? getCurrentHourlyOptions().isNight : false,
                     multipleStops: isHourly ? (window.currentHourlyStopType === 'multi') : false,
@@ -30954,12 +31634,19 @@ window.calculateTripRoute = async (options = {}) => {
             durationMs: route?.durationMillis || route?.legs?.[0]?.durationMillis || 0,
         };
 
+        const calcPassengers = (serviceType === 'delivery' || isFreightService(serviceType))
+            ? 1
+            : normalizePassengerCount(serviceType, window.currentPassengers || 1);
+        window.currentPassengers = calcPassengers;
+        if (isHourlyCalc) hourlyOpts.passengers = calcPassengers;
+        const calcPaxSurcharge = getPassengerSurcharge(serviceType, calcPassengers);
+
         let freightFareQuote = null;
         const price = isHourlyCalc
             ? calculateHourlyFare(serviceType, hoursForCalc, hourlyOpts, routeConditions)
             : isFreightService(serviceType)
                 ? (freightFareQuote = calculateFreightFare(serviceType, km, freightDetails, routeConditions, freightRouteMeta)).total
-                : calculateServiceFare(serviceType, km, routeConditions);
+                : calculateServiceFare(serviceType, km, routeConditions, calcPassengers);
         const duration = (!isHourlyCalc && route && typeof window.formatRouteDuration === 'function')
             ? window.formatRouteDuration(route)
             : (isHourlyCalc ? getHourlyLabel(hoursForCalc) : (route ? formatDurationMillis(route.durationMillis || route?.legs?.[0]?.durationMillis) : ''));
@@ -30995,7 +31682,8 @@ window.calculateTripRoute = async (options = {}) => {
             bookingMode: isHourlyCalc ? 'hourly' : 'standard',
             reservedHours: isHourlyCalc ? hoursForCalc : null,
             hourlyRate: isHourlyCalc ? getHourlyRate(serviceType) : null,
-            passengers: isHourlyCalc ? Math.min(4, window.currentPassengers || 1) : null,
+            passengers: calcPassengers,
+            passengerSurcharge: calcPaxSurcharge,
             hourlyStartTime: isHourlyCalc ? (document.getElementById('hourly-start-time')?.value || null) : null,
             isNightSurcharge: isHourlyCalc ? (hourlyOpts.isNight || false) : false,
             multipleStops: isHourlyCalc ? (hourlyOpts.multipleStops || false) : false,
@@ -31020,15 +31708,20 @@ window.calculateTripRoute = async (options = {}) => {
         if (summary) {
             let summaryText;
             if (isHourlyCalc) {
-                const p = Math.min(4, window.currentPassengers || 1);
+                const p = calcPassengers;
                 const stopInfo = (window.currentHourlyStopType === 'multi') ? 'múltiples paradas' : '2 paradas';
                 let extra = '';
                 if (km > 25) extra = ' · +km ciudad-ciudad';
                 if (hourlyOpts.isNight) extra += ' · +25% noche';
-                summaryText = `${getHourlyLabel(hoursForCalc)} · ${p} persona${p > 1 ? 's' : ''} · ${stopInfo}${extra}`;
+                if (calcPaxSurcharge > 0) extra += ` · +L. ${calcPaxSurcharge.toFixed(0)} pers.`;
+                summaryText = `${getHourlyLabel(hoursForCalc)} · ${formatPassengersLabel(p)} · ${stopInfo}${extra}`;
                 if (serviceType === 'moto') summaryText += ' · Moto Segura';
             } else {
                 summaryText = `${km.toFixed(1)} km${duration ? ` · ${duration}` : ''}`;
+                if (serviceType !== 'delivery' && !isFreightService(serviceType)) {
+                    summaryText += ` · ${formatPassengersLabel(calcPassengers)}`;
+                    if (calcPaxSurcharge > 0) summaryText += ` · +L. ${calcPaxSurcharge.toFixed(0)} extra`;
+                }
                 const condSummary = formatConditionsSummary(routeConditions);
                 if (condSummary) summaryText += ` · ${condSummary}`;
                 if (serviceType === 'delivery') summaryText += ` · ${getDeliverySlaText(km)}`;

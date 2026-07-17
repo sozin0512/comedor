@@ -198,6 +198,9 @@
                 </div>
                 <div class="ops-topbar-actions">
                     <button type="button" id="admin-ops-refresh" class="ops-icon-btn" title="Actualizar" aria-label="Actualizar"><i class="fas fa-sync-alt"></i></button>
+                    <button type="button" id="admin-btn-create-client-trip" class="ops-pill-btn" title="Pedir viaje por un cliente" style="background:#059669;color:#fff;border:none;">
+                        <i class="fas fa-user-plus"></i><span>Viaje por cliente</span>
+                    </button>
                     <button type="button" onclick="window.showCityPickerModal()" class="ops-pill-btn"><i class="fas fa-map-marker-alt"></i><span>Ciudad</span></button>
                     <button type="button" onclick="window.closeAdminPanel()" class="ops-icon-btn ops-icon-btn--danger" aria-label="Cerrar panel"><i class="fas fa-times"></i></button>
                 </div>
@@ -270,6 +273,9 @@
                 </div>
                 <div class="ops-topbar-actions">
                     <button type="button" id="supervisor-ops-refresh" class="ops-icon-btn" title="Actualizar" aria-label="Actualizar"><i class="fas fa-sync-alt"></i></button>
+                    <button type="button" id="sup-btn-create-client-trip" class="ops-pill-btn" title="Pedir viaje por un cliente" style="background:#059669;color:#fff;border:none;">
+                        <i class="fas fa-user-plus"></i><span>Viaje por cliente</span>
+                    </button>
                     <button type="button" onclick="window.showNotifyModal('driver')" class="ops-icon-btn" title="Notificar conductores"><i class="fas fa-bell"></i></button>
                     <button type="button" onclick="window.showCityPickerModal()" class="ops-pill-btn"><i class="fas fa-map-marker-alt"></i><span>Ciudad</span></button>
                     <button type="button" onclick="window.closeSupervisorPanel()" class="ops-icon-btn ops-icon-btn--danger" aria-label="Cerrar panel"><i class="fas fa-times"></i></button>
@@ -1676,9 +1682,9 @@
                 <!-- populated by JS: chips hasta 24h -->
             </div>
 
-            <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1 mt-2.5">Cuántas personas viajan (máx 4)</p>
+            <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1 mt-2.5">Cuántas personas viajan (máx. 4 · auto/taxi)</p>
             <div id="hourly-passenger-chips" class="flex flex-wrap gap-1.5">
-                <!-- populated by JS -->
+                <!-- populated by JS: 1–4 -->
             </div>
 
             <!-- Hora de inicio -->
@@ -1734,6 +1740,24 @@
                     <i class="fas fa-truck pointer-events-none"></i><span class="pointer-events-none">Flete · Camión</span>
                 </button>
             </div>
+        </div>
+
+        <div id="trip-passengers-wrap" class="mt-2 mb-2 p-3 rounded-2xl border-2 border-blue-200 bg-blue-50/90 shadow-sm">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+                <p class="text-[10px] font-black text-blue-800 uppercase tracking-widest m-0">
+                    <i class="fas fa-users text-blue-500"></i> ¿Cuántas personas van?
+                </p>
+                <span class="text-[9px] font-black uppercase tracking-wide text-blue-600 bg-white/80 border border-blue-200 px-2 py-0.5 rounded-full">Máx. 4</span>
+            </div>
+            <div id="trip-passenger-chips" class="flex flex-wrap gap-1.5" role="group" aria-label="Número de personas">
+                <button type="button" data-trip-pax="1" class="trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border border-blue-600 bg-blue-600 text-white shadow-sm">1</button>
+                <button type="button" data-trip-pax="2" class="trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700">2</button>
+                <button type="button" data-trip-pax="3" class="trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700">3</button>
+                <button type="button" data-trip-pax="4" class="trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700">4</button>
+            </div>
+            <p id="trip-passenger-hint" class="text-[10px] font-bold text-blue-900/70 mt-2 leading-snug m-0">
+                1 persona incluida. Cada persona extra tiene cobro adicional. Límite 4 (auto/taxi). El conductor verá cuántos van.
+            </p>
         </div>
 
         <div id="fare-card" class="trip-fare-card hidden">
@@ -2071,6 +2095,49 @@
         </div>
     </div>
 
-    <script type="module" src="js/app.js?v=2026.07.16.1"></script>
+    <script>
+        // Enlace fijo de botones "Viaje por cliente" (no depende de re-render ni de módulos)
+        (function () {
+            function openStaffCreate() {
+                console.log('[staff] click Viaje por cliente, fn=', typeof window.staffOpenCreateTripForClient);
+                if (typeof window.staffOpenCreateTripForClient === 'function') {
+                    try {
+                        var p = window.staffOpenCreateTripForClient();
+                        if (p && typeof p.then === 'function') {
+                            p.catch(function (e) {
+                                console.error('[staff] promise error', e);
+                                alert('Error: ' + (e && e.message ? e.message : e));
+                            });
+                        }
+                    } catch (e) {
+                        console.error('[staff] error', e);
+                        alert('Error: ' + (e && e.message ? e.message : e));
+                    }
+                } else {
+                    console.warn('[staff] función no cargada aún');
+                    alert('La función aún no cargó. Espera 2 s y recarga con Ctrl+F5.\n(Si se repite, la app no está cargando el JS nuevo.)');
+                }
+            }
+            function bind() {
+                ['admin-btn-create-client-trip', 'sup-btn-create-client-trip'].forEach(function (id) {
+                    var el = document.getElementById(id);
+                    if (!el || el.dataset.boundStaff === '1') return;
+                    el.dataset.boundStaff = '1';
+                    el.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openStaffCreate();
+                    });
+                    console.log('[staff] bound button', id);
+                });
+            }
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+            else bind();
+            setTimeout(bind, 300);
+            setTimeout(bind, 1500);
+            window.__openStaffCreateTripForClient = openStaffCreate;
+        })();
+    </script>
+    <script type="module" src="js/app.js?v=2026.07.17.9"></script>
 </body>
 </html>

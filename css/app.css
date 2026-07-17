@@ -8581,6 +8581,11 @@
         }
 
         .ops-chip--purple.ops-chip--active { background: linear-gradient(135deg, #7c3aed, #6d28d9); }
+        .ops-chip--emerald {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: #fff;
+            border-color: transparent;
+        }
         .ops-chip--emerald.ops-chip--active { background: linear-gradient(135deg, #059669, #10b981); }
         .ops-chip--amber.ops-chip--active { background: linear-gradient(135deg, #d97706, #f59e0b); }
         .ops-chip--muted.ops-chip--active,

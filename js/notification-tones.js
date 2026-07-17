@@ -618,6 +618,7 @@ export function resolveToneEventFromPush(data = {}) {
     if (type === 'trip_price_boost' || tag.startsWith('trip-price-boost-')) return 'trip_price_boost';
     if (type === 'passenger_counter' || tag.startsWith('passenger-counter-')) return 'passenger_counter';
     if (type === 'driver_bid' || tag.startsWith('driver-bid-')) return 'passenger_offer';
+    if (type === 'staff_created_trip' || tag.startsWith('staff-created-')) return 'passenger_waiting';
     if (type === 'trip_accepted' || tag.startsWith('trip-accepted-')) return 'passenger_accepted';
     if (type === 'trip_arrived' || tag.startsWith('trip-arrived-')) return 'passenger_arrived';
     if (

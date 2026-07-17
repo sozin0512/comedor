@@ -379,7 +379,8 @@ function shouldOpenNotificationsCenter(data = {}) {
     if (data.openClient === 'true' || data.openClient === true) return false;
     if (data.openAdmin === 'true' || data.openAdmin === true) return false;
     if (type === 'driver_bid' || type === 'trip_accepted' || type === 'trip_arrived'
-        || type === 'passenger_counter' || type === 'trip_offer') return false;
+        || type === 'passenger_counter' || type === 'trip_offer'
+        || type === 'staff_created_trip') return false;
     // Avisos admin / versión / campañas / promos → campana de notificaciones
     return type === 'admin_notify'
         || type === 'app_update'
@@ -426,13 +427,15 @@ function handleNotificationNavigation(data = {}) {
     const isPassengerTrip = type === 'driver_bid'
         || type === 'trip_accepted'
         || type === 'trip_arrived'
+        || type === 'staff_created_trip'
         || data.openPassenger === 'true'
         || data.openPassenger === true
         || data.openClient === 'true'
         || data.openClient === true
         || tag.startsWith('driver-bid-')
         || tag.startsWith('trip-accepted-')
-        || tag.startsWith('trip-arrived-');
+        || tag.startsWith('trip-arrived-')
+        || tag.startsWith('staff-created-');
 
     if (data.openChat === 'true' || data.openChat === true) {
         location.hash = 'chat';

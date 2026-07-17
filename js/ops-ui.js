@@ -127,6 +127,10 @@ export function opsTripToolbar(activeCount, pastCount, activeOnclick, pastOnclic
         <div class="ops-trip-toolbar">
             ${opsChip(`Activos (${activeCount})`, activeOnclick, { active: true, variant: 'purple' })}
             ${opsChip(`Pasados + facturas (${pastCount})`, pastOnclick, { variant: 'muted' })}
+            <button type="button" class="ops-chip ops-chip--emerald ops-chip--active" data-staff-create-client-trip
+                title="Armar viaje para un pasajero y notificarle">
+                <i class="fas fa-user-plus"></i> Pedir viaje por cliente
+            </button>
         </div>
     `;
 }

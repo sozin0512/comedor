@@ -278,6 +278,20 @@ window.gMap = null;
                     confirm: 'Confirmar parada',
                 };
             }
+            if (context === 'origin' || context === 'staff-origin') {
+                return {
+                    title: '¿Dónde recogemos?',
+                    hint: 'Arrastra el mapa hasta el punto de recogida',
+                    confirm: 'Confirmar origen',
+                };
+            }
+            if (context === 'staff-destination') {
+                return {
+                    title: '¿A dónde va el cliente?',
+                    hint: 'Arrastra el mapa hasta el destino',
+                    confirm: 'Confirmar destino',
+                };
+            }
             return {
                 title: '¿A dónde vas?',
                 hint: 'Arrastra el mapa · el pin se queda en el centro',
@@ -437,9 +451,17 @@ window.gMap = null;
         window.startMapPickMode = (opts = {}) => {
             if (!window.gMap) return window.showToast?.('El mapa aún no está listo.');
             const pickContext = opts.context || 'stop';
-            const allowedPickContexts = ['destination', 'extra-stop', 'hourly-stop', 'delivery-destination'];
+            const allowedPickContexts = [
+                'destination',
+                'extra-stop',
+                'hourly-stop',
+                'delivery-destination',
+                'origin',
+                'staff-origin',
+                'staff-destination'
+            ];
             if (!allowedPickContexts.includes(pickContext)) {
-                return window.showToast?.('Selección en mapa solo para destino, paradas o entregas.');
+                return window.showToast?.('Selección en mapa no disponible para este campo.');
             }
             window.cancelMapPickMode?.({ silent: true });
             window.hideTripKeyboard?.();
