@@ -88,12 +88,17 @@ service cloud.firestore {
         resource.data.status == 'pending'   // conductores necesitan ver pending para ofertas
       );
 
-      // Crear viaje (solo pasajero)
-      allow create: if isSignedIn() &&
-        isClient(app) &&
-        request.resource.data.clientId == requestUid();
+      // Crear viaje: pasajero (su propio clientId) o staff en nombre del cliente
+      allow create: if isSignedIn() && (
+        (isClient(app) && request.resource.data.clientId == requestUid()) ||
+        (isStaff(app)
+          && request.resource.data.clientId is string
+          && request.resource.data.clientId.size() > 0
+          && request.resource.data.staffAssistedClient == true)
+      );
 
       // Actualizar viaje: pasajero, conductor asignado, staff, o cualquier conductor en viajes pending (ofertas / visto)
+      // Pasajero puede reclamar viaje armado por staff (staffCreatedClientClaimed, scheduledFor, passengers…)
       allow update: if isSignedIn() && (
         isStaff(app) ||
         resource.data.clientId == requestUid() ||

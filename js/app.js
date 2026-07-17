@@ -1693,7 +1693,11 @@ if (document.readyState === 'loading') {
         function peekStaffTripShareId() {
             try {
                 const q = new URLSearchParams(location.search || '');
-                let id = q.get('staffTrip') || q.get('staff_trip') || '';
+                let id = q.get('staffTrip') || q.get('staff_trip') || q.get('trip') || '';
+                // A veces el navegador deja basura al final: abc123). → limpia
+                if (id) {
+                    id = decodeURIComponent(String(id)).trim().replace(/[^\w-].*$/, '');
+                }
                 if (!id && location.hash) {
                     const h = String(location.hash).replace(/^#/, '');
                     if (h.startsWith('staffTrip=')) id = decodeURIComponent(h.slice('staffTrip='.length));
@@ -1701,9 +1705,13 @@ if (document.readyState === 'loading') {
                         const hp = new URLSearchParams(h.includes('=') ? h : '');
                         id = hp.get('staffTrip') || '';
                     }
+                    if (id) id = String(id).trim().replace(/[^\w-].*$/, '');
                 }
                 if (!id) {
                     try { id = sessionStorage.getItem('honduraite_pending_staff_trip') || ''; } catch (_) {}
+                }
+                if (!id) {
+                    try { id = localStorage.getItem('honduraite_pending_staff_trip') || ''; } catch (_) {}
                 }
                 return String(id || '').trim();
             } catch (_) {
@@ -1713,13 +1721,18 @@ if (document.readyState === 'loading') {
 
         function clearStaffTripShareFromUrl(id) {
             try {
-                if (id) sessionStorage.removeItem('honduraite_pending_staff_trip');
+                if (id) {
+                    sessionStorage.removeItem('honduraite_pending_staff_trip');
+                    localStorage.removeItem('honduraite_pending_staff_trip');
+                    localStorage.removeItem('honduraite_pending_staff_trip_at');
+                }
             } catch (_) {}
             try {
                 const url = new URL(location.href);
-                if (url.searchParams.has('staffTrip') || url.searchParams.has('staff_trip')) {
+                if (url.searchParams.has('staffTrip') || url.searchParams.has('staff_trip') || url.searchParams.has('trip')) {
                     url.searchParams.delete('staffTrip');
                     url.searchParams.delete('staff_trip');
+                    url.searchParams.delete('trip');
                     history.replaceState({}, '', url.pathname + url.search + url.hash);
                 }
             } catch (_) {}
@@ -1728,21 +1741,23 @@ if (document.readyState === 'loading') {
         window.consumeStaffTripShareLink = async () => {
             const id = peekStaffTripShareId();
             if (!id || !currentUser) return;
-            if (window._staffTripShareConsumed === id) return;
-            window._staffTripShareConsumed = id;
+            // No marcar “consumido” hasta abrir bien (si fallaba antes, ya no reintentaba)
+            if (window._staffTripShareOpenedOk === id) return;
+            if (window._staffTripShareInFlight === id) return;
+            window._staffTripShareInFlight = id;
             try {
                 sessionStorage.setItem('honduraite_pending_staff_trip', id);
+                localStorage.setItem('honduraite_pending_staff_trip', id);
+                localStorage.setItem('honduraite_pending_staff_trip_at', String(Date.now()));
             } catch (_) {}
-            const opened = await window.openStaffTripFromShareLink?.(id);
-            if (opened) clearStaffTripShareFromUrl(id);
-            else if (currentUser) {
-                // Si falló por cuenta incorrecta, no borrar del todo el id guardado
-                try {
-                    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
-                    if (snap.exists() && snap.data()?.clientId === currentUser.uid) {
-                        clearStaffTripShareFromUrl(id);
-                    }
-                } catch (_) {}
+            try {
+                const opened = await window.openStaffTripFromShareLink?.(id);
+                if (opened) {
+                    window._staffTripShareOpenedOk = id;
+                    clearStaffTripShareFromUrl(id);
+                }
+            } finally {
+                if (window._staffTripShareInFlight === id) window._staffTripShareInFlight = null;
             }
         };
 
@@ -1750,7 +1765,11 @@ if (document.readyState === 'loading') {
         (() => {
             const early = peekStaffTripShareId();
             if (early) {
-                try { sessionStorage.setItem('honduraite_pending_staff_trip', early); } catch (_) {}
+                try {
+                    sessionStorage.setItem('honduraite_pending_staff_trip', early);
+                    localStorage.setItem('honduraite_pending_staff_trip', early);
+                    localStorage.setItem('honduraite_pending_staff_trip_at', String(Date.now()));
+                } catch (_) {}
             }
         })();
 
@@ -2195,10 +2214,12 @@ if (document.readyState === 'loading') {
             if (!tripId || !currentUser) return;
             const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
             const snap = await getDoc(tripRef);
-            if (!snap.exists()) throw new Error('El viaje ya no existe.');
+            if (!snap.exists()) throw new Error('No encontramos el viaje (link inválido o viaje borrado). Pide reenvío a soporte.');
             const t = snap.data();
-            if (t.clientId !== currentUser.uid) throw new Error('Este viaje no es tuyo.');
-            if (t.status !== 'pending') throw new Error('El viaje ya no está disponible.');
+            if (t.clientId !== currentUser.uid) throw new Error('Este viaje no es de tu cuenta. Entra con el usuario del pasajero.');
+            if (t.status === 'cancelled') throw new Error('Este viaje fue cancelado. Pide uno nuevo a soporte.');
+            if (t.status === 'completed') throw new Error('Este viaje ya se completó.');
+            if (t.status !== 'pending') throw new Error('Este viaje ya no se puede tomar (estado: ' + (t.status || '?') + ').');
             if (t.staffCreatedClientClaimed === true) {
                 restorePendingTripUI?.({ id: tripId, ...t });
                 return;
@@ -21028,8 +21049,11 @@ onAuthStateChanged(auth, async (user) => {
                 }
 
                 // Link de WhatsApp del viaje armado por staff (?staffTrip=)
-                setTimeout(() => window.consumeStaffTripShareLink?.(), 1200);
-                setTimeout(() => window.consumeStaffTripShareLink?.(), 2800);
+                // Varios reintentos: a veces el auth/profile tarda y el 1er intento fallaba
+                setTimeout(() => window.consumeStaffTripShareLink?.(), 800);
+                setTimeout(() => window.consumeStaffTripShareLink?.(), 1800);
+                setTimeout(() => window.consumeStaffTripShareLink?.(), 3500);
+                setTimeout(() => window.consumeStaffTripShareLink?.(), 6000);
 
                 if (profile.referredByUid || profile.referralProcessed) {
                     clearPendingReferralCode();
