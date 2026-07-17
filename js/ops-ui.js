@@ -131,6 +131,10 @@ export function opsTripToolbar(activeCount, pastCount, activeOnclick, pastOnclic
                 title="Armar viaje para un pasajero y notificarle">
                 <i class="fas fa-user-plus"></i> Pedir viaje por cliente
             </button>
+            <button type="button" class="ops-chip ops-chip--blue" data-staff-assisted-trips
+                title="Ver viajes armados por staff y reenviar WhatsApp">
+                <i class="fas fa-paper-plane"></i> Viajes armados / reenviar
+            </button>
         </div>
     `;
 }

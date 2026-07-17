@@ -4,7 +4,7 @@
  * También: botón global con búsqueda (opcional).
  */
 import {
-    collection, doc, getDoc, getDocs, addDoc, query, where, serverTimestamp
+    collection, doc, getDoc, getDocs, addDoc, query, where, serverTimestamp, limit
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink } from './phone-utils.js';
 import {
@@ -89,7 +89,8 @@ function showStaffTripSharePanel({
     clientChoosesSchedule,
     passengers,
     clientChoosesPassengers,
-    showToast
+    showToast,
+    resend = false
 }) {
     document.getElementById('staff-trip-share-modal')?.remove();
     const link = buildStaffTripShareLink(tripId);
@@ -114,12 +115,13 @@ function showStaffTripSharePanel({
         <div style="background:#0f172a;color:#fff;width:100%;max-width:24rem;border-radius:1.25rem;border:1px solid #334155;
             box-shadow:0 25px 50px rgba(0,0,0,.5);padding:1.15rem;">
             <div style="text-align:center;margin-bottom:0.85rem;">
-                <div style="width:3.25rem;height:3.25rem;margin:0 auto 0.5rem;border-radius:1rem;background:#064e3b;
-                    display:flex;align-items:center;justify-content:center;font-size:1.5rem;">✓</div>
-                <h3 style="margin:0;font-size:1.05rem;font-weight:900;">Viaje creado</h3>
+                <div style="width:3.25rem;height:3.25rem;margin:0 auto 0.5rem;border-radius:1rem;background:${resend ? '#1e3a5f' : '#064e3b'};
+                    display:flex;align-items:center;justify-content:center;font-size:1.5rem;">${resend ? '↩' : '✓'}</div>
+                <h3 style="margin:0;font-size:1.05rem;font-weight:900;">${resend ? 'Reenviar mensaje' : 'Viaje creado'}</h3>
                 <p style="margin:0.35rem 0 0;font-size:12px;color:#94a3b8;font-weight:700;line-height:1.4;">
-                    Notificación enviada a <b style="color:#6ee7b7;">${escapeHtml(clientName || 'cliente')}</b>.
-                    ${clientChoosesSchedule ? 'Es programado: el cliente elige fecha y hora.' : ''}
+                    ${resend ? 'Vuelve a mandar el link a' : 'Notificación enviada a'}
+                    <b style="color:#6ee7b7;">${escapeHtml(clientName || 'cliente')}</b>.
+                    ${clientChoosesSchedule ? ' Es programado: el cliente elige fecha y hora.' : ''}
                 </p>
             </div>
             <div style="padding:0.65rem 0.75rem;border-radius:0.85rem;background:#020617;border:1px solid #1e293b;margin-bottom:0.75rem;">
@@ -1299,4 +1301,319 @@ export function installStaffCreateClientTrip({
     };
 
     window.buildStaffTripShareLink = buildStaffTripShareLink;
+    window.showStaffTripSharePanel = (opts) => showStaffTripSharePanel({ ...opts, showToast });
+
+    function tripCreatedMs(t) {
+        const c = t?.createdAt;
+        if (c?.toMillis) return c.toMillis();
+        if (c?.seconds) return c.seconds * 1000;
+        if (typeof c === 'string' || typeof c === 'number') {
+            const n = new Date(c).getTime();
+            return Number.isFinite(n) ? n : 0;
+        }
+        return 0;
+    }
+
+    function formatStaffTripWhenShort(t) {
+        if (t?.scheduledFor) {
+            try {
+                return new Date(t.scheduledFor).toLocaleString('es-HN', {
+                    weekday: 'short', day: 'numeric', month: 'short',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            } catch (_) {
+                return String(t.scheduledFor);
+            }
+        }
+        if (t?.clientChoosesSchedule) return 'Programado · cliente elige hora';
+        return 'Ahora / inmediato';
+    }
+
+    function statusLabelStaffAssisted(t) {
+        if (t.status === 'cancelled') return { text: 'Cancelado', color: '#f87171' };
+        if (t.status === 'completed') return { text: 'Completado', color: '#94a3b8' };
+        if (t.status === 'scheduled') return { text: 'Reservado', color: '#fbbf24' };
+        if (t.status === 'accepted' || t.status === 'in_progress') return { text: 'Con conductor', color: '#34d399' };
+        if (t.staffCreatedClientClaimed === true) return { text: 'Cliente tomó · buscando', color: '#60a5fa' };
+        return { text: 'Esperando cliente', color: '#a78bfa' };
+    }
+
+    /** Carga viajes armados por staff (para reenviar WA). */
+    async function fetchStaffAssistedTrips() {
+        const tripsCol = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
+        let list = [];
+
+        // 1) Snapshot en memoria del panel de viajes (rápido)
+        try {
+            const fromSnap = (window._adminTripsLastSnap || window._supervisorTripsLastSnap || [])
+                .map((t) => (t?.id ? t : null))
+                .filter(Boolean)
+                .filter((t) => t.staffAssistedClient === true || !!t.staffCreatedBy);
+            if (fromSnap.length) list = fromSnap.slice();
+        } catch (_) {}
+
+        // 2) Query Firestore (staffAssistedClient)
+        try {
+            const q = query(tripsCol, where('staffAssistedClient', '==', true), limit(80));
+            const snap = await getDocs(q);
+            const byId = new Map(list.map((t) => [t.id, t]));
+            snap.docs.forEach((d) => {
+                byId.set(d.id, { id: d.id, ...d.data() });
+            });
+            list = Array.from(byId.values());
+        } catch (e) {
+            console.warn('[staff] fetch assisted trips', e);
+            // Fallback: últimos viajes y filtrar en cliente
+            if (!list.length) {
+                try {
+                    const snap = await getDocs(query(tripsCol, limit(120)));
+                    list = snap.docs
+                        .map((d) => ({ id: d.id, ...d.data() }))
+                        .filter((t) => t.staffAssistedClient === true || !!t.staffCreatedBy);
+                } catch (e2) {
+                    console.warn('[staff] fetch assisted fallback', e2);
+                }
+            }
+        }
+
+        list.sort((a, b) => tripCreatedMs(b) - tripCreatedMs(a));
+        return list;
+    }
+
+    /**
+     * Panel: viajes armados por staff (programados y pendientes) + reenviar WhatsApp.
+     */
+    window.staffOpenAssistedTripsList = async () => {
+        document.getElementById('staff-assisted-trips-modal')?.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'staff-assisted-trips-modal';
+        modal.setAttribute('style',
+            'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-end;justify-content:center;'
+            + 'padding:0;background:rgba(0,0,0,0.75);'
+        );
+        if (window.matchMedia('(min-width: 640px)').matches) {
+            modal.style.alignItems = 'center';
+            modal.style.padding = '1rem';
+        }
+
+        modal.innerHTML = `
+            <div style="background:#0f172a;color:#fff;width:100%;max-width:28rem;max-height:92dvh;overflow:auto;
+                border-radius:1.25rem 1.25rem 0 0;border:1px solid #334155;box-shadow:0 25px 50px rgba(0,0,0,.5);padding:1.1rem;">
+                <div style="display:flex;justify-content:space-between;gap:0.75rem;margin-bottom:0.75rem;align-items:flex-start;">
+                    <div>
+                        <p style="font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#60a5fa;margin:0;">Staff</p>
+                        <h3 style="font-size:1.125rem;font-weight:900;margin:0.2rem 0 0;">Viajes armados</h3>
+                        <p style="font-size:11px;color:#94a3b8;margin:0.35rem 0 0;line-height:1.35;">
+                            Programados y pendientes. Reenvía el link por WhatsApp si el cliente no lo vio.
+                        </p>
+                    </div>
+                    <button type="button" id="staff-assisted-close" style="width:2.5rem;height:2.5rem;border-radius:999px;background:#1e293b;color:#cbd5e1;border:0;font-size:1.25rem;cursor:pointer;">&times;</button>
+                </div>
+                <div style="display:flex;gap:0.35rem;margin-bottom:0.65rem;flex-wrap:wrap;">
+                    <button type="button" data-assisted-filter="open" class="staff-assisted-filter" style="padding:0.4rem 0.7rem;border-radius:999px;border:1px solid #3b82f6;background:#2563eb;color:#fff;font-size:11px;font-weight:900;cursor:pointer;">Abiertos</button>
+                    <button type="button" data-assisted-filter="scheduled" class="staff-assisted-filter" style="padding:0.4rem 0.7rem;border-radius:999px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:11px;font-weight:900;cursor:pointer;">Programados</button>
+                    <button type="button" data-assisted-filter="waiting" class="staff-assisted-filter" style="padding:0.4rem 0.7rem;border-radius:999px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:11px;font-weight:900;cursor:pointer;">Sin reclamar</button>
+                    <button type="button" data-assisted-filter="all" class="staff-assisted-filter" style="padding:0.4rem 0.7rem;border-radius:999px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:11px;font-weight:900;cursor:pointer;">Todos</button>
+                </div>
+                <input type="search" id="staff-assisted-search" class="ops-input" style="width:100%;margin-bottom:0.65rem;" placeholder="Buscar cliente, destino, teléfono…" autocomplete="off">
+                <div id="staff-assisted-list" style="min-height:8rem;">
+                    <p style="font-size:12px;color:#94a3b8;font-weight:700;text-align:center;padding:1.5rem 0;">Cargando…</p>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        const close = () => modal.remove();
+        modal.querySelector('#staff-assisted-close')?.addEventListener('click', close);
+        modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+
+        const listEl = modal.querySelector('#staff-assisted-list');
+        let allTrips = [];
+        let filterKey = 'open';
+        let searchQ = '';
+
+        const matchesFilter = (t) => {
+            const st = t.status || '';
+            const waiting = st === 'pending' && t.staffCreatedClientClaimed !== true;
+            const isSched = !!t.scheduledFor || t.clientChoosesSchedule === true || st === 'scheduled';
+            const open = ['pending', 'scheduled', 'accepted', 'in_progress'].includes(st);
+            if (filterKey === 'all') return true;
+            if (filterKey === 'waiting') return waiting;
+            if (filterKey === 'scheduled') return isSched && open;
+            // open: activos útiles para reenviar
+            return open;
+        };
+
+        const matchesSearch = (t) => {
+            const q = searchQ.trim().toLowerCase();
+            if (!q) return true;
+            const phone = String(t.clientPhone || '').replace(/\D/g, '');
+            const qDigits = q.replace(/\D/g, '');
+            const blob = [
+                t.clientName, t.clientPhone, t.origin, t.destination,
+                t.staffCreatedByName, t.price, t.id
+            ].map((x) => String(x || '').toLowerCase()).join(' ');
+            if (blob.includes(q)) return true;
+            if (qDigits.length >= 4 && phone.includes(qDigits)) return true;
+            return false;
+        };
+
+        const renderList = () => {
+            if (!listEl) return;
+            const rows = allTrips.filter(matchesFilter).filter(matchesSearch);
+            if (!rows.length) {
+                listEl.innerHTML = `<p style="font-size:12px;color:#64748b;font-weight:700;text-align:center;padding:1.25rem 0.5rem;line-height:1.4;">
+                    No hay viajes armados con este filtro.<br>
+                    <span style="font-size:11px;">Crea uno con «Pedir viaje por cliente».</span>
+                </p>`;
+                return;
+            }
+            listEl.innerHTML = rows.map((t) => {
+                const st = statusLabelStaffAssisted(t);
+                const when = formatStaffTripWhenShort(t);
+                const origin = String(t.origin || '—').slice(0, 48);
+                const dest = String(t.destination || '—').slice(0, 48);
+                const name = t.clientName || 'Cliente';
+                const phone = formatHondurasPhone(t.clientPhone) || t.clientPhone || 'Sin tel.';
+                const canResend = t.status !== 'cancelled' && t.status !== 'completed';
+                return `
+                <article data-assisted-id="${escapeHtml(t.id)}" style="margin-bottom:0.55rem;padding:0.7rem 0.75rem;border-radius:0.9rem;border:1px solid #334155;background:#020617;">
+                    <div style="display:flex;justify-content:space-between;gap:0.5rem;align-items:flex-start;">
+                        <div style="min-width:0;">
+                            <p style="margin:0;font-size:0.9rem;font-weight:900;color:#fff;">${escapeHtml(name)}</p>
+                            <p style="margin:0.1rem 0 0;font-size:11px;font-weight:700;color:#94a3b8;">${escapeHtml(phone)}</p>
+                        </div>
+                        <span style="flex-shrink:0;font-size:10px;font-weight:900;color:${st.color};white-space:nowrap;">${escapeHtml(st.text)}</span>
+                    </div>
+                    <p style="margin:0.45rem 0 0;font-size:11px;font-weight:700;color:#cbd5e1;line-height:1.35;">
+                        ${escapeHtml(origin)} → ${escapeHtml(dest)}
+                    </p>
+                    <p style="margin:0.25rem 0 0;font-size:10px;font-weight:800;color:#fbbf24;">
+                        <i class="fas fa-clock"></i> ${escapeHtml(when)}
+                        ${t.price ? ` · ${escapeHtml(t.price)}` : ''}
+                        ${Number(t.passengers) > 1 ? ` · ${Number(t.passengers)} pers.` : ''}
+                    </p>
+                    <div style="display:flex;gap:0.35rem;margin-top:0.55rem;flex-wrap:wrap;">
+                        ${canResend ? `
+                        <button type="button" data-assisted-resend="${escapeHtml(t.id)}"
+                            style="flex:1;min-width:7rem;padding:0.55rem 0.65rem;border-radius:0.65rem;border:0;background:#25D366;color:#fff;font-size:11px;font-weight:900;cursor:pointer;">
+                            <i class="fab fa-whatsapp"></i> Reenviar WA
+                        </button>
+                        <button type="button" data-assisted-copy="${escapeHtml(t.id)}"
+                            style="padding:0.55rem 0.65rem;border-radius:0.65rem;border:1px solid #334155;background:#1e293b;color:#93c5fd;font-size:11px;font-weight:800;cursor:pointer;">
+                            Copiar link
+                        </button>
+                        ` : `
+                        <span style="font-size:10px;font-weight:700;color:#64748b;">No se puede reenviar (viaje cerrado)</span>
+                        `}
+                    </div>
+                </article>`;
+            }).join('');
+        };
+
+        const setFilterActive = (key) => {
+            filterKey = key;
+            modal.querySelectorAll('.staff-assisted-filter').forEach((btn) => {
+                const on = btn.getAttribute('data-assisted-filter') === key;
+                btn.style.background = on ? '#2563eb' : '#1e293b';
+                btn.style.borderColor = on ? '#3b82f6' : '#334155';
+                btn.style.color = '#fff';
+            });
+            renderList();
+        };
+
+        modal.querySelectorAll('.staff-assisted-filter').forEach((btn) => {
+            btn.addEventListener('click', () => setFilterActive(btn.getAttribute('data-assisted-filter') || 'open'));
+        });
+
+        let searchTimer = null;
+        modal.querySelector('#staff-assisted-search')?.addEventListener('input', (e) => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                searchQ = e.target?.value || '';
+                renderList();
+            }, 180);
+        });
+
+        listEl?.addEventListener('click', async (e) => {
+            const resendBtn = e.target.closest?.('[data-assisted-resend]');
+            const copyBtn = e.target.closest?.('[data-assisted-copy]');
+            const id = resendBtn?.getAttribute('data-assisted-resend')
+                || copyBtn?.getAttribute('data-assisted-copy');
+            if (!id) return;
+            const t = allTrips.find((x) => x.id === id);
+            if (!t) return;
+
+            if (copyBtn) {
+                const link = buildStaffTripShareLink(id);
+                try {
+                    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(link);
+                    else {
+                        const ta = document.createElement('textarea');
+                        ta.value = link;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        document.execCommand('copy');
+                        ta.remove();
+                    }
+                    toast(showToast, 'Link copiado.', 'success');
+                } catch (_) {
+                    toast(showToast, 'No se pudo copiar.', 'warning');
+                }
+                return;
+            }
+
+            if (resendBtn) {
+                showStaffTripSharePanel({
+                    tripId: t.id,
+                    clientName: t.clientName || 'Cliente',
+                    clientPhone: t.clientPhone || '',
+                    origin: t.origin || '',
+                    destination: t.destination || '',
+                    priceLabel: t.price || (t.priceNum != null ? `L. ${Number(t.priceNum).toFixed(2)}` : ''),
+                    clientChoosesSchedule: t.clientChoosesSchedule === true && !t.scheduledFor,
+                    passengers: t.passengers,
+                    clientChoosesPassengers: t.clientChoosesPassengers === true,
+                    showToast,
+                    resend: true
+                });
+            }
+        });
+
+        try {
+            allTrips = await fetchStaffAssistedTrips();
+            renderList();
+        } catch (e) {
+            console.error(e);
+            if (listEl) {
+                listEl.innerHTML = `<p style="color:#f87171;font-size:12px;font-weight:700;padding:1rem;text-align:center;">${escapeHtml(e?.message || 'Error al cargar')}</p>`;
+            }
+        }
+    };
+
+    window.staffResendTripWhatsApp = async (tripId) => {
+        const id = String(tripId || '').trim();
+        if (!id) return;
+        try {
+            const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
+            if (!snap.exists()) throw new Error('Viaje no encontrado.');
+            const t = { id: snap.id, ...snap.data() };
+            showStaffTripSharePanel({
+                tripId: t.id,
+                clientName: t.clientName || 'Cliente',
+                clientPhone: t.clientPhone || '',
+                origin: t.origin || '',
+                destination: t.destination || '',
+                priceLabel: t.price || (t.priceNum != null ? `L. ${Number(t.priceNum).toFixed(2)}` : ''),
+                clientChoosesSchedule: t.clientChoosesSchedule === true && !t.scheduledFor,
+                passengers: t.passengers,
+                clientChoosesPassengers: t.clientChoosesPassengers === true,
+                showToast,
+                resend: true
+            });
+        } catch (e) {
+            toast(showToast, e?.message || 'No se pudo abrir reenvío.', 'error');
+        }
+    };
 }

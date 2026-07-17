@@ -381,8 +381,24 @@ installStaffCreateClientTrip({
     assignNextTripOffer: (id) => window.assignNextTripOffer?.(id)
 });
 
-// Clic global solo en botones data-staff-create-client-trip (NO pointerup: evita doble disparo)
+// Clic global: pedir viaje por cliente / listar viajes armados (reenviar WA)
 document.addEventListener('click', (e) => {
+    const assistedBtn = e.target?.closest?.('[data-staff-assisted-trips]');
+    if (assistedBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (typeof window.staffOpenAssistedTripsList === 'function') {
+                window.staffOpenAssistedTripsList();
+            } else {
+                window.alert('Función no cargada. Recarga con Ctrl+F5.');
+            }
+        } catch (err) {
+            console.error(err);
+            window.alert(err?.message || 'Error al abrir viajes armados');
+        }
+        return;
+    }
     const btn = e.target?.closest?.('[data-staff-create-client-trip]');
     if (!btn) return;
     e.preventDefault();
@@ -7909,10 +7925,16 @@ if (document.readyState === 'loading') {
                     <p class="ops-trips-page-kicker"><i class="fas fa-gauge-high"></i> Centro de operaciones</p>
                     <h2 class="ops-trips-page-title">Viajes en tiempo real</h2>
                     <p class="ops-trips-page-sub">Dashboard de activos, búsquedas canceladas y sin atención</p>
-                    <button type="button" data-staff-create-client-trip
-                        class="mt-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg">
-                        <i class="fas fa-user-plus"></i> Pedir viaje por cliente
-                    </button>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button type="button" data-staff-create-client-trip
+                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg">
+                            <i class="fas fa-user-plus"></i> Pedir viaje por cliente
+                        </button>
+                        <button type="button" data-staff-assisted-trips
+                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black shadow-lg">
+                            <i class="fas fa-paper-plane"></i> Viajes armados / reenviar WA
+                        </button>
+                    </div>
                 </div>
                 <div class="ops-trips-page-kpis">
                     ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
