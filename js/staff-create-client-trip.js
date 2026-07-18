@@ -1376,14 +1376,15 @@ export function installStaffCreateClientTrip({
 
     /** Abrir reclamo de viaje desde link ?staffTrip=ID (compartido por WhatsApp) */
     window.openStaffTripFromShareLink = async (tripId) => {
-        // Limpiar basura que WhatsApp a veces pega al final del link (., ), etc.)
-        const id = String(tripId || '')
-            .trim()
+        // Firestore IDs: alfanuméricos. Quitar basura de WhatsApp (., ), ?, #, etc.)
+        let id = String(tripId || '').trim();
+        try { id = decodeURIComponent(id); } catch (_) {}
+        id = id
             .replace(/^staffTrip=/i, '')
-            .replace(/[^\w-].*$/, '') // corta en primer carácter raro
+            .split(/[?#&\s]/)[0]
             .replace(/[^a-zA-Z0-9_-]/g, '');
-        if (!id) {
-            toast(showToast, 'Link de viaje inválido. Pide que te reenvíen el mensaje.', 'error');
+        if (!id || id.length < 8) {
+            toast(showToast, 'Link de viaje inválido. Pide que te reenvíen el mensaje desde «Viajes armados».', 'error');
             return false;
         }
         storePendingStaffTripId(id);
@@ -1396,10 +1397,37 @@ export function installStaffCreateClientTrip({
         try {
             const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
             if (!snap.exists()) {
-                // Mensaje claro (no “expirado” genérico): link mal copiado o viaje borrado
+                // Fallback: buscar el pending armado por staff de este cliente (link cortado)
+                try {
+                    const q = query(
+                        collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
+                        where('clientId', '==', user.uid),
+                        where('status', '==', 'pending'),
+                        limit(15)
+                    );
+                    const alt = await getDocs(q);
+                    const candidates = alt.docs
+                        .map((d) => ({ id: d.id, ...d.data() }))
+                        .filter((t) => t.staffCreatedBy && t.staffCreatedClientClaimed !== true)
+                        .sort((a, b) => {
+                            const ta = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+                            const tb = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+                            return tb - ta;
+                        });
+                    if (candidates[0]) {
+                        const t = candidates[0];
+                        document.getElementById('staff-claim-trip-modal')?.remove();
+                        window.showStaffCreatedTripClaimModal?.(t, { force: true });
+                        clearPendingStaffTripId();
+                        toast(showToast, 'Encontramos tu viaje armado. Confirma personas y hora si hace falta.', 'success');
+                        return true;
+                    }
+                } catch (fb) {
+                    console.warn('[staff] fallback pending staff trip', fb);
+                }
                 toast(
                     showToast,
-                    'No encontramos ese viaje. Puede que el link se cortó en WhatsApp. Pide a soporte que lo reenvíe desde «Viajes armados».',
+                    'No encontramos ese viaje con el link. Entra a la app con tu cuenta: si hay un viaje armado, te saldrá «Te armamos un viaje».',
                     'error'
                 );
                 return false;
@@ -1408,7 +1436,7 @@ export function installStaffCreateClientTrip({
             if (t.clientId && t.clientId !== user.uid) {
                 toast(
                     showToast,
-                    'Este viaje es de otra cuenta. Cierra sesión y entra con el teléfono/correo del pasajero al que se armó el viaje.',
+                    'Este viaje es de otra cuenta. Cierra sesión y entra con el teléfono/correo del pasajero.',
                     'warning'
                 );
                 return false;
@@ -1423,20 +1451,19 @@ export function installStaffCreateClientTrip({
                 clearPendingStaffTripId();
                 return false;
             }
-            // Listo para que el cliente acepte (personas / fecha si faltan)
+            // Listo para que el cliente acepte / ajuste personas y hora
             if (t.staffCreatedBy && t.staffCreatedClientClaimed !== true && t.status === 'pending') {
                 if (typeof window.showStaffCreatedTripClaimModal === 'function') {
-                    // Quitar modal viejo si quedó colgado
                     document.getElementById('staff-claim-trip-modal')?.remove();
-                    window.showStaffCreatedTripClaimModal(t);
+                    window.showStaffCreatedTripClaimModal(t, { force: true });
                     clearPendingStaffTripId();
-                    toast(showToast, 'Confirma tu viaje (personas y fecha si te lo piden).', 'success');
+                    toast(showToast, 'Confirma tu viaje. Puedes ajustar personas y hora.', 'success');
                     return true;
                 }
                 toast(showToast, 'Abre HonduRaite como pasajero para confirmar el viaje.', 'info');
                 return false;
             }
-            // Ya reclamado o en curso: suscribirse / restaurar UI
+            // Ya reclamado o en curso
             if (t.clientId === user.uid) {
                 try {
                     window.subscribeToTripDocument?.(id);

@@ -1976,38 +1976,44 @@ if (document.readyState === 'loading') {
 
         // staff create-client-trip ya se instaló al cargar el módulo
 
-        /** Modal: cliente acepta adueñarse del viaje armado por staff */
-        window.showStaffCreatedTripClaimModal = (trip) => {
+        /** Modal: cliente acepta adueñarse del viaje armado por staff (puede ajustar personas y hora). */
+        window.showStaffCreatedTripClaimModal = (trip, { force = false } = {}) => {
             if (!trip?.id || trip.clientId !== currentUser?.uid) return;
             if (trip.staffCreatedClientClaimed === true) return;
-            if (document.getElementById('staff-claim-trip-modal')) return;
+            // Si ya hay modal del mismo viaje, no duplicar; si es otro o force, reemplazar
+            const existing = document.getElementById('staff-claim-trip-modal');
+            if (existing && !force && existing.dataset.tripId === trip.id) return;
+            existing?.remove();
 
             const staffName = (trip.staffCreatedByName || 'Soporte HonduRaite').split(' ')[0];
-            // Programado sin fecha/hora → el cliente DEBE elegirlas
-            const needsSchedule = (
-                trip.clientChoosesSchedule === true
-                || (!!trip.scheduledFor === false && trip.bookingType === 'scheduled')
-            ) && !trip.scheduledFor;
-            const when = trip.scheduledFor
-                ? (typeof formatScheduledTripWhen === 'function'
-                    ? formatScheduledTripWhen(trip)
-                    : new Date(trip.scheduledFor).toLocaleString('es-HN'))
-                : '';
             const svcType = normalizeServiceType(trip.serviceType || 'auto');
             const maxPax = getMaxPassengers(svcType);
-            // Auto/taxi/moto: mostrar personas. Si staff no fijó (Cliente elige / vacío) → obligatorio.
             const canChoosePax = maxPax > 1 && svcType !== 'delivery' && !isFreightService(svcType);
-            const clientMustPickPax = canChoosePax && (
+
+            // Siempre puede ajustar personas; si staff no fijó, obligatorio elegir
+            const staffLeftPaxOpen = canChoosePax && (
                 trip.clientChoosesPassengers === true
                 || trip.staffSetPassengers !== true
                 || trip.passengers == null
                 || trip.passengers === ''
             );
-            let claimPassengers = clientMustPickPax
-                ? null
-                : normalizePassengerCount(svcType, trip.passengers || 1);
-            let clientDidPickPax = !clientMustPickPax;
-            let clientDidPickSchedule = !needsSchedule;
+            let claimPassengers = canChoosePax
+                ? normalizePassengerCount(svcType, trip.passengers || 1)
+                : 1;
+            // Si staff no fijó, no pre-marcar (obliga a tocar); si sí fijó, pre-selecciona pero se puede cambiar
+            let clientDidPickPax = canChoosePax ? !staffLeftPaxOpen : true;
+            if (staffLeftPaxOpen) claimPassengers = null;
+
+            // Programado: siempre editable. Inmediato: puede pasar a programado.
+            const hadSchedule = !!(
+                trip.scheduledFor
+                || trip.clientChoosesSchedule === true
+                || trip.staffSetSchedule === true
+            );
+            let wantScheduled = hadSchedule;
+            // Si staff dejó “cliente elige” sin hora, obligatorio
+            const mustSetSchedule = !!(trip.clientChoosesSchedule === true && !trip.scheduledFor);
+
             const baseKm = Number(trip.tripDistanceKm) || 0;
             const baseFareWithoutPax = (() => {
                 const listed = Number(trip.priceNum) || 0;
@@ -2024,35 +2030,34 @@ if (document.readyState === 'loading') {
             let livePrice = priceForPax(claimPassengers || 1);
             const priceLabel = () => `L. ${livePrice.toFixed(2)}`;
 
-            // Mínimo ~20 min (solo límite; campos vacíos para forzar elección consciente)
             const minDate = new Date(Date.now() + 20 * 60 * 1000);
             const minDateStr = minDate.toISOString().slice(0, 10);
+            let preDate = '';
+            let preTime = '';
+            if (trip.scheduledFor) {
+                try {
+                    const d = new Date(trip.scheduledFor);
+                    if (Number.isFinite(d.getTime())) {
+                        preDate = d.toISOString().slice(0, 10);
+                        preTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    }
+                } catch (_) {}
+            }
 
-            const missingBits = [];
-            if (clientMustPickPax) missingBits.push('cuántas personas');
-            if (needsSchedule) missingBits.push('fecha y hora');
-            const mustFillIntro = missingBits.length
-                ? `Antes de confirmar elige: <b>${missingBits.join(' y ')}</b>.`
-                : 'Si la tomas, verás ofertas de conductores.';
-
-            const confirmLabel = () => {
-                if (needsSchedule && clientMustPickPax) return 'Confirmar personas, fecha y viaje';
-                if (needsSchedule) return 'Confirmar fecha y quiero el viaje';
-                if (clientMustPickPax) return 'Confirmar personas y quiero el viaje';
-                return 'Sí, quiero este viaje';
-            };
+            const confirmLabel = () => 'Confirmar y quiero este viaje';
 
             const modal = document.createElement('div');
             modal.id = 'staff-claim-trip-modal';
+            modal.dataset.tripId = trip.id;
             modal.className = 'fixed inset-0 z-[47000] flex items-center justify-center p-4 bg-black/75';
             modal.innerHTML = `
                 <div class="bg-white rounded-3xl w-full max-w-md p-5 shadow-2xl max-h-[92dvh] overflow-y-auto">
                     <div class="text-center mb-3">
-                        <div class="w-14 h-14 mx-auto mb-2 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">${needsSchedule ? '📅' : '🚕'}</div>
-                        <h3 class="text-lg font-black text-gray-900">${needsSchedule ? 'Viaje programado para ti' : 'Te armamos un viaje'}</h3>
+                        <div class="w-14 h-14 mx-auto mb-2 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">${wantScheduled ? '📅' : '🚕'}</div>
+                        <h3 class="text-lg font-black text-gray-900">Te armamos un viaje</h3>
                         <p class="text-xs text-gray-500 font-bold mt-1 leading-snug">
                             <b>${staffName}</b> (admin/supervisor) creó esta solicitud por ti.
-                            ${mustFillIntro}
+                            Puedes <b>ajustar personas y hora</b> si no te convienen, y luego confirmar.
                         </p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left space-y-1.5 mb-4">
@@ -2062,41 +2067,50 @@ if (document.readyState === 'loading') {
                         <p class="text-sm font-bold text-gray-900">${String(trip.destination || '—')}</p>
                         <p class="text-[10px] font-black uppercase text-slate-400 mt-2">Tarifa</p>
                         <p id="staff-claim-price" class="text-base font-black text-emerald-700">${priceLabel()}</p>
-                        ${when ? `<p class="text-[11px] font-bold text-amber-700 mt-2"><i class="fas fa-calendar"></i> Programado: ${when}</p>` : ''}
                     </div>
                     ${canChoosePax ? `
-                    <div id="staff-claim-pax-box" class="rounded-2xl border ${clientMustPickPax ? 'border-blue-400 ring-2 ring-blue-200' : 'border-blue-200'} bg-blue-50 p-3 mb-4">
+                    <div id="staff-claim-pax-box" class="rounded-2xl border border-blue-300 bg-blue-50 p-3 mb-4">
                         <p class="text-[10px] font-black uppercase text-blue-700 mb-2">
                             <i class="fas fa-users"></i> ¿Cuántas personas van?
-                            ${clientMustPickPax ? '<span class="ml-1 text-blue-600 normal-case font-black">· obligatorio</span>' : ''}
+                            <span class="ml-1 text-blue-600 normal-case font-black">· puedes cambiarlo</span>
                         </p>
                         <div id="staff-claim-pax-chips" class="flex flex-wrap gap-1.5"></div>
                         <p id="staff-claim-pax-hint" class="text-[10px] font-bold text-blue-800/80 mt-2 leading-snug"></p>
                     </div>
                     ` : ''}
-                    ${needsSchedule ? `
-                    <div id="staff-claim-sched-box" class="rounded-2xl border border-amber-300 ring-2 ring-amber-100 bg-amber-50 p-3 mb-4">
+                    <div id="staff-claim-sched-box" class="rounded-2xl border border-amber-300 bg-amber-50 p-3 mb-4">
                         <p class="text-[10px] font-black uppercase text-amber-700 mb-2">
-                            <i class="fas fa-clock"></i> Fecha y hora de recogida
-                            <span class="ml-1 text-amber-600 normal-case font-black">· obligatorio</span>
+                            <i class="fas fa-clock"></i> ¿Cuándo te recogen?
+                            <span class="ml-1 text-amber-600 normal-case font-black">· puedes cambiarlo</span>
                         </p>
-                        <div class="grid grid-cols-2 gap-2">
+                        <div class="flex flex-col gap-1.5 mb-2">
+                            <label class="flex items-center gap-2 text-xs font-bold text-amber-900 cursor-pointer">
+                                <input type="radio" name="staff-claim-when" id="staff-claim-when-now" value="now" ${wantScheduled ? '' : 'checked'}>
+                                Ahora (viaje inmediato)
+                            </label>
+                            <label class="flex items-center gap-2 text-xs font-bold text-amber-900 cursor-pointer">
+                                <input type="radio" name="staff-claim-when" id="staff-claim-when-later" value="later" ${wantScheduled ? 'checked' : ''}>
+                                Programado (elijo fecha y hora)
+                            </label>
+                        </div>
+                        <div id="staff-claim-datetime" class="grid grid-cols-2 gap-2" style="display:${wantScheduled ? 'grid' : 'none'};">
                             <div>
                                 <label class="block text-[10px] font-black text-amber-800 mb-1" for="staff-claim-date">Fecha</label>
-                                <input type="date" id="staff-claim-date" min="${minDateStr}" value=""
+                                <input type="date" id="staff-claim-date" min="${minDateStr}" value="${preDate}"
                                     class="w-full rounded-xl border border-amber-200 bg-white px-2 py-2.5 text-sm font-bold text-gray-900">
                             </div>
                             <div>
                                 <label class="block text-[10px] font-black text-amber-800 mb-1" for="staff-claim-time">Hora</label>
-                                <input type="time" id="staff-claim-time" value=""
+                                <input type="time" id="staff-claim-time" value="${preTime}"
                                     class="w-full rounded-xl border border-amber-200 bg-white px-2 py-2.5 text-sm font-bold text-gray-900">
                             </div>
                         </div>
                         <p id="staff-claim-sched-hint" class="text-[10px] font-bold text-amber-800/80 mt-2 leading-snug">
-                            Elige fecha y hora (mínimo ~20 min desde ahora). El conductor lo verá.
+                            ${wantScheduled
+                                ? 'Cambia fecha u hora si no te convienen. Mínimo ~20 min desde ahora.'
+                                : 'Si prefieres más tarde, marca «Programado» y elige fecha y hora.'}
                         </p>
                     </div>
-                    ` : ''}
                     <p id="staff-claim-block-hint" class="hidden text-[11px] font-bold text-red-600 text-center mb-2"></p>
                     <button type="button" id="staff-claim-yes" class="w-full py-3.5 rounded-2xl bg-emerald-600 text-white text-sm font-black mb-2">
                         ${confirmLabel()}
@@ -2116,14 +2130,22 @@ if (document.readyState === 'loading') {
             const blockHint = modal.querySelector('#staff-claim-block-hint');
             const dateEl = modal.querySelector('#staff-claim-date');
             const timeEl = modal.querySelector('#staff-claim-time');
+            const whenNow = modal.querySelector('#staff-claim-when-now');
+            const whenLater = modal.querySelector('#staff-claim-when-later');
+            const datetimeWrap = modal.querySelector('#staff-claim-datetime');
+            const schedHint = modal.querySelector('#staff-claim-sched-hint');
 
-            const markScheduleTouched = () => {
-                if (dateEl?.value && timeEl?.value) clientDidPickSchedule = true;
+            const syncWhenUi = () => {
+                wantScheduled = !!whenLater?.checked;
+                if (datetimeWrap) datetimeWrap.style.display = wantScheduled ? 'grid' : 'none';
+                if (schedHint) {
+                    schedHint.textContent = wantScheduled
+                        ? 'Cambia fecha u hora si no te convienen. Mínimo ~20 min desde ahora.'
+                        : 'Si prefieres más tarde, marca «Programado» y elige fecha y hora.';
+                }
             };
-            dateEl?.addEventListener('change', markScheduleTouched);
-            timeEl?.addEventListener('change', markScheduleTouched);
-            dateEl?.addEventListener('input', markScheduleTouched);
-            timeEl?.addEventListener('input', markScheduleTouched);
+            whenNow?.addEventListener('change', syncWhenUi);
+            whenLater?.addEventListener('change', syncWhenUi);
 
             const renderClaimPax = () => {
                 if (!canChoosePax || !paxChips) return;
@@ -2153,47 +2175,50 @@ if (document.readyState === 'loading') {
                     paxChips.appendChild(btn);
                 }
                 if (paxHint) {
-                    if (clientMustPickPax && !clientDidPickPax) {
-                        paxHint.innerHTML = '<span class="text-blue-700 font-black">Toca 1, 2, 3 o 4. Sin esto no puedes confirmar.</span>';
+                    if (!clientDidPickPax) {
+                        paxHint.innerHTML = '<span class="text-blue-700 font-black">Toca cuántas personas van (puedes cambiarlo después).</span>';
                     } else if (sur > 0) {
                         paxHint.textContent = `${formatPassengersLabel(claimPassengers)} · +L. ${sur.toFixed(0)} extra (L. ${fee} c/u). El conductor lo verá.`;
                     } else {
-                        paxHint.textContent = `1 persona incluida. Extra L. ${fee} por cada persona más (máx ${maxPax}).`;
+                        paxHint.textContent = `1 persona incluida. Extra L. ${fee} por cada persona más (máx ${maxPax}). Toca otro número si quieres cambiar.`;
                     }
                 }
             };
             renderClaimPax();
 
             yesBtn?.addEventListener('click', async () => {
-                let scheduledFor = null;
                 const missing = [];
+                wantScheduled = !!whenLater?.checked;
 
-                if (canChoosePax && clientMustPickPax && (!clientDidPickPax || !(claimPassengers >= 1))) {
+                if (canChoosePax && (!clientDidPickPax || !(claimPassengers >= 1))) {
                     missing.push('cuántas personas van');
                     if (paxHint) {
-                        paxHint.innerHTML = '<span class="text-red-600 font-black">Elige el número de personas para continuar.</span>';
+                        paxHint.innerHTML = '<span class="text-red-600 font-black">Elige el número de personas.</span>';
                     }
                     modal.querySelector('#staff-claim-pax-box')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
                 }
 
-                if (needsSchedule) {
+                let scheduledFor = null;
+                if (wantScheduled || mustSetSchedule) {
                     const dateStr = dateEl?.value || '';
                     const timeStr = timeEl?.value || '';
-                    const hintEl = modal.querySelector('#staff-claim-sched-hint');
                     if (!dateStr || !timeStr) {
                         missing.push('fecha y hora');
-                        if (hintEl) hintEl.innerHTML = '<span class="text-red-600 font-black">Elige fecha y hora para continuar.</span>';
-                        modal.querySelector('#staff-claim-sched-box')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+                        if (schedHint) {
+                            schedHint.innerHTML = '<span class="text-red-600 font-black">Elige fecha y hora, o marca «Ahora».</span>';
+                        }
+                        if (!wantScheduled && mustSetSchedule) {
+                            whenLater.checked = true;
+                            syncWhenUi();
+                        }
                     } else {
                         scheduledFor = new Date(`${dateStr}T${timeStr}:00`).toISOString();
                         if (new Date(scheduledFor).getTime() < Date.now() + 10 * 60 * 1000) {
                             missing.push('una hora más adelante');
-                            if (hintEl) {
-                                hintEl.innerHTML = '<span class="text-red-600 font-black">La hora debe ser al menos ~10–20 min en el futuro.</span>';
+                            if (schedHint) {
+                                schedHint.innerHTML = '<span class="text-red-600 font-black">La hora debe ser al menos ~10–20 min en el futuro.</span>';
                             }
                             scheduledFor = null;
-                        } else {
-                            clientDidPickSchedule = true;
                         }
                     }
                 }
@@ -2215,9 +2240,11 @@ if (document.readyState === 'loading') {
                         ? normalizePassengerCount(svcType, claimPassengers || 1)
                         : 1;
                     await window.claimStaffCreatedTrip?.(trip.id, {
-                        scheduledFor: needsSchedule ? scheduledFor : undefined,
-                        passengers: canChoosePax ? paxFinal : undefined,
-                        priceNum: canChoosePax ? priceForPax(paxFinal) : undefined
+                        // null = inmediato; ISO = programado (siempre se envía para poder ajustar)
+                        scheduledFor: wantScheduled ? scheduledFor : null,
+                        clearSchedule: !wantScheduled,
+                        passengers: paxFinal,
+                        priceNum: priceForPax(paxFinal)
                     });
                     modal.remove();
                 } catch (e) {
@@ -2255,30 +2282,27 @@ if (document.readyState === 'loading') {
                 return;
             }
 
-            const needsSchedule = (
-                t.clientChoosesSchedule === true
-                || (!t.scheduledFor && t.bookingType === 'scheduled')
-            ) && !t.scheduledFor;
-            let scheduledFor = opts?.scheduledFor || t.scheduledFor || null;
-            if (needsSchedule) {
-                if (!scheduledFor) throw new Error('Elige la fecha y hora del viaje programado.');
+            // Cliente puede fijar o borrar horario (ajustar lo que puso staff)
+            let scheduledFor = t.scheduledFor || null;
+            if (opts?.clearSchedule === true) {
+                scheduledFor = null;
+            } else if (opts?.scheduledFor != null && opts.scheduledFor !== '') {
+                scheduledFor = opts.scheduledFor;
+            }
+            if (scheduledFor) {
                 if (new Date(scheduledFor).getTime() < Date.now() + 5 * 60 * 1000) {
                     throw new Error('La fecha/hora debe ser en el futuro.');
                 }
             }
+            if (t.clientChoosesSchedule === true && !scheduledFor && opts?.clearSchedule !== true) {
+                throw new Error('Elige la fecha y hora del viaje, o marca «Ahora».');
+            }
 
             const svc = normalizeServiceType(t.serviceType || 'auto');
-            const mustPickPax = getMaxPassengers(svc) > 1
-                && svc !== 'delivery'
-                && !isFreightService(svc)
-                && (
-                    t.clientChoosesPassengers === true
-                    || t.staffSetPassengers !== true
-                    || t.passengers == null
-                    || t.passengers === ''
-                );
-            if (mustPickPax && (opts?.passengers == null || !(Number(opts.passengers) >= 1))) {
-                throw new Error('Elige cuántas personas van en el viaje.');
+            if (getMaxPassengers(svc) > 1 && svc !== 'delivery' && !isFreightService(svc)) {
+                if (opts?.passengers == null || !(Number(opts.passengers) >= 1)) {
+                    throw new Error('Elige cuántas personas van en el viaje.');
+                }
             }
             const pax = opts?.passengers != null
                 ? normalizePassengerCount(svc, opts.passengers)
@@ -2289,7 +2313,6 @@ if (document.readyState === 'loading') {
                 priceNum = calculateServiceFare(svc, t.tripDistanceKm, null, pax);
             } else if (!(priceNum > 0)) {
                 priceNum = Number(t.priceNum) || 0;
-                // Ajustar si cambiaron personas respecto al precio guardado
                 if (pax !== (Number(t.passengers) || 1) && Number(t.priceNum) > 0) {
                     const oldSur = Number(t.passengerSurcharge) || 0;
                     const base = Math.max(0, Number(t.priceNum) - oldSur);
@@ -2307,13 +2330,14 @@ if (document.readyState === 'loading') {
                 extraPassengers: Math.max(0, pax - 1),
                 clientChoosesPassengers: false,
                 clientChosePassengersAt: serverTimestamp(),
+                clientChoosesSchedule: false,
+                staffSetPassengers: true,
                 priceNum,
-                price: `L. ${priceNum.toFixed(2)}`
+                price: `L. ${priceNum.toFixed(2)}`,
+                scheduledFor: scheduledFor || null,
+                clientChoseScheduleAt: serverTimestamp()
             };
-            if (scheduledFor) {
-                patch.scheduledFor = scheduledFor;
-                patch.clientChoseScheduleAt = serverTimestamp();
-            }
+            if (scheduledFor) patch.staffSetSchedule = true;
 
             await updateDoc(tripRef, patch);
             setStoredClientTripId?.(tripId);
@@ -2322,7 +2346,7 @@ if (document.readyState === 'loading') {
                 ...t,
                 ...patch,
                 staffCreatedClientClaimed: true,
-                scheduledFor: scheduledFor || t.scheduledFor || null,
+                scheduledFor: scheduledFor || null,
                 passengers: pax,
                 passengerSurcharge: paxSurcharge,
                 priceNum,
@@ -24941,6 +24965,18 @@ function _initDestinationArrivalPanel() {
 
         function restorePendingTripUI(data) {
             if (!data?.id) return;
+            // Viaje armado por staff sin reclamar: NO ir a “buscando conductor”
+            if (data.staffCreatedBy && data.staffCreatedClientClaimed !== true && data.status === 'pending') {
+                activeTrip = { id: data.id, ...data };
+                window.currentActiveTripData = activeTrip;
+                setStoredClientTripId?.(data.id);
+                subscribeToTripDocument?.(data.id);
+                // Ocultar búsqueda normal
+                document.getElementById('searching-state')?.classList.add('hidden');
+                document.body.classList.remove('is-searching');
+                window.showStaffCreatedTripClaimModal?.(data, { force: true });
+                return;
+            }
             window.listenForNearbyDrivers?.();
             // Forzar mostrar conductores activos "desde ya"
             setTimeout(() => window.refreshNearbyDriversFromCache?.(), 200);
@@ -25102,7 +25138,10 @@ function _initDestinationArrivalPanel() {
 
                 // Viaje creado por staff: el cliente debe adueñarse antes de ver ofertas
                 if (data.staffCreatedBy && data.staffCreatedClientClaimed !== true) {
-                    window.showStaffCreatedTripClaimModal?.(data);
+                    // No mostrar “buscando conductor” hasta que confirme
+                    document.getElementById('searching-state')?.classList.add('hidden');
+                    document.body.classList.remove('is-searching');
+                    window.showStaffCreatedTripClaimModal?.(data, { force: true });
                     window._lastNotifiedTripStatus = 'pending';
                     return;
                 }
@@ -25701,7 +25740,12 @@ function _initDestinationArrivalPanel() {
                     const pendingBackup = findMyPendingClientTrip(snap);
                     if (pendingBackup && window.userProfile?.role !== 'driver') {
                         setStoredClientTripId(pendingBackup.id);
-                        restorePendingTripUI(pendingBackup);
+                        // Si es viaje armado y no reclamado, processActiveTripUpdate muestra el modal
+                        if (pendingBackup.staffCreatedBy && pendingBackup.staffCreatedClientClaimed !== true) {
+                            processActiveTripUpdate({ ...pendingBackup });
+                        } else {
+                            restorePendingTripUI(pendingBackup);
+                        }
                         return;
                     }
 
