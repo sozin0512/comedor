@@ -167,6 +167,33 @@ service cloud.firestore {
       allow create: if isSignedIn() && isDriver(app);
     }
 
+    // Eventos de sesión del conductor (cierre de turno / descanso)
+    // addDoc genera un id aleatorio → no puede usarse isOwner(docId)
+    match /artifacts/{app}/public/data/driver_session_events/{eventId} {
+      allow create: if isSignedIn()
+        && isDriver(app)
+        && request.resource.data.driverId == requestUid();
+      allow read: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.driverId == requestUid()
+      );
+      allow update, delete: if isSignedIn() && isStaff(app);
+    }
+
+    // Notificaciones: staff crea broadcasts; conductor puede avisar a supervisores al cerrar sesión
+    match /artifacts/{app}/public/data/notifications/{notifId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && (
+        isStaff(app)
+        || (
+          isDriver(app)
+          && request.resource.data.sentBy == requestUid()
+          && request.resource.data.targetRole in ['supervisor', 'admin', 'staff']
+        )
+      );
+      allow update, delete: if isSignedIn() && isStaff(app);
+    }
+
     // ============================================================
     // CONFIGURACIÓN Y OTRAS COLECCIONES PÚBLICAS
     // ============================================================

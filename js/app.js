@@ -27208,33 +27208,71 @@ window.saveSimplePassengerProfile = async () => {
             const saldoOwed = parseFloat(window.userProfile.driverBalance) || 0;
 
             try {
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'driver_session_events'), {
-                    driverId: currentUser.uid,
-                    driverName: window.userProfile.name,
-                    phone,
-                    email,
-                    type,
-                    depositOwed,
-                    saldoPayoutOwed: saldoOwed,
-                    payoutBank: window.userProfile.payoutBank || '',
-                    payoutAccount: window.userProfile.payoutAccount || '',
-                    payoutHolder: window.userProfile.payoutHolder || '',
-                    createdAt: serverTimestamp()
-                });
+                // Evento de sesión (no debe bloquear el logout si falla)
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'driver_session_events'), {
+                        driverId: currentUser.uid,
+                        driverName: window.userProfile?.name || '',
+                        phone,
+                        email,
+                        type,
+                        depositOwed,
+                        saldoPayoutOwed: saldoOwed,
+                        payoutBank: window.userProfile?.payoutBank || '',
+                        payoutAccount: window.userProfile?.payoutAccount || '',
+                        payoutHolder: window.userProfile?.payoutHolder || '',
+                        createdAt: serverTimestamp()
+                    });
+                } catch (evErr) {
+                    console.warn('driver_session_events (logout):', evErr);
+                }
 
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
-                    driverLastLogoutType: type,
-                    driverOnBreak: type === 'break',
-                    driverLastLogoutAt: serverTimestamp(),
-                    driverLastDepositOwed: depositOwed,
-                    driverLastLogoutPhone: phone,
-                    driverLastLogoutEmail: email
-                }, { merge: true });
+                // Perfil público: campos de cierre de turno
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
+                        driverLastLogoutType: type,
+                        driverOnBreak: type === 'break',
+                        driverLastLogoutAt: serverTimestamp(),
+                        driverLastDepositOwed: depositOwed,
+                        driverLastLogoutPhone: phone,
+                        driverLastLogoutEmail: email,
+                        // Marcar offline al cerrar sesión
+                        isOnline: false,
+                        driverOnline: false
+                    }, { merge: true });
+                } catch (profErr) {
+                    console.warn('public profile logout patch:', profErr);
+                }
+
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), {
+                        driverLastLogoutType: type,
+                        driverOnBreak: type === 'break',
+                        driverLastLogoutAt: serverTimestamp(),
+                        driverLastDepositOwed: depositOwed,
+                        isOnline: false,
+                        driverOnline: false
+                    }, { merge: true });
+                } catch (_) {}
+
+                // Ubicación en vivo: offline
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid), {
+                        isOnline: false,
+                        online: false,
+                        lastSeen: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                } catch (_) {}
 
                 if (remainingToday > 0.009) {
-                    await rollTodayCommissionIntoDebt(currentUser.uid, {
-                        reason: type === 'break' ? 'break' : 'logout'
-                    });
+                    try {
+                        await rollTodayCommissionIntoDebt(currentUser.uid, {
+                            reason: type === 'break' ? 'break' : 'logout'
+                        });
+                    } catch (rollErr) {
+                        console.warn('rollTodayCommissionIntoDebt on logout:', rollErr);
+                    }
                 }
 
                 if (type === 'deposit') {
@@ -27247,8 +27285,7 @@ window.saveSimplePassengerProfile = async () => {
                     });
                 } else {
                     window.showToast('Descanso registrado. Supervisores notificados y se te recordará.', 'success');
-                    
-                    // Enhanced reminder for break with debt
+
                     let body = `Descanso registrado. Tienes deuda de L. ${depositOwed.toFixed(2)}.`;
                     if (depositOwed > 0) {
                         body += ` Recuerda depositar antes de volver a activarte.`;
@@ -27259,8 +27296,7 @@ window.saveSimplePassengerProfile = async () => {
                         tag: `logout-break-${currentUser.uid}`,
                         force: true
                     });
-                    
-                    // Immediate alert to supervisors if driver goes on break with debt
+
                     if (depositOwed > 0) {
                         try {
                             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
@@ -27277,11 +27313,14 @@ window.saveSimplePassengerProfile = async () => {
                 }
 
                 btn.closest('.fixed')?.remove();
+                // Siempre permitir salir, aunque algo de registro haya fallado
                 window.processLogout();
             } catch (e) {
                 console.error('handleDriverLogoutChoice:', e);
-                window.showToast('Error al registrar. Intenta de nuevo.');
-                btn.disabled = false;
+                // No dejar al conductor atrapado: cerrar sesión de todos modos
+                window.showToast('Cerrando sesión…', 'warning');
+                try { btn.closest('.fixed')?.remove(); } catch (_) {}
+                window.processLogout();
             }
         };
 
