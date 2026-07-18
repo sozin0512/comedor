@@ -381,7 +381,7 @@ installStaffCreateClientTrip({
     assignNextTripOffer: (id) => window.assignNextTripOffer?.(id)
 });
 
-// Clic global: pedir viaje por cliente / listar viajes armados (reenviar WA)
+// Clic global: pedir viaje por cliente / listar viajes armados / programados reservados
 document.addEventListener('click', (e) => {
     const assistedBtn = e.target?.closest?.('[data-staff-assisted-trips]');
     if (assistedBtn) {
@@ -396,6 +396,22 @@ document.addEventListener('click', (e) => {
         } catch (err) {
             console.error(err);
             window.alert(err?.message || 'Error al abrir viajes armados');
+        }
+        return;
+    }
+    const schedBtn = e.target?.closest?.('[data-staff-scheduled-reserved]');
+    if (schedBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+            if (typeof window.staffOpenScheduledReservedList === 'function') {
+                window.staffOpenScheduledReservedList();
+            } else {
+                window.alert('Función no cargada. Recarga con Ctrl+F5.');
+            }
+        } catch (err) {
+            console.error(err);
+            window.alert(err?.message || 'Error al abrir programados');
         }
         return;
     }
@@ -8089,13 +8105,88 @@ if (document.readyState === 'loading') {
             </div>`;
         }
 
+        function getStaffScheduledReservedTrips(allTrips) {
+            return (allTrips || [])
+                .filter((t) => t
+                    && !t.isDemandSimulation
+                    && t.status === 'scheduled'
+                    && !!t.driverId)
+                .sort((a, b) => {
+                    const ta = a.scheduledFor ? new Date(a.scheduledFor).getTime() : 0;
+                    const tb = b.scheduledFor ? new Date(b.scheduledFor).getTime() : 0;
+                    return ta - tb;
+                });
+        }
+
+        function buildStaffScheduledReservedSectionHtml(allTrips, cardOpts = {}) {
+            const U = window.OpsUi;
+            const list = getStaffScheduledReservedTrips(allTrips);
+            if (!list.length) {
+                return U.section({
+                    title: 'Programados reservados',
+                    subtitle: 'Con conductor asignado · reasignar o volver a publicar',
+                    icon: 'fa-calendar-check',
+                    variant: 'amber',
+                    badge: 0,
+                    body: U.empty('fa-calendar', 'No hay programados reservados', 'Cuando un conductor acepte un viaje a futuro, aparecerá aquí.'),
+                    collapsible: true,
+                    open: true
+                });
+            }
+
+            const body = list.map((t) => {
+                const when = t.scheduledFor
+                    ? (typeof formatScheduledTripWhen === 'function'
+                        ? formatScheduledTripWhen(t)
+                        : new Date(t.scheduledFor).toLocaleString('es-HN'))
+                    : 'Sin hora';
+                const mins = typeof getScheduledTripMinutesUntil === 'function'
+                    ? getScheduledTripMinutesUntil(t)
+                    : null;
+                const until = mins != null && mins > 0 ? ` · en ${mins} min` : '';
+                const banner = `
+                    <div class="mb-2 p-2.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-[11px] font-bold leading-snug">
+                        <i class="fas fa-calendar-check text-amber-600"></i>
+                        <b>PROGRAMADO · RESERVADO</b><br>
+                        Recogida: <b>${escapeViewerText(when)}</b>${escapeViewerText(until)}<br>
+                        Conductor: <b>${escapeViewerText(t.driverName || '—')}</b>
+                        · Cliente: <b>${escapeViewerText(t.clientName || '—')}</b>
+                    </div>`;
+                return renderOpsTripCard(t, {
+                    showStaffPin: true,
+                    showRoute: true,
+                    maxChatHeight: cardOpts.maxChatHeight || '6rem',
+                    phase: 'pending',
+                    actionsHtml: banner + buildStaffActiveTripActionsHtml(t, {
+                        includeDelete: cardOpts.includeDelete !== false,
+                        includeInvoice: false,
+                        includeCancel: true
+                    })
+                });
+            }).join('');
+
+            return U.section({
+                title: 'Programados reservados',
+                subtitle: 'Reasignar conductor o volver a poner en línea para otro',
+                icon: 'fa-calendar-check',
+                variant: 'amber',
+                badge: list.length,
+                body,
+                collapsible: true,
+                open: true
+            });
+        }
+
         function buildAdminTripsPageHtml(allTrips) {
-            const activeTrips = allTrips.filter((t) => ['accepted', 'in_progress', 'pending'].includes(t.status) && !t.isDemandSimulation);
+            const activeTrips = allTrips.filter((t) => ['accepted', 'in_progress', 'pending', 'scheduled'].includes(t.status) && !t.isDemandSimulation);
             const unanswered = getStaffUnansweredPendingTrips(allTrips);
             const histUnattended = getStaffHistoricalUnattendedTrips(allTrips);
             const cancelledSearches = getStaffCancelledSearchTrips(allTrips);
             const unansweredIds = new Set(unanswered.map((t) => t.id));
-            const otherActive = activeTrips.filter((t) => !unansweredIds.has(t.id));
+            const scheduledReserved = getStaffScheduledReservedTrips(allTrips);
+            // Activos “en vivo” sin los programados reservados (tienen su propia sección)
+            const scheduledIds = new Set(scheduledReserved.map((t) => t.id));
+            const otherActive = activeTrips.filter((t) => !unansweredIds.has(t.id) && !scheduledIds.has(t.id));
             const cancelledPending = getStaffCancellableCancelledTrips(allTrips);
             const U = window.OpsUi;
             const completedTotal = allTrips.filter((t) => t.status === 'completed').length;
@@ -8116,7 +8207,7 @@ if (document.readyState === 'loading') {
                 <div class="ops-trips-page-hero-text">
                     <p class="ops-trips-page-kicker"><i class="fas fa-gauge-high"></i> Centro de operaciones</p>
                     <h2 class="ops-trips-page-title">Viajes en tiempo real</h2>
-                    <p class="ops-trips-page-sub">Dashboard de activos, búsquedas canceladas y sin atención</p>
+                    <p class="ops-trips-page-sub">Dashboard de activos, programados reservados y sin atención</p>
                     <div class="mt-3 flex flex-wrap gap-2">
                         <button type="button" data-staff-create-client-trip
                             class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg">
@@ -8126,10 +8217,15 @@ if (document.readyState === 'loading') {
                             class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black shadow-lg">
                             <i class="fas fa-paper-plane"></i> Viajes armados / reenviar WA
                         </button>
+                        <button type="button" data-staff-scheduled-reserved
+                            class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-black shadow-lg">
+                            <i class="fas fa-calendar-check"></i> Programados reservados (${scheduledReserved.length})
+                        </button>
                     </div>
                 </div>
                 <div class="ops-trips-page-kpis">
                     ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
+                    ${U.kpi(scheduledReserved.length, 'Prog. reservados', scheduledReserved.length ? 'amber' : 'default')}
                     ${U.kpi(phaseCounts.to_pickup + phaseCounts.at_pickup, 'Con conductor', 'emerald')}
                     ${U.kpi(phaseCounts.in_progress, 'En curso', 'cyan')}
                     ${U.kpi(activeTrips.length, 'Activos', 'purple')}
@@ -8139,6 +8235,7 @@ if (document.readyState === 'loading') {
                 </div>
             </div>`;
             body += U.tripToolbar(activeTrips.length, completedTotal, "window.renderAdminTab('trips')", 'window.showPastTripsInAdmin()');
+            body += buildStaffScheduledReservedSectionHtml(allTrips, { includeDelete: true });
             body += buildStaffUnansweredTripsSectionHtml(allTrips, { includeDelete: true, includeCancel: true });
             body += buildStaffCancelledSearchContactSectionHtml(allTrips, { includeDelete: true });
             body += buildStaffHistoricalUnattendedSectionHtml(allTrips, { includeDelete: true });
@@ -9515,7 +9612,18 @@ if (document.readyState === 'loading') {
             const parts = [buildStaffTripPinActionsHtml(t)];
 
             const rowBtns = [];
-            if (includeCancel && isStaffUser(currentUser, window.userProfile) && ['pending', 'accepted', 'in_progress'].includes(t.status)) {
+            // Programado ya reservado: reasignar o volver a mercado
+            if (isStaffUser(currentUser, window.userProfile) && t.status === 'scheduled' && t.driverId) {
+                rowBtns.push(U.btn('Otro conductor', `window.staffOpenAssignAnyDriver('${t.id}')`, {
+                    variant: 'primary',
+                    icon: 'fa-user-exchange'
+                }));
+                rowBtns.push(U.btn('Volver en línea', `window.staffReleaseScheduledTrip('${t.id}')`, {
+                    variant: 'amber',
+                    icon: 'fa-broadcast-tower'
+                }));
+            }
+            if (includeCancel && isStaffUser(currentUser, window.userProfile) && ['pending', 'accepted', 'in_progress', 'scheduled'].includes(t.status)) {
                 rowBtns.push(U.btn('Cancelar viaje', `window.staffCancelTrip('${t.id}')`, { variant: 'warn', icon: 'fa-ban' }));
             }
             if (isStaffUser(currentUser, window.userProfile) && t.status === 'completed' && t.driverId) {
@@ -10059,6 +10167,194 @@ if (document.readyState === 'loading') {
             }
         };
 
+        /**
+         * Staff: quitar conductor de un programado y volver a publicarlo (pending).
+         * Otros conductores pueden verlo/aceptarlo de nuevo.
+         */
+        window.staffReleaseScheduledTrip = async (tripId) => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor.', 'warning');
+            }
+            if (!tripId) return;
+            try {
+                const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+                const snap = await getDoc(tripRef);
+                if (!snap.exists()) return window.showToast?.('El viaje ya no existe.');
+                const trip = snap.data();
+                if (trip.status !== 'scheduled' || !trip.driverId) {
+                    return window.showToast?.('Solo aplica a programados ya reservados con conductor.');
+                }
+                const when = trip.scheduledFor
+                    ? (typeof formatScheduledTripWhen === 'function'
+                        ? formatScheduledTripWhen({ scheduledFor: trip.scheduledFor })
+                        : String(trip.scheduledFor))
+                    : 'sin hora';
+                if (!confirm(
+                    `¿Quitar a ${trip.driverName || 'este conductor'} y volver a poner el viaje EN LÍNEA?\n\n`
+                    + `Programado: ${when}\n`
+                    + 'Otros conductores podrán verlo y aceptarlo. El cliente se mantiene.'
+                )) return;
+
+                const oldDriverId = trip.driverId;
+                const staffName = window.userProfile?.name || 'Staff';
+                const patch = {
+                    status: 'pending',
+                    driverId: null,
+                    driverName: null,
+                    driverPhoto: null,
+                    driverVehicle: null,
+                    driverVehiclePhotos: null,
+                    driverDocumentsPhotos: null,
+                    driverVehicleType: null,
+                    driverIdentity: null,
+                    driverRating: null,
+                    pin: null,
+                    driverArrived: false,
+                    acceptedAt: null,
+                    scheduledDriverReserved: false,
+                    scheduledReservedAt: null,
+                    scheduledRemindersSent: {},
+                    offeredToDriverId: null,
+                    offeredToDriverName: null,
+                    offerSentAt: null,
+                    offerDistanceKm: null,
+                    candidateDriverIds: [],
+                    negotiatedPrice: null,
+                    negotiatedBy: null,
+                    declinedDriverIds: arrayUnion(oldDriverId),
+                    staffReleasedToMarketAt: serverTimestamp(),
+                    staffReleasedToMarketBy: currentUser.uid,
+                    staffReleasedToMarketByName: staffName,
+                    staffReleasedFromDriverId: oldDriverId,
+                    staffReleasedFromDriverName: trip.driverName || null
+                };
+                // Mantener scheduledFor y staffCreatedClientClaimed
+                await updateDoc(tripRef, patch);
+
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
+                        targetUserId: oldDriverId,
+                        targetRole: 'driver',
+                        type: 'trip_staff_released',
+                        title: 'Ya no tienes ese viaje programado',
+                        message: `Soporte liberó el viaje de ${trip.clientName || 'pasajero'} (${when}). Ya no es tuyo.`,
+                        tripId,
+                        createdAt: serverTimestamp(),
+                        sentBy: currentUser.uid
+                    });
+                } catch (_) {}
+                if (trip.clientId) {
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
+                            targetUserId: trip.clientId,
+                            targetRole: 'client',
+                            type: 'trip_staff_rereleased',
+                            title: 'Buscamos otro conductor',
+                            message: `Tu viaje programado (${when}) volvió a publicarse. Te avisamos cuando alguien lo tome.`,
+                            tripId,
+                            createdAt: serverTimestamp(),
+                            sentBy: currentUser.uid
+                        });
+                    } catch (_) {}
+                }
+
+                // Intentar ofertar de nuevo (servidor / mercado)
+                try { window.assignNextTripOffer?.(tripId); } catch (_) {}
+
+                window.showToast?.('Viaje en línea de nuevo. Otros conductores pueden tomarlo.', 'success');
+                document.getElementById('staff-scheduled-reserved-modal')?.remove();
+            } catch (e) {
+                console.error('staffReleaseScheduledTrip:', e);
+                window.showToast?.(e?.message || 'No se pudo liberar el viaje.', 'error');
+            }
+        };
+
+        window.staffOpenScheduledReservedList = () => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor.', 'warning');
+            }
+            const all = window._adminTripsLastSnap || window._supervisorTripsLastSnap || [];
+            const list = typeof getStaffScheduledReservedTrips === 'function'
+                ? getStaffScheduledReservedTrips(all)
+                : all.filter((t) => t.status === 'scheduled' && t.driverId);
+
+            document.getElementById('staff-scheduled-reserved-modal')?.remove();
+            const modal = document.createElement('div');
+            modal.id = 'staff-scheduled-reserved-modal';
+            modal.setAttribute('style',
+                'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:flex-end;justify-content:center;'
+                + 'padding:0;background:rgba(0,0,0,0.75);'
+            );
+            if (window.matchMedia('(min-width: 640px)').matches) {
+                modal.style.alignItems = 'center';
+                modal.style.padding = '1rem';
+            }
+
+            const rows = list.length
+                ? list.map((t) => {
+                    const when = t.scheduledFor
+                        ? (typeof formatScheduledTripWhen === 'function'
+                            ? formatScheduledTripWhen(t)
+                            : new Date(t.scheduledFor).toLocaleString('es-HN'))
+                        : 'Sin hora';
+                    const mins = typeof getScheduledTripMinutesUntil === 'function'
+                        ? getScheduledTripMinutesUntil(t)
+                        : null;
+                    const until = mins != null && mins > 0 ? ` · en ${mins} min` : '';
+                    const origin = String(t.origin || '—').slice(0, 40);
+                    const dest = String(t.destination || '—').slice(0, 40);
+                    return `
+                    <article style="margin-bottom:0.55rem;padding:0.75rem;border-radius:0.9rem;border:1px solid #b45309;background:#1c1410;">
+                        <p style="margin:0;font-size:10px;font-weight:900;color:#fbbf24;text-transform:uppercase;">
+                            <i class="fas fa-calendar-check"></i> Programado · reservado
+                        </p>
+                        <p style="margin:0.25rem 0 0;font-size:0.95rem;font-weight:900;color:#fff;">
+                            ${escapeViewerText(when)}${escapeViewerText(until)}
+                        </p>
+                        <p style="margin:0.35rem 0 0;font-size:12px;font-weight:800;color:#e2e8f0;">
+                            ${escapeViewerText(t.clientName || 'Cliente')} → ${escapeViewerText(t.driverName || 'Conductor')}
+                        </p>
+                        <p style="margin:0.2rem 0 0;font-size:11px;font-weight:700;color:#94a3b8;">
+                            ${escapeViewerText(origin)} → ${escapeViewerText(dest)}
+                            ${t.price ? ` · ${escapeViewerText(t.price)}` : ''}
+                        </p>
+                        <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.55rem;">
+                            <button type="button" onclick="window.staffOpenAssignAnyDriver('${t.id}')"
+                                style="flex:1;min-width:7rem;padding:0.55rem;border:0;border-radius:0.65rem;background:#2563eb;color:#fff;font-weight:900;font-size:11px;cursor:pointer;">
+                                <i class="fas fa-user-exchange"></i> Otro conductor
+                            </button>
+                            <button type="button" onclick="window.staffReleaseScheduledTrip('${t.id}')"
+                                style="flex:1;min-width:7rem;padding:0.55rem;border:0;border-radius:0.65rem;background:#d97706;color:#fff;font-weight:900;font-size:11px;cursor:pointer;">
+                                <i class="fas fa-broadcast-tower"></i> Volver en línea
+                            </button>
+                        </div>
+                    </article>`;
+                }).join('')
+                : `<p style="text-align:center;color:#94a3b8;font-weight:700;padding:1.5rem 0.5rem;font-size:12px;line-height:1.4;">
+                    No hay programados con conductor reservado ahora.
+                </p>`;
+
+            modal.innerHTML = `
+                <div style="background:#0f172a;color:#fff;width:100%;max-width:28rem;max-height:92dvh;overflow:auto;
+                    border-radius:1.25rem 1.25rem 0 0;border:1px solid #334155;padding:1.1rem;">
+                    <div style="display:flex;justify-content:space-between;gap:0.75rem;margin-bottom:0.75rem;">
+                        <div>
+                            <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#fbbf24;">Staff</p>
+                            <h3 style="margin:0.2rem 0 0;font-size:1.1rem;font-weight:900;">Programados reservados</h3>
+                            <p style="margin:0.35rem 0 0;font-size:11px;color:#94a3b8;font-weight:700;line-height:1.35;">
+                                Reasigna conductor o vuelve a publicar el viaje para que otro lo acepte.
+                            </p>
+                        </div>
+                        <button type="button" id="staff-sched-res-close" style="width:2.5rem;height:2.5rem;border-radius:999px;background:#1e293b;color:#cbd5e1;border:0;font-size:1.25rem;cursor:pointer;">&times;</button>
+                    </div>
+                    <div>${rows}</div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.querySelector('#staff-sched-res-close')?.addEventListener('click', () => modal.remove());
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        };
+
         window.staffAssignTripToViewer = async (tripId, driverId) => {
             if (!isStaffUser(currentUser, window.userProfile)) {
                 return window.showToast?.('Solo admin o supervisor puede asignar viajes.');
@@ -10076,13 +10372,31 @@ if (document.readyState === 'loading') {
 
                 const trip = tripSnap.data();
                 const d = driverSnap.data();
-                if (trip.status !== 'pending' || trip.driverId) {
-                    return window.showToast?.('Solo se puede asignar en viajes pendientes sin conductor.');
+                const isPendingOpen = trip.status === 'pending' && !trip.driverId;
+                const isScheduledReassign = trip.status === 'scheduled' && !!trip.driverId;
+                if (!isPendingOpen && !isScheduledReassign) {
+                    return window.showToast?.('Solo se puede asignar en pendientes sin conductor o reasignar programados reservados.');
                 }
                 if (d.role !== 'driver') return window.showToast?.('El usuario no es conductor.');
+                if (isScheduledReassign && trip.driverId === driverId) {
+                    return window.showToast?.('Ese conductor ya tiene este viaje programado.');
+                }
 
                 const driverName = d.name || 'Conductor';
-                if (!confirm(`¿Asignar este viaje directamente a ${driverName}?\n\nEl conductor verá el viaje aceptado y deberá ir al origen con el PIN del pasajero.`)) return;
+                const reserveSched = typeof shouldReserveAsScheduledTrip === 'function'
+                    ? shouldReserveAsScheduledTrip(trip)
+                    : !!(trip.scheduledFor && new Date(trip.scheduledFor).getTime() > Date.now() + 10 * 60 * 1000);
+                const whenLabel = trip.scheduledFor
+                    ? (typeof formatScheduledTripWhen === 'function'
+                        ? formatScheduledTripWhen(trip)
+                        : String(trip.scheduledFor))
+                    : '';
+                const confirmMsg = isScheduledReassign
+                    ? `¿Reasignar el programado (${whenLabel}) a ${driverName}?\n\nSe quita a ${trip.driverName || 'el conductor actual'}.`
+                    : (reserveSched
+                        ? `¿Reservar el programado (${whenLabel}) a ${driverName}?`
+                        : `¿Asignar este viaje directamente a ${driverName}?\n\nEl conductor verá el viaje aceptado y deberá ir al origen.`);
+                if (!confirm(confirmMsg)) return;
 
                 const rating = d.ratingCount > 0 ? (d.ratingSum / d.ratingCount).toFixed(1) : '5.0';
                 const pin = Math.floor(1000 + Math.random() * 9000).toString();
@@ -10094,7 +10408,7 @@ if (document.readyState === 'loading') {
                     || (isAdminUser(currentUser, window.userProfile) ? 'Administrador' : 'Supervisor');
 
                 const saldoHoldFields = {};
-                if (trip.paymentMethod === 'saldo' && trip.clientId && !isBirthdayGift && !trip.saldoCharged) {
+                if (!isScheduledReassign && trip.paymentMethod === 'saldo' && trip.clientId && !isBirthdayGift && !trip.saldoCharged) {
                     const chargeAmt = getPassengerSaldoChargeAmount(trip);
                     await deductPassengerSaldo(trip.clientId, chargeAmt);
                     saldoHoldFields.saldoCharged = true;
@@ -10102,8 +10416,10 @@ if (document.readyState === 'loading') {
                     saldoHoldFields.saldoChargedAt = serverTimestamp();
                 }
 
+                const oldDriverId = isScheduledReassign ? trip.driverId : null;
+                const nextStatus = reserveSched ? 'scheduled' : 'accepted';
                 const acceptPatch = {
-                    status: 'accepted',
+                    status: nextStatus,
                     driverId,
                     driverName,
                     driverPhoto: d.photo || null,
@@ -10130,6 +10446,16 @@ if (document.readyState === 'loading') {
                     staffAssignedFromViewers: !!(trip.viewedBy && trip.viewedBy[driverId]),
                     ...saldoHoldFields
                 };
+                if (reserveSched) {
+                    acceptPatch.scheduledDriverReserved = true;
+                    acceptPatch.scheduledReservedAt = serverTimestamp();
+                    acceptPatch.scheduledRemindersSent = {};
+                }
+                if (oldDriverId) {
+                    acceptPatch.declinedDriverIds = arrayUnion(oldDriverId);
+                    acceptPatch.staffReassignedFromDriverId = oldDriverId;
+                    acceptPatch.staffReassignedFromDriverName = trip.driverName || null;
+                }
 
                 if (trip.negotiatedPrice != null) {
                     acceptPatch.price = `L. ${priceNum.toFixed(2)}`;
@@ -10143,16 +10469,38 @@ if (document.readyState === 'loading') {
                         targetUserId: driverId,
                         targetRole: 'driver',
                         type: 'trip_staff_assigned',
-                        title: 'Viaje asignado por soporte',
-                        message: `Te asignaron un viaje de ${trip.clientName || 'pasajero'}. Revisa tu app y ve al origen.`,
+                        title: reserveSched ? 'Viaje programado asignado' : 'Viaje asignado por soporte',
+                        message: reserveSched
+                            ? `Te reservaron un viaje programado (${whenLabel}) de ${trip.clientName || 'pasajero'}.`
+                            : `Te asignaron un viaje de ${trip.clientName || 'pasajero'}. Revisa tu app y ve al origen.`,
                         tripId,
                         createdAt: serverTimestamp(),
                         sentBy: currentUser.uid
                     });
                 } catch (_) {}
+                if (oldDriverId) {
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
+                            targetUserId: oldDriverId,
+                            targetRole: 'driver',
+                            type: 'trip_staff_reassigned',
+                            title: 'Te quitaron un programado',
+                            message: `Soporte reasignó el viaje de ${trip.clientName || 'pasajero'} a otro conductor.`,
+                            tripId,
+                            createdAt: serverTimestamp(),
+                            sentBy: currentUser.uid
+                        });
+                    } catch (_) {}
+                }
 
-                window.showToast?.(`Viaje asignado a ${driverName}. PIN: ${pin}`, 'success');
+                window.showToast?.(
+                    reserveSched
+                        ? `Programado reservado a ${driverName}.`
+                        : `Viaje asignado a ${driverName}. PIN: ${pin}`,
+                    'success'
+                );
                 document.getElementById('staff-assign-any-driver-modal')?.remove();
+                document.getElementById('staff-scheduled-reserved-modal')?.remove();
             } catch (e) {
                 console.error('staffAssignTripToViewer:', e);
                 window.showToast?.(e?.message || 'No se pudo asignar el viaje.');
@@ -10161,7 +10509,7 @@ if (document.readyState === 'loading') {
 
         /**
          * Staff: abrir selector de CUALQUIER conductor para asignar/ofertar un viaje pendiente,
-         * aunque no lo haya visto (viewedBy).
+         * aunque no lo haya visto (viewedBy). También reasignar programados reservados.
          */
         window.staffOpenAssignAnyDriver = async (tripId) => {
             if (!isStaffUser(currentUser, window.userProfile)) {
@@ -10174,8 +10522,10 @@ if (document.readyState === 'loading') {
                 const tripSnap = await getDoc(tripRef);
                 if (!tripSnap.exists()) return window.showToast?.('El viaje ya no existe.');
                 const trip = { id: tripId, ...tripSnap.data() };
-                if (trip.status !== 'pending' || trip.driverId) {
-                    return window.showToast?.('Solo se puede asignar en viajes pendientes sin conductor.');
+                const isPendingOpen = trip.status === 'pending' && !trip.driverId;
+                const isScheduledReassign = trip.status === 'scheduled' && !!trip.driverId;
+                if (!isPendingOpen && !isScheduledReassign) {
+                    return window.showToast?.('Solo pendientes sin conductor o programados reservados.');
                 }
 
                 let drivers = (window.allUsersData || []).filter((u) =>
@@ -10243,17 +10593,24 @@ if (document.readyState === 'loading') {
                     }).join('')
                     : '<p class="ops-trip-viewers-empty">No hay conductores aprobados en la lista.</p>';
 
+                const assignTitle = isScheduledReassign
+                    ? 'Reasignar programado'
+                    : 'Asignar a cualquier conductor';
+                const assignHint = isScheduledReassign
+                    ? `Este viaje ya lo tiene <b>${escapeViewerText(trip.driverName || 'un conductor')}</b>. Elige otro para reasignarlo (sigue programado).`
+                    : 'Puedes asignar u ofertar aunque el conductor <b>no haya visto</b> la solicitud en su app.';
+
                 modal.innerHTML = `
                     <div class="ops-assign-any-modal-card">
                         <div class="ops-assign-any-modal-head">
                             <div>
-                                <h3 class="ops-assign-any-modal-title"><i class="fas fa-user-plus"></i> Asignar a cualquier conductor</h3>
+                                <h3 class="ops-assign-any-modal-title"><i class="fas fa-user-plus"></i> ${assignTitle}</h3>
                                 <p class="ops-assign-any-modal-sub">${clientLabel} · ${priceLabel}</p>
                                 <p class="ops-assign-any-modal-route">${originLabel} → ${destLabel}</p>
                             </div>
                             <button type="button" id="staff-assign-any-close" class="ops-assign-any-close" aria-label="Cerrar">&times;</button>
                         </div>
-                        <p class="ops-assign-any-hint">Puedes asignar u ofertar aunque el conductor <b>no haya visto</b> la solicitud en su app.</p>
+                        <p class="ops-assign-any-hint">${assignHint}</p>
                         <input type="search" id="staff-assign-any-search" class="ops-input ops-assign-any-search" placeholder="Buscar nombre, WhatsApp, placa o correo…" autocomplete="off">
                         <div class="ops-assign-any-list" id="staff-assign-any-list">${rowsHtml}</div>
                         <p class="ops-assign-any-count" id="staff-assign-any-count">${drivers.length} conductor${drivers.length === 1 ? '' : 'es'}</p>
@@ -32361,12 +32718,14 @@ window.addEventListener('map-route-trigger', () => {
         };
 
         function buildSupervisorTripsPageHtml(allTrips) {
-            const activeTrips = allTrips.filter((t) => ['accepted', 'in_progress', 'pending'].includes(t.status) && !t.isDemandSimulation);
+            const activeTrips = allTrips.filter((t) => ['accepted', 'in_progress', 'pending', 'scheduled'].includes(t.status) && !t.isDemandSimulation);
             const unanswered = getStaffUnansweredPendingTrips(allTrips);
             const histUnattended = getStaffHistoricalUnattendedTrips(allTrips);
             const cancelledSearches = getStaffCancelledSearchTrips(allTrips);
             const unansweredIds = new Set(unanswered.map((t) => t.id));
-            const otherActive = activeTrips.filter((t) => !unansweredIds.has(t.id));
+            const scheduledReserved = getStaffScheduledReservedTrips(allTrips);
+            const scheduledIds = new Set(scheduledReserved.map((t) => t.id));
+            const otherActive = activeTrips.filter((t) => !unansweredIds.has(t.id) && !scheduledIds.has(t.id));
             const cancelledPending = getStaffCancellableCancelledTrips(allTrips);
             const pastTrips = allTrips.filter((t) => t.status === 'completed')
                 .sort((a, b) => (b.completedAt?.seconds || 0) - (a.completedAt?.seconds || 0))
@@ -32385,10 +32744,11 @@ window.addEventListener('map-route-trigger', () => {
                 <div class="ops-trips-page-hero-text">
                     <p class="ops-trips-page-kicker"><i class="fas fa-gauge-high"></i> Supervisión</p>
                     <h2 class="ops-trips-page-title">Viajes en tiempo real</h2>
-                    <p class="ops-trips-page-sub">Dashboard de activos, búsquedas canceladas y sin atención</p>
+                    <p class="ops-trips-page-sub">Activos, programados reservados y sin atención</p>
                 </div>
                 <div class="ops-trips-page-kpis">
                     ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
+                    ${U.kpi(scheduledReserved.length, 'Prog. reservados', scheduledReserved.length ? 'amber' : 'default')}
                     ${U.kpi(phaseCounts.to_pickup + phaseCounts.at_pickup, 'Con conductor', 'emerald')}
                     ${U.kpi(phaseCounts.in_progress, 'En curso', 'cyan')}
                     ${U.kpi(activeTrips.length, 'Activos', 'purple')}
@@ -32398,6 +32758,7 @@ window.addEventListener('map-route-trigger', () => {
                 </div>
             </div>`;
             body += U.tripToolbar(activeTrips.length, completedTotal, 'window.loadSupervisorTrips()', 'window.loadSupervisorPastTrips()');
+            body += buildStaffScheduledReservedSectionHtml(allTrips, { includeDelete: true });
             body += buildStaffUnansweredTripsSectionHtml(allTrips, {
                 includeDelete: true,
                 includeInvoice: true,

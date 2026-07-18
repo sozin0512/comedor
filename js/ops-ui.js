@@ -135,6 +135,10 @@ export function opsTripToolbar(activeCount, pastCount, activeOnclick, pastOnclic
                 title="Ver viajes armados por staff y reenviar WhatsApp">
                 <i class="fas fa-paper-plane"></i> Viajes armados / reenviar
             </button>
+            <button type="button" class="ops-chip ops-chip--amber" data-staff-scheduled-reserved
+                title="Programados ya reservados: reasignar o volver a publicar">
+                <i class="fas fa-calendar-check"></i> Programados reservados
+            </button>
         </div>
     `;
 }
