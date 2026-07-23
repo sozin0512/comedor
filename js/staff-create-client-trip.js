@@ -782,10 +782,10 @@ export function installStaffCreateClientTrip({
                     if (staffPassengers == null) {
                         paxHint.innerHTML = 'El <b style="color:#93c5fd;">cliente elige</b> 1–' + maxP + ' al abrir la notificación. Se muestra tarifa base (1 pers.).';
                     } else {
-                        const sur = getPassengerSurcharge(svc, staffPassengers);
+                        const sur = getPassengerSurcharge(svc, staffPassengers, routeState.km);
                         paxHint.textContent = sur > 0
                             ? `${formatPassengersLabel(staffPassengers)} · +L. ${sur.toFixed(0)} extra (L. ${fee} c/u). El conductor verá que van ${staffPassengers}.`
-                            : `Fijaste 1 persona. Extra L. ${fee} c/u (máx ${maxP}). El cliente aún puede cambiar al confirmar.`;
+                            : `Fijaste 1 persona. El cliente aún puede cambiar al confirmar.`;
                     }
                 }
             };
@@ -1258,11 +1258,11 @@ export function installStaffCreateClientTrip({
                 : clientChoosesPassengers
                     ? 1
                     : normalizePassengerCount(serviceType, parseInt(rawPaxVal, 10) || 1);
-            const passengerSurcharge = getPassengerSurcharge(serviceType, passengers);
+            const passengerSurcharge = getPassengerSurcharge(serviceType, passengers, tripDistanceKm);
 
             const routeFare = tripDistanceKm > 0
                 ? calculateServiceFare(serviceType, tripDistanceKm, null, passengers)
-                : applyPassengerSurcharge(50, serviceType, passengers);
+                : applyPassengerSurcharge(50, serviceType, passengers, tripDistanceKm);
 
             // Precio: override manual si hay; si no, tarifa de la ruta (base 1 pers. si cliente elige)
             let priceNum = priceOverride > 0 ? priceOverride : routeFare;

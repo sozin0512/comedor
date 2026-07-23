@@ -245,6 +245,23 @@ export const EXTRA_PASSENGER_FEE = {
     grua: 0,
 };
 
+const INTERCITY_PASSENGER_SURCHARGE_MIN_KM = 25;
+
+function resolvePassengerTripDistance(tripContext = null) {
+    if (typeof tripContext === 'number') return tripContext;
+    if (!tripContext || typeof tripContext !== 'object') return null;
+    return tripContext.distanceKm
+        ?? tripContext.km
+        ?? tripContext.tripDistanceKm
+        ?? tripContext.distanceKmForCharge
+        ?? null;
+}
+
+export function isIntercityPassengerTrip(tripContext = null) {
+    const distanceKm = Number(resolvePassengerTripDistance(tripContext));
+    return Number.isFinite(distanceKm) && distanceKm > INTERCITY_PASSENGER_SURCHARGE_MIN_KM;
+}
+
 export function getMaxPassengers(type) {
     const t = normalizeServiceType(type);
     return MAX_PASSENGERS_BY_SERVICE[t] ?? 4;
@@ -266,16 +283,17 @@ export function normalizePassengerCount(type, count) {
 }
 
 /** Monto extra por personas adicionales (0 si va 1). */
-export function getPassengerSurcharge(type, passengers = 1) {
+export function getPassengerSurcharge(type, passengers = 1, tripContext = null) {
     const pax = normalizePassengerCount(type, passengers);
+    if (!isIntercityPassengerTrip(tripContext)) return 0;
     const extra = Math.max(0, pax - 1);
     if (extra <= 0) return 0;
     return Math.round(extra * getExtraPassengerFee(type) * 100) / 100;
 }
 
-export function applyPassengerSurcharge(baseFare, type, passengers = 1) {
+export function applyPassengerSurcharge(baseFare, type, passengers = 1, tripContext = null) {
     const base = Math.max(0, parseFloat(baseFare) || 0);
-    const surcharge = getPassengerSurcharge(type, passengers);
+    const surcharge = getPassengerSurcharge(type, passengers, tripContext);
     return Math.round((base + surcharge) * 100) / 100;
 }
 
@@ -306,7 +324,7 @@ export function calculateServiceFare(type, km, conditions = null, passengersOrOp
     else if (passengersOrOpts && typeof passengersOrOpts === 'object') {
         passengers = passengersOrOpts.passengers ?? 1;
     }
-    fare = applyPassengerSurcharge(fare, type, passengers);
+    fare = applyPassengerSurcharge(fare, type, passengers, km);
     return Math.round(fare * 100) / 100;
 }
 
@@ -1104,9 +1122,9 @@ export function calculateHourlyFare(type, hours = 1, options = {}, conditions = 
         total = total * (1 + conditions.weatherSurchargePercent / 100);
     }
 
-    // Personas extra (mismo cobro fijo por persona adicional)
+    // Personas extra solo en viajes interciudad.
     if (options.passengers != null) {
-        total = applyPassengerSurcharge(total, type, options.passengers);
+        total = applyPassengerSurcharge(total, type, options.passengers, options.distanceKm);
     }
 
     return Math.round(total * 100) / 100;

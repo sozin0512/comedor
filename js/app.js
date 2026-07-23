@@ -2191,14 +2191,14 @@ if (document.readyState === 'loading') {
             const baseFareWithoutPax = (() => {
                 const listed = Number(trip.priceNum) || 0;
                 const storedSur = Number(trip.passengerSurcharge) || 0;
-                if (listed > 0 && storedSur > 0) return Math.max(0, listed - storedSur);
+                if (listed > 0 && storedSur > 0 && baseKm > 25) return Math.max(0, listed - storedSur);
                 if (baseKm > 0) return calculateServiceFare(svcType, baseKm, null, 1);
                 return listed || 0;
             })();
             const priceForPax = (p) => {
                 const n = Math.max(1, parseInt(p, 10) || 1);
                 if (baseKm > 0) return calculateServiceFare(svcType, baseKm, null, n);
-                return applyPassengerSurcharge(baseFareWithoutPax || 50, svcType, n);
+                return applyPassengerSurcharge(baseFareWithoutPax || 50, svcType, n, baseKm);
             };
             let livePrice = priceForPax(claimPassengers || 1);
             const priceLabel = () => `L. ${livePrice.toFixed(2)}`;
@@ -2324,7 +2324,7 @@ if (document.readyState === 'loading') {
                 if (!canChoosePax || !paxChips) return;
                 const fee = getExtraPassengerFee(svcType);
                 const paxN = claimPassengers != null ? claimPassengers : 0;
-                const sur = paxN > 0 ? getPassengerSurcharge(svcType, paxN) : 0;
+                const sur = paxN > 0 ? getPassengerSurcharge(svcType, paxN, baseKm) : 0;
                 livePrice = priceForPax(paxN || 1);
                 if (priceEl) priceEl.textContent = priceLabel();
                 paxChips.innerHTML = '';
@@ -2353,7 +2353,7 @@ if (document.readyState === 'loading') {
                     } else if (sur > 0) {
                         paxHint.textContent = `${formatPassengersLabel(claimPassengers)} · +L. ${sur.toFixed(0)} extra (L. ${fee} c/u). El conductor lo verá.`;
                     } else {
-                        paxHint.textContent = `1 persona incluida. Extra L. ${fee} por cada persona más (máx ${maxPax}). Toca otro número si quieres cambiar.`;
+                        paxHint.textContent = `1 persona incluida. Toca otro número si quieres cambiar.`;
                     }
                 }
             };
@@ -2480,7 +2480,7 @@ if (document.readyState === 'loading') {
             const pax = opts?.passengers != null
                 ? normalizePassengerCount(svc, opts.passengers)
                 : normalizePassengerCount(svc, t.passengers || 1);
-            const paxSurcharge = getPassengerSurcharge(svc, pax);
+            const paxSurcharge = getPassengerSurcharge(svc, pax, trip.tripDistanceKm || trip.tripDistanceKmForCharge || 0);
             let priceNum = opts?.priceNum != null ? Number(opts.priceNum) : null;
             if (!(priceNum > 0) && Number(t.tripDistanceKm) > 0) {
                 priceNum = calculateServiceFare(svc, t.tripDistanceKm, null, pax);
@@ -2489,7 +2489,7 @@ if (document.readyState === 'loading') {
                 if (pax !== (Number(t.passengers) || 1) && Number(t.priceNum) > 0) {
                     const oldSur = Number(t.passengerSurcharge) || 0;
                     const base = Math.max(0, Number(t.priceNum) - oldSur);
-                    priceNum = applyPassengerSurcharge(base, svc, pax);
+                    priceNum = applyPassengerSurcharge(base, svc, pax, trip.tripDistanceKm || trip.tripDistanceKmForCharge || 0);
                 }
             }
             priceNum = Math.round((priceNum || 0) * 100) / 100;
@@ -2942,7 +2942,7 @@ if (document.readyState === 'loading') {
             const hours = window.currentReservedHours || 1;
             const pax = normalizePassengerCount(serviceType, window.currentPassengers || 1);
             window.currentPassengers = pax;
-            const paxSurcharge = getPassengerSurcharge(serviceType, pax);
+            const paxSurcharge = getPassengerSurcharge(serviceType, pax, km);
             let price;
             if (isHourly) {
                 const hourlyOpts = getCurrentHourlyOptions();
@@ -6170,13 +6170,15 @@ if (document.readyState === 'loading') {
             // Personas en el viaje (pasajero eligió)
             {
                 const paxN = Math.max(1, parseInt(t.passengers, 10) || 1);
+                const tripKm = Number(t.distanceKmForCharge ?? t.tripDistanceKm ?? t.km ?? 0);
+                const surcharge = getPassengerSurcharge(t.serviceType, paxN, tripKm);
                 if (paxN > 1) {
-                    const surcharge = Number(t.passengerSurcharge) > 0
-                        ? ` · +L. ${Number(t.passengerSurcharge).toFixed(0)} extra`
+                    const surchargeText = surcharge > 0
+                        ? ` · +L. ${surcharge.toFixed(0)} extra`
                         : '';
                     detailParts.push(
                         `<p class="driver-offer-detail-line driver-offer-detail-line--pax" style="color:#b45309;font-weight:900;">`
-                        + `<i class="fas fa-users"></i> <b>${paxN} PERSONAS</b> en este viaje${surcharge}</p>`
+                        + `<i class="fas fa-users"></i> <b>${paxN} PERSONAS</b> en este viaje${surchargeText}</p>`
                     );
                 } else if (t.bookingType !== 'hourly' && t.serviceType !== 'delivery' && !isFreightService(t.serviceType)) {
                     detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-user"></i> 1 persona</p>`);
@@ -28633,7 +28635,7 @@ window.cancelSetupAndLogout = () => {
             let current = normalizePassengerCount(svc, window.currentPassengers || 1);
             window.currentPassengers = current;
             const fee = getExtraPassengerFee(svc);
-            const surcharge = getPassengerSurcharge(svc, current);
+            const surcharge = getPassengerSurcharge(svc, current, window.currentTripQuote?.km || window.currentRouteData?.distanceKm || 0);
 
             // Chips fijos 1–4 en HTML (clientes comunes); habilitar según servicio
             let chips = container.querySelectorAll('[data-trip-pax]');
@@ -28693,10 +28695,10 @@ window.cancelSetupAndLogout = () => {
                     hint.textContent = 'Este servicio no admite pasajeros extra.';
                 } else if (surcharge > 0) {
                     hint.innerHTML = `<span class="text-amber-800 font-black">Van ${current} · +L. ${surcharge.toFixed(0)} extra</span> (L. ${fee} c/u). El conductor verá que son ${current} personas.`;
-                } else if (svc === 'moto') {
-                    hint.textContent = `Moto: máximo 2 personas. Extra L. ${fee} por la 2.ª. Para 3–4 elige Taxi VIP o taxi (máx 4).`;
                 } else {
-                    hint.textContent = `1 persona incluida. Extra L. ${fee} por cada persona más. Límite ${maxP} personas. El conductor lo verá.`;
+                    hint.textContent = svc === 'moto'
+                        ? 'Moto: máximo 2 personas.'
+                        : `1 persona incluida. Límite ${maxP} personas. El conductor lo verá.`;
                 }
             }
         };
@@ -29665,7 +29667,7 @@ window.cancelSetupAndLogout = () => {
                 ? 1
                 : normalizePassengerCount(serviceType, window.currentPassengers || window.currentTripQuote?.passengers || 1);
             window.currentPassengers = tripPassengers;
-            const tripPassengerSurcharge = getPassengerSurcharge(serviceType, tripPassengers);
+            const tripPassengerSurcharge = getPassengerSurcharge(serviceType, tripPassengers, km);
 
             let priceNum;
             if (isHourly) {
@@ -32874,7 +32876,7 @@ window.calculateTripRoute = async (options = {}) => {
             : normalizePassengerCount(serviceType, window.currentPassengers || 1);
         window.currentPassengers = calcPassengers;
         if (isHourlyCalc) hourlyOpts.passengers = calcPassengers;
-        const calcPaxSurcharge = getPassengerSurcharge(serviceType, calcPassengers);
+        const calcPaxSurcharge = getPassengerSurcharge(serviceType, calcPassengers, km);
 
         let freightFareQuote = null;
         const price = isHourlyCalc
