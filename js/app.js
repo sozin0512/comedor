@@ -9046,8 +9046,10 @@ if (document.readyState === 'loading') {
             groupedUsers.forEach((group) => {
                 if (group.zoneName) {
                     const zoneKey = escapeViewerText(slugifyAdminUserGroup(group.zoneName, group.zoneId));
+                    // Una sola ciudad: abierta por defecto; varias: el buscador abre la que coincida
+                    const openByDefault = groupedUsers.length === 1 ? ' open' : '';
                     body += `
-                        <details class="ops-user-group mb-3 rounded-2xl border border-slate-700/70 bg-slate-900/50" data-admin-group="${zoneKey}">
+                        <details class="ops-user-group mb-3 rounded-2xl border border-slate-700/70 bg-slate-900/50" data-admin-group="${zoneKey}"${openByDefault}>
                             <summary class="ops-user-group-header p-4 cursor-pointer">
                                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                     <div>
@@ -9225,11 +9227,13 @@ if (document.readyState === 'loading') {
                     && (pendingFromDoc || (statsForCard.pendingDepositDebt || 0) || (statsForCard.remainingToDeposit || 0)) > 0;
 
                 const referralCodeData = (u.referralCode || '').toLowerCase();
+                // Escapar comillas en data-* para que el buscador no pierda atributos
+                const escData = (s) => String(s || '').toLowerCase().replace(/"/g, '&quot;').replace(/</g, '');
                 body += `
                     <div class="ops-user-card driver-card admin-user-card flex flex-col items-start gap-2" 
                          data-role="${role}"
-                         data-name="${(u.name || '').toLowerCase()}" data-phone="${u.phone || ''}" data-email="${(getUserDisplayEmail(u) || '').toLowerCase()}" data-plate="${(u.vehicle?.plate || '').toLowerCase()}"
-                         data-referral="${referralCodeData}"
+                         data-name="${escData(u.name)}" data-phone="${escData(u.phone || getUserDisplayPhone?.(u) || '')}" data-email="${escData(getUserDisplayEmail(u) || '')}" data-plate="${escData(u.vehicle?.plate || '')}"
+                         data-referral="${escData(referralCodeData)}"
                          data-resting="${isRestingForCard ? 1 : 0}" data-pending="${hasPendingForCard ? 1 : 0}"
                          data-status="${status}">
                         <div class="flex items-center gap-3 w-full">
@@ -9266,7 +9270,8 @@ if (document.readyState === 'loading') {
                 }
             });
 
-            if (role === 'driver') {
+            // Cerrar #admin-*-container + ops-user-list (client/supervisor antes dejaban un </div> colgado)
+            if (role === 'driver' || role === 'client' || role === 'supervisor') {
                 body += `</div>${U.userListClose()}`;
             } else {
                 body += U.userListClose();
@@ -14950,22 +14955,83 @@ if (document.readyState === 'loading') {
 
         // === NUEVAS FUNCIONES: Notificación individual + Buscador ===
 
+        /** Quita acentos para que "jose" encuentre "José". */
+        function foldOpsSearchText(value) {
+            return String(value || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
+        }
+
         function adminUserCardMatchesSearch(card, term) {
             if (!term) return true;
-            const t = term.toLowerCase().trim();
+            const t = foldOpsSearchText(term);
             if (!t) return true;
-            const name = card.dataset.name || '';
+            const name = foldOpsSearchText(card.dataset.name || '');
             const phoneRaw = String(card.dataset.phone || '');
-            const phoneFmt = formatHondurasPhone(phoneRaw);
+            let phoneFmt = '';
+            try { phoneFmt = formatHondurasPhone(phoneRaw) || ''; } catch (_) { phoneFmt = phoneRaw; }
             const phoneDigits = phoneRaw.replace(/\D/g, '');
-            const termDigits = t.replace(/\D/g, '');
-            const email = card.dataset.email || '';
-            const plate = card.dataset.plate || '';
-            const referral = card.dataset.referral || '';
-            if (name.includes(t) || email.includes(t) || plate.includes(t) || referral.includes(t)) return true;
-            if (phoneFmt.toLowerCase().includes(t) || phoneRaw.toLowerCase().includes(t)) return true;
-            if (termDigits && phoneDigits.includes(termDigits)) return true;
+            const termDigits = String(term).replace(/\D/g, '');
+            const email = foldOpsSearchText(card.dataset.email || '');
+            const plate = foldOpsSearchText(card.dataset.plate || '');
+            const referral = foldOpsSearchText(card.dataset.referral || '');
+            const identity = foldOpsSearchText(card.dataset.identity || '');
+            if (name.includes(t) || email.includes(t) || plate.includes(t) || referral.includes(t) || identity.includes(t)) return true;
+            if (foldOpsSearchText(phoneFmt).includes(t) || foldOpsSearchText(phoneRaw).includes(t)) return true;
+            // Teléfono: basta con 4+ dígitos para no filtrar basura al escribir nombre con números raros
+            if (termDigits.length >= 3 && phoneDigits.includes(termDigits)) return true;
             return false;
+        }
+
+        /**
+         * Al buscar/filtrar: abre los <details> de ciudad con coincidencias y oculta los vacíos.
+         * Sin filtro: restaura visibilidad de grupos (no fuerza open/closed).
+         */
+        function syncOpsUserGroupsAfterFilter(listRoot, { filtering = false } = {}) {
+            if (!listRoot) return;
+            const scope = listRoot.closest?.('.ops-page') || listRoot;
+            listRoot.querySelectorAll('.ops-user-group').forEach((group) => {
+                const cards = group.querySelectorAll('.admin-user-card, .driver-card');
+                if (!cards.length) {
+                    group.style.display = filtering ? 'none' : '';
+                    return;
+                }
+                let anyVisible = false;
+                cards.forEach((card) => {
+                    if (card.style.display !== 'none') anyVisible = true;
+                });
+                if (filtering) {
+                    group.style.display = anyVisible ? '' : 'none';
+                    if (anyVisible) group.open = true;
+                } else {
+                    group.style.display = '';
+                }
+            });
+            // Chips de ciudad: solo las con resultados al filtrar
+            scope.querySelectorAll?.('.ops-city-chip').forEach((chip) => {
+                if (!filtering) {
+                    chip.style.display = '';
+                    return;
+                }
+                const onclick = chip.getAttribute('onclick') || '';
+                const m = onclick.match(/jumpToAdminUserGroup\('(?:client|driver)',\s*'([^']+)'\)/);
+                const zoneKey = m?.[1];
+                if (!zoneKey) {
+                    chip.style.display = '';
+                    return;
+                }
+                const group = scope.querySelector(`[data-admin-group="${zoneKey}"]`);
+                chip.style.display = (group && group.style.display !== 'none') ? '' : 'none';
+            });
+        }
+
+        function getAdminListRootForRole(role) {
+            if (role === 'driver') return document.getElementById('admin-drivers-container');
+            if (role === 'client') return document.getElementById('admin-clients-container');
+            if (role === 'supervisor') return document.getElementById('admin-supervisors-container');
+            return null;
         }
 
         window.filterAdminDrivers = () => {
@@ -14973,6 +15039,7 @@ if (document.readyState === 'loading') {
             if (!searchInput) return;
             const term = searchInput.value;
             const statusFilter = window._adminDriverStatusFilter || 'all';
+            const filtering = !!foldOpsSearchText(term) || (statusFilter && statusFilter !== 'all');
             document.querySelectorAll('.driver-card[data-role="driver"], .driver-card:not([data-role])').forEach((card) => {
                 // Solo tarjetas de conductores en la lista de drivers (compat: sin data-role)
                 if (card.dataset.role && card.dataset.role !== 'driver') return;
@@ -14986,6 +15053,7 @@ if (document.readyState === 'loading') {
                 if (show) show = adminUserCardMatchesSearch(card, term);
                 card.style.display = show ? '' : 'none';
             });
+            syncOpsUserGroupsAfterFilter(getAdminListRootForRole('driver') || document.getElementById('admin-users-list'), { filtering });
         };
 
         window.filterAdminDriversByStatus = (status) => {
@@ -14998,6 +15066,7 @@ if (document.readyState === 'loading') {
             if (!searchInput) return;
             const term = searchInput.value;
             const statusFilter = window._adminClientStatusFilter || 'all';
+            const filtering = !!foldOpsSearchText(term) || (statusFilter && statusFilter !== 'all');
             document.querySelectorAll('.admin-user-card[data-role="client"]').forEach((card) => {
                 const cardStatus = (card.dataset.status || 'approved').toLowerCase();
                 let show = true;
@@ -15007,6 +15076,10 @@ if (document.readyState === 'loading') {
                 if (show) show = adminUserCardMatchesSearch(card, term);
                 card.style.display = show ? '' : 'none';
             });
+            const listRoot = getAdminListRootForRole('client')
+                || document.getElementById('admin-users-list')
+                || document.getElementById('supervisor-pending-list');
+            syncOpsUserGroupsAfterFilter(listRoot, { filtering });
         };
 
         window.filterAdminClientsByStatus = (status) => {

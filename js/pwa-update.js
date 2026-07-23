@@ -6,10 +6,14 @@ const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const IOS_CHECK_INTERVAL_MS = 60 * 1000;
 const PENDING_VERSION_KEY = 'hr_pending_version';
 const STALE_RETRY_KEY = 'hr_stale_reload_attempt';
+/** Si SW/caché se cuelgan, forzar recarga igual (evita botón “Actualizando…” eterno). */
+const PRE_RELOAD_TIMEOUT_MS = 2500;
+const HARD_RELOAD_FALLBACK_MS = 1200;
 
 let updateModalOpen = false;
 let lastCheckAt = 0;
 let reloadOnControllerChange = false;
+let applyInFlight = false;
 
 export function getBuildVersion() {
     const meta = document.querySelector('meta[name="hr-app-version"]')?.content?.trim();
@@ -47,6 +51,17 @@ function versionsDiffer(running, remote) {
     return String(running).trim() !== String(remote).trim();
 }
 
+function withTimeout(promise, ms, label = 'timeout') {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = window.setTimeout(() => reject(new Error(label)), ms);
+    });
+    return Promise.race([
+        Promise.resolve(promise).finally(() => clearTimeout(timer)),
+        timeout
+    ]);
+}
+
 async function fetchLatestVersion() {
     const url = new URL(VERSION_URL, location.origin);
     url.searchParams.set('t', String(Date.now()));
@@ -76,9 +91,26 @@ function iosHelpBlock() {
     `;
 }
 
+function setConfirmButtonLoading(loading) {
+    const btn = document.getElementById('app-update-confirm-btn');
+    if (!btn) return;
+    if (loading) {
+        btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando…';
+    } else {
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+        btn.innerHTML = 'Actualizar ahora';
+    }
+}
+
 function showAppUpdateModal({ remoteVersion, force = false, showIosHelp = false } = {}) {
     if (!force && (updateModalOpen || document.getElementById('app-update-modal'))) return;
+    // Si quedó un modal viejo colgado, reemplazarlo
+    document.getElementById('app-update-modal')?.remove();
     updateModalOpen = true;
+    applyInFlight = false;
 
     const running = getBuildVersion();
     const overlay = document.createElement('div');
@@ -103,13 +135,29 @@ function showAppUpdateModal({ remoteVersion, force = false, showIosHelp = false 
 
     document.body.appendChild(overlay);
 
-    document.getElementById('app-update-confirm-btn')?.addEventListener('click', () => {
-        const btn = document.getElementById('app-update-confirm-btn');
-        if (btn) {
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Actualizando…';
-        }
-        window.applyAppUpdate?.();
+    const confirmBtn = document.getElementById('app-update-confirm-btn');
+    confirmBtn?.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (applyInFlight) return;
+        setConfirmButtonLoading(true);
+        // Llamar la función del módulo (no window) + fallback duro si se cuelga
+        const hardFallback = window.setTimeout(() => {
+            try {
+                hardReload(remoteVersion || localStorage.getItem(PENDING_VERSION_KEY));
+            } catch (_) {
+                try { location.reload(); } catch (__) {}
+            }
+        }, PRE_RELOAD_TIMEOUT_MS + HARD_RELOAD_FALLBACK_MS + 800);
+
+        Promise.resolve(applyAppUpdate({ fromButton: true }))
+            .catch((err) => {
+                console.warn('[pwa-update] applyAppUpdate failed', err);
+                hardReload(remoteVersion);
+            })
+            .finally(() => {
+                clearTimeout(hardFallback);
+            });
     });
 }
 
@@ -149,9 +197,50 @@ async function bustDocumentCache(version) {
 function buildReloadUrl(remoteVersion) {
     const url = new URL(location.href);
     url.hash = '';
+    // Quitar stamps viejos para no acumular query basura
+    url.searchParams.delete('hr_refresh');
     if (remoteVersion) url.searchParams.set('v', remoteVersion);
+    else url.searchParams.delete('v');
     url.searchParams.set('hr_refresh', String(Date.now()));
     return url.toString();
+}
+
+/** Recarga forzada con varios fallbacks (PWA / iOS / Android WebView). */
+function hardReload(remoteVersion) {
+    const target = buildReloadUrl(remoteVersion);
+    try {
+        // Intento principal: navegación limpia con cache bust
+        location.replace(target);
+    } catch (_) {
+        try { location.href = target; } catch (__) {}
+    }
+    // Si replace no navega (algunos WebViews / same-document quirks)
+    window.setTimeout(() => {
+        try {
+            if (location.href !== target) location.assign(target);
+        } catch (_) {}
+    }, 200);
+    window.setTimeout(() => {
+        try { location.reload(); } catch (_) {}
+    }, HARD_RELOAD_FALLBACK_MS);
+}
+
+async function prepareUpdateAssets(remoteVersion) {
+    // Nunca bloquear el reload más de PRE_RELOAD_TIMEOUT_MS
+    await withTimeout((async () => {
+        try {
+            if ('serviceWorker' in navigator) {
+                const regs = await navigator.serviceWorker.getRegistrations();
+                for (const reg of regs) {
+                    try { reg.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
+                    try { reg.active?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
+                }
+            }
+        } catch (_) {}
+        try { await unregisterAllServiceWorkers(); } catch (_) {}
+        try { await clearAllCaches(); } catch (_) {}
+        try { await bustDocumentCache(remoteVersion); } catch (_) {}
+    })(), PRE_RELOAD_TIMEOUT_MS, 'pre-reload-timeout').catch(() => {});
 }
 
 async function checkForAppUpdate({ force = false } = {}) {
@@ -215,7 +304,7 @@ function bindServiceWorkerUpdateFlow() {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!reloadOnControllerChange) return;
         reloadOnControllerChange = false;
-        location.replace(buildReloadUrl(localStorage.getItem(PENDING_VERSION_KEY)));
+        hardReload(localStorage.getItem(PENDING_VERSION_KEY));
     });
 
     navigator.serviceWorker.ready.then((reg) => {
@@ -238,49 +327,49 @@ function bindServiceWorkerUpdateFlow() {
     }
 }
 
-export async function applyAppUpdate({ auto = false } = {}) {
-    dismissUpdateModal();
+export async function applyAppUpdate({ auto = false, fromButton = false } = {}) {
+    if (applyInFlight) return;
+    applyInFlight = true;
     reloadOnControllerChange = true;
 
     let remoteVersion = null;
     try {
-        remoteVersion = await fetchLatestVersion();
+        remoteVersion = await withTimeout(fetchLatestVersion(), 2000, 'version-fetch').catch(() => null);
         if (remoteVersion) {
             localStorage.setItem(PENDING_VERSION_KEY, remoteVersion);
+        } else {
+            remoteVersion = localStorage.getItem(PENDING_VERSION_KEY);
         }
-    } catch (_) {}
-
-    await unregisterAllServiceWorkers();
-    await clearAllCaches();
-    await bustDocumentCache(remoteVersion);
-
-    const target = buildReloadUrl(remoteVersion);
-
-    if (isIOSDevice()) {
-        try {
-            location.assign(target);
-        } catch (_) {
-            location.href = target;
-        }
-        window.setTimeout(() => {
-            try { location.reload(); } catch (_) {}
-        }, 450);
-        window.setTimeout(() => verifyPendingVersionAfterLoad(), 2800);
-        return;
+    } catch (_) {
+        remoteVersion = localStorage.getItem(PENDING_VERSION_KEY);
     }
 
-    location.replace(target);
-    window.setTimeout(() => verifyPendingVersionAfterLoad(), 2000);
+    // Limpiar SW/caché con tope de tiempo; luego SIEMPRE recargar
+    await prepareUpdateAssets(remoteVersion);
+
+    // Quitar modal solo justo antes de navegar (así el spinner no se queda “muerto” si algo falla antes)
+    dismissUpdateModal();
+
+    hardReload(remoteVersion);
+
+    // Si la navegación no ocurrió, reintentar verificación (y re-mostrar modal si sigue stale)
+    window.setTimeout(() => {
+        applyInFlight = false;
+        try { verifyPendingVersionAfterLoad(); } catch (_) {}
+    }, isIOSDevice() ? 2800 : 2200);
 }
 
 export function initAppUpdateCheck() {
     if (typeof window === 'undefined') return;
-    if (isCapacitorNative()) return;
 
+    // Siempre exponer applyAppUpdate (también en Capacitor por si se usa WebView con version.json remoto)
     window.applyAppUpdate = applyAppUpdate;
     window.checkForAppUpdate = checkForAppUpdate;
     window.getBuildVersion = getBuildVersion;
     window.getMessagingSwUrl = getMessagingSwUrl;
+
+    // App nativa empaqueta assets: el update de web/PWA no aplica
+    if (isCapacitorNative()) return;
 
     bindServiceWorkerUpdateFlow();
 

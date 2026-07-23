@@ -36,14 +36,14 @@ export const OPS_LOADING_HTML = `
 `;
 
 function closeMobileDrawers() {
-    document.getElementById('admin-panel')?.classList.remove('ops-drawer-open');
-    document.getElementById('supervisor-panel')?.classList.remove('ops-drawer-open');
+    setOpsDrawerOpen(document.getElementById('admin-panel'), false);
+    setOpsDrawerOpen(document.getElementById('supervisor-panel'), false);
 }
 
 function closeDrawerIfMobile(panel) {
     if (!panel) return;
-    if (window.matchMedia('(max-width: 900px)').matches) {
-        panel.classList.remove('ops-drawer-open');
+    if (isOpsMobileViewport()) {
+        setOpsDrawerOpen(panel, false);
     }
 }
 
@@ -118,50 +118,81 @@ export function setSupervisorQuickActive(quickId) {
     if (crumbEl) crumbEl.textContent = label;
 }
 
+function isOpsMobileViewport() {
+    return window.matchMedia('(max-width: 900px)').matches;
+}
+
+/** Cierra teclado / quita foco del buscador sticky al abrir el menú (evita UI “trabada” en móvil). */
+function blurOpsContentFocus(panel) {
+    try {
+        const ae = document.activeElement;
+        if (!(ae instanceof HTMLElement)) return;
+        if (!panel?.contains(ae)) return;
+        if (ae.matches('input, textarea, select, [contenteditable="true"]')) {
+            ae.blur();
+        }
+    } catch (_) {}
+}
+
+function setOpsDrawerOpen(panel, open) {
+    if (!panel) return;
+    const willOpen = !!open;
+    if (willOpen) {
+        blurOpsContentFocus(panel);
+        panel.classList.add('ops-drawer-open');
+        panel.setAttribute('data-ops-drawer', 'open');
+    } else {
+        panel.classList.remove('ops-drawer-open');
+        panel.removeAttribute('data-ops-drawer');
+    }
+}
+
 function bindDrawer(panelId, toggleId, backdropId) {
     const panel = document.getElementById(panelId);
     const toggle = document.getElementById(toggleId);
     const backdrop = document.getElementById(backdropId);
     if (!panel || !toggle) return;
 
-    toggle.addEventListener('click', () => {
-        panel.classList.toggle('ops-drawer-open');
+    toggle.addEventListener('click', (ev) => {
+        ev.preventDefault?.();
+        ev.stopPropagation?.();
+        const opening = !panel.classList.contains('ops-drawer-open');
+        setOpsDrawerOpen(panel, opening);
     });
 
-    backdrop?.addEventListener('click', () => panel.classList.remove('ops-drawer-open'));
+    backdrop?.addEventListener('click', () => setOpsDrawerOpen(panel, false));
 
     panel.querySelectorAll('.ops-nav-item').forEach((btn) => {
         btn.addEventListener('click', () => {
-            if (window.matchMedia('(max-width: 900px)').matches) {
-                panel.classList.remove('ops-drawer-open');
-            }
+            if (isOpsMobileViewport()) setOpsDrawerOpen(panel, false);
         });
     });
 
     const closeOnOutsideTouch = (ev) => {
-        if (!window.matchMedia('(max-width: 900px)').matches) return;
+        if (!isOpsMobileViewport()) return;
         if (!panel.classList.contains('ops-drawer-open')) return;
         const target = ev?.target;
         if (!(target instanceof Element)) return;
         if (target.closest('.ops-sidebar')) return;
         if (target.closest(`#${toggleId}`)) return;
-        panel.classList.remove('ops-drawer-open');
+        // Toques en el listado/buscador con drawer abierto → cerrar (el contenido ya no captura si CSS pointer-events:none)
+        setOpsDrawerOpen(panel, false);
     };
 
     // Fallback: if backdrop/click-through behaves oddly on some WebViews, close drawer on outside touch.
     panel.addEventListener('pointerdown', closeOnOutsideTouch, { passive: true });
-    panel.addEventListener('touchstart', closeOnOutsideTouch, { passive: true });
+    // No usar touchstart+pointerdown a la vez: en Android dispara doble y “pelea” con el input sticky.
+    // pointerdown cubre mouse + touch moderno.
 
-    // On small screens, hide drawer once user starts scrolling content.
+    // On small screens, hide drawer once user starts scrolling content (solo si aún recibe scroll).
     const content = panel.querySelector('.ops-content');
     if (content && !content.dataset.opsAutoHideBound) {
         content.dataset.opsAutoHideBound = '1';
         content.addEventListener('scroll', () => {
             if (content.scrollTop > 6) closeDrawerIfMobile(panel);
         }, { passive: true });
-        content.addEventListener('touchmove', () => {
-            closeDrawerIfMobile(panel);
-        }, { passive: true });
+        // touchmove en content con drawer abierto ya no aplica (pointer-events:none);
+        // solo cerrar si el drawer está abierto y aún hay movimiento residual
         content.addEventListener('wheel', () => {
             closeDrawerIfMobile(panel);
         }, { passive: true });

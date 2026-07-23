@@ -8067,7 +8067,9 @@
             position: fixed;
             inset: 0;
             background: rgba(2, 6, 23, 0.55);
-            z-index: 1;
+            /* Por encima del contenido sticky (buscador z-index 5–8); si no, en WebView el input “tapa” el menú */
+            z-index: 40;
+            pointer-events: auto;
         }
 
         .ops-sidebar {
@@ -8077,7 +8079,7 @@
             flex-direction: column;
             background: linear-gradient(180deg, #111827 0%, #0f172a 55%, #0b1220 100%);
             border-right: 1px solid rgba(51, 65, 85, 0.65);
-            z-index: 3;
+            z-index: 50;
         }
 
         .ops-sidebar--emerald .ops-nav-item--active {
@@ -8457,6 +8459,8 @@
                 transform: translateX(-104%);
                 transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
                 box-shadow: 12px 0 40px rgba(0, 0, 0, 0.45);
+                /* Evita que un input sticky del contenido se pinte encima del menú en Android WebView */
+                z-index: 50;
             }
 
             .ops-panel.ops-drawer-open .ops-sidebar {
@@ -8465,10 +8469,31 @@
 
             .ops-panel.ops-drawer-open .ops-backdrop {
                 display: block;
+                z-index: 40;
+            }
+
+            /*
+             * Con drawer abierto: el listado/buscador no debe capturar toques
+             * (si no, el sticky search se siente “trabado” sobre el menú).
+             * El topbar sigue activo para poder cerrar con la hamburguesa.
+             */
+            .ops-panel.ops-drawer-open .ops-content {
+                pointer-events: none;
+                overflow: hidden;
+            }
+
+            .ops-panel.ops-drawer-open .ops-toolbar--sticky,
+            .ops-panel.ops-drawer-open .ops-toolbar {
+                position: relative;
+                z-index: 0;
+                backdrop-filter: none;
+                -webkit-backdrop-filter: none;
             }
 
             .ops-menu-btn {
                 display: inline-flex;
+                position: relative;
+                z-index: 55;
             }
 
             .ops-pill-btn span {
@@ -8477,6 +8502,12 @@
 
             .ops-content {
                 padding: 0.75rem;
+            }
+
+            /* Sticky en móvil con teclado + drawer suele “congelar” el scroll; priorizar estabilidad */
+            .ops-toolbar--sticky {
+                top: 0;
+                z-index: 4;
             }
         }
 
@@ -8656,8 +8687,10 @@
         .ops-toolbar--sticky {
             position: sticky;
             top: 0;
-            z-index: 8;
+            /* Bajo el drawer (40/50). z-index alto hacía que el buscador flotara encima de la hamburguesa en móvil */
+            z-index: 5;
             backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
 
         .ops-user-group {
@@ -8743,16 +8776,15 @@
             padding-top: 0.75rem;
         }
 
+        /* Al scrollear: compactar hint/chips, NUNCA ocultar el input de búsqueda */
+        #admin-users-list.admin-search-scrolled .ops-toolbar-hint,
+        #supervisor-pending-list.admin-search-scrolled .ops-toolbar-hint {
+            display: none;
+        }
         #admin-users-list.admin-search-scrolled .ops-toolbar,
         #supervisor-pending-list.admin-search-scrolled .ops-toolbar {
-            opacity: 0;
-            height: 0;
-            overflow: hidden;
-            pointer-events: none;
-            transition: opacity 0.2s ease, height 0.2s ease;
-            padding: 0;
-            margin: 0;
-            border: none;
+            padding-top: 0.45rem;
+            padding-bottom: 0.45rem;
         }
 
         .ops-toolbar-search .ops-input,

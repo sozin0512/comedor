@@ -1033,6 +1033,12 @@ export function installStaffCreateClientTrip({
                 let clients = [];
                 let loading = false;
 
+                const foldTxt = (s) => String(s || '')
+                    .toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .trim();
+
                 const ensureClients = async () => {
                     if (clients.length || loading) return clients;
                     loading = true;
@@ -1040,7 +1046,18 @@ export function installStaffCreateClientTrip({
                         listEl.innerHTML = '<p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;">Cargando…</p>';
                     }
                     try {
-                        if (!window._staffClientsCache || Date.now() - (window._staffClientsCacheAt || 0) > 120000) {
+                        // Preferir lista admin ya enriquecida (nombre/tel/correo) si está en memoria
+                        const fromAdmin = Array.isArray(window.allUsersData) ? window.allUsersData : null;
+                        if (fromAdmin?.length) {
+                            clients = fromAdmin
+                                .filter((u) => {
+                                    const role = u.role || 'client';
+                                    return role === 'client' || role === '' || u.passengerMode === true;
+                                })
+                                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
+                            window._staffClientsCache = clients;
+                            window._staffClientsCacheAt = Date.now();
+                        } else if (!window._staffClientsCache || Date.now() - (window._staffClientsCacheAt || 0) > 120000) {
                             const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
                             window._staffClientsCache = snap.docs
                                 .map((d) => ({ uid: d.id, ...d.data() }))
@@ -1050,8 +1067,10 @@ export function installStaffCreateClientTrip({
                                 })
                                 .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'es'));
                             window._staffClientsCacheAt = Date.now();
+                            clients = window._staffClientsCache || [];
+                        } else {
+                            clients = window._staffClientsCache || [];
                         }
-                        clients = window._staffClientsCache || [];
                     } catch (e) {
                         console.error(e);
                         if (listEl) listEl.innerHTML = `<p style="color:#f87171;font-size:11px;padding:0.4rem;">Error: ${escapeHtml(e.message)}</p>`;
@@ -1063,9 +1082,9 @@ export function installStaffCreateClientTrip({
 
                 const render = async (q = '') => {
                     const list = await ensureClients();
-                    const needle = String(q || '').trim().toLowerCase().replace(/\D/g, '');
-                    const needleTxt = String(q || '').trim().toLowerCase();
-                    if (!needleTxt) {
+                    const needle = String(q || '').trim().replace(/\D/g, '');
+                    const needleTxt = foldTxt(q);
+                    if (!needleTxt && !needle) {
                         if (listEl) {
                             listEl.innerHTML = '<p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;">Escribe nombre o número para buscar</p>';
                         }
@@ -1073,10 +1092,11 @@ export function installStaffCreateClientTrip({
                     }
                     const filtered = list.filter((u) => {
                         const phone = String(u.phone || '').replace(/\D/g, '');
-                        const name = String(u.name || '').toLowerCase();
-                        const email = String(u.email || '').toLowerCase();
-                        if (needle && phone.includes(needle)) return true;
-                        if (name.includes(needleTxt) || email.includes(needleTxt)) return true;
+                        const name = foldTxt(u.name || '');
+                        const email = foldTxt(u.email || '');
+                        const referral = foldTxt(u.referralCode || '');
+                        if (needle.length >= 3 && phone.includes(needle)) return true;
+                        if (needleTxt && (name.includes(needleTxt) || email.includes(needleTxt) || referral.includes(needleTxt))) return true;
                         return false;
                     }).slice(0, 25);
                     if (!listEl) return;
