@@ -1774,6 +1774,14 @@
             color: #334155 !important;
         }
 
+        .service-type-grua.active,
+        #svc-btn-grua.service-type-btn.active {
+            border-color: #e11d48 !important;
+            background: #fff1f2 !important;
+            color: #9f1239 !important;
+            box-shadow: 0 4px 14px rgba(225, 29, 72, 0.18);
+        }
+
         .favorite-chip {
             display: inline-flex;
             align-items: center;
@@ -1962,6 +1970,10 @@
 
         #fare-card.fare-flete-camion {
             background: linear-gradient(135deg, #334155 0%, #475569 55%, #64748b 100%);
+        }
+
+        #fare-card.fare-grua {
+            background: linear-gradient(135deg, #9f1239 0%, #e11d48 55%, #fb7185 100%);
         }
 
         .login-screen, .setup-screen, .rating-screen, .cancellation-survey-screen { 
@@ -2167,6 +2179,7 @@
         #fare-card.fare-delivery { background: linear-gradient(135deg, #d97706, #f59e0b) !important; }
         #fare-card.fare-flete-paila { background: linear-gradient(135deg, #047857, #10b981) !important; }
         #fare-card.fare-flete-camion { background: linear-gradient(135deg, #334155, #64748b) !important; }
+        #fare-card.fare-grua { background: linear-gradient(135deg, #9f1239, #e11d48) !important; }
 
         .login-welcome-msg {
             margin-top: 0.65rem;
@@ -2308,11 +2321,11 @@
         }
 
         .setup-step-num {
-            width: 1.25rem;
-            height: 1.25rem;
+            width: 1.35rem;
+            height: 1.35rem;
             border-radius: 999px;
             color: #fff;
-            font-size: 0.6rem;
+            font-size: 0.65rem;
             font-weight: 900;
             display: flex;
             align-items: center;
@@ -2321,26 +2334,27 @@
         }
 
         .setup-step-title {
-            font-size: 0.78rem;
+            font-size: 0.82rem;
             font-weight: 900;
             color: #0f172a;
             line-height: 1.2;
         }
 
         .setup-step-desc {
-            font-size: 0.62rem;
+            font-size: 0.68rem;
             color: #64748b;
-            line-height: 1.35;
-            margin-bottom: 0.45rem;
+            line-height: 1.4;
+            margin-bottom: 0.55rem;
         }
 
         .setup-input {
             width: 100%;
-            padding: 0.55rem 0.7rem;
+            padding: 0.7rem 0.8rem;
             border: 1px solid #e2e8f0;
-            border-radius: 0.75rem;
-            font-size: 0.8rem;
+            border-radius: 0.85rem;
+            font-size: 0.9rem;
             background: #f8fafc;
+            min-height: 2.8rem;
         }
 
         .setup-input:focus {
@@ -2353,19 +2367,23 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.15rem;
-            padding: 0.55rem 0.35rem;
-            border-radius: 0.85rem;
+            justify-content: center;
+            gap: 0.2rem;
+            min-height: 3.25rem;
+            padding: 0.6rem 0.35rem;
+            border-radius: 0.95rem;
             border: 2px solid #e2e8f0;
             background: #f8fafc;
-            font-size: 0.62rem;
+            font-size: 0.64rem;
             font-weight: 900;
             text-transform: uppercase;
             color: #64748b;
             transition: all 0.15s ease;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .driver-type-btn i { font-size: 1.1rem; }
+        .driver-type-btn i { font-size: 1.15rem; }
 
         .driver-type-btn.active[data-type="auto"] {
             border-color: #2563eb;
@@ -2397,7 +2415,15 @@
             color: #334155;
         }
 
-        .driver-type-btn--flete span {
+        .driver-type-btn.active[data-type="grua"],
+        .driver-type-btn--grua.active {
+            border-color: #e11d48;
+            background: #fff1f2;
+            color: #9f1239;
+        }
+
+        .driver-type-btn--flete span,
+        .driver-type-btn--grua span {
             letter-spacing: 0.02em;
         }
 
@@ -2411,9 +2437,27 @@
             border-color: #a7f3d0 !important;
         }
 
+        .tow-panel .trip-advanced-block-title {
+            color: #9f1239;
+        }
+
+        .tow-panel textarea,
+        .tow-panel input[type="text"],
+        .tow-panel input[type="tel"],
+        .tow-panel select {
+            border-color: #fecdd3 !important;
+        }
+
+        .tow-photo-slot img {
+            width: 100%;
+            height: 5.5rem;
+            object-fit: cover;
+            border-radius: 0.65rem;
+        }
+
         .login-services-grid {
             display: grid;
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 0.35rem;
         }
 
@@ -2424,18 +2468,19 @@
         }
 
         .setup-photo-slot {
-            height: 3.5rem;
+            min-height: 3.75rem;
             background: #f1f5f9;
             border: 1px dashed #cbd5e1;
-            border-radius: 0.75rem;
+            border-radius: 0.8rem;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             text-align: center;
-            padding: 0.2rem;
+            padding: 0.25rem;
             overflow: hidden;
+            touch-action: manipulation;
         }
 
         .setup-photo-slot img {
@@ -2446,8 +2491,8 @@
         }
 
         .setup-photo-face {
-            width: 5.5rem;
-            height: 5.5rem;
+            width: 6rem;
+            height: 6rem;
             margin: 0 auto;
             border-radius: 1rem;
             border: 2px dashed #60a5fa;
@@ -2458,6 +2503,7 @@
             justify-content: center;
             cursor: pointer;
             overflow: hidden;
+            touch-action: manipulation;
         }
 
         .setup-photo-face img {
@@ -2467,7 +2513,22 @@
         }
 
         .setup-photo-doc {
-            height: 4.5rem;
+            min-height: 4.6rem;
+        }
+
+        @media (max-width: 420px) {
+            .driver-type-btn {
+                min-height: 3rem;
+                padding: 0.5rem 0.25rem;
+                font-size: 0.58rem;
+            }
+            .setup-photo-slot {
+                min-height: 3.4rem;
+            }
+            .setup-photo-face {
+                width: 5.5rem;
+                height: 5.5rem;
+            }
         }
 
         @media (min-width: 768px) {
@@ -2664,9 +2725,9 @@
 
         .nav-fab {
             position: absolute;
-            right: 15px;
-            width: 52px;
-            height: 52px;
+            right: calc(0.75rem + var(--safe-right, 0px));
+            width: 3rem;
+            height: 3rem;
             background: white;
             border-radius: 50%;
             display: flex;
@@ -2678,6 +2739,8 @@
             cursor: pointer;
             border: 1px solid #f1f5f9;
             transition: all 0.3s ease;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
         
         .nav-fab.active {
@@ -2692,8 +2755,22 @@
             visibility: hidden !important;
         }
 
-        #fab-center { bottom: 210px; left: 15px; width: auto; border-radius: 30px; padding: 0 20px; font-weight: 800; font-size: 12px; gap: 8px; color: #2563eb; }
-        #fab-traffic { bottom: 210px; right: 15px; } 
+        #fab-center {
+            bottom: 210px;
+            left: calc(0.75rem + var(--safe-left, 0px));
+            width: auto;
+            border-radius: 30px;
+            padding: 0 20px;
+            font-weight: 800;
+            font-size: 12px;
+            gap: 8px;
+            color: #2563eb;
+            min-height: 2.8rem;
+        }
+        #fab-traffic {
+            bottom: 210px;
+            right: calc(0.75rem + var(--safe-right, 0px));
+        }
 
         #control-panel {
             position: absolute;
@@ -2703,6 +2780,7 @@
             z-index: 100;
             width: 100%;
             max-height: min(62%, 68dvh);
+            padding-bottom: calc(0.75rem + var(--safe-bottom, 0px));
             background: rgba(255, 255, 255, 0.98);
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
@@ -2832,7 +2910,7 @@
             display: none;
             position: absolute;
             left: 50%;
-            bottom: max(14px, env(safe-area-inset-bottom, 14px));
+            bottom: calc(0.8rem + var(--safe-bottom, 0px));
             transform: translateX(-50%);
             z-index: 110;
             align-items: center;
@@ -2967,6 +3045,7 @@
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
             touch-action: pan-y;
+            padding-bottom: calc(0.25rem + var(--safe-bottom, 0px));
         }
 
         #requests-list {
@@ -7956,6 +8035,10 @@
         /* —— Paneles Admin / Supervisión (ops dashboard) —— */
         .ops-panel {
             display: flex;
+            /* Cadena flex: sin min-height:0 el contenido crece y se recorta (body overflow:hidden) */
+            min-height: 0;
+            max-height: 100dvh;
+            overflow: hidden;
             background: #0b1220;
             color: #e2e8f0;
             /* Fallback web: notch iOS / Android browser */
@@ -8145,8 +8228,10 @@
         .ops-main {
             flex: 1;
             min-width: 0;
+            min-height: 0;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
             background: radial-gradient(ellipse at top right, rgba(30, 58, 138, 0.12), transparent 45%), #0b1220;
         }
 
@@ -8270,10 +8355,14 @@
 
         .ops-content {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             overflow-x: hidden;
             padding: 1rem;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            /* pan-y: permite scroll táctil aunque html/body usen touch-action: manipulation */
+            touch-action: pan-y;
         }
 
         .ops-footer {
@@ -8569,6 +8658,101 @@
             top: 0;
             z-index: 8;
             backdrop-filter: blur(8px);
+        }
+
+        .ops-user-group {
+            overflow: hidden;
+        }
+
+        .ops-city-chipbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-bottom: 0.7rem;
+            align-items: center;
+        }
+
+        .ops-city-chip {
+            appearance: none;
+            border: 1px solid rgba(51, 65, 85, 0.7);
+            background: rgba(15, 23, 42, 0.75);
+            color: #e2e8f0;
+            border-radius: 999px;
+            padding: 0.28rem 0.55rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            line-height: 1;
+            cursor: pointer;
+            transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+            max-width: 100%;
+        }
+
+        .ops-city-chip:hover {
+            border-color: rgba(16, 185, 129, 0.75);
+            background: rgba(6, 78, 59, 0.3);
+            transform: translateY(-1px);
+        }
+
+        .ops-city-chip:focus-visible {
+            outline: 2px solid rgba(16, 185, 129, 0.75);
+            outline-offset: 2px;
+        }
+
+        .ops-city-chip__name {
+            max-width: min(44vw, 160px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ops-city-chip__count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1.15rem;
+            height: 1.15rem;
+            padding: 0 0.3rem;
+            border-radius: 999px;
+            background: rgba(30, 41, 59, 0.9);
+            color: #cbd5e1;
+            font-size: 0.62rem;
+            font-weight: 900;
+        }
+
+        .ops-user-group-header {
+            list-style: none;
+        }
+
+        .ops-user-group summary {
+            list-style: none;
+        }
+
+        .ops-user-group summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .ops-user-group-header {
+            cursor: pointer;
+        }
+
+        .ops-user-group-body {
+            padding-top: 0.75rem;
+        }
+
+        #admin-users-list.admin-search-scrolled .ops-toolbar,
+        #supervisor-pending-list.admin-search-scrolled .ops-toolbar {
+            opacity: 0;
+            height: 0;
+            overflow: hidden;
+            pointer-events: none;
+            transition: opacity 0.2s ease, height 0.2s ease;
+            padding: 0;
+            margin: 0;
+            border: none;
         }
 
         .ops-toolbar-search .ops-input,
@@ -9112,8 +9296,9 @@
             flex-direction: column;
             gap: 0.55rem;
             padding: 0.65rem;
-            max-height: min(70vh, 36rem);
-            overflow: auto;
+            /* Sin max-height en móvil: el scroll único es .ops-content (evita scroll anidado roto al expandir cartas) */
+            max-height: none;
+            overflow: visible;
         }
 
         .ops-trips-col-empty {
@@ -9213,8 +9398,19 @@
             flex-direction: column;
             gap: 0.4rem;
             padding: 0.55rem;
-            max-height: min(55vh, 28rem);
-            overflow: auto;
+            max-height: none;
+            overflow: visible;
+        }
+
+        /* Desktop: columnas del tablero pueden scroll interno si hay muchas cartas */
+        @media (min-width: 901px) {
+            .ops-trips-col-body {
+                max-height: min(70vh, 36rem);
+                overflow: auto;
+                -webkit-overflow-scrolling: touch;
+                overscroll-behavior: contain;
+                touch-action: pan-y;
+            }
         }
 
         .ops-trip-compact {

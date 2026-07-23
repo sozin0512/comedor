@@ -252,6 +252,13 @@ export async function notifyTripEvent({ title, body, tag, tripId, openChat = fal
     if (!title || !body) return false;
 
     const inBackground = shouldNotifyInBackground();
+    const dedupKey = `trip-event:${tripId || 'global'}:${tag || title}`;
+    const now = Date.now();
+    const cache = window.__tripNotificationDedup || (window.__tripNotificationDedup = new Map());
+    const last = cache.get(dedupKey);
+    if (last && now - last < 2000) return false;
+    cache.set(dedupKey, now);
+
     let shown = false;
 
     if (superVibrate) triggerSuperTripVibration();

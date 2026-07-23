@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.17.21">
+    <meta name="hr-app-version" content="2026.07.22.1">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.17.21">
+    <link rel="manifest" href="manifest.json?v=2026.07.22.1">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,13 +30,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.17.21">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.22.1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.17.21">
-    <script src="js/maps-init.js?v=2026.07.17.21"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.22.1">
+    <script src="js/maps-init.js?v=2026.07.22.1"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.17.21';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.22.1';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -96,10 +96,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.17.21';
+        window.__HR_BUILD_VERSION__ = '2026.07.22.1';
         (function () {
             try {
-                var build = '2026.07.17.21';
+                var build = '2026.07.22.1';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -1033,6 +1033,10 @@
                 <i class="fas fa-truck text-slate-600 text-sm"></i>
                 <p class="text-[8px] font-black text-slate-700 uppercase mt-0.5">Camión</p>
             </div>
+            <div class="text-center py-1">
+                <i class="fas fa-truck-monster text-rose-600 text-sm"></i>
+                <p class="text-[8px] font-black text-rose-700 uppercase mt-0.5">Grúa</p>
+            </div>
         </div>
 
         <!-- Roles -->
@@ -1040,7 +1044,7 @@
             <button onclick="window.updateRole('client')" id="role-client" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600 uppercase">Pasajero</button>
             <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase">Conductor</button>
         </div>
-        <p id="login-role-hint" class="text-[10px] text-center text-gray-500 mb-4 leading-snug px-1">Pasajero: viajes en auto, moto, envíos o fletes (paila/camión). Eliges el servicio dentro de la app.</p>
+        <p id="login-role-hint" class="text-[10px] text-center text-gray-500 mb-4 leading-snug px-1">Pasajero: viajes, envíos, fletes o grúa. Eliges el servicio dentro de la app.</p>
 
         <!-- Tabs Login / Registro -->
         <div class="flex border-b border-gray-100 mb-6 text-xs font-bold uppercase tracking-wider">
@@ -1088,11 +1092,13 @@
                 <button type="button" id="drv-type-moto" data-type="moto" onclick="window.selectDriverVehicleType('moto')"
                         class="driver-type-btn"><i class="fas fa-motorcycle"></i><span>Motocicleta</span></button>
             </div>
-            <div class="grid grid-cols-2 gap-2 mb-2">
+            <div class="grid grid-cols-3 gap-2 mb-2">
                 <button type="button" id="drv-type-paila" data-type="paila" onclick="window.selectDriverVehicleType('paila')"
                         class="driver-type-btn driver-type-btn--flete"><i class="fas fa-truck-pickup"></i><span>Paila</span></button>
                 <button type="button" id="drv-type-camion" data-type="camion" onclick="window.selectDriverVehicleType('camion')"
                         class="driver-type-btn driver-type-btn--flete"><i class="fas fa-truck"></i><span>Camión</span></button>
+                <button type="button" id="drv-type-grua" data-type="grua" onclick="window.selectDriverVehicleType('grua')"
+                        class="driver-type-btn driver-type-btn--grua"><i class="fas fa-truck-monster"></i><span>Grúa</span></button>
             </div>
             <select id="driver-vehicle-type" class="hidden" onchange="window.onDriverVehicleTypeChange()">
                 <option value="auto">Automóvil — viajes en auto</option>
@@ -1100,6 +1106,7 @@
                 <option value="moto">Motocicleta — viajes y envíos</option>
                 <option value="paila">Paila / pickup — fletes</option>
                 <option value="camion">Camión — fletes pesados</option>
+                <option value="grua">Grúa — remolque / auxilio vial</option>
             </select>
             <p id="driver-vehicle-type-hint" class="text-[10px] text-blue-600 font-semibold">Auto: viajes en automóvil.</p>
         </div>
@@ -1634,6 +1641,55 @@
                   class="w-full px-3 py-2.5 border border-emerald-200 rounded-xl text-sm bg-white resize-none"></textarea>
     </div>
 
+    <div id="tow-details-panel" class="hidden trip-advanced-block tow-panel space-y-2">
+        <p class="trip-advanced-block-title"><i class="fas fa-truck-monster"></i> Datos de la grúa</p>
+        <p class="text-[10px] text-rose-700 font-semibold leading-snug -mt-1">
+            Tarifa premium: salida desde <b>L. 1,800</b> en ciudad · interurbano desde <b>L. 3,500</b>. Foto del vehículo obligatoria.
+        </p>
+        <input id="tow-vehicle-desc" type="text" placeholder="Vehículo varado (ej: Toyota Corolla gris 2018)"
+               class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white">
+        <input id="tow-vehicle-plate" type="text" placeholder="Placa del vehículo varado"
+               class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white uppercase">
+        <select id="tow-vehicle-class" class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white font-semibold text-rose-900">
+            <option value="liviano">Sedán / hatch / compacto</option>
+            <option value="suv">SUV / camioneta (+L. 350)</option>
+            <option value="pickup">Pickup (+L. 300)</option>
+            <option value="van">Van / microbús (+L. 500)</option>
+            <option value="pesado">Pesado / maquinaria (+L. 2,000)</option>
+        </select>
+        <select id="tow-situation" class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white font-semibold text-rose-900">
+            <option value="no_arranca">No arranca / se apagó</option>
+            <option value="accidente">Accidente / choque (+L. 500)</option>
+            <option value="llanta_bloqueo">Llanta / freno bloqueado (+L. 400)</option>
+            <option value="zanja">En zanja / fuera de vía (+L. 900)</option>
+            <option value="volcado">Volcado (+L. 1,500)</option>
+            <option value="sin_llaves">Sin llaves / cerrado (+L. 350)</option>
+        </select>
+        <label class="flex items-center gap-2 cursor-pointer px-1">
+            <input type="checkbox" id="tow-has-keys" class="rounded border-rose-300 text-rose-600" checked>
+            <span class="text-[11px] font-bold text-rose-900">Tengo las llaves del vehículo</span>
+        </label>
+        <input id="tow-contact-name" type="text" placeholder="Nombre de contacto en el lugar"
+               class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white">
+        <input id="tow-contact-phone" type="tel" placeholder="WhatsApp de contacto (+504...)"
+               class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white">
+        <div>
+            <p class="text-[10px] font-black text-rose-800 uppercase tracking-widest mb-1.5">
+                <i class="fas fa-camera"></i> Foto del vehículo varado <span class="text-red-600">*</span>
+            </p>
+            <div id="tow-vehicle-photo-preview"
+                 onclick="document.getElementById('tow-vehicle-photo-input').click()"
+                 class="tow-photo-slot flex flex-col items-center justify-center gap-1 min-h-[5.5rem] rounded-xl border-2 border-dashed border-rose-300 bg-rose-50/80 cursor-pointer active:scale-[0.99] transition">
+                <i class="fas fa-camera text-rose-400 text-xl"></i>
+                <span class="text-[9px] font-black text-rose-700 uppercase">Tomar o subir foto</span>
+            </div>
+            <input type="file" id="tow-vehicle-photo-input" accept="image/*" capture="environment" class="hidden"
+                   onchange="window.previewTowVehiclePhoto?.(this)">
+        </div>
+        <textarea id="tow-notes" rows="2" placeholder="Notas: acceso, tráfico, taller de destino, seguro..."
+                  class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white resize-none"></textarea>
+    </div>
+
     <div id="delivery-details-panel" class="hidden trip-advanced-block delivery-panel space-y-2">
         <p class="trip-advanced-block-title"><i class="fas fa-utensils"></i> Datos del envío</p>
         <div id="delivery-category-chips" class="flex flex-wrap gap-1.5"></div>
@@ -1738,6 +1794,10 @@
                 <button type="button" data-service-type="flete_camion" id="svc-btn-flete_camion" role="tab" aria-selected="false"
                         class="service-type-btn service-type-flete trip-service-chip" title="Fletes en camión">
                     <i class="fas fa-truck pointer-events-none"></i><span class="pointer-events-none">Flete · Camión</span>
+                </button>
+                <button type="button" data-service-type="grua" id="svc-btn-grua" role="tab" aria-selected="false"
+                        class="service-type-btn service-type-grua trip-service-chip" title="Grúa y remolque · tarifa premium">
+                    <i class="fas fa-truck-monster pointer-events-none"></i><span class="pointer-events-none">Grúa</span>
                 </button>
             </div>
         </div>
@@ -2138,6 +2198,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.07.17.21"></script>
+    <script type="module" src="js/app.js?v=2026.07.22.1"></script>
 </body>
 </html>

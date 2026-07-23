@@ -103,11 +103,35 @@ export const SERVICE_TYPE_META = {
         isStar: false,
         campaign: 'Carga voluminosa o pesada · toneladas',
     },
+    grua: {
+        id: 'grua',
+        label: 'Grúa / remolque',
+        shortLabel: 'Servicio de grúa',
+        icon: 'fa-truck-monster',
+        color: 'rose',
+        base: 1500,
+        perKm: 95,
+        driverVehicleType: 'grua',
+        originPlaceholder: 'Dónde está el vehículo varado',
+        destPlaceholder: 'Taller, casa u otro destino del remolque',
+        calculateLabel: 'CALCULAR GRÚA',
+        isStar: true,
+        campaign: 'Remolque premium · salida cara · foto del vehículo',
+    },
 };
 
 export function isFreightService(type) {
     const t = normalizeServiceType(type);
     return t === 'flete_paila' || t === 'flete_camion';
+}
+
+export function isTowService(type) {
+    return normalizeServiceType(type) === 'grua';
+}
+
+/** Flete o grúa: no son viajes de pasajeros (1 “cliente”, sin cumpleaños gratis, etc.). */
+export function isFreightOrTowService(type) {
+    return isFreightService(type) || isTowService(type);
 }
 
 export function normalizeServiceType(type) {
@@ -163,6 +187,13 @@ export function getTripOfferNotificationCopy(serviceType) {
             short: 'Flete camión',
             staff: 'Flete camión pendiente',
             demand: '🚛 ¡Flete camión cerca!'
+        },
+        grua: {
+            title: '🛠️ ¡Solicitud de grúa!',
+            toast: '🛠️ ¡Grúa solicitada cerca!',
+            short: 'Grúa',
+            staff: 'Grúa pendiente',
+            demand: '🛠️ ¡Grúa cerca!'
         }
     };
     return map[t] || {
@@ -200,6 +231,7 @@ export const MAX_PASSENGERS_BY_SERVICE = {
     delivery: 1,
     flete_paila: 1,
     flete_camion: 1,
+    grua: 1,
 };
 
 /** Cobro fijo por cada persona extra (después de la 1.ª). */
@@ -210,6 +242,7 @@ export const EXTRA_PASSENGER_FEE = {
     delivery: 0,
     flete_paila: 0,
     flete_camion: 0,
+    grua: 0,
 };
 
 export function getMaxPassengers(type) {
@@ -261,6 +294,9 @@ export function calculateServiceFare(type, km, conditions = null, passengersOrOp
     const meta = getServiceMeta(type);
     if (isFreightService(type)) {
         return calculateFreightFare(type, km, {}, conditions).total;
+    }
+    if (isTowService(type)) {
+        return calculateTowFare(type, km, {}, conditions).total;
     }
     const distance = Math.max(0, parseFloat(km) || 0);
     let fare = meta.base + distance * meta.perKm;
@@ -584,6 +620,9 @@ export function driverCanServeTrip(driverVehicleType, tripServiceType, vehiclePl
     if (tripRaw === 'flete_camion') {
         return driverRaw === 'camion';
     }
+    if (tripRaw === 'grua') {
+        return driverRaw === 'grua';
+    }
     return false;
 }
 
@@ -602,6 +641,7 @@ export function driverTripMismatchMessage(tripServiceType, driverVehicleType = n
     if (trip === 'delivery') return 'Este envío/comida es en moto. Selecciona tu moto en "Vehículo de hoy".';
     if (trip === 'flete_paila') return 'Este flete requiere paila/pickup. Selecciona tu vehículo de paila en "Vehículo de hoy".';
     if (trip === 'flete_camion') return 'Este flete requiere camión. Selecciona tu camión en "Vehículo de hoy".';
+    if (trip === 'grua') return 'Esta solicitud es de grúa. Selecciona tu grúa registrada en "Vehículo de hoy".';
     return 'Este viaje es en moto. Selecciona tu moto en "Vehículo de hoy".';
 }
 
@@ -619,6 +659,7 @@ export function getServiceBadgeHtml(type, compact = false) {
         yellow: 'bg-yellow-100 text-yellow-700',
         emerald: 'bg-emerald-100 text-emerald-800',
         slate: 'bg-slate-200 text-slate-800',
+        rose: 'bg-rose-100 text-rose-800',
     };
     const cls = colors[meta.color] || colors.blue;
     return `<span class="${size} font-black uppercase px-2 py-0.5 rounded-full ${cls}"><i class="fas ${meta.icon}"></i> ${meta.label}</span>`;
@@ -629,6 +670,7 @@ export function getDriverVehicleTypeLabel(type) {
     if (type === 'moto') return 'Moto · viajes y envíos / comida';
     if (type === 'paila') return 'Paila / pickup · fletes';
     if (type === 'camion') return 'Camión · fletes pesados';
+    if (type === 'grua') return 'Grúa · remolque';
     return 'Automóvil · Taxi VIP';
 }
 
@@ -638,6 +680,7 @@ export function getDriverVehicleBadgeHtml(type) {
     if (type === 'taxi') return `<span class="${cls} text-yellow-400 bg-yellow-500/10">🚕 Taxi</span>`;
     if (type === 'paila') return `<span class="${cls} text-emerald-400 bg-emerald-500/10"><i class="fas fa-truck-pickup"></i> Paila · fletes</span>`;
     if (type === 'camion') return `<span class="${cls} text-slate-300 bg-slate-500/10"><i class="fas fa-truck"></i> Camión · fletes</span>`;
+    if (type === 'grua') return `<span class="${cls} text-rose-400 bg-rose-500/10">🏗️ Grúa</span>`;
     return `<span class="${cls} text-blue-400 bg-blue-500/10">🚗 Auto</span>`;
 }
 
@@ -646,6 +689,7 @@ export function getDriverVehicleEmoji(type) {
     if (type === 'taxi') return '🚕';
     if (type === 'paila') return '🛻';
     if (type === 'camion') return '🚛';
+    if (type === 'grua') return '🏗️';
     return '🚗';
 }
 
@@ -654,6 +698,7 @@ export function getDriverVehicleTypeColorClass(type) {
     if (type === 'taxi') return 'text-yellow-400';
     if (type === 'paila') return 'text-emerald-400';
     if (type === 'camion') return 'text-slate-300';
+    if (type === 'grua') return 'text-rose-400';
     return 'text-blue-400';
 }
 
@@ -662,6 +707,7 @@ export function getDriverVehicleNoun(type) {
     if (type === 'taxi') return 'Taxi';
     if (type === 'paila') return 'Paila';
     if (type === 'camion') return 'Camión';
+    if (type === 'grua') return 'Grúa';
     return 'Vehículo';
 }
 
@@ -705,6 +751,292 @@ export function validateFreightDetails(details, serviceType = null) {
 }
 
 // ================================================
+// GRÚA / REMOLQUE — tarifa premium (salida cara)
+// Mínimo ciudad L. 1,800 · interurbano L. 3,500+
+// ================================================
+
+export const TOW_URBAN_MAX_KM = 25;
+
+export const TOW_SITUATION_OPTIONS = [
+    { id: 'no_arranca', label: 'No arranca / se apagó', surcharge: 0 },
+    { id: 'accidente', label: 'Accidente / choque', surcharge: 500 },
+    { id: 'llanta_bloqueo', label: 'Llanta / freno bloqueado', surcharge: 400 },
+    { id: 'zanja', label: 'En zanja / fuera de vía', surcharge: 900 },
+    { id: 'volcado', label: 'Volcado / volcadura', surcharge: 1500 },
+    { id: 'sin_llaves', label: 'Sin llaves / cerrado', surcharge: 350 },
+];
+
+export const TOW_VEHICLE_CLASS_OPTIONS = [
+    { id: 'liviano', label: 'Sedán / hatch / compacto', surcharge: 0 },
+    { id: 'suv', label: 'SUV / camioneta', surcharge: 350 },
+    { id: 'pickup', label: 'Pickup', surcharge: 300 },
+    { id: 'van', label: 'Van / microbús', surcharge: 500 },
+    { id: 'pesado', label: 'Pesado / maquinaria', surcharge: 2000 },
+];
+
+/** Tarifas duras de grúa en Honduras (Lempiras). */
+export const TOW_RATE_CONFIG = {
+    grua: {
+        label: 'Grúa / remolque',
+        minimum: 1800,
+        baseFee: 1500,
+        includedKm: 5,
+        perKmUrban: 95,
+        perKmLong: 85,
+        longTripFromKm: 25,
+        nightPercent: 25,
+        intercity: {
+            minimum: 3500,
+            dispatchFee: 1200,
+            perKm: 120,
+            hourlyRate: 1100,
+            trafficPerMinute: 25,
+        },
+    },
+};
+
+function getTowSituationSurcharge(situationId) {
+    const opt = TOW_SITUATION_OPTIONS.find((o) => o.id === situationId);
+    return opt ? Number(opt.surcharge) || 0 : 0;
+}
+
+function getTowVehicleClassSurcharge(classId) {
+    const opt = TOW_VEHICLE_CLASS_OPTIONS.find((o) => o.id === classId);
+    return opt ? Number(opt.surcharge) || 0 : 0;
+}
+
+export function getTowSituationLabel(situationId) {
+    return TOW_SITUATION_OPTIONS.find((o) => o.id === situationId)?.label || situationId || '';
+}
+
+export function getTowVehicleClassLabel(classId) {
+    return TOW_VEHICLE_CLASS_OPTIONS.find((o) => o.id === classId)?.label || classId || '';
+}
+
+function isHondurasNightNow(date = new Date()) {
+    try {
+        const hour = Number(new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Tegucigalpa',
+            hour: 'numeric',
+            hour12: false,
+        }).format(date));
+        return hour >= 22 || hour < 6;
+    } catch {
+        const h = date.getHours();
+        return h >= 22 || h < 6;
+    }
+}
+
+function calculateTowUrbanDistanceCharge(config, km) {
+    const distance = Math.max(0, parseFloat(km) || 0);
+    const billableKm = Math.max(0, distance - (config.includedKm || 0));
+    if (!billableKm) return 0;
+    const urbanCap = Math.max(0, (config.longTripFromKm || TOW_URBAN_MAX_KM) - (config.includedKm || 0));
+    if (billableKm <= urbanCap) {
+        return billableKm * config.perKmUrban;
+    }
+    return (urbanCap * config.perKmUrban) + ((billableKm - urbanCap) * config.perKmLong);
+}
+
+/**
+ * Cotización de grúa: base alta + km + dificultad + clase de vehículo + noche.
+ * @returns {{ total: number, breakdown: object, warnings: string[] }}
+ */
+export function calculateTowFare(serviceType, km, towDetails = {}, conditions = null, routeMeta = null) {
+    const type = normalizeServiceType(serviceType);
+    const config = TOW_RATE_CONFIG[type] || TOW_RATE_CONFIG.grua;
+    const distanceKm = Math.max(0, parseFloat(km) || 0);
+    const urban = isFreightUrbanTrip(distanceKm, TOW_URBAN_MAX_KM);
+
+    const situationId = towDetails?.situation || 'no_arranca';
+    const vehicleClass = towDetails?.vehicleClass || 'liviano';
+    const situationSurcharge = getTowSituationSurcharge(situationId);
+    const vehicleClassSurcharge = getTowVehicleClassSurcharge(vehicleClass);
+    const forceNight = towDetails?.isNight === true
+        || towDetails?.forceNight === true
+        || (towDetails?.isNight == null && isHondurasNightNow());
+
+    let baseFee;
+    let distanceCharge;
+    let dispatchFee = 0;
+    let hoursCharge = 0;
+    let durationHours = 0;
+    let trafficCharge = 0;
+    let billableTrafficMinutes = 0;
+    let delayMinutes = 0;
+    let minimum = config.minimum;
+
+    if (urban) {
+        baseFee = config.baseFee;
+        distanceCharge = calculateTowUrbanDistanceCharge(config, distanceKm);
+    } else {
+        const ic = config.intercity || {};
+        dispatchFee = ic.dispatchFee || 0;
+        baseFee = dispatchFee;
+        distanceCharge = Math.round(distanceKm * (ic.perKm || config.perKmLong || 0) * 100) / 100;
+        durationHours = resolveFreightDurationHours(routeMeta || {}, conditions);
+        hoursCharge = Math.round(durationHours * (ic.hourlyRate || 0) * 100) / 100;
+        delayMinutes = conditions?.traffic?.delayMinutes || 0;
+        billableTrafficMinutes = Math.max(0, delayMinutes - 1);
+        trafficCharge = Math.round(billableTrafficMinutes * (ic.trafficPerMinute || 0) * 100) / 100;
+        minimum = ic.minimum || config.minimum;
+    }
+
+    const subtotal = baseFee + distanceCharge + hoursCharge + trafficCharge
+        + situationSurcharge + vehicleClassSurcharge;
+
+    const conditionAdjustments = urban
+        ? {
+            trafficSurchargePercent: 0,
+            weatherSurchargePercent: conditions?.weatherSurchargePercent || 0,
+        }
+        : (conditions || {});
+
+    let total = applyRouteConditionAdjustments(subtotal, conditionAdjustments);
+
+    let nightSurcharge = 0;
+    if (forceNight && (config.nightPercent || 0) > 0) {
+        nightSurcharge = Math.round(total * (config.nightPercent / 100) * 100) / 100;
+        total += nightSurcharge;
+    }
+
+    total = Math.max(minimum, Math.round(total * 100) / 100);
+
+    const warnings = [];
+    if (!urban) {
+        warnings.push('Remolque fuera de ciudad: despacho + km completos + tiempo en ruta. Precio premium.');
+    }
+    if (vehicleClass === 'pesado') {
+        warnings.push('Vehículo pesado: la grúa puede confirmar capacidad al llegar. Recargo aplicado.');
+    }
+    if (situationId === 'volcado' || situationId === 'zanja') {
+        warnings.push('Situación difícil: el operador puede ajustar si requiere equipo especial.');
+    }
+    if (forceNight) {
+        warnings.push(`Recargo nocturno +${config.nightPercent}% (22:00–05:59 Honduras).`);
+    }
+    if (!towDetails?.vehiclePhotoUrl && !towDetails?.vehiclePhotoDataUrl) {
+        warnings.push('Sube una foto del vehículo varado para que la grúa sepa qué llevar.');
+    }
+
+    const conditionsExtra = Math.round((total - nightSurcharge - Math.max(minimum, subtotal)) * 100) / 100;
+
+    return {
+        total,
+        breakdown: {
+            pricingMode: urban ? 'urban' : 'intercity',
+            baseFee,
+            includedKm: urban ? config.includedKm : 0,
+            dispatchFee,
+            distanceKm,
+            distanceCharge: Math.round(distanceCharge * 100) / 100,
+            durationHours,
+            hoursCharge,
+            delayMinutes,
+            billableTrafficMinutes,
+            trafficCharge,
+            situationId,
+            situationLabel: getTowSituationLabel(situationId),
+            situationSurcharge,
+            vehicleClass,
+            vehicleClassLabel: getTowVehicleClassLabel(vehicleClass),
+            vehicleClassSurcharge,
+            isNight: !!forceNight,
+            nightPercent: forceNight ? (config.nightPercent || 0) : 0,
+            nightSurcharge,
+            trafficSurchargePercent: urban ? 0 : (conditions?.trafficSurchargePercent || 0),
+            weatherSurchargePercent: conditions?.weatherSurchargePercent || 0,
+            conditionsExtra: Math.max(0, conditionsExtra),
+            minimum,
+            subtotalBeforeConditions: Math.round(subtotal * 100) / 100,
+        },
+        warnings,
+    };
+}
+
+export function formatTowFareBreakdown(serviceType, quote) {
+    if (!quote?.breakdown) return '';
+    const b = quote.breakdown;
+    const parts = [];
+
+    if (b.pricingMode === 'intercity') {
+        if (b.dispatchFee > 0) parts.push(`Despacho L. ${b.dispatchFee.toFixed(0)}`);
+        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → L. ${b.distanceCharge.toFixed(2)}`);
+        if (b.hoursCharge > 0) parts.push(`+ ${b.durationHours} h ruta → L. ${b.hoursCharge.toFixed(2)}`);
+        if (b.trafficCharge > 0) parts.push(`+ tráfico ${b.billableTrafficMinutes} min → L. ${b.trafficCharge.toFixed(2)}`);
+    } else {
+        parts.push(`Salida L. ${b.baseFee.toFixed(0)} (incl. ${b.includedKm} km)`);
+        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → L. ${b.distanceCharge.toFixed(2)}`);
+    }
+
+    if (b.situationSurcharge > 0) {
+        parts.push(`+ ${b.situationLabel || 'dificultad'} L. ${b.situationSurcharge.toFixed(0)}`);
+    }
+    if (b.vehicleClassSurcharge > 0) {
+        parts.push(`+ ${b.vehicleClassLabel || 'clase'} L. ${b.vehicleClassSurcharge.toFixed(0)}`);
+    }
+    if (b.nightSurcharge > 0) {
+        parts.push(`+ noche +${b.nightPercent}% L. ${b.nightSurcharge.toFixed(2)}`);
+    }
+    if (b.conditionsExtra > 0) {
+        const bits = [];
+        if (b.trafficSurchargePercent > 0) bits.push(`tráfico +${b.trafficSurchargePercent}%`);
+        if (b.weatherSurchargePercent > 0) bits.push(`clima +${b.weatherSurchargePercent}%`);
+        parts.push(`+ ${bits.join(' y ') || 'ajuste ruta'} L. ${b.conditionsExtra.toFixed(2)}`);
+    }
+    parts.push(`mín. L. ${b.minimum.toFixed(0)}`);
+    return parts.join(' · ');
+}
+
+export function collectTowDetailsFromUI() {
+    const situation = document.getElementById('tow-situation')?.value || 'no_arranca';
+    const vehicleClass = document.getElementById('tow-vehicle-class')?.value || 'liviano';
+    return {
+        vehicleDescription: document.getElementById('tow-vehicle-desc')?.value.trim() || '',
+        vehiclePlate: (document.getElementById('tow-vehicle-plate')?.value || '').trim().toUpperCase(),
+        vehicleClass,
+        situation,
+        hasKeys: document.getElementById('tow-has-keys')?.checked !== false,
+        contactName: document.getElementById('tow-contact-name')?.value.trim() || '',
+        contactPhone: document.getElementById('tow-contact-phone')?.value.trim() || '',
+        notes: document.getElementById('tow-notes')?.value.trim() || '',
+        vehiclePhotoDataUrl: (typeof window !== 'undefined' && window.towVehiclePhotoDataUrl) || null,
+        vehiclePhotoUrl: null,
+    };
+}
+
+export function validateTowDetails(details) {
+    if (!details?.vehicleDescription) {
+        return { ok: false, message: 'Describe el vehículo a remolcar (marca, modelo, color).' };
+    }
+    if (!details?.vehiclePlate) {
+        return { ok: false, message: 'Indica la placa del vehículo varado.' };
+    }
+    if (!details?.situation) {
+        return { ok: false, message: 'Indica qué le pasó al vehículo.' };
+    }
+    if (!details?.contactName || !details?.contactPhone) {
+        return { ok: false, message: 'Indica nombre y WhatsApp de contacto en el lugar.' };
+    }
+    if (!details?.vehiclePhotoUrl && !details?.vehiclePhotoDataUrl) {
+        return { ok: false, message: 'Sube una foto del vehículo varado (obligatoria).' };
+    }
+    return { ok: true };
+}
+
+export function formatTowDetailsSummary(details = {}) {
+    if (!details) return '';
+    const bits = [
+        details.vehicleDescription || null,
+        details.vehiclePlate ? `placa ${details.vehiclePlate}` : null,
+        details.situation ? getTowSituationLabel(details.situation) : null,
+        details.vehicleClass ? getTowVehicleClassLabel(details.vehicleClass) : null,
+        details.hasKeys === false ? 'sin llaves' : null,
+    ].filter(Boolean);
+    return bits.join(' · ');
+}
+
+// ================================================
 // HOURLY BOOKING (Reserva por horas) - Referencia Uber
 // Uber ofrece "Hourly" / "Reserva por horas" para múltiples paradas con precio fijo por bloque.
 // Comisión típica Uber ~25% (efectiva varía 25-42% según reportes). Usamos 25% para alinearnos.
@@ -718,6 +1050,7 @@ export const HOURLY_BASE_RATES = {
     taxi: 200,
     flete_paila: 250,
     flete_camion: 580,
+    grua: 1100,
 };
 
 export function getHourlyRate(type) {

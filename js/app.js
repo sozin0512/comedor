@@ -93,7 +93,9 @@ import {
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
-    isFreightService, collectFreightDetailsFromUI, validateFreightDetails, formatFreightHelpersLabel,
+    isFreightService, isTowService, isFreightOrTowService,
+    collectFreightDetailsFromUI, validateFreightDetails, formatFreightHelpersLabel,
+    calculateTowFare, formatTowFareBreakdown, collectTowDetailsFromUI, validateTowDetails, formatTowDetailsSummary,
     isValidTaxiPlate,
     getServiceBadgeHtml, getServiceLabel, getDriverVehicleTypeLabel, getTripOfferNotificationCopy,
     getDriverVehicleBadgeHtml, getDriverVehicleEmoji, getDriverVehicleTypeColorClass, getDriverVehicleNoun,
@@ -210,7 +212,7 @@ import { initAppDownload } from "./app-download.js";
 
 const app = initializeApp(APP_CONFIG.firebase);
 const auth = getAuth(app);
-const cloudFunctions = getFunctions(app);
+const cloudFunctions = getFunctions(app, 'us-central1');
 
 // Firestore: en localhost/Capacitor usar caché en memoria (IndexedDB multi-tab falla en WebView).
 const isLocalDevHost = ['localhost', '127.0.0.1', '0.0.0.0'].includes(location.hostname)
@@ -520,6 +522,157 @@ const captureDriverSetupTemplate = () => {
 };
 captureDriverSetupTemplate();
 
+function setElementDisplay(id, display) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = display;
+}
+
+function setElementText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
+function setElementHTML(id, html) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+}
+
+// Ejecuta una función cuando el mapa está listo. Si ya está listo, la ejecuta inmediatamente.
+function whenMapReady(fn) {
+    try {
+        if (window.mapLoaded) {
+            fn();
+            return;
+        }
+        window._mapReadyQueue = window._mapReadyQueue || [];
+        window._mapReadyQueue.push(fn);
+    } catch (e) {
+        console.warn('whenMapReady error', e);
+    }
+}
+
+function showPermissionHelpModal(reason) {
+    try {
+        const existing = document.getElementById('permission-help-modal');
+        if (existing) existing.remove();
+        const overlay = document.createElement('div');
+        overlay.id = 'permission-help-modal';
+        overlay.style.position = 'fixed';
+        overlay.style.left = '0';
+        overlay.style.top = '0';
+        overlay.style.width = '100%';
+        overlay.style.height = '100%';
+        overlay.style.zIndex = '99999';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.background = 'rgba(0,0,0,0.45)';
+
+        const card = document.createElement('div');
+        card.style.maxWidth = '520px';
+        card.style.width = '92%';
+        card.style.background = '#fff';
+        card.style.borderRadius = '12px';
+        card.style.padding = '18px';
+        card.style.boxShadow = '0 10px 30px rgba(0,0,0,0.2)';
+        card.innerHTML = `
+            <h3 style="margin:0 0 8px 0;font-size:18px;font-weight:700;color:#111">Acción bloqueada</h3>
+            <p style="margin:0 0 12px 0;color:#333">No tienes permiso para completar esta acción. Si crees que esto es un error, puedes contactar soporte o verificar tu cuenta.</p>
+            <p style="margin:0 0 12px 0;color:#666;font-size:12px">Detalles: ${String(reason || '').slice(0,200)}</p>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+                <button id="permission-help-contact" style="background:#06b6d4;color:#fff;padding:8px 12px;border-radius:8px;border:none;cursor:pointer">Contactar soporte</button>
+                <button id="permission-help-verify" style="background:#f59e0b;color:#fff;padding:8px 12px;border-radius:8px;border:none;cursor:pointer">Verificar cuenta</button>
+                <button id="permission-help-close" style="background:#e5e7eb;color:#111;padding:8px 12px;border-radius:8px;border:none;cursor:pointer">Cerrar</button>
+            </div>
+        `;
+        overlay.appendChild(card);
+
+        overlay.querySelector('#permission-help-close').addEventListener('click', () => overlay.remove());
+        overlay.querySelector('#permission-help-contact').addEventListener('click', () => {
+            try {
+                const url = typeof getSupportWhatsAppUrl === 'function' ? getSupportWhatsAppUrl('', `Problema permisos: ${reason || ''}`) : 'https://wa.me/';
+                window.open(url, '_blank');
+            } catch (_) { window.open('https://wa.me/', '_blank'); }
+        });
+        overlay.querySelector('#permission-help-verify').addEventListener('click', () => {
+            try { if (typeof showPassengerVerificationSetup === 'function') showPassengerVerificationSetup(); } catch (_) {}
+        });
+
+        document.body.appendChild(overlay);
+    } catch (e) { console.warn('showPermissionHelpModal failed', e); }
+}
+
+// Admin helper: habilita/deshabilita la fase de regateo para un viaje
+window.adminSetTripNegotiation = async (tripId, enabled = false) => {
+    if (!tripId) return window.showToast('TripId requerido', 'warning');
+    try {
+        const resp = await httpsCallable(cloudFunctions, 'setTripNegotiation')({ tripId, enabled });
+        const data = resp && resp.data ? resp.data : resp;
+        if (data && data.ok) {
+            window.showToast(enabled ? 'Fase de regateo habilitada' : 'Fase de regateo deshabilitada', 'success');
+        } else {
+            window.showToast('Operación completada.', 'success');
+        }
+    } catch (e) {
+        handleFirestoreError(e, 'No se pudo actualizar la fase de regateo.');
+    }
+};
+
+// Admin helper: set global negotiation flag
+window.adminSetGlobalNegotiation = async (enabled = false) => {
+    try {
+        const resp = await httpsCallable(cloudFunctions, 'setGlobalNegotiation')({ enabled });
+        const data = resp && resp.data ? resp.data : resp;
+        if (data && data.ok) {
+            window.currentAdminNegotiationEnabled = enabled;
+            window.showToast(enabled ? 'Regateo global habilitado' : 'Regateo global deshabilitado', 'success');
+            window.refreshAdminNegotiationButtons?.();
+        } else {
+            window.showToast('Operación completada.', 'success');
+        }
+    } catch (e) {
+        handleFirestoreError(e, 'No se pudo cambiar la configuración global de regateo.');
+    }
+};
+
+window.currentAdminNegotiationEnabled = null;
+window.refreshAdminNegotiationButtons = () => {
+    const toggleBtn = document.getElementById('admin-global-negotiation-toggle');
+    if (!toggleBtn) return;
+    toggleBtn.textContent = window.currentAdminNegotiationEnabled === null
+        ? 'Regateo global: cargando...'
+        : `Regateo global: ${window.currentAdminNegotiationEnabled ? 'ON' : 'OFF'}`;
+    toggleBtn.classList.toggle('bg-emerald-600', window.currentAdminNegotiationEnabled === true);
+    toggleBtn.classList.toggle('bg-red-600', window.currentAdminNegotiationEnabled === false);
+};
+
+window.loadAdminNegotiationState = async () => {
+    try {
+        const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'));
+        window.currentAdminNegotiationEnabled = snap.exists() ? !!snap.data()?.negotiationEnabled : true;
+    } catch (e) {
+        console.warn('loadAdminNegotiationState failed', e);
+        window.currentAdminNegotiationEnabled = true;
+    }
+    window.refreshAdminNegotiationButtons?.();
+};
+
+window.adminToggleGlobalNegotiation = async () => {
+    const nextValue = !(window.currentAdminNegotiationEnabled === true);
+    await window.adminSetGlobalNegotiation(nextValue);
+};
+
+// Llamar cuando el mapa se inicializa para procesar la cola
+window._drainMapReadyQueue = () => {
+    try {
+        if (!window._mapReadyQueue || !window.mapLoaded) return;
+        while (window._mapReadyQueue.length) {
+            const fn = window._mapReadyQueue.shift();
+            try { fn(); } catch (e) { console.warn('queued map fn error', e); }
+        }
+    } catch (e) { console.warn(e); }
+};
+
 window.hideAuthSetupScreen = () => {
     const setupScreen = document.getElementById('setup-screen');
     if (!setupScreen) return;
@@ -618,8 +771,10 @@ window.openAddDriverVehicle = () => {
     }
     window.selectDriverVehicleType?.('auto');
     window.hideAuthSetupScreen?.();
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app-interface').style.display = 'none';
+    const loginScreen = document.getElementById('login-screen');
+    const appInterface = document.getElementById('app-interface');
+    if (loginScreen) loginScreen.style.display = 'none';
+    if (appInterface) appInterface.style.display = 'none';
     document.getElementById('profile-manage-panel')?.classList.add('hidden');
     userRole = 'driver';
     window.showDriverSetupScreen();
@@ -737,7 +892,9 @@ window.setActiveDriverVehicle = async (vehicleId) => {
                     ? ' Solo recibirás fletes en paila/pickup.'
                     : updated.vehicleType === 'camion'
                         ? ' Solo recibirás fletes en camión.'
-                        : ' Solo recibirás solicitudes Taxi VIP (automóvil).';
+                        : updated.vehicleType === 'grua'
+                            ? ' Solo recibirás solicitudes de grúa / remolque.'
+                            : ' Solo recibirás solicitudes Taxi VIP (automóvil).';
         window.showToast(`Operando con: ${buildVehicleLabel(updated.vehicleType, updated.vehicle)}.${modeHint}`, 'success');
         window.releaseIncompatibleDriverOffers?.(updated.vehicleType);
     } catch (e) {
@@ -3481,6 +3638,7 @@ if (document.readyState === 'loading') {
             document.getElementById('drv-type-moto')?.classList.toggle('active', type === 'moto');
             document.getElementById('drv-type-paila')?.classList.toggle('active', type === 'paila');
             document.getElementById('drv-type-camion')?.classList.toggle('active', type === 'camion');
+            document.getElementById('drv-type-grua')?.classList.toggle('active', type === 'grua');
             window.onDriverVehicleTypeChange?.();
         };
 
@@ -3559,6 +3717,18 @@ if (document.readyState === 'loading') {
                 if (int3Span) int3Span.innerText = 'Lateral carga';
                 document.getElementById('passenger-casco-label')?.classList.add('hidden');
                 document.getElementById('passenger-casco-grid')?.classList.add('hidden');
+            } else if (type === 'grua') {
+                if (model) model.placeholder = 'Marca y modelo de la grúa';
+                if (plate) plate.placeholder = 'Placa de la grúa';
+                if (hint) hint.innerText = 'Grúa: remolque y auxilio vial. Indica capacidad de carga o remolque y sube fotos del equipo.';
+                if (interiorLabel) interiorLabel.innerHTML = '<i class="fas fa-truck-monster"></i> CABINA Y EQUIPO (3 fotos)';
+                if (exteriorLabel) exteriorLabel.innerHTML = '<i class="fas fa-truck-monster"></i> EXTERIOR DE LA GRÚA (2 fotos)';
+                if (vehicleStepTitle) vehicleStepTitle.textContent = 'Fotos de la grúa';
+                if (int1Span) int1Span.innerText = 'Cabina';
+                if (int2Span) int2Span.innerText = 'Equipo / pluma';
+                if (int3Span) int3Span.innerText = 'Remolque / gancho';
+                document.getElementById('passenger-casco-label')?.classList.add('hidden');
+                document.getElementById('passenger-casco-grid')?.classList.add('hidden');
             } else {
                 if (model) model.placeholder = 'Marca y modelo (Ej: Toyota Corolla 2022)';
                 if (plate) plate.placeholder = 'Placa del vehículo (Ej: ABC-1234)';
@@ -3589,11 +3759,18 @@ if (document.readyState === 'loading') {
             document.getElementById('helmet-photo-step')?.classList.toggle('hidden', type !== 'moto');
             const cargoCap = document.getElementById('vehicle-cargo-capacity');
             if (cargoCap) {
-                const showCargo = type === 'paila' || type === 'camion';
+                const showCargo = type === 'paila' || type === 'camion' || type === 'grua';
                 cargoCap.classList.toggle('hidden', !showCargo);
-                cargoCap.placeholder = type === 'camion'
-                    ? 'Capacidad del camión (ej: 5 ton, 10 ton, 2 ejes)'
-                    : 'Capacidad de la paila (ej: 1.5 ton, 8 varas)';
+                if (!showCargo) {
+                    cargoCap.value = '';
+                }
+                if (type === 'camion') {
+                    cargoCap.placeholder = 'Capacidad del camión (ej: 5 ton, 10 ton, 2 ejes)';
+                } else if (type === 'grua') {
+                    cargoCap.placeholder = 'Capacidad de la grúa (ej: 5 ton, 3.5 ton, remolque 10 ton)';
+                } else {
+                    cargoCap.placeholder = 'Capacidad de la paila (ej: 1.5 ton, 8 varas)';
+                }
             }
         };
 
@@ -3615,6 +3792,8 @@ if (document.readyState === 'loading') {
                     badge.className = 'text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full';
                 } else if (vType === 'camion') {
                     badge.className = 'text-[9px] font-black uppercase tracking-widest text-slate-700 bg-slate-100 px-2 py-1 rounded-full';
+                } else if (vType === 'grua') {
+                    badge.className = 'text-[9px] font-black uppercase tracking-widest text-rose-700 bg-rose-50 px-2 py-1 rounded-full';
                 } else {
                     badge.className = 'text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-1 rounded-full';
                 }
@@ -7662,12 +7841,27 @@ if (document.readyState === 'loading') {
             }).filter((t) => !t.__deleted && t.status !== '__deleted');
         }
 
+        function paintStaffTripsContainer(container, html) {
+            if (!container) return;
+            const prevScroll = container.scrollTop || 0;
+            container.innerHTML = html;
+            window.restoreStaffTripCompactExpand?.(container);
+            // Mantener posición de scroll al refrescar en vivo (no saltar al top)
+            try {
+                container.scrollTop = prevScroll;
+            } catch (_) {}
+            window.ensureOpsContentScroll?.(container);
+        }
+
         function refreshStaffTripsPanels(tripPatches = {}) {
             if (window.currentAdminTab === 'trips' && !window.adminTripsPastView && window._adminTripsLastSnap) {
                 const container = document.getElementById('admin-users-list');
                 if (container) {
-                    container.innerHTML = buildAdminTripsPageHtml(
-                        mapStaffTripsSnapshot(window._adminTripsLastSnap, tripPatches)
+                    paintStaffTripsContainer(
+                        container,
+                        buildAdminTripsPageHtml(
+                            mapStaffTripsSnapshot(window._adminTripsLastSnap, tripPatches)
+                        )
                     );
                 }
             }
@@ -7683,8 +7877,11 @@ if (document.readyState === 'loading') {
             ) {
                 const container = document.getElementById('supervisor-pending-list');
                 if (container) {
-                    container.innerHTML = buildSupervisorTripsPageHtml(
-                        mapStaffTripsSnapshot(window._supervisorTripsLastSnap, tripPatches)
+                    paintStaffTripsContainer(
+                        container,
+                        buildSupervisorTripsPageHtml(
+                            mapStaffTripsSnapshot(window._supervisorTripsLastSnap, tripPatches)
+                        )
                     );
                 }
             }
@@ -7838,14 +8035,16 @@ if (document.readyState === 'loading') {
 
         window.setStaffActiveTripsView = (mode, btnEl) => {
             window._staffActiveTripsView = mode === 'board' ? 'board' : 'list';
-            const root = btnEl?.closest?.('.ops-trips-dash') || document.querySelector('.ops-trips-dash');
             // Re-render current trips page if possible
             try {
                 if (window.currentAdminTab === 'trips' && window._adminTripsLastSnap) {
                     const container = document.getElementById('admin-users-list');
                     if (container) {
-                        container.innerHTML = buildAdminTripsPageHtml(
-                            mapStaffTripsSnapshot(window._adminTripsLastSnap)
+                        paintStaffTripsContainer(
+                            container,
+                            buildAdminTripsPageHtml(
+                                mapStaffTripsSnapshot(window._adminTripsLastSnap)
+                            )
                         );
                         return;
                     }
@@ -7854,8 +8053,11 @@ if (document.readyState === 'loading') {
                 if (window._supervisorTripsLastSnap && tripsTabActive) {
                     const container = document.getElementById('supervisor-pending-list');
                     if (container) {
-                        container.innerHTML = buildSupervisorTripsPageHtml(
-                            mapStaffTripsSnapshot(window._supervisorTripsLastSnap)
+                        paintStaffTripsContainer(
+                            container,
+                            buildSupervisorTripsPageHtml(
+                                mapStaffTripsSnapshot(window._supervisorTripsLastSnap)
+                            )
                         );
                     }
                 }
@@ -7928,12 +8130,75 @@ if (document.readyState === 'loading') {
             </article>`;
         }
 
-        window.toggleStaffTripCompactExpand = (expandId) => {
+        /** IDs de fichas compactas abiertas (sobreviven al re-render en vivo). */
+        window._staffOpenTripExpandIds = window._staffOpenTripExpandIds || new Set();
+
+        window.toggleStaffTripCompactExpand = (expandId, { forceOpen = null, skipScroll = false } = {}) => {
             const el = document.getElementById(expandId);
             if (!el) return;
-            el.classList.toggle('hidden');
+            const currentlyHidden = el.classList.contains('hidden');
+            const open = forceOpen == null ? currentlyHidden : !!forceOpen;
+            el.classList.toggle('hidden', !open);
             const row = el.closest('.ops-trip-compact');
-            row?.classList.toggle('ops-trip-compact--open', !el.classList.contains('hidden'));
+            row?.classList.toggle('ops-trip-compact--open', open);
+            try {
+                if (open) window._staffOpenTripExpandIds.add(expandId);
+                else window._staffOpenTripExpandIds.delete(expandId);
+            } catch (_) {}
+            // Al reabrir la ficha: asegurar scroll del panel ops (admin/supervisor)
+            if (open && !skipScroll) {
+                const scroller = el.closest('.ops-content');
+                requestAnimationFrame(() => {
+                    try {
+                        // Reflow WebView: tras display:none→block a veces se pierde overflow-y
+                        if (scroller) {
+                            // eslint-disable-next-line no-unused-expressions
+                            scroller.offsetHeight;
+                            scroller.style.overflowY = 'auto';
+                            scroller.style.webkitOverflowScrolling = 'touch';
+                        }
+                        row?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+                    } catch (_) {}
+                });
+            }
+        };
+
+        /** Restaura fichas abiertas y el scroll del panel tras re-render del listado. */
+        window.restoreStaffTripCompactExpand = (rootEl) => {
+            const root = rootEl || document;
+            const openIds = window._staffOpenTripExpandIds;
+            if (!openIds?.size) {
+                window.ensureOpsContentScroll?.(root);
+                return;
+            }
+            openIds.forEach((id) => {
+                const el = root.getElementById ? root.getElementById(id) : document.getElementById(id);
+                if (!el) return;
+                el.classList.remove('hidden');
+                el.closest('.ops-trip-compact')?.classList.add('ops-trip-compact--open');
+            });
+            window.ensureOpsContentScroll?.(root);
+        };
+
+        window.ensureOpsContentScroll = (rootEl) => {
+            try {
+                const roots = [];
+                if (rootEl?.classList?.contains?.('ops-content')) roots.push(rootEl);
+                else if (rootEl?.querySelectorAll) {
+                    rootEl.querySelectorAll('.ops-content').forEach((n) => roots.push(n));
+                }
+                if (!roots.length) {
+                    document.querySelectorAll('#admin-users-list.ops-content, #supervisor-pending-list.ops-content')
+                        .forEach((n) => roots.push(n));
+                }
+                roots.forEach((scroller) => {
+                    // eslint-disable-next-line no-unused-expressions
+                    scroller.offsetHeight;
+                    scroller.style.overflowY = 'auto';
+                    scroller.style.webkitOverflowScrolling = 'touch';
+                    scroller.style.touchAction = 'pan-y';
+                });
+            } catch (_) {}
         };
 
         window.focusStaffTripOnMap = async (tripId, driverId) => {
@@ -8178,10 +8443,11 @@ if (document.readyState === 'loading') {
         }
 
         function buildAdminTripsPageHtml(allTrips) {
-            const activeTrips = allTrips.filter((t) => ['accepted', 'in_progress', 'pending', 'scheduled'].includes(t.status) && !t.isDemandSimulation);
-            const unanswered = getStaffUnansweredPendingTrips(allTrips);
-            const histUnattended = getStaffHistoricalUnattendedTrips(allTrips);
-            const cancelledSearches = getStaffCancelledSearchTrips(allTrips);
+            const tripsList = Array.isArray(allTrips) ? allTrips : [];
+            const activeTrips = tripsList.filter((t) => ['accepted', 'in_progress', 'pending', 'scheduled'].includes(t.status) && !t.isDemandSimulation);
+            const unanswered = getStaffUnansweredPendingTrips(tripsList);
+            const histUnattended = getStaffHistoricalUnattendedTrips(tripsList);
+            const cancelledSearches = getStaffCancelledSearchTrips(tripsList);
             const unansweredIds = new Set(unanswered.map((t) => t.id));
             const scheduledReserved = getStaffScheduledReservedTrips(allTrips);
             // Activos “en vivo” sin los programados reservados (tienen su propia sección)
@@ -8189,6 +8455,9 @@ if (document.readyState === 'loading') {
             const otherActive = activeTrips.filter((t) => !unansweredIds.has(t.id) && !scheduledIds.has(t.id));
             const cancelledPending = getStaffCancellableCancelledTrips(allTrips);
             const U = window.OpsUi;
+            const isAdminOrSupervisor = isAdminUser(currentUser, window.userProfile)
+                || (typeof isSupervisorUser === 'function' && isSupervisorUser(currentUser, window.userProfile));
+            const canToggleNegotiation = Boolean(isAdminOrSupervisor);
             const completedTotal = allTrips.filter((t) => t.status === 'completed').length;
             const unseenLive = unanswered.filter((t) => getStaffPendingAttentionMeta(t).nobodySaw).length;
             const phaseCounts = {
@@ -8208,7 +8477,7 @@ if (document.readyState === 'loading') {
                     <p class="ops-trips-page-kicker"><i class="fas fa-gauge-high"></i> Centro de operaciones</p>
                     <h2 class="ops-trips-page-title">Viajes en tiempo real</h2>
                     <p class="ops-trips-page-sub">Dashboard de activos, programados reservados y sin atención</p>
-                    <div class="mt-3 flex flex-wrap gap-2">
+                    <div class="mt-3 flex flex-wrap gap-2 items-center">
                         <button type="button" data-staff-create-client-trip
                             class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg">
                             <i class="fas fa-user-plus"></i> Pedir viaje por cliente
@@ -8221,7 +8490,9 @@ if (document.readyState === 'loading') {
                             class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-black shadow-lg">
                             <i class="fas fa-calendar-check"></i> Programados reservados (${scheduledReserved.length})
                         </button>
+                        ${canToggleNegotiation ? `<button id="admin-global-negotiation-toggle" type="button" onclick="window.adminToggleGlobalNegotiation()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-black shadow-lg bg-gray-700 hover:bg-gray-600">Regateo global: cargando...</button>` : ''}
                     </div>
+                    ${canToggleNegotiation ? `<p class="text-[11px] text-slate-300 mt-2">Este control aplica a todos los viajes nuevos: OFF deshabilita la fase de regateo para todos los pedidos hasta que lo vuelvas a activar.</p>` : ''}
                 </div>
                 <div class="ops-trips-page-kpis">
                     ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
@@ -8280,7 +8551,7 @@ if (document.readyState === 'loading') {
                     if (window.adminTripsRenderTimer) clearTimeout(window.adminTripsRenderTimer);
                     window.adminTripsRenderTimer = setTimeout(() => {
                         if (window.currentAdminTab !== 'trips' || window.adminTripsPastView) return;
-                        container.innerHTML = buildAdminTripsPageHtml(allTripsForAlert);
+                        paintStaffTripsContainer(container, buildAdminTripsPageHtml(allTripsForAlert));
                     }, 200);
                 },
                 (err) => {
@@ -8292,6 +8563,7 @@ if (document.readyState === 'loading') {
 
         window.renderAdminTab = async (role, targetContainer = null) => {
             window.currentAdminTab = role;
+            window.clearAdminSearchState?.();
 
             const isFullAdmin = isAdminUser(currentUser, window.userProfile);
 
@@ -8300,6 +8572,9 @@ if (document.readyState === 'loading') {
             }
 
             const container = targetContainer || document.getElementById('admin-users-list');
+            if (container) {
+                container.classList.remove('admin-search-scrolled');
+            }
 
             if (role !== 'trips') {
                 window.stopAdminTripsListener?.();
@@ -8308,6 +8583,7 @@ if (document.readyState === 'loading') {
             if (role === 'trips') {
                 window.adminTripsPastView = false;
                 window.startAdminTripsListener(container);
+                window.loadAdminNegotiationState?.();
                 return;
             }
 
@@ -8679,9 +8955,50 @@ if (document.readyState === 'loading') {
                 body += U.userListOpen();
             }
 
-            filteredUsers.forEach(u => {
-                let actionBtn = '';
-                let approvalBadge = '';
+            const groupedUsers = (role === 'client' || role === 'driver')
+                ? groupUsersByZone(filteredUsers)
+                : [{ zoneName: '', users: filteredUsers }];
+
+            if ((role === 'client' || role === 'driver') && groupedUsers.length > 1) {
+                body += `
+                    <div class="ops-city-chipbar mb-3">
+                        ${groupedUsers.map((group) => {
+                            const zoneKey = escapeViewerText(slugifyAdminUserGroup(group.zoneName, group.zoneId));
+                            return `
+                                <button
+                                    type="button"
+                                    class="ops-city-chip"
+                                    onclick="window.jumpToAdminUserGroup('${role}', '${zoneKey}')">
+                                    <span class="ops-city-chip__name">${escapeViewerText(group.zoneName)}</span>
+                                    <span class="ops-city-chip__count">${group.users.length}</span>
+                                </button>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            }
+
+            groupedUsers.forEach((group) => {
+                if (group.zoneName) {
+                    const zoneKey = escapeViewerText(slugifyAdminUserGroup(group.zoneName, group.zoneId));
+                    body += `
+                        <details class="ops-user-group mb-3 rounded-2xl border border-slate-700/70 bg-slate-900/50" data-admin-group="${zoneKey}">
+                            <summary class="ops-user-group-header p-4 cursor-pointer">
+                                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                    <div>
+                                        <p class="text-[10px] uppercase tracking-[0.25em] text-slate-400 mb-1">${role === 'driver' ? 'Conductores' : 'Pasajeros'} · Ciudad</p>
+                                        <p class="text-sm font-black text-white">${escapeViewerText(group.zoneName)}</p>
+                                    </div>
+                                    <span class="text-[10px] uppercase tracking-[0.2em] text-slate-500">${group.users.length} ${role === 'driver' ? 'conductores' : 'pasajeros'}</span>
+                                </div>
+                            </summary>
+                            <div class="ops-user-group-body space-y-3 p-4 pt-0">
+                    `;
+                }
+
+                group.users.forEach(u => {
+                    let actionBtn = '';
+                    let approvalBadge = '';
                 let daysLeftBadge = '';
                 let balanceBadge = '';
                 const status = u.approvalStatus || 'approved';
@@ -8877,6 +9194,11 @@ if (document.readyState === 'loading') {
                         ${actionBtn}
                     </div>
                 `;
+                });
+
+                if (group.zoneName) {
+                    body += '</div></details>';
+                }
             });
 
             if (role === 'driver') {
@@ -8886,6 +9208,7 @@ if (document.readyState === 'loading') {
             }
 
             container.innerHTML = U.page(body);
+            bindAdminSearchScrollCleanup(container);
 
             // Bind the copy all button after render (more reliable than inline onclick)
             setTimeout(() => {
@@ -14644,6 +14967,52 @@ if (document.readyState === 'loading') {
                 card.style.display = adminUserCardMatchesSearch(card, term) ? '' : 'none';
             });
         };
+
+        window.clearAdminSearchState = () => {
+            ['driver-search-input', 'client-search-input', 'supervisor-search-input'].forEach((id) => {
+                const input = document.getElementById(id);
+                if (input) input.value = '';
+            });
+            window._adminDriverStatusFilter = 'all';
+            window._adminClientStatusFilter = 'all';
+        };
+
+        function slugifyAdminUserGroup(zoneName, zoneId = '') {
+            return String(zoneName || zoneId || 'sin-ciudad')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '') || 'sin-ciudad';
+        }
+
+        window.jumpToAdminUserGroup = (role, zoneKey) => {
+            const containerId = role === 'driver' ? 'admin-drivers-container' : 'admin-clients-container';
+            const list = document.getElementById(containerId);
+            if (!list || !zoneKey) return;
+            const target = list.querySelector(`[data-admin-group="${zoneKey}"]`);
+            if (!target) return;
+            list.querySelectorAll('.ops-user-group[open]').forEach((el) => {
+                if (el !== target) el.open = false;
+            });
+            target.open = true;
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        function bindAdminSearchScrollCleanup(container) {
+            if (!container) return;
+            try {
+                if (container.dataset.adminSearchScrollBound) return;
+                container.dataset.adminSearchScrollBound = '1';
+                container.addEventListener('scroll', () => {
+                    if (container.scrollTop > 10) {
+                        container.classList.add('admin-search-scrolled');
+                    } else {
+                        container.classList.remove('admin-search-scrolled');
+                    }
+                }, { passive: true });
+            } catch (_) {}
+        }
 
         window.filterSupActiveDrivers = (status) => {
             window._supActiveDriverStatusFilter = status || 'all';
@@ -20447,8 +20816,13 @@ window.saveProfileChanges = async () => {
                             : 'Debes subir TODAS las fotos: 3 interiores + 2 exteriores + placa + licencia + revisión vehicular.'
                 };
             }
-            if ((vType === 'paila' || vType === 'camion') && !document.getElementById('vehicle-cargo-capacity')?.value.trim()) {
-                return { ok: false, message: 'Indica la capacidad de carga del vehículo (toneladas, varas, etc.).' };
+            if ((vType === 'paila' || vType === 'camion' || vType === 'grua') && !document.getElementById('vehicle-cargo-capacity')?.value.trim()) {
+                return {
+                    ok: false,
+                    message: vType === 'grua'
+                        ? 'Indica la capacidad de carga o remolque de la grúa.'
+                        : 'Indica la capacidad de carga del vehículo (toneladas, varas, etc.).'
+                };
             }
             if (vType === 'moto' && (!passengerCascoPhoto1 || !passengerCascoPhoto2)) {
                 return { ok: false, message: 'Faltan las fotos del casco del pasajero (2 fotos obligatorias).' };
@@ -20491,7 +20865,7 @@ window.saveProfileChanges = async () => {
                 window.driverVehicleSetupMode = null;
                 window.configureDriverVehicleSetupUI('register');
                 window.hideAuthSetupScreen?.();
-                document.getElementById('app-interface').style.display = 'flex';
+                setElementDisplay('app-interface', 'flex');
                 resetDriverVehiclePhotoGlobals();
                 window.renderDriverVehicleSelector();
                 window.renderProfileVehiclesList();
@@ -20650,8 +21024,8 @@ window.saveProfileChanges = async () => {
                 window.showToast("Perfil guardado. Ahora acepta los Términos para continuar.", "success");
 
                 setTimeout(() => {
-                    document.getElementById('login-screen').style.display = 'none';
-                    document.getElementById('app-interface').style.display = 'none';
+                    setElementDisplay('login-screen', 'none');
+                    setElementDisplay('app-interface', 'none');
                     window.showTermsAcceptance?.();
                 }, 500);
             } catch (e) {
@@ -21094,11 +21468,13 @@ window.saveProfileChanges = async () => {
                 }
 
                 window.enterPassengerTrackMode?.('destination', workingTrip);
-                window.syncPassengerTripMapEndpoints?.(workingTrip);
-                updateETA(workingTrip.driverId, dest, workingTrip);
-                window.trackDriverRoute?.(workingTrip.driverId, dest, {
-                    phase: 'destination',
-                    tripData: workingTrip
+                whenMapReady(() => {
+                    window.syncPassengerTripMapEndpoints?.(workingTrip);
+                    updateETA(workingTrip.driverId, dest, workingTrip);
+                    window.trackDriverRoute?.(workingTrip.driverId, dest, {
+                        phase: 'destination',
+                        tripData: workingTrip
+                    });
                 });
 
                 // Mostrar el panel fijo y minimizable para cliente (solo se activa a 2km)
@@ -21202,9 +21578,9 @@ window.saveProfileChanges = async () => {
                 window.updateRouteProgress?.(pos, { driverNav: true, force: true });
             }
 
-            if (needsFullRoute || !window._progressRoutePolylines) {
-                window.drawRouteOnMap(route, { driverNav: isDriverNav });
-            }
+                if (needsFullRoute || !window._progressRoutePolylines) {
+                    whenMapReady(() => window.drawRouteOnMap(route, { driverNav: isDriverNav }));
+                }
             if (isDriverNav && route?.path?.length >= 2) {
                 window.updateRouteProgress?.(pos, { driverNav: true, force: true });
             }
@@ -21215,35 +21591,37 @@ window.saveProfileChanges = async () => {
                 window.updateDriverMarker?.(currentUser?.uid, window.currentDriverPos.lat, window.currentDriverPos.lng, true, {
                     vehicleType: activeV?.type || getActiveVehicleType(window.userProfile) || 'auto'
                 });
-                if (needsFullRoute && route?.path?.length >= 2 && window.gMap) {
-                    try {
-                        const bounds = new google.maps.LatLngBounds();
-                        route.path.forEach((p) => bounds.extend(p));
-                        bounds.extend(pos);
-                        window.gMap.fitBounds(bounds, 56);
-                    } catch (_) {}
-                }
+                    if (needsFullRoute && route?.path?.length >= 2 && window.gMap) {
+                        whenMapReady(() => {
+                            try {
+                                const bounds = new google.maps.LatLngBounds();
+                                route.path.forEach((p) => bounds.extend(p));
+                                bounds.extend(pos);
+                                window.gMap.fitBounds(bounds, 56);
+                            } catch (_) {}
+                        });
+                    }
             } else {
                 if (route && typeof window.placeDestinationMarker === 'function') {
                     const path = route.path || [];
                     if (path.length > 0) {
                         const endPoint = path[path.length - 1];
                         if (endPoint) {
-                            window.placeDestinationMarker(endPoint, 'Destino / Siguiente punto');
+                            whenMapReady(() => window.placeDestinationMarker(endPoint, 'Destino / Siguiente punto'));
                         }
                     }
                 }
-                document.getElementById('nav-hud-top').style.display = 'flex';
+                setElementDisplay('nav-hud-top', 'flex');
                 const hudB = document.getElementById('nav-hud-bottom');
                 if (hudB) hudB.style.display = 'none';
                 document.body.classList.add('is-navigating');
                 window.hideCenterMapFab?.();
                 window.syncNavigationMapFabs?.();
-                document.getElementById('nav-step-text').innerText = 'Sigue la ruta';
-                document.getElementById('nav-step-dist').innerText = `${window.getRouteDistanceKm(route).toFixed(1)} km · ${window.formatRouteDuration(route)}`;
-                document.getElementById('nav-total-time').innerText = window.formatRouteDuration(route);
-                document.getElementById('nav-total-dist').innerText = `${window.getRouteDistanceKm(route).toFixed(1)} km`;
-                document.getElementById('nav-total-eta').innerText = window.formatRouteEta(route);
+                setElementText('nav-step-text', 'Sigue la ruta');
+                setElementText('nav-step-dist', `${window.getRouteDistanceKm(route).toFixed(1)} km · ${window.formatRouteDuration(route)}`);
+                setElementText('nav-total-time', window.formatRouteDuration(route));
+                setElementText('nav-total-dist', `${window.getRouteDistanceKm(route).toFixed(1)} km`);
+                setElementText('nav-total-eta', window.formatRouteEta(route));
             }
         } catch (error) {
             console.error('Error actualizando navegación:', error);
@@ -21438,7 +21816,7 @@ onAuthStateChanged(auth, async (user) => {
             // USUARIO NUEVO (sin perfil)
             // =============================================
             if (!profileRef.exists()) {
-                document.getElementById('login-screen').style.display = 'none';
+                setElementDisplay('login-screen', 'none');
 
                 // Mostrar formulario según el rol elegido
                 if (userRole === 'driver') {
@@ -21677,11 +22055,11 @@ onAuthStateChanged(auth, async (user) => {
                 }
 
                 // Ocultar pantallas de login
-                document.getElementById('login-screen').style.display = 'none';
+                setElementDisplay('login-screen', 'none');
 
                 // Pasajero autorizado por admin: completar registro de conductor con la misma cuenta
                 if (profile.allowSwitchToDriver && profile.role === 'client') {
-                    document.getElementById('app-interface').style.display = 'none';
+                    setElementDisplay('app-interface', 'none');
                     userRole = 'driver';
                     window.showDriverSetupScreen();
                     prefillDriverSetupFromProfile(profile);
@@ -21697,7 +22075,7 @@ onAuthStateChanged(auth, async (user) => {
 
                 // === Verificación de aceptación de Términos y Condiciones (antes de ocultar setup) ===
                 if (!profile.termsAccepted) {
-                    document.getElementById('app-interface').style.display = 'none';
+                    setElementDisplay('app-interface', 'none');
                     window.showTermsAcceptance?.();
                     return;
                 }
@@ -21706,8 +22084,8 @@ onAuthStateChanged(auth, async (user) => {
                 const needsDriverFullReg = profile.role === 'driver'
                     && (profile.needsFullDriverSetup || (profile.roleChangeSetupRequired && !profile.vehicle?.plate));
                 if (needsDriverFullReg) {
-                    document.getElementById('login-screen').style.display = 'none';
-                    document.getElementById('app-interface').style.display = 'none';
+                    setElementDisplay('login-screen', 'none');
+                    setElementDisplay('app-interface', 'none');
                     userRole = 'driver';
                     window.showDriverSetupScreen();
                     storeLocalSessionVersion(user.uid, profile.sessionVersion || 0);
@@ -21723,8 +22101,7 @@ onAuthStateChanged(auth, async (user) => {
 
                 // Ahora sí ocultar setup y mostrar app
                 window.hideAuthSetupScreen?.();
-                document.getElementById('app-interface').style.display = 'flex';
-
+                setElementDisplay('app-interface', 'flex');
                 updatePushEnableButton();
                 promptForNotificationsPersistently();
                 window.startNotificationListener?.();
@@ -22719,6 +23096,53 @@ function _initDestinationArrivalPanel() {
   window.updatePassengerDestinationArrivalPanel?.();
 }
 
+function summarizeProfileForTrip(profile) {
+    if (!profile) return { ok: false, reason: 'no-profile' };
+    return {
+        uid: profile.uid || null,
+        role: profile.role || null,
+        approvalStatus: profile.approvalStatus || null,
+        accountRestricted: !!profile.accountRestricted,
+        termsAccepted: !!profile.termsAccepted,
+        identityVerificationSubmitted: !!profile.identityVerificationSubmitted,
+        hasVehicles: Array.isArray(profile.vehicles) && profile.vehicles.length > 0,
+        activeVehicleId: profile.activeVehicleId || null
+    };
+}
+
+function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nuevo.') {
+    try {
+        const code = e?.code || e?.message || '';
+        const lower = String(code).toLowerCase();
+        if (lower.includes('permission') || lower.includes('permission-denied') || lower.includes('unauthorized')) {
+            // Mensaje claro para el usuario y sugerencia de soporte
+            window.showToast('No tienes permiso para completar esta acción. Si crees que es un error, contacta soporte.', 'warning');
+            console.warn('Firestore permission error:', e);
+            // Grabar un log estructurado en Firestore (non-blocking)
+            try {
+                const log = {
+                    uid: currentUser?.uid || null,
+                    code: e?.code || null,
+                    message: String(e?.message || e) || null,
+                    path: location.pathname || null,
+                    action: (window._lastTripUiState && window._lastTripUiState.action) || window._lastAction || 'unknown',
+                    createdAt: serverTimestamp()
+                };
+                addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'permission_logs'), log).catch((_) => {});
+            } catch (_) {}
+            try { showPermissionHelpModal(String(e?.message || 'Sin detalles disponibles.')); } catch (_) {}
+            return true;
+        }
+        // Otros errores: log y mostrar fallback
+        console.error('Firestore error:', e);
+        window.showToast(fallbackMsg, 'warning');
+    } catch (err) {
+        console.error('handleFirestoreError failed:', err, e);
+        window.showToast(fallbackMsg, 'warning');
+    }
+    return false;
+}
+
         function resetAfterTripEnds() {
             if (window.pendingOfferWatch) {
                 clearInterval(window.pendingOfferWatch);
@@ -22768,8 +23192,8 @@ function _initDestinationArrivalPanel() {
             document.getElementById('fare-card')?.classList.add('hidden');
             document.getElementById('eta-indicator')?.classList.add('hidden');
             window.recordedTripViews?.clear();
-            document.getElementById('nav-hud-top').style.display = 'none';
-            document.getElementById('nav-hud-bottom').style.display = 'none';
+            setElementDisplay('nav-hud-top', 'none');
+            setElementDisplay('nav-hud-bottom', 'none');
 
             // Restore passenger booking form elements after searching/cancel
             if (window.userProfile?.role === 'client') {
@@ -23761,9 +24185,12 @@ function _initDestinationArrivalPanel() {
             }
 
             resetCancellationSurveyForm();
-            document.getElementById('app-interface').style.display = 'none';
-            document.getElementById('rating-screen').style.display = 'none';
-            document.getElementById('cancellation-survey-screen').style.display = 'flex';
+            const appInterface = document.getElementById('app-interface');
+            const ratingScreen = document.getElementById('rating-screen');
+            const cancellationSurveyScreen = document.getElementById('cancellation-survey-screen');
+            if (appInterface) appInterface.style.display = 'none';
+            if (ratingScreen) ratingScreen.style.display = 'none';
+            if (cancellationSurveyScreen) cancellationSurveyScreen.style.display = 'flex';
 
             // Mostrar botón de cerrar solo para admins
             const closeBtn = document.getElementById('cancellation-survey-close-btn');
@@ -25754,18 +26181,12 @@ function _initDestinationArrivalPanel() {
                 document.getElementById('trip-viewers-panel')?.classList.add('hidden');
                 syncPassengerBookingForm?.(data);
 
-                const ao = document.getElementById('active-origin-text');
-                if (ao) {
-                    ao.innerText = (typeof getDriverTripPointLabel === 'function')
-                        ? getDriverTripPointLabel(data, 'origin')
-                        : (data.originPlaceName || window.shortenMapPlaceLabel?.(data.origin) || data.origin || '');
-                }
-                const ad = document.getElementById('active-dest-text');
-                if (ad) {
-                    ad.innerText = (typeof getDriverTripPointLabel === 'function')
-                        ? getDriverTripPointLabel(data, 'destination')
-                        : (data.destinationPlaceName || window.shortenMapPlaceLabel?.(data.destination) || data.destination || '');
-                }
+                setElementText('active-origin-text', (typeof getDriverTripPointLabel === 'function')
+                    ? getDriverTripPointLabel(data, 'origin')
+                    : (data.originPlaceName || window.shortenMapPlaceLabel?.(data.origin) || data.origin || ''));
+                setElementText('active-dest-text', (typeof getDriverTripPointLabel === 'function')
+                    ? getDriverTripPointLabel(data, 'destination')
+                    : (data.destinationPlaceName || window.shortenMapPlaceLabel?.(data.destination) || data.destination || ''));
                 // Hourly note + personas (también en viaje normal)
                 const hourlyNote = document.getElementById('active-hourly-note');
                 if (hourlyNote) {
@@ -25779,14 +26200,14 @@ function _initDestinationArrivalPanel() {
                         if (data.distanceKmForCharge > 25) {
                             note += ` <span class="inline-block mt-1 ml-1 text-emerald-700 font-black text-[9px]"><i class="fas fa-road"></i> +km</span>`;
                         }
-                        hourlyNote.innerHTML = note;
+                        setElementHTML('active-hourly-note', note);
                         hourlyNote.classList.remove('hidden');
                     } else if (paxN > 1 && data.serviceType !== 'delivery' && !isFreightService(data.serviceType)) {
-                        hourlyNote.innerHTML = `<span class="inline-block mt-1 text-amber-700 font-black text-[10px]"><i class="fas fa-users"></i> ${paxN} PERSONAS en este viaje${Number(data.passengerSurcharge) > 0 ? ` · +L. ${Number(data.passengerSurcharge).toFixed(0)}` : ''}</span>`;
+                        setElementHTML('active-hourly-note', `<span class="inline-block mt-1 text-amber-700 font-black text-[10px]"><i class="fas fa-users"></i> ${paxN} PERSONAS en este viaje${Number(data.passengerSurcharge) > 0 ? ` · +L. ${Number(data.passengerSurcharge).toFixed(0)}` : ''}</span>`);
                         hourlyNote.classList.remove('hidden');
                     } else {
                         hourlyNote.classList.add('hidden');
-                        hourlyNote.innerHTML = '';
+                        setElementHTML('active-hourly-note', '');
                     }
                 }
                 renderChat(data.chat || []);
@@ -26785,8 +27206,8 @@ window.saveSimplePassengerProfile = async () => {
 
         // Forzar aceptación de términos después del registro
         setTimeout(() => {
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('app-interface').style.display = 'none';
+            setElementDisplay('login-screen', 'none');
+            setElementDisplay('app-interface', 'none');
             window.showTermsAcceptance?.();
         }, 500);
 
@@ -28970,11 +29391,25 @@ window.cancelSetupAndLogout = () => {
               profile.approvalStatus === 'rejected';
 
             if (isPureDriver || isRestricted) {
-                return window.showToast('Solo usuarios con modo pasajero activado pueden solicitar viajes.');
+                // Mensaje más específico según la causa
+                if (isPureDriver) {
+                    window.showToast('Tu cuenta está en modo conductor. Cambia a modo pasajero para pedir viajes.');
+                } else if (profile.approvalStatus === 'suspended') {
+                    window.showToast('Tu cuenta está suspendida. Contacta a soporte.');
+                } else if (profile.approvalStatus === 'rejected') {
+                    window.showToast('Tu cuenta fue rechazada. Contacta a soporte.');
+                } else if (profile.accountRestricted) {
+                    window.showToast('Tu cuenta tiene restricciones. Contacta a soporte.');
+                } else {
+                    window.showToast('Solo usuarios con modo pasajero activado pueden solicitar viajes.');
+                }
+                console.warn('sendTripRequest blocked:', summarizeProfileForTrip(profile));
+                return;
             }
 
             const tripCheck = isClientTripEligible(window.userProfile);
             if (!tripCheck.ok) {
+                console.warn('isClientTripEligible failed:', summarizeProfileForTrip(window.userProfile), tripCheck);
                 return window.showToast(tripCheck.message);
             }
             // Sin verificar: se permite viajar (estilo Uber). Aviso suave, no bloqueo.
@@ -28984,6 +29419,7 @@ window.cancelSetupAndLogout = () => {
             }
 
             if (!window.mapLoaded) {
+                console.warn('sendTripRequest: map not loaded yet');
                 return window.showToast('El mapa aún carga. Espera unos segundos e intenta de nuevo.');
             }
 
@@ -29379,6 +29815,21 @@ window.cancelSetupAndLogout = () => {
                     offeredToDriverId: null,
                     preferredDriverId: preferredDriverId || null
                 };
+                // Validate via Cloud Function before creating the trip (hardening server-side checks)
+                try {
+                    const vfResp = await httpsCallable(cloudFunctions, 'validateTripCreation')({ trip: tripPayload });
+                    const vfData = (vfResp && vfResp.data) ? vfResp.data : vfResp;
+                    if (vfData?.warning === 'terms_not_accepted') {
+                        window.showToast('Tu cuenta no aceptó términos. Viaje permitido pero se recomienda aceptar términos.', 'info');
+                    }
+                    if (vfData && typeof vfData.negotiationEnabled !== 'undefined') {
+                        // Forzar el campo en el payload según la configuración global
+                        tripPayload.negotiationEnabled = !!vfData.negotiationEnabled;
+                    }
+                } catch (vfErr) {
+                    throw vfErr;
+                }
+
                 const tripRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), tripPayload);
 
                 const newTrip = {
@@ -29475,7 +29926,7 @@ window.cancelSetupAndLogout = () => {
 
                 window.showToast("¡Llegada confirmada! Ingresa el PIN del pasajero.", "success");
             } catch (e) {
-                window.showToast("Error al confirmar llegada.");
+                handleFirestoreError(e, 'Error al confirmar llegada.');
             }
         };
 
@@ -29558,7 +30009,7 @@ window.cancelSetupAndLogout = () => {
                 window.showToast("¡Viaje iniciado! Sigue la ruta al destino.", "success");
             } catch (e) {
                 console.error('verifyPin error:', e);
-                window.showToast("Error al iniciar el viaje.");
+                handleFirestoreError(e, 'Error al iniciar el viaje.');
             }
         };
 
@@ -29589,7 +30040,7 @@ window.cancelSetupAndLogout = () => {
                 window.showToast('Viaje iniciado sin PIN. Sigue al destino.', 'success');
             } catch (e) {
                 console.error('driverSkipPinAndStart:', e);
-                window.showToast(e?.message || 'No se pudo iniciar sin PIN.');
+                handleFirestoreError(e, e?.message || 'No se pudo iniciar sin PIN.');
             }
         };
 
@@ -29665,7 +30116,7 @@ window.cancelSetupAndLogout = () => {
                 }
             } catch (e) {
                 console.error('finishTrip:', e);
-                window.showToast("Error al finalizar el viaje.");
+                handleFirestoreError(e, 'Error al finalizar el viaje.');
             }
         };
 
@@ -30132,10 +30583,10 @@ window.cancelSetupAndLogout = () => {
 
         window.skipRating = () => {
             const isDriver = window.userProfile?.role === 'driver';
-            document.getElementById('rating-screen').style.display = 'none';
+            setElementDisplay('rating-screen', 'none');
             document.getElementById('rating-screen')?.classList.remove('rating-screen-driver-overlay');
             document.body.classList.remove('driver-rating-active');
-            document.getElementById('app-interface').style.display = 'flex';
+            setElementDisplay('app-interface', 'flex');
             if (isDriver) {
                 document.getElementById('driver-view')?.classList.remove('hidden');
                 window.clearRoutePolylines?.({ force: true });
@@ -30155,9 +30606,9 @@ window.cancelSetupAndLogout = () => {
                 window.clearRoutePolylines?.({ force: true });
                 window.clearOriginDestinationMarkers?.();
             }
-            document.getElementById('app-interface').style.display = isDriver ? 'flex' : 'none';
+            setElementDisplay('app-interface', isDriver ? 'flex' : 'none');
             document.body.classList.toggle('driver-rating-active', isDriver);
-            document.getElementById('rating-screen').style.display = 'flex';
+            setElementDisplay('rating-screen', 'flex');
             document.getElementById('rating-screen')?.classList.toggle('rating-screen-driver-overlay', isDriver);
             if (isDriver) {
                 document.getElementById('driver-view')?.classList.remove('hidden');
@@ -30296,10 +30747,10 @@ window.cancelSetupAndLogout = () => {
                 window._ratingTripId = null;
 
                 if (queuedId && window.userProfile?.role === 'driver') {
-                    document.getElementById('rating-screen').style.display = 'none';
+                    setElementDisplay('rating-screen', 'none');
                     document.getElementById('rating-screen')?.classList.remove('rating-screen-driver-overlay');
                     document.body.classList.remove('driver-rating-active');
-                    document.getElementById('app-interface').style.display = 'flex';
+                    setElementDisplay('app-interface', 'flex');
                     window.showToast('¡Siguiente viaje cargado! Ve hacia el nuevo pasajero.', 'success');
                     subscribeToTripDocument(queuedId);
                     try {
@@ -30314,10 +30765,10 @@ window.cancelSetupAndLogout = () => {
                     } catch (_) {}
                 } else {
                     // Finalizar correctamente sin recargar ni cerrar sesión
-                    document.getElementById('rating-screen').style.display = 'none';
+                    setElementDisplay('rating-screen', 'none');
                     document.getElementById('rating-screen')?.classList.remove('rating-screen-driver-overlay');
                     document.body.classList.remove('driver-rating-active');
-                    document.getElementById('app-interface').style.display = 'flex';
+                    setElementDisplay('app-interface', 'flex');
 
                     activeTrip = null;
                     window.currentActiveTripData = null;
@@ -32717,6 +33168,31 @@ window.addEventListener('map-route-trigger', () => {
             document.getElementById('supervisor-panel')?.classList.add('hidden');
         };
 
+        function groupUsersByZone(users) {
+            const groupsMap = new Map();
+            users.forEach((u) => {
+                const zoneId = u.serviceZoneId || u.cityId || '';
+                const zoneName = u.serviceZoneName || u.cityName || (zoneId ? `Zona ${zoneId}` : 'Sin ciudad');
+                const key = `${zoneName}||${zoneId}`;
+                if (!groupsMap.has(key)) {
+                    groupsMap.set(key, { zoneId, zoneName, users: [] });
+                }
+                groupsMap.get(key).users.push(u);
+            });
+            const grouped = Array.from(groupsMap.values());
+            grouped.forEach((group) => {
+                group.users.sort((a, b) => (String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })));
+            });
+            grouped.sort((a, b) => {
+                if (a.zoneName === 'Sin ciudad') return 1;
+                if (b.zoneName === 'Sin ciudad') return -1;
+                const cmp = a.zoneName.localeCompare(b.zoneName, undefined, { sensitivity: 'base' });
+                if (cmp !== 0) return cmp;
+                return String(a.zoneId || '').localeCompare(String(b.zoneId || ''));
+            });
+            return grouped;
+        }
+
         function buildSupervisorTripsPageHtml(allTrips) {
             const activeTrips = allTrips.filter((t) => ['accepted', 'in_progress', 'pending', 'scheduled'].includes(t.status) && !t.isDemandSimulation);
             const unanswered = getStaffUnansweredPendingTrips(allTrips);
@@ -32846,7 +33322,7 @@ window.addEventListener('map-route-trigger', () => {
                     if (window.supervisorTripsRenderTimer) clearTimeout(window.supervisorTripsRenderTimer);
                     window.supervisorTripsRenderTimer = setTimeout(() => {
                         if (window.supervisorTripsPastView) return;
-                        container.innerHTML = buildSupervisorTripsPageHtml(allTrips);
+                        paintStaffTripsContainer(container, buildSupervisorTripsPageHtml(allTrips));
                     }, 200);
                 },
                 (err) => {

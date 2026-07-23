@@ -1,8 +1,8 @@
 /** Shell visual compartido: login + setups (misma apariencia) */
 
 export const AUTH_ROLE_HINTS = {
-    client: 'Pasajero: viajes en auto, moto, envíos o fletes (paila/camión). Eliges el servicio dentro de la app.',
-    driver: 'Conductor: registra auto, moto, taxi, paila o camión. Cada vehículo recibe solo el tipo de solicitud que corresponde.',
+    client: 'Pasajero: viajes, envíos, fletes o grúa. Eliges el servicio dentro de la app.',
+    driver: 'Conductor: registra auto, moto, taxi, paila, camión o grúa. Cada vehículo recibe solo el tipo de solicitud que corresponde.',
 };
 
 export function getAuthHeroHtml({

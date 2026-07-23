@@ -40,9 +40,17 @@ function closeMobileDrawers() {
     document.getElementById('supervisor-panel')?.classList.remove('ops-drawer-open');
 }
 
+function closeDrawerIfMobile(panel) {
+    if (!panel) return;
+    if (window.matchMedia('(max-width: 900px)').matches) {
+        panel.classList.remove('ops-drawer-open');
+    }
+}
+
 export function setAdminNavActive(role) {
     const panel = document.getElementById('admin-panel');
     if (!panel) return;
+    closeDrawerIfMobile(panel);
 
     panel.querySelectorAll('.ops-nav-item[data-admin-tab]').forEach((btn) => {
         const isActive = btn.dataset.adminTab === role;
@@ -60,6 +68,7 @@ export function setAdminNavActive(role) {
 export function setSupervisorNavActive(tabId) {
     const panel = document.getElementById('supervisor-panel');
     if (!panel) return;
+    closeDrawerIfMobile(panel);
 
     panel.querySelectorAll('.ops-nav-item[data-sup-tab]').forEach((btn) => {
         const isActive = btn.dataset.supTab === tabId;
@@ -82,6 +91,7 @@ export function setSupervisorNavActive(tabId) {
 export function setSupervisorQuickActive(quickId) {
     const panel = document.getElementById('supervisor-panel');
     if (!panel) return;
+    closeDrawerIfMobile(panel);
 
     panel.querySelectorAll('.ops-nav-item[data-sup-tab]').forEach((btn) => {
         btn.classList.remove('ops-nav-item--active');
@@ -127,6 +137,35 @@ function bindDrawer(panelId, toggleId, backdropId) {
             }
         });
     });
+
+    const closeOnOutsideTouch = (ev) => {
+        if (!window.matchMedia('(max-width: 900px)').matches) return;
+        if (!panel.classList.contains('ops-drawer-open')) return;
+        const target = ev?.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest('.ops-sidebar')) return;
+        if (target.closest(`#${toggleId}`)) return;
+        panel.classList.remove('ops-drawer-open');
+    };
+
+    // Fallback: if backdrop/click-through behaves oddly on some WebViews, close drawer on outside touch.
+    panel.addEventListener('pointerdown', closeOnOutsideTouch, { passive: true });
+    panel.addEventListener('touchstart', closeOnOutsideTouch, { passive: true });
+
+    // On small screens, hide drawer once user starts scrolling content.
+    const content = panel.querySelector('.ops-content');
+    if (content && !content.dataset.opsAutoHideBound) {
+        content.dataset.opsAutoHideBound = '1';
+        content.addEventListener('scroll', () => {
+            if (content.scrollTop > 6) closeDrawerIfMobile(panel);
+        }, { passive: true });
+        content.addEventListener('touchmove', () => {
+            closeDrawerIfMobile(panel);
+        }, { passive: true });
+        content.addEventListener('wheel', () => {
+            closeDrawerIfMobile(panel);
+        }, { passive: true });
+    }
 }
 
 export function initOpsPanels() {

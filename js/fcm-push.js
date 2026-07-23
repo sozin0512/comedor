@@ -311,7 +311,7 @@ function routeForegroundPush(payload) {
     const type = data.type || '';
 
     // Tono de Personalización (Web Audio). En Android puede fallar si el AudioContext está bloqueado.
-    const webToneOk = playConfiguredToneFromPush(data);
+    playConfiguredToneFromPush(data);
 
     // Android: SIEMPRE banner emergente Temu (canal MAX + hondu_ride), aunque estés en la app
     if (isCapacitorAndroid()) {
@@ -356,16 +356,24 @@ function routeForegroundPush(payload) {
         });
     } else {
         const superVibrate = data.superVibrate === 'true' || isRideAlertData(data);
-        notifyTripEvent({
-            title,
-            body,
-            tag: data.tag || `fcm-${type || 'trip'}-${tripId || 'x'}`,
-            tripId,
-            openChat: data.openChat === 'true',
-            force: true,
-            sound: 'none',
-            superVibrate
-        });
+        const tag = data.tag || `fcm-${type || 'trip'}-${tripId || 'x'}`;
+        const dedupKey = `foreground-push:${tripId || 'global'}:${tag}`;
+        const now = Date.now();
+        const cache = window.__tripNotificationDedup || (window.__tripNotificationDedup = new Map());
+        const last = cache.get(dedupKey);
+        if (!last || now - last >= 2000) {
+            cache.set(dedupKey, now);
+            notifyTripEvent({
+                title,
+                body,
+                tag,
+                tripId,
+                openChat: data.openChat === 'true',
+                force: true,
+                sound: 'none',
+                superVibrate
+            });
+        }
     }
 }
 

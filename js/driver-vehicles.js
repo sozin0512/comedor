@@ -26,7 +26,7 @@ function legacyRecordFromProfile(profile) {
 export function buildVehicleLabel(type, vehicle = {}) {
     const plate = (vehicle.plate || '').trim();
     const model = (vehicle.model || '').trim();
-    const typeLabels = { moto: 'Moto', taxi: 'Taxi', auto: 'Auto', paila: 'Paila', camion: 'Camión' };
+    const typeLabels = { moto: 'Moto', taxi: 'Taxi', auto: 'Auto', paila: 'Paila', camion: 'Camión', grua: 'Grúa' };
     const prefix = typeLabels[type] || 'Vehículo';
     if (model && plate) return `${prefix}: ${model} · ${plate}`;
     if (plate) return `${prefix}: ${plate}`;

@@ -481,6 +481,87 @@ exports.acceptTermsProfile = onCall(async (request) => {
     return { ok: true, uid, termsAcceptedAt: acceptedAt };
 });
 
+/** Valida creación de trips en el servidor (checks básicos). */
+exports.validateTripCreation = onCall(async (request) => {
+    const auth = request.auth || {};
+    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+
+    const trip = request.data?.trip || null;
+    if (!trip || typeof trip !== 'object') throw new HttpsError('invalid-argument', 'Datos de viaje inválidos.');
+
+    // El clientId debe coincidir con el caller
+    if (String(trip.clientId || '') !== String(auth.uid)) {
+        throw new HttpsError('permission-denied', 'clientId no coincide con la cuenta autenticada.');
+    }
+
+    // Revisar estado de perfil (public + private)
+    const pubRef = db.doc(`artifacts/${APP_ID}/public/data/users/${auth.uid}`);
+    const privRef = db.doc(`artifacts/${APP_ID}/users/${auth.uid}/profile/data`);
+    const [pubSnap, privSnap] = await Promise.all([pubRef.get(), privRef.get()]);
+    const pub = pubSnap.exists ? (pubSnap.data() || {}) : {};
+    const priv = privSnap.exists ? (privSnap.data() || {}) : {};
+
+    const role = pub.role || priv.role || 'client';
+    if (role !== 'client') {
+        throw new HttpsError('permission-denied', 'Tu cuenta no está en modo pasajero.');
+    }
+
+    const approvalStatus = priv.approvalStatus || pub.approvalStatus || null;
+    if (approvalStatus === 'suspended' || approvalStatus === 'rejected') {
+        throw new HttpsError('permission-denied', 'Cuenta suspendida o rechazada.');
+    }
+
+    // Terms check: no bloquear, solo advertir (cliente puede optar). Devolver warning si aplica
+    const termsAccepted = !!(priv.termsAccepted || pub.termsAccepted);
+
+    // Leer configuración global de appSettings para negociación
+    const settingsRef = db.doc(`artifacts/${APP_ID}/public/data/appSettings/main`);
+    const settingsSnap = await settingsRef.get();
+    const settings = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
+    const globalNegotiationEnabled = settings.negotiationEnabled == null ? true : !!settings.negotiationEnabled;
+
+    if (!termsAccepted) {
+        return { ok: true, warning: 'terms_not_accepted', negotiationEnabled: globalNegotiationEnabled };
+    }
+
+    return { ok: true, negotiationEnabled: globalNegotiationEnabled };
+});
+
+/** Admin: setea negociación globalmente en appSettings */
+exports.setGlobalNegotiation = onCall(async (request) => {
+    const auth = request.auth || {};
+    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    await assertCallerCanModerate(request.auth);
+    const enabled = !!request.data?.enabled;
+    const ref = db.doc(`artifacts/${APP_ID}/public/data/appSettings/main`);
+    await ref.set({ negotiationEnabled: enabled, negotiationToggledBy: auth.uid, negotiationToggledAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return { ok: true, negotiationEnabled: enabled };
+});
+
+/** Permite a un supervisor/administrador habilitar o deshabilitar la fase de regateo en un viaje. */
+exports.setTripNegotiation = onCall(async (request) => {
+    const auth = request.auth || {};
+    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+
+    // Verificar permisos de moderación
+    await assertCallerCanModerate(request.auth);
+
+    const tripId = String(request.data?.tripId || '').trim();
+    if (!tripId) throw new HttpsError('invalid-argument', 'tripId requerido');
+    const enabled = !!request.data?.enabled;
+
+    const tripRef = db.doc(`artifacts/${APP_ID}/public/data/trips/${tripId}`);
+    const patch = {
+        negotiationEnabled: enabled,
+        negotiationToggledBy: auth.uid,
+        negotiationToggledAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp()
+    };
+
+    await tripRef.set(patch, { merge: true });
+    return { ok: true, tripId, negotiationEnabled: enabled };
+});
+
 function serializePayoutRecord(doc) {
     const data = doc.data() || {};
     return {
