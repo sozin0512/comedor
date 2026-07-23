@@ -1078,14 +1078,16 @@ function rideDemandTitle(serviceType) {
 }
 
 /**
- * Canal Android emergente tipo Temu (todas las notificaciones).
- * v6: un solo canal MAX importance + hondu_ride para heads-up en otra app.
+ * Canal Android emergente tipo WhatsApp (enciende pantalla + suena).
+ * v7: data-only FCM + HonduMessagingService (full-screen intent + wake).
  * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
  */
-const ANDROID_PUSH_CHANNEL_VERSION = 'v6';
-const TEMU_ALL_CHANNEL_ID = `hondu_temu_all_${ANDROID_PUSH_CHANNEL_VERSION}`;
-const RIDE_ALERT_CHANNEL_ID = TEMU_ALL_CHANNEL_ID;
-const DEFAULT_ALERT_CHANNEL_ID = TEMU_ALL_CHANNEL_ID;
+const ANDROID_PUSH_CHANNEL_VERSION = 'v7';
+/** Canal nativo creado por HonduMessagingService */
+const WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v7';
+const TEMU_ALL_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
+const RIDE_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
+const DEFAULT_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 /** Vibración fuerte estilo Temu (ms). */
 const HONDU_SUPER_VIBRATE_MS = [0, 450, 100, 450, 100, 550, 120, 750, 100, 950];
 const HONDU_DEFAULT_VIBRATE_MS = HONDU_SUPER_VIBRATE_MS;
@@ -1481,12 +1483,12 @@ async function getUserTokens(appId, uid) {
 }
 
 /**
- * TODAS las notificaciones: emergentes tipo Temu (otra app / bloqueada / primer plano).
- * Canal MAX + hondu_ride + sticky + high priority.
+ * TODAS las notificaciones Android: estilo WhatsApp (suena + enciende pantalla).
+ * data-only en android para que HonduMessagingService dibuje full-screen intent.
  */
 function resolveAndroidPushAudio() {
     return {
-        channelId: TEMU_ALL_CHANNEL_ID,
+        channelId: WA_ALERT_CHANNEL_ID,
         sound: 'hondu_ride',
         vibrate: HONDU_TEMU_VIBRATE_MS,
         sticky: true,
@@ -1499,9 +1501,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     if (!tokens.length) return;
 
     const type = String(data.type || '');
-    const rideAlert = true; // todas se tratan como urgentes / heads-up
     const audio = resolveAndroidPushAudio();
-    const useHigh = true;
 
     // Click del push: viajes → conductor; ofertas → pasajero; resto → centro de notificaciones
     const openNotifications = data.openNotifications === 'true'
@@ -1538,26 +1538,28 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         ...data,
         title,
         body,
+        // Marca para el servicio nativo
+        style: 'whatsapp',
+        channelId: audio.channelId,
         openNotifications: openNotifications ? 'true' : String(data.openNotifications || 'false')
     };
 
-    // Android: canal + sound en res/raw (solo así suena con la app en otra app).
-    // Sin channelId, Android 8+ cae a un canal silencioso/genérico.
-    const androidChannelId = audio.channelId;
     const androidVibrate = audio.vibrate;
-    const androidSound = audio.sound;
 
+    // Importante: NO poner `notification` de nivel raíz ni `android.notification`.
+    // Si van, Android muestra un tray genérico y NO llama onMessageReceived en background
+    // → no podemos encender pantalla ni full-screen intent. Web/iOS van en webpush/apns.
     const payload = {
         tokens,
-        notification: { title, body },
         data: Object.fromEntries(
             Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
         ),
         webpush: {
             headers: { Urgency: 'high' },
             notification: {
+                title,
+                body,
                 icon: PUSH_ICON,
-                // Emergente / se queda hasta tocar (estilo Temu)
                 requireInteraction: true,
                 renotify: true,
                 tag: data.tag || undefined,
@@ -1566,24 +1568,9 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             fcmOptions: { link }
         },
         android: {
-            // high = heads-up aunque la app esté en segundo plano / otra app
+            // data-only + high priority: HonduMessagingService pinta el aviso tipo WhatsApp
             priority: 'high',
-            ttl: 300 * 1000,
-            notification: {
-                channelId: androidChannelId,
-                // res/raw/hondu_ride.wav (sin extensión)
-                sound: androidSound,
-                defaultSound: false,
-                // PRIORITY_MAX / high → banner emergente
-                priority: 'max',
-                visibility: 'public',
-                defaultVibrateTimings: false,
-                vibrateTimingsMillis: androidVibrate,
-                notificationCount: 1,
-                sticky: true,
-                // Muestra en pantalla de bloqueo y como heads-up
-                defaultLightSettings: true
-            }
+            ttl: 300 * 1000
         },
         apns: {
             headers: {
@@ -1592,6 +1579,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             },
             payload: {
                 aps: {
+                    alert: { title, body },
                     sound: 'default',
                     'interruption-level': 'time-sensitive',
                     'content-available': 1

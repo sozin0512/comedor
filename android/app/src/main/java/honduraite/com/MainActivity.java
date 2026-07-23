@@ -1,5 +1,6 @@
 package honduraite.com;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -30,12 +31,24 @@ public class MainActivity extends BridgeActivity {
     private static final float EXTRA_TOP_DP = 18f;
     private static final float EXTRA_BOTTOM_DP = 6f;
 
+    /** Lanzada desde full-screen intent del push (enciende pantalla bloqueada). */
+    public static final String EXTRA_FROM_PUSH_WAKE = "honduraite_from_push_wake";
+    public static final String EXTRA_PUSH_TITLE = "honduraite_push_title";
+    public static final String EXTRA_PUSH_BODY = "honduraite_push_body";
+
+    private static volatile boolean appInForeground = false;
+
+    public static boolean isAppInForeground() {
+        return appInForeground;
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SessionKeepalivePlugin.class);
         registerPlugin(ApkDownloadPlugin.class);
         super.onCreate(savedInstanceState);
         WebView.setWebContentsDebuggingEnabled(true);
+        applyPushWakeFlagsIfNeeded(getIntent());
         setupSystemBarsAndInsets();
         // Bridge/WebView a veces termina de montarse un frame después
         final View decor = getWindow() != null ? getWindow().getDecorView() : null;
@@ -43,6 +56,44 @@ public class MainActivity extends BridgeActivity {
             decor.post(this::setupSystemBarsAndInsets);
             decor.postDelayed(this::setupSystemBarsAndInsets, 120);
             decor.postDelayed(this::setupSystemBarsAndInsets, 400);
+        }
+        // Canal WA listo antes del primer push
+        try {
+            HonduMessagingService.ensureWhatsAppChannel(this);
+        } catch (Exception ignored) {}
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        applyPushWakeFlagsIfNeeded(intent);
+    }
+
+    /**
+     * Cuando el full-screen intent abre la app con pantalla bloqueada:
+     * mostrar sobre lockscreen y encender pantalla (estilo WhatsApp / llamada).
+     */
+    private void applyPushWakeFlagsIfNeeded(Intent intent) {
+        if (intent == null || !intent.getBooleanExtra(EXTRA_FROM_PUSH_WAKE, false)) return;
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                setShowWhenLocked(true);
+                setTurnScreenOn(true);
+            }
+            getWindow().addFlags(
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_ALLOW_LOCK_WHILE_SCREEN_ON
+            );
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O_MR1) {
+                getWindow().addFlags(
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                        | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+                );
+            }
+        } catch (Exception e) {
+            android.util.Log.w("MainActivity", "applyPushWakeFlags: " + e.getMessage());
         }
     }
 
@@ -175,6 +226,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
+        appInForeground = true;
         SessionKeepaliveService.notifyAppForegrounded();
         try {
             WebView webView = getBridge() != null ? getBridge().getWebView() : null;
@@ -202,7 +254,14 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onPause() {
+        appInForeground = false;
         SessionKeepaliveService.notifyAppBackgrounded(this);
         super.onPause();
+    }
+
+    @Override
+    public void onStop() {
+        appInForeground = false;
+        super.onStop();
     }
 }
