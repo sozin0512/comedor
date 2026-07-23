@@ -619,12 +619,30 @@ window.adminSetTripNegotiation = async (tripId, enabled = false) => {
 };
 
 // Admin helper: set global negotiation flag
+const ADMIN_NEGOTIATION_STORAGE_KEY = 'honduber_admin_global_negotiation_enabled';
+
+function readStoredAdminNegotiationState() {
+    try {
+        const raw = window.localStorage?.getItem(ADMIN_NEGOTIATION_STORAGE_KEY);
+        if (raw === '1') return true;
+        if (raw === '0') return false;
+    } catch (_) {}
+    return null;
+}
+
+function storeAdminNegotiationState(enabled) {
+    try {
+        window.localStorage?.setItem(ADMIN_NEGOTIATION_STORAGE_KEY, enabled ? '1' : '0');
+    } catch (_) {}
+}
+
 window.adminSetGlobalNegotiation = async (enabled = false) => {
     try {
         const resp = await httpsCallable(cloudFunctions, 'setGlobalNegotiation')({ enabled });
         const data = resp && resp.data ? resp.data : resp;
         if (data && data.ok) {
             window.currentAdminNegotiationEnabled = enabled;
+            storeAdminNegotiationState(enabled);
             window.showToast(enabled ? 'Regateo global habilitado' : 'Regateo global deshabilitado', 'success');
             window.refreshAdminNegotiationButtons?.();
         } else {
@@ -647,12 +665,20 @@ window.refreshAdminNegotiationButtons = () => {
 };
 
 window.loadAdminNegotiationState = async () => {
+    const cached = readStoredAdminNegotiationState();
+    if (cached != null) {
+        window.currentAdminNegotiationEnabled = cached;
+        window.refreshAdminNegotiationButtons?.();
+    }
     try {
         const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'));
         window.currentAdminNegotiationEnabled = snap.exists() ? !!snap.data()?.negotiationEnabled : true;
+        storeAdminNegotiationState(window.currentAdminNegotiationEnabled);
     } catch (e) {
         console.warn('loadAdminNegotiationState failed', e);
-        window.currentAdminNegotiationEnabled = true;
+        if (window.currentAdminNegotiationEnabled == null) {
+            window.currentAdminNegotiationEnabled = cached ?? true;
+        }
     }
     window.refreshAdminNegotiationButtons?.();
 };
