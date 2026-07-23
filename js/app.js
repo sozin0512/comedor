@@ -29693,7 +29693,14 @@ window.cancelSetupAndLogout = () => {
                 ? 1
                 : normalizePassengerCount(serviceType, window.currentPassengers || window.currentTripQuote?.passengers || 1);
             window.currentPassengers = tripPassengers;
-            const tripPassengerSurcharge = getPassengerSurcharge(serviceType, tripPassengers, km);
+            // Distancia del quote actual (km no existe en este scope; ver currentTripQuote tras calculateTripRoute)
+            const tripKmForPax = Number(
+                window.currentTripQuote?.km
+                ?? window.currentTripQuote?.distanceKmForCharge
+                ?? window.currentRouteData?.distanceKm
+                ?? 0
+            ) || 0;
+            const tripPassengerSurcharge = getPassengerSurcharge(serviceType, tripPassengers, tripKmForPax);
 
             let priceNum;
             if (isHourly) {
