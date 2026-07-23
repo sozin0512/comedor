@@ -4310,6 +4310,7 @@ if (document.readyState === 'loading') {
             capturePassengerCounterUiState(tripId);
 
             list.innerHTML = offers.map((b, idx) => {
+                const canNegotiateTrip = isTripNegotiationEnabled(data);
                 const fullName = escapeViewerText((b.name || 'Conductor').trim());
                 const firstName = fullName.split(' ')[0];
                 const photo = escapeViewerText(b.photo || 'https://placehold.co/96x96/e2e8f0/64748b?text=C');
@@ -4317,7 +4318,7 @@ if (document.readyState === 'loading') {
                 const distLabel = b.distanceKm != null ? `${parseFloat(b.distanceKm).toFixed(1)} km` : '';
                 const closestTag = idx === 0 ? '<span class="passenger-offer-tag">Más cercano</span>' : '';
                 const driverOffer = parseFloat(b.price);
-                const sentCounter = b.passengerCounterPrice != null ? parseFloat(b.passengerCounterPrice) : null;
+                const sentCounter = canNegotiateTrip && b.passengerCounterPrice != null ? parseFloat(b.passengerCounterPrice) : null;
                 const counterAlreadySent = sentCounter != null && !Number.isNaN(sentCounter);
                 const effectivePrice = getEffectiveBidPrice(b);
                 const matchesListed = listedPrice > 0 && Math.abs(driverOffer - listedPrice) < 0.01;
@@ -4348,7 +4349,7 @@ if (document.readyState === 'loading') {
                 const toggleLabel = counterRowOpen
                     ? 'Ocultar negociación'
                     : (counterAlreadySent ? 'Cambiar mi precio' : 'Proponer otro precio');
-                const counterRow = `
+                const counterRow = canNegotiateTrip ? `
                         <div id="pax-counter-row-${tripId}-${b.driverId}" class="passenger-offer-counter passenger-offer-counter--optional${counterRowOpen ? '' : ' hidden'}">
                             <label class="passenger-offer-counter-label" for="pax-counter-${tripId}-${b.driverId}">Tu precio (L.)</label>
                             <div class="passenger-offer-counter-fields">
@@ -4365,7 +4366,7 @@ if (document.readyState === 'loading') {
                         <button type="button" id="pax-counter-toggle-${tripId}-${b.driverId}"
                                 class="passenger-offer-counter-toggle"
                                 data-counter-sent="${counterAlreadySent ? '1' : '0'}"
-                                onclick="window.togglePassengerOfferCounter('${tripId}', '${b.driverId}')">${toggleLabel}</button>`;
+                            onclick="window.togglePassengerOfferCounter('${tripId}', '${b.driverId}')">${toggleLabel}</button>` : '';
                 // Con contraoferta pendiente: el pasajero NO puede aceptar (eso lo hace el conductor)
                 const acceptLabel = counterAlreadySent
                     ? (singleOffer ? 'ESPERANDO AL CONDUCTOR…' : 'Esperando…')
@@ -4595,10 +4596,16 @@ if (document.readyState === 'loading') {
             idPrefix = ''
         } = {}) {
             const pfx = String(idPrefix || '');
+            const negotiationEnabled = isTripNegotiationEnabled(t);
             const waitingOnPax = !!(myBid && !hasPassengerCounter && !passengerRejectedMyPrice);
             let statusLabel = 'Te pagan';
             let statusSub = 'Solo botones — sin escribir';
             let modeClass = 'driver-offer-decision--ready';
+
+            if (!negotiationEnabled) {
+                statusLabel = 'Precio fijo de la app';
+                statusSub = 'Regateo desactivado: acepta o rechaza';
+            }
 
             if (hasPassengerCounter) {
                 statusLabel = 'El pasajero ofrece';
@@ -4631,11 +4638,13 @@ if (document.readyState === 'loading') {
                     ? rejectedPriceNum
                     : (myBid?.price != null ? parseFloat(myBid.price) : listedPriceNum));
 
-            const quickBidsHtml = buildDriverQuickBidButtons(tripId, bidBase, distSummary, {
-                passengerRejectedMyPrice,
-                rejectedPriceNum,
-                waitingOnPax
-            });
+            const quickBidsHtml = negotiationEnabled
+                ? buildDriverQuickBidButtons(tripId, bidBase, distSummary, {
+                    passengerRejectedMyPrice,
+                    rejectedPriceNum,
+                    waitingOnPax
+                })
+                : '';
 
             const negPlaceholder = passengerRejectedMyPrice && rejectedPriceNum
                 ? `Mejor que L. ${Math.round(rejectedPriceNum)}`
@@ -4648,7 +4657,7 @@ if (document.readyState === 'loading') {
 
             const acceptDisplay = `L. ${Math.round(acceptPriceNum)}`;
             const offerDisplay = t.price || `L. ${Math.round(listedPriceNum)}`;
-            const primaryBtn = showDirectAccept
+            const primaryBtn = (!negotiationEnabled || showDirectAccept)
                 ? `<button type="button" data-accept-trip="${tripId}" class="driver-offer-decision-accept driver-offer-decision-accept--go trip-touch-btn" title="Aceptar viaje a este precio">
                         <span class="pointer-events-none driver-offer-decision-accept-big"><i class="fas fa-check"></i> ACEPTAR · ${acceptDisplay}</span>
                    </button>`
@@ -4656,17 +4665,8 @@ if (document.readyState === 'loading') {
                         <span class="pointer-events-none driver-offer-decision-accept-big"><i class="fas fa-paper-plane"></i> OFERTAR · ${offerDisplay}</span>
                    </button>`;
 
-            return `
-                <div class="driver-offer-decision ${modeClass}">
-                    <div class="driver-offer-decision-pricebox">
-                        <p class="driver-offer-decision-kicker">${statusLabel}</p>
-                        <p class="driver-offer-decision-amount">${priceLabel}</p>
-                        <p class="driver-offer-decision-sub">${statusSub}</p>
-                        <div class="driver-offer-decision-chips">${paymentBadge}${fairChip}${counterChip}</div>
-                    </div>
-                    ${primaryBtn}
-                    ${quickBidsHtml}
-                    ${waitingOnPax ? '' : `
+            const keyboardHtml = (negotiationEnabled && !waitingOnPax)
+                ? `
                         <button type="button" id="${pfx}driver-kbd-toggle-${tripId}" class="driver-offer-kbd-toggle trip-touch-btn" onclick="window.toggleDriverOfferKeyboard('${tripId}', '${pfx}')">
                             ${buildDriverKbdToggleInnerHtml(false)}
                         </button>
@@ -4683,7 +4683,20 @@ if (document.readyState === 'loading') {
                                 </div>
                             </div>
                         </div>
-                    `}
+                    `
+                : '';
+
+            return `
+                <div class="driver-offer-decision ${modeClass}">
+                    <div class="driver-offer-decision-pricebox">
+                        <p class="driver-offer-decision-kicker">${statusLabel}</p>
+                        <p class="driver-offer-decision-amount">${priceLabel}</p>
+                        <p class="driver-offer-decision-sub">${statusSub}</p>
+                        <div class="driver-offer-decision-chips">${paymentBadge}${fairChip}${counterChip}</div>
+                    </div>
+                    ${primaryBtn}
+                    ${quickBidsHtml}
+                    ${keyboardHtml}
                     <button type="button" data-decline-trip="${tripId}" class="driver-offer-decision-skip driver-offer-decision-skip--solo trip-touch-btn">No gracias</button>
                 </div>
             `;
@@ -4715,8 +4728,13 @@ if (document.readyState === 'loading') {
             return pickupKm <= farKm;
         }
 
+        function isTripNegotiationEnabled(trip) {
+            return trip?.negotiationEnabled !== false;
+        }
+
         function canDriverNegotiateTrip(trip, driverId) {
             if (!trip || !driverId || trip.status !== 'pending') return false;
+            if (!isTripNegotiationEnabled(trip)) return false;
             if ((trip.declinedDriverIds || []).includes(driverId)) return false;
             const driverZoneId = window.activeServiceZoneId
                 || window.userProfile?.serviceZoneId
@@ -6348,6 +6366,23 @@ if (document.readyState === 'loading') {
                     }
                     return;
                 }
+                if (!isTripNegotiationEnabled(t)) {
+                    const listed = parseTripPrice(t);
+                    if (listed > 0 && Math.abs(parseFloat(newPrice) - listed) < 0.01) {
+                        window.showToast('Regateo desactivado: aceptando tarifa fija de la app.', 'info');
+                        if (btnEl) {
+                            btnEl.disabled = false;
+                            btnEl.innerHTML = btnEl.dataset.origHtml || btnEl.innerHTML;
+                        }
+                        return window.acceptTrip?.(tripId, btnEl);
+                    }
+                    window.showToast('Regateo desactivado: solo puedes aceptar la tarifa de la app o rechazar.');
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.innerHTML = btnEl.dataset.origHtml || btnEl.innerHTML;
+                    }
+                    return;
+                }
                 if (!canDriverNegotiateTrip(t, currentUser.uid)) {
                     const msg = (t.declinedDriverIds || []).includes(currentUser.uid)
                         ? 'Ya rechazaste este viaje.'
@@ -7047,10 +7082,12 @@ if (document.readyState === 'loading') {
                 const originalPriceNum = parseTripPrice(t);
                 const myBid = t.driverBids?.[currentUser.uid];
                 let priceNum = originalPriceNum;
-                if (myBid) {
-                    priceNum = getEffectiveBidPrice(myBid) || parseFloat(myBid.price) || originalPriceNum;
-                } else if (t.negotiatedPrice != null) {
-                    priceNum = parseFloat(t.negotiatedPrice);
+                if (isTripNegotiationEnabled(t)) {
+                    if (myBid) {
+                        priceNum = getEffectiveBidPrice(myBid) || parseFloat(myBid.price) || originalPriceNum;
+                    } else if (t.negotiatedPrice != null) {
+                        priceNum = parseFloat(t.negotiatedPrice);
+                    }
                 }
                 const isBirthdayGift = t.birthdayFree || t.paymentMethod === 'birthday_gift';
 
@@ -24970,6 +25007,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             } else if (offers.length > 0) {
                 const name = (closest?.name || 'Un conductor').split(' ')[0];
                 const waitingDriverReply = offers.some((o) => o.passengerCounterPrice != null);
+                const canNegotiateTrip = isTripNegotiationEnabled(data);
                 if (waitingDriverReply) {
                     statusLine = offers.length === 1
                         ? `Esperando a ${name}`
@@ -24977,7 +25015,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     subLine = 'Enviaste una contraoferta: el conductor debe aceptarla (tú no puedes aceptar la tuya).';
                 } else {
                     statusLine = offers.length === 1 ? `${name} te ofreció un precio` : `${offers.length} conductores te ofrecieron`;
-                    subLine = 'Acepta su precio, rechaza o propón otro (el conductor decide si acepta tu precio).';
+                    subLine = canNegotiateTrip
+                        ? 'Acepta su precio, rechaza o propón otro (el conductor decide si acepta tu precio).'
+                        : 'Regateo desactivado: acepta su precio o rechaza.';
                 }
             } else if (data.negotiatedBy === 'passenger' && data.negotiatedPrice != null) {
                 statusLine = 'Esperando al conductor';
@@ -25161,7 +25201,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
                 const driverName = bid.name || d.name || 'Conductor';
                 // Solo se acepta el precio que ofreció el conductor (no una auto-aceptación de la contraoferta)
-                const effectivePrice = parseFloat(bid.price);
+                const effectivePrice = isTripNegotiationEnabled(trip)
+                    ? parseFloat(bid.price)
+                    : parseTripPrice(trip);
                 const skipConfirm = options.skipConfirm === true
                     || getPassengerDriverOffers({ ...trip, id: tripId }).length === 1;
                 if (!skipConfirm && !confirm(`¿Irte con ${driverName} por L. ${effectivePrice.toFixed(2)}?`)) return;
@@ -25318,6 +25360,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (t.status !== 'pending' || t.clientId !== currentUser.uid) {
                     return window.showToast('Este viaje ya no está disponible.');
                 }
+                if (!isTripNegotiationEnabled(t)) {
+                    return window.showToast('Regateo desactivado: solo puedes aceptar o rechazar la tarifa de la app.');
+                }
 
                 const bid = t.driverBids?.[driverId];
                 if (!bid?.price) return window.showToast('Esta oferta ya no está disponible.');
@@ -25373,6 +25418,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         };
 
         window.counterNegotiate = (tripId, targetDriverId = null) => {
+            if (activeTrip && activeTrip.id === tripId && !isTripNegotiationEnabled(activeTrip)) {
+                return window.showToast('Regateo desactivado: solo puedes aceptar o rechazar la tarifa de la app.');
+            }
             if (targetDriverId) {
                 const inp = document.getElementById(`pax-counter-${tripId}-${targetDriverId}`);
                 if (inp?.value) return window.submitPassengerCounter(tripId, targetDriverId);

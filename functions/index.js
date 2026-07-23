@@ -1911,41 +1911,58 @@ exports.onTripUpdatePush = onDocumentUpdated(
 
         // —— Oferta de precio del conductor → push al pasajero (aunque esté en otra app) ——
         if (after.status === 'pending' && after.clientId && !after.driverId) {
+            if (after.negotiationEnabled === false) {
+                const patch = {};
+                const hasBids = !!(after.driverBids && Object.keys(after.driverBids).length);
+                if (hasBids) patch.driverBids = {};
+                if (after.negotiatedPrice != null) patch.negotiatedPrice = FieldValue.delete();
+                if (after.negotiatedBy != null) patch.negotiatedBy = FieldValue.delete();
+                if (after.passengerCounterTargetDriverId != null) patch.passengerCounterTargetDriverId = FieldValue.delete();
+                if (after.lastNegotiationAt != null) patch.lastNegotiationAt = FieldValue.delete();
+                if (after.passengerDeclinedNegotiationAt != null) patch.passengerDeclinedNegotiationAt = FieldValue.delete();
+                if (Object.keys(patch).length) {
+                    await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update(patch);
+                }
+            }
+
+            const canNegotiateTrip = after.negotiationEnabled !== false;
             const beforeBids = snapshotDriverBids(before.driverBids);
             const afterBids = snapshotDriverBids(after.driverBids);
             let newestDriverBid = null;
 
-            for (const [driverId, bid] of Object.entries(afterBids)) {
-                const prev = beforeBids[driverId];
-                const isNew = !prev;
-                const priceChanged = prev && prev.price !== bid.price;
-                // Nueva oferta o cambio de precio del conductor (no solo contraoferta del pasajero)
-                if (isNew || priceChanged) {
-                    // Evitar re-notificar si solo cambió el counter del pasajero
-                    if (prev && prev.price === bid.price && prev.counter !== bid.counter) continue;
-                    if (!newestDriverBid
-                        || Number(bid.at || 0) >= Number(newestDriverBid.at || 0)) {
-                        newestDriverBid = { driverId, ...bid, isNew };
+            if (canNegotiateTrip) {
+                for (const [driverId, bid] of Object.entries(afterBids)) {
+                    const prev = beforeBids[driverId];
+                    const isNew = !prev;
+                    const priceChanged = prev && prev.price !== bid.price;
+                    // Nueva oferta o cambio de precio del conductor (no solo contraoferta del pasajero)
+                    if (isNew || priceChanged) {
+                        // Evitar re-notificar si solo cambió el counter del pasajero
+                        if (prev && prev.price === bid.price && prev.counter !== bid.counter) continue;
+                        if (!newestDriverBid
+                            || Number(bid.at || 0) >= Number(newestDriverBid.at || 0)) {
+                            newestDriverBid = { driverId, ...bid, isNew };
+                        }
                     }
                 }
-            }
 
-            // Legacy: negotiatedPrice propuesto por el conductor
-            if (
-                after.negotiatedBy === 'driver'
-                && after.negotiatedPrice != null
-                && (
-                    before.negotiatedBy !== 'driver'
-                    || Number(before.negotiatedPrice) !== Number(after.negotiatedPrice)
-                )
-            ) {
-                newestDriverBid = {
-                    driverId: after.offeredToDriverId || 'driver',
-                    price: Number(after.negotiatedPrice),
-                    name: after.offeredToDriverName || after.negotiatedDriverName || 'Un conductor',
-                    at: Date.now(),
-                    isNew: true
-                };
+                // Legacy: negotiatedPrice propuesto por el conductor
+                if (
+                    after.negotiatedBy === 'driver'
+                    && after.negotiatedPrice != null
+                    && (
+                        before.negotiatedBy !== 'driver'
+                        || Number(before.negotiatedPrice) !== Number(after.negotiatedPrice)
+                    )
+                ) {
+                    newestDriverBid = {
+                        driverId: after.offeredToDriverId || 'driver',
+                        price: Number(after.negotiatedPrice),
+                        name: after.offeredToDriverName || after.negotiatedDriverName || 'Un conductor',
+                        at: Date.now(),
+                        isNew: true
+                    };
+                }
             }
 
             if (newestDriverBid && newestDriverBid.price != null) {
@@ -1971,25 +1988,27 @@ exports.onTripUpdatePush = onDocumentUpdated(
             }
 
             // —— Contraoferta del pasajero → push al conductor (aunque esté en otra app) ——
-            for (const [driverId, bid] of Object.entries(afterBids)) {
-                const prev = beforeBids[driverId];
-                if (bid.counter == null) continue;
-                const counterNew = !prev || prev.counter !== bid.counter;
-                if (!counterNew) continue;
-                const priceLabel = formatMoneyL(bid.counter);
-                await sendPushToUser(appId, driverId, {
-                    title: '📨 Contraoferta del pasajero',
-                    body: `El pasajero ofrece ${priceLabel || 'otro precio'}. Acepta o pide más.`,
-                    data: {
-                        type: 'passenger_counter',
-                        tripId,
-                        price: String(bid.counter ?? ''),
-                        tag: `passenger-counter-${tripId}-${driverId}`,
-                        openDriver: 'true',
-                        superVibrate: 'true'
-                    },
-                    highPriority: true
-                });
+            if (canNegotiateTrip) {
+                for (const [driverId, bid] of Object.entries(afterBids)) {
+                    const prev = beforeBids[driverId];
+                    if (bid.counter == null) continue;
+                    const counterNew = !prev || prev.counter !== bid.counter;
+                    if (!counterNew) continue;
+                    const priceLabel = formatMoneyL(bid.counter);
+                    await sendPushToUser(appId, driverId, {
+                        title: '📨 Contraoferta del pasajero',
+                        body: `El pasajero ofrece ${priceLabel || 'otro precio'}. Acepta o pide más.`,
+                        data: {
+                            type: 'passenger_counter',
+                            tripId,
+                            price: String(bid.counter ?? ''),
+                            tag: `passenger-counter-${tripId}-${driverId}`,
+                            openDriver: 'true',
+                            superVibrate: 'true'
+                        },
+                        highPriority: true
+                    });
+                }
             }
 
             // —— Pasajero subió la tarifa → avisar flota (nuevo viaje con más plata) ——
