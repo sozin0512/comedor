@@ -16,12 +16,12 @@ const PushNotifications = registerPlugin('PushNotifications');
 const LocalNotifications = registerPlugin('LocalNotifications');
 
 /**
- * Canales Android — estilo WhatsApp (v7): suena + enciende pantalla (full-screen intent).
+ * Canales Android — estilo WhatsApp (v8): suena + enciende pantalla (full-screen intent).
  * Debe coincidir con HonduMessagingService.WA_CHANNEL_ID y functions/index.js
  * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
  */
-export const ANDROID_PUSH_CHANNEL_VERSION = 'v7';
-export const HONDU_WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v7';
+export const ANDROID_PUSH_CHANNEL_VERSION = 'v8';
+export const HONDU_WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v8';
 export const HONDU_TEMU_ALL_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
 export const HONDU_RIDE_ALERT_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
 export const HONDU_DEFAULT_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
@@ -85,8 +85,8 @@ export async function ensureAndroidPushChannels() {
     // El servicio nativo HonduMessagingService también lo crea y usa full-screen intent
     const waChannel = {
         id: HONDU_WA_ALERT_CHANNEL_ID,
-        name: 'HonduRaite tipo WhatsApp',
-        description: 'Avisos que encienden la pantalla y suenan (como WhatsApp), incluso en otra app o bloqueado.',
+        name: 'HonduRaite viajes (enciende pantalla)',
+        description: 'Avisos de viaje: suenan y encienden la pantalla (como WhatsApp), aunque estés en otra app o bloqueado.',
         importance: 5, // IMPORTANCE_MAX → heads-up
         visibility: 1, // public / lockscreen
         sound: 'hondu_ride',
@@ -600,6 +600,33 @@ export async function requestAndroidTemuNotificationPermissions({
     result.ok = result.push === 'granted' || result.local === 'granted'
         || localStorage.getItem('honduber_push_enabled') === '1';
     return result;
+}
+
+/**
+ * Conductores / quien recibe ofertas de viaje: asegura canal + full-screen intent +
+ * (opcional) batería sin optimizar para que el push suene y encienda pantalla fuera de la app.
+ * Idempotente: no spamea si ya está concedido.
+ */
+export async function ensureAndroidTripWakePermissions({
+    requestBattery = true,
+    requestFullScreen = true
+} = {}) {
+    if (!isCapacitorAndroid()) return { ok: false, reason: 'not_android' };
+    try {
+        const res = await requestAndroidTemuNotificationPermissions({
+            requestFullScreen,
+            requestBattery
+        });
+        return res;
+    } catch (e) {
+        console.warn('[push] ensureAndroidTripWakePermissions:', e);
+        return { ok: false, reason: e?.message || 'error' };
+    }
+}
+
+// Exponer para app.js (al ir en línea el conductor)
+if (typeof window !== 'undefined') {
+    window.ensureAndroidTripWakePermissions = ensureAndroidTripWakePermissions;
 }
 
 /** APK Android: push nativo vía Capacitor. No registra SW ni toca tokens web. */

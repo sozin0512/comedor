@@ -35,6 +35,8 @@ public class MainActivity extends BridgeActivity {
     public static final String EXTRA_FROM_PUSH_WAKE = "honduraite_from_push_wake";
     public static final String EXTRA_PUSH_TITLE = "honduraite_push_title";
     public static final String EXTRA_PUSH_BODY = "honduraite_push_body";
+    /** Oferta / evento de viaje: mantener pantalla encendida un rato al abrir. */
+    public static final String EXTRA_TRIP_WAKE = "honduraite_trip_wake";
 
     private static volatile boolean appInForeground = false;
 
@@ -77,6 +79,7 @@ public class MainActivity extends BridgeActivity {
     private void applyPushWakeFlagsIfNeeded(Intent intent) {
         if (intent == null || !intent.getBooleanExtra(EXTRA_FROM_PUSH_WAKE, false)) return;
         try {
+            boolean tripWake = intent.getBooleanExtra(EXTRA_TRIP_WAKE, false);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 setShowWhenLocked(true);
                 setTurnScreenOn(true);
@@ -91,6 +94,17 @@ public class MainActivity extends BridgeActivity {
                         | WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                         | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
                 );
+            }
+            // Viajes: intentar mostrar sobre el bloqueo un poco más de tiempo
+            if (tripWake) {
+                final android.view.View decor = getWindow() != null ? getWindow().getDecorView() : null;
+                if (decor != null) {
+                    decor.postDelayed(() -> {
+                        try {
+                            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        } catch (Exception ignored) {}
+                    }, 500);
+                }
             }
         } catch (Exception e) {
             android.util.Log.w("MainActivity", "applyPushWakeFlags: " + e.getMessage());

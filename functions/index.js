@@ -1088,12 +1088,12 @@ function rideDemandTitle(serviceType) {
 
 /**
  * Canal Android emergente tipo WhatsApp (enciende pantalla + suena).
- * v7: data-only FCM + HonduMessagingService (full-screen intent + wake).
+ * v8: data-only FCM + HonduMessagingService (full-screen intent + wake + CATEGORY_CALL en viajes).
  * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
  */
-const ANDROID_PUSH_CHANNEL_VERSION = 'v7';
+const ANDROID_PUSH_CHANNEL_VERSION = 'v8';
 /** Canal nativo creado por HonduMessagingService */
-const WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v7';
+const WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v8';
 const TEMU_ALL_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 const RIDE_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 const DEFAULT_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
@@ -1547,8 +1547,9 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         ...data,
         title,
         body,
-        // Marca para el servicio nativo
+        // Marca para el servicio nativo (HonduMessagingService): suena + enciende pantalla
         style: 'whatsapp',
+        wake: '1',
         channelId: audio.channelId,
         openNotifications: openNotifications ? 'true' : String(data.openNotifications || 'false')
     };

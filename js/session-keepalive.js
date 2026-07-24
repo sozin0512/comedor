@@ -29,10 +29,26 @@ async function ensureBatteryExemption(driverMode = false) {
         if (granted || batteryPrompted) return;
         batteryPrompted = true;
         window.showToast?.(
-            'Para seguir en línea al cambiar de app, desactiva la optimización de batería de HonduRaite.',
+            'Para que los viajes suenen y enciendan la pantalla fuera de la app, desactiva la optimización de batería de HonduRaite.',
             'warning'
         );
         await SessionKeepalive.requestBatteryExemption();
+    } catch (_) {}
+}
+
+let fullScreenPrompted = false;
+/** Android 14+: full-screen intent (enciende pantalla bloqueada, estilo WhatsApp). */
+async function ensureFullScreenIntentPermission(driverMode = false) {
+    if (!isCapacitorAndroid() || !driverMode) return;
+    try {
+        const fs = await SessionKeepalive.hasFullScreenIntentPermission?.();
+        if (fs?.granted || fullScreenPrompted) return;
+        fullScreenPrompted = true;
+        window.showToast?.(
+            'Activa “mostrar a pantalla completa / emergente” para que un viaje nuevo encienda la pantalla como WhatsApp.',
+            'warning'
+        );
+        await SessionKeepalive.requestFullScreenIntentPermission?.();
     } catch (_) {}
 }
 
@@ -65,7 +81,16 @@ export async function startAndroidSessionKeepalive(options = {}) {
             tripMode: !!tripMode,
         });
         await ensureOverlayPermission();
-        await ensureBatteryExemption(!!(driverMode || tripMode));
+        const needsWake = !!(driverMode || tripMode);
+        await ensureBatteryExemption(needsWake);
+        await ensureFullScreenIntentPermission(needsWake);
+        // Canal nativo + permisos de push (si fcm-push ya cargó)
+        try {
+            await window.ensureAndroidTripWakePermissions?.({
+                requestBattery: false, // ya se pidió arriba
+                requestFullScreen: false
+            });
+        } catch (_) {}
     } catch (err) {
         console.warn('session-keepalive start:', err);
     }

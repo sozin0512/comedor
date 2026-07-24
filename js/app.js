@@ -79,7 +79,7 @@ import { initOpsPanels } from "./ops-panels.js";
 import { initOpsUi } from "./ops-ui.js";
 import { initDriverObjectives } from "./ops-driver-objectives.js";
 import { initFloatingPanels } from "./floating-panels.js";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured } from "./fcm-push.js";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
@@ -2104,6 +2104,14 @@ if (document.readyState === 'loading') {
                     return;
                 }
                 const registered = await registerPushServices();
+                // Conductor / Android: full-screen + batería para que el viaje encienda la pantalla
+                if (isCapacitorAndroid()) {
+                    const isDriverRole = window.userProfile?.role === 'driver';
+                    await ensureAndroidTripWakePermissions({
+                        requestFullScreen: true,
+                        requestBattery: !!isDriverRole
+                    }).catch(() => {});
+                }
                 if (isCapacitorAndroid() && !registered) {
                     window.showToast(
                         'Permiso concedido. No se pudo registrar push; revisa google-services.json en Firebase.',
@@ -2112,7 +2120,7 @@ if (document.readyState === 'loading') {
                 } else {
                     window.showToast(
                         isCapacitorAndroid()
-                            ? '¡Listo! Avisos emergentes activados. Si Android abrió un ajuste extra, actívalo y vuelve a la app.'
+                            ? '¡Listo! Los viajes sonarán y pueden encender la pantalla. Si Android abrió un ajuste extra, actívalo y vuelve.'
                             : '¡Listo! Recibirás avisos de viajes, chat y actualizaciones.',
                         'success'
                     );
@@ -2150,8 +2158,8 @@ if (document.readyState === 'loading') {
 
             const isDriver = window.userProfile?.role === 'driver';
             const notifDetail = isDriver
-                ? 'Recibe avisos de <strong>nuevos viajes</strong> aunque tengas la app cerrada, además de mensajes del chat y actualizaciones.'
-                : 'Recibe avisos importantes: conductor asignado, llegada al origen, mensajes del chat y actualizaciones de viajes.';
+                ? 'Cuando haya un <strong>viaje nuevo</strong>, el aviso suena y <strong>enciende la pantalla</strong> aunque estés en otra app o con el teléfono bloqueado (estilo WhatsApp), además de chat y actualizaciones.'
+                : 'Recibe avisos importantes: conductor asignado, llegada al origen, mensajes del chat y actualizaciones de viajes — también fuera de la app.';
 
             const overlay = document.createElement('div');
             overlay.id = 'notif-prompt-modal';
@@ -2161,11 +2169,11 @@ if (document.readyState === 'loading') {
                     <div style="width:64px;height:64px;background:#dbeafe;border-radius:9999px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;">
                         <i class="fas fa-bell" style="font-size:28px;color:#2563eb;"></i>
                     </div>
-                    <h3 style="font-size:18px;font-weight:900;margin:0 0 8px;color:#1e2937;">Activa avisos emergentes</h3>
+                    <h3 style="font-size:18px;font-weight:900;margin:0 0 8px;color:#1e2937;">Activa avisos de viaje</h3>
                     <p style="font-size:13px;color:#475569;margin-bottom:16px;line-height:1.4;">
                         ${notifDetail}
                         ${isCapacitorAndroid()
-                            ? '<br><br><strong>Android pedirá permiso</strong> para notificaciones y, si hace falta, para mostrar avisos <strong>emergentes (estilo Temu)</strong> aunque estés en otra app.'
+                            ? '<br><br><strong>Android pedirá permiso</strong> para notificaciones y, si hace falta, para <strong>pantalla completa / emergente</strong> (enciende la pantalla) y batería sin optimizar.'
                             : ''}
                     </p>
 
@@ -31538,7 +31546,7 @@ window.cancelSetupAndLogout = () => {
                 window.currentDriverTrackPos = markerPos;
                 window._passengerTrackHeading = markerHeading;
 
-                window.updateDriverMarker(driverId, markerPos.lat, markerPos.lng, false, {
+                window.updateDriverMarker?.(driverId, markerPos.lat, markerPos.lng, false, {
                     variant: 'assigned',
                     name: driverName,
                     vehicleType: markerVehicleType,
@@ -31720,7 +31728,7 @@ window.cancelSetupAndLogout = () => {
                             || Math.hypot(data.lat - prev.lat, data.lng - prev.lng) > 0.00012;
                         if (moved || !window.driverMarkers?.[d.id]) {
                             window._nearbyDriverPosCache[d.id] = { lat: data.lat, lng: data.lng };
-                            window.updateDriverMarker(d.id, data.lat, data.lng, false, {
+                            window.updateDriverMarker?.(d.id, data.lat, data.lng, false, {
                                 variant: 'nearby',
                                 name: data.name || 'Conductor',
                                 vehicleType: data.vehicleType || 'auto',
@@ -31938,6 +31946,15 @@ window.cancelSetupAndLogout = () => {
 
             window.updateDriverOnlineBadge?.(true);
             syncDriverSessionKeepalive(true).catch(() => {});
+            // Push tipo WhatsApp: canal + full-screen + batería para que un viaje
+            // suene y encienda la pantalla aunque el conductor no esté en la app.
+            if (isCapacitorAndroid()) {
+                registerPushServices().catch(() => {});
+                ensureAndroidTripWakePermissions({
+                    requestFullScreen: true,
+                    requestBattery: true
+                }).catch(() => {});
+            }
             window.releaseIncompatibleDriverOffers?.(activeVehicle.type || getActiveVehicleType(window.userProfile));
 
             // Vigilancia del plazo de depósito (aviso 2h + bloqueo a las 12pm día sig.)
@@ -31987,7 +32004,7 @@ window.cancelSetupAndLogout = () => {
                     heading,
                     navPath
                 );
-                window.updateDriverMarker(currentUser.uid, lat, lng, true, {
+                window.updateDriverMarker?.(currentUser.uid, lat, lng, true, {
                     heading: navHeading,
                     vehicleType: locVehicle?.type || getActiveVehicleType(window.userProfile) || 'auto',
                     forceReposition: true
@@ -32056,7 +32073,7 @@ window.cancelSetupAndLogout = () => {
                         window.currentDriverHeading = heading;
                     }
 
-                    window.updateDriverMarker(currentUser.uid, navPos.lat, navPos.lng, true, {
+                    window.updateDriverMarker?.(currentUser.uid, navPos.lat, navPos.lng, true, {
                         heading: navHeading,
                         vehicleType: activeV?.type || getActiveVehicleType(window.userProfile) || 'auto',
                         forceReposition: true

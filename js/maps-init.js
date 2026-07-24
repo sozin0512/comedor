@@ -4782,7 +4782,7 @@ window.gMap = null;
             // Colocar marcador inicial del "conductor"
             const driverId = 'test-driver-nav';
             window.removeDriverMarker?.(driverId);
-            window.updateDriverMarker(driverId, routePath[0].lat, routePath[0].lng, true, {
+            window.updateDriverMarker?.(driverId, routePath[0].lat, routePath[0].lng, true, {
                 heading: 0,
                 vehicleType: 'auto',
                 forceReposition: true
@@ -4820,7 +4820,7 @@ window.gMap = null;
                     : 0;
 
                 // Actualizar marcador (en nav usa chevron, cámara rota)
-                window.updateDriverMarker(driverId, pos.lat, pos.lng, true, {
+                window.updateDriverMarker?.(driverId, pos.lat, pos.lng, true, {
                     heading: hdg,
                     vehicleType: 'auto',
                     forceReposition: true

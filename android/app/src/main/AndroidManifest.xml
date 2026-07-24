@@ -18,7 +18,7 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize|stateHidden"
             android:exported="true"
-            android:showWhenLocked="false"
+            android:showWhenLocked="true"
             android:turnScreenOn="true">
 
             <intent-filter>
@@ -61,7 +61,7 @@
         <!-- Canal por defecto FCM si el SO muestra algo genérico -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="hondu_wa_alert_v7" />
+            android:value="hondu_wa_alert_v8" />
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />

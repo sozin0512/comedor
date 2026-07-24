@@ -21,10 +21,11 @@ import com.google.firebase.messaging.RemoteMessage;
 import java.util.Map;
 
 /**
- * Push estilo WhatsApp:
- * - Suena con canal MAX + tono nativo
+ * Push estilo WhatsApp / llamada:
+ * - Canal MAX + tono nativo
  * - Enciende pantalla (wake lock + full-screen intent en bloqueo)
- * - Banner heads-up aunque la app esté en otra app / cerrada
+ * - Heads-up aunque la app esté en otra app / cerrada
+ * - Ofertas de viaje usan CATEGORY_CALL (más agresivo en OEMs)
  *
  * Requiere FCM data-only en Android (sin android.notification) para que
  * onMessageReceived se ejecute también en background.
@@ -34,8 +35,8 @@ public class HonduMessagingService extends FirebaseMessagingService {
     private static final String TAG = "HonduPush";
 
     /** Debe coincidir con functions/index.js y js/fcm-push.js */
-    public static final String WA_CHANNEL_ID = "hondu_wa_alert_v7";
-    public static final String WA_CHANNEL_NAME = "HonduRaite tipo WhatsApp";
+    public static final String WA_CHANNEL_ID = "hondu_wa_alert_v8";
+    public static final String WA_CHANNEL_NAME = "HonduRaite viajes (enciende pantalla)";
     private static final String WA_GROUP = "honduraite_wa_group";
 
     @Override
@@ -76,9 +77,10 @@ public class HonduMessagingService extends FirebaseMessagingService {
             return;
         }
 
+        boolean tripAlert = isTripWakeAlert(data);
         ensureWhatsAppChannel(this);
-        wakeScreenBriefly(this);
-        showWhatsAppStyleNotification(this, title, body, data, remoteMessage.getMessageId());
+        wakeScreenBriefly(this, tripAlert ? 8000L : 4000L);
+        showWhatsAppStyleNotification(this, title, body, data, remoteMessage.getMessageId(), tripAlert);
     }
 
     public static void ensureWhatsAppChannel(Context context) {
@@ -88,27 +90,36 @@ public class HonduMessagingService extends FirebaseMessagingService {
             if (nm == null) return;
 
             NotificationChannel existing = nm.getNotificationChannel(WA_CHANNEL_ID);
-            if (existing != null) return;
+            if (existing != null) {
+                // Si el usuario no silenció el canal, reforzar vibración/luz
+                return;
+            }
 
+            // IMPORTANCE_MAX (5): heads-up + sonido aunque la pantalla esté apagada
             NotificationChannel ch = new NotificationChannel(
                 WA_CHANNEL_ID,
                 WA_CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             );
-            ch.setDescription("Avisos que encienden la pantalla y suenan (estilo WhatsApp)");
+            // En API 26+ no hay IMPORTANCE_MAX en NotificationManager (solo HIGH=4).
+            // PRIORITY_MAX va en la notificación. Usamos HIGH + full-screen + wake.
+            try {
+                // Algunos OEMs respetan setBypassDnd para alertas de viaje
+                ch.setBypassDnd(false);
+            } catch (Exception ignored) {}
+            ch.setDescription("Avisos de viaje: suenan y encienden la pantalla (estilo WhatsApp), aunque estés en otra app.");
             ch.enableVibration(true);
-            ch.setVibrationPattern(new long[]{0, 400, 120, 400, 120, 600, 100, 800});
+            ch.setVibrationPattern(new long[]{0, 450, 100, 450, 100, 600, 100, 800, 100, 950});
             ch.enableLights(true);
-            ch.setLightColor(Color.parseColor("#25D366")); // verde WA
+            ch.setLightColor(Color.parseColor("#25D366"));
             ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             ch.setShowBadge(true);
-            ch.setBypassDnd(false);
 
             Uri soundUri = Uri.parse(
                 "android.resource://" + context.getPackageName() + "/" + R.raw.hondu_ride
             );
             AudioAttributes aa = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build();
             ch.setSound(soundUri, aa);
@@ -119,7 +130,41 @@ public class HonduMessagingService extends FirebaseMessagingService {
         }
     }
 
-    private static void wakeScreenBriefly(Context context) {
+    /** Viajes / ofertas / llegada: merecen wake + full-screen más agresivo. */
+    private static boolean isTripWakeAlert(Map<String, String> data) {
+        if (data == null) return true; // por defecto agresivo
+        String type = firstNonEmpty(data.get("type"), "");
+        String tag = firstNonEmpty(data.get("tag"), "");
+        String openDriver = firstNonEmpty(data.get("openDriver"), "");
+        String style = firstNonEmpty(data.get("style"), "");
+        if ("whatsapp".equalsIgnoreCase(style) || "true".equalsIgnoreCase(openDriver)) return true;
+        if (type.isEmpty() && tag.isEmpty()) return true;
+        return "trip_offer".equals(type)
+            || "ride_demand_alert".equals(type)
+            || "freight_trip_alert".equals(type)
+            || "new_trip_staff".equals(type)
+            || "driver_bid".equals(type)
+            || "passenger_counter".equals(type)
+            || "trip_accepted".equals(type)
+            || "trip_arrived".equals(type)
+            || "trip_price_boost".equals(type)
+            || "trip_started".equals(type)
+            || "scheduled_trip_active".equals(type)
+            || "scheduled_reminder".equals(type)
+            || "trip_scheduled_reserved".equals(type)
+            || "staff_created_trip".equals(type)
+            || tag.startsWith("trip-offer-")
+            || tag.startsWith("freight-alert-")
+            || tag.startsWith("ride-demand-")
+            || tag.startsWith("staff-trip-")
+            || tag.startsWith("driver-bid-")
+            || tag.startsWith("passenger-counter-")
+            || tag.startsWith("trip-price-boost-")
+            || tag.startsWith("trip-accepted-")
+            || tag.startsWith("trip-arrived-");
+    }
+
+    private static void wakeScreenBriefly(Context context, long ms) {
         try {
             PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
             if (pm == null) return;
@@ -130,7 +175,7 @@ public class HonduMessagingService extends FirebaseMessagingService {
                     | PowerManager.ON_AFTER_RELEASE,
                 "honduraite:wa_push"
             );
-            wl.acquire(3500L);
+            wl.acquire(Math.max(2500L, Math.min(ms, 15000L)));
         } catch (Exception e) {
             Log.w(TAG, "wakeScreen: " + e.getMessage());
         }
@@ -141,7 +186,8 @@ public class HonduMessagingService extends FirebaseMessagingService {
         String title,
         String body,
         Map<String, String> data,
-        String messageId
+        String messageId,
+        boolean tripAlert
     ) {
         try {
             ensureWhatsAppChannel(context);
@@ -158,6 +204,7 @@ public class HonduMessagingService extends FirebaseMessagingService {
             open.putExtra(MainActivity.EXTRA_FROM_PUSH_WAKE, true);
             open.putExtra(MainActivity.EXTRA_PUSH_TITLE, title);
             open.putExtra(MainActivity.EXTRA_PUSH_BODY, body);
+            open.putExtra(MainActivity.EXTRA_TRIP_WAKE, tripAlert);
             if (messageId != null) open.putExtra("google.message_id", messageId);
             if (data != null) {
                 for (Map.Entry<String, String> e : data.entrySet()) {
@@ -174,7 +221,7 @@ public class HonduMessagingService extends FirebaseMessagingService {
             }
 
             PendingIntent contentPi = PendingIntent.getActivity(context, reqCode, open, piFlags);
-            // Full-screen intent: enciende pantalla bloqueada (como llamada/mensaje WA urgente)
+            // Full-screen intent: enciende pantalla bloqueada (como llamada / WA urgente)
             PendingIntent fullScreenPi = PendingIntent.getActivity(
                 context,
                 reqCode + 1,
@@ -186,26 +233,36 @@ public class HonduMessagingService extends FirebaseMessagingService {
                 "android.resource://" + context.getPackageName() + "/" + R.raw.hondu_ride
             );
 
+            // Ofertas de viaje: CATEGORY_CALL → OEMs tratan más como llamada (enciende pantalla)
+            String category = tripAlert
+                ? NotificationCompat.CATEGORY_CALL
+                : NotificationCompat.CATEGORY_MESSAGE;
+
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, WA_CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
                 .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                .setCategory(category)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
                 .setOnlyAlertOnce(false)
                 .setDefaults(0)
                 .setSound(soundUri)
-                .setVibrate(new long[]{0, 400, 120, 400, 120, 600, 100, 800})
+                .setVibrate(new long[]{0, 450, 100, 450, 100, 600, 100, 800, 100, 950})
                 .setLights(Color.parseColor("#25D366"), 600, 400)
                 .setContentIntent(contentPi)
                 .setFullScreenIntent(fullScreenPi, true)
                 .setGroup(WA_GROUP)
-                .setNumber(1);
+                .setNumber(1)
+                .setTimeoutAfter(tripAlert ? 120_000L : 60_000L);
 
-            // Color de acento tipo chat
+            if (tripAlert) {
+                // Más insistente en viajes: no se “aplana” tan fácil en la bandeja
+                builder.setOngoing(false);
+            }
+
             try {
                 builder.setColor(Color.parseColor("#25D366"));
             } catch (Exception ignored) {}
@@ -216,6 +273,17 @@ public class HonduMessagingService extends FirebaseMessagingService {
             }
 
             NotificationManagerCompat.from(context).notify(notifId, builder.build());
+
+            // En algunos OEMs el full-screen no abre la app si no hay permiso;
+            // el wake lock ya intentó encender. Log para depurar.
+            if (tripAlert && Build.VERSION.SDK_INT >= 34) {
+                try {
+                    NotificationManager nm = context.getSystemService(NotificationManager.class);
+                    if (nm != null && !nm.canUseFullScreenIntent()) {
+                        Log.w(TAG, "Full-screen intent NO concedido: el aviso suena pero puede no abrir sobre bloqueo. Pide permiso en Ajustes.");
+                    }
+                } catch (Exception ignored) {}
+            }
         } catch (Exception e) {
             Log.e(TAG, "showWhatsAppStyleNotification: " + e.getMessage(), e);
         }
