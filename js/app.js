@@ -664,6 +664,16 @@ window.refreshAdminNegotiationButtons = () => {
     toggleBtn.classList.toggle('bg-red-600', window.currentAdminNegotiationEnabled === false);
 };
 
+/** Lee regateo global: true por defecto si el campo no existe (mismo criterio que Cloud Functions). */
+function resolveGlobalNegotiationEnabled(settingsOrFlag) {
+    if (typeof settingsOrFlag === 'boolean') return settingsOrFlag;
+    if (settingsOrFlag && typeof settingsOrFlag === 'object') {
+        if (settingsOrFlag.negotiationEnabled == null) return true;
+        return !!settingsOrFlag.negotiationEnabled;
+    }
+    return true;
+}
+
 window.loadAdminNegotiationState = async () => {
     const cached = readStoredAdminNegotiationState();
     if (cached != null) {
@@ -672,7 +682,10 @@ window.loadAdminNegotiationState = async () => {
     }
     try {
         const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'));
-        window.currentAdminNegotiationEnabled = snap.exists() ? !!snap.data()?.negotiationEnabled : true;
+        // Antes: !!undefined → false y el botón decía OFF aunque el default real era ON
+        window.currentAdminNegotiationEnabled = snap.exists()
+            ? resolveGlobalNegotiationEnabled(snap.data() || {})
+            : true;
         storeAdminNegotiationState(window.currentAdminNegotiationEnabled);
     } catch (e) {
         console.warn('loadAdminNegotiationState failed', e);
@@ -29977,7 +29990,11 @@ window.cancelSetupAndLogout = () => {
                     viewedBy: {},
                     declinedDriverIds: [],
                     offeredToDriverId: null,
-                    preferredDriverId: preferredDriverId || null
+                    preferredDriverId: preferredDriverId || null,
+                    // Siempre sellar regateo en el viaje (no depender solo de la cloud)
+                    negotiationEnabled: resolveGlobalNegotiationEnabled(
+                        window.currentAdminNegotiationEnabled ?? readStoredAdminNegotiationState()
+                    )
                 };
                 // Validate via Cloud Function before creating the trip (hardening server-side checks)
                 // No enviar FieldValue.serverTimestamp() al callable (no se serializa bien)
@@ -29989,7 +30006,7 @@ window.cancelSetupAndLogout = () => {
                         window.showToast('Tu cuenta no aceptó términos. Viaje permitido pero se recomienda aceptar términos.', 'info');
                     }
                     if (vfData && typeof vfData.negotiationEnabled !== 'undefined') {
-                        // Forzar el campo en el payload según la configuración global
+                        // Fuente de verdad del servidor (appSettings)
                         tripPayload.negotiationEnabled = !!vfData.negotiationEnabled;
                     }
                 } catch (vfErr) {
@@ -30000,6 +30017,15 @@ window.cancelSetupAndLogout = () => {
                         throw vfErr;
                     }
                     console.warn('validateTripCreation non-blocking error:', code, msg);
+                    // Fallback: leer appSettings una vez si no confíamos en caché local
+                    if (tripPayload.negotiationEnabled == null) {
+                        try {
+                            const sSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'));
+                            tripPayload.negotiationEnabled = resolveGlobalNegotiationEnabled(sSnap.exists() ? sSnap.data() : {});
+                        } catch (_) {
+                            tripPayload.negotiationEnabled = true;
+                        }
+                    }
                 }
 
                 const tripRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), tripPayload);

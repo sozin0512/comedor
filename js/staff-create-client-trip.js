@@ -1350,7 +1350,19 @@ export function installStaffCreateClientTrip({
                 staffCreatedByName: staffName,
                 staffCreatedAt: serverTimestamp(),
                 staffAssistedClient: true,
-                staffCreatedClientClaimed: false
+                staffCreatedClientClaimed: false,
+                // Mismo criterio que pedidos normales (appSettings.negotiationEnabled; default ON)
+                negotiationEnabled: (() => {
+                    try {
+                        if (typeof window.currentAdminNegotiationEnabled === 'boolean') {
+                            return window.currentAdminNegotiationEnabled;
+                        }
+                        const raw = window.localStorage?.getItem('honduber_admin_global_negotiation_enabled');
+                        if (raw === '1') return true;
+                        if (raw === '0') return false;
+                    } catch (_) {}
+                    return true;
+                })()
             };
 
             const createdRef = await addDoc(
