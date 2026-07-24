@@ -7171,18 +7171,15 @@ if (document.readyState === 'loading') {
                 }
 
                 if (!acceptedViaCloud) {
-                    await window.ownerProfilePatch(currentUser.uid, driverSync);
-
-                    const saldoHoldFields = {};
+                    // Fallback solo si la Cloud Function falló por red/timeout.
+                    // Cobro con saldo del pasajero: el conductor NO puede tocar balance ajeno (reglas) →
+                    // en viajes con saldo hay que insistir en la cloud function.
                     if (t.paymentMethod === 'saldo' && !isBirthdayGift) {
-                        const chargeAmt = getPassengerSaldoChargeAmount(t);
-                        await deductPassengerSaldo(t.clientId, chargeAmt);
-                        saldoHoldFields.saldoCharged = true;
-                        saldoHoldFields.saldoChargedAmount = chargeAmt;
-                        saldoHoldFields.saldoChargedAt = serverTimestamp();
+                        throw new Error('No se pudo confirmar el cobro con saldo. Revisa tu conexión e intenta de nuevo.');
                     }
 
-                    await updateDoc(tripRef, { ...acceptFields, ...saldoHoldFields });
+                    await window.ownerProfilePatch(currentUser.uid, driverSync);
+                    await updateDoc(tripRef, { ...acceptFields });
 
                     if (driverBusy) {
                         await window.ownerProfilePatch(currentUser.uid, { queuedTripId: id });
@@ -7249,10 +7246,17 @@ if (document.readyState === 'loading') {
                 }, 300);
             } catch (e) {
                 console.error('acceptTrip error:', e?.code, e?.message, e);
-                const code = e?.code || '';
-                const msg = (code === 'permission-denied' || code === 'functions/permission-denied')
-                    ? 'Sin permiso en Firebase. Verifica que tu cuenta sea conductor aprobada.'
-                    : (e?.message || 'No se pudo aceptar el viaje.');
+                const code = String(e?.code || '');
+                const raw = String(e?.message || e?.details || '');
+                let msg = raw || 'No se pudo aceptar el viaje.';
+                if (code.includes('permission-denied')) {
+                    msg = 'Sin permiso para aceptar. Verifica que tu cuenta sea conductor aprobada y recarga (Ctrl+F5).';
+                } else if (code.includes('failed-precondition')) {
+                    // Mensaje de la function (otro tomó el viaje, staff sin reclamar, etc.)
+                    msg = raw.replace(/^Firebase:\s*/i, '').replace(/\s*\(.*\)\s*$/, '') || msg;
+                } else if (code.includes('unauthenticated')) {
+                    msg = 'Sesión expirada. Vuelve a iniciar sesión.';
+                }
                 window.showToast(msg);
                 if (btnEl) {
                     btnEl.disabled = false;

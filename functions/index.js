@@ -611,6 +611,7 @@ const ACCEPT_TRIP_FIELDS = new Set([
     'pin', 'driverArrived', 'acceptedAt', 'offeredToDriverId', 'offeredToDriverName', 'offerSentAt',
     'offerDistanceKm', 'driverFinishingOtherTrip', 'driverBusyOnTripId',
     'saldoCharged', 'saldoChargedAmount', 'saldoChargedAt',
+    'scheduledDriverReserved', 'scheduledReservedAt', 'candidateDriverIds',
 ]);
 
 function sanitizeTripAcceptFields(raw) {
@@ -667,24 +668,26 @@ async function assertCallerIsApprovedDriver(uid) {
     const pubRef = db.doc(`artifacts/${APP_ID}/public/data/users/${uid}`);
     const privRef = db.doc(`artifacts/${APP_ID}/users/${uid}/profile/data`);
     const [pubSnap, privSnap] = await Promise.all([pubRef.get(), privRef.get()]);
-    const role = pubSnap.data()?.role || privSnap.data()?.role || '';
-    if (role !== 'driver') {
-        throw new HttpsError('permission-denied', 'Solo conductores aprobados pueden aceptar viajes.');
-    }
     const pub = pubSnap.data() || {};
     const priv = privSnap.data() || {};
+    const role = String(pub.role || priv.role || '').toLowerCase().trim();
+    const vehicles = Array.isArray(pub.vehicles) ? pub.vehicles
+        : (Array.isArray(priv.vehicles) ? priv.vehicles : []);
+    const hasApprovedVehicle = vehicles.some((v) => v && v.approvalStatus === 'approved')
+        || pub.approvalStatus === 'approved'
+        || priv.approvalStatus === 'approved';
+    // Conductor: role driver, o perfil con vehículos aprobados (perfiles incompletos / dual)
+    const looksLikeDriver = role === 'driver' || hasApprovedVehicle || !!pub.activeVehicleId || !!priv.activeVehicleId;
+    if (!looksLikeDriver) {
+        throw new HttpsError('permission-denied', 'Solo conductores aprobados pueden aceptar viajes.');
+    }
     const approvalStatus = pub.approvalStatus ?? priv.approvalStatus;
-
     const isExplicitlyBad = ['pending', 'rejected', 'suspended'].includes(approvalStatus);
-
-    // Extra safety: if the top-level status is weird but they have at least one approved vehicle, let them operate
-    const hasApprovedVehicle = (pub.vehicles || priv.vehicles || []).some(v => v.approvalStatus === 'approved')
-        || (pub.approvalStatus === 'approved') || (priv.approvalStatus === 'approved');
 
     if (isExplicitlyBad && !hasApprovedVehicle) {
         throw new HttpsError('failed-precondition', 'Tu cuenta aún no está aprobada.');
     }
-    return { pubRef, privRef, profile: { ...(privSnap.data() || {}), ...(pubSnap.data() || {}) } };
+    return { pubRef, privRef, profile: { ...priv, ...pub } };
 }
 
 /** Aceptar viaje como conductor — Admin SDK (sin depender de reglas cliente). */
@@ -714,15 +717,18 @@ exports.acceptDriverTrip = onCall(async (request) => {
     if (trip.driverId && trip.driverId !== uid) {
         throw new HttpsError('failed-precondition', 'Otro conductor ya tomó este viaje.');
     }
-    const marketplaceBids = trip.driverBids && typeof trip.driverBids === 'object'
-        ? Object.keys(trip.driverBids)
-        : [];
-    const hasMyBid = marketplaceBids.includes(uid);
-    const isPassengerCounterTarget = trip.passengerCounterTargetDriverId === uid
-        || (trip.negotiatedBy === 'passenger' && trip.driverBids?.[uid]?.passengerCounterPrice != null);
-    if (!hasMyBid && !isPassengerCounterTarget && marketplaceBids.length === 0
-        && trip.offeredToDriverId && trip.offeredToDriverId !== uid) {
-        throw new HttpsError('failed-precondition', 'Esta oferta ya fue para otro conductor.');
+    // Staff armó viaje: el cliente debe reclamarlo antes de que un conductor lo acepte
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) {
+        throw new HttpsError(
+            'failed-precondition',
+            'El pasajero aún no confirmó este viaje armado por staff.'
+        );
+    }
+    // Marketplace abierto (UI muestra a todos los elegibles): offeredToDriverId solo prioriza push/aviso,
+    // NO bloquea aceptar. Antes: "Esta oferta ya fue para otro conductor" aunque el viaje se veía en lista.
+    const declined = Array.isArray(trip.declinedDriverIds) ? trip.declinedDriverIds : [];
+    if (declined.includes(uid)) {
+        throw new HttpsError('failed-precondition', 'Ya rechazaste este viaje.');
     }
 
     const patch = sanitizeTripAcceptFields(request.data?.acceptFields);
