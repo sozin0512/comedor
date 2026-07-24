@@ -637,19 +637,53 @@ function storeAdminNegotiationState(enabled) {
 }
 
 window.adminSetGlobalNegotiation = async (enabled = false) => {
+    const prev = window.currentAdminNegotiationEnabled;
+    // UI optimista: que no se quede en “cargando…”
+    window.currentAdminNegotiationEnabled = !!enabled;
+    storeAdminNegotiationState(!!enabled);
+    window.refreshAdminNegotiationButtons?.();
+
+    const toggleBtn = document.getElementById('admin-global-negotiation-toggle');
+    if (toggleBtn) {
+        toggleBtn.disabled = true;
+        toggleBtn.dataset.busy = '1';
+        toggleBtn.textContent = `Regateo global: guardando ${enabled ? 'ON' : 'OFF'}…`;
+    }
     try {
-        const resp = await httpsCallable(cloudFunctions, 'setGlobalNegotiation')({ enabled });
+        const resp = await httpsCallable(cloudFunctions, 'setGlobalNegotiation')({ enabled: !!enabled });
         const data = resp && resp.data ? resp.data : resp;
-        if (data && data.ok) {
-            window.currentAdminNegotiationEnabled = enabled;
-            storeAdminNegotiationState(enabled);
-            window.showToast(enabled ? 'Regateo global habilitado' : 'Regateo global deshabilitado', 'success');
-            window.refreshAdminNegotiationButtons?.();
-        } else {
-            window.showToast('Operación completada.', 'success');
+        const saved = data && typeof data.negotiationEnabled === 'boolean'
+            ? data.negotiationEnabled
+            : !!enabled;
+        window.currentAdminNegotiationEnabled = saved;
+        storeAdminNegotiationState(saved);
+        // Confirmar en Firestore (por si el botón se re-renderiza en vivo)
+        try {
+            await setDoc(
+                doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'),
+                {
+                    negotiationEnabled: saved,
+                    negotiationToggledBy: currentUser?.uid || null,
+                    negotiationToggledAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
+                },
+                { merge: true }
+            );
+        } catch (directErr) {
+            // Cloud ya guardó; el setDoc cliente es respaldo (staff puede escribir appSettings)
+            console.warn('adminSetGlobalNegotiation direct write:', directErr?.code || directErr);
         }
+        window.showToast(saved ? 'Regateo global: ON (guardado)' : 'Regateo global: OFF (guardado)', 'success');
     } catch (e) {
-        handleFirestoreError(e, 'No se pudo cambiar la configuración global de regateo.');
+        window.currentAdminNegotiationEnabled = prev;
+        if (prev != null) storeAdminNegotiationState(prev);
+        handleFirestoreError(e, 'No se pudo guardar el regateo global. Revisa permisos de admin.');
+    } finally {
+        if (toggleBtn) {
+            toggleBtn.disabled = false;
+            delete toggleBtn.dataset.busy;
+        }
+        window.refreshAdminNegotiationButtons?.();
     }
 };
 
@@ -657,11 +691,25 @@ window.currentAdminNegotiationEnabled = null;
 window.refreshAdminNegotiationButtons = () => {
     const toggleBtn = document.getElementById('admin-global-negotiation-toggle');
     if (!toggleBtn) return;
-    toggleBtn.textContent = window.currentAdminNegotiationEnabled === null
-        ? 'Regateo global: cargando...'
-        : `Regateo global: ${window.currentAdminNegotiationEnabled ? 'ON' : 'OFF'}`;
-    toggleBtn.classList.toggle('bg-emerald-600', window.currentAdminNegotiationEnabled === true);
-    toggleBtn.classList.toggle('bg-red-600', window.currentAdminNegotiationEnabled === false);
+    // No pisar el texto mientras guarda
+    if (toggleBtn.dataset.busy === '1') return;
+
+    let state = window.currentAdminNegotiationEnabled;
+    if (state == null) {
+        state = readStoredAdminNegotiationState();
+        if (state != null) window.currentAdminNegotiationEnabled = state;
+    }
+    // Si aún no hay valor, mostrar ON por defecto (no “cargando” eterno)
+    if (state == null) state = true;
+
+    const on = state === true;
+    toggleBtn.textContent = `Regateo global: ${on ? 'ON' : 'OFF'}`;
+    toggleBtn.classList.remove('bg-gray-700', 'hover:bg-gray-600', 'bg-emerald-600', 'bg-red-600');
+    toggleBtn.classList.add(on ? 'bg-emerald-600' : 'bg-red-600');
+    toggleBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    toggleBtn.title = on
+        ? 'Regateo activo en viajes nuevos. Toca para desactivar.'
+        : 'Regateo apagado en viajes nuevos. Toca para activar.';
 };
 
 /** Lee regateo global: true por defecto si el campo no existe (mismo criterio que Cloud Functions). */
@@ -697,7 +745,11 @@ window.loadAdminNegotiationState = async () => {
 };
 
 window.adminToggleGlobalNegotiation = async () => {
-    const nextValue = !(window.currentAdminNegotiationEnabled === true);
+    const btn = document.getElementById('admin-global-negotiation-toggle');
+    if (btn?.dataset?.busy === '1') return;
+    // null/undefined cuenta como ON (default) → el primer toque pasa a OFF
+    const current = window.currentAdminNegotiationEnabled;
+    const nextValue = !(current === true || (current == null && readStoredAdminNegotiationState() !== false));
     await window.adminSetGlobalNegotiation(nextValue);
 };
 
@@ -7933,6 +7985,11 @@ if (document.readyState === 'loading') {
                 container.scrollTop = prevScroll;
             } catch (_) {}
             window.ensureOpsContentScroll?.(container);
+            // El HTML del listado se regenera en cada snapshot → reaplicar ON/OFF del regateo
+            // (si no, el botón vuelve a “cargando…” y parece que no guarda)
+            try {
+                window.refreshAdminNegotiationButtons?.();
+            } catch (_) {}
         }
 
         function refreshStaffTripsPanels(tripPatches = {}) {
@@ -8540,6 +8597,15 @@ if (document.readyState === 'loading') {
             const isAdminOrSupervisor = isAdminUser(currentUser, window.userProfile)
                 || (typeof isSupervisorUser === 'function' && isSupervisorUser(currentUser, window.userProfile));
             const canToggleNegotiation = Boolean(isAdminOrSupervisor);
+            // Estado visible al pintar (los snapshots en vivo rehacen el HTML)
+            let negState = window.currentAdminNegotiationEnabled;
+            if (negState == null) negState = readStoredAdminNegotiationState();
+            if (negState == null) negState = true;
+            const negOn = negState === true;
+            const negBtnLabel = `Regateo global: ${negOn ? 'ON' : 'OFF'}`;
+            const negBtnClass = negOn
+                ? 'bg-emerald-600 hover:bg-emerald-500'
+                : 'bg-red-600 hover:bg-red-500';
             const completedTotal = allTrips.filter((t) => t.status === 'completed').length;
             const unseenLive = unanswered.filter((t) => getStaffPendingAttentionMeta(t).nobodySaw).length;
             const phaseCounts = {
@@ -8572,9 +8638,9 @@ if (document.readyState === 'loading') {
                             class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-black shadow-lg">
                             <i class="fas fa-calendar-check"></i> Programados reservados (${scheduledReserved.length})
                         </button>
-                        ${canToggleNegotiation ? `<button id="admin-global-negotiation-toggle" type="button" onclick="window.adminToggleGlobalNegotiation()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-black shadow-lg bg-gray-700 hover:bg-gray-600">Regateo global: cargando...</button>` : ''}
+                        ${canToggleNegotiation ? `<button id="admin-global-negotiation-toggle" type="button" onclick="window.adminToggleGlobalNegotiation()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-black shadow-lg ${negBtnClass}" aria-pressed="${negOn ? 'true' : 'false'}" title="${negOn ? 'Toca para desactivar regateo' : 'Toca para activar regateo'}">${negBtnLabel}</button>` : ''}
                     </div>
-                    ${canToggleNegotiation ? `<p class="text-[11px] text-slate-300 mt-2">Este control aplica a todos los viajes nuevos: OFF deshabilita la fase de regateo para todos los pedidos hasta que lo vuelvas a activar.</p>` : ''}
+                    ${canToggleNegotiation ? `<p class="text-[11px] text-slate-300 mt-2">Regateo global se guarda en el servidor. <b>ON</b> = conductores pueden ofertar precio. <b>OFF</b> = solo tarifa fija de la app (viajes nuevos). El listado se actualiza en vivo; el botón debe seguir en ON/OFF (no en “cargando”).</p>` : ''}
                 </div>
                 <div class="ops-trips-page-kpis">
                     ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
