@@ -27,9 +27,9 @@ import com.getcapacitor.BridgeActivity;
  * 3) Inyectar --native-safe-top/bottom al CSS con el inset real + un respiro.
  */
 public class MainActivity extends BridgeActivity {
-    /** Aire extra bajo status bar para que los botones no activen la cortina de notificaciones. */
-    private static final float EXTRA_TOP_DP = 18f;
-    private static final float EXTRA_BOTTOM_DP = 6f;
+    /** Aire extra bajo status bar: reloj/notificaciones no tapan atrás ni botones de registro. */
+    private static final float EXTRA_TOP_DP = 28f;
+    private static final float EXTRA_BOTTOM_DP = 10f;
 
     /** Lanzada desde full-screen intent del push (enciende pantalla bloqueada). */
     public static final String EXTRA_FROM_PUSH_WAKE = "honduraite_from_push_wake";

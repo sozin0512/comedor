@@ -60,9 +60,9 @@
         }
 
         body.capacitor-android {
-            /* Status bar + aire extra: si no, el gesto de notificaciones “come” los botones */
-            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 52px));
-            --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 16px));
+            /* Status bar + aire extra: reloj/notificaciones no deben tapar atrás / cerrar */
+            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 56px));
+            --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 18px));
         }
 
         body.capacitor-android #app-interface,
@@ -108,9 +108,15 @@
             box-sizing: border-box;
         }
 
+        body.capacitor-android .ops-topbar {
+            /* Barra admin/supervisor: no chocar con reloj */
+            padding-top: max(0.55rem, 0.35rem) !important;
+            min-height: 3.4rem;
+        }
+
         body.capacitor-native #profile-manage-panel,
         body.capacitor-android #profile-manage-panel {
-            padding-top: var(--safe-top) !important;
+            padding-top: max(var(--safe-top), 48px) !important;
             padding-bottom: var(--safe-bottom) !important;
             box-sizing: border-box;
         }
@@ -118,6 +124,15 @@
         body.capacitor-native .driver-setup-screen,
         body.capacitor-android .driver-setup-screen {
             padding-top: 0; /* la barra interna ya usa safe-top */
+            padding-bottom: var(--safe-bottom, 16px);
+        }
+
+        /* Modales fijos genéricos: respetar safe-area en APK */
+        body.capacitor-android .fixed.inset-0,
+        body.capacitor-native .fixed.inset-0 {
+            padding-top: max(0.75rem, var(--safe-top, 0px));
+            padding-bottom: max(0.75rem, var(--safe-bottom, 0px));
+            box-sizing: border-box;
         }
 
         /* Paneles absolute con top:0 (conductor/pasajero a pantalla completa) */
@@ -1991,8 +2006,13 @@
         body.capacitor-native .setup-screen,
         body.capacitor-native .rating-screen,
         body.capacitor-native .cancellation-survey-screen {
-            padding-top: var(--safe-top, 40px);
-            padding-bottom: var(--safe-bottom, 16px);
+            padding-top: max(var(--safe-top, 48px), 52px) !important;
+            padding-bottom: max(var(--safe-bottom, 16px), 16px) !important;
+        }
+
+        body.capacitor-android .login-screen {
+            /* Login/registro: aire bajo el reloj del sistema */
+            padding-top: max(var(--safe-top, 56px), 56px) !important;
         }
 
         .rating-screen.rating-screen-driver-overlay {
@@ -2272,10 +2292,26 @@
             padding: max(0.5rem, var(--safe-top, env(safe-area-inset-top, 0px))) 0.75rem 0.5rem;
             background: rgba(4, 30, 66, 0.92);
             border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            min-height: 3.25rem;
+            box-sizing: border-box;
         }
 
-        body.capacitor-native .driver-setup-bar {
-            padding-top: max(0.75rem, calc(var(--safe-top, 40px) + 0.35rem));
+        body.capacitor-native .driver-setup-bar,
+        body.capacitor-android .driver-setup-bar {
+            /* Atrás/cerrar debajo del reloj (no colisionar con status bar) */
+            padding-top: max(0.85rem, calc(var(--safe-top, 52px) + 0.55rem)) !important;
+            padding-bottom: 0.65rem;
+            min-height: calc(3.1rem + var(--safe-top, 52px));
+        }
+
+        .driver-setup-bar button,
+        .driver-setup-bar [onclick] {
+            min-width: 2.75rem;
+            min-height: 2.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: manipulation;
         }
 
         .driver-setup-bar-brand {

@@ -1223,7 +1223,7 @@ function renderStaffDriverMgmtButtons(uid, name, referralCode = '') {
     return `
         <button type="button" onclick="window.adminEditStaffProfile('${uid}', '${safe}', '', 'driver')"
                 class="flex-1 min-w-[120px] bg-slate-600 hover:bg-slate-500 text-white text-[10px] py-2.5 rounded-xl font-bold flex items-center justify-center gap-1">
-            <i class="fas fa-user-edit"></i> <span>EDITAR NOMBRE/FOTO</span>
+            <i class="fas fa-user-edit"></i> <span>EDITAR NOMBRE/FOTO/TEL</span>
         </button>
         ${isFullAdmin ? `
         <button type="button" onclick="window.adminChangeReferralCode('${uid}', '${ref}', '${safe}', 'driver')"
@@ -9247,6 +9247,7 @@ if (document.readyState === 'loading') {
                                     class="flex-1 min-w-[90px] bg-violet-600 text-white text-[10px] py-2.5 rounded-lg font-bold">👁 VER FOTOS</button>
                             <button onclick="((window.downloadDriverRegistrationReport)||(function(){}))('${u.uid}', '${u.name.replace(/'/g, "\\'")}')" class="text-[10px] bg-indigo-600 text-white px-2 py-1 rounded">⬇ Reporte PDF</button>
                             <button onclick="((window.downloadDriverPaymentReport)||(function(){}))('${u.uid}', '${u.name.replace(/'/g, "\\'")}')" class="text-[10px] bg-violet-600 text-white px-2 py-1 rounded">⬇ Reporte Pagos</button>
+                            ${canManageUsers() ? `<button type="button" onclick="event.stopPropagation(); window.adminEditUserPhone('${u.uid}', '${(formatHondurasPhone(u.phone) || u.phone || '').replace(/'/g, "\\'")}', '${(u.name || 'Conductor').replace(/'/g, "\\'")}', 'driver')" class="flex-1 min-w-[110px] bg-sky-700 hover:bg-sky-600 text-white text-[10px] py-2.5 rounded-xl font-bold"><i class="fas fa-phone"></i> EDITAR TELÉFONO</button>` : ''}
                             ${renderStaffDriverMgmtButtons(u.uid, u.name, u.referralCode || '')}
                             <button onclick="window.changeUserRole('${u.uid}', 'client')" class="flex-1 bg-red-600 text-white text-[10px] py-2.5 rounded-xl font-bold">DEGRADAR</button>
                             ${status !== 'approved' ? `<button onclick="window.forceApproveDriver('${u.uid}')" class="flex-1 bg-emerald-600 text-white text-[10px] py-2.5 rounded-xl font-bold">${status === 'suspended' ? 'REACTIVAR' : 'APROBAR'}</button>` : ''}
@@ -9281,7 +9282,10 @@ if (document.readyState === 'loading') {
                             ${status !== 'suspended' && !u.accountRestricted ? `<button onclick="window.blockUserAccount('${u.uid}', 'client', '${(u.name || '').replace(/'/g, "\\'")}', this)" class="flex-1 min-w-[100px] bg-red-700 text-white text-[10px] py-2 rounded-lg font-bold">BLOQUEAR</button>` : ''}
                             ${u.accountRestricted || status === 'suspended' ? `<button onclick="window.liftClientRestriction('${u.uid}')" class="flex-1 min-w-[120px] bg-emerald-600 text-white text-[10px] py-2 rounded-lg font-bold">REACTIVAR</button>` : ''}
                             ${canManageUsers()
-                                ? `<button onclick="window.adminEditStaffProfile('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}', '${(u.photo || '').replace(/'/g, "\\'")}', 'client')" class="flex-1 min-w-[110px] bg-slate-600 hover:bg-slate-500 text-white text-[10px] py-2 rounded-lg font-bold"><i class="fas fa-user-edit"></i> EDITAR NOMBRE/FOTO</button>`
+                                ? `<button onclick="window.adminEditStaffProfile('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}', '${(u.photo || '').replace(/'/g, "\\'")}', 'client')" class="flex-1 min-w-[110px] bg-slate-600 hover:bg-slate-500 text-white text-[10px] py-2 rounded-lg font-bold"><i class="fas fa-user-edit"></i> EDITAR NOMBRE/FOTO/TEL</button>`
+                                : ''}
+                            ${canManageUsers()
+                                ? `<button type="button" onclick="event.stopPropagation(); window.adminEditUserPhone('${u.uid}', '${(formatHondurasPhone(u.phone) || u.phone || '').replace(/'/g, "\\'")}', '${(u.name || 'Pasajero').replace(/'/g, "\\'")}', 'client')" class="flex-1 min-w-[110px] bg-sky-700 hover:bg-sky-600 text-white text-[10px] py-2 rounded-lg font-bold"><i class="fas fa-phone"></i> EDITAR TELÉFONO</button>`
                                 : ''}
                             ${isFullAdmin ? `<button onclick="window.adminChangeReferralCode('${u.uid}', '${(u.referralCode || '').replace(/'/g, "\\'")}', '${(u.name || '').replace(/'/g, "\\'")}', 'client')" class="flex-1 min-w-[110px] bg-amber-600 text-white text-[10px] py-2 rounded-lg font-bold"><i class="fas fa-gift"></i> CÓD. REFERIDO</button>` : ''}
                             ${isFullAdmin ? `<button onclick="window.adminAdjustPassengerPoints('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}', ${clientBalance})" class="flex-1 min-w-[130px] bg-purple-600 hover:bg-purple-500 text-white text-[10px] py-2 rounded-lg font-bold"><i class="fas fa-coins"></i> PUNTOS DE VIAJE</button>` : ''}
@@ -9312,11 +9316,19 @@ if (document.readyState === 'loading') {
                 const referralCodeData = (u.referralCode || '').toLowerCase();
                 // Escapar comillas en data-* para que el buscador no pierda atributos
                 const escData = (s) => String(s || '').toLowerCase().replace(/"/g, '&quot;').replace(/</g, '');
+                const phoneRawForSearch = String(u.phone || getUserDisplayPhone?.(u) || '').trim();
+                const phoneDigitsForSearch = phoneRawForSearch.replace(/\D/g, '');
+                const searchBlob = [
+                    u.name, phoneRawForSearch, phoneDigitsForSearch,
+                    getUserDisplayEmail(u), u.referralCode, u.identity, u.vehicle?.plate, u.uid
+                ].filter(Boolean).join(' ');
                 body += `
                     <div class="ops-user-card driver-card admin-user-card flex flex-col items-start gap-2" 
                          data-role="${role}"
-                         data-name="${escData(u.name)}" data-phone="${escData(u.phone || getUserDisplayPhone?.(u) || '')}" data-email="${escData(getUserDisplayEmail(u) || '')}" data-plate="${escData(u.vehicle?.plate || '')}"
+                         data-uid="${escData(u.uid)}"
+                         data-name="${escData(u.name)}" data-phone="${escData(phoneRawForSearch)}" data-phone-digits="${escData(phoneDigitsForSearch)}" data-email="${escData(getUserDisplayEmail(u) || '')}" data-plate="${escData(u.vehicle?.plate || '')}"
                          data-referral="${escData(referralCodeData)}"
+                         data-search="${escData(searchBlob)}"
                          data-resting="${isRestingForCard ? 1 : 0}" data-pending="${hasPendingForCard ? 1 : 0}"
                          data-status="${status}">
                         <div class="flex items-center gap-3 w-full">
@@ -9362,6 +9374,7 @@ if (document.readyState === 'loading') {
 
             container.innerHTML = U.page(body);
             bindAdminSearchScrollCleanup(container);
+            bindAdminUserSearchInputs();
 
             // Bind the copy all button after render (more reliable than inline onclick)
             setTimeout(() => {
@@ -15053,19 +15066,65 @@ if (document.readyState === 'loading') {
             if (!t) return true;
             const name = foldOpsSearchText(card.dataset.name || '');
             const phoneRaw = String(card.dataset.phone || '');
+            const phoneDigitsAttr = String(card.dataset.phoneDigits || '');
             let phoneFmt = '';
             try { phoneFmt = formatHondurasPhone(phoneRaw) || ''; } catch (_) { phoneFmt = phoneRaw; }
-            const phoneDigits = phoneRaw.replace(/\D/g, '');
+            const phoneDigits = (phoneDigitsAttr || phoneRaw).replace(/\D/g, '');
             const termDigits = String(term).replace(/\D/g, '');
             const email = foldOpsSearchText(card.dataset.email || '');
             const plate = foldOpsSearchText(card.dataset.plate || '');
             const referral = foldOpsSearchText(card.dataset.referral || '');
             const identity = foldOpsSearchText(card.dataset.identity || '');
-            if (name.includes(t) || email.includes(t) || plate.includes(t) || referral.includes(t) || identity.includes(t)) return true;
+            const uid = foldOpsSearchText(card.dataset.uid || '');
+            const blob = foldOpsSearchText(card.dataset.search || '');
+            if (blob && blob.includes(t)) return true;
+            if (name.includes(t) || email.includes(t) || plate.includes(t) || referral.includes(t) || identity.includes(t) || uid.includes(t)) return true;
             if (foldOpsSearchText(phoneFmt).includes(t) || foldOpsSearchText(phoneRaw).includes(t)) return true;
-            // Teléfono: basta con 4+ dígitos para no filtrar basura al escribir nombre con números raros
+            // Teléfono: 3+ dígitos (últimos del número o con 504)
             if (termDigits.length >= 3 && phoneDigits.includes(termDigits)) return true;
+            if (termDigits.length >= 3 && phoneDigits.endsWith(termDigits)) return true;
+            // Fallback: texto visible de la tarjeta (por si data-* falló)
+            try {
+                if (foldOpsSearchText(card.textContent || '').includes(t)) return true;
+            } catch (_) {}
             return false;
+        }
+
+        function updateAdminSearchResultHint(role, visibleCount, totalCount, term) {
+            const inputId = role === 'driver' ? 'driver-search-input'
+                : (role === 'supervisor' ? 'supervisor-search-input' : 'client-search-input');
+            const input = document.getElementById(inputId);
+            const hint = input?.closest('.ops-toolbar')?.querySelector('.ops-toolbar-hint');
+            if (!hint) return;
+            const t = String(term || '').trim();
+            if (!t) {
+                hint.textContent = role === 'driver'
+                    ? 'Busca por nombre, WhatsApp, correo o placa.'
+                    : (role === 'supervisor'
+                        ? 'Busca supervisores por nombre, WhatsApp o correo.'
+                        : 'Busca por nombre, teléfono, correo o código de referido.');
+                return;
+            }
+            hint.textContent = visibleCount === 0
+                ? `Sin resultados para «${t}». Prueba con menos letras o solo dígitos del WhatsApp.`
+                : `${visibleCount} de ${totalCount} coincidencia${visibleCount === 1 ? '' : 's'} · «${t}»`;
+        }
+
+        /** Bind real de input (más fiable que solo oninput inline en WebView Android). */
+        function bindAdminUserSearchInputs() {
+            const pairs = [
+                ['client-search-input', () => window.filterAdminClients?.(), 'client'],
+                ['driver-search-input', () => window.filterAdminDrivers?.(), 'driver'],
+                ['supervisor-search-input', () => window.filterAdminSupervisors?.(), 'supervisor'],
+            ];
+            pairs.forEach(([id, fn]) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                // Re-bind cada render (el input se recrea con innerHTML)
+                el.oninput = () => { try { fn(); } catch (e) { console.warn('admin search', e); } };
+                el.onsearch = () => { try { fn(); } catch (e) { console.warn('admin search', e); } };
+                el.onkeyup = () => { try { fn(); } catch (e) { console.warn('admin search', e); } };
+            });
         }
 
         /**
@@ -15123,9 +15182,12 @@ if (document.readyState === 'loading') {
             const term = searchInput.value;
             const statusFilter = window._adminDriverStatusFilter || 'all';
             const filtering = !!foldOpsSearchText(term) || (statusFilter && statusFilter !== 'all');
+            let total = 0;
+            let visible = 0;
             document.querySelectorAll('.driver-card[data-role="driver"], .driver-card:not([data-role])').forEach((card) => {
                 // Solo tarjetas de conductores en la lista de drivers (compat: sin data-role)
                 if (card.dataset.role && card.dataset.role !== 'driver') return;
+                total += 1;
                 const isResting = card.dataset.resting === '1';
                 const hasPending = card.dataset.pending === '1';
                 const cardStatus = (card.dataset.status || '').toLowerCase();
@@ -15135,8 +15197,10 @@ if (document.readyState === 'loading') {
                 else if (statusFilter === 'papelera' || statusFilter === 'rejected') show = cardStatus === 'rejected';
                 if (show) show = adminUserCardMatchesSearch(card, term);
                 card.style.display = show ? '' : 'none';
+                if (show) visible += 1;
             });
             syncOpsUserGroupsAfterFilter(getAdminListRootForRole('driver') || document.getElementById('admin-users-list'), { filtering });
+            updateAdminSearchResultHint('driver', visible, total, term);
         };
 
         window.filterAdminDriversByStatus = (status) => {
@@ -15150,7 +15214,10 @@ if (document.readyState === 'loading') {
             const term = searchInput.value;
             const statusFilter = window._adminClientStatusFilter || 'all';
             const filtering = !!foldOpsSearchText(term) || (statusFilter && statusFilter !== 'all');
+            let total = 0;
+            let visible = 0;
             document.querySelectorAll('.admin-user-card[data-role="client"]').forEach((card) => {
+                total += 1;
                 const cardStatus = (card.dataset.status || 'approved').toLowerCase();
                 let show = true;
                 if (statusFilter === 'pending') show = cardStatus === 'pending';
@@ -15158,11 +15225,13 @@ if (document.readyState === 'loading') {
                 else if (statusFilter === 'rejected') show = cardStatus === 'rejected';
                 if (show) show = adminUserCardMatchesSearch(card, term);
                 card.style.display = show ? '' : 'none';
+                if (show) visible += 1;
             });
             const listRoot = getAdminListRootForRole('client')
                 || document.getElementById('admin-users-list')
                 || document.getElementById('supervisor-pending-list');
             syncOpsUserGroupsAfterFilter(listRoot, { filtering });
+            updateAdminSearchResultHint('client', visible, total, term);
         };
 
         window.filterAdminClientsByStatus = (status) => {
@@ -34284,7 +34353,7 @@ window.addEventListener('map-route-trigger', () => {
             }
         };
 
-        // Admin / Supervisor: editar nombre + foto de perfil de conductores (y pasajeros)
+        // Admin / Supervisor: editar nombre + foto + teléfono de conductores (y pasajeros)
         window.adminEditStaffProfile = async (uid, currentName = '', currentPhoto = '', userRole = 'driver') => {
             if (!canManageUsers() || !uid) {
                 return window.showToast('Solo administradores y supervisores pueden editar perfiles.');
@@ -34297,9 +34366,18 @@ window.addEventListener('map-route-trigger', () => {
                 if (!pubSnap.exists()) {
                     return window.showToast('Usuario no encontrado.');
                 }
-                profileData = pubSnap.data();
+                profileData = pubSnap.data() || {};
+                // Enriquecer teléfono desde perfil privado si falta
+                if (!profileData.phone) {
+                    try {
+                        const privSnap = await getDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'));
+                        if (privSnap.exists()) {
+                            profileData = { ...privSnap.data(), ...profileData, phone: privSnap.data().phone || profileData.phone };
+                        }
+                    } catch (_) {}
+                }
                 const allowedRoles = ['driver', 'client'];
-                if (!allowedRoles.includes(profileData.role)) {
+                if (profileData.role && !allowedRoles.includes(profileData.role)) {
                     return window.showToast('Solo se puede editar perfil de conductores o pasajeros.');
                 }
             } catch (_) {
@@ -34307,18 +34385,29 @@ window.addEventListener('map-route-trigger', () => {
             }
 
             const isDriver = (userRole === 'driver' || profileData.role === 'driver');
+            const phoneDisplay = formatHondurasPhone(profileData.phone) || profileData.phone || '';
 
             const modal = document.createElement('div');
             modal.className = 'fixed inset-0 bg-black/70 z-[50000] flex items-center justify-center p-4';
+            modal.style.paddingTop = 'max(1rem, var(--safe-top, env(safe-area-inset-top, 0px)))';
+            modal.style.paddingBottom = 'max(1rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)))';
             modal.innerHTML = `
-                <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-xl">
+                <div class="bg-white rounded-3xl w-full max-w-md p-6 shadow-xl max-h-[90dvh] overflow-y-auto">
                     <h3 class="font-black text-xl mb-1">Editar perfil ${isDriver ? 'conductor' : 'pasajero'}</h3>
-                    <p class="text-xs text-gray-500 mb-4">Cambia nombre y/o foto de perfil. Visible en la app.</p>
+                    <p class="text-xs text-gray-500 mb-4">Cambia nombre, teléfono WhatsApp y/o foto. Visible en la app.</p>
 
                     <div class="mb-4">
                         <label class="block text-[10px] font-black text-gray-500 mb-1">NOMBRE</label>
                         <input id="staff-edit-name" type="text" value="${(currentName || profileData.name || '').replace(/"/g, '&quot;')}" 
                                class="w-full border-2 border-gray-300 rounded-2xl px-4 py-2.5 text-sm font-bold" maxlength="80">
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-[10px] font-black text-gray-500 mb-1">TELÉFONO / WHATSAPP (Honduras)</label>
+                        <input id="staff-edit-phone" type="tel" inputmode="tel" value="${String(phoneDisplay).replace(/"/g, '&quot;')}"
+                               placeholder="504 9999-9999 o 99999999"
+                               class="w-full border-2 border-gray-300 rounded-2xl px-4 py-2.5 text-sm font-bold">
+                        <p class="text-[9px] text-gray-400 mt-1">Se normaliza a +504. Úsalo si la clienta se registró con el número mal.</p>
                     </div>
 
                     <div class="mb-4">
@@ -34356,6 +34445,7 @@ window.addEventListener('map-route-trigger', () => {
             const pickBtn = modal.querySelector('#staff-pick-photo-btn');
             const clearBtn = modal.querySelector('#staff-clear-photo-btn');
             const nameInput = modal.querySelector('#staff-edit-name');
+            const phoneInput = modal.querySelector('#staff-edit-phone');
             const saveBtn = modal.querySelector('#staff-edit-save');
             const cancelBtn = modal.querySelector('#staff-edit-cancel');
 
@@ -34396,9 +34486,15 @@ window.addEventListener('map-route-trigger', () => {
             saveBtn.onclick = async () => {
                 const newName = (nameInput.value || '').trim();
                 const oldName = (currentName || profileData.name || '').trim();
+                const phoneTyped = (phoneInput?.value || '').trim();
+                const newPhoneNorm = phoneTyped ? normalizeHondurasPhone(phoneTyped) : '';
+                const oldPhoneNorm = normalizeHondurasPhone(profileData.phone || '') || '';
 
                 if (newName.length < 2 || newName.length > 80) {
                     return window.showToast('El nombre debe tener entre 2 y 80 caracteres.');
+                }
+                if (phoneTyped && (!newPhoneNorm || newPhoneNorm.length < 11)) {
+                    return window.showToast('Teléfono inválido. Usa 8 dígitos HN o 504XXXXXXXX.');
                 }
 
                 saveBtn.disabled = true;
@@ -34413,6 +34509,12 @@ window.addEventListener('map-route-trigger', () => {
                         updates.nameUpdatedBy = currentUser.uid;
                     }
 
+                    if (phoneTyped && newPhoneNorm && newPhoneNorm !== oldPhoneNorm) {
+                        updates.phone = newPhoneNorm;
+                        updates.phoneUpdatedAt = serverTimestamp ? serverTimestamp() : new Date();
+                        updates.phoneUpdatedBy = currentUser.uid;
+                    }
+
                     if (selectedPhotoValue) {
                         // Upload using storage helpers (handles dataURL → URL)
                         const storage = window.storage || initStorage(app);
@@ -34422,29 +34524,35 @@ window.addEventListener('map-route-trigger', () => {
                         updates.photo = uploadedUrl;
                         updates.photoUpdatedAt = serverTimestamp ? serverTimestamp() : new Date();
                         updates.photoUpdatedBy = currentUser.uid;
-                    } else if (selectedPhotoValue === null) {
-                        // Explicit clear
+                    } else if (selectedPhotoValue === null && clearBtn?.dataset?.cleared === '1') {
+                        // Explicit clear only if user marked clear
                         updates.photo = null;
                     }
 
                     if (Object.keys(updates).length === 0) {
+                        window.showToast('Sin cambios.');
                         close();
                         return;
                     }
 
                     await moderationWriteUser(uid, updates);
 
-                    // Also sync name to drivers_location for drivers (fleet map etc)
-                    if (isDriver && updates.name) {
+                    // Also sync name/phone to drivers_location for drivers (fleet map etc)
+                    if (isDriver && (updates.name || updates.phone)) {
                         try {
-                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid), {
-                                name: updates.name,
-                                updatedAt: Date.now()
-                            }, { merge: true });
+                            const locPatch = { updatedAt: Date.now() };
+                            if (updates.name) locPatch.name = updates.name;
+                            if (updates.phone) locPatch.phone = updates.phone;
+                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid), locPatch, { merge: true });
                         } catch (_) {}
                     }
 
-                    window.showToast('Perfil actualizado.', 'success');
+                    window.showToast(
+                        updates.phone
+                            ? `Perfil actualizado. Tel: ${formatHondurasPhone(updates.phone) || updates.phone}`
+                            : 'Perfil actualizado.',
+                        'success'
+                    );
                     close();
 
                     // Refresh lists
@@ -34465,6 +34573,49 @@ window.addEventListener('map-route-trigger', () => {
                     saveBtn.textContent = 'GUARDAR CAMBIOS';
                 }
             };
+        };
+
+        /** Atajo: solo editar teléfono (pasajero o conductor). */
+        window.adminEditUserPhone = async (uid, currentPhone = '', name = '', userRole = 'client') => {
+            if (!canManageUsers() || !uid) {
+                return window.showToast('Solo administradores y supervisores pueden editar teléfonos.');
+            }
+            const label = name || (userRole === 'driver' ? 'Conductor' : 'Pasajero');
+            const current = formatHondurasPhone(currentPhone) || currentPhone || '';
+            const typed = prompt(
+                `Editar WhatsApp de ${label}\n\nEscribe el número correcto (8 dígitos o 504…):`,
+                current
+            );
+            if (typed == null) return;
+            const norm = normalizeHondurasPhone(String(typed).trim());
+            if (!norm || norm.length < 11) {
+                return window.showToast('Número inválido. Ejemplo: 9999-9999 o 50499999999');
+            }
+            try {
+                await moderationWriteUser(uid, {
+                    phone: norm,
+                    phoneUpdatedAt: serverTimestamp ? serverTimestamp() : new Date(),
+                    phoneUpdatedBy: currentUser.uid,
+                });
+                if (userRole === 'driver') {
+                    try {
+                        await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid), {
+                            phone: norm,
+                            updatedAt: Date.now()
+                        }, { merge: true });
+                    } catch (_) {}
+                }
+                window.showToast(`Teléfono actualizado: ${formatHondurasPhone(norm) || norm}`, 'success');
+                if (typeof window.loadAdminUsers === 'function') {
+                    await window.loadAdminUsers().catch(() => {});
+                }
+                if (typeof window.renderAdminTab === 'function' && window.currentAdminTab) {
+                    setTimeout(() => window.renderAdminTab(window.currentAdminTab), 150);
+                }
+            } catch (e) {
+                console.error(e);
+                window.showToast('No se pudo guardar el teléfono: ' + (e?.message || e));
+            }
         };
 
         // Backward compat wrapper (old name change button locations may still call it)

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.23.4">
+    <meta name="hr-app-version" content="2026.07.23.5">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.23.4">
+    <link rel="manifest" href="manifest.json?v=2026.07.23.5">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,13 +30,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.23.4">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.23.5">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.23.4">
-    <script src="js/maps-init.js?v=2026.07.23.4"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.23.5">
+    <script src="js/maps-init.js?v=2026.07.23.5"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.23.4';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.23.5';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -96,10 +96,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.23.4';
+        window.__HR_BUILD_VERSION__ = '2026.07.23.5';
         (function () {
             try {
-                var build = '2026.07.23.4';
+                var build = '2026.07.23.5';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -1068,7 +1068,10 @@
   <!-- ==================== SETUP COMPLETO Y LIMPIO (CORREGIDO POR GROK) ==================== -->
 <div id="setup-screen" class="hidden driver-setup-screen z-[20000]">
     <header class="driver-setup-bar">
-        <div class="driver-setup-bar-brand">
+        <button type="button" onclick="window.cancelSetupAndLogout()" class="driver-setup-back-btn text-white/90 hover:text-white text-sm font-black px-2 rounded-xl border border-white/20 bg-white/10" title="Atrás / Cancelar" aria-label="Atrás">
+            <i class="fas fa-arrow-left mr-1"></i><span>Atrás</span>
+        </button>
+        <div class="driver-setup-bar-brand flex-1 min-w-0">
             <img class="driver-setup-mini-logo auth-hero-logo-img" src="icons/icon-192.png" data-default-src="icons/icon-192.png" alt="HonduRaite"
                  onerror="this.style.display='none'; this.nextElementSibling?.classList.remove('hidden')">
             <div class="w-8 h-8 rounded-lg bg-blue-600 text-white hidden items-center justify-center auth-hero-logo-fallback"><i class="fas fa-car-side text-sm"></i></div>
@@ -1077,7 +1080,7 @@
                 <p id="driver-setup-subtitle" class="text-blue-200 text-[9px] font-bold uppercase tracking-wide">Fotos + documentos</p>
             </div>
         </div>
-        <button type="button" onclick="window.cancelSetupAndLogout()" class="w-8 h-8 text-white/70 hover:text-red-300 text-xl" title="Cancelar">×</button>
+        <button type="button" onclick="window.cancelSetupAndLogout()" class="driver-setup-close-btn w-11 h-11 text-white/80 hover:text-red-300 text-2xl font-light rounded-xl" title="Cerrar" aria-label="Cerrar">×</button>
     </header>
 
     <div id="setup-form-scroll" class="driver-setup-body">
@@ -2198,6 +2201,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.07.23.4"></script>
+    <script type="module" src="js/app.js?v=2026.07.23.5"></script>
 </body>
 </html>
