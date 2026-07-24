@@ -489,7 +489,7 @@ exports.validateTripCreation = onCall(async (request) => {
     const trip = request.data?.trip || null;
     if (!trip || typeof trip !== 'object') throw new HttpsError('invalid-argument', 'Datos de viaje inválidos.');
 
-    // El clientId debe coincidir con el caller
+    // El clientId debe coincidir con el caller (viaje propio)
     if (String(trip.clientId || '') !== String(auth.uid)) {
         throw new HttpsError('permission-denied', 'clientId no coincide con la cuenta autenticada.');
     }
@@ -501,14 +501,17 @@ exports.validateTripCreation = onCall(async (request) => {
     const pub = pubSnap.exists ? (pubSnap.data() || {}) : {};
     const priv = privSnap.exists ? (privSnap.data() || {}) : {};
 
-    const role = pub.role || priv.role || 'client';
-    if (role !== 'client') {
-        throw new HttpsError('permission-denied', 'Tu cuenta no está en modo pasajero.');
+    const role = String(pub.role || priv.role || 'client').toLowerCase().trim();
+    // Permitir client / admin / supervisor / sin rol (pruebas).
+    // Conductor "puro" se bloquea en la app; aquí no exigir role==='client' (rompía pedir viaje).
+    const blockedRoles = []; // reservado si más adelante se quiere restringir
+    if (blockedRoles.includes(role)) {
+        throw new HttpsError('failed-precondition', 'Tu cuenta no puede solicitar viajes como pasajero.');
     }
 
     const approvalStatus = priv.approvalStatus || pub.approvalStatus || null;
     if (approvalStatus === 'suspended' || approvalStatus === 'rejected') {
-        throw new HttpsError('permission-denied', 'Cuenta suspendida o rechazada.');
+        throw new HttpsError('failed-precondition', 'Cuenta suspendida o rechazada. Contacta a soporte.');
     }
 
     // Terms check: no bloquear, solo advertir (cliente puede optar). Devolver warning si aplica
@@ -521,10 +524,10 @@ exports.validateTripCreation = onCall(async (request) => {
     const globalNegotiationEnabled = settings.negotiationEnabled == null ? true : !!settings.negotiationEnabled;
 
     if (!termsAccepted) {
-        return { ok: true, warning: 'terms_not_accepted', negotiationEnabled: globalNegotiationEnabled };
+        return { ok: true, warning: 'terms_not_accepted', negotiationEnabled: globalNegotiationEnabled, role };
     }
 
-    return { ok: true, negotiationEnabled: globalNegotiationEnabled };
+    return { ok: true, negotiationEnabled: globalNegotiationEnabled, role };
 });
 
 /** Admin: setea negociación globalmente en appSettings */

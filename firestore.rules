@@ -48,7 +48,8 @@ service cloud.firestore {
 
     function isClient(app) {
       let role = getRole(app);
-      return role == 'client' || role == null;
+      // null / vacío / client = pasajero; no exigir role exacto para no romper perfiles viejos
+      return role == 'client' || role == null || role == '';
     }
 
     function isStaff(app) {
@@ -57,6 +58,21 @@ service cloud.firestore {
 
     function isOwner(userId) {
       return isSignedIn() && requestUid() == userId;
+    }
+
+    // Pedir viaje para uno mismo (pasajero, admin de prueba, supervisor, etc.)
+    // El bloqueo de "conductor puro" se hace en la app; aquí basta autenticación + clientId propio.
+    function isSelfTripCreate() {
+      return isSignedIn()
+        && request.resource.data.keys().hasAll(['clientId', 'status'])
+        && request.resource.data.clientId == requestUid()
+        && request.resource.data.status in ['pending', 'scheduled'];
+    }
+
+    function isTripParticipant() {
+      return resource.data.clientId == requestUid()
+        || resource.data.driverId == requestUid()
+        || resource.data.offeredToDriverId == requestUid();
     }
 
     // ============================================================
@@ -80,31 +96,36 @@ service cloud.firestore {
     // ============================================================
 
     match /artifacts/{app}/public/data/trips/{tripId} {
-      // Lectura amplia para flujos de app (conductor ve ofertas, pasajero ve su viaje)
+      // Lectura: staff, participantes, o viajes pending (ofertas a conductores)
       allow read: if isSignedIn() && (
         isStaff(app) ||
         resource.data.clientId == requestUid() ||
         resource.data.driverId == requestUid() ||
-        resource.data.status == 'pending'   // conductores necesitan ver pending para ofertas
+        resource.data.offeredToDriverId == requestUid() ||
+        resource.data.status == 'pending' ||
+        resource.data.status == 'scheduled'
       );
 
-      // Crear viaje: pasajero (su propio clientId) o staff en nombre del cliente
-      allow create: if isSignedIn() && (
-        (isClient(app) && request.resource.data.clientId == requestUid()) ||
-        (isStaff(app)
+      // CREAR viaje
+      // Antes: solo isClient(role==client|null) → fallaba admin/supervisor y perfiles con role raro
+      // Ahora: cualquiera autenticado puede crear viaje PARA SÍ (clientId == uid)
+      // Staff puede armar viaje para un cliente (staffAssistedClient)
+      allow create: if isSelfTripCreate()
+        || (
+          isSignedIn()
+          && isStaff(app)
+          && request.resource.data.keys().hasAll(['clientId'])
           && request.resource.data.clientId is string
           && request.resource.data.clientId.size() > 0
-          && request.resource.data.staffAssistedClient == true)
-      );
+          && request.resource.data.staffAssistedClient == true
+        );
 
-      // Actualizar viaje: pasajero, conductor asignado, staff, o cualquier conductor en viajes pending (ofertas / visto)
-      // Pasajero puede reclamar viaje armado por staff (staffCreatedClientClaimed, scheduledFor, passengers…)
+      // ACTUALIZAR / CANCELAR: dueño (pasajero), conductor asignado, ofertado, staff
+      // Conductores pueden tocar pending (ofertas / visto / regateo)
       allow update: if isSignedIn() && (
-        isStaff(app) ||
-        resource.data.clientId == requestUid() ||
-        resource.data.driverId == requestUid() ||
-        resource.data.offeredToDriverId == requestUid() ||
-        (resource.data.status == 'pending' && isDriver(app))
+        isStaff(app)
+        || isTripParticipant()
+        || (resource.data.status in ['pending', 'scheduled'] && isDriver(app))
       );
 
       // Borrar solo staff

@@ -28329,6 +28329,7 @@ window.cancelSetupAndLogout = () => {
                 }
 
                 if (!cancelled) {
+                    // Fallback: el pasajero/conductor puede actualizar su viaje (reglas Firestore)
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId), {
                         status: 'cancelled',
                         cancelledBy: currentUser.uid,
@@ -28342,6 +28343,7 @@ window.cancelSetupAndLogout = () => {
                         offerToBusyDriver: false,
                         offerSearchTier: null
                     });
+                    cancelled = true;
                     try {
                         await httpsCallable(cloudFunctions, 'refundCancelledTrip')({ tripId });
                     } catch (refundErr) {
@@ -28366,10 +28368,12 @@ window.cancelSetupAndLogout = () => {
             } catch (e) {
                 window._cancellingTripIds?.delete(tripId);
                 console.error('cancelOrder error', e);
-                const code = e?.code || '';
+                const code = String(e?.code || '');
+                const msg = String(e?.message || '');
+                const isPerm = code.includes('permission') || /permission|insufficient|permiso/i.test(msg);
                 window.showToast(
-                    (code === 'permission-denied' || code === 'functions/permission-denied')
-                        ? 'No tienes permiso para cancelar este viaje.'
+                    isPerm
+                        ? 'No se pudo cancelar (permisos). Recarga con Ctrl+F5 o vuelve a iniciar sesión.'
                         : 'No se pudo cancelar el viaje. Intenta de nuevo.'
                 );
             } finally {
@@ -29972,8 +29976,10 @@ window.cancelSetupAndLogout = () => {
                     preferredDriverId: preferredDriverId || null
                 };
                 // Validate via Cloud Function before creating the trip (hardening server-side checks)
+                // No enviar FieldValue.serverTimestamp() al callable (no se serializa bien)
                 try {
-                    const vfResp = await httpsCallable(cloudFunctions, 'validateTripCreation')({ trip: tripPayload });
+                    const tripForValidate = { ...tripPayload, createdAt: null };
+                    const vfResp = await httpsCallable(cloudFunctions, 'validateTripCreation')({ trip: tripForValidate });
                     const vfData = (vfResp && vfResp.data) ? vfResp.data : vfResp;
                     if (vfData?.warning === 'terms_not_accepted') {
                         window.showToast('Tu cuenta no aceptó términos. Viaje permitido pero se recomienda aceptar términos.', 'info');
@@ -29983,7 +29989,13 @@ window.cancelSetupAndLogout = () => {
                         tripPayload.negotiationEnabled = !!vfData.negotiationEnabled;
                     }
                 } catch (vfErr) {
-                    throw vfErr;
+                    const code = String(vfErr?.code || '');
+                    const msg = String(vfErr?.message || vfErr?.details || '');
+                    // Si la función falla por red/despliegue, no bloquear el pedido (Firestore rules ya protegen)
+                    if (code.includes('permission-denied') || code.includes('failed-precondition') || code.includes('unauthenticated')) {
+                        throw vfErr;
+                    }
+                    console.warn('validateTripCreation non-blocking error:', code, msg);
                 }
 
                 const tripRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), tripPayload);
@@ -30041,9 +30053,22 @@ window.cancelSetupAndLogout = () => {
                 document.getElementById('hourly-options')?.classList.remove('hidden');
                 document.getElementById('main-client-saldo')?.classList.remove('hidden');
                 document.querySelector('.trip-route-fields')?.classList.remove('hidden');
-                window.showToast(e?.message?.includes('permission')
-                    ? 'No tienes permiso para solicitar viajes. Verifica tu cuenta de pasajero.'
-                    : 'Error al solicitar el viaje. Intenta de nuevo.');
+                const code = String(e?.code || '');
+                const msg = String(e?.message || e?.details || '');
+                const isPerm = code.includes('permission')
+                    || /permission|insufficient|permiso/i.test(msg);
+                const isAuth = code.includes('unauthenticated') || /unauth|sesión|sesion/i.test(msg);
+                const isBlocked = code.includes('failed-precondition')
+                    || /suspend|rechazad|restring/i.test(msg);
+                window.showToast(
+                    isAuth
+                        ? 'Tu sesión expiró. Cierra sesión y vuelve a entrar.'
+                        : isBlocked
+                            ? (msg || 'Tu cuenta no puede solicitar viajes ahora.')
+                            : isPerm
+                                ? 'No se pudo crear el viaje (permisos). Recarga con Ctrl+F5 o vuelve a iniciar sesión. Si eres admin de prueba, ya debería funcionar tras actualizar reglas.'
+                                : (msg && msg.length < 120 ? msg : 'Error al solicitar el viaje. Intenta de nuevo.')
+                );
             }
         };
 
