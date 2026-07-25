@@ -194,19 +194,32 @@ async function bustDocumentCache(version) {
     }));
 }
 
+function clearBootUpdateSessionKeys() {
+    try {
+        const doomed = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key && key.startsWith('hr_boot_updated_')) doomed.push(key);
+        }
+        doomed.forEach((key) => sessionStorage.removeItem(key));
+    } catch (_) {}
+}
+
 function buildReloadUrl(remoteVersion) {
-    const url = new URL(location.href);
+    // Navegar al documento raíz (evita quedarse en rutas/hashes viejos)
+    const url = new URL(location.origin + (location.pathname || '/'));
     url.hash = '';
     // Quitar stamps viejos para no acumular query basura
-    url.searchParams.delete('hr_refresh');
+    url.search = '';
     if (remoteVersion) url.searchParams.set('v', remoteVersion);
-    else url.searchParams.delete('v');
     url.searchParams.set('hr_refresh', String(Date.now()));
+    url.searchParams.set('_', String(Date.now()));
     return url.toString();
 }
 
 /** Recarga forzada con varios fallbacks (PWA / iOS / Android WebView). */
 function hardReload(remoteVersion) {
+    clearBootUpdateSessionKeys();
     const target = buildReloadUrl(remoteVersion);
     try {
         // Intento principal: navegación limpia con cache bust
@@ -221,7 +234,9 @@ function hardReload(remoteVersion) {
         } catch (_) {}
     }, 200);
     window.setTimeout(() => {
-        try { location.reload(); } catch (_) {}
+        try { location.reload(true); } catch (_) {
+            try { location.reload(); } catch (__) {}
+        }
     }, HARD_RELOAD_FALLBACK_MS);
 }
 
@@ -277,17 +292,23 @@ function verifyPendingVersionAfterLoad() {
     if (!pending) return;
 
     const running = getBuildVersion();
+    // También aceptar si config/meta ya coinciden con version.json (caso de HTML fresco)
     if (!versionsDiffer(running, pending)) {
         localStorage.removeItem(PENDING_VERSION_KEY);
         localStorage.removeItem(STALE_RETRY_KEY);
+        clearBootUpdateSessionKeys();
         dismissUpdateModal();
+        console.info('[pwa-update] Actualización aplicada:', running);
         return;
     }
 
+    console.warn('[pwa-update] Tras recargar sigue desfasado. Instalada:', running, 'Esperada:', pending);
+
     const retries = parseInt(localStorage.getItem(STALE_RETRY_KEY) || '0', 10);
-    if (retries < 1) {
+    if (retries < 2) {
         localStorage.setItem(STALE_RETRY_KEY, String(retries + 1));
-        window.setTimeout(() => applyAppUpdate({ auto: true }), 1200);
+        clearBootUpdateSessionKeys();
+        window.setTimeout(() => applyAppUpdate({ auto: true }), 900);
         return;
     }
 
@@ -331,6 +352,7 @@ export async function applyAppUpdate({ auto = false, fromButton = false } = {}) 
     if (applyInFlight) return;
     applyInFlight = true;
     reloadOnControllerChange = true;
+    clearBootUpdateSessionKeys();
 
     let remoteVersion = null;
     try {

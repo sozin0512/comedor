@@ -23,7 +23,9 @@ import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
     driverLocationMatchesTripCity, ensureEndpointCoords, resolveTripServiceZone, inferTripZoneIdFromOrigin,
-    getServiceZones,
+    getServiceZones, isCityNearZone, getNearbyServiceZoneIds, getNearbyCitySpillKm,
+    collectOnlineServiceZoneIds, collectRegisteredDriverZoneIds,
+    tripCityHasLocalDrivers, tripCityHasLocalOnlineDrivers,
     ensurePassengerCityPickerVisible, openCityPickerPanel, showCityPickerModal, promptCityConfirmationIfNeeded, promptDriverCityConfirmationIfNeeded, getRadiusRoleKey, isPassengerAppRole, updateZoneHint,
     isInsideHondurasProximity, findZoneForCoords, getActiveRadiusKm, getCityCoverageKm,
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
@@ -3933,7 +3935,15 @@ if (document.readyState === 'loading') {
                 persistOperatingCity(zone.id, zone.name);
             }
 
+            // Mantener selector de ciudad usable en ambos roles
             ensurePassengerCityPickerVisible();
+            window.syncMapLocationChipVisibility?.();
+            if (window.userProfile?.role === 'driver') {
+                document.getElementById('service-zone-map-chip')?.classList.remove('hidden');
+                // Re-filtrar ofertas con la ciudad nueva
+                try { window.startDriverListener?.(); } catch (_) {}
+            }
+
             window.showToast?.(`Ciudad: ${zone.name}`, 'success');
         };
 
@@ -4807,16 +4817,48 @@ if (document.readyState === 'loading') {
             driverVehicleType,
             driverPlate,
             approvedForDriver,
-            testDriverMode = false
+            testDriverMode = false,
+            registeredDriverZones = null
         } = {}) {
             if (testDriverMode) return true;
             if (!driverId || !t) return false;
             if ((t.declinedDriverIds || []).includes(driverId)) return false;
-            if (!tripVisibleToDriver(t, { zoneId: driverZoneId })) return false;
+            if (!tripVisibleToDriver(t, { zoneId: driverZoneId, registeredDriverZones })) return false;
             if (driverCanServeTrip(driverVehicleType, t.serviceType || 'auto', driverPlate)) return true;
             return approvedForDriver.some((v) =>
                 driverCanServeTrip(v.type, t.serviceType || 'auto', v.vehicle?.plate || null)
             );
+        }
+
+        /**
+         * Cache de ciudades con conductores REGISTRADOS (users).
+         * Spill solo si la ciudad del viaje no tiene ninguno (aunque estén offline).
+         */
+        async function ensureRegisteredDriverZonesCache({ force = false, maxAgeMs = 90000 } = {}) {
+            const now = Date.now();
+            const cache = window._registeredDriverZonesCache;
+            if (!force && cache?.zones && (now - cache.at) < maxAgeMs) {
+                return cache.zones;
+            }
+            try {
+                // Preferir allUsersData si admin/staff ya lo cargó
+                if (!force && Array.isArray(window.allUsersData) && window.allUsersData.length) {
+                    const zones = collectRegisteredDriverZoneIds(window.allUsersData);
+                    window._registeredDriverZonesCache = { at: now, zones };
+                    return zones;
+                }
+                const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+                const zones = collectRegisteredDriverZoneIds(snap);
+                window._registeredDriverZonesCache = { at: now, zones };
+                return zones;
+            } catch (_) {
+                return cache?.zones || new Set();
+            }
+        }
+
+        /** @deprecated Prefer ensureRegisteredDriverZonesCache */
+        async function ensureOnlineDriverZonesCache(opts) {
+            return ensureRegisteredDriverZonesCache(opts);
         }
 
         function isTripWithinDriverOfferRadius(t, maxKm = null) {
@@ -4848,7 +4890,8 @@ if (document.readyState === 'loading') {
                 driverVehicleType: vType,
                 driverPlate: plate,
                 approvedForDriver: approved,
-                testDriverMode: isTestDriverProfile()
+                testDriverMode: isTestDriverProfile(),
+                registeredDriverZones: window._registeredDriverZonesCache?.zones || null
             });
         }
 
@@ -4902,15 +4945,21 @@ if (document.readyState === 'loading') {
             } catch (_) {
                 return 0;
             }
+            const registeredZones = await ensureRegisteredDriverZonesCache();
+            const hasLocalFleet = tripCityHasLocalDrivers(tZone, registeredZones);
             let count = 0;
             driversSnap.forEach((d) => {
                 const loc = d.data();
                 if (!isDriverOnline(loc)) return;
                 if (!driverCanServeTrip(loc.vehicleType || 'auto', trip.serviceType || 'auto', loc.vehiclePlate)) return;
-                if (!driverLocationMatchesTripCity(loc, tZone)) return;
+                if (!driverLocationMatchesTripCity(loc, tZone, null, {
+                    tripCityHasLocalDrivers: hasLocalFleet
+                })) return;
                 if (originCoords && loc.lat != null && loc.lng != null) {
                     const dist = haversineKm(originCoords.lat, originCoords.lng, loc.lat, loc.lng);
-                    const maxKm = nearOnly ? nearKm : farKm;
+                    // Sin registrados locales: ampliar radio al spill entre ciudades
+                    const spillKm = hasLocalFleet === false ? getNearbyCitySpillKm() : farKm;
+                    const maxKm = nearOnly ? nearKm : Math.max(farKm, spillKm);
                     if (dist > maxKm) return;
                 }
                 count++;
@@ -5011,6 +5060,7 @@ if (document.readyState === 'loading') {
 
                 if (zone) {
                     const uZone = u.serviceZoneId || u.cityId || null;
+                    // Primero solo misma ciudad; si no hay ninguno, se amplía a cercanas abajo
                     if (!uZone || uZone === zone) {
                         countInZone++;
                         if (entry) driversInZone.push(entry);
@@ -5020,6 +5070,26 @@ if (document.readyState === 'loading') {
                     if (entry) driversInZone.push(entry);
                 }
             });
+
+            // Si la ciudad no tiene conductores registrados, ampliar a ciudades cercanas (solo entonces)
+            if (zone && countInZone === 0) {
+                usersSnap.forEach((d) => {
+                    const u = d.data() || {};
+                    if (u.role !== 'driver') return;
+                    if (u.approvalStatus === 'suspended' || u.approvalStatus === 'rejected') return;
+                    if (u.accountRestricted) return;
+                    const uZone = u.serviceZoneId || u.cityId || null;
+                    if (!uZone || uZone === zone || !isCityNearZone(uZone, zone)) return;
+                    countInZone++;
+                    const first = driverFirstNameFromProfile(u);
+                    if (first) {
+                        driversInZone.push({
+                            name: first,
+                            photo: driverPhotoFromProfile(u) || NOTIFY_AVATAR_PLACEHOLDER
+                        });
+                    }
+                });
+            }
 
             const useZone = countInZone > 0;
             const count = useZone ? countInZone : countAllDrivers;
@@ -5361,6 +5431,10 @@ if (document.readyState === 'loading') {
                 return [];
             }
 
+            // Spill solo si no hay conductores REGISTRADOS en la ciudad del viaje
+            const registeredZones = await ensureRegisteredDriverZonesCache();
+            const hasLocalFleet = tripCityHasLocalDrivers(tripZoneId, registeredZones);
+
             const candidates = [];
             for (const d of driversSnap.docs) {
                 const driverId = d.id;
@@ -5376,7 +5450,9 @@ if (document.readyState === 'loading') {
 
                 const driverVehicleType = loc.vehicleType || 'auto';
                 if (!driverCanServeTrip(driverVehicleType, trip.serviceType || 'auto', loc.vehiclePlate)) continue;
-                if (!tripZoneId || !driverLocationMatchesTripCity(loc, tripZoneId)) continue;
+                if (!tripZoneId || !driverLocationMatchesTripCity(loc, tripZoneId, null, {
+                    tripCityHasLocalDrivers: hasLocalFleet
+                })) continue;
 
                 const dist = (loc.lat != null && loc.lng != null)
                     ? haversineKm(originCoords.lat, originCoords.lng, loc.lat, loc.lng)
@@ -6418,8 +6494,9 @@ if (document.readyState === 'loading') {
                 const driverZoneId = window.activeServiceZoneId
                     || window.userProfile?.serviceZoneId
                     || getDefaultZoneId();
-                if (!tripVisibleToDriver(t, { zoneId: driverZoneId })) {
-                    return window.showToast('Este viaje no es de tu ciudad.');
+                const registeredDriverZones = await ensureRegisteredDriverZonesCache();
+                if (!tripVisibleToDriver(t, { zoneId: driverZoneId, registeredDriverZones })) {
+                    return window.showToast('Este viaje queda fuera de tu zona de cobertura.');
                 }
 
                 const patch = {
@@ -6879,10 +6956,13 @@ if (document.readyState === 'loading') {
                 const testDriverMode = isTestDriverProfile();
                 const onActiveTrip = activeTrip && CONFIRMED_TRIP_STATUSES.includes(activeTrip.status);
 
+                // Ciudades con conductores REGISTRADOS: spill solo si la del viaje no tiene ninguno
+                const registeredDriverZones = await ensureRegisteredDriverZonesCache();
+
                 const tripVisibleForMe = (t) => {
                     if (t.status !== 'pending' || t.isDemandSimulation || t.driverId) return false;
                     if (testDriverMode) return true;
-                    return tripVisibleToDriver(t, { zoneId: driverZoneId });
+                    return tripVisibleToDriver(t, { zoneId: driverZoneId, registeredDriverZones });
                 };
 
                 const pendingInZone = snap.docs.filter((d) => tripVisibleForMe(d.data()));
@@ -6923,7 +7003,8 @@ if (document.readyState === 'loading') {
                             driverVehicleType,
                             driverPlate,
                             approvedForDriver,
-                            testDriverMode
+                            testDriverMode,
+                            registeredDriverZones
                         });
                     })
                     .map((d) => {
@@ -7133,9 +7214,10 @@ if (document.readyState === 'loading') {
                 const driverZoneId = window.activeServiceZoneId
                     || window.userProfile?.serviceZoneId
                     || getDefaultZoneId();
-                if (!testAccept && getZoneConfig().enabled && !tripVisibleToDriver(t, { zoneId: driverZoneId })) {
+                const registeredDriverZones = await ensureRegisteredDriverZonesCache();
+                if (!testAccept && getZoneConfig().enabled && !tripVisibleToDriver(t, { zoneId: driverZoneId, registeredDriverZones })) {
                     const tripCity = t.serviceZoneName || inferTripZoneIdFromOrigin(t) || 'otra ciudad';
-                    throw new Error(`Este viaje es de ${tripCity}. Cambia tu ciudad operativa para aceptarlo.`);
+                    throw new Error(`Este viaje es de ${tripCity}. Si hay conductores registrados ahí, solo ellos lo reciben.`);
                 }
 
                 const tripService = t.serviceType || 'auto';
@@ -31709,6 +31791,13 @@ window.cancelSetupAndLogout = () => {
                 const visibleIds = new Set();
                 let onlineInZone = 0;
 
+                // Spill de mapa: solo si no hay conductores registrados en la ciudad del pasajero
+                const registeredZones = window._registeredDriverZonesCache?.zones
+                    || collectOnlineServiceZoneIds(snap); // fallback mientras carga users
+                const hasLocalFleet = tripCityHasLocalDrivers(zoneId, registeredZones);
+                // refrescar cache de registrados en background (no bloquear render)
+                ensureRegisteredDriverZonesCache().catch(() => {});
+
                 snap.forEach((d) => {
                     const data = d.data();
                     if (!isDriverOnline(data)) return;
@@ -31721,7 +31810,10 @@ window.cancelSetupAndLogout = () => {
                         onlineInZone++;
                     }
 
-                    if (hasLocation && isDriverVisibleToClient(data, zoneId)) {
+                    if (hasLocation && isDriverVisibleToClient(data, zoneId, {
+                        tripCityHasLocalDrivers: hasLocalFleet,
+                        registeredDriverZones: registeredZones
+                    })) {
                         visibleIds.add(d.id);
                         const prev = window._nearbyDriverPosCache[d.id];
                         const moved = !prev

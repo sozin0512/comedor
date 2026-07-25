@@ -1088,15 +1088,17 @@ function rideDemandTitle(serviceType) {
 
 /**
  * Canal Android emergente tipo WhatsApp (enciende pantalla + suena).
- * v8: data-only FCM + HonduMessagingService (full-screen intent + wake + CATEGORY_CALL en viajes).
+ * v9: tono icónico hondu_iconic + MediaPlayer backup (v8 a menudo solo vibraba).
  * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
  */
-const ANDROID_PUSH_CHANNEL_VERSION = 'v8';
+const ANDROID_PUSH_CHANNEL_VERSION = 'v9';
 /** Canal nativo creado por HonduMessagingService */
-const WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v8';
+const WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v9';
 const TEMU_ALL_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 const RIDE_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 const DEFAULT_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
+/** res/raw/hondu_iconic.wav (sin extensión) */
+const HONDU_ICONIC_PUSH_SOUND = 'hondu_iconic';
 /** Vibración fuerte estilo Temu (ms). */
 const HONDU_SUPER_VIBRATE_MS = [0, 450, 100, 450, 100, 550, 120, 750, 100, 950];
 const HONDU_DEFAULT_VIBRATE_MS = HONDU_SUPER_VIBRATE_MS;
@@ -1498,7 +1500,7 @@ async function getUserTokens(appId, uid) {
 function resolveAndroidPushAudio() {
     return {
         channelId: WA_ALERT_CHANNEL_ID,
-        sound: 'hondu_ride',
+        sound: HONDU_ICONIC_PUSH_SOUND,
         vibrate: HONDU_TEMU_VIBRATE_MS,
         sticky: true,
         forceHigh: true
@@ -1547,10 +1549,12 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         ...data,
         title,
         body,
-        // Marca para el servicio nativo (HonduMessagingService): suena + enciende pantalla
+        // Marca para el servicio nativo (HonduMessagingService): Temu/WhatsApp + tono icónico
         style: 'whatsapp',
+        temu: '1',
         wake: '1',
         channelId: audio.channelId,
+        sound: audio.sound || HONDU_ICONIC_PUSH_SOUND,
         openNotifications: openNotifications ? 'true' : String(data.openNotifications || 'false')
     };
 

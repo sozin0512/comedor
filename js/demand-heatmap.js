@@ -282,7 +282,8 @@ export function startDemandHeatmapListener(db, appId, getZoneId, getRadiusKm) {
         () => {}
     );
 
-    document.getElementById('demand-heatmap-legend')?.classList.remove('hidden');
+    // No forzar la leyenda visible al arrancar: solo aparece cuando hay zonas calientes.
+    // El chip de ciudad debe seguir disponible para que el conductor cambie de ciudad.
     window.syncMapLocationChipVisibility?.();
 }
 

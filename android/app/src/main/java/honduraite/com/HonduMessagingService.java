@@ -8,6 +8,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.MediaPlayer;
+import android.media.Ringtone;
+import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
@@ -22,10 +26,10 @@ import java.util.Map;
 
 /**
  * Push estilo WhatsApp / llamada:
- * - Canal MAX + tono nativo
+ * - Canal HIGH + tono icónico nativo (res/raw/hondu_iconic)
+ * - Reproducción extra con MediaPlayer (por si el canal solo vibra en algunos OEMs)
  * - Enciende pantalla (wake lock + full-screen intent en bloqueo)
  * - Heads-up aunque la app esté en otra app / cerrada
- * - Ofertas de viaje usan CATEGORY_CALL (más agresivo en OEMs)
  *
  * Requiere FCM data-only en Android (sin android.notification) para que
  * onMessageReceived se ejecute también en background.
@@ -34,10 +38,24 @@ public class HonduMessagingService extends FirebaseMessagingService {
 
     private static final String TAG = "HonduPush";
 
-    /** Debe coincidir con functions/index.js y js/fcm-push.js */
-    public static final String WA_CHANNEL_ID = "hondu_wa_alert_v8";
+    /**
+     * Debe coincidir con functions/index.js y js/fcm-push.js
+     * v9: tono icónico hondu_iconic + MediaPlayer backup (v8 a menudo solo vibraba).
+     */
+    public static final String WA_CHANNEL_ID = "hondu_wa_alert_v9";
     public static final String WA_CHANNEL_NAME = "HonduRaite viajes (enciende pantalla)";
     private static final String WA_GROUP = "honduraite_wa_group";
+
+    /** Canales viejos a borrar para no dejar basura silenciada. */
+    private static final String[] LEGACY_CHANNEL_IDS = {
+        "hondu_wa_alert_v8",
+        "hondu_wa_alert_v7",
+        "hondu_wa_alert_v6",
+        "hondu_wa_alert_v5",
+        "hondu_ride_alert_v4",
+        "hondu_temu_all_v4",
+        "hondu_default_v4"
+    };
 
     @Override
     public void onNewToken(@NonNull String token) {
@@ -80,7 +98,15 @@ public class HonduMessagingService extends FirebaseMessagingService {
         boolean tripAlert = isTripWakeAlert(data);
         ensureWhatsAppChannel(this);
         wakeScreenBriefly(this, tripAlert ? 8000L : 4000L);
+        // Sonido explícito: muchos OEMs dejan el canal solo en vibración
+        playIconicAlertSound(this);
         showWhatsAppStyleNotification(this, title, body, data, remoteMessage.getMessageId(), tripAlert);
+    }
+
+    public static Uri iconicSoundUri(Context context) {
+        return Uri.parse(
+            "android.resource://" + context.getPackageName() + "/" + R.raw.hondu_iconic
+        );
     }
 
     public static void ensureWhatsAppChannel(Context context) {
@@ -89,25 +115,31 @@ public class HonduMessagingService extends FirebaseMessagingService {
             NotificationManager nm = context.getSystemService(NotificationManager.class);
             if (nm == null) return;
 
+            // Limpiar canales legacy (no se puede cambiar el sound de un canal ya creado)
+            for (String legacyId : LEGACY_CHANNEL_IDS) {
+                try {
+                    if (nm.getNotificationChannel(legacyId) != null) {
+                        nm.deleteNotificationChannel(legacyId);
+                    }
+                } catch (Exception ignored) {}
+            }
+
             NotificationChannel existing = nm.getNotificationChannel(WA_CHANNEL_ID);
             if (existing != null) {
-                // Si el usuario no silenció el canal, reforzar vibración/luz
                 return;
             }
 
-            // IMPORTANCE_MAX (5): heads-up + sonido aunque la pantalla esté apagada
             NotificationChannel ch = new NotificationChannel(
                 WA_CHANNEL_ID,
                 WA_CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             );
-            // En API 26+ no hay IMPORTANCE_MAX en NotificationManager (solo HIGH=4).
-            // PRIORITY_MAX va en la notificación. Usamos HIGH + full-screen + wake.
             try {
-                // Algunos OEMs respetan setBypassDnd para alertas de viaje
                 ch.setBypassDnd(false);
             } catch (Exception ignored) {}
-            ch.setDescription("Avisos de viaje: suenan y encienden la pantalla (estilo WhatsApp), aunque estés en otra app.");
+            ch.setDescription(
+                "Avisos de viaje: tono icónico HonduRaite + vibración. Encienden pantalla aunque estés en otra app."
+            );
             ch.enableVibration(true);
             ch.setVibrationPattern(new long[]{0, 450, 100, 450, 100, 600, 100, 800, 100, 950});
             ch.enableLights(true);
@@ -115,24 +147,78 @@ public class HonduMessagingService extends FirebaseMessagingService {
             ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
             ch.setShowBadge(true);
 
-            Uri soundUri = Uri.parse(
-                "android.resource://" + context.getPackageName() + "/" + R.raw.hondu_ride
-            );
+            // USAGE_ALARM: tipo Temu/WhatsApp — suena aunque el volumen de “notificación” esté bajo
+            Uri soundUri = iconicSoundUri(context);
             AudioAttributes aa = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setUsage(AudioAttributes.USAGE_ALARM)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
                 .build();
             ch.setSound(soundUri, aa);
 
             nm.createNotificationChannel(ch);
+            Log.i(TAG, "Canal creado " + WA_CHANNEL_ID + " con tono icónico");
         } catch (Exception e) {
             Log.w(TAG, "ensureWhatsAppChannel: " + e.getMessage());
         }
     }
 
+    /**
+     * Tono icónico de push Temu/WhatsApp.
+     * Se reproduce SIEMPRE al llegar el FCM (además del canal), porque en muchos
+     * OEM el canal solo vibra y no suena.
+     */
+    public static void playIconicAlertSound(Context context) {
+        try {
+            Uri soundUri = iconicSoundUri(context);
+            MediaPlayer mp = new MediaPlayer();
+            // ALARM = más agresivo (estilo Temu / llamada), no depende del volumen “notif”
+            mp.setAudioAttributes(
+                new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                    .build()
+            );
+            mp.setDataSource(context, soundUri);
+            mp.setOnCompletionListener(MediaPlayer::release);
+            mp.setOnErrorListener((player, what, extra) -> {
+                try { player.release(); } catch (Exception ignored) {}
+                return true;
+            });
+            mp.setLooping(false);
+            mp.setVolume(1.0f, 1.0f);
+            mp.prepare();
+            mp.start();
+            Log.i(TAG, "Push Temu/WA: tono icónico (MediaPlayer/ALARM)");
+            return;
+        } catch (Exception e) {
+            Log.w(TAG, "MediaPlayer sound: " + e.getMessage());
+        }
+        // Fallback Ringtone por stream de alarma
+        try {
+            Uri soundUri = iconicSoundUri(context);
+            Ringtone r = RingtoneManager.getRingtone(context.getApplicationContext(), soundUri);
+            if (r != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    r.setLooping(false);
+                }
+                try {
+                    r.setStreamType(AudioManager.STREAM_ALARM);
+                } catch (Exception ignored) {
+                    r.setStreamType(AudioManager.STREAM_NOTIFICATION);
+                }
+                r.play();
+                Log.i(TAG, "Push Temu/WA: tono icónico (Ringtone)");
+            }
+        } catch (Exception e2) {
+            Log.w(TAG, "Ringtone sound: " + e2.getMessage());
+        }
+    }
+
     /** Viajes / ofertas / llegada: merecen wake + full-screen más agresivo. */
     private static boolean isTripWakeAlert(Map<String, String> data) {
-        if (data == null) return true; // por defecto agresivo
+        if (data == null) return true;
         String type = firstNonEmpty(data.get("type"), "");
         String tag = firstNonEmpty(data.get("tag"), "");
         String openDriver = firstNonEmpty(data.get("openDriver"), "");
@@ -221,7 +307,6 @@ public class HonduMessagingService extends FirebaseMessagingService {
             }
 
             PendingIntent contentPi = PendingIntent.getActivity(context, reqCode, open, piFlags);
-            // Full-screen intent: enciende pantalla bloqueada (como llamada / WA urgente)
             PendingIntent fullScreenPi = PendingIntent.getActivity(
                 context,
                 reqCode + 1,
@@ -229,11 +314,8 @@ public class HonduMessagingService extends FirebaseMessagingService {
                 piFlags
             );
 
-            Uri soundUri = Uri.parse(
-                "android.resource://" + context.getPackageName() + "/" + R.raw.hondu_ride
-            );
+            Uri soundUri = iconicSoundUri(context);
 
-            // Ofertas de viaje: CATEGORY_CALL → OEMs tratan más como llamada (enciende pantalla)
             String category = tripAlert
                 ? NotificationCompat.CATEGORY_CALL
                 : NotificationCompat.CATEGORY_MESSAGE;
@@ -259,7 +341,6 @@ public class HonduMessagingService extends FirebaseMessagingService {
                 .setTimeoutAfter(tripAlert ? 120_000L : 60_000L);
 
             if (tripAlert) {
-                // Más insistente en viajes: no se “aplana” tan fácil en la bandeja
                 builder.setOngoing(false);
             }
 
@@ -274,13 +355,11 @@ public class HonduMessagingService extends FirebaseMessagingService {
 
             NotificationManagerCompat.from(context).notify(notifId, builder.build());
 
-            // En algunos OEMs el full-screen no abre la app si no hay permiso;
-            // el wake lock ya intentó encender. Log para depurar.
             if (tripAlert && Build.VERSION.SDK_INT >= 34) {
                 try {
                     NotificationManager nm = context.getSystemService(NotificationManager.class);
                     if (nm != null && !nm.canUseFullScreenIntent()) {
-                        Log.w(TAG, "Full-screen intent NO concedido: el aviso suena pero puede no abrir sobre bloqueo. Pide permiso en Ajustes.");
+                        Log.w(TAG, "Full-screen intent NO concedido: el aviso suena pero puede no abrir sobre bloqueo.");
                     }
                 } catch (Exception ignored) {}
             }

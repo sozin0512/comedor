@@ -1618,10 +1618,7 @@
             z-index: 45;
         }
 
-        /* Chip de ciudad en el mapa tapa la leyenda de zonas calientes en pantallas bajas */
-        #demand-heatmap-legend:not(.hidden) ~ #service-zone-map-chip {
-            display: none !important;
-        }
+        /* Chip de ciudad siempre accesible (pasajeros y conductores) — no ocultar por heatmap */
 
         .demand-legend-pulse {
             display: inline-flex;

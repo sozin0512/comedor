@@ -4,7 +4,7 @@
  */
 export const APP_CONFIG = {
     /** Sube este número cada vez que publicas cambios (y el mismo valor en version.json). */
-    appVersion: '2026.07.23.6',
+    appVersion: '2026.07.24.3',
     /** Push nativo Android (auto: google-services.json + paquete APK) */
     androidFcmEnabled: true,
     firebase: {
@@ -36,6 +36,15 @@ export const APP_CONFIG = {
         allowManualZoneSelection: true,
         alwaysShowZonePicker: true,
         forceManualIfOutsideCountryKm: 200,
+        /**
+         * Desborde a ciudades cercanas SOLO si no hay conductores REGISTRADOS
+         * en la ciudad del viaje (da igual si están offline).
+         * Ej.: Comayagüela sin conductores → viajes a Tegucigalpa (cercana).
+         * Si ya hay conductores registrados en esa ciudad, solo ellos reciben el viaje.
+         * nearbyCitySpillKm = distancia máx. entre centros de ciudad.
+         */
+        enableNearbyCitySpill: true,
+        nearbyCitySpillKm: 45,
         /** Radio inicial para ofertas: solo conductores en línea MUY cerca del pasajero. */
         tripOfferNearRadiusKm: 8,
         /** Cobertura fija por ciudad (km desde el centro). No configurable por el usuario. */

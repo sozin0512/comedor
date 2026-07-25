@@ -16,29 +16,31 @@ const PushNotifications = registerPlugin('PushNotifications');
 const LocalNotifications = registerPlugin('LocalNotifications');
 
 /**
- * Canales Android — estilo WhatsApp (v8): suena + enciende pantalla (full-screen intent).
+ * Canales Android — estilo WhatsApp (v9): tono icónico hondu_iconic + enciende pantalla.
  * Debe coincidir con HonduMessagingService.WA_CHANNEL_ID y functions/index.js
  * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
  */
-export const ANDROID_PUSH_CHANNEL_VERSION = 'v8';
-export const HONDU_WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v8';
+export const ANDROID_PUSH_CHANNEL_VERSION = 'v9';
+export const HONDU_WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v9';
 export const HONDU_TEMU_ALL_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
 export const HONDU_RIDE_ALERT_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
 export const HONDU_DEFAULT_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
 // Misma importancia para banners locales en primer plano
 const HONDU_FG_LOCAL_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
+/** Archivo en android/app/src/main/res/raw/ (sin extensión en createChannel) */
+export const HONDU_ICONIC_PUSH_SOUND = 'hondu_iconic';
 
 /** Modos de sonido nativo (fuera de la app). Guardado en user.pushSoundMode */
 export const PUSH_SOUND_MODES = [
     {
         id: 'temu',
-        label: 'Tipo WhatsApp (recomendado)',
-        desc: 'Enciende la pantalla, suena y vibra aunque estés en otra app o bloqueado'
+        label: 'Tipo Temu / WhatsApp (recomendado)',
+        desc: 'Tono icónico HonduRaite + vibra y enciende pantalla (aunque estés en otra app o bloqueado)'
     },
     {
         id: 'normal',
         label: 'Normal',
-        desc: 'Banner y tono; menos agresivo que WhatsApp'
+        desc: 'Mismo tono icónico; un poco menos insistente en la UI'
     },
     {
         id: 'soft',
@@ -81,15 +83,15 @@ function isRideAlertData(_data = {}) {
 export async function ensureAndroidPushChannels() {
     if (!isCapacitorAndroid()) return;
 
-    // Canal estilo WhatsApp: HIGH/MAX + sound + luz + vibración
+    // Canal estilo WhatsApp: HIGH/MAX + tono icónico + luz + vibración
     // El servicio nativo HonduMessagingService también lo crea y usa full-screen intent
     const waChannel = {
         id: HONDU_WA_ALERT_CHANNEL_ID,
         name: 'HonduRaite viajes (enciende pantalla)',
-        description: 'Avisos de viaje: suenan y encienden la pantalla (como WhatsApp), aunque estés en otra app o bloqueado.',
+        description: 'Avisos de viaje: tono icónico HonduRaite + vibración. Encienden pantalla aunque estés en otra app.',
         importance: 5, // IMPORTANCE_MAX → heads-up
         visibility: 1, // public / lockscreen
-        sound: 'hondu_ride',
+        sound: HONDU_ICONIC_PUSH_SOUND,
         vibration: true,
         lights: true,
         lightColor: '#25D366'
@@ -122,16 +124,16 @@ export async function previewAndroidSystemPushSound(mode = 'temu') {
     }
     await ensureAndroidPushChannels();
     const m = mode === 'soft' ? 'soft' : (mode === 'normal' ? 'normal' : 'temu');
-    const channelId = m === 'soft' ? HONDU_DEFAULT_CHANNEL_ID : HONDU_RIDE_ALERT_CHANNEL_ID;
-    const sound = m === 'soft' ? 'hondu_alert' : 'hondu_ride';
+    const channelId = HONDU_WA_ALERT_CHANNEL_ID;
+    const sound = HONDU_ICONIC_PUSH_SOUND;
     localNotifIdSeq = (localNotifIdSeq + 1) % 900000;
     const id = 200000 + localNotifIdSeq;
     try {
         await LocalNotifications.schedule({
             notifications: [{
                 id,
-                title: m === 'temu' ? '🔊 Prueba tipo WhatsApp' : (m === 'soft' ? 'Prueba suave' : 'Prueba normal'),
-                body: 'Así suena y enciende pantalla si estás en otra app o bloqueado (en APK real).',
+                title: m === 'temu' ? '🔊 Prueba tono icónico' : (m === 'soft' ? 'Prueba suave' : 'Prueba normal'),
+                body: 'Así suena el aviso tipo WhatsApp (tono HonduRaite) si estás en otra app o bloqueado.',
                 channelId,
                 sound,
                 smallIcon: 'ic_launcher',
@@ -154,9 +156,9 @@ export async function previewAndroidSystemPushSound(mode = 'temu') {
 
 /**
  * Notificación local Android con canal correcto.
- * - Urgentes (viajes/staff/ofertas): canal ride + hondu_ride → SIEMPRE suena
+ * - Urgentes (viajes/staff/ofertas): canal WhatsApp + hondu_iconic → SIEMPRE suena
  *   (Web Audio a menudo está muteado hasta un toque del usuario).
- * - Generales: canal default + hondu_alert.
+ * - Generales: mismo tono icónico en APK.
  * - forceSilent: solo banner (cuando ya sonó Web Audio custom y no queremos doble).
  */
 async function showAndroidForegroundLocalNotification(payload = {}, { forceSilent = false } = {}) {
@@ -175,9 +177,9 @@ async function showAndroidForegroundLocalNotification(payload = {}, { forceSilen
 
     await ensureAndroidPushChannels();
 
-    // Siempre canal Temu (heads-up) salvo forceSilent explícito
+    // Siempre canal WhatsApp + tono icónico (salvo forceSilent)
     let channelId = HONDU_TEMU_ALL_CHANNEL_ID;
-    let sound = forceSilent ? null : 'hondu_ride';
+    let sound = forceSilent ? null : HONDU_ICONIC_PUSH_SOUND;
     if (forceSilent) {
         channelId = HONDU_TEMU_ALL_CHANNEL_ID;
     }

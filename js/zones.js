@@ -178,6 +178,169 @@ export function getTripCityId(trip) {
     return trip?.serviceZoneId || inferTripZoneIdFromOrigin(trip) || null;
 }
 
+/** ¿Desborde a ciudades cercanas activo? (viajes sin flota local no se pierden). */
+export function isNearbyCitySpillEnabled() {
+    const cfg = getZoneConfig();
+    return cfg.enabled !== false && cfg.enableNearbyCitySpill !== false;
+}
+
+/** Distancia máxima entre centros (km) para compartir viajes entre ciudades. */
+export function getNearbyCitySpillKm() {
+    const cfg = getZoneConfig();
+    const n = Number(cfg.nearbyCitySpillKm);
+    return Number.isFinite(n) && n > 0 ? n : 45;
+}
+
+/** Distancia entre centros de dos ciudades. */
+export function getCityCenterDistanceKm(zoneIdA, zoneIdB) {
+    if (!zoneIdA || !zoneIdB) return Infinity;
+    if (zoneIdA === zoneIdB) return 0;
+    const a = getZoneById(zoneIdA);
+    const b = getZoneById(zoneIdB);
+    if (!a?.center || !b?.center) return Infinity;
+    return haversineKm(a.center.lat, a.center.lng, b.center.lat, b.center.lng);
+}
+
+/**
+ * ¿Dos centros de ciudad están dentro del radio de desborde?
+ * (solo geometría; el desborde real exige además “sin flota local”).
+ */
+export function isCityNearZone(zoneIdA, zoneIdB, maxKm = null) {
+    if (!zoneIdA || !zoneIdB) return false;
+    if (zoneIdA === zoneIdB) return true;
+    const limit = maxKm ?? getNearbyCitySpillKm();
+    return getCityCenterDistanceKm(zoneIdA, zoneIdB) <= limit;
+}
+
+/**
+ * Ciudades vecinas a `zoneId` (incluye la propia), ordenadas por distancia al centro.
+ */
+export function getNearbyServiceZoneIds(zoneId, maxKm = null) {
+    if (!zoneId) return [];
+    const limit = maxKm ?? getNearbyCitySpillKm();
+    const hub = getZoneById(zoneId);
+    if (!hub?.center) return [zoneId];
+
+    return getServiceZones()
+        .map((z) => ({
+            id: z.id,
+            dist: z.id === zoneId
+                ? 0
+                : haversineKm(hub.center.lat, hub.center.lng, z.center.lat, z.center.lng)
+        }))
+        .filter((z) => z.dist <= limit)
+        .sort((a, b) => a.dist - b.dist)
+        .map((z) => z.id);
+}
+
+/**
+ * Set de serviceZoneId con al menos un conductor en línea (aprobado).
+ * @param {import('firebase/firestore').QuerySnapshot|Array} driversSnapOrDocs
+ */
+export function collectOnlineServiceZoneIds(driversSnapOrDocs, { excludeDriverId = null } = {}) {
+    const zones = new Set();
+    const docs = driversSnapOrDocs?.docs
+        || (Array.isArray(driversSnapOrDocs) ? driversSnapOrDocs : []);
+    for (const d of docs) {
+        const id = d.id ?? d.driverId ?? null;
+        if (excludeDriverId && id === excludeDriverId) continue;
+        const loc = typeof d.data === "function" ? d.data() : d;
+        if (!loc || !isDriverOnline(loc)) continue;
+        if (loc.approvalStatus && loc.approvalStatus !== "approved") continue;
+        if (loc.serviceZoneId) zones.add(loc.serviceZoneId);
+    }
+    return zones;
+}
+
+/**
+ * Set de serviceZoneId con al menos un conductor REGISTRADO (perfil users).
+ * No importa si está online u offline — solo que exista flota en esa ciudad.
+ * @param {import('firebase/firestore').QuerySnapshot|Array} usersSnapOrDocs
+ */
+export function collectRegisteredDriverZoneIds(usersSnapOrDocs) {
+    const zones = new Set();
+    const docs = usersSnapOrDocs?.docs
+        || (Array.isArray(usersSnapOrDocs) ? usersSnapOrDocs : []);
+    for (const d of docs) {
+        const u = typeof d.data === "function" ? d.data() : d;
+        if (!u || u.role !== "driver") continue;
+        if (u.approvalStatus === "suspended" || u.approvalStatus === "rejected") continue;
+        if (u.accountRestricted) continue;
+        // Solo flota operativa (aprobada o sin estado legacy)
+        if (u.approvalStatus && u.approvalStatus !== "approved") continue;
+        const zid = u.serviceZoneId || u.cityId || null;
+        if (zid) zones.add(zid);
+    }
+    return zones;
+}
+
+/** ¿Hay flota (registrada o en línea) exactamente en esa ciudad? */
+export function tripCityHasLocalDrivers(tripZoneId, zoneIds) {
+    if (!tripZoneId || zoneIds == null) return null;
+    if (zoneIds instanceof Set) return zoneIds.has(tripZoneId);
+    if (Array.isArray(zoneIds)) return zoneIds.includes(tripZoneId);
+    return !!zoneIds[tripZoneId];
+}
+
+/** @deprecated Usar tripCityHasLocalDrivers */
+export function tripCityHasLocalOnlineDrivers(tripZoneId, onlineZoneIds) {
+    return tripCityHasLocalDrivers(tripZoneId, onlineZoneIds);
+}
+
+/**
+ * ¿Se permite desborde a ciudades cercanas?
+ * Solo si el spill está activo Y NO hay conductores REGISTRADOS en la ciudad del viaje
+ * (aunque estén offline). Si hay registrados locales → spill NO entra en vigencia.
+ * Si no sabemos (null) → false (seguro: solo misma ciudad).
+ */
+export function canSpillTripToNearbyCities(trip, options = {}) {
+    if (!isNearbyCitySpillEnabled()) return false;
+    const tripZoneId = getTripCityId(trip);
+    if (!tripZoneId) return false;
+
+    let hasLocal = options.tripCityHasLocalDrivers;
+    if (hasLocal == null && options.registeredDriverZones != null) {
+        hasLocal = tripCityHasLocalDrivers(tripZoneId, options.registeredDriverZones);
+    }
+    // Compat: onlineDriverZones solo si no hay datos de registrados
+    if (hasLocal == null && options.onlineDriverZones != null) {
+        hasLocal = tripCityHasLocalDrivers(tripZoneId, options.onlineDriverZones);
+    }
+    return hasLocal === false;
+}
+
+/**
+ * ¿La ciudad operativa del conductor puede atender este viaje?
+ * - Siempre: misma ciudad.
+ * - Ciudad cercana: SOLO si no hay conductores registrados en la ciudad del viaje.
+ */
+export function driverZoneCanServeTrip(driverZoneId, trip, options = {}) {
+    if (!driverZoneId || !trip) return false;
+    const opts = typeof options === "number" ? { maxKm: options } : (options || {});
+    const tripZoneId = getTripCityId(trip);
+    if (!tripZoneId) return true;
+    if (driverZoneId === tripZoneId) return true;
+    if (tripSameCity(trip, driverZoneId)) return true;
+
+    if (!canSpillTripToNearbyCities(trip, opts)) return false;
+
+    const limit = opts.maxKm ?? getNearbyCitySpillKm();
+    if (isCityNearZone(driverZoneId, tripZoneId, limit)) return true;
+
+    const driverZone = getZoneById(driverZoneId);
+    if (driverZone?.center && trip.originLat != null && trip.originLng != null) {
+        const d = haversineKm(
+            trip.originLat,
+            trip.originLng,
+            driverZone.center.lat,
+            driverZone.center.lng
+        );
+        if (d <= limit) return true;
+    }
+
+    return false;
+}
+
 /** ¿Misma ciudad operativa? La ciudad elegida en la app es la regla principal. */
 export function tripSameCity(trip, zoneId) {
     if (!zoneId) return false;
@@ -185,12 +348,12 @@ export function tripSameCity(trip, zoneId) {
     return !!tripZone && tripZone === zoneId;
 }
 
-/** Viaje visible para conductor: misma ciudad elegida. */
+/** Viaje en zona para heatmaps/filtros: por defecto solo misma ciudad. */
 export function tripMatchesZone(trip, zoneId, radiusKm = null) {
     if (!getZoneConfig().enabled) return true;
+    if (!zoneId || !trip) return false;
     if (!tripSameCity(trip, zoneId)) return false;
 
-    // Ciudad elegida explícitamente por el pasajero → basta con coincidir el ID
     if (trip.serviceZoneId && trip.serviceZoneId === zoneId) return true;
 
     const zone = getZoneById(zoneId);
@@ -204,23 +367,53 @@ export function tripMatchesZone(trip, zoneId, radiusKm = null) {
     return true;
 }
 
-/** ¿Un viaje pendiente debe mostrarse a este conductor? Solo por ciudad. */
+/**
+ * ¿Un viaje pendiente debe mostrarse a este conductor?
+ * Misma ciudad siempre. Ciudad cercana solo si NO hay conductores REGISTRADOS
+ * en la ciudad del viaje (offline también cuenta como flota local).
+ *
+ * options.registeredDriverZones — Set/Array de ciudades con conductores registrados
+ * options.tripCityHasLocalDrivers — boolean explícito (tiene prioridad)
+ */
 export function tripVisibleToDriver(trip, options = {}) {
     const { zoneId } = options;
     if (!trip || trip.isDemandSimulation) return false;
     // Viaje armado por staff: oculto a conductores hasta que el cliente lo reclame
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return false;
-    return tripSameCity(trip, zoneId);
+    if (!zoneId) return false;
+    return driverZoneCanServeTrip(zoneId, trip, options);
 }
 
-/** ¿Conductor en línea opera en la misma ciudad que el viaje? */
-export function driverLocationMatchesTripCity(loc, tripZoneId, fallbackDriverZoneId = null) {
+/**
+ * ¿Conductor en línea opera en la misma ciudad que el viaje?
+ * Ciudad cercana solo si opts.tripCityHasLocalDrivers === false (sin registrados locales).
+ */
+export function driverLocationMatchesTripCity(loc, tripZoneId, fallbackDriverZoneId = null, opts = {}) {
     if (!tripZoneId) return true;
     if (loc?.serviceZoneId === tripZoneId) return true;
     if (fallbackDriverZoneId && fallbackDriverZoneId === tripZoneId) return true;
+
+    // GPS dentro de la cobertura de la ciudad del viaje → cuenta como local
     if (loc?.lat != null && loc?.lng != null) {
         const detected = findZoneForCoords(loc.lat, loc.lng, getCityCoverageKm(tripZoneId));
         if (detected?.id === tripZoneId) return true;
+    }
+
+    const allowSpill = opts.tripCityHasLocalDrivers === false && isNearbyCitySpillEnabled();
+    if (!allowSpill) return false;
+
+    if (loc?.serviceZoneId && isCityNearZone(loc.serviceZoneId, tripZoneId)) return true;
+    if (fallbackDriverZoneId && isCityNearZone(fallbackDriverZoneId, tripZoneId)) return true;
+
+    if (loc?.lat != null && loc?.lng != null) {
+        const detected = findZoneForCoords(loc.lat, loc.lng, getCityCoverageKm(tripZoneId));
+        if (detected?.id && isCityNearZone(detected.id, tripZoneId)) return true;
+
+        const tripZone = getZoneById(tripZoneId);
+        if (tripZone?.center) {
+            const d = haversineKm(loc.lat, loc.lng, tripZone.center.lat, tripZone.center.lng);
+            if (d <= getNearbyCitySpillKm()) return true;
+        }
     }
     return false;
 }
@@ -446,20 +639,18 @@ export function updateServiceZoneSummary() {
     if (chipText) chipText.textContent = place;
 }
 
+/** Chip de ciudad: siempre visible para pasajeros y conductores (nunca por heatmap). */
 function shouldHideMapLocationChip() {
-    // No ocultar el chip solo por poder ver el heatmap: conductores también deben cambiar ciudad.
-    // Solo ocultar si la leyenda del heatmap está abierta y tapa el área.
-    const legend = document.getElementById("demand-heatmap-legend");
-    return !!legend && !legend.classList.contains("hidden");
+    return false;
 }
 
 export function syncMapLocationChipVisibility(forceOpen = null) {
     const chip = document.getElementById("service-zone-map-chip");
     if (!chip) return;
 
-    if (shouldHideMapLocationChip()) {
-        chip.classList.add("hidden");
-        return;
+    // Durante búsqueda/viaje activo del pasajero el chip se oculta en app.js; no forzar aquí.
+    if (document.body.classList.contains("is-searching") || document.body.classList.contains("trip-active")) {
+        if (window.userProfile?.role === "client") return;
     }
 
     const cfg = getZoneConfig();
@@ -570,11 +761,16 @@ export function updateZoneHint() {
     const badge = document.getElementById("driver-zone-badge");
     const currentZoneId = window.activeServiceZoneId || getDefaultZoneId();
     const zone = getZoneById(currentZoneId);
+    const place = zone ? zone.name : "Elegir ciudad";
 
     if (hint) {
         hint.textContent = zone ? `Solo viajes en ${zone.name}` : "Elige tu ciudad operativa";
     }
-    if (badge && zone) badge.textContent = zone.name;
+    if (badge) {
+        badge.textContent = place;
+        badge.classList.remove("hidden");
+        badge.title = zone ? `Ciudad: ${zone.name} — toca para cambiar` : "Elegir ciudad operativa";
+    }
 
     const passengerCityLabel = document.getElementById("passenger-city-label");
     const passengerCityRadius = document.getElementById("passenger-city-radius");
@@ -843,16 +1039,39 @@ export function isDriverOnline(driverData) {
     return Date.now() - updated <= ONLINE_STALE_MS;
 }
 
-/** Conductor visible para el pasajero: misma ciudad + dentro de la cobertura municipal. */
-export function isDriverVisibleToClient(driverData, zoneId, _radiusKm = null) {
+/**
+ * Conductor visible para el pasajero en el mapa.
+ * Misma ciudad (o GPS en cobertura local) siempre.
+ * Ciudad cercana solo si no hay conductores REGISTRADOS en la ciudad del pasajero.
+ *
+ * 3er arg: número (compat) u options { tripCityHasLocalDrivers, registeredDriverZones }.
+ */
+export function isDriverVisibleToClient(driverData, zoneId, radiusOrOpts = null) {
     if (!driverData?.lat || !driverData?.lng || !zoneId) return false;
     const zone = getZoneById(zoneId);
     if (!zone) return false;
 
-    if (driverData.serviceZoneId && driverData.serviceZoneId !== zoneId) return false;
-
+    const opts = (radiusOrOpts && typeof radiusOrOpts === "object") ? radiusOrOpts : {};
     const coverage = getCityCoverageKm(zoneId);
-    return haversineKm(driverData.lat, driverData.lng, zone.center.lat, zone.center.lng) <= coverage;
+    const dist = haversineKm(driverData.lat, driverData.lng, zone.center.lat, zone.center.lng);
+    const dZone = driverData.serviceZoneId || null;
+
+    // Local: misma ciudad operativa o GPS dentro de cobertura municipal
+    if (!dZone || dZone === zoneId || dist <= coverage) {
+        return dist <= Math.max(coverage, getNearbyCitySpillKm());
+    }
+
+    // Spill solo sin conductores registrados en la ciudad del pasajero
+    let hasLocal = opts.tripCityHasLocalDrivers;
+    if (hasLocal == null && opts.registeredDriverZones != null) {
+        hasLocal = tripCityHasLocalDrivers(zoneId, opts.registeredDriverZones);
+    }
+    if (hasLocal == null && opts.onlineDriverZones != null) {
+        hasLocal = tripCityHasLocalDrivers(zoneId, opts.onlineDriverZones);
+    }
+    if (hasLocal !== false || !isNearbyCitySpillEnabled()) return false;
+    if (!isCityNearZone(dZone, zoneId)) return false;
+    return dist <= getNearbyCitySpillKm();
 }
 
 /** Municipios que comparten área operativa con la ciudad hub (mismo departamento). */
