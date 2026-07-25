@@ -21553,7 +21553,10 @@ window.saveProfileChanges = async () => {
             } else {
                 score -= 6;
             }
-            if (loc.source === 'driver' || loc.source === 'driver_local') score += 4;
+            // El carro del mapa debe preferir siempre al conductor, no al pasajero
+            if (loc.source === 'driver_local') score += 40;
+            else if (loc.source === 'driver') score += 32;
+            else if (loc.source === 'passenger' || loc.source === 'passenger_local') score -= 20;
             return score;
         }
 
@@ -21599,9 +21602,15 @@ window.saveProfileChanges = async () => {
             }
         }
 
+        /**
+         * Mejor GPS del vehículo en viaje.
+         * overrides.vehicleOnly / excludePassenger: no mezclar GPS del pasajero
+         * (si no, el carro del mapa se “congela” en la ubicación del cliente).
+         */
         async function resolveBestVehiclePosition(trip, overrides = {}) {
             if (!trip) return null;
             const sources = [];
+            const vehicleOnly = overrides.vehicleOnly === true || overrides.excludePassenger === true;
 
             if (overrides.driverFirebase) {
                 const forced = normalizeLiveGpsSource(overrides.driverFirebase, 'driver');
@@ -21622,20 +21631,23 @@ window.saveProfileChanges = async () => {
                 if (localDriver) sources.push(localDriver);
             }
 
-            if (trip.clientLiveLat != null && trip.clientLiveLng != null) {
-                const fromTrip = normalizeLiveGpsSource({
-                    lat: trip.clientLiveLat,
-                    lng: trip.clientLiveLng,
-                    heading: trip.clientLiveHeading,
-                    accuracy: trip.clientLiveAccuracy,
-                    updatedAt: trip.clientLiveUpdatedAt
-                }, 'passenger');
-                if (fromTrip) sources.push(fromTrip);
-            }
+            // Solo para lógicas de encuentro / llegada — NUNCA para el ícono del carro del conductor
+            if (!vehicleOnly) {
+                if (trip.clientLiveLat != null && trip.clientLiveLng != null) {
+                    const fromTrip = normalizeLiveGpsSource({
+                        lat: trip.clientLiveLat,
+                        lng: trip.clientLiveLng,
+                        heading: trip.clientLiveHeading,
+                        accuracy: trip.clientLiveAccuracy,
+                        updatedAt: trip.clientLiveUpdatedAt
+                    }, 'passenger');
+                    if (fromTrip) sources.push(fromTrip);
+                }
 
-            if (window._passengerLivePos?.lat != null) {
-                const localPassenger = normalizeLiveGpsSource(window._passengerLivePos, 'passenger_local');
-                if (localPassenger) sources.push(localPassenger);
+                if (window._passengerLivePos?.lat != null) {
+                    const localPassenger = normalizeLiveGpsSource(window._passengerLivePos, 'passenger_local');
+                    if (localPassenger) sources.push(localPassenger);
+                }
             }
 
             return pickBestLiveGpsSource(sources);
@@ -21888,15 +21900,11 @@ window.saveProfileChanges = async () => {
             }
 
             if (data.status === 'accepted') {
-                if (data.driverArrived) {
-                    const waitKey = `${data.id}:waiting-pin`;
-                    if (window._passengerTrackKey !== waitKey) {
-                        window._passengerTrackKey = waitKey;
-                        window.stopClientTracking?.();
-                    }
-                    return;
-                }
-                const trackKey = `${data.id}:pickup`;
+                // Aunque el conductor ya llegó al pin, seguir mostrando su carro en vivo
+                // (antes se cortaba el track y el ícono se quedaba congelado / desaparecía).
+                const trackKey = data.driverArrived
+                    ? `${data.id}:pickup:arrived`
+                    : `${data.id}:pickup`;
                 if (
                     window._passengerTrackKey !== trackKey
                     || window.passengerTrackPhase !== 'pickup'
@@ -31594,8 +31602,11 @@ window.cancelSetupAndLogout = () => {
                 }
 
                 const liveTrip = (activeTrip?.id === tripData?.id ? activeTrip : null) || tripData || activeTrip;
+                // Solo GPS del conductor para el carro en el mapa del pasajero.
+                // Antes se mezclaba el GPS del cliente y el auto “se pegaba” en un punto (rojo/confirmado).
                 const bestLive = phase === 'destination'
                     ? await resolveBestVehiclePosition(liveTrip, {
+                        vehicleOnly: true,
                         driverFirebase: {
                             lat: driverPos.lat,
                             lng: driverPos.lng,
@@ -31605,10 +31616,12 @@ window.cancelSetupAndLogout = () => {
                         }
                     })
                     : null;
-                const vehiclePos = bestLive
+                const vehiclePos = (bestLive?.source === 'driver' || bestLive?.source === 'driver_local')
                     ? { lat: bestLive.lat, lng: bestLive.lng }
                     : driverPos;
-                const vehicleHeading = bestLive?.heading ?? heading;
+                const vehicleHeading = (bestLive?.source === 'driver' || bestLive?.source === 'driver_local')
+                    ? (bestLive?.heading ?? heading)
+                    : heading;
 
                 const routeReadyForSession = window._passengerTrackRouteSession === trackSessionKey;
                 const routePath = routeReadyForSession
@@ -32193,10 +32206,13 @@ window.cancelSetupAndLogout = () => {
                         const progressMs = LOW_POWER ? 400 : 280;
                         if (!window._lastDriverRouteProgress || now - window._lastDriverRouteProgress > progressMs) {
                             window._lastDriverRouteProgress = now;
+                            // Progreso de ruta del conductor: solo su GPS (no el del pasajero)
                             let progressPos = { lat, lng };
                             if (activeTrip?.status === 'in_progress') {
-                                const best = await resolveBestVehiclePosition(activeTrip);
-                                if (best) progressPos = { lat: best.lat, lng: best.lng };
+                                const best = await resolveBestVehiclePosition(activeTrip, { vehicleOnly: true });
+                                if (best && (best.source === 'driver' || best.source === 'driver_local')) {
+                                    progressPos = { lat: best.lat, lng: best.lng };
+                                }
                             }
                             window.updateRouteProgress?.(
                                 progressPos,

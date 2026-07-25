@@ -1347,11 +1347,15 @@ window.gMap = null;
     else if (vehicleType === 'paila') bg = '#10b981';
     else if (vehicleType === 'camion') bg = '#64748b';
     else bg = '#3b82f6'; // auto / VIP
+    // Viaje confirmado (accepted / in_progress): carro rojo para distinguirlo de la flota libre
+    if (variant === 'assigned') {
+        bg = '#ef4444';
+    }
 
     let title = isSelf ? 'Tú' : (driverName ? `Conductor: ${driverName}` : 'Conductor en línea');
     // Passengers see icons but should not easily know names without tapping (staff only get details + WhatsApp on tap)
     if (!isSelf && !window.canViewOpsFleetMap?.()) {
-        title = 'Conductor en línea';
+        title = variant === 'assigned' ? 'Tu conductor' : 'Conductor en línea';
     }
     if (window.canViewOpsFleetMap?.() && options.phone) {
         title += ` • ${options.phone}`;
@@ -1369,13 +1373,24 @@ window.gMap = null;
             || Math.hypot(nextPos.lat - Number(meta.lastLat), nextPos.lng - Number(meta.lastLng)) > 0.000001;
 
         if (forceMove || posChanged) {
-            const latLng = (typeof google !== 'undefined' && google.maps?.LatLng)
-                ? new google.maps.LatLng(nextPos.lat, nextPos.lng)
-                : nextPos;
-            if (existing.position !== undefined) {
-                existing.position = latLng;
-            } else if (typeof existing.setPosition === 'function') {
-                existing.setPosition(latLng);
+            // AdvancedMarkerElement acepta mejor {lat,lng} plano que LatLng en algunos builds
+            const latLng = nextPos;
+            try {
+                if (existing.position !== undefined) {
+                    existing.position = latLng;
+                } else if (typeof existing.setPosition === 'function') {
+                    existing.setPosition(
+                        (typeof google !== 'undefined' && google.maps?.LatLng)
+                            ? new google.maps.LatLng(nextPos.lat, nextPos.lng)
+                            : nextPos
+                    );
+                }
+            } catch (_) {
+                try {
+                    if (typeof existing.setPosition === 'function') {
+                        existing.setPosition(nextPos);
+                    }
+                } catch (__) {}
             }
         }
 
