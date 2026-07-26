@@ -1,4 +1,4 @@
-﻿apply plugin: 'com.android.application'
+apply plugin: 'com.android.application'
 
 // Firma release local (android/key.properties - no se sube a git)
 def keystorePropertiesFile = rootProject.file('key.properties')
