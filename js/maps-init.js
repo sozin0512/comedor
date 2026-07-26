@@ -819,6 +819,15 @@ window.gMap = null;
                         window.storeRouteEndpoint?.(el, endpoint);
                         // Mostrar el nombre del mapa (ej. "Liceo Jesús"), no solo la calle larga
                         applyEndpointLabelToInput(el, nextAddr);
+                        // Origen elegido a mano: actualizar ciudad al punto seleccionado
+                        if (el === originEl || el?.id === 'origin-autocomplete') {
+                            window._passengerOriginUserCleared = false;
+                            const ll = endpoint?.latLng;
+                            if (ll?.lat != null && ll?.lng != null) {
+                                window.syncCityFromOriginCoords?.(ll.lat, ll.lng, { silent: false });
+                            }
+                            window.updateOriginGPSButton?.();
+                        }
                     }
                 } catch (_) {}
                 dismissAutocompleteUi(el);
@@ -868,8 +877,10 @@ window.gMap = null;
                             window.currentTripQuote = null;
                         }
                     }
-                    if (el === originEl && window.updateOriginGPSButton) {
-                        window.updateOriginGPSButton();
+                    // Origen borrado: no rellenar solo con GPS; el usuario puede poner lo que guste o tocar la cruz
+                    if (el === originEl || el?.id === 'origin-autocomplete') {
+                        window.markPassengerOriginUserCleared?.();
+                        window.updateOriginGPSButton?.();
                     }
                     return;
                 }
@@ -1015,21 +1026,26 @@ window.gMap = null;
             attachAutocompleteStackFix(originEl, '.trip-origin-wrap');
             attachAutocompleteStackFix(destEl, '.trip-dest-wrap');
 
-            // === Visibility for GPS button: hide when origin has value, show when empty/cleared ===
+            // === Origin actions: pin siempre visible; GPS solo si el campo está vacío ===
             const gpsBtn = document.getElementById('btn-use-location');
-            if (gpsBtn) {
+            const originMapBtn = document.getElementById('btn-origin-map');
+            if (gpsBtn || originMapBtn) {
                 const updateGPSBtn = () => {
                     const text = window.readAutocompleteText?.(originEl) || '';
                     const hasValue = text.trim().length > 0;
-                    gpsBtn.style.display = hasValue ? 'none' : '';
-
-                    // Give space to the button when visible (empty origin), avoid overlap with input text
+                    if (gpsBtn) gpsBtn.style.display = hasValue ? 'none' : '';
+                    if (originMapBtn) {
+                        originMapBtn.classList.remove('hidden');
+                        originMapBtn.style.display = '';
+                    }
+                    // Espacio para pin (siempre) + GPS (si vacío)
                     if (originEl) {
-                        originEl.style.paddingRight = hasValue ? '' : '52px';
+                        originEl.style.paddingRight = hasValue ? '52px' : '5.5rem';
                     }
                 };
 
                 window.updateOriginGPSButton = updateGPSBtn; // expose for other code
+                window.updateOriginMapButton = updateGPSBtn;
 
                 // Update on input events (including when clear X is clicked, which triggers input/change)
                 const hookForGPS = () => {
@@ -1071,11 +1087,6 @@ window.gMap = null;
                 // Initial state: ensure visible if empty
                 setTimeout(() => {
                     updateGPSBtn();
-                    // Also ensure padding if needed
-                    const text = window.readAutocompleteText?.(originEl) || '';
-                    if (originEl && text.trim().length === 0) {
-                        originEl.style.paddingRight = '52px';
-                    }
                 }, 250);
 
                 // Also update when route is triggered or value set externally (GPS, etc.)
@@ -1911,6 +1922,7 @@ window.gMap = null;
                     window.syncPassengerPanelToggleLabel?.();
                     window.syncDriverRadarFloatPanel?.();
                     window.updatePassengerPromoStripVisibility?.();
+                    window.refreshPassengerCopaUI?.();
                     return;
                 }
                 document.body.classList.remove('panel-minimized');
@@ -1919,6 +1931,7 @@ window.gMap = null;
                 window.dockControlPanelForDriverTrip?.();
                 window.syncDriverRadarFloatPanel?.();
                 window.updatePassengerPromoStripVisibility?.();
+                window.refreshPassengerCopaUI?.();
                 return;
             }
 
@@ -1932,6 +1945,7 @@ window.gMap = null;
                 }
                 window.syncPassengerPanelToggleLabel?.();
                 window.updatePassengerPromoStripVisibility?.();
+                window.refreshPassengerCopaUI?.();
                 return;
             }
 
@@ -1943,6 +1957,7 @@ window.gMap = null;
                 window.syncPassengerPanelToggleLabel?.();
             }
             window.updatePassengerPromoStripVisibility?.();
+            window.refreshPassengerCopaUI?.();
         };
 
         window.hideControlPanel = () => {
@@ -1968,6 +1983,7 @@ window.gMap = null;
                 try { localStorage.setItem(PANEL_HIDDEN_KEY, collapsed ? '1' : '0'); } catch (_) {}
                 window.syncDriverRadarFloatPanel?.();
                 window.updatePassengerPromoStripVisibility?.();
+                window.refreshPassengerCopaUI?.();
                 return;
             }
 
@@ -1980,6 +1996,7 @@ window.gMap = null;
             if (label) label.textContent = 'Ver más';
             try { localStorage.setItem(PANEL_HIDDEN_KEY, '1'); } catch (_) {}
             window.updatePassengerPromoStripVisibility?.();
+            window.refreshPassengerCopaUI?.();
         };
 
         window.initControlPanelVisibility = () => {
@@ -2101,6 +2118,7 @@ window.gMap = null;
                 panel.offsetHeight;
             } catch (_) {}
             window.updatePassengerPromoStripVisibility?.();
+            window.refreshPassengerCopaUI?.();
         };
 
         window.syncNavHudToggleUi = () => {
@@ -2296,21 +2314,37 @@ window.gMap = null;
             return url;
         };
 
-        window.openGoogleMapsDirectionsUrl = (url) => {
+        window.openGoogleMapsDirectionsUrl = async (url) => {
             if (!url) {
                 window.showToast?.('No se pudo armar la ruta para Google Maps.');
                 return false;
             }
-            let opened = null;
+            // Nativo: App.openUrl saca a Maps sin quedarse atrapado en la WebView
             try {
                 if (window.Capacitor?.isNativePlatform?.()) {
-                    opened = window.open(url, '_system');
+                    const CapApp = window.Capacitor.Plugins?.App;
+                    if (CapApp?.openUrl) {
+                        await CapApp.openUrl({ url });
+                        return true;
+                    }
+                    const CapBrowser = window.Capacitor.Plugins?.Browser;
+                    if (CapBrowser?.open) {
+                        await CapBrowser.open({ url, presentationStyle: 'popover' });
+                        return true;
+                    }
+                    window.open(url, '_system');
+                    return true;
                 }
+            } catch (e) {
+                console.warn('openGoogleMapsDirectionsUrl native:', e);
+            }
+            let opened = null;
+            try {
+                opened = window.open(url, '_blank', 'noopener,noreferrer');
             } catch (_) {}
             if (!opened) {
-                opened = window.open(url, '_blank', 'noopener,noreferrer');
+                try { window.location.href = url; } catch (_) {}
             }
-            if (!opened) window.location.href = url;
             return true;
         };
 
@@ -2323,7 +2357,7 @@ window.gMap = null;
                 await window.ensureDriverPosition?.();
             }
             const url = window.buildGoogleMapsDirectionsUrl(trip, options);
-            window.openGoogleMapsDirectionsUrl(url);
+            await window.openGoogleMapsDirectionsUrl(url);
         };
 
         window.openPassengerTripRouteInGoogleMaps = async () => {
@@ -2333,6 +2367,114 @@ window.gMap = null;
                 return;
             }
             await window.openTripRouteInGoogleMaps(trip, { navMode: 'full' });
+        };
+
+        /**
+         * Navegación PRINCIPAL: dentro de HonduRaite (sin salir del sitio).
+         * Dibuja ruta por calles, centra mapa y arranca seguimiento.
+         */
+        window.navigateDriverRouteInApp = async (opts = {}) => {
+            const trip = window.currentActiveTripData || window.activeTrip;
+            if (!trip) {
+                window.showToast?.('No hay un viaje activo.');
+                return false;
+            }
+            if (window.userProfile?.role === 'driver' && trip.driverId && window.currentUser?.uid
+                && trip.driverId !== window.currentUser.uid) {
+                window.showToast?.('Solo el conductor del viaje puede navegar esta ruta.');
+                return false;
+            }
+
+            if (opts.silent !== true) {
+                window.showToast?.('Iniciando navegación en el mapa…', 'info');
+            }
+            await window.ensureDriverPosition?.();
+
+            try {
+                window.driverNavMode = true;
+                window.driverVoiceNavEnabled = window.driverVoiceNavEnabled !== false;
+                document.body.classList.add('driver-nav-mode', 'is-navigating');
+                const top = document.getElementById('nav-hud-top');
+                const bottom = document.getElementById('nav-hud-bottom');
+                if (top) top.style.display = 'flex';
+                if (bottom) bottom.style.display = 'block';
+                // Tráfico visible durante navegación
+                if (window.trafficLayer && window.gMap) {
+                    window.trafficLayer.setMap(window.gMap);
+                    window.isTrafficVisible = true;
+                    document.getElementById('fab-traffic')?.classList.add('active');
+                }
+            } catch (_) {}
+
+            const isDestPhase = trip.status === 'in_progress'
+                || (trip.status === 'accepted' && trip.driverArrived);
+            let target = null;
+
+            try {
+                if (isDestPhase) {
+                    target = window.getTripCurrentLegNavTarget?.(trip)
+                        || (trip.destinationLat != null
+                            ? { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng), address: trip.destination }
+                            : trip.destination);
+                } else {
+                    target = await window.resolveTripPickupNavTarget?.(trip);
+                }
+            } catch (e) {
+                console.warn('navigateDriverRouteInApp target:', e);
+            }
+
+            if (!target) {
+                window.showToast?.('No se pudo resolver el destino de la ruta. Probá "Abrir en Google Maps".', 'warning');
+                return false;
+            }
+
+            // Invalidar ruta previa para forzar recompute + anuncio de voz
+            try {
+                window.currentNavRoute = null;
+                window.currentRouteFullPath = null;
+                window._navRouteReadySpoken = false;
+                window.resetDriverNavVoice?.();
+            } catch (_) {}
+
+            window.updateNavigation?.(target, true);
+            window.ensureDriverNavRouteVisible?.();
+            window.syncNavVoiceToggleUi?.();
+            window.syncNavVoicePickerUi?.();
+
+            if (opts.silent !== true) {
+                window.showToast?.('Navegación activa. Voz + mapa · Google Maps sigue disponible abajo.', 'success');
+            }
+            return true;
+        };
+
+        window.navigatePassengerRouteInApp = async () => {
+            const trip = window.currentActiveTripData || window.activeTrip;
+            if (!trip) {
+                window.showToast?.('No hay un viaje activo.');
+                return false;
+            }
+            try {
+                if (trip.status === 'in_progress') {
+                    const dest = trip.destinationLat != null
+                        ? { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng), address: trip.destination }
+                        : (window.getTripCurrentLegNavTarget?.(trip) || trip.destination);
+                    if (trip.driverId && dest) {
+                        window.trackDriverRoute?.(trip.driverId, dest, { phase: 'destination', tripData: trip });
+                    }
+                } else if (trip.driverId) {
+                    const target = await window.resolveTripPickupNavTarget?.(trip);
+                    if (target) {
+                        window.trackDriverRoute?.(trip.driverId, target, { phase: 'pickup', tripData: trip });
+                        window.updateETA?.(trip.driverId, target, trip);
+                    }
+                }
+                window.showToast?.('Seguimiento en el mapa de HonduRaite.', 'success');
+                return true;
+            } catch (e) {
+                console.warn('navigatePassengerRouteInApp:', e);
+                window.showToast?.('No se pudo cargar la ruta en el mapa.', 'warning');
+                return false;
+            }
         };
 
         window.openDriverRouteInGoogleMaps = async () => {
@@ -3349,28 +3491,58 @@ window.gMap = null;
             // Primary: modern Routes API (Route.computeRoutes).
             const routesLib = await window.routesLibraryReady;
             const RouteCtor = (routesLib && routesLib.Route) || window.RouteClass;
-            const navDriving = window.isDriverNavigating?.() || window.driverNavMode;
+            const navDriving = window.isDriverNavigating?.() || window.driverNavMode
+                || document.body.classList.contains('driver-mode');
+
+            const isSparseStreetPath = (built) => {
+                if (!built?.path?.length) return true;
+                // Aceptar paths cortos en trayectos muy cortos
+                if (built.path.length < 4 && (built.distanceMeters || 0) > 200) return true;
+                if (built.path.length < 8 && (built.distanceMeters || 0) > 800) return true;
+                return false;
+            };
+
+            const cacheRoute = (built) => {
+                if (!built) return built;
+                try {
+                    if (!window._routeComputeCache) window._routeComputeCache = new Map();
+                    window._routeComputeCache.set(routeCacheKey, { route: built, ts: Date.now() });
+                    if (window._routeComputeCache.size > 24) {
+                        const oldest = window._routeComputeCache.keys().next().value;
+                        window._routeComputeCache.delete(oldest);
+                    }
+                } catch (_) {}
+                return built;
+            };
+
             if (RouteCtor) {
                 const routeFields = ['path', 'distanceMeters', 'durationMillis', 'staticDurationMillis', 'legs'];
-                const routingAttempts = [
-                    { routingPreference: 'TRAFFIC_UNAWARE' },
-                    {
-                        routingPreference: 'TRAFFIC_AWARE',
-                        departureTime: new Date(Date.now() + 2 * 60 * 1000)
-                    }
-                ];
+                // Tráfico primero cuando se navega (mejor ETA / ruta viva)
+                const routingAttempts = navDriving
+                    ? [
+                        {
+                            routingPreference: 'TRAFFIC_AWARE',
+                            departureTime: new Date(Date.now() + 60 * 1000)
+                        },
+                        {
+                            routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
+                            departureTime: new Date(Date.now() + 60 * 1000)
+                        },
+                        { routingPreference: 'TRAFFIC_UNAWARE' }
+                    ]
+                    : [
+                        { routingPreference: 'TRAFFIC_UNAWARE' },
+                        {
+                            routingPreference: 'TRAFFIC_AWARE',
+                            departureTime: new Date(Date.now() + 2 * 60 * 1000)
+                        }
+                    ];
                 const requestVariants = navDriving
                     ? [
                         { withNavVoice: true },
                         { withNavVoice: false }
                     ]
                     : [{ withNavVoice: false }];
-
-                const isSparseStreetPath = (built) => {
-                    if (!built?.path?.length) return true;
-                    if (built.path.length < 8 && (built.distanceMeters || 0) > 350) return true;
-                    return false;
-                };
 
                 for (const variant of requestVariants) {
                     for (const attempt of routingAttempts) {
@@ -3399,12 +3571,7 @@ window.gMap = null;
                             if (built && isSparseStreetPath(built)) continue;
                             if (built) {
                                 window._routesApiWorked = true;
-                                window._routeComputeCache?.set(routeCacheKey, { route: built, ts: Date.now() });
-                                if (window._routeComputeCache?.size > 24) {
-                                    const oldest = window._routeComputeCache.keys().next().value;
-                                    window._routeComputeCache.delete(oldest);
-                                }
-                                return built;
+                                return cacheRoute(built);
                             }
                         } catch (attemptErr) {
                             const msg = String(attemptErr?.message || attemptErr);
@@ -3418,6 +3585,24 @@ window.gMap = null;
                 }
             }
 
+            // Fallback: Directions Service clásico (más compatible / a menudo ya habilitado)
+            try {
+                const dirResult = await window.computeDrivingRouteViaDirectionsService?.(o, d, { navDriving });
+                if (dirResult && !isSparseStreetPath(dirResult)) {
+                    window._directionsFallbackWorked = true;
+                    return cacheRoute(dirResult);
+                }
+                if (dirResult && dirResult.path?.length >= 2) {
+                    window._directionsFallbackWorked = true;
+                    return cacheRoute(dirResult);
+                }
+            } catch (dirErr) {
+                if (!window._directionsWarned) {
+                    window._directionsWarned = true;
+                    console.warn('[ROUTE] Directions fallback falló:', dirErr?.message || dirErr);
+                }
+            }
+
             // Conductor: nunca dibujar línea recta; dejar que la UI muestre error/carga.
             if (navDriving) {
                 console.warn('[ROUTE] No se pudo obtener ruta por calles para navegación.');
@@ -3426,10 +3611,116 @@ window.gMap = null;
             // Last resort para pasajero/tarifa: estimación en línea recta.
             if (!window._routeEstimateWarned) {
                 window._routeEstimateWarned = true;
-                console.info('[ROUTE] Ruta estimada activa. Habilita "Routes API" en Google Cloud para rutas por calles.');
+                console.info('[ROUTE] Ruta estimada activa. Habilita "Routes API" o "Directions API" en Google Cloud.');
             }
             return buildEstimatedDrivingRoute(o, d);
         };
+
+        /**
+         * Fallback de ruteo con google.maps.DirectionsService (Directions API).
+         * Útil cuando Routes API no está habilitada o falla en web/Capacitor.
+         */
+        window.computeDrivingRouteViaDirectionsService = (origin, destination, options = {}) =>
+            new Promise((resolve) => {
+                try {
+                    if (typeof google === 'undefined' || !google.maps?.DirectionsService) {
+                        resolve(null);
+                        return;
+                    }
+                    const service = new google.maps.DirectionsService();
+                    // Sin drivingOptions de tráfico: más compatible (no requiere billing extra)
+                    service.route(
+                        {
+                            origin,
+                            destination,
+                            travelMode: google.maps.TravelMode.DRIVING,
+                            region: 'HN',
+                            language: 'es',
+                            provideRouteAlternatives: false
+                        },
+                        (result, status) => {
+                            if (status !== 'OK' || !result?.routes?.[0]) {
+                                resolve(null);
+                                return;
+                            }
+                            const route = result.routes[0];
+                            const leg = route.legs?.[0] || {};
+                            const path = (route.overview_path || []).map((p) => ({
+                                lat: typeof p.lat === 'function' ? p.lat() : p.lat,
+                                lng: typeof p.lng === 'function' ? p.lng() : p.lng
+                            })).filter((p) => p.lat != null && p.lng != null);
+
+                            // Preferir path de steps si overview es muy corto
+                            let stepPath = [];
+                            (route.legs || []).forEach((lg) => {
+                                (lg.steps || []).forEach((st) => {
+                                    (st.path || []).forEach((p) => {
+                                        stepPath.push({
+                                            lat: typeof p.lat === 'function' ? p.lat() : p.lat,
+                                            lng: typeof p.lng === 'function' ? p.lng() : p.lng
+                                        });
+                                    });
+                                });
+                            });
+                            stepPath = stepPath.filter((p) => p.lat != null && p.lng != null);
+                            const finalPath = stepPath.length > path.length ? stepPath : path;
+
+                            const distanceMeters = leg.distance?.value
+                                || Math.round((route.legs || []).reduce((s, lg) => s + (lg.distance?.value || 0), 0));
+                            const durationSec = leg.duration_in_traffic?.value || leg.duration?.value || 0;
+                            const durationMillis = durationSec * 1000;
+
+                            const toLL = (loc) => {
+                                if (!loc) return null;
+                                const lat = typeof loc.lat === 'function' ? loc.lat() : (loc.lat ?? loc.latitude);
+                                const lng = typeof loc.lng === 'function' ? loc.lng() : (loc.lng ?? loc.longitude);
+                                if (lat == null || lng == null) return null;
+                                return { lat: Number(lat), lng: Number(lng) };
+                            };
+                            const navSteps = [];
+                            (result.routes[0].legs || []).forEach((lg) => {
+                                (lg.steps || []).forEach((st, i) => {
+                                    const instruction = String(st.instructions || '')
+                                        .replace(/<[^>]+>/g, ' ')
+                                        .replace(/\s+/g, ' ')
+                                        .trim();
+                                    const endLocation = toLL(st.end_location) || toLL(st.endLocation);
+                                    const pathPts = (st.path || []).map((p) => toLL(p)).filter(Boolean);
+                                    const endFromPath = pathPts.length ? pathPts[pathPts.length - 1] : null;
+                                    navSteps.push({
+                                        index: navSteps.length,
+                                        instruction,
+                                        maneuver: st.maneuver || '',
+                                        distanceMeters: st.distance?.value || 0,
+                                        durationMillis: (st.duration?.value || 0) * 1000,
+                                        endLocation: endLocation || endFromPath,
+                                        path: pathPts
+                                    });
+                                });
+                            });
+
+                            resolve({
+                                distanceMeters,
+                                durationMillis,
+                                staticDurationMillis: (leg.duration?.value || durationSec) * 1000,
+                                path: finalPath.length >= 2 ? finalPath : [origin, destination],
+                                steps: navSteps.length ? navSteps : (window.buildVoiceStepsFromPath?.(finalPath) || []),
+                                _displayPath: null,
+                                _displayMaxPts: null,
+                                legs: [{
+                                    distanceMeters,
+                                    durationMillis,
+                                    staticDurationMillis: (leg.duration?.value || durationSec) * 1000
+                                }],
+                                source: 'directions'
+                            });
+                        }
+                    );
+                } catch (e) {
+                    console.warn('[ROUTE] DirectionsService error:', e);
+                    resolve(null);
+                }
+            });
 
         window.isDriverNavigating = () =>
             document.body.classList.contains('driver-nav-mode')
@@ -3514,22 +3805,6 @@ window.gMap = null;
             return window.currentDriverHeading || 0;
         };
 
-        window.stripNavHtml = (html) => {
-            const d = document.createElement('div');
-            d.innerHTML = html || '';
-            return (d.textContent || '').replace(/\s+/g, ' ').trim();
-        };
-
-        window.getNavManeuverIcon = (maneuver = '') => {
-            const m = String(maneuver).toLowerCase();
-            if (m.includes('left') || m.includes('izquierda')) return 'fa-arrow-turn-left';
-            if (m.includes('right') || m.includes('derecha')) return 'fa-arrow-turn-right';
-            if (m.includes('roundabout') || m.includes('rotonda')) return 'fa-circle-notch';
-            if (m.includes('uturn') || m.includes('retorno')) return 'fa-rotate-left';
-            if (m.includes('merge') || m.includes('ramp')) return 'fa-code-merge';
-            return 'fa-arrow-up';
-        };
-
         window.normalizeRoutePoint = (point) => {
             if (!point) return null;
             let lat = point.lat;
@@ -3540,19 +3815,51 @@ window.gMap = null;
             return { lat: Number(lat), lng: Number(lng) };
         };
 
+        /** Normaliza lat/lng síncrono (Routes API / Directions / literals) */
+        window.normalizeLatLngSync = (point) => {
+            if (!point) return null;
+            if (typeof point.lat === 'function' && typeof point.lng === 'function') {
+                return { lat: point.lat(), lng: point.lng() };
+            }
+            let lat = point.lat ?? point.latitude;
+            let lng = point.lng ?? point.longitude;
+            if (point.latLng) {
+                lat = point.latLng.lat ?? lat;
+                lng = point.latLng.lng ?? lng;
+            }
+            if (point.location) {
+                const loc = point.location;
+                lat = (typeof loc.lat === 'function' ? loc.lat() : (loc.lat ?? loc.latitude)) ?? lat;
+                lng = (typeof loc.lng === 'function' ? loc.lng() : (loc.lng ?? loc.longitude)) ?? lng;
+            }
+            if (typeof lat === 'function') lat = lat();
+            if (typeof lng === 'function') lng = lng();
+            if (lat == null || lng == null) return null;
+            const nlat = Number(lat);
+            const nlng = Number(lng);
+            if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return null;
+            return { lat: nlat, lng: nlng };
+        };
+
         window.normalizeRouteNavSteps = (legs) => {
             const out = [];
             for (const leg of legs || []) {
                 for (const raw of leg.steps || []) {
                     const nav = raw.navigationInstruction || raw;
-                    const endLocation = window.normalizeRoutePoint(raw.endLocation || raw.startLocation);
+                    let endLocation = window.normalizeLatLngSync(
+                        raw.endLocation || raw.end_location || raw.startLocation || raw.start_location
+                    );
+                    // Fallback: último punto del path del step
+                    if (!endLocation && Array.isArray(raw.path) && raw.path.length) {
+                        endLocation = window.normalizeLatLngSync(raw.path[raw.path.length - 1]);
+                    }
                     const instruction = nav.instructions || nav.instruction || raw.instructions || raw.instruction || '';
                     const maneuver = nav.maneuver || raw.maneuver || '';
                     if (!endLocation && !instruction && !maneuver) continue;
                     out.push({
-                        instruction,
+                        instruction: String(instruction || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
                         maneuver,
-                        distanceMeters: raw.distanceMeters || raw.staticDistanceMeters || 0,
+                        distanceMeters: raw.distanceMeters || raw.staticDistanceMeters || raw.distance?.value || 0,
                         endLocation: endLocation || null
                     });
                 }
@@ -3605,14 +3912,50 @@ window.gMap = null;
         };
 
         window.maneuverToSpanish = (maneuver = '') => {
-            const m = String(maneuver).toUpperCase();
-            if (m.includes('ROUNDABOUT') || m.includes('ROTARY')) return 'Toma la rotonda';
+            const m = String(maneuver).toUpperCase().replace(/-/g, '_');
+            if (m.includes('ROUNDABOUT') || m.includes('ROTARY') || m.includes('TRAFFIC_CIRCLE')) return 'Toma la rotonda';
             if (m.includes('UTURN') || m.includes('U_TURN')) return 'Haz un retorno';
-            if (m.includes('LEFT')) return 'Gira a la izquierda';
-            if (m.includes('RIGHT')) return 'Gira a la derecha';
+            if (m.includes('KEEP_LEFT') || m.includes('STAY_LEFT') || m.includes('FORK_LEFT')) return 'Mantente a la izquierda';
+            if (m.includes('KEEP_RIGHT') || m.includes('STAY_RIGHT') || m.includes('FORK_RIGHT')) return 'Mantente a la derecha';
+            if (m.includes('TURN_SHARP_LEFT') || m.includes('SHARP_LEFT')) return 'Gira cerrado a la izquierda';
+            if (m.includes('TURN_SHARP_RIGHT') || m.includes('SHARP_RIGHT')) return 'Gira cerrado a la derecha';
+            if (m.includes('TURN_SLIGHT_LEFT') || m.includes('SLIGHT_LEFT')) return 'Gira levemente a la izquierda';
+            if (m.includes('TURN_SLIGHT_RIGHT') || m.includes('SLIGHT_RIGHT')) return 'Gira levemente a la derecha';
+            if (m.includes('TURN_LEFT') || (m.includes('LEFT') && !m.includes('RIGHT'))) return 'Gira a la izquierda';
+            if (m.includes('TURN_RIGHT') || m.includes('RIGHT')) return 'Gira a la derecha';
             if (m.includes('MERGE') || m.includes('RAMP') || m.includes('FORK')) return 'Incorpórate a la vía';
-            if (m.includes('STRAIGHT') || m.includes('CONTINUE')) return 'Continúa recto';
+            if (m.includes('FERRY')) return 'Toma el ferry';
+            if (m.includes('ARRIVE') || m.includes('DESTINATION')) return 'Has llegado a tu destino';
+            if (m.includes('STRAIGHT') || m.includes('CONTINUE') || m.includes('NAME_CHANGE')) return 'Continúa recto';
             return 'Sigue la ruta';
+        };
+
+        window.getNavManeuverIcon = (maneuver = '') => {
+            const m = String(maneuver || '').toUpperCase().replace(/-/g, '_');
+            if (m.includes('ROUNDABOUT') || m.includes('ROTARY') || m.includes('TRAFFIC_CIRCLE')) return 'fa-sync';
+            if (m.includes('UTURN') || m.includes('U_TURN')) return 'fa-undo';
+            if (m.includes('KEEP_LEFT') || m.includes('STAY_LEFT') || m.includes('FORK_LEFT')) return 'fa-arrow-left';
+            if (m.includes('KEEP_RIGHT') || m.includes('STAY_RIGHT') || m.includes('FORK_RIGHT')) return 'fa-arrow-right';
+            if (m.includes('SHARP_LEFT') || m.includes('TURN_LEFT') || m.includes('LEFT')) return 'fa-arrow-left';
+            if (m.includes('SHARP_RIGHT') || m.includes('TURN_RIGHT') || m.includes('RIGHT')) return 'fa-arrow-right';
+            if (m.includes('ARRIVE') || m.includes('DESTINATION')) return 'fa-flag-checkered';
+            if (m.includes('MERGE') || m.includes('RAMP') || m.includes('FORK')) return 'fa-code-merge';
+            if (m.includes('STRAIGHT') || m.includes('CONTINUE')) return 'fa-arrow-up';
+            return 'fa-location-arrow';
+        };
+
+        window.stripNavHtml = (html) => {
+            const raw = String(html || '');
+            if (!raw.includes('<')) {
+                return raw.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+            }
+            try {
+                const d = document.createElement('div');
+                d.innerHTML = raw;
+                return (d.textContent || '').replace(/\s+/g, ' ').trim();
+            } catch (_) {
+                return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+            }
         };
 
         window.getNavInstructionText = (step) => {
@@ -3639,11 +3982,19 @@ window.gMap = null;
         window.getNextNavStep = (route, pos) => {
             const steps = route?.steps;
             if (!steps?.length || !pos) return null;
-            for (const step of steps) {
-                if (!step.endLocation) continue;
+            for (let i = 0; i < steps.length; i++) {
+                const step = steps[i];
+                if (!step.endLocation) {
+                    // Sin punto: usar el paso si aún no se “consumió” por índice de voz
+                    if (window._navVoiceState?.stepIndex == null || i >= window._navVoiceState.stepIndex) {
+                        return step;
+                    }
+                    continue;
+                }
                 const distM = window.getDistanceToNavPoint(pos, step.endLocation);
-                // Para el último paso (destino) usamos el radio de llegada ~1 km
-                const threshold = (step === steps[steps.length-1]) ? DESTINATION_ARRIVAL_RADIUS_M : 40;
+                // Pasado el final del step → siguiente. Umbral corto = más preciso
+                const isLast = i === steps.length - 1;
+                const threshold = isLast ? 55 : 28;
                 if (distM > threshold) return step;
             }
             return steps[steps.length - 1];
@@ -3680,12 +4031,22 @@ window.gMap = null;
         window.updateDriverVoiceNav = (route, pos) => {
             if (!window.isDriverNavigating?.() || window.driverVoiceNavEnabled === false || !route || !pos) return;
 
+            // Voz de llegada más cercana que el botón de 1 km (evita “llegaste” muy pronto)
+            const VOICE_ARRIVAL_M = 80;
             const dest = route.path?.[route.path.length - 1];
             const distToDest = dest ? window.getDistanceToNavPoint(pos, dest) : Infinity;
-            if (distToDest <= DESTINATION_ARRIVAL_RADIUS_M) {
+            const trip = window.currentActiveTripData;
+            const isFinalDest = !(trip && window.getTripRouteLegLabel?.(trip)?.isFinal === false);
+
+            if (distToDest <= VOICE_ARRIVAL_M) {
                 if (!window._navArrivalSpoken) {
                     window._navArrivalSpoken = true;
-                    window.speakNavMessage('Estás en el destino. Presiona llegué al destino para que el pasajero confirme.');
+                    if (isFinalDest) {
+                        window.speakNavMessage('Estás en el destino. Presiona llegué al destino para que el pasajero confirme.');
+                    } else {
+                        const num = window.getTripRouteLegLabel?.(trip)?.routeNum || '';
+                        window.speakNavMessage(`Estás en el punto ${num}. Presiona el botón de llegada.`);
+                    }
                 }
                 return;
             }
@@ -3712,15 +4073,20 @@ window.gMap = null;
                 return true;
             };
 
-            if (distM <= 25) {
+            // Bandas más finas (estilo turn-by-turn)
+            if (distM <= 20) {
                 speakBand('now', `Ahora, ${short}`);
                 return;
             }
-            if (distM <= 55) {
-                speakBand('50', `En 50 metros, ${short}`);
+            if (distM <= 45) {
+                speakBand('40', `En 40 metros, ${short}`);
                 return;
             }
-            if (distM <= 110) {
+            if (distM <= 80) {
+                speakBand('80', `En 80 metros, ${short}`);
+                return;
+            }
+            if (distM <= 120) {
                 speakBand('100', `En 100 metros, ${short}`);
                 return;
             }
@@ -3728,12 +4094,16 @@ window.gMap = null;
                 speakBand('200', `En 200 metros, ${short}`);
                 return;
             }
-            if (distM <= 430) {
-                speakBand('400', `En 400 metros, ${short}`);
+            if (distM <= 350) {
+                speakBand('300', `En 300 metros, ${short}`);
                 return;
             }
-            if (!bands.preview) {
-                const rounded = Math.max(500, Math.round(distM / 100) * 100);
+            if (distM <= 500) {
+                speakBand('500', `En 500 metros, ${short}`);
+                return;
+            }
+            if (!bands.preview && distM > 500) {
+                const rounded = Math.max(600, Math.round(distM / 100) * 100);
                 bands.preview = true;
                 window.speakNavMessage(`En ${rounded} metros, ${short}`);
             }
@@ -4520,8 +4890,16 @@ window.gMap = null;
         };
 
         window.ensureDriverPosition = () => new Promise((resolve) => {
-            if (window.currentDriverTrackPos?.lat != null) return resolve(window.currentDriverTrackPos);
-            if (window.currentDriverPos) return resolve(window.currentDriverPos);
+            // En modo conductor preferir GPS del conductor, no el track del pasajero
+            const isDriver = document.body.classList.contains('driver-mode')
+                || window.userProfile?.role === 'driver';
+            if (isDriver && window.currentDriverPos?.lat != null) {
+                return resolve(window.currentDriverPos);
+            }
+            if (window.currentDriverPos?.lat != null) return resolve(window.currentDriverPos);
+            if (!isDriver && window.currentDriverTrackPos?.lat != null) {
+                return resolve(window.currentDriverTrackPos);
+            }
             if (!navigator.geolocation) return resolve(null);
             const lowPower = typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode();
             navigator.geolocation.getCurrentPosition(
@@ -4529,7 +4907,7 @@ window.gMap = null;
                     window.currentDriverPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
                     resolve(window.currentDriverPos);
                 },
-                () => resolve(null),
+                () => resolve(window.currentDriverPos || null),
                 {
                     enableHighAccuracy: !lowPower,
                     timeout: lowPower ? 6000 : 8000,

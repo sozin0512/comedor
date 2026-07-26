@@ -60,6 +60,28 @@ service cloud.firestore {
       return isSignedIn() && requestUid() == userId;
     }
 
+    // Pasajero con identidad verificada/aprobada (Copa Pasajeros y similares)
+    function isVerifiedPassengerUser(app, userId) {
+      let userDoc = get(/databases/$(database)/documents/artifacts/$(app)/public/data/users/$(userId));
+      return userDoc.exists && (
+        userDoc.data.approvalStatus == 'approved'
+        || (userDoc.data.verified == true && userDoc.data.approvalStatus != 'pending')
+      );
+    }
+
+    // Conductor aprobado para Copa (no pending/suspended/rejected)
+    function isApprovedDriverUser(app, userId) {
+      let userDoc = get(/databases/$(database)/documents/artifacts/$(app)/public/data/users/$(userId));
+      return userDoc.exists
+        && userDoc.data.approvalStatus != 'pending'
+        && userDoc.data.approvalStatus != 'suspended'
+        && userDoc.data.approvalStatus != 'rejected'
+        && (
+          userDoc.data.approvalStatus == 'approved'
+          || userDoc.data.verified == true
+        );
+    }
+
     // Pedir viaje para uno mismo (pasajero, admin de prueba, supervisor, etc.)
     // El bloqueo de "conductor puro" se hace en la app; aquí basta autenticación + clientId propio.
     function isSelfTripCreate() {
@@ -253,6 +275,58 @@ service cloud.firestore {
     match /artifacts/{app}/public/data/promotions/{promoId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && isStaff(app);
+    }
+
+    // Copa HonduRaite — retos globales conductores (ranking público: todos los logueados leen)
+    // Entrada, suma de viajes y reclamo: solo conductores aprobados
+    match /artifacts/{app}/public/data/driver_global_challenges/{challengeId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && isStaff(app);
+
+      match /entries/{driverId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.driverUid == driverId
+          && (
+            isStaff(app)
+            || (isOwner(driverId) && isApprovedDriverUser(app, driverId))
+          );
+        allow update: if isSignedIn() && (
+          isStaff(app)
+          || (
+            isOwner(driverId)
+            && resource.data.driverUid == requestUid()
+            && isApprovedDriverUser(app, driverId)
+          )
+        );
+        allow delete: if isSignedIn() && isStaff(app);
+      }
+    }
+
+    // Copa HonduRaite — retos globales pasajeros (ranking público)
+    // Entrada al ranking, suma de viajes y reclamo de premios: solo clientes verificados
+    match /artifacts/{app}/public/data/passenger_global_challenges/{challengeId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn() && isStaff(app);
+
+      match /entries/{passengerId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && request.resource.data.passengerUid == passengerId
+          && (
+            isStaff(app)
+            || (isOwner(passengerId) && isVerifiedPassengerUser(app, passengerId))
+          );
+        allow update: if isSignedIn() && (
+          isStaff(app)
+          || (
+            isOwner(passengerId)
+            && resource.data.passengerUid == requestUid()
+            && isVerifiedPassengerUser(app, passengerId)
+          )
+        );
+        allow delete: if isSignedIn() && isStaff(app);
+      }
     }
 
     // Bonos reclamados por pasajero (solo lectura; escritura vía Cloud Functions)

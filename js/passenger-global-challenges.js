@@ -1,0 +1,3005 @@
+/**
+ * Copa Pasajeros — retos globales para pasajeros
+ * Modo principal: competencia TODOS VS TODOS (ranking nacional en vivo + premios por puesto).
+ * Opcional: copa por ciudad (equipos) y metas personales (tiers).
+ *
+ * Restricción: solo clientes verificados (approvalStatus approved / verified)
+ * pueden entrar al ranking, sumar viajes y reclamar premios. El ranking público
+ * sigue visible para todos los logueados.
+ */
+import {
+    collection, addDoc, getDocs, getDoc, updateDoc, doc, setDoc,
+    serverTimestamp, query, where, onSnapshot, orderBy, limit, arrayUnion, Timestamp, increment
+} from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { APP_CONFIG } from './config.js';
+import { isPassengerVerified } from './passenger-verification.js';
+
+let dbRef = null;
+let appIdRef = null;
+let getCurrentUser = () => null;
+let getSenderName = () => 'Supervisor';
+let getPassengerProfile = () => null;
+
+const COPA_VERIFY_MSG =
+    'Solo clientes verificados pueden participar en la Copa Pasajeros. Completá tu verificación de identidad.';
+
+/** True si el perfil de pasajero está aprobado / verificado para competir y cobrar. */
+function canCompeteInPassengerCopa(profile) {
+    return isPassengerVerified(profile);
+}
+
+/**
+ * @param {object|null} profile
+ * @param {{ toast?: boolean }} [opts]
+ * @returns {boolean}
+ */
+function requireVerifiedForPassengerCopa(profile, opts = {}) {
+    if (canCompeteInPassengerCopa(profile)) return true;
+    if (opts.toast !== false) {
+        window.showToast?.(COPA_VERIFY_MSG, 'warning');
+    }
+    return false;
+}
+
+function verifyCtaBannerHtml() {
+    return `
+        <div class="copa-status copa-status--warn pcopa-verify-banner" role="status">
+            <p><i class="fas fa-id-card"></i> <b>Solo verificados</b> entran al ranking, suman viajes y reclaman premios.</p>
+            <button type="button" class="copa-claim-btn" data-no-drag
+                onclick="window.showPassengerVerificationSetup?.({ title: 'Verifica tu cuenta', subtitle: 'Requerido para la Copa Pasajeros' })">
+                <i class="fas fa-shield-alt"></i> Verificar mi cuenta
+            </button>
+        </div>
+    `;
+}
+
+let challengesUnsub = null;
+let entryUnsubs = [];
+let publicChallengesUnsub = null;
+let expiryTimer = null;
+
+/** Challenges cache for public ranking (passengers + everyone) */
+let publicCachedChallenges = [];
+
+const MINIMIZED_KEY = 'honduber_pcopa_min';
+/** Cierre con ✕ solo para esta sesión (como promos). Al re-login vuelve a salir. */
+const STRIP_DISMISS_KEY = 'honduber_pcopa_strip_dismissed';
+const DISMISSED_KEY = 'honduber_pcopa_dismiss';
+
+const DURATION_PRESETS = {
+    /** Sin reloj: la competencia sigue hasta que se cumpla la meta (o staff cierre). */
+    unlimited: { ms: 0, label: 'Sin límite — hasta que se cumpla', unlimited: true },
+    '6h': { ms: 6 * 60 * 60 * 1000, label: '6 horas' },
+    '1d': { ms: 24 * 60 * 60 * 1000, label: '1 día' },
+    '3d': { ms: 3 * 24 * 60 * 60 * 1000, label: '3 días' },
+    '7d': { ms: 7 * 24 * 60 * 60 * 1000, label: '1 semana' },
+    '14d': { ms: 14 * 24 * 60 * 60 * 1000, label: '2 semanas' },
+    '30d': { ms: 30 * 24 * 60 * 60 * 1000, label: '1 mes' },
+    '60d': { ms: 60 * 24 * 60 * 60 * 1000, label: '2 meses' },
+    '90d': { ms: 90 * 24 * 60 * 60 * 1000, label: '3 meses' }
+};
+
+/** Por defecto: sin reloj, hasta que se cumpla la meta. */
+const DEFAULT_DURATION = 'unlimited';
+const DEFAULT_GOAL_TRIPS = 1000;
+
+/** Default economics (Honduras / HonduRaite) */
+const DEFAULT_AVG_TRIP_FARE = 80;
+const DEFAULT_MIN_MARGIN_PCT = 30;
+const DEFAULT_EST_PASSENGERS = 40;
+
+const KIND_META = {
+    copa: { label: 'Todos vs Todos', icon: 'fa-trophy', emoji: '🏆' },
+    feriado: { label: 'Reto de la Nación', icon: 'fa-flag', emoji: '🇭🇳' },
+    pico: { label: 'Pico del Día', icon: 'fa-bolt', emoji: '⚡' },
+    calidad: { label: 'Buen Catracho', icon: 'fa-heart', emoji: '💚' },
+    mega: { label: 'Meta de la Nación', icon: 'fa-mountain', emoji: '⛰️' }
+};
+
+/** ranking = todos vs todos (premios por puesto). tiers = metas personales. both = ambos. */
+const COMPETE_MODES = {
+    ranking: { label: 'Todos vs todos (ranking)', hint: 'Compiten todos. Premios al 1°, 2°, 3°…' },
+    tiers: { label: 'Solo metas personales', hint: 'Cada quien cobra al llegar a Bronce/Plata/Oro' },
+    both: { label: 'Ranking + metas personales', hint: 'Compiten por puesto y también por tiers' }
+};
+
+const DEFAULT_PODIUM = [
+    { place: 1, label: '1er lugar', rewardAmountLps: 1500, reward: 'L. 1500 — Campeón' },
+    { place: 2, label: '2do lugar', rewardAmountLps: 800, reward: 'L. 800 — Subcampeón' },
+    { place: 3, label: '3er lugar', rewardAmountLps: 400, reward: 'L. 400 — Podio' }
+];
+
+const LAUNCH_PRESETS = {
+    todos_vs_todos: {
+        kind: 'copa',
+        title: 'Copa Pasajeros — Todos vs Todos',
+        description: 'Sin reloj: compiten todos hasta que alguien cumpla la meta de viajes. Ranking en vivo y público.',
+        durationPreset: 'unlimited',
+        goalTrips: 1000,
+        competeMode: 'ranking',
+        cityCupEnabled: false,
+        qualityEnabled: false,
+        minRatingToClaim: 0,
+        publicRanking: true,
+        minTripsToRank: 3,
+        avgTripsPerPassenger: 25,
+        podiumPrizes: [
+            { place: 1, label: '1er lugar', rewardAmountLps: 1500, reward: 'L. 1500 — Campeón nacional' },
+            { place: 2, label: '2do lugar', rewardAmountLps: 800, reward: 'L. 800 — Subcampeón' },
+            { place: 3, label: '3er lugar', rewardAmountLps: 400, reward: 'L. 400 — Podio de bronce' }
+        ],
+        tiers: []
+    },
+    copa_meta: {
+        kind: 'copa',
+        title: 'Copa pasajeros nacional — Hasta que se cumpla',
+        description: 'Todos vs todos sin tiempo límite. Cuando el líder llega a la meta, se cierra y se paga el podio.',
+        durationPreset: 'unlimited',
+        goalTrips: 500,
+        competeMode: 'ranking',
+        cityCupEnabled: false,
+        qualityEnabled: true,
+        minRatingToClaim: 4.5,
+        publicRanking: true,
+        minTripsToRank: 5,
+        avgTripsPerPassenger: 40,
+        podiumPrizes: [
+            { place: 1, label: '1er lugar', rewardAmountLps: 2000, reward: 'L. 2000' },
+            { place: 2, label: '2do lugar', rewardAmountLps: 1000, reward: 'L. 1000' },
+            { place: 3, label: '3er lugar', rewardAmountLps: 500, reward: 'L. 500' }
+        ],
+        tiers: []
+    },
+    meta_1000: {
+        kind: 'mega',
+        title: 'Carrera a 1000 viajes (pasajeros)',
+        description: 'Sin reloj. El primero en llegar a 1000 viajes dispara el cierre y fija el podio. Compiten todos.',
+        durationPreset: 'unlimited',
+        goalTrips: 1000,
+        competeMode: 'ranking',
+        cityCupEnabled: false,
+        qualityEnabled: true,
+        minRatingToClaim: 4.5,
+        publicRanking: true,
+        minTripsToRank: 20,
+        avgTripsPerPassenger: 200,
+        podiumPrizes: [
+            { place: 1, label: '1er lugar', rewardAmountLps: 5000, reward: 'L. 5000 — Leyenda' },
+            { place: 2, label: '2do lugar', rewardAmountLps: 2500, reward: 'L. 2500' },
+            { place: 3, label: '3er lugar', rewardAmountLps: 1200, reward: 'L. 1200' }
+        ],
+        tiers: []
+    },
+    pico_libre: {
+        kind: 'pico',
+        title: 'Pico pasajeros — Hasta la meta',
+        description: 'Todos vs todos sin reloj. Corre hasta que alguien cumpla la meta corta.',
+        durationPreset: 'unlimited',
+        goalTrips: 50,
+        competeMode: 'ranking',
+        cityCupEnabled: false,
+        qualityEnabled: false,
+        minRatingToClaim: 0,
+        publicRanking: true,
+        minTripsToRank: 1,
+        avgTripsPerPassenger: 15,
+        podiumPrizes: [
+            { place: 1, label: '1er lugar', rewardAmountLps: 500, reward: 'L. 500' },
+            { place: 2, label: '2do lugar', rewardAmountLps: 250, reward: 'L. 250' },
+            { place: 3, label: '3er lugar', rewardAmountLps: 100, reward: 'L. 100' }
+        ],
+        tiers: []
+    },
+    buen_catracho: {
+        kind: 'calidad',
+        title: 'Pasajero Estrella — Ranking',
+        description: 'Sin reloj. Compiten todos hasta la meta. Rating alto para calificar al podio.',
+        durationPreset: 'unlimited',
+        goalTrips: 200,
+        competeMode: 'ranking',
+        cityCupEnabled: false,
+        qualityEnabled: true,
+        minRatingToClaim: 4.8,
+        publicRanking: true,
+        minTripsToRank: 8,
+        avgTripsPerPassenger: 40,
+        podiumPrizes: [
+            { place: 1, label: '1er lugar', rewardAmountLps: 800, reward: 'L. 800' },
+            { place: 2, label: '2do lugar', rewardAmountLps: 400, reward: 'L. 400' },
+            { place: 3, label: '3er lugar', rewardAmountLps: 200, reward: 'L. 200' }
+        ],
+        tiers: []
+    },
+    independencia: {
+        kind: 'feriado',
+        title: 'Independencia pasajeros — Todos vs Todos',
+        description: 'Sin reloj. Competencia nacional hasta que se cumpla la meta. Ranking abierto a todo el país.',
+        durationPreset: 'unlimited',
+        goalTrips: 300,
+        competeMode: 'ranking',
+        cityCupEnabled: false,
+        qualityEnabled: true,
+        minRatingToClaim: 4.5,
+        publicRanking: true,
+        minTripsToRank: 3,
+        avgTripsPerPassenger: 30,
+        podiumPrizes: [
+            { place: 1, label: '1er lugar', rewardAmountLps: 1200, reward: 'L. 1200' },
+            { place: 2, label: '2do lugar', rewardAmountLps: 600, reward: 'L. 600' },
+            { place: 3, label: '3er lugar', rewardAmountLps: 300, reward: 'L. 300' }
+        ],
+        tiers: []
+    },
+    /** Opcional: solo metas personales (no es la competencia principal) */
+    metas_personales: {
+        kind: 'copa',
+        title: 'Metas personales pasajeros (sin ranking)',
+        description: 'Cada Pasajero avanza a su ritmo por Bronce/Plata/Oro. Sin reloj: hasta que se cumplan las metas o se cierre.',
+        durationPreset: 'unlimited',
+        goalTrips: 0,
+        competeMode: 'tiers',
+        cityCupEnabled: false,
+        qualityEnabled: true,
+        minRatingToClaim: 4.5,
+        publicRanking: true,
+        podiumPrizes: [],
+        tiers: [
+            { id: 'bronce', label: 'Bronce', targetTrips: 10, rewardAmountLps: 50, reward: 'L. 50 de bono', badge: 'Escudo Bronce' },
+            { id: 'plata', label: 'Plata', targetTrips: 20, rewardAmountLps: 150, reward: 'L. 150 de bono', badge: 'Escudo Plata' },
+            { id: 'oro', label: 'Oro', targetTrips: 35, rewardAmountLps: 350, reward: 'L. 350 + Hall de la Fama', badge: 'Escudo de Oro' }
+        ]
+    }
+};
+
+// ─── helpers ───────────────────────────────────────────────────────────────
+
+function escHtml(s) {
+    return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+function challengesCol() {
+    return collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'passenger_global_challenges');
+}
+
+function challengeDocRef(id) {
+    return doc(dbRef, 'artifacts', appIdRef, 'public', 'data', 'passenger_global_challenges', id);
+}
+
+function entryDocRef(challengeId, passengerUid) {
+    return doc(dbRef, 'artifacts', appIdRef, 'public', 'data', 'passenger_global_challenges', challengeId, 'entries', passengerUid);
+}
+
+function entriesCol(challengeId) {
+    return collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'passenger_global_challenges', challengeId, 'entries');
+}
+
+/** Extrae monto en lempiras de texto tipo "L. 350 de bono" o "2000". */
+function parseRewardAmountLps(value, fallback = 0) {
+    if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.round(value * 100) / 100);
+    const s = String(value || '').replace(/,/g, '');
+    const m = s.match(/(\d+(?:\.\d+)?)/);
+    if (!m) return fallback;
+    const n = parseFloat(m[1]);
+    return Number.isFinite(n) ? Math.max(0, Math.round(n * 100) / 100) : fallback;
+}
+
+function formatLps(n) {
+    const v = Number(n) || 0;
+    return `L. ${v.toLocaleString('es-HN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function getDefaultCommissionPercent() {
+    const fromWindow = parseFloat(window.appCommissionPercent);
+    if (Number.isFinite(fromWindow) && fromWindow > 0) return fromWindow;
+    const cfg = parseFloat(APP_CONFIG?.commissionPercent);
+    return Number.isFinite(cfg) && cfg > 0 ? cfg : 25;
+}
+
+function normalizeTiers(raw) {
+    const list = Array.isArray(raw) ? raw : [];
+    return list
+        .map((t, i) => {
+            const id = String(t.id || ['bronce', 'plata', 'oro'][i] || `tier_${i}`).toLowerCase();
+            const targetTrips = Math.min(9999, Math.max(1, parseInt(t.targetTrips, 10) || 1));
+            const rewardAmountLps = parseRewardAmountLps(
+                t.rewardAmountLps != null ? t.rewardAmountLps : t.reward,
+                0
+            );
+            const rewardText = String(t.reward || (rewardAmountLps > 0 ? `${formatLps(rewardAmountLps)} de bono` : '')).slice(0, 200);
+            return {
+                id,
+                label: String(t.label || id).slice(0, 40),
+                targetTrips,
+                rewardAmountLps,
+                reward: rewardText || formatLps(rewardAmountLps),
+                badge: String(t.badge || t.label || id).slice(0, 60)
+            };
+        })
+        .sort((a, b) => a.targetTrips - b.targetTrips);
+}
+
+function normalizePodium(raw) {
+    const list = Array.isArray(raw) ? raw : [];
+    return list
+        .map((p, i) => {
+            const place = Math.min(50, Math.max(1, parseInt(p.place, 10) || (i + 1)));
+            const rewardAmountLps = parseRewardAmountLps(p.rewardAmountLps != null ? p.rewardAmountLps : p.reward, 0);
+            return {
+                place,
+                label: String(p.label || `${place}° lugar`).slice(0, 40),
+                rewardAmountLps,
+                reward: String(p.reward || (rewardAmountLps > 0 ? formatLps(rewardAmountLps) : '')).slice(0, 200)
+            };
+        })
+        .filter((p) => p.rewardAmountLps > 0)
+        .sort((a, b) => a.place - b.place);
+}
+
+function getCompeteMode(ch) {
+    const m = ch?.competeMode;
+    if (m === 'ranking' || m === 'tiers' || m === 'both') return m;
+    // legacy: if had tiers only
+    if (Array.isArray(ch?.podiumPrizes) && ch.podiumPrizes.length) return 'ranking';
+    if (Array.isArray(ch?.tiers) && ch.tiers.length) return 'tiers';
+    return 'ranking';
+}
+
+function isRankingMode(ch) {
+    const m = getCompeteMode(ch);
+    return m === 'ranking' || m === 'both';
+}
+
+function isTiersMode(ch) {
+    const m = getCompeteMode(ch);
+    return m === 'tiers' || m === 'both';
+}
+
+/**
+ * Rentabilidad:
+ * - ranking (todos vs todos): bote fijo del podio vs comisión de la flota en el periodo
+ * - tiers: premio por Pasajero que llega a meta (peor caso)
+ */
+function analyzeChallengeProfitability({
+    tiers = [],
+    podiumPrizes = [],
+    competeMode = 'ranking',
+    avgTripFare = DEFAULT_AVG_TRIP_FARE,
+    commissionPercent = getDefaultCommissionPercent(),
+    estimatedPassengers = DEFAULT_EST_PASSENGERS,
+    minMarginPercent = DEFAULT_MIN_MARGIN_PCT,
+    avgTripsPerPassenger = 25
+}) {
+    const normalized = normalizeTiers(tiers);
+    const podium = normalizePodium(podiumPrizes);
+    const fare = Math.max(1, parseFloat(avgTripFare) || DEFAULT_AVG_TRIP_FARE);
+    const commPct = Math.min(100, Math.max(1, parseFloat(commissionPercent) || getDefaultCommissionPercent()));
+    const drivers = Math.min(5000, Math.max(1, parseInt(estimatedPassengers, 10) || DEFAULT_EST_PASSENGERS));
+    const minMargin = Math.min(90, Math.max(0, parseFloat(minMarginPercent) || DEFAULT_MIN_MARGIN_PCT));
+    const tripsPerDriver = Math.max(1, parseInt(avgTripsPerPassenger, 10) || 25);
+    const commissionPerTrip = fare * (commPct / 100);
+    const mode = competeMode || 'ranking';
+
+    let ok = true;
+    const blockers = [];
+    const tierRows = [];
+    let totalRewardPerDriver = 0;
+    let maxTrips = tripsPerDriver;
+    let worstCasePayout = 0;
+    let worstCaseCommission = drivers * tripsPerDriver * commissionPerTrip;
+    let prizePool = 0;
+
+    if (mode === 'ranking' || mode === 'both') {
+        prizePool = podium.reduce((s, p) => s + (p.rewardAmountLps || 0), 0);
+        worstCasePayout += prizePool; // fixed — only top places win
+
+        if (!podium.length) {
+            ok = false;
+            blockers.push('Todos vs todos: definí premios del podio (1°, 2°, 3°…) en L.');
+        }
+        if (prizePool > 0 && worstCaseCommission > 0) {
+            const rankingProfit = worstCaseCommission - prizePool;
+            const rankingMargin = (rankingProfit / worstCaseCommission) * 100;
+            if (rankingMargin < minMargin) {
+                ok = false;
+                blockers.push(
+                    `Podio (bote fijo ${formatLps(prizePool)}): con ~${drivers} pasaj. × ${tripsPerDriver} viajes ` +
+                    `la comisión est. es ${formatLps(worstCaseCommission)} → margen ${rankingMargin.toFixed(1)}% < ${minMargin}%. ` +
+                    `Bajá el bote o subí viajes/Pasajeros estimados.`
+                );
+            }
+        }
+    }
+
+    if (mode === 'tiers' || mode === 'both') {
+        let cumulativeReward = 0;
+        normalized.forEach((t) => {
+            cumulativeReward += t.rewardAmountLps || 0;
+            const commissionEarned = t.targetTrips * commissionPerTrip;
+            const unitProfit = commissionEarned - cumulativeReward;
+            const unitMargin = commissionEarned > 0 ? (unitProfit / commissionEarned) * 100 : -100;
+            const tierOk = t.rewardAmountLps > 0 && commissionEarned > 0 && unitProfit > 0 && unitMargin >= minMargin;
+            if (!tierOk) {
+                ok = false;
+                if (t.rewardAmountLps <= 0) {
+                    blockers.push(`${t.label}: poné premio en L.`);
+                } else if (unitProfit <= 0) {
+                    blockers.push(
+                        `${t.label}: comisión est. ${formatLps(commissionEarned)} < premios acum. ${formatLps(cumulativeReward)}.`
+                    );
+                } else {
+                    blockers.push(`${t.label}: margen ${unitMargin.toFixed(1)}% < ${minMargin}%.`);
+                }
+            }
+            tierRows.push({
+                id: t.id,
+                label: t.label,
+                targetTrips: t.targetTrips,
+                rewardAmountLps: t.rewardAmountLps,
+                cumulativeReward,
+                commissionEarned,
+                unitProfit,
+                unitMargin,
+                ok: tierOk
+            });
+        });
+        totalRewardPerDriver = normalized.reduce((s, t) => s + (t.rewardAmountLps || 0), 0);
+        maxTrips = Math.max(maxTrips, ...normalized.map((t) => t.targetTrips), 1);
+        const tiersPayout = drivers * totalRewardPerDriver;
+        const tiersCommission = drivers * maxTrips * commissionPerTrip;
+        worstCasePayout += tiersPayout;
+        // For both modes, commission uses the higher of ranking fleet estimate and tier max
+        worstCaseCommission = Math.max(worstCaseCommission, tiersCommission);
+
+        if (!normalized.length && mode === 'tiers') {
+            ok = false;
+            blockers.push('Modo metas: definí al menos un tier.');
+        }
+    }
+
+    const fleetProfit = worstCaseCommission - worstCasePayout;
+    const fleetMargin = worstCaseCommission > 0 ? (fleetProfit / worstCaseCommission) * 100 : -100;
+
+    if (worstCaseCommission > 0 && fleetMargin < minMargin && ok) {
+        // already blocked above for ranking; double-check combined
+        ok = false;
+        blockers.push(
+            `Total: comisión est. ${formatLps(worstCaseCommission)} vs premios ${formatLps(worstCasePayout)} ` +
+            `(margen ${fleetMargin.toFixed(1)}% < ${minMargin}%).`
+        );
+    }
+
+    const modeLabel = mode === 'ranking'
+        ? 'Todos vs todos'
+        : mode === 'tiers'
+            ? 'Metas personales'
+            : 'Ranking + metas';
+
+    return {
+        ok,
+        blockers,
+        competeMode: mode,
+        fare,
+        commissionPercent: commPct,
+        commissionPerTrip,
+        estimatedPassengers: drivers,
+        minMarginPercent: minMargin,
+        avgTripsPerPassenger: tripsPerDriver,
+        maxTrips,
+        totalRewardPerDriver,
+        prizePool,
+        worstCaseCommission,
+        worstCasePayout,
+        fleetProfit,
+        fleetMargin,
+        tierRows,
+        podium,
+        summary: ok
+            ? `Rentable ✓ · ${modeLabel} · margen ~${fleetMargin.toFixed(0)}% · bote podio ${formatLps(prizePool)}`
+            : `No rentable ✗ · no se puede publicar`
+    };
+}
+
+function readEconomicsFromForm() {
+    return {
+        avgTripFare: parseFloat(document.getElementById('pcopa-avg-fare')?.value) || DEFAULT_AVG_TRIP_FARE,
+        commissionPercent: parseFloat(document.getElementById('pcopa-commission')?.value) || getDefaultCommissionPercent(),
+        estimatedPassengers: parseInt(document.getElementById('pcopa-est-passengers')?.value, 10) || DEFAULT_EST_PASSENGERS,
+        minMarginPercent: parseFloat(document.getElementById('pcopa-min-margin')?.value) || DEFAULT_MIN_MARGIN_PCT,
+        avgTripsPerPassenger: parseInt(document.getElementById('pcopa-avg-trips')?.value, 10) || 25
+    };
+}
+
+function readCompeteModeFromForm() {
+    return document.getElementById('pcopa-compete-mode')?.value || 'ranking';
+}
+
+function readPodiumFromForm() {
+    return normalizePodium([1, 2, 3].map((place) => {
+        const amount = parseFloat(document.getElementById(`pcopa-podium-${place}-amount`)?.value);
+        const note = document.getElementById(`pcopa-podium-${place}-label`)?.value?.trim() || '';
+        return {
+            place,
+            label: note || `${place}° lugar`,
+            rewardAmountLps: Number.isFinite(amount) ? amount : 0,
+            reward: note || (Number.isFinite(amount) ? formatLps(amount) : '')
+        };
+    }));
+}
+
+function readTiersFromForm() {
+    const mode = readCompeteModeFromForm();
+    if (mode === 'ranking') return [];
+    return normalizeTiers(['bronce', 'plata', 'oro'].map((id) => {
+        const trips = parseInt(document.getElementById(`pcopa-tier-${id}-trips`)?.value, 10) || 0;
+        const amount = parseFloat(document.getElementById(`pcopa-tier-${id}-amount`)?.value);
+        const note = document.getElementById(`pcopa-tier-${id}-reward`)?.value?.trim() || '';
+        const rewardAmountLps = Number.isFinite(amount) ? amount : parseRewardAmountLps(note, 0);
+        const label = id === 'bronce' ? 'Bronce' : id === 'plata' ? 'Plata' : 'Oro';
+        return {
+            id,
+            label,
+            targetTrips: trips || 1,
+            rewardAmountLps,
+            reward: note || (rewardAmountLps > 0 ? `${formatLps(rewardAmountLps)} de bono` : ''),
+            badge: id === 'bronce' ? 'Escudo Bronce' : id === 'plata' ? 'Escudo Plata' : 'Escudo de Oro'
+        };
+    })).filter((t) => t.rewardAmountLps > 0 || t.targetTrips > 1);
+}
+
+function syncPassengerCopaFormModeUI() {
+    const mode = readCompeteModeFromForm();
+    const podiumBlock = document.getElementById('pcopa-podium-block');
+    const tiersBlock = document.getElementById('pcopa-tiers-block');
+    if (podiumBlock) podiumBlock.style.display = (mode === 'ranking' || mode === 'both') ? '' : 'none';
+    if (tiersBlock) tiersBlock.style.display = (mode === 'tiers' || mode === 'both') ? '' : 'none';
+    window.refreshPassengerCopaProfitability?.();
+}
+
+function renderProfitabilityPanel(analysis) {
+    if (!analysis) return '';
+    const cls = analysis.ok ? 'copa-profit copa-profit--ok' : 'copa-profit copa-profit--bad';
+    const podium = analysis.podium || [];
+    const podiumHtml = podium.length
+        ? `<p class="copa-profit-sub"><b>Bote podio (fijo):</b> ${podium.map((p) => `${p.place}° ${formatLps(p.rewardAmountLps)}`).join(' · ')} = <b>${formatLps(analysis.prizePool || 0)}</b></p>`
+        : '';
+
+    const rows = (analysis.tierRows || []).map((r) => `
+        <tr class="${r.ok ? '' : 'copa-profit-row--bad'}">
+            <td>${escHtml(r.label)}</td>
+            <td>${r.targetTrips}</td>
+            <td>${formatLps(r.rewardAmountLps)}</td>
+            <td>${formatLps(r.commissionEarned)}</td>
+            <td>${formatLps(r.unitProfit)}</td>
+            <td>${r.unitMargin.toFixed(0)}%</td>
+        </tr>
+    `).join('');
+
+    const table = rows
+        ? `<div class="copa-profit-table-wrap">
+                <table class="copa-profit-table">
+                    <thead>
+                        <tr>
+                            <th>Tier</th><th>Viajes</th><th>Premio</th><th>Comisión est.</th><th>Utilidad</th><th>Margen</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`
+        : '';
+
+    return `
+        <div id="pcopa-profit-panel" class="${cls}">
+            <p class="copa-profit-title">
+                <i class="fas ${analysis.ok ? 'fa-check-circle' : 'fa-ban'}"></i>
+                ${escHtml(analysis.summary)}
+            </p>
+            <p class="copa-profit-sub">
+                Tarifa prom. ${formatLps(analysis.fare)} · Comisión ${analysis.commissionPercent}%
+                (${formatLps(analysis.commissionPerTrip)}/viaje) · ${analysis.estimatedPassengers} pasaj.
+                × ~${analysis.avgTripsPerPassenger || 25} viajes · margen mín. ${analysis.minMarginPercent}%
+            </p>
+            ${podiumHtml}
+            ${table}
+            <p class="copa-profit-fleet">
+                Estimado: comisión ${formatLps(analysis.worstCaseCommission)}
+                − premios ${formatLps(analysis.worstCasePayout)}
+                = <b>${formatLps(analysis.fleetProfit)}</b>
+                (${analysis.fleetMargin.toFixed(0)}% margen)
+            </p>
+            ${analysis.blockers.length
+                ? `<ul class="copa-profit-blockers">${analysis.blockers.map((b) => `<li>${escHtml(b)}</li>`).join('')}</ul>`
+                : '<p class="copa-profit-ok-msg">Podés publicar: el reto deja margen suficiente a la empresa.</p>'}
+        </div>
+    `;
+}
+
+/** Rank cache for live competition UI */
+const rankCache = {}; // challengeId -> { rank, total, leaderName, leaderProgress, entriesTop }
+
+function computeRankFromEntries(entries, passengerUid, minTrips = 0) {
+    const sorted = [...entries].sort((a, b) => {
+        const pb = (b.points || b.progress || 0) - (a.points || a.progress || 0);
+        if (pb !== 0) return pb;
+        return String(a.passengerUid || a.id).localeCompare(String(b.passengerUid || b.id));
+    });
+    const min = Math.max(0, parseInt(minTrips, 10) || 0);
+    const qualified = sorted.filter((e) => (parseInt(e.progress, 10) || 0) >= min);
+    const list = min > 0 ? qualified : sorted;
+    const idx = list.findIndex((e) => e.passengerUid === passengerUid || e.id === passengerUid);
+    const me = sorted.find((e) => e.passengerUid === passengerUid || e.id === passengerUid);
+    const leader = sorted[0];
+    return {
+        rank: idx >= 0 ? idx + 1 : null,
+        total: list.length || sorted.length,
+        totalAll: sorted.length,
+        myProgress: parseInt(me?.progress, 10) || 0,
+        leaderName: leader?.passengerName || '—',
+        leaderProgress: parseInt(leader?.progress, 10) || 0,
+        gapToLeader: leader && me
+            ? Math.max(0, (parseInt(leader.progress, 10) || 0) - (parseInt(me.progress, 10) || 0))
+            : null,
+        top: sorted.slice(0, 10)
+    };
+}
+
+async function refreshRankForChallenge(challengeId, passengerUid, minTrips = 0) {
+    if (!challengeId || !passengerUid) return null;
+    try {
+        const entries = await loadEntriesForChallenge(challengeId, 150);
+        const info = computeRankFromEntries(entries, passengerUid, minTrips);
+        rankCache[challengeId] = { ...info, at: Date.now() };
+        return rankCache[challengeId];
+    } catch (e) {
+        console.warn('refreshRankForChallenge:', e);
+        return rankCache[challengeId] || null;
+    }
+}
+
+function isUnlimitedDuration(ch) {
+    if (!ch) return false;
+    if (ch.noTimeLimit === true || ch.unlimited === true) return true;
+    if (ch.durationPreset === 'unlimited') return true;
+    const preset = DURATION_PRESETS[ch.durationPreset];
+    if (preset?.unlimited) return true;
+    // Sin expires y sin durationMs → se trata como sin reloj
+    if (!ch.expiresAt && !ch.expiresAtMs && !(ch.durationMs > 0)) return true;
+    return false;
+}
+
+function getGoalTrips(ch) {
+    const n = parseInt(ch?.goalTrips, 10);
+    if (Number.isFinite(n) && n > 0) return Math.min(9999, n);
+    return 0;
+}
+
+function getExpiresAtMs(ch) {
+    if (!ch || isUnlimitedDuration(ch)) return null;
+    if (typeof ch.expiresAtMs === 'number' && ch.expiresAtMs > 0) return ch.expiresAtMs;
+    const exp = ch.expiresAt;
+    if (exp) {
+        if (typeof exp.toDate === 'function') return exp.toDate().getTime();
+        if (exp.seconds) return exp.seconds * 1000;
+    }
+    return null;
+}
+
+function isChallengeActive(ch) {
+    if (!ch || ch.status !== 'active') return false;
+    if (!isUnlimitedDuration(ch)) {
+        const exp = getExpiresAtMs(ch);
+        if (exp && Date.now() >= exp) return false;
+    }
+    const start = typeof ch.startsAtMs === 'number' ? ch.startsAtMs : 0;
+    if (start && Date.now() < start) return false;
+    return true;
+}
+
+function formatTimeRemaining(ch) {
+    const goal = getGoalTrips(ch);
+    if (isUnlimitedDuration(ch)) {
+        return goal > 0
+            ? `Sin reloj · hasta ${goal} viajes`
+            : 'Sin reloj · hasta que se cumpla';
+    }
+    const expMs = getExpiresAtMs(ch);
+    if (!expMs) {
+        return goal > 0 ? `Hasta ${goal} viajes` : 'En curso';
+    }
+    const diff = expMs - Date.now();
+    if (diff <= 0) return 'Tiempo agotado';
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins} min restante${mins === 1 ? '' : 's'}`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} h restante${hours === 1 ? '' : 's'}`;
+    const days = Math.floor(hours / 24);
+    const timeTxt = `${days} día${days === 1 ? '' : 's'} restante${days === 1 ? '' : 's'}`;
+    return goal > 0 ? `${timeTxt} · meta ${goal}` : timeTxt;
+}
+
+function formatGoalProgressLine(ch, leaderProgress = 0) {
+    const goal = getGoalTrips(ch);
+    if (!goal) return isUnlimitedDuration(ch) ? 'Abierta hasta que se cumpla / cierre staff' : '';
+    const left = Math.max(0, goal - (parseInt(leaderProgress, 10) || 0));
+    if (left <= 0) return `Meta ${goal} alcanzada — cerrando podio`;
+    return `Meta: ${goal} viajes · al líder le faltan ${left}`;
+}
+
+function formatChallengeDate(ts) {
+    if (!ts) return '—';
+    let d = null;
+    if (typeof ts.toDate === 'function') d = ts.toDate();
+    else if (ts.seconds) d = new Date(ts.seconds * 1000);
+    else if (typeof ts === 'number') d = new Date(ts);
+    if (!d || Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleString('es-HN', { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function resolveCityFromProfile(profile, trip) {
+    const cityId = trip?.serviceZoneId
+        || profile?.serviceZoneId
+        || profile?.cityId
+        || window.activeServiceZoneId
+        || 'sin-ciudad';
+    const cityName = trip?.serviceZoneName
+        || profile?.serviceZoneName
+        || profile?.cityName
+        || (typeof window.getZoneById === 'function' ? window.getZoneById(cityId)?.name : null)
+        || cityId;
+    return { cityId: String(cityId), cityName: String(cityName || cityId) };
+}
+
+function highestTierReached(tiers, progress) {
+    let best = null;
+    for (const t of tiers) {
+        if (progress >= t.targetTrips) best = t;
+    }
+    return best;
+}
+
+function nextTier(tiers, progress) {
+    return tiers.find((t) => progress < t.targetTrips) || null;
+}
+
+function tierClaimKey(entry, tierId) {
+    const map = entry?.tiersClaimed || {};
+    return !!map[tierId];
+}
+
+function tierPaidKey(entry, tierId) {
+    const map = entry?.rewardPaidTiers || {};
+    return !!map[tierId];
+}
+
+function avgRating(entry) {
+    const n = parseInt(entry?.ratingCount, 10) || 0;
+    const sum = parseFloat(entry?.ratingSum) || 0;
+    if (n <= 0) return null;
+    return Math.round((sum / n) * 10) / 10;
+}
+
+function qualityBlocksClaim(ch, entry) {
+    if (!ch?.qualityEnabled) return false;
+    const min = parseFloat(ch.minRatingToClaim) || 0;
+    if (min <= 0) return false;
+    const n = parseInt(entry?.ratingCount, 10) || 0;
+    if (n < 1) return false; // sin ratings aún: no bloquear
+    const avg = avgRating(entry);
+    return avg != null && avg < min;
+}
+
+function isMinimized(challengeId) {
+    try {
+        return localStorage.getItem(`${MINIMIZED_KEY}_${challengeId}`) === '1';
+    } catch (_) {
+        return false;
+    }
+}
+
+function setMinimized(challengeId, minimized) {
+    try {
+        if (minimized) localStorage.setItem(`${MINIMIZED_KEY}_${challengeId}`, '1');
+        else localStorage.removeItem(`${MINIMIZED_KEY}_${challengeId}`);
+    } catch (_) {}
+}
+
+function isStripDismissedThisSession() {
+    try {
+        return sessionStorage.getItem(STRIP_DISMISS_KEY) === '1';
+    } catch (_) {
+        return false;
+    }
+}
+
+function setStripDismissedThisSession(dismissed) {
+    try {
+        if (dismissed) sessionStorage.setItem(STRIP_DISMISS_KEY, '1');
+        else sessionStorage.removeItem(STRIP_DISMISS_KEY);
+    } catch (_) {}
+}
+
+function isDismissed(challengeId) {
+    try {
+        return sessionStorage.getItem(`${DISMISSED_KEY}_${challengeId}`) === '1';
+    } catch (_) {
+        return false;
+    }
+}
+
+function setDismissed(challengeId, dismissed) {
+    try {
+        if (dismissed) sessionStorage.setItem(`${DISMISSED_KEY}_${challengeId}`, '1');
+        else sessionStorage.removeItem(`${DISMISSED_KEY}_${challengeId}`);
+        localStorage.removeItem(`${DISMISSED_KEY}_${challengeId}`);
+    } catch (_) {}
+}
+
+function resetCopaSessionDismiss() {
+    try {
+        sessionStorage.removeItem(STRIP_DISMISS_KEY);
+        const toRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const k = sessionStorage.key(i);
+            if (k && k.startsWith(`${DISMISSED_KEY}_`)) toRemove.push(k);
+        }
+        toRemove.forEach((k) => sessionStorage.removeItem(k));
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(`${DISMISSED_KEY}_`)) localStorage.removeItem(k);
+        }
+    } catch (_) {}
+}
+
+function restoreCopaOnScreen(challengeId) {
+    setStripDismissedThisSession(false);
+    if (challengeId) {
+        setDismissed(challengeId, false);
+        setMinimized(challengeId, false);
+    }
+}
+
+function dismissAllPassengerCopaOnScreen() {
+    setStripDismissedThisSession(true);
+    cachedChallenges.forEach((c) => setDismissed(c.id, true));
+    refreshPassengerCopaUI();
+    window.showToast?.('Copa ocultada. Al volver a iniciar sesión reaparece. También desde el menú ☰ → Copa Pasajeros.', 'info');
+}
+
+function floatActionsHtml(challengeId, { minimized = false } = {}) {
+    return `
+        <div class="copa-float-actions" data-no-drag>
+            ${minimized ? '' : `
+            <button type="button" class="copa-min-btn" data-no-drag
+                onclick="event.stopPropagation(); window.togglePassengerCopaMinimized('${challengeId}', true)" title="Minimizar" aria-label="Minimizar">
+                <i class="fas fa-minus"></i>
+            </button>`}
+            <button type="button" class="copa-close-btn" data-no-drag
+                onclick="event.stopPropagation(); window.dismissPassengerCopaFloat('${challengeId}')" title="Quitar de pantalla" aria-label="Quitar de pantalla">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `;
+}
+
+// ─── cache ─────────────────────────────────────────────────────────────────
+
+let cachedChallenges = [];
+const cachedEntries = {}; // challengeId -> entry
+
+/** Panel central expandido (abierto): no tapar el booking con banners de copa. */
+function isCentralPanelOpen() {
+    return !document.body.classList.contains('panel-minimized')
+        && !document.body.classList.contains('panel-hidden');
+}
+
+function hidePassengerCopaBanners() {
+    const activeEl = document.getElementById('passenger-copa-active');
+    if (activeEl) {
+        activeEl.classList.add('hidden');
+        activeEl.innerHTML = '';
+    }
+    const strip = document.getElementById('passenger-copa-strip');
+    if (strip) {
+        strip.classList.add('hidden');
+        strip.innerHTML = '';
+    }
+}
+
+function refreshPassengerCopaUI() {
+    const user = getCurrentUser();
+    if (!user || window.userProfile?.role !== 'client') {
+        hidePassengerCopaBanners();
+        return;
+    }
+    if (isStripDismissedThisSession()) {
+        hidePassengerCopaBanners();
+        return;
+    }
+    // Con el panel central abierto: ocultar banner (strip + flotantes del mapa)
+    if (isCentralPanelOpen()) {
+        hidePassengerCopaBanners();
+        return;
+    }
+    const active = cachedChallenges.filter((c) =>
+        isChallengeActive(c)
+        || (c.status === 'closed' && isRankingMode(c) && (
+            cachedEntries[c.id]?.podiumEligible
+            || cachedEntries[c.id]?.finalRank
+            || (Array.isArray(c.finalPodium) && c.finalPodium.some((w) => w.passengerUid === user.uid))
+        ))
+    );
+    const onScreen = active.filter((c) => !isDismissed(c.id));
+    renderPassengerCopaPanels(onScreen);
+    const stripList = (active.filter(isChallengeActive).length ? active.filter(isChallengeActive) : active)
+        .filter((c) => !isDismissed(c.id));
+    renderPassengerCopaStrip(stripList);
+}
+
+// ─── Firestore ops ─────────────────────────────────────────────────────────
+
+async function ensureEntry(challengeId, passengerUid, profile, trip = null) {
+    const ref = entryDocRef(challengeId, passengerUid);
+    try {
+        const snap = await getDoc(ref);
+        if (snap.exists()) return { id: snap.id, ...snap.data() };
+    } catch (e) {
+        console.warn('ensureEntry read:', e);
+        // seguir e intentar crear; si también falla devolvemos stub local
+    }
+
+    // Solo clientes verificados entran al ranking (no crear entry sin verificación)
+    if (!canCompeteInPassengerCopa(profile)) {
+        const { cityId, cityName } = resolveCityFromProfile(profile, trip);
+        return {
+            id: passengerUid,
+            passengerUid,
+            passengerName: profile?.name || 'Pasajero',
+            cityId,
+            cityName,
+            progress: 0,
+            points: 0,
+            countedTripIds: [],
+            tiersClaimed: {},
+            rewardPaidTiers: {},
+            ratingSum: 0,
+            ratingCount: 0,
+            _localOnly: true,
+            _needsVerification: true
+        };
+    }
+
+    const { cityId, cityName } = resolveCityFromProfile(profile, trip);
+    const data = {
+        passengerUid,
+        passengerName: profile?.name || 'Pasajero',
+        cityId,
+        cityName,
+        progress: 0,
+        points: 0,
+        countedTripIds: [],
+        tiersClaimed: {},
+        rewardPaidTiers: {},
+        ratingSum: 0,
+        ratingCount: 0,
+        identityVerified: true,
+        joinedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+    try {
+        await setDoc(ref, data);
+        return { id: passengerUid, ...data };
+    } catch (e) {
+        console.warn('ensureEntry write:', e);
+        // Stub local para no romper el UI si faltan rules desplegadas
+        return { id: passengerUid, ...data, _localOnly: true };
+    }
+}
+
+async function loadEntriesForChallenge(challengeId, max = 120) {
+    const list = [];
+    try {
+        const snap = await getDocs(query(entriesCol(challengeId), orderBy('points', 'desc'), limit(max)));
+        snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+    } catch (e1) {
+        console.warn('loadEntries orderBy points:', e1?.code || e1);
+        try {
+            const snap2 = await getDocs(query(entriesCol(challengeId), limit(max)));
+            snap2.forEach((d) => list.push({ id: d.id, ...d.data() }));
+        } catch (e2) {
+            console.warn('loadEntries plain:', e2?.code || e2);
+            // Último intento: collection group no; devolver vacío y dejar que el modal muestre aviso
+            const err = e2 || e1;
+            err._copaEntriesDenied = true;
+            throw err;
+        }
+    }
+    list.sort((a, b) => (b.points || b.progress || 0) - (a.points || a.progress || 0));
+    return list;
+}
+
+function buildCityCup(entries) {
+    const map = {};
+    entries.forEach((e) => {
+        const id = e.cityId || 'sin-ciudad';
+        if (!map[id]) {
+            map[id] = {
+                cityId: id,
+                cityName: e.cityName || id,
+                trips: 0,
+                drivers: 0
+            };
+        }
+        map[id].trips += parseInt(e.progress, 10) || 0;
+        map[id].drivers += 1;
+    });
+    return Object.values(map).sort((a, b) => b.trips - a.trips);
+}
+
+// ─── Driver UI ─────────────────────────────────────────────────────────────
+
+function renderTierPills(tiers, progress, entry) {
+    return tiers.map((t) => {
+        const reached = progress >= t.targetTrips;
+        const claimed = tierClaimKey(entry, t.id);
+        const paid = tierPaidKey(entry, t.id);
+        let cls = 'pcopa-tier-pill';
+        if (paid) cls += ' pcopa-tier-pill--paid';
+        else if (claimed) cls += ' pcopa-tier-pill--claimed';
+        else if (reached) cls += ' pcopa-tier-pill--ready';
+        else cls += ' pcopa-tier-pill--locked';
+        return `<span class="${cls}" title="${escHtml(t.reward)}">${escHtml(t.label)} ${t.targetTrips}</span>`;
+    }).join('');
+}
+
+function renderProgressBar(progress, target) {
+    const pct = Math.min(100, Math.round((progress / Math.max(1, target)) * 100));
+    return `
+        <div class="copa-progress">
+            <div class="copa-progress-head">
+                <span>Viajes en la Copa</span>
+                <span>${progress}/${target}</span>
+            </div>
+            <div class="copa-progress-track">
+                <div class="copa-progress-fill" style="width:${pct}%"></div>
+            </div>
+        </div>
+    `;
+}
+
+function renderPassengerCopaStrip(challenges) {
+    const el = document.getElementById('passenger-copa-strip');
+    if (!el) return;
+    if (!challenges.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+    const verified = canCompeteInPassengerCopa(getPassengerProfile() || window.userProfile);
+    const chips = challenges.map((ch) => {
+        const entry = cachedEntries[ch.id] || { progress: 0 };
+        const progress = parseInt(entry.progress, 10) || 0;
+        const rk = rankCache[ch.id];
+        const ranking = isRankingMode(ch);
+        let meta;
+        if (!verified) {
+            meta = `Solo verificados · ${formatTimeRemaining(ch)}`;
+        } else if (ranking && rk?.rank) {
+            meta = `#${rk.rank} de ${rk.total} · ${progress} viajes · ${formatTimeRemaining(ch)}`;
+        } else if (ranking) {
+            meta = `Todos vs todos · ${progress} viajes · ${formatTimeRemaining(ch)}`;
+        } else {
+            const tiers = normalizeTiers(ch.tiers);
+            const next = nextTier(tiers, progress);
+            const target = next?.targetTrips || tiers[tiers.length - 1]?.targetTrips || 1;
+            meta = `${progress}/${target} · ${formatTimeRemaining(ch)}`;
+        }
+        const rankShort = !verified
+            ? 'ID'
+            : ranking && rk?.rank
+                ? `#${rk.rank}`
+                : 'LIVE';
+        const rankCls = !verified
+            ? 'copa-chip-rank copa-chip-rank--live'
+            : ranking && rk?.rank
+                ? 'copa-chip-rank'
+                : 'copa-chip-rank copa-chip-rank--live';
+        const shortTitle = String(ch.title || 'Copa').slice(0, 22);
+        return `
+            <button type="button" class="copa-chip" onclick="window.openPassengerCopaModal('${ch.id}')" title="${escHtml(ch.title)} · ${escHtml(meta)}">
+                <span class="copa-chip-pulse" aria-hidden="true"></span>
+                <span class="copa-chip-ico" aria-hidden="true"><i class="fas fa-trophy"></i></span>
+                <span class="copa-chip-body">
+                    <span class="copa-chip-label">${escHtml(shortTitle)}</span>
+                    <span class="${rankCls}">${escHtml(rankShort)}</span>
+                    <span class="copa-chip-sep" aria-hidden="true">·</span>
+                    <span class="copa-chip-meta">${verified ? `${progress} viajes` : 'Verifícate'}</span>
+                </span>
+            </button>`;
+    }).join('');
+    el.classList.remove('hidden');
+    el.innerHTML = `
+        <div class="copa-strip-bar" role="group" aria-label="Copas pasajeros activas">
+            <div class="copa-strip-track">${chips}</div>
+            <button type="button" class="copa-strip-close" data-no-drag
+                onclick="event.stopPropagation(); window.dismissAllPassengerCopa?.()"
+                title="Ocultar copa" aria-label="Ocultar copa de la pantalla">
+                <i class="fas fa-times pointer-events-none"></i>
+            </button>
+        </div>
+    `;
+}
+
+function renderActiveCopaWidget(ch, entry) {
+    const tiers = normalizeTiers(ch.tiers);
+    const progress = parseInt(entry?.progress, 10) || 0;
+    const ranking = isRankingMode(ch);
+    const tiersOn = isTiersMode(ch);
+    const next = nextTier(tiers, progress);
+    const best = highestTierReached(tiers, progress);
+    const target = next?.targetTrips || best?.targetTrips || tiers[0]?.targetTrips || Math.max(progress + 5, 10);
+    const kind = KIND_META[ch.kind] || KIND_META.copa;
+    const minimized = isMinimized(ch.id);
+    const rk = rankCache[ch.id];
+    const podium = normalizePodium(ch.podiumPrizes);
+    const profile = getPassengerProfile() || window.userProfile;
+    const verified = canCompeteInPassengerCopa(profile);
+    const needsVerify = !verified || entry?._needsVerification === true;
+
+    if (minimized) {
+        const pill = needsVerify
+            ? 'Verifícate'
+            : ranking && rk?.rank
+                ? `#${rk.rank} · ${progress}`
+                : `${progress}${tiersOn && target ? `/${target}` : ''}`;
+        return `
+            <div class="copa-float copa-float--min" data-copa-id="${ch.id}" data-copa-expand="1" title="${escHtml(ch.title)} · Toca para ver">
+                <div class="copa-min-row">
+                    <div class="copa-min-pill" role="presentation">
+                        <span class="copa-chip-pulse" aria-hidden="true" style="margin-right:0.15rem"></span>
+                        <i class="fas fa-trophy" style="color:#b45309;font-size:0.65rem"></i>
+                        <span>${escHtml(String(ch.title || 'Copa').slice(0, 14))}</span>
+                        <span class="copa-min-pill-stat">${escHtml(pill)}</span>
+                    </div>
+                    ${floatActionsHtml(ch.id, { minimized: true })}
+                </div>
+            </div>
+        `;
+    }
+
+    if (needsVerify) {
+        const podiumLine = podium.length
+            ? `<p class="pcopa-podium-line">Premios: ${podium.map((p) => `${p.place}° ${formatLps(p.rewardAmountLps)}`).join(' · ')}</p>`
+            : '';
+        return `
+            <div class="copa-float" data-copa-id="${ch.id}">
+                <div class="copa-float-head" data-copa-drag-handle>
+                    <span class="copa-float-emoji">${kind.emoji || '🏆'}</span>
+                    <div class="copa-float-titles">
+                        <p class="copa-float-title">${escHtml(ch.title)}</p>
+                        <p class="copa-float-sub">${formatTimeRemaining(ch)}</p>
+                    </div>
+                    ${floatActionsHtml(ch.id)}
+                </div>
+                <p class="copa-compete-tag"><i class="fas fa-users"></i> Competencia nacional · solo verificados</p>
+                ${podiumLine}
+                ${verifyCtaBannerHtml()}
+                <button type="button" class="copa-open-btn" data-no-drag onclick="window.openPassengerCopaModal('${ch.id}')">
+                    Ver ranking público
+                </button>
+            </div>
+        `;
+    }
+
+    let rankHtml = '';
+    if (ranking) {
+        const placeLine = rk?.rank
+            ? `<p class="copa-rank-big">Vas <b>#${rk.rank}</b> de ${rk.total}</p>`
+            : `<p class="copa-rank-big">Todos vs todos · sumá viajes</p>`;
+        const gap = rk?.gapToLeader > 0
+            ? `<p class="copa-float-time">Te faltan <b>${rk.gapToLeader}</b> viajes para alcanzar a ${escHtml(rk.leaderName)}</p>`
+            : rk?.rank === 1
+                ? `<p class="copa-status copa-status--paid"><i class="fas fa-crown"></i> ¡Vas primero! Defendé tu puesto</p>`
+                : '';
+        const podiumLine = podium.length
+            ? `<p class="pcopa-podium-line">Premios: ${podium.map((p) => `${p.place}° ${formatLps(p.rewardAmountLps)}`).join(' · ')}</p>`
+            : '';
+        const goalLine = formatGoalProgressLine(ch, Math.max(progress, rk?.leaderProgress || 0));
+        rankHtml = `
+            <p class="copa-compete-tag"><i class="fas fa-users"></i> Competencia nacional · todos vs todos</p>
+            ${placeLine}
+            <p class="copa-float-time"><i class="fas fa-route"></i> Tus viajes: <b>${progress}</b>${rk?.leaderProgress != null ? ` · Líder: ${rk.leaderProgress}` : ''}</p>
+            ${goalLine ? `<p class="copa-float-time"><i class="fas fa-flag-checkered"></i> ${escHtml(goalLine)}</p>` : ''}
+            ${gap}
+            ${podiumLine}
+        `;
+    }
+
+    let claimHtml = '';
+    if (tiersOn) {
+        const readyTiers = tiers.filter((t) => progress >= t.targetTrips && !tierClaimKey(entry, t.id));
+        if (readyTiers.length) {
+            const blocked = qualityBlocksClaim(ch, entry);
+            if (blocked) {
+                claimHtml = `<p class="copa-status copa-status--warn"><i class="fas fa-star"></i> Rating mínimo ${ch.minRatingToClaim} para reclamar (tu avg: ${avgRating(entry) ?? '—'})</p>`;
+            } else {
+                const t = readyTiers[readyTiers.length - 1];
+                claimHtml = `
+                    <button type="button" class="copa-claim-btn" data-no-drag
+                        onclick="window.claimPassengerCopaTier('${ch.id}', '${t.id}')">
+                        <i class="fas fa-gift"></i> Reclamar ${escHtml(t.label)} — ${escHtml(t.reward)}
+                    </button>
+                `;
+            }
+        } else if (best && tierClaimKey(entry, best.id) && !tierPaidKey(entry, best.id)) {
+            claimHtml = `<p class="copa-status copa-status--wait"><i class="fas fa-hourglass-half"></i> Premio de meta reclamado — esperando pago</p>`;
+        }
+    }
+
+    if (ranking && !isChallengeActive(ch) && rk?.rank && podium.some((p) => p.place === rk.rank)) {
+        const prize = podium.find((p) => p.place === rk.rank);
+        if (entry?.podiumClaimed) {
+            claimHtml += entry?.podiumPaid
+                ? `<p class="copa-status copa-status--paid"><i class="fas fa-check-circle"></i> Premio de puesto pagado</p>`
+                : `<p class="copa-status copa-status--wait"><i class="fas fa-hourglass-half"></i> Podio reclamado — esperando pago</p>`;
+        } else if (prize) {
+            claimHtml += `
+                <button type="button" class="copa-claim-btn" data-no-drag
+                    onclick="window.claimPassengerCopaPodium('${ch.id}')">
+                    <i class="fas fa-medal"></i> Reclamar ${escHtml(prize.label)} — ${formatLps(prize.rewardAmountLps)}
+                </button>
+            `;
+        }
+    } else if (ranking && isChallengeActive(ch)) {
+        claimHtml += `<p class="copa-status copa-status--wait"><i class="fas fa-flag-checkered"></i> Al cerrar el reto se pagan los puestos del podio</p>`;
+    }
+
+    return `
+        <div class="copa-float" data-copa-id="${ch.id}">
+            <div class="copa-float-head">
+                <p class="copa-float-kicker"><i class="fas ${kind.icon}"></i> ${ranking ? 'Todos vs todos' : escHtml(kind.label)}</p>
+                ${floatActionsHtml(ch.id)}
+            </div>
+            <p class="copa-float-title">${escHtml(ch.title)}</p>
+            <p class="copa-float-time"><i class="fas fa-clock"></i> ${escHtml(formatTimeRemaining(ch))}</p>
+            ${rankHtml}
+            ${tiersOn ? `${renderProgressBar(progress, target)}<div class="pcopa-tier-row">${renderTierPills(tiers, progress, entry || {})}</div>` : ''}
+            ${claimHtml}
+            <button type="button" class="copa-open-btn" data-no-drag onclick="window.openPassengerCopaModal('${ch.id}')">
+                Ver ranking en vivo
+            </button>
+        </div>
+    `;
+}
+
+function renderPassengerCopaPanels(challenges) {
+    const activeEl = document.getElementById('passenger-copa-active');
+    if (!activeEl) return;
+
+    if (!challenges.length) {
+        activeEl.classList.add('hidden');
+        activeEl.innerHTML = '';
+        return;
+    }
+
+    // Mostrar todas las copas activas (hasta 4)
+    const show = challenges.slice(0, 4);
+    activeEl.classList.remove('hidden');
+    activeEl.innerHTML = show.map((ch) => {
+        const entry = cachedEntries[ch.id] || { progress: 0, tiersClaimed: {}, rewardPaidTiers: {} };
+        return renderActiveCopaWidget(ch, entry);
+    }).join('');
+    window.bindFloatingPassengerCopaPanels?.();
+}
+
+/**
+ * @param {string} challengeId
+ * @param {{ publicView?: boolean }} [opts]
+ */
+async function openPassengerCopaModal(challengeId, opts = {}) {
+    const publicView = !!opts.publicView
+        || window.userProfile?.role === 'client'
+        || window.userProfile?.role === 'supervisor'
+        || window.userProfile?.role === 'admin'
+        || (window.userProfile?.role && window.userProfile.role !== 'client');
+
+    const isPassenger = window.userProfile?.role === 'client';
+    const showPassengerProgress = isPassenger && !opts.forcePublic;
+
+    const ch = cachedChallenges.find((c) => c.id === challengeId)
+        || publicCachedChallenges.find((c) => c.id === challengeId)
+        || (await getDoc(challengeDocRef(challengeId)).then((s) => s.exists() ? { id: s.id, ...s.data() } : null));
+    if (!ch) return window.showToast?.('Reto no encontrado.');
+
+    let modal = document.getElementById('passenger-copa-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'passenger-copa-modal';
+        modal.className = 'copa-modal-overlay hidden';
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div class="copa-modal" role="dialog" aria-modal="true" aria-label="Copa Pasajeros">
+            <div class="copa-modal-head">
+                <div>
+                    <p class="copa-modal-kicker">🇭🇳 Copa Pasajeros · Ranking público</p>
+                    <h2 class="copa-modal-title">${escHtml(ch.title)}</h2>
+                </div>
+                <button type="button" class="copa-modal-close" onclick="window.closePassengerCopaModal()" aria-label="Cerrar">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="copa-modal-body" id="passenger-copa-modal-body">
+                <p class="copa-modal-loading"><i class="fas fa-spinner fa-spin"></i> Cargando ranking…</p>
+            </div>
+        </div>
+    `;
+    modal.classList.remove('hidden');
+    modal.onclick = (e) => {
+        if (e.target === modal) window.closePassengerCopaModal?.();
+    };
+
+    try {
+        const user = getCurrentUser();
+        const profile = getPassengerProfile() || window.userProfile;
+        const passengerVerified = !showPassengerProgress || canCompeteInPassengerCopa(profile);
+        if (showPassengerProgress && user && isChallengeActive(ch) && passengerVerified) {
+            try {
+                const ent = await ensureEntry(ch.id, user.uid, profile);
+                if (ent && !ent._localOnly) cachedEntries[ch.id] = ent;
+            } catch (_) {}
+        }
+
+        let entries = [];
+        let entriesError = null;
+        try {
+            entries = await loadEntriesForChallenge(ch.id, 120);
+        } catch (le) {
+            entriesError = le;
+            entries = [];
+        }
+
+        const myEntry = showPassengerProgress
+            ? (entries.find((e) => e.passengerUid === user?.uid || e.id === user?.uid)
+                || (passengerVerified ? cachedEntries[ch.id] : null)
+                || { progress: 0, _needsVerification: !passengerVerified })
+            : null;
+        const tiers = normalizeTiers(ch.tiers);
+        const progress = parseInt(myEntry?.progress, 10) || 0;
+        const cityCup = ch.cityCupEnabled === true ? buildCityCup(entries) : [];
+        const kind = KIND_META[ch.kind] || KIND_META.copa;
+        const myRank = showPassengerProgress && passengerVerified
+            ? entries.findIndex((e) => e.passengerUid === user?.uid || e.id === user?.uid) + 1
+            : 0;
+
+        const body = document.getElementById('passenger-copa-modal-body');
+        if (!body) return;
+
+        const verifyBanner = showPassengerProgress && !passengerVerified
+            ? `<div class="copa-perm-banner pcopa-verify-modal-banner">
+                <p><i class="fas fa-id-card"></i> Solo clientes <b>verificados</b> entran al ranking, suman viajes y reclaman premios.</p>
+                <p class="copa-perm-banner-sub">Podés ver el ranking público. Para competir, verificá tu identidad.</p>
+                <button type="button" class="copa-claim-btn" style="margin-top:0.5rem"
+                    onclick="window.showPassengerVerificationSetup?.({ title: 'Verifica tu cuenta', subtitle: 'Requerido para la Copa Pasajeros' })">
+                    <i class="fas fa-shield-alt"></i> Verificar mi cuenta
+                </button>
+              </div>`
+            : '';
+
+        const permBanner = entriesError
+            ? `<div class="copa-perm-banner">
+                <p><i class="fas fa-exclamation-triangle"></i> No se pudo cargar el ranking (permisos de Firestore).</p>
+                <p class="copa-perm-banner-sub">Hay que desplegar las reglas: <code>firebase deploy --only firestore:rules</code></p>
+              </div>`
+            : '';
+
+        let cityHtml = '';
+        if (cityCup.length) {
+            cityHtml = `
+                <section class="copa-section">
+                    <h3 class="copa-section-title"><i class="fas fa-map-marker-alt"></i> Copa por ciudad</h3>
+                    <div class="copa-city-list">
+                        ${cityCup.slice(0, 15).map((c, i) => `
+                            <div class="copa-city-row ${myEntry && c.cityId === myEntry.cityId ? 'copa-city-row--me' : ''}">
+                                <span class="copa-rank">#${i + 1}</span>
+                                <span class="copa-city-name">${escHtml(c.cityName)}</span>
+                                <span class="copa-city-stat">${c.trips} viajes · ${c.drivers} pasaj.</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </section>
+            `;
+        }
+
+        let progressHtml = '';
+        if (showPassengerProgress && passengerVerified) {
+            progressHtml = `
+            <section class="copa-section">
+                <h3 class="copa-section-title"><i class="fas fa-user"></i> Tu progreso</h3>
+                ${myRank > 0 ? `<p class="copa-rank-big">Vas <b>#${myRank}</b></p>` : ''}
+                ${renderProgressBar(progress, nextTier(tiers, progress)?.targetTrips || tiers[tiers.length - 1]?.targetTrips || Math.max(progress + 5, 10))}
+                <div class="pcopa-tier-cards">
+                    ${tiers.map((t) => {
+                        const ok = progress >= t.targetTrips;
+                        const claimed = tierClaimKey(myEntry, t.id);
+                        const paid = tierPaidKey(myEntry, t.id);
+                        let st = ok ? (paid ? 'Pagado' : claimed ? 'Reclamado' : 'Listo') : `${progress}/${t.targetTrips}`;
+                        return `
+                            <div class="pcopa-tier-card ${ok ? 'pcopa-tier-card--ok' : ''}">
+                                <p class="pcopa-tier-card-label">${escHtml(t.label)}</p>
+                                <p class="pcopa-tier-card-target">${t.targetTrips} viajes</p>
+                                <p class="pcopa-tier-card-reward">${escHtml(t.reward)}</p>
+                                <p class="pcopa-tier-card-st">${escHtml(st)}</p>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                ${ch.qualityEnabled && ch.minRatingToClaim > 0
+                    ? `<p class="copa-quality-note"><i class="fas fa-star"></i> Rating mín. ${ch.minRatingToClaim} para reclamar${avgRating(myEntry) != null ? ` · tu avg ${avgRating(myEntry)}` : ''}</p>`
+                    : ''}
+            </section>`;
+        } else if (showPassengerProgress && !passengerVerified) {
+            progressHtml = '';
+        } else {
+            progressHtml = `
+            <section class="copa-section">
+                <h3 class="copa-section-title"><i class="fas fa-gift"></i> Metas del reto</h3>
+                <div class="pcopa-tier-cards">
+                    ${tiers.map((t) => `
+                        <div class="pcopa-tier-card">
+                            <p class="pcopa-tier-card-label">${escHtml(t.label)}</p>
+                            <p class="pcopa-tier-card-target">${t.targetTrips} viajes</p>
+                            <p class="pcopa-tier-card-reward">${escHtml(t.reward)}</p>
+                        </div>
+                    `).join('')}
+                </div>
+                <p class="copa-public-note"><i class="fas fa-eye"></i> Ranking abierto: pasajeros y Pasajeros pueden ver quién va ganando.</p>
+            </section>`;
+        }
+
+        body.innerHTML = `
+            ${permBanner}
+            ${verifyBanner}
+            <p class="copa-modal-desc">${escHtml(ch.description || '')}</p>
+            ${(() => {
+                const podium = normalizePodium(ch.podiumPrizes);
+                const ranking = isRankingMode(ch);
+                const podiumBanner = ranking && podium.length
+                    ? `<div class="pcopa-podium-banner">
+                        <p class="copa-section-title" style="margin:0 0 0.35rem"><i class="fas fa-users"></i> Todos vs todos</p>
+                        <p class="copa-modal-desc" style="margin:0">Compiten todos los pasajeros del país. Gana quien más viajes complete.</p>
+                        <div class="pcopa-podium-prizes">${podium.map((p) =>
+                            `<span class="pcopa-podium-chip">${p.place}° · ${formatLps(p.rewardAmountLps)}</span>`
+                        ).join('')}</div>
+                      </div>`
+                    : '';
+                return `
+            <p class="copa-modal-meta">
+                <i class="fas ${kind.icon}"></i> ${ranking ? 'Competencia nacional' : escHtml(kind.label)}
+                · <i class="fas fa-clock"></i> ${escHtml(formatTimeRemaining(ch) || 'En curso')}
+                ${myRank ? ` · Tu puesto #${myRank}` : ''}
+                · <i class="fas fa-users"></i> ${entries.length} compitiendo
+            </p>
+            ${podiumBanner}
+            ${progressHtml}
+            ${cityHtml}
+            <section class="copa-section">
+                <h3 class="copa-section-title"><i class="fas fa-medal"></i> Ranking en vivo — top 25</h3>
+                <p class="copa-public-note" style="margin-top:0">Orden por viajes completados. ${ranking ? 'El podio se paga al cerrar el reto.' : ''}</p>
+                <div class="copa-lb-list">
+                    ${entries.slice(0, 25).map((e, i) => {
+                        const isMe = showPassengerProgress && (e.passengerUid === user?.uid || e.id === user?.uid);
+                        const p = parseInt(e.progress, 10) || 0;
+                        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
+                        return `
+                            <div class="copa-lb-row ${isMe ? 'copa-lb-row--me' : ''} ${i < 3 ? 'copa-lb-row--podium' : ''}">
+                                <span class="copa-rank">${medal}</span>
+                                <span class="copa-lb-name">${escHtml(e.passengerName || 'Pasajero')}${isMe ? ' (vos)' : ''}</span>
+                                <span class="copa-lb-city">${escHtml(e.cityName || '')}</span>
+                                <span class="copa-lb-pts">${p}</span>
+                            </div>
+                        `;
+                    }).join('') || (entriesError
+                        ? '<p class="copa-empty">Sin datos de ranking por permisos. Desplegá firestore.rules y recargá.</p>'
+                        : '<p class="copa-empty">Aún nadie suma. ¡El primero en completar un viaje abre el ranking!</p>')}
+                </div>
+            </section>`;
+            })()}
+        `;
+    } catch (e) {
+        console.error('openPassengerCopaModal:', e);
+        const body = document.getElementById('passenger-copa-modal-body');
+        const msg = String(e?.code || e?.message || e || '');
+        const isPerm = /permission|insufficient|Missing or insufficient/i.test(msg);
+        if (body) {
+            body.innerHTML = isPerm
+                ? `<div class="copa-perm-banner" style="margin:1rem">
+                    <p><i class="fas fa-lock"></i> Faltan permisos de Firestore para la Copa.</p>
+                    <p class="copa-perm-banner-sub">En la carpeta del proyecto ejecutá:<br><code>firebase deploy --only firestore:rules</code><br>y después recargá la app.</p>
+                   </div>`
+                : `<p class="text-red-500 font-bold p-4">Error al cargar: ${escHtml(e.message || msg)}</p>`;
+        }
+    }
+}
+
+async function openPublicPassengerCopaRanking(challengeId = null) {
+    try {
+        let list = publicCachedChallenges.filter(isChallengeActive);
+        if (!list.length) {
+            const snap = await getDocs(query(challengesCol(), where('status', '==', 'active'), limit(20)));
+            list = [];
+            snap.forEach((d) => {
+                const ch = { id: d.id, ...d.data() };
+                if (isChallengeActive(ch) && ch.publicRanking !== false) list.push(ch);
+            });
+            publicCachedChallenges = list;
+        }
+        list = list.filter((c) => c.publicRanking !== false);
+        if (!list.length) {
+            return window.showToast?.(
+                'No hay ranking público activo por ahora. Pronto habrá una Copa Pasajeros.',
+                'info'
+            );
+        }
+        const id = challengeId || list[0].id;
+        await openPassengerCopaModal(id, { publicView: true, forcePublic: window.userProfile?.role !== 'client' });
+    } catch (e) {
+        console.error('openPublicPassengerCopaRanking:', e);
+        window.showToast?.('No se pudo abrir el ranking.', 'warning');
+    }
+}
+
+function renderPublicPassengerCopaStrip() {
+    const el = document.getElementById('public-pcopa-strip');
+    if (!el) return;
+    const active = publicCachedChallenges.filter((c) => isChallengeActive(c) && c.publicRanking !== false);
+    if (!active.length || window.userProfile?.role === 'client') {
+        // drivers use their own strip
+        if (window.userProfile?.role === 'client') {
+            el.classList.add('hidden');
+            el.innerHTML = '';
+            return;
+        }
+        if (!active.length) {
+            el.classList.add('hidden');
+            el.innerHTML = '';
+            return;
+        }
+    }
+    if (window.userProfile?.role === 'client') return;
+
+    const first = active[0];
+    if (!first) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+    const kind = KIND_META[first.kind] || KIND_META.copa;
+    const shortTitle = String(first.title || 'Copa Pasajeros')
+        .replace(/Copa Pasajeros\s*[—–-]?\s*/i, '')
+        .replace(/Todos vs Todos/i, 'Todos vs todos')
+        .trim() || 'Ranking';
+    el.classList.remove('hidden');
+    el.innerHTML = `
+        <button type="button" class="copa-chip copa-chip--map" onclick="window.openPublicPassengerCopaRanking('${first.id}')" title="${escHtml(first.title)}">
+            <span class="copa-chip-pulse" aria-hidden="true"></span>
+            <span class="copa-chip-ico" aria-hidden="true"><i class="fas fa-trophy"></i></span>
+            <span class="copa-chip-body">
+                <span class="copa-chip-label">Copa</span>
+                <span class="copa-chip-rank copa-chip-rank--live">LIVE</span>
+                <span class="copa-chip-sep" aria-hidden="true">·</span>
+                <span class="copa-chip-meta">${escHtml(shortTitle.slice(0, 26))}</span>
+            </span>
+            <i class="fas fa-chevron-right copa-chip-chevron" aria-hidden="true"></i>
+        </button>
+    `;
+}
+
+function closePassengerCopaModal() {
+    const modal = document.getElementById('passenger-copa-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.innerHTML = '';
+    }
+}
+
+// ─── Staff UI ──────────────────────────────────────────────────────────────
+
+function renderDurationOptions(selected = DEFAULT_DURATION) {
+    return Object.entries(DURATION_PRESETS).map(([id, p]) =>
+        `<option value="${id}"${id === selected ? ' selected' : ''}>${p.label}</option>`
+    ).join('');
+}
+
+function syncPassengerCopaDurationUI() {
+    const dur = document.getElementById('pcopa-duration')?.value || DEFAULT_DURATION;
+    const unlimited = dur === 'unlimited' || !!DURATION_PRESETS[dur]?.unlimited;
+    const goalWrap = document.getElementById('pcopa-goal-wrap');
+    const hint = document.getElementById('pcopa-duration-hint');
+    if (goalWrap) goalWrap.style.display = unlimited ? '' : '';
+    // Meta siempre útil; con reloj es opcional de cierre anticipado
+    if (hint) {
+        hint.innerHTML = unlimited
+            ? 'Por defecto <b>sin reloj</b>: la pelea sigue hasta que alguien cumpla la meta de viajes (o la cierres vos).'
+            : 'Hay reloj opcional. Si también ponés meta de viajes, gana quien la cumpla primero (cierra antes del tiempo).';
+    }
+}
+
+function challengeStatusLabel(ch) {
+    if (!isChallengeActive(ch) && ch.status === 'active') return { text: 'Vencido', variant: 'red' };
+    if (ch.status === 'active') return { text: 'Activo', variant: 'emerald' };
+    if (ch.status === 'closed') return { text: 'Cerrado', variant: 'blue' };
+    return { text: 'Cancelado', variant: 'muted' };
+}
+
+function renderStaffChallengeCard(ch, entries = []) {
+    const U = window.OpsUi;
+    if (!U) return '';
+    const st = challengeStatusLabel(ch);
+    const tiers = normalizeTiers(ch.tiers);
+    const podium = normalizePodium(ch.podiumPrizes);
+    const ranking = isRankingMode(ch);
+    const sorted = [...entries].sort((a, b) => (b.progress || 0) - (a.progress || 0));
+    const awaitingPay = entries.filter((e) => {
+        const claimed = e.tiersClaimed || {};
+        const paid = e.rewardPaidTiers || {};
+        const tierPay = Object.keys(claimed).some((k) => claimed[k] && !paid[k]);
+        const podiumPay = e.podiumClaimed && !e.podiumPaid;
+        return tierPay || podiumPay;
+    });
+    const cityCup = ch.cityCupEnabled ? buildCityCup(entries) : [];
+    const kind = KIND_META[ch.kind] || KIND_META.copa;
+    const modeLabel = COMPETE_MODES[getCompeteMode(ch)]?.label || 'Competencia';
+
+    let payRows = '';
+    awaitingPay.forEach((e) => {
+        const claimed = e.tiersClaimed || {};
+        const paid = e.rewardPaidTiers || {};
+        Object.keys(claimed).filter((k) => claimed[k] && !paid[k]).forEach((tid) => {
+            const tier = tiers.find((t) => t.id === tid);
+            payRows += `
+                <div class="ops-objective-response-row">
+                    <div class="min-w-0 flex-1">
+                        <p class="ops-objective-response-name">${escHtml(e.passengerName || 'Pasajero')}</p>
+                        <p class="ops-objective-response-progress">Meta ${escHtml(tier?.label || tid)} · ${escHtml(tier?.reward || '')}</p>
+                    </div>
+                    ${U.badge('Por pagar', 'amber')}
+                    ${U.btn('Marcar pagada', `window.markPassengerCopaRewardPaid('${ch.id}', '${e.passengerUid || e.id}', '${tid}')`, { variant: 'emerald', icon: 'fa-hand-holding-usd' })}
+                </div>
+            `;
+        });
+        if (e.podiumClaimed && !e.podiumPaid) {
+            payRows += `
+                <div class="ops-objective-response-row">
+                    <div class="min-w-0 flex-1">
+                        <p class="ops-objective-response-name">${escHtml(e.passengerName || 'Pasajero')}</p>
+                        <p class="ops-objective-response-progress">Podio #${e.finalRank || '?'} · ${formatLps(e.podiumRewardLps || 0)} · ${parseInt(e.progress, 10) || 0} viajes</p>
+                    </div>
+                    ${U.badge('Podio por pagar', 'amber')}
+                    ${U.btn('Marcar pagada', `window.markPassengerCopaPodiumPaid('${ch.id}', '${e.passengerUid || e.id}')`, { variant: 'emerald', icon: 'fa-hand-holding-usd' })}
+                </div>
+            `;
+        }
+    });
+
+    // Live top 5 for ranking competitions
+    let topHtml = '';
+    if (ranking && sorted.length) {
+        topHtml = `<div class="ops-objective-responses" style="margin-top:0.5rem">
+            <p class="ops-objective-meta" style="margin-bottom:0.35rem"><b>Top en vivo (todos vs todos)</b></p>
+            ${sorted.slice(0, 5).map((e, i) => `
+                <div class="ops-objective-response-row">
+                    <div class="min-w-0 flex-1">
+                        <p class="ops-objective-response-name">#${i + 1} ${escHtml(e.passengerName || 'Pasajero')}</p>
+                        <p class="ops-objective-response-progress">${parseInt(e.progress, 10) || 0} viajes · ${escHtml(e.cityName || '')}</p>
+                    </div>
+                </div>
+            `).join('')}
+        </div>`;
+    }
+
+    let actions = '';
+    if (ch.status === 'active' && isChallengeActive(ch)) {
+        actions = `
+            <div class="ops-trip-actions">
+                ${U.btn('Cerrar y fijar podio', `window.closePassengerGlobalChallenge('${ch.id}')`, { variant: 'ghost', icon: 'fa-flag-checkered' })}
+                ${U.btn('Cancelar', `window.cancelPassengerGlobalChallenge('${ch.id}')`, { variant: 'ghost', icon: 'fa-ban' })}
+            </div>
+        `;
+    }
+
+    const topCities = cityCup.slice(0, 5).map((c, i) =>
+        `#${i + 1} ${escHtml(c.cityName)} (${c.trips})`
+    ).join(' · ');
+
+    return U.card(`
+        <div class="ops-objective-card-head">
+            <div class="min-w-0 flex-1">
+                <p class="ops-objective-title">${escHtml(kind.emoji)} ${escHtml(ch.title)}</p>
+                <p class="ops-objective-meta">${escHtml(modeLabel)} · ${entries.length} compitiendo · ${
+                    isUnlimitedDuration(ch)
+                        ? (getGoalTrips(ch) > 0 ? `sin reloj · meta ${getGoalTrips(ch)} viajes` : 'sin reloj · hasta que se cumpla')
+                        : `vence ${formatChallengeDate(ch.expiresAt || ch.expiresAtMs)}`
+                }</p>
+                ${getGoalTrips(ch) > 0 && sorted[0]
+                    ? `<p class="ops-objective-meta">Progreso meta: líder ${parseInt(sorted[0].progress, 10) || 0}/${getGoalTrips(ch)}</p>`
+                    : ''}
+                ${podium.length
+                    ? `<p class="ops-objective-meta">Podio: ${podium.map((p) => `${p.place}° ${formatLps(p.rewardAmountLps)}`).join(' · ')}</p>`
+                    : ''}
+                ${tiers.length
+                    ? `<p class="ops-objective-meta">Metas extra: ${tiers.map((t) => `${t.label} ${t.targetTrips}→${formatLps(t.rewardAmountLps || 0)}`).join(' · ')}</p>`
+                    : ''}
+                ${ch.economics
+                    ? `<p class="ops-objective-meta">Rentabilidad: margen ~${Number(ch.economics.fleetMargin || 0).toFixed(0)}% · bote ${formatLps(ch.economics.prizePool || 0)} · ${ch.publicRanking !== false ? 'público' : 'privado'}</p>`
+                    : ''}
+                ${topCities ? `<p class="ops-objective-drivers">Ciudades (extra): ${topCities}</p>` : ''}
+                ${awaitingPay.length ? `<p class="ops-objective-reward"><i class="fas fa-gift"></i> ${awaitingPay.length} premio(s) por pagar</p>` : ''}
+            </div>
+            ${U.badge(st.text, st.variant)}
+        </div>
+        ${topHtml}
+        ${payRows ? `<div class="ops-objective-responses">${payRows}</div>` : ''}
+        ${actions}
+    `, 'objective');
+}
+
+function renderSupervisorCopaPage(challenges, entriesMap) {
+    const U = window.OpsUi;
+    if (!U) return '<p class="p-6">OpsUi no disponible</p>';
+
+    const active = challenges.filter((c) => isChallengeActive(c));
+    const history = challenges.filter((c) => !isChallengeActive(c));
+    let awaitingPay = 0;
+    active.forEach((ch) => {
+        (entriesMap[ch.id] || []).forEach((e) => {
+            const claimed = e.tiersClaimed || {};
+            const paid = e.rewardPaidTiers || {};
+            if (Object.keys(claimed).some((k) => claimed[k] && !paid[k])) awaitingPay++;
+        });
+    });
+
+    let body = U.hero(
+        'Copa Pasajeros',
+        'Todos vs todos · sin reloj por defecto · cierra cuando se cumple la meta. Ciudad es opcional.',
+        U.kpiRow([
+            { value: active.length, label: 'Activos', variant: 'emerald' },
+            { value: awaitingPay, label: 'Por pagar', variant: 'amber' },
+            { value: history.length, label: 'Historial', variant: 'default' }
+        ])
+    );
+
+    body += U.section({
+        title: 'Lanzar reto pasajeros',
+        subtitle: 'Por defecto: todos los pasajeros compiten entre sí por el podio',
+        icon: 'fa-rocket',
+        variant: 'emerald',
+        body: `
+            <div class="copa-preset-grid">
+                ${Object.entries(LAUNCH_PRESETS).map(([id, p]) => {
+                    const k = KIND_META[p.kind] || KIND_META.copa;
+                    const mode = p.competeMode || 'ranking';
+                    const sub = mode === 'ranking'
+                        ? `Todos vs todos · podio ${ (p.podiumPrizes || []).map((x) => x.rewardAmountLps).join('/') }`
+                        : `Metas · ${(p.tiers || []).map((t) => t.targetTrips).join('/')}`;
+                    return `
+                        <button type="button" class="copa-preset-btn" onclick="window.applyPassengerCopaPreset('${id}')">
+                            <span class="copa-preset-emoji">${k.emoji}</span>
+                            <span class="copa-preset-title">${escHtml(p.title)}</span>
+                            <span class="copa-preset-sub">${escHtml(DURATION_PRESETS[p.durationPreset]?.label || '')} · ${escHtml(sub)}</span>
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        `
+    });
+
+    const defaultComm = getDefaultCommissionPercent();
+    const initialAnalysis = analyzeChallengeProfitability({
+        competeMode: 'ranking',
+        podiumPrizes: DEFAULT_PODIUM,
+        tiers: [],
+        avgTripFare: DEFAULT_AVG_TRIP_FARE,
+        commissionPercent: defaultComm,
+        estimatedPassengers: DEFAULT_EST_PASSENGERS,
+        minMarginPercent: DEFAULT_MIN_MARGIN_PCT,
+        avgTripsPerPassenger: 25
+    });
+
+    body += U.section({
+        title: 'Crear competencia pasajeros',
+        subtitle: 'Todos vs todos = ranking nacional. Solo clientes verificados entran, suman viajes y reclaman. Premios fijos al 1°, 2°, 3°.',
+        icon: 'fa-trophy',
+        variant: 'emerald',
+        body: U.formPanel('', '', `
+            ${U.fieldLabel('Modo de competencia')}
+            <select id="pcopa-compete-mode" class="ops-input" onchange="window.syncPassengerCopaFormModeUI?.()">
+                <option value="ranking" selected>Todos vs todos (ranking + podio)</option>
+                <option value="both">Ranking + metas personales</option>
+                <option value="tiers">Solo metas personales (sin podio)</option>
+            </select>
+            <p class="ops-toolbar-hint">Solo pasajeros con identidad verificada/aprobada compiten. El ranking público se puede ver sin verificar. Gana quien más viajes haga.</p>
+
+            ${U.fieldLabel('Tipo / skin')}
+            <select id="pcopa-kind" class="ops-input">
+                <option value="copa">Copa Pasajeros</option>
+                <option value="mega">Meta / temporada larga</option>
+                <option value="feriado">Feriado de la Nación</option>
+                <option value="pico">Pico del Día</option>
+                <option value="calidad">Buen Catracho</option>
+            </select>
+            ${U.fieldLabel('Título')}
+            <input type="text" id="pcopa-title" class="ops-input" maxlength="120" placeholder="Ej: Copa Pasajeros — Todos vs Todos" value="Copa Pasajeros — Todos vs Todos">
+            ${U.fieldLabel('Descripción')}
+            <textarea id="pcopa-desc" class="ops-input" rows="2" maxlength="500" placeholder="Compiten todos. Ranking en vivo. Gana el que más viajes complete.">Competencia nacional: todos los pasajeros contra todos. Ranking en vivo y público.</textarea>
+            ${U.fieldLabel('Tiempo')}
+            <select id="pcopa-duration" class="ops-input" onchange="window.syncPassengerCopaDurationUI?.()">
+                ${renderDurationOptions(DEFAULT_DURATION)}
+            </select>
+            <p class="ops-toolbar-hint" id="pcopa-duration-hint">Por defecto <b>sin reloj</b>: la pelea sigue hasta que alguien cumpla la meta de viajes (o la cierres vos).</p>
+            <div id="pcopa-goal-wrap">
+                ${U.fieldLabel('Meta de viajes (cierra la competencia al cumplirse)')}
+                <input type="number" id="pcopa-goal-trips" class="ops-input" min="1" max="9999" value="${DEFAULT_GOAL_TRIPS}" placeholder="Ej: 1000">
+                <p class="ops-toolbar-hint">Cuando <b>cualquier</b> Pasajero llega a esta cantidad, se cierra el ranking y se fija el podio.</p>
+            </div>
+
+            <p class="ops-toolbar-hint" style="margin:0.75rem 0 0.35rem">Economía (valida si el bote es rentable)</p>
+            <div class="copa-econ-grid">
+                <div>
+                    ${U.fieldLabel('Tarifa promedio viaje (L.)')}
+                    <input type="number" id="pcopa-avg-fare" class="ops-input" min="10" max="5000" step="1" value="${DEFAULT_AVG_TRIP_FARE}" oninput="window.refreshPassengerCopaProfitability?.()">
+                </div>
+                <div>
+                    ${U.fieldLabel('Comisión app (%)')}
+                    <input type="number" id="pcopa-commission" class="ops-input" min="1" max="50" step="0.5" value="${defaultComm}" oninput="window.refreshPassengerCopaProfitability?.()">
+                </div>
+                <div>
+                    ${U.fieldLabel('Pasajeros estimados')}
+                    <input type="number" id="pcopa-est-passengers" class="ops-input" min="1" max="5000" value="${DEFAULT_EST_PASSENGERS}" oninput="window.refreshPassengerCopaProfitability?.()">
+                </div>
+                <div>
+                    ${U.fieldLabel('Viajes prom. por Pasajero')}
+                    <input type="number" id="pcopa-avg-trips" class="ops-input" min="1" max="9999" value="25" oninput="window.refreshPassengerCopaProfitability?.()">
+                </div>
+                <div>
+                    ${U.fieldLabel('Margen mínimo (%)')}
+                    <input type="number" id="pcopa-min-margin" class="ops-input" min="0" max="80" step="1" value="${DEFAULT_MIN_MARGIN_PCT}" oninput="window.refreshPassengerCopaProfitability?.()">
+                </div>
+                <div>
+                    ${U.fieldLabel('Mín. viajes para rankear')}
+                    <input type="number" id="pcopa-min-trips-rank" class="ops-input" min="0" max="999" value="3">
+                </div>
+            </div>
+
+            <div id="pcopa-podium-block">
+                <p class="ops-toolbar-hint" style="margin:0.75rem 0 0.35rem"><b>Premios del podio (todos vs todos)</b> — bote fijo, solo top 3</p>
+                ${[1, 2, 3].map((place) => `
+                    <div class="copa-tier-form-row copa-tier-form-row--4">
+                        <span class="copa-tier-form-label">${place}°</span>
+                        <input type="number" id="pcopa-podium-${place}-amount" class="ops-input" min="0" max="999999" value="${[1500, 800, 400][place - 1]}" placeholder="L." oninput="window.refreshPassengerCopaProfitability?.()">
+                        <input type="text" id="pcopa-podium-${place}-label" class="ops-input" maxlength="80" value="${place === 1 ? '1er lugar — Campeón' : place === 2 ? '2do lugar' : '3er lugar'}" placeholder="Etiqueta" style="grid-column: span 2">
+                    </div>
+                `).join('')}
+            </div>
+
+            <div id="pcopa-tiers-block" style="display:none">
+                <p class="ops-toolbar-hint" style="margin:0.75rem 0 0.35rem">Metas personales (opcional) · viajes · premio L.</p>
+                ${['bronce', 'plata', 'oro'].map((id, i) => `
+                    <div class="copa-tier-form-row copa-tier-form-row--4">
+                        <span class="copa-tier-form-label">${id}</span>
+                        <input type="number" id="pcopa-tier-${id}-trips" class="ops-input" min="1" max="9999" value="${[10, 20, 35][i]}" placeholder="Viajes" oninput="window.refreshPassengerCopaProfitability?.()">
+                        <input type="number" id="pcopa-tier-${id}-amount" class="ops-input" min="0" max="999999" step="1" value="${[50, 150, 350][i]}" placeholder="L." oninput="window.refreshPassengerCopaProfitability?.()">
+                        <input type="text" id="pcopa-tier-${id}-reward" class="ops-input" maxlength="200" value="${['L. 50', 'L. 150', 'L. 350'][i]}" placeholder="Texto">
+                    </div>
+                `).join('')}
+            </div>
+
+            <div id="pcopa-profit-host">${renderProfitabilityPanel(initialAnalysis)}</div>
+
+            <label class="copa-check-label">
+                <input type="checkbox" id="pcopa-city-cup"> Copa por ciudad <b>(aparte)</b> — ranking de ciudades, no reemplaza todos vs todos
+            </label>
+            <label class="copa-check-label">
+                <input type="checkbox" id="pcopa-public-ranking" checked> Ranking público (pasajeros y todos lo ven)
+            </label>
+            <label class="copa-check-label">
+                <input type="checkbox" id="pcopa-quality"> Exigir rating mínimo (podio / metas)
+            </label>
+            <div class="copa-quality-row">
+                ${U.fieldLabel('Rating mínimo')}
+                <input type="number" id="pcopa-min-rating" class="ops-input" min="0" max="5" step="0.1" value="4.5">
+            </div>
+            <div class="ops-form-actions">
+                ${U.btn('Analizar rentabilidad', 'window.refreshPassengerCopaProfitability()', { variant: 'ghost', icon: 'fa-calculator' })}
+                ${U.btn('Publicar competencia', 'window.createPassengerGlobalChallenge(this)', { variant: 'emerald', icon: 'fa-flag', full: true })}
+            </div>
+            <p class="ops-toolbar-hint" style="margin-top:0.5rem">Si sale rojo, no publica. En todos vs todos el bote del podio es fijo (solo pagan 1°, 2°, 3°).</p>
+        `)
+    });
+
+    body += U.section({
+        title: 'Retos activos',
+        icon: 'fa-flag-checkered',
+        badge: active.length,
+        variant: 'emerald',
+        body: active.length
+            ? active.map((c) => renderStaffChallengeCard(c, entriesMap[c.id] || [])).join('')
+            : U.empty('fa-trophy', 'Sin retos globales', 'Lanzá una Copa para motivar a toda la flota.')
+    });
+
+    if (history.length) {
+        body += U.section({
+            title: 'Historial',
+            icon: 'fa-history',
+            badge: history.length,
+            variant: 'muted',
+            collapsible: true,
+            open: false,
+            body: history.map((c) => renderStaffChallengeCard(c, entriesMap[c.id] || [])).join('')
+        });
+    }
+
+    return U.page(body);
+}
+
+// ─── Cierre / meta cumplida ────────────────────────────────────────────────
+
+/**
+ * Cierra la competencia y fija podio.
+ * @param {string} challengeId
+ * @param {{ reason?: string, silent?: boolean }} [opts]
+ */
+async function finalizeChallengePodium(challengeId, opts = {}) {
+    const reason = opts.reason || 'closed';
+    const chSnap = await getDoc(challengeDocRef(challengeId));
+    if (!chSnap.exists()) return null;
+    const ch = { id: challengeId, ...chSnap.data() };
+    if (ch.status !== 'active') return ch; // ya cerrada
+
+    const entries = await loadEntriesForChallenge(challengeId, 200);
+    const podium = normalizePodium(ch.podiumPrizes);
+    const minTrips = parseInt(ch.minTripsToRank, 10) || 0;
+    const sorted = [...entries].sort((a, b) => (b.progress || 0) - (a.progress || 0));
+    const finalPodium = [];
+
+    if (isRankingMode(ch) && podium.length) {
+        let place = 0;
+        for (const e of sorted) {
+            const prog = parseInt(e.progress, 10) || 0;
+            if (minTrips > 0 && prog < minTrips) continue;
+            if (ch.qualityEnabled && qualityBlocksClaim(ch, e)) continue;
+            // Entradas creadas post-restricción sin verificación no entran al podio
+            if (e.identityVerified === false) continue;
+            place += 1;
+            const prize = podium.find((p) => p.place === place);
+            if (!prize) break;
+            const uid = e.passengerUid || e.id;
+            finalPodium.push({
+                place,
+                passengerUid: uid,
+                passengerName: e.passengerName || 'Pasajero',
+                progress: prog,
+                rewardAmountLps: prize.rewardAmountLps,
+                reward: prize.reward || formatLps(prize.rewardAmountLps)
+            });
+            await updateDoc(entryDocRef(challengeId, uid), {
+                finalRank: place,
+                podiumRewardLps: prize.rewardAmountLps,
+                podiumEligible: true,
+                updatedAt: serverTimestamp()
+            }).catch(() => {});
+        }
+    }
+
+    await updateDoc(challengeDocRef(challengeId), {
+        status: 'closed',
+        closedAt: serverTimestamp(),
+        closedReason: reason,
+        finalPodium,
+        updatedAt: serverTimestamp()
+    });
+
+    for (const w of finalPodium) {
+        try {
+            const newRef = doc(collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'notifications'));
+            await setDoc(newRef, {
+                targetRole: 'client',
+                targetUserId: String(w.passengerUid),
+                targetUserName: w.passengerName,
+                personal: true,
+                threadId: newRef.id,
+                message: reason === 'goal_reached'
+                    ? `🏁 ¡Se cumplió la meta en «${ch.title || 'la Copa'}»! Quedaste #${w.place}. Premio: ${w.reward}. Reclamalo en la app.`
+                    : `🥇 ¡Quedaste #${w.place} en «${ch.title || 'la Copa'}»! Premio: ${w.reward}. Reclamalo en la app.`,
+                sentBy: getCurrentUser()?.uid || 'system',
+                sentByName: getSenderName() || 'HonduRaite',
+                createdAt: serverTimestamp(),
+                createdAtMs: Date.now()
+            });
+        } catch (_) {}
+    }
+
+    try {
+        await addDoc(collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'notifications'), {
+            targetRole: 'client',
+            message: reason === 'goal_reached'
+                ? `🏁 Meta cumplida en «${ch.title}». Ranking cerrado. Podio: ${finalPodium.map((w) => `#${w.place} ${w.passengerName}`).join(', ') || '—'}`
+                : `🏁 «${ch.title}» cerrada. Podio fijado.`,
+            sentBy: getCurrentUser()?.uid || 'system',
+            sentByName: getSenderName() || 'HonduRaite',
+            createdAt: serverTimestamp(),
+            createdAtMs: Date.now(),
+            copaClosedAlert: true
+        });
+    } catch (_) {}
+
+    return { ...ch, status: 'closed', finalPodium, closedReason: reason };
+}
+
+// ─── Progress on trip complete ─────────────────────────────────────────────
+
+async function incrementPassengerCopaOnTripComplete(passengerId, tripId, tripMeta = {}) {
+    if (!dbRef || !appIdRef || !passengerId || !tripId) return;
+
+    try {
+        const snap = await getDocs(query(
+            challengesCol(),
+            where('status', '==', 'active'),
+            limit(20)
+        ));
+
+        const active = [];
+        snap.forEach((d) => {
+            const data = { id: d.id, ...d.data() };
+            if (isChallengeActive(data)) active.push(data);
+        });
+        if (!active.length) return;
+
+        let profile = null;
+        if (passengerId === getCurrentUser()?.uid) {
+            profile = getPassengerProfile() || window.userProfile;
+        } else {
+            try {
+                const uSnap = await getDoc(doc(dbRef, 'artifacts', appIdRef, 'public', 'data', 'users', passengerId));
+                if (uSnap.exists()) profile = uSnap.data();
+            } catch (_) {}
+        }
+
+        // Solo clientes verificados suman viajes al ranking
+        if (!canCompeteInPassengerCopa(profile)) {
+            if (passengerId === getCurrentUser()?.uid) {
+                // Un toast silencioso por sesión evita spam; el widget ya explica el requisito
+                if (!window.__pcopaVerifyTripToastShown) {
+                    window.__pcopaVerifyTripToastShown = true;
+                    window.showToast?.(COPA_VERIFY_MSG, 'warning');
+                }
+            }
+            return;
+        }
+
+        for (const ch of active) {
+            const entry = await ensureEntry(ch.id, passengerId, profile, tripMeta);
+            if (entry?._needsVerification || (entry?._localOnly && entry?.identityVerified !== true)) continue;
+            const counted = Array.isArray(entry.countedTripIds) ? entry.countedTripIds : [];
+            if (counted.includes(tripId)) continue;
+
+            const tierMax = normalizeTiers(ch.tiers).length
+                ? Math.max(...normalizeTiers(ch.tiers).map((t) => t.targetTrips), 1)
+                : 0;
+            // Ranking todos-vs-todos: contamos sin techo bajo (hasta 9999)
+            const softCap = isRankingMode(ch) ? 9999 : Math.max(tierMax * 3, 1);
+            const progress = parseInt(entry.progress, 10) || 0;
+            if (progress >= softCap) continue;
+
+            const { cityId, cityName } = resolveCityFromProfile(profile, tripMeta);
+            const newProgress = progress + 1;
+            const patch = {
+                progress: newProgress,
+                points: newProgress,
+                countedTripIds: arrayUnion(tripId),
+                cityId: entry.cityId || cityId,
+                cityName: entry.cityName || cityName,
+                passengerName: entry.passengerName || profile?.name || 'Pasajero',
+                updatedAt: serverTimestamp()
+            };
+
+            // Optional: attach rating if trip already has client rating
+            const tripRating = parseFloat(tripMeta.clientRating || tripMeta.ratingByClient || tripMeta.rating);
+            if (Number.isFinite(tripRating) && tripRating > 0) {
+                patch.ratingSum = increment(tripRating);
+                patch.ratingCount = increment(1);
+            }
+
+            await updateDoc(entryDocRef(ch.id, passengerId), patch);
+
+            // Sin reloj: al cumplir la meta de viajes se cierra y se fija el podio
+            const goal = getGoalTrips(ch);
+            if (goal > 0 && newProgress >= goal && isChallengeActive(ch)) {
+                try {
+                    await finalizeChallengePodium(ch.id, { reason: 'goal_reached' });
+                    if (passengerId === getCurrentUser()?.uid) {
+                        window.showToast?.(
+                            `🏁 ¡Meta de ${goal} viajes cumplida en «${ch.title}»! Ranking cerrado y podio fijado.`,
+                            'success'
+                        );
+                    }
+                } catch (closeErr) {
+                    console.warn('auto-close goal:', closeErr);
+                }
+            }
+
+            if (passengerId === getCurrentUser()?.uid) {
+                cachedEntries[ch.id] = {
+                    ...entry,
+                    ...patch,
+                    progress: newProgress,
+                    points: newProgress,
+                    countedTripIds: [...counted, tripId]
+                };
+                if (isRankingMode(ch) && !(goal > 0 && newProgress >= goal)) {
+                    refreshRankForChallenge(ch.id, passengerId, ch.minTripsToRank || 0).then((rk) => {
+                        if (rk?.rank) {
+                            const goalLeft = goal > 0 ? Math.max(0, goal - newProgress) : null;
+                            const goalBit = goalLeft != null
+                                ? (goalLeft === 0 ? ' · ¡meta!' : ` · faltan ${goalLeft} a la meta`)
+                                : '';
+                            window.showToast?.(
+                                `🏆 Todos vs todos: vas #${rk.rank} con ${newProgress} viajes${rk.gapToLeader > 0 ? ` (te faltan ${rk.gapToLeader} al líder)` : ' · ¡vas primero!'}${goalBit}`,
+                                'success'
+                            );
+                        }
+                        refreshPassengerCopaUI();
+                    });
+                } else if (!isRankingMode(ch)) {
+                    const tiers = normalizeTiers(ch.tiers);
+                    const best = highestTierReached(tiers, newProgress);
+                    const prevBest = highestTierReached(tiers, progress);
+                    if (best && (!prevBest || best.id !== prevBest.id)) {
+                        window.showToast?.(
+                            `🏆 ¡${best.label} desbloqueado en ${ch.title}! Reclamá tu premio en la Copa.`,
+                            'success'
+                        );
+                    }
+                    refreshPassengerCopaUI();
+                } else {
+                    refreshPassengerCopaUI();
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('incrementPassengerCopaOnTripComplete:', e);
+    }
+}
+
+/** Cuando el pasajero califica, sumar rating al entry activo (calidad). */
+async function applyPassengerCopaRatingFromTrip(passengerId, rating) {
+    if (!dbRef || !appIdRef || !passengerId) return;
+    const r = parseFloat(rating);
+    if (!Number.isFinite(r) || r <= 0) return;
+
+    try {
+        const snap = await getDocs(query(challengesCol(), where('status', '==', 'active'), limit(20)));
+        const updates = [];
+        snap.forEach((d) => {
+            const ch = { id: d.id, ...d.data() };
+            if (!isChallengeActive(ch) || !ch.qualityEnabled) return;
+            updates.push(updateDoc(entryDocRef(ch.id, passengerId), {
+                ratingSum: increment(r),
+                ratingCount: increment(1),
+                updatedAt: serverTimestamp()
+            }).catch(() => {}));
+        });
+        await Promise.all(updates);
+    } catch (e) {
+        console.warn('applyPassengerCopaRatingFromTrip:', e);
+    }
+}
+
+// ─── Listeners ─────────────────────────────────────────────────────────────
+
+function stopEntryListeners() {
+    entryUnsubs.forEach((u) => {
+        try { u(); } catch (_) {}
+    });
+    entryUnsubs = [];
+}
+
+function bindEntryListeners(challenges, passengerUid) {
+    stopEntryListeners();
+    if (!passengerUid) return;
+    challenges.filter(isChallengeActive).forEach((ch) => {
+        const unsub = onSnapshot(
+            entryDocRef(ch.id, passengerUid),
+            (snap) => {
+                if (snap.exists()) {
+                    cachedEntries[ch.id] = { id: snap.id, ...snap.data() };
+                }
+                refreshPassengerCopaUI();
+            },
+            (err) => console.warn('copaEntryListener:', ch.id, err)
+        );
+        entryUnsubs.push(unsub);
+    });
+}
+
+async function reloadPassengerCopaState() {
+    const user = getCurrentUser();
+    if (!user || window.userProfile?.role !== 'client') {
+        refreshPassengerCopaUI();
+        return;
+    }
+
+    try {
+        const snap = await getDocs(query(
+            challengesCol(),
+            where('status', '==', 'active'),
+            limit(20)
+        ));
+        cachedChallenges = [];
+        snap.forEach((d) => cachedChallenges.push({ id: d.id, ...d.data() }));
+        cachedChallenges = cachedChallenges.filter(isChallengeActive);
+
+        // Podio cerrado: seguir mostrando si el Pasajero puede reclamar
+        try {
+            const closedSnap = await getDocs(query(
+                challengesCol(),
+                where('status', '==', 'closed'),
+                limit(15)
+            ));
+            closedSnap.forEach((d) => {
+                const ch = { id: d.id, ...d.data() };
+                const onPodium = Array.isArray(ch.finalPodium)
+                    && ch.finalPodium.some((w) => w.passengerUid === user.uid);
+                if (onPodium && !cachedChallenges.some((c) => c.id === ch.id)) {
+                    cachedChallenges.push(ch);
+                }
+            });
+        } catch (_) {}
+
+        const profile = getPassengerProfile() || window.userProfile;
+        const verified = canCompeteInPassengerCopa(profile);
+        await Promise.all(cachedChallenges.map(async (ch) => {
+            try {
+                if (ch.status === 'active') {
+                    const entry = await ensureEntry(ch.id, user.uid, profile);
+                    cachedEntries[ch.id] = entry;
+                } else {
+                    const es = await getDoc(entryDocRef(ch.id, user.uid));
+                    if (es.exists()) cachedEntries[ch.id] = { id: es.id, ...es.data() };
+                    else if (!verified) {
+                        cachedEntries[ch.id] = { progress: 0, _needsVerification: true, _localOnly: true };
+                    }
+                }
+            } catch (e) {
+                console.warn('ensureEntry copa:', e);
+            }
+        }));
+
+        bindEntryListeners(cachedChallenges.filter((c) => c.status === 'active'), user.uid);
+        await Promise.all(cachedChallenges.filter(isRankingMode).map((ch) =>
+            refreshRankForChallenge(ch.id, user.uid, ch.minTripsToRank || 0)
+        ));
+        refreshPassengerCopaUI();
+    } catch (e) {
+        console.warn('reloadPassengerCopaState:', e);
+    }
+}
+
+// ─── Init + window API ─────────────────────────────────────────────────────
+
+export function initPassengerGlobalChallenges({
+    db,
+    appId,
+    getCurrentUser: getUser,
+    getSenderDisplayName,
+    getPassengerProfile: getProfile
+}) {
+    dbRef = db;
+    appIdRef = appId;
+    getCurrentUser = getUser || (() => null);
+    getSenderName = getSenderDisplayName || (() => 'Supervisor');
+    getPassengerProfile = getProfile || (() => window.userProfile || null);
+
+    window.syncPassengerCopaFormModeUI = syncPassengerCopaFormModeUI;
+    window.syncPassengerCopaDurationUI = syncPassengerCopaDurationUI;
+
+    window.refreshPassengerCopaProfitability = () => {
+        const host = document.getElementById('pcopa-profit-host');
+        if (!host) return null;
+        const competeMode = readCompeteModeFromForm();
+        const tiers = readTiersFromForm();
+        const podiumPrizes = readPodiumFromForm();
+        const econ = readEconomicsFromForm();
+        const analysis = analyzeChallengeProfitability({
+            competeMode,
+            tiers,
+            podiumPrizes,
+            ...econ
+        });
+        host.innerHTML = renderProfitabilityPanel(analysis);
+        const publishBtn = document.querySelector('[onclick*="createPassengerGlobalChallenge"]');
+        if (publishBtn) {
+            publishBtn.disabled = !analysis.ok;
+            publishBtn.classList.toggle('opacity-50', !analysis.ok);
+            publishBtn.title = analysis.ok
+                ? 'Publicar competencia rentable'
+                : 'Bloqueado: no es rentable. Ajustá el bote del podio o estimaciones.';
+        }
+        return analysis;
+    };
+
+    window.applyPassengerCopaPreset = (presetId) => {
+        const p = LAUNCH_PRESETS[presetId];
+        if (!p) return;
+        const modeEl = document.getElementById('pcopa-compete-mode');
+        const kindEl = document.getElementById('pcopa-kind');
+        const titleEl = document.getElementById('pcopa-title');
+        const descEl = document.getElementById('pcopa-desc');
+        const durEl = document.getElementById('pcopa-duration');
+        const cityEl = document.getElementById('pcopa-city-cup');
+        const qualEl = document.getElementById('pcopa-quality');
+        const minEl = document.getElementById('pcopa-min-rating');
+        const pubEl = document.getElementById('pcopa-public-ranking');
+        const avgTripsEl = document.getElementById('pcopa-avg-trips');
+        const minRankEl = document.getElementById('pcopa-min-trips-rank');
+        if (modeEl) modeEl.value = p.competeMode || 'ranking';
+        if (kindEl) kindEl.value = p.kind;
+        if (titleEl) titleEl.value = p.title;
+        if (descEl) descEl.value = p.description;
+        if (durEl) durEl.value = p.durationPreset;
+        if (cityEl) cityEl.checked = !!p.cityCupEnabled;
+        if (qualEl) qualEl.checked = !!p.qualityEnabled;
+        if (minEl) minEl.value = p.minRatingToClaim || 0;
+        if (pubEl) pubEl.checked = p.publicRanking !== false;
+        if (avgTripsEl && p.avgTripsPerPassenger) avgTripsEl.value = p.avgTripsPerPassenger;
+        if (minRankEl && p.minTripsToRank != null) minRankEl.value = p.minTripsToRank;
+        const goalEl = document.getElementById('pcopa-goal-trips');
+        if (goalEl) goalEl.value = p.goalTrips != null ? p.goalTrips : DEFAULT_GOAL_TRIPS;
+
+        (p.podiumPrizes || DEFAULT_PODIUM).forEach((pr) => {
+            const amount = document.getElementById(`pcopa-podium-${pr.place}-amount`);
+            const label = document.getElementById(`pcopa-podium-${pr.place}-label`);
+            if (amount) amount.value = pr.rewardAmountLps;
+            if (label) label.value = pr.label || pr.reward || `${pr.place}° lugar`;
+        });
+        if (!(p.podiumPrizes || []).length) {
+            [1, 2, 3].forEach((place) => {
+                const amount = document.getElementById(`pcopa-podium-${place}-amount`);
+                if (amount) amount.value = 0;
+            });
+        }
+
+        (p.tiers || []).forEach((t) => {
+            const trips = document.getElementById(`pcopa-tier-${t.id}-trips`);
+            const amount = document.getElementById(`pcopa-tier-${t.id}-amount`);
+            const reward = document.getElementById(`pcopa-tier-${t.id}-reward`);
+            if (trips) trips.value = t.targetTrips;
+            if (amount) amount.value = t.rewardAmountLps != null ? t.rewardAmountLps : parseRewardAmountLps(t.reward, 0);
+            if (reward) reward.value = t.reward || '';
+        });
+        window.syncPassengerCopaFormModeUI?.();
+        window.showToast?.(`Plantilla «${p.title}» cargada. Revisá rentabilidad y publicá.`, 'success');
+    };
+
+    window.loadSupervisorPassengerCopa = async () => {
+        const adminOpen = !document.getElementById('admin-panel')?.classList.contains('hidden');
+        const container = adminOpen
+            ? document.getElementById('admin-users-list')
+            : (document.getElementById('supervisor-pending-list') || document.getElementById('admin-users-list'));
+        if (!container) return;
+
+        if (adminOpen) window.setAdminNavActive?.('copa-pasajeros');
+        else window.setSupervisorNavActive?.('copa-pasajeros');
+        container.innerHTML = window.OPS_LOADING_HTML || '<div class="ops-loading"><p>Cargando Copa Pasajeros…</p></div>';
+
+        try {
+            const snap = await getDocs(query(challengesCol(), orderBy('createdAt', 'desc'), limit(40)));
+            let challenges = [];
+            snap.forEach((d) => challenges.push({ id: d.id, ...d.data() }));
+            if (!challenges.length) {
+                const snap2 = await getDocs(query(challengesCol(), limit(40)));
+                snap2.forEach((d) => challenges.push({ id: d.id, ...d.data() }));
+            }
+
+            const entriesMap = {};
+            await Promise.all(challenges.slice(0, 15).map(async (ch) => {
+                try {
+                    entriesMap[ch.id] = await loadEntriesForChallenge(ch.id, 80);
+                } catch (_) {
+                    entriesMap[ch.id] = [];
+                }
+            }));
+
+            container.innerHTML = renderSupervisorCopaPage(challenges, entriesMap);
+            setTimeout(() => {
+                window.syncPassengerCopaDurationUI?.();
+                window.syncPassengerCopaFormModeUI?.();
+                window.refreshPassengerCopaProfitability?.();
+            }, 30);
+        } catch (e) {
+            console.error('loadSupervisorPassengerCopa:', e);
+            container.innerHTML = `<p class="text-red-500 text-center font-bold p-6">Error al cargar Copa: ${escHtml(e.message)}</p>`;
+        }
+    };
+
+    window.loadAdminPassengerCopa = window.loadSupervisorPassengerCopa;
+
+    window.createPassengerGlobalChallenge = async (btn) => {
+        const user = getCurrentUser();
+        if (!user) return window.showToast?.('Inicia sesión de nuevo.');
+
+        const kind = document.getElementById('pcopa-kind')?.value || 'copa';
+        const title = document.getElementById('pcopa-title')?.value?.trim();
+        const description = document.getElementById('pcopa-desc')?.value?.trim() || '';
+        const durationPreset = document.getElementById('pcopa-duration')?.value || DEFAULT_DURATION;
+        const duration = DURATION_PRESETS[durationPreset] || DURATION_PRESETS[DEFAULT_DURATION];
+        const cityCupEnabled = !!document.getElementById('pcopa-city-cup')?.checked;
+        const publicRanking = document.getElementById('pcopa-public-ranking')
+            ? !!document.getElementById('pcopa-public-ranking').checked
+            : true;
+        const qualityEnabled = !!document.getElementById('pcopa-quality')?.checked;
+        const minRatingToClaim = parseFloat(document.getElementById('pcopa-min-rating')?.value) || 0;
+        const minTripsToRank = parseInt(document.getElementById('pcopa-min-trips-rank')?.value, 10) || 0;
+        const competeMode = readCompeteModeFromForm();
+
+        const tiers = readTiersFromForm();
+        const podiumPrizes = readPodiumFromForm();
+        const econ = readEconomicsFromForm();
+        const analysis = analyzeChallengeProfitability({
+            competeMode,
+            tiers,
+            podiumPrizes,
+            ...econ
+        });
+        window.refreshPassengerCopaProfitability?.();
+
+        if (!title) return window.showToast?.('Escribe el título del reto.');
+        if ((competeMode === 'ranking' || competeMode === 'both') && !podiumPrizes.length) {
+            return window.showToast?.('Todos vs todos necesita premios del podio (1°, 2°, 3°) en L.');
+        }
+        if ((competeMode === 'tiers' || competeMode === 'both') && (!tiers.length || tiers.some((t) => !(t.rewardAmountLps > 0)))) {
+            return window.showToast?.('Las metas personales necesitan premio en L. por tier.');
+        }
+        if (!analysis.ok) {
+            window.showToast?.(
+                'No se puede publicar: no es rentable. Revisá el panel rojo.',
+                'error'
+            );
+            return;
+        }
+
+        const goalTripsRaw = parseInt(document.getElementById('pcopa-goal-trips')?.value, 10);
+        const goalTrips = Number.isFinite(goalTripsRaw) && goalTripsRaw > 0
+            ? Math.min(9999, goalTripsRaw)
+            : 0;
+        const unlimited = !!(duration.unlimited || durationPreset === 'unlimited' || !(duration.ms > 0));
+
+        if ((competeMode === 'ranking' || competeMode === 'both') && unlimited && goalTrips < 1) {
+            return window.showToast?.(
+                'Sin límite de tiempo: poné la meta de viajes (ej. 1000). La competencia cierra cuando alguien la cumple.',
+                'error'
+            );
+        }
+
+        const original = btn?.innerHTML;
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Publicando…</span>';
+        }
+
+        try {
+
+            const docData = {
+                title,
+                description,
+                kind,
+                status: 'active',
+                competeMode,
+                tiers,
+                podiumPrizes,
+                cityCupEnabled,
+                publicRanking,
+                qualityEnabled,
+                minRatingToClaim: qualityEnabled ? minRatingToClaim : 0,
+                minTripsToRank,
+                goalTrips,
+                noTimeLimit: unlimited,
+                unlimited,
+                durationPreset,
+                durationLabel: unlimited
+                    ? (goalTrips > 0 ? `Hasta ${goalTrips} viajes` : 'Sin límite — hasta que se cumpla')
+                    : duration.label,
+                durationMs: unlimited ? 0 : duration.ms,
+                startsAtMs: Date.now(),
+                economics: {
+                    avgTripFare: analysis.fare,
+                    commissionPercent: analysis.commissionPercent,
+                    estimatedPassengers: analysis.estimatedPassengers,
+                    avgTripsPerPassenger: analysis.avgTripsPerPassenger,
+                    minMarginPercent: analysis.minMarginPercent,
+                    commissionPerTrip: analysis.commissionPerTrip,
+                    totalRewardPerDriver: analysis.totalRewardPerDriver,
+                    prizePool: analysis.prizePool,
+                    worstCaseCommission: analysis.worstCaseCommission,
+                    worstCasePayout: analysis.worstCasePayout,
+                    fleetMargin: analysis.fleetMargin,
+                    approvedAt: Date.now()
+                },
+                createdByUid: user.uid,
+                createdByName: getSenderName(),
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            };
+
+            if (!unlimited && duration.ms > 0) {
+                const expiresAtDate = new Date(Date.now() + duration.ms);
+                docData.expiresAt = Timestamp.fromDate(expiresAtDate);
+                docData.expiresAtMs = expiresAtDate.getTime();
+            } else {
+                docData.expiresAt = null;
+                docData.expiresAtMs = null;
+            }
+
+            await addDoc(challengesCol(), docData);
+
+            const podiumTxt = podiumPrizes.map((p) => `${p.place}° ${formatLps(p.rewardAmountLps)}`).join(' · ');
+            const timeLine = unlimited
+                ? (goalTrips > 0 ? `🏁 Sin reloj · hasta ${goalTrips} viajes` : '🏁 Sin reloj · hasta que se cumpla')
+                : `⏱️ ${duration.label}`;
+            try {
+                await addDoc(collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'notifications'), {
+                    targetRole: 'client',
+                    message: competeMode === 'tiers'
+                        ? `🏆 ${title}\n${description}\n${timeLine}`
+                        : `🏆 ${title}\nTODOS VS TODOS — ranking en vivo\nPodio: ${podiumTxt}\n${timeLine}`,
+                    sentBy: user.uid,
+                    sentByName: getSenderName(),
+                    createdAt: serverTimestamp(),
+                    createdAtMs: Date.now(),
+                    copaAlert: true
+                });
+            } catch (_) {}
+
+            if (publicRanking) {
+                try {
+                    await addDoc(collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'notifications'), {
+                        targetRole: 'client',
+                        message: `🏆 Ranking público (todos vs todos): ${title}. Mirá quién va ganando en HonduRaite.`,
+                        sentBy: user.uid,
+                        sentByName: getSenderName(),
+                        createdAt: serverTimestamp(),
+                        createdAtMs: Date.now(),
+                        copaPublicAlert: true
+                    });
+                } catch (_) {}
+            }
+
+            window.showToast?.(
+                '¡Competencia publicada! Pasajeros compiten todos vs todos. Ranking en vivo.',
+                'success'
+            );
+            await window.loadSupervisorPassengerCopa();
+        } catch (e) {
+            console.error('createPassengerGlobalChallenge:', e);
+            window.showToast?.('No se pudo publicar el reto.');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = original;
+            }
+        }
+    };
+
+    window.closePassengerGlobalChallenge = async (id) => {
+        if (!confirm('¿Cerrar la competencia y fijar el podio final? Ya no sumará viajes. Los top del ranking quedan listos para cobrar.')) return;
+        try {
+            const result = await finalizeChallengePodium(id, { reason: 'manual' });
+            const finalPodium = result?.finalPodium || [];
+            window.showToast?.(
+                finalPodium.length
+                    ? `Competencia cerrada. Podio: ${finalPodium.map((w) => `#${w.place} ${w.passengerName}`).join(', ')}`
+                    : 'Competencia cerrada.',
+                'success'
+            );
+            await window.loadSupervisorPassengerCopa();
+        } catch (e) {
+            console.error(e);
+            window.showToast?.('Error al cerrar.');
+        }
+    };
+
+    window.cancelPassengerGlobalChallenge = async (id) => {
+        if (!confirm('¿Cancelar este reto?')) return;
+        try {
+            await updateDoc(challengeDocRef(id), {
+                status: 'cancelled',
+                updatedAt: serverTimestamp()
+            });
+            window.showToast?.('Reto cancelado.', 'warning');
+            await window.loadSupervisorPassengerCopa();
+        } catch (e) {
+            console.error(e);
+            window.showToast?.('Error al cancelar.');
+        }
+    };
+
+    window.markPassengerCopaRewardPaid = async (challengeId, passengerUid, tierId) => {
+        if (!confirm('¿Confirmas que ya pagaste este premio al Pasajero?')) return;
+        const user = getCurrentUser();
+        try {
+            const ref = entryDocRef(challengeId, passengerUid);
+            const snap = await getDoc(ref);
+            if (!snap.exists()) return window.showToast?.('Entrada no encontrada.');
+            const data = snap.data();
+            const paid = { ...(data.rewardPaidTiers || {}), [tierId]: true };
+            await updateDoc(ref, {
+                rewardPaidTiers: paid,
+                updatedAt: serverTimestamp()
+            });
+
+            const chSnap = await getDoc(challengeDocRef(challengeId));
+            const tier = normalizeTiers(chSnap.data()?.tiers).find((t) => t.id === tierId);
+            const passengerName = data.passengerName || 'Pasajero';
+
+            const newRef = doc(collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'notifications'));
+            await setDoc(newRef, {
+                targetRole: 'client',
+                targetUserId: String(passengerUid),
+                targetUserName: passengerName,
+                personal: true,
+                threadId: newRef.id,
+                message: `🎉 Premio Copa pagado: ${tier?.label || tierId} — ${tier?.reward || ''}`,
+                sentBy: user?.uid,
+                sentByName: getSenderName(),
+                createdAt: serverTimestamp(),
+                createdAtMs: Date.now()
+            });
+
+            window.showToast?.('Premio marcado como pagado.', 'success');
+            await window.loadSupervisorPassengerCopa();
+        } catch (e) {
+            console.error('markPassengerCopaRewardPaid:', e);
+            window.showToast?.('Error al marcar pago.');
+        }
+    };
+
+    window.claimPassengerCopaPodium = async (challengeId) => {
+        const user = getCurrentUser();
+        const profile = getPassengerProfile() || window.userProfile;
+        if (!user) return;
+        if (!requireVerifiedForPassengerCopa(profile)) return;
+        try {
+            const [chSnap, entrySnap] = await Promise.all([
+                getDoc(challengeDocRef(challengeId)),
+                getDoc(entryDocRef(challengeId, user.uid))
+            ]);
+            if (!chSnap.exists() || !entrySnap.exists()) return window.showToast?.('No encontrado.');
+            const ch = { id: challengeId, ...chSnap.data() };
+            if (ch.status === 'active' && isChallengeActive(ch)) {
+                return window.showToast?.('La competencia sigue abierta. El podio se reclama al cerrar el reto.');
+            }
+            const entry = entrySnap.data();
+            if (entry.podiumClaimed) return window.showToast?.('Ya reclamaste el premio de podio.');
+
+            let finalRank = entry.finalRank;
+            let rewardLps = entry.podiumRewardLps;
+            if (!finalRank || !rewardLps) {
+                const entries = await loadEntriesForChallenge(challengeId, 200);
+                const info = computeRankFromEntries(entries, user.uid, ch.minTripsToRank || 0);
+                finalRank = info.rank;
+                const prize = normalizePodium(ch.podiumPrizes).find((p) => p.place === finalRank);
+                if (!prize) return window.showToast?.('No estás en el podio de premios.');
+                rewardLps = prize.rewardAmountLps;
+            }
+            if (qualityBlocksClaim(ch, entry)) {
+                return window.showToast?.(`Rating mínimo ${ch.minRatingToClaim} requerido.`);
+            }
+            if (!confirm(`¿Reclamar premio del puesto #${finalRank}?\n${formatLps(rewardLps)}\n\nSe avisará a supervisión.`)) return;
+
+            await updateDoc(entryDocRef(challengeId, user.uid), {
+                podiumClaimed: true,
+                podiumClaimedAt: serverTimestamp(),
+                finalRank,
+                podiumRewardLps: rewardLps,
+                updatedAt: serverTimestamp()
+            });
+
+            await addDoc(collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'notifications'), {
+                targetRole: 'supervisor',
+                message: `🥇 ${profile?.name || 'Pasajero'} reclamó podio #${finalRank} en «${ch.title}»: ${formatLps(rewardLps)}. ¡Págale!`,
+                sentBy: user.uid,
+                sentByName: profile?.name || 'Pasajero',
+                createdAt: serverTimestamp(),
+                createdAtMs: Date.now(),
+                copaPodiumClaim: true,
+                challengeId,
+                relatedpassengerId: user.uid
+            });
+
+            window.showToast?.('¡Podio reclamado! Supervisión fue notificada.', 'success');
+            cachedEntries[challengeId] = {
+                ...entry,
+                podiumClaimed: true,
+                finalRank,
+                podiumRewardLps: rewardLps
+            };
+            refreshPassengerCopaUI();
+        } catch (e) {
+            console.error('claimPassengerCopaPodium:', e);
+            window.showToast?.('No se pudo reclamar el podio.');
+        }
+    };
+
+    window.markPassengerCopaPodiumPaid = async (challengeId, passengerUid) => {
+        if (!confirm('¿Confirmas que ya pagaste el premio de podio a este Pasajero?')) return;
+        const user = getCurrentUser();
+        try {
+            const ref = entryDocRef(challengeId, passengerUid);
+            const snap = await getDoc(ref);
+            if (!snap.exists()) return window.showToast?.('Entrada no encontrada.');
+            const data = snap.data();
+            await updateDoc(ref, {
+                podiumPaid: true,
+                podiumPaidAt: serverTimestamp(),
+                podiumPaidBy: user?.uid || null,
+                updatedAt: serverTimestamp()
+            });
+            const newRef = doc(collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'notifications'));
+            await setDoc(newRef, {
+                targetRole: 'client',
+                targetUserId: String(passengerUid),
+                targetUserName: data.passengerName || 'Pasajero',
+                personal: true,
+                threadId: newRef.id,
+                message: `🎉 Premio de podio #${data.finalRank || ''} pagado: ${formatLps(data.podiumRewardLps || 0)}`,
+                sentBy: user?.uid,
+                sentByName: getSenderName(),
+                createdAt: serverTimestamp(),
+                createdAtMs: Date.now()
+            });
+            window.showToast?.('Podio marcado como pagado.', 'success');
+            await window.loadSupervisorPassengerCopa();
+        } catch (e) {
+            console.error('markPassengerCopaPodiumPaid:', e);
+            window.showToast?.('Error al marcar pago de podio.');
+        }
+    };
+
+    window.claimPassengerCopaTier = async (challengeId, tierId) => {
+        const user = getCurrentUser();
+        const profile = getPassengerProfile() || window.userProfile;
+        if (!user) return;
+        if (!requireVerifiedForPassengerCopa(profile)) return;
+
+        try {
+            const [chSnap, entrySnap] = await Promise.all([
+                getDoc(challengeDocRef(challengeId)),
+                getDoc(entryDocRef(challengeId, user.uid))
+            ]);
+            if (!chSnap.exists()) return window.showToast?.('Reto no encontrado.');
+            const ch = { id: challengeId, ...chSnap.data() };
+            if (!isChallengeActive(ch)) return window.showToast?.('Este reto ya no está activo.');
+
+            if (!entrySnap.exists()) return window.showToast?.('Aún no estás inscrito.');
+            const entry = entrySnap.data();
+            const tier = normalizeTiers(ch.tiers).find((t) => t.id === tierId);
+            if (!tier) return;
+            if ((parseInt(entry.progress, 10) || 0) < tier.targetTrips) {
+                return window.showToast?.(`Te faltan viajes para ${tier.label}.`);
+            }
+            if (tierClaimKey(entry, tierId)) {
+                return window.showToast?.('Ya reclamaste este tier.');
+            }
+            if (qualityBlocksClaim(ch, entry)) {
+                return window.showToast?.(`Necesitás rating mínimo ${ch.minRatingToClaim}.`);
+            }
+            if (!confirm(`¿Reclamar premio ${tier.label}?\n${tier.reward}\n\nSe avisará a supervisión para el pago.`)) return;
+
+            const claimed = { ...(entry.tiersClaimed || {}), [tierId]: true };
+            await updateDoc(entryDocRef(challengeId, user.uid), {
+                tiersClaimed: claimed,
+                lastClaimedTier: tierId,
+                lastClaimedAt: serverTimestamp(),
+                updatedAt: serverTimestamp()
+            });
+
+            await addDoc(collection(dbRef, 'artifacts', appIdRef, 'public', 'data', 'notifications'), {
+                targetRole: 'supervisor',
+                message: `🏆 ${profile?.name || 'Pasajero'} reclamó ${tier.label} en «${ch.title}». Premio: ${tier.reward}. ¡Págale!`,
+                sentBy: user.uid,
+                sentByName: profile?.name || 'Pasajero',
+                createdAt: serverTimestamp(),
+                createdAtMs: Date.now(),
+                copaClaimAlert: true,
+                challengeId,
+                tierId,
+                relatedpassengerId: user.uid,
+                rewardText: tier.reward
+            });
+
+            window.showToast?.('¡Premio reclamado! Supervisión fue notificada.', 'success');
+            cachedEntries[challengeId] = { ...entry, tiersClaimed: claimed };
+            refreshPassengerCopaUI();
+        } catch (e) {
+            console.error('claimPassengerCopaTier:', e);
+            window.showToast?.('No se pudo reclamar.');
+        }
+    };
+
+    window.togglePassengerCopaMinimized = (challengeId, minimized) => {
+        setMinimized(challengeId, minimized);
+        refreshPassengerCopaUI();
+    };
+
+    window.dismissPassengerCopaFloat = (challengeId) => {
+        if (!challengeId) return;
+        setDismissed(challengeId, true);
+        const stillVisible = cachedChallenges.some((c) => isChallengeActive(c) && !isDismissed(c.id));
+        if (!stillVisible) setStripDismissedThisSession(true);
+        refreshPassengerCopaUI();
+        window.showToast?.('Copa ocultada. Al iniciar sesión de nuevo reaparece (o menú ☰ → Copa Pasajeros).', 'info');
+    };
+
+    window.dismissAllPassengerCopa = () => {
+        dismissAllPassengerCopaOnScreen();
+    };
+
+    /** Llamar al abrir/minimizar el panel central */
+    window.refreshPassengerCopaUI = () => refreshPassengerCopaUI();
+
+    window.restorePassengerCopaFloat = (challengeId) => {
+        setStripDismissedThisSession(false);
+        if (challengeId) restoreCopaOnScreen(challengeId);
+        else resetCopaSessionDismiss();
+        refreshPassengerCopaUI();
+    };
+
+    window.openPassengerCopaModal = async (challengeId, opts) => {
+        setStripDismissedThisSession(false);
+        if (challengeId) restoreCopaOnScreen(challengeId);
+        return openPassengerCopaModal(challengeId, opts);
+    };
+    window.closePassengerCopaModal = closePassengerCopaModal;
+    window.openPublicPassengerCopaRanking = openPublicPassengerCopaRanking;
+
+    window.openPassengerCopaFromMenu = async () => {
+        const role = window.userProfile?.role;
+        if (role === 'client') {
+            try {
+                if (!cachedChallenges.filter(isChallengeActive).length) {
+                    await reloadPassengerCopaState();
+                }
+                const active = cachedChallenges.filter(isChallengeActive);
+                if (!active.length) {
+                    return openPublicPassengerCopaRanking();
+                }
+                resetCopaSessionDismiss();
+                active.forEach((c) => restoreCopaOnScreen(c.id));
+                refreshPassengerCopaUI();
+                await openPassengerCopaModal(active[0].id);
+            } catch (e) {
+                console.warn('openPassengerCopaFromMenu:', e);
+                window.showToast?.('No se pudo abrir la Copa.', 'warning');
+            }
+            return;
+        }
+        await openPublicPassengerCopaRanking();
+    };
+
+    /** Visible para todos los roles logueados (pasajeros incluidos) */
+    window.syncPassengerCopaMenuVisibility = (role) => {
+        const el = document.getElementById('header-menu-pcopa');
+        if (!el) return;
+        if (role) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+    };
+
+    window.startPublicPassengerCopaListener = () => {
+        if (publicChallengesUnsub) return;
+        try {
+            publicChallengesUnsub = onSnapshot(
+                query(challengesCol(), where('status', '==', 'active'), limit(20)),
+                (snap) => {
+                    publicCachedChallenges = [];
+                    snap.forEach((d) => {
+                        const ch = { id: d.id, ...d.data() };
+                        if (isChallengeActive(ch)) publicCachedChallenges.push(ch);
+                    });
+                    renderPublicPassengerCopaStrip();
+                },
+                (err) => console.warn('publicPassengerCopaListener:', err)
+            );
+        } catch (e) {
+            console.warn('startPublicPassengerCopaListener:', e);
+        }
+    };
+
+    window.stopPublicPassengerCopaListener = () => {
+        if (publicChallengesUnsub) {
+            publicChallengesUnsub();
+            publicChallengesUnsub = null;
+        }
+        publicCachedChallenges = [];
+        const el = document.getElementById('public-pcopa-strip');
+        if (el) {
+            el.classList.add('hidden');
+            el.innerHTML = '';
+        }
+    };
+
+    window.startPassengerCopaListener = () => {
+        const user = getCurrentUser();
+        if (!user || window.userProfile?.role !== 'client') return;
+        if (challengesUnsub) return;
+
+        // Nueva sesión: la ✕ anterior no cuenta; la copa vuelve a salir
+        resetCopaSessionDismiss();
+
+        clearInterval(expiryTimer);
+        expiryTimer = setInterval(() => {
+            if (window.userProfile?.role !== 'client') return;
+            const before = cachedChallenges.length;
+            cachedChallenges = cachedChallenges.filter(isChallengeActive);
+            if (cachedChallenges.length !== before) refreshPassengerCopaUI();
+        }, 30000);
+
+        try {
+            challengesUnsub = onSnapshot(
+                query(challengesCol(), where('status', '==', 'active'), limit(20)),
+                async (snap) => {
+                    cachedChallenges = [];
+                    snap.forEach((d) => cachedChallenges.push({ id: d.id, ...d.data() }));
+                    cachedChallenges = cachedChallenges.filter(isChallengeActive);
+                    const profile = getPassengerProfile() || window.userProfile;
+                    await Promise.all(cachedChallenges.map(async (ch) => {
+                        try {
+                            cachedEntries[ch.id] = await ensureEntry(ch.id, user.uid, profile);
+                        } catch (_) {}
+                    }));
+                    // Solo escuchar entries reales (verificados); stubs locales no tienen doc
+                    const competing = canCompeteInPassengerCopa(profile)
+                        ? cachedChallenges
+                        : cachedChallenges.filter((ch) => cachedEntries[ch.id] && !cachedEntries[ch.id]._localOnly);
+                    bindEntryListeners(competing, user.uid);
+                    if (canCompeteInPassengerCopa(profile)) {
+                        await Promise.all(cachedChallenges.filter(isRankingMode).map((ch) =>
+                            refreshRankForChallenge(ch.id, user.uid, ch.minTripsToRank || 0)
+                        ));
+                    }
+                    refreshPassengerCopaUI();
+                },
+                (err) => console.warn('passengerCopaListener:', err)
+            );
+        } catch (e) {
+            console.warn('startPassengerCopaListener:', e);
+            reloadPassengerCopaState().catch(() => {});
+        }
+    };
+
+    window.stopPassengerCopaListener = () => {
+        if (challengesUnsub) {
+            challengesUnsub();
+            challengesUnsub = null;
+        }
+        stopEntryListeners();
+        clearInterval(expiryTimer);
+        expiryTimer = null;
+        resetCopaSessionDismiss();
+        document.getElementById('passenger-copa-active')?.classList.add('hidden');
+        const activeLayer = document.getElementById('passenger-copa-active');
+        if (activeLayer) activeLayer.innerHTML = '';
+        const strip = document.getElementById('passenger-copa-strip');
+        if (strip) {
+            strip.classList.add('hidden');
+            strip.innerHTML = '';
+        }
+    };
+
+    window.renderPassengerCopaPanel = () => reloadPassengerCopaState();
+    window.incrementPassengerCopaOnTripComplete = incrementPassengerCopaOnTripComplete;
+    window.applyPassengerCopaRatingFromTrip = applyPassengerCopaRatingFromTrip;
+}
+
+

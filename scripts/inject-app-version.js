@@ -117,12 +117,37 @@ function patchFirebaseMessagingSw(version, filePath) {
     fs.writeFileSync(filePath, text, 'utf8');
 }
 
+/**
+ * Los import de ES modules (from "./foo.js") NO heredan el ?v= de app.js.
+ * En web el navegador cachea foo.js viejo y parece que "no se aplican" los cambios
+ * (p. ej. copa conductores sin ✕ y metida en el panel). Forzamos ?v= en imports locales.
+ */
+function patchAppJsModuleImports(version, filePath) {
+    if (!fs.existsSync(filePath)) return;
+    let text = fs.readFileSync(filePath, 'utf8');
+    const next = text.replace(
+        /from\s+(['"])\.\/([^'"]+\.js)(?:\?v=[^'"]*)?\1/g,
+        `from $1./$2?v=${version}$1`
+    );
+    if (next !== text) fs.writeFileSync(filePath, next, 'utf8');
+}
+
 function run(targetRoot = ROOT) {
     const version = readVersion();
+    // Siempre parchear fuentes en ROOT (hosting public es ".")
     patchConfig(version);
-    patchIndexHtml(version, path.join(targetRoot, 'index.html'));
-    patchManifest(version, path.join(targetRoot, 'manifest.json'));
-    patchFirebaseMessagingSw(version, path.join(targetRoot, 'firebase-messaging-sw.js'));
+    patchIndexHtml(version, path.join(ROOT, 'index.html'));
+    patchManifest(version, path.join(ROOT, 'manifest.json'));
+    patchFirebaseMessagingSw(version, path.join(ROOT, 'firebase-messaging-sw.js'));
+    patchAppJsModuleImports(version, path.join(ROOT, 'js', 'app.js'));
+    // Y la copia www/ si se invoca desde sync
+    if (path.resolve(targetRoot) !== path.resolve(ROOT)) {
+        patchIndexHtml(version, path.join(targetRoot, 'index.html'));
+        patchManifest(version, path.join(targetRoot, 'manifest.json'));
+        patchFirebaseMessagingSw(version, path.join(targetRoot, 'firebase-messaging-sw.js'));
+        const wwwApp = path.join(targetRoot, 'js', 'app.js');
+        if (fs.existsSync(wwwApp)) patchAppJsModuleImports(version, wwwApp);
+    }
     console.log(`Versión inyectada: ${version}`);
     return version;
 }

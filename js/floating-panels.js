@@ -45,10 +45,10 @@ export function wasRecentPanelDrag() {
 }
 
 function isInteractiveTarget(el) {
-    // Drag handle for promos is a button but must allow dragging
-    if (el?.closest?.('[data-promo-drag-handle], .passenger-promo-drag-handle')) return false;
+    // Drag handles: permiten arrastre
+    if (el?.closest?.('[data-promo-drag-handle], .passenger-promo-drag-handle, [data-copa-map-drag-handle], .app-download-badge-drag, [data-app-dl-drag]')) return false;
     // Close button must stay clickable (not start drag)
-    if (el?.closest?.('.passenger-promo-close, #passenger-promo-close')) return true;
+    if (el?.closest?.('.passenger-promo-close, #passenger-promo-close, .app-download-badge-close, [data-copa-close], [data-app-dl-close], .copa-close-btn, .copa-strip-close')) return true;
     return !!el?.closest?.(
         'button, a, input, textarea, select, label, [data-no-drag], [data-trip-action], gmp-place-autocomplete, .panel-hide-btn, .wallet-compact-btn, .favorite-chip, .passenger-promo-card, [role="tab"], [role="button"], [role="slider"], [contenteditable="true"], .star-btn, .tip-btn'
     );
@@ -893,6 +893,99 @@ export function bindFloatingObjectivePanels() {
     });
 }
 
+/** Posición por defecto: alterna izquierda/derecha y apila en vertical para ver varias copas a la vez. */
+function defaultCopaFloatPosition(el, idx, side = 'left') {
+    el.style.position = 'fixed';
+    el.style.top = 'auto';
+    const row = Math.floor(idx / 2);
+    const col = idx % 2;
+    const useLeft = side === 'left' ? col === 0 : col === 1;
+    if (useLeft) {
+        el.style.left = '0.65rem';
+        el.style.right = 'auto';
+    } else {
+        el.style.right = '0.65rem';
+        el.style.left = 'auto';
+    }
+    // Fila 0 cerca del bottom; fila 1 más arriba para no taparse
+    const bottomRem = 5.5 + row * 12.5;
+    el.style.bottom = `calc(${bottomRem}rem + env(safe-area-inset-bottom, 0px))`;
+    el.style.zIndex = String(27980 + idx);
+}
+
+export function bindFloatingCopaPanels() {
+    const floats = document.querySelectorAll('#driver-copa-active .copa-float');
+    floats.forEach((el, idx) => {
+        // Re-bind tras cada re-render (innerHTML limpia el DOM)
+        const copaId = el.dataset.copaId || `idx-${idx}`;
+        const storageKey = `driver-copa-${copaId}`;
+        if (el.dataset.floatDragBound !== '1') {
+            el.dataset.floatDragBound = '1';
+            if (!loadPosition(storageKey)) {
+                defaultCopaFloatPosition(el, idx, 'left');
+            }
+
+            makeDraggable(el, {
+                handle: el,
+                storageKey,
+                minVisible: 40,
+                onActivate: (node) => {
+                    node.style.right = 'auto';
+                    node.style.bottom = 'auto';
+                },
+                enabled: () => !document.getElementById('driver-copa-active')?.classList.contains('hidden')
+            });
+
+            if (el.dataset.copaExpand === '1') {
+                el.addEventListener('pointerup', (e) => {
+                    if (wasRecentPanelDrag()) return;
+                    if (isInteractiveTarget(e.target)) return;
+                    const id = el.dataset.copaId;
+                    if (id) window.toggleCopaMinimized?.(id, false);
+                });
+            }
+        } else if (!loadPosition(storageKey) && !el.style.left && !el.style.right) {
+            defaultCopaFloatPosition(el, idx, 'left');
+        }
+    });
+}
+
+export function bindFloatingPassengerCopaPanels() {
+    const floats = document.querySelectorAll('#passenger-copa-active .copa-float');
+    floats.forEach((el, idx) => {
+        const copaId = el.dataset.copaId || `idx-${idx}`;
+        const storageKey = `passenger-copa-${copaId}`;
+        if (el.dataset.floatDragBound !== '1') {
+            el.dataset.floatDragBound = '1';
+            if (!loadPosition(storageKey)) {
+                defaultCopaFloatPosition(el, idx, 'right');
+            }
+
+            makeDraggable(el, {
+                handle: el,
+                storageKey,
+                minVisible: 40,
+                onActivate: (node) => {
+                    node.style.right = 'auto';
+                    node.style.bottom = 'auto';
+                },
+                enabled: () => !document.getElementById('passenger-copa-active')?.classList.contains('hidden')
+            });
+
+            if (el.dataset.copaExpand === '1') {
+                el.addEventListener('pointerup', (e) => {
+                    if (wasRecentPanelDrag()) return;
+                    if (isInteractiveTarget(e.target)) return;
+                    const id = el.dataset.copaId;
+                    if (id) window.togglePassengerCopaMinimized?.(id, false);
+                });
+            }
+        } else if (!loadPosition(storageKey) && !el.style.left && !el.style.right) {
+            defaultCopaFloatPosition(el, idx, 'right');
+        }
+    });
+}
+
 export function bindNavHudTopPanel() {
     const hud = document.getElementById('nav-hud-top');
     if (!hud || hud.dataset.floatDragBound === '1') return;
@@ -935,6 +1028,9 @@ export function initFloatingPanels() {
 
     window.wasRecentPanelDrag = wasRecentPanelDrag;
     window.bindFloatingObjectivePanels = bindFloatingObjectivePanels;
+    window.bindFloatingCopaPanels = bindFloatingCopaPanels;
+    window.bindFloatingPassengerCopaPanels = bindFloatingPassengerCopaPanels;
+    window.bindFloatingDriverCopaMapStrip = bindFloatingDriverCopaMapStrip;
     window.bindFloatingTripPanels = bindFloatingTripPanels;
     window.syncTripFloatPanels = syncTripFloatPanels;
     window.hideTripFloatPanels = hideTripFloatPanels;
@@ -1007,6 +1103,162 @@ export function initFloatingPanels() {
 
     bindFloatingTripPanels();
     bindPassengerPromoStrip();
+    bindFloatingDriverCopaMapStrip();
+}
+
+/**
+ * Copa conductor en mapa — mismo arrastre que promos de pasajero
+ * (grip mueve; ✕ y chips no inician drag).
+ */
+export function bindFloatingDriverCopaMapStrip() {
+    const strip = document.getElementById('driver-copa-map-strip');
+    if (!strip || strip.dataset.copaMapDragBound === '1') return;
+
+    const grip = strip.querySelector('[data-copa-map-drag-handle], .passenger-promo-drag-handle');
+    if (!grip) return;
+    strip.dataset.copaMapDragBound = '1';
+
+    const storageKey = 'driver-copa-map-strip';
+
+    const isStripVisible = () =>
+        !strip.classList.contains('hidden')
+        && strip.style.display !== 'none'
+        && document.body.classList.contains('driver-mode');
+
+    const activate = (el) => {
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        el.style.position = 'fixed';
+        el.style.left = `${rect.left}px`;
+        el.style.top = `${rect.top}px`;
+        el.style.right = 'auto';
+        el.style.bottom = 'auto';
+        el.style.width = `${Math.min(rect.width || 200, window.innerWidth - 12)}px`;
+        el.style.maxWidth = 'min(16.5rem, calc(100vw - 0.75rem))';
+        el.classList.add('is-drag-positioned');
+    };
+
+    const clampToViewport = () => {
+        if (!strip.classList.contains('is-drag-positioned') || !isStripVisible()) return;
+        const rect = strip.getBoundingClientRect();
+        const w = strip.offsetWidth || 160;
+        const h = strip.offsetHeight || 48;
+        const x = clamp(rect.left, -w + 40, window.innerWidth - 40);
+        const y = clamp(rect.top, 0, window.innerHeight - 40);
+        strip.style.left = `${x}px`;
+        strip.style.top = `${y}px`;
+        strip.style.right = 'auto';
+        strip.style.bottom = 'auto';
+        savePosition(storageKey, x, y);
+    };
+
+    const saved = loadPosition(storageKey);
+    if (saved && Number.isFinite(saved.x) && Number.isFinite(saved.y)) {
+        activate(strip);
+        strip.style.left = `${saved.x}px`;
+        strip.style.top = `${saved.y}px`;
+        strip.classList.add('is-drag-positioned');
+        requestAnimationFrame(clampToViewport);
+    }
+
+    let dragState = null;
+
+    const pointFromEvent = (e) => {
+        if (e.touches && e.touches[0]) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        if (e.changedTouches && e.changedTouches[0]) {
+            return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+        }
+        return { x: e.clientX, y: e.clientY };
+    };
+
+    const onGripDown = (e) => {
+        if (!isStripVisible()) return;
+        if (e.type === 'mousedown' && e.button !== 0) return;
+        if (e.target?.closest?.('.passenger-promo-close, [data-copa-close], .copa-chip, [data-no-drag]')) {
+            return;
+        }
+        const p = pointFromEvent(e);
+        const rect = strip.getBoundingClientRect();
+        dragState = {
+            startX: p.x,
+            startY: p.y,
+            origX: rect.left,
+            origY: rect.top,
+            moved: false,
+            pointerId: e.pointerId
+        };
+        try { e.preventDefault(); } catch (_) {}
+        try { e.stopPropagation(); } catch (_) {}
+        try {
+            if (e.pointerId != null) grip.setPointerCapture?.(e.pointerId);
+        } catch (_) {}
+    };
+
+    const onGripMove = (e) => {
+        if (!dragState) return;
+        if (dragState.pointerId != null && e.pointerId != null && e.pointerId !== dragState.pointerId) return;
+        const p = pointFromEvent(e);
+        const dx = p.x - dragState.startX;
+        const dy = p.y - dragState.startY;
+        if (!dragState.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+        if (!dragState.moved) {
+            dragState.moved = true;
+            activate(strip);
+            strip.classList.add('is-dragging');
+        }
+        try { e.preventDefault(); } catch (_) {}
+        const w = strip.offsetWidth || 160;
+        const x = clamp(dragState.origX + dx, -w + 40, window.innerWidth - 40);
+        const y = clamp(dragState.origY + dy, 0, window.innerHeight - 40);
+        strip.style.position = 'fixed';
+        strip.style.left = `${x}px`;
+        strip.style.top = `${y}px`;
+        strip.style.right = 'auto';
+        strip.style.bottom = 'auto';
+        strip.style.margin = '0';
+    };
+
+    const onGripUp = (e) => {
+        if (!dragState) return;
+        if (dragState.pointerId != null && e.pointerId != null && e.pointerId !== dragState.pointerId) return;
+        if (dragState.moved) {
+            markRecentDrag();
+            const rect = strip.getBoundingClientRect();
+            savePosition(storageKey, rect.left, rect.top);
+            try { e.preventDefault(); } catch (_) {}
+            try { e.stopPropagation(); } catch (_) {}
+        }
+        strip.classList.remove('is-dragging');
+        try {
+            if (dragState.pointerId != null) grip.releasePointerCapture?.(dragState.pointerId);
+        } catch (_) {}
+        dragState = null;
+    };
+
+    if (typeof window.PointerEvent === 'function') {
+        grip.addEventListener('pointerdown', onGripDown, { passive: false });
+        window.addEventListener('pointermove', onGripMove, { passive: false });
+        window.addEventListener('pointerup', onGripUp, { passive: false });
+        window.addEventListener('pointercancel', onGripUp, { passive: false });
+    } else {
+        grip.addEventListener('touchstart', onGripDown, { passive: false });
+        window.addEventListener('touchmove', onGripMove, { passive: false });
+        window.addEventListener('touchend', onGripUp, { passive: false });
+        window.addEventListener('touchcancel', onGripUp, { passive: false });
+        grip.addEventListener('mousedown', onGripDown);
+        window.addEventListener('mousemove', onGripMove);
+        window.addEventListener('mouseup', onGripUp);
+    }
+
+    grip.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    window.addEventListener('orientationchange', () => setTimeout(clampToViewport, 180), { passive: true });
+    window.addEventListener('resize', () => {
+        if (strip.classList.contains('is-drag-positioned')) clampToViewport();
+    }, { passive: true });
 }
 
 function bindPassengerPromoStrip() {

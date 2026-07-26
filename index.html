@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.24.4">
+    <meta name="hr-app-version" content="2026.07.25.5">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.24.4">
+    <link rel="manifest" href="manifest.json?v=2026.07.25.5">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,13 +30,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.24.4">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.25.5">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.24.4">
-    <script src="js/maps-init.js?v=2026.07.24.4"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.25.5">
+    <script src="js/maps-init.js?v=2026.07.25.5"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.24.4';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.25.5';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -96,10 +96,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.24.4';
+        window.__HR_BUILD_VERSION__ = '2026.07.25.5';
         (function () {
             try {
-                var build = '2026.07.24.4';
+                var build = '2026.07.25.5';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -169,6 +169,8 @@
                 <div class="ops-nav-section">
                     <span class="ops-nav-label">Promociones</span>
                     <button type="button" onclick="window.loadAdminPromotions()" id="tab-promotions" data-admin-tab="promotions" class="ops-nav-item admin-tab-btn"><i class="fas fa-gift"></i><span>Promociones</span></button>
+                    <button type="button" onclick="window.loadAdminCopa()" id="tab-copa" data-admin-tab="copa" class="ops-nav-item admin-tab-btn"><i class="fas fa-trophy"></i><span>Copa Conductores</span></button>
+                      <button type="button" onclick="window.loadAdminPassengerCopa()" id="tab-copa-pasajeros" data-admin-tab="copa-pasajeros" class="ops-nav-item admin-tab-btn"><i class="fas fa-users"></i><span>Copa Pasajeros</span></button>
                 </div>
                 <div class="ops-nav-section">
                     <span class="ops-nav-label">Finanzas</span>
@@ -235,6 +237,8 @@
                 <div class="ops-nav-section">
                     <span class="ops-nav-label">Operaciones</span>
                     <button type="button" onclick="window.loadSupervisorObjectives()" id="sup-tab-objectives" data-sup-tab="objectives" class="ops-nav-item"><i class="fas fa-bullseye"></i><span>Objetivos</span></button>
+                    <button type="button" onclick="window.loadSupervisorCopa()" id="sup-tab-copa" data-sup-tab="copa" class="ops-nav-item"><i class="fas fa-trophy"></i><span>Copa Conductores</span></button>
+                      <button type="button" onclick="window.loadSupervisorPassengerCopa()" id="sup-tab-copa-pasajeros" data-sup-tab="copa-pasajeros" class="ops-nav-item"><i class="fas fa-users"></i><span>Copa Pasajeros</span></button>
                     <button type="button" onclick="window.loadSupervisorTrips()" id="sup-tab-trips" data-sup-tab="trips" class="ops-nav-item"><i class="fas fa-route"></i><span>Viajes</span></button>
                     <button type="button" onclick="window.loadSupervisorReports()" id="sup-tab-reports" data-sup-tab="reports" class="ops-nav-item"><i class="fas fa-flag"></i><span>Reportes</span></button>
                     <button type="button" onclick="window.loadAdminTickets()" id="sup-tab-tickets" data-sup-tab="tickets" class="ops-nav-item"><i class="fas fa-ticket-alt"></i><span>Tickets</span></button>
@@ -297,6 +301,9 @@
 
     <!-- Objetivos activos del conductor (flotante, fuera del panel para no quedar oculto) -->
     <div id="driver-objectives-active" class="hidden" aria-live="polite"></div>
+    <!-- Copa HonduRaite (retos globales) — badge se crea en #map-container por JS (igual que app-download) -->
+    <div id="driver-copa-active" class="hidden" aria-live="polite"></div>
+    <div id="passenger-copa-active" class="hidden" aria-live="polite"></div>
 
     <!-- Pasajero: 1 flotante unificado (conductor + PIN). Evita 2 paneles superpuestos. -->
     <div id="trip-floats-layer" class="hidden" aria-live="polite">
@@ -1355,6 +1362,22 @@
         <button type="button" id="header-menu-driver-tutorial" data-header-menu-action="driver-tutorial" class="hidden header-more-item" role="menuitem">
             <i class="fas fa-graduation-cap text-emerald-600"></i><span>Guía: cómo recibir viajes</span>
         </button>
+        <button type="button" id="header-menu-copa" data-header-menu-action="copa" class="hidden header-more-item header-more-item-copa" role="menuitem">
+            <span class="header-copa-icon" aria-hidden="true"><i class="fas fa-trophy"></i></span>
+            <span class="header-copa-copy">
+                <span class="header-copa-title">Copa Conductores</span>
+                <span class="header-copa-sub">Ranking en vivo · Todos vs todos</span>
+            </span>
+            <span class="header-copa-live" aria-hidden="true">LIVE</span>
+        </button>
+        <button type="button" id="header-menu-pcopa" data-header-menu-action="copa-pasajeros" class="hidden header-more-item header-more-item-copa" role="menuitem">
+            <span class="header-copa-icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+            <span class="header-copa-copy">
+                <span class="header-copa-title">Copa Pasajeros</span>
+                <span class="header-copa-sub">Ranking en vivo · Viajes pedidos</span>
+            </span>
+            <span class="header-copa-live" aria-hidden="true">LIVE</span>
+        </button>
         <button type="button" data-header-menu-action="history" class="header-more-item" role="menuitem">
             <i class="fas fa-history text-blue-600"></i><span>Mis Viajes Pasados + Facturas</span>
         </button>
@@ -1480,6 +1503,10 @@
                     </button>
                 </div>
 
+                <!-- Ranking público Copa conductores / pasajeros -->
+                <div id="public-copa-strip" class="hidden" aria-label="Ranking Copa Conductores"></div>
+                <div id="public-pcopa-strip" class="hidden" aria-label="Ranking Copa Pasajeros"></div>
+
                 <button type="button" id="panel-expand-fab" data-trip-action="show-panel"
                         class="panel-expand-fab" aria-label="Abrir panel de viaje">
                     <i class="fas fa-chevron-up pointer-events-none"></i>
@@ -1513,6 +1540,8 @@
               <!-- VISTA PASAJERO -->
 <div id="client-view" class="trip-client-flow flex-1">
 
+    <div id="passenger-copa-strip" class="hidden mb-2 shrink-0" aria-label="Copa Pasajeros"></div>
+
     <!-- ORIGEN Y DESTINO PRIMERO (como el radar para conductor) -->
     <section id="passenger-booking-route" class="trip-step-card trip-step-route">
         <div class="trip-step-head">
@@ -1539,11 +1568,18 @@
                 included-region-codes="hn"
                 class="w-full trip-input-field">
             </gmp-place-autocomplete>
-            
+
+            <!-- GPS: solo si el origen está vacío -->
             <button type="button" id="btn-use-location" data-trip-action="gps"
-                    class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-blue-600 z-10" 
+                    class="absolute right-12 top-2.5 w-10 h-10 flex items-center justify-center text-blue-600 z-10"
                     title="Usar ubicación actual" aria-label="Usar ubicación actual">
                 <i class="fas fa-crosshairs text-lg pointer-events-none"></i>
+            </button>
+            <!-- Pin en el mapa: siempre, por si quiere marcar el punto a mano -->
+            <button type="button" id="btn-origin-map" data-trip-action="origin-map"
+                    class="absolute right-3 top-2.5 w-10 h-10 flex items-center justify-center text-amber-600 z-10"
+                    title="Marcar origen con pin en el mapa" aria-label="Marcar origen con pin en el mapa">
+                <i class="fas fa-map-marker-alt text-lg pointer-events-none"></i>
             </button>
         </div>
 
@@ -1928,6 +1964,7 @@
                     </div>
                     <div id="driver-incoming-offer" class="hidden mb-2 shrink-0"></div>
                     <div id="requests-list" class="driver-radar-list space-y-3 pb-2 flex-1 min-h-0 overflow-y-auto"></div>
+                    <!-- Copa NO va en el panel: badge en el mapa (#driver-copa-map-strip) -->
                     <div id="driver-objectives-pending" class="hidden mb-3"></div>
                 </div>
 
@@ -2039,15 +2076,22 @@
                     <div id="driver-active-cta" class="driver-active-cta trip-actions-sticky space-y-2 pt-1">
                     <div id="driver-route-hero" class="hidden driver-route-hero driver-gmaps-route-wrap">
                         <p id="driver-trip-accepted-kicker" class="driver-route-hero-kicker hidden"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
-                        <button type="button" data-trip-action="driver-route" id="driver-target-address" class="driver-route-hero-btn driver-active-primary-btn driver-gmaps-route-btn trip-touch-btn w-full" aria-label="Abrir ruta en Google Maps">
+                        <!-- Principal: navegar DENTRO de HonduRaite (sin salir del sitio) -->
+                        <button type="button" data-trip-action="driver-nav-inapp" id="driver-target-address" class="driver-route-hero-btn driver-active-primary-btn driver-inapp-nav-btn trip-touch-btn w-full" aria-label="Navegar en el mapa de HonduRaite">
                             <div class="flex items-center justify-center gap-3 pointer-events-none">
-                                <span class="driver-gmaps-route-icon" aria-hidden="true"><i class="fab fa-google"></i></span>
+                                <span class="driver-gmaps-route-icon driver-inapp-nav-icon" aria-hidden="true"><i class="fas fa-location-arrow"></i></span>
                                 <div class="text-left flex-1 min-w-0">
-                                    <p class="driver-route-hero-label">Toca para ir en Google Maps</p>
+                                    <p class="driver-route-hero-label">Navegar en el mapa</p>
                                     <p id="driver-pickup-display" class="driver-route-hero-addr driver-gmaps-route-addr">Cargando dirección…</p>
                                 </div>
-                                <i class="fas fa-external-link-alt text-base opacity-90 shrink-0"></i>
+                                <i class="fas fa-chevron-right text-base opacity-90 shrink-0"></i>
                             </div>
+                        </button>
+                        <!-- Secundario: siempre disponible — abre Google Maps externo -->
+                        <button type="button" data-trip-action="driver-route" id="driver-open-gmaps" class="driver-gmaps-secondary-btn trip-touch-btn w-full mt-2" aria-label="Abrir ruta en Google Maps">
+                            <i class="fab fa-google pointer-events-none"></i>
+                            <span class="pointer-events-none">Abrir en Google Maps</span>
+                            <i class="fas fa-external-link-alt text-[10px] opacity-80 pointer-events-none"></i>
                         </button>
                     </div>
 
@@ -2202,6 +2246,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.07.24.4"></script>
+    <script type="module" src="js/app.js?v=2026.07.25.5"></script>
 </body>
 </html>

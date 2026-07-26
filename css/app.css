@@ -847,6 +847,127 @@
             color: #dc2626;
         }
 
+        /* Copa HonduRaite — botón dorado destacado del menú */
+        .header-more-item-copa {
+            position: relative;
+            margin: 0.15rem 0 0.25rem;
+            padding: 0.72rem 0.7rem;
+            gap: 0.7rem;
+            border: 1px solid rgba(180, 83, 9, 0.45);
+            background:
+                linear-gradient(145deg, #fffbeb 0%, #fde68a 28%, #fbbf24 62%, #f59e0b 100%);
+            color: #78350f !important;
+            box-shadow:
+                0 8px 20px rgba(180, 83, 9, 0.22),
+                0 0 0 1px rgba(255, 255, 255, 0.45) inset,
+                0 1px 0 rgba(255, 255, 255, 0.55) inset;
+            overflow: hidden;
+            isolation: isolate;
+        }
+
+        .header-more-item-copa::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -10%;
+            width: 55%;
+            height: 200%;
+            background: linear-gradient(
+                105deg,
+                transparent 0%,
+                rgba(255, 255, 255, 0.45) 42%,
+                rgba(255, 255, 255, 0.08) 50%,
+                transparent 58%
+            );
+            transform: skewX(-18deg);
+            pointer-events: none;
+            z-index: 0;
+            animation: header-copa-shine 3.2s ease-in-out infinite;
+        }
+
+        .header-more-item-copa:active {
+            background:
+                linear-gradient(145deg, #fef3c7 0%, #fcd34d 35%, #f59e0b 70%, #d97706 100%);
+            transform: scale(0.985);
+        }
+
+        .header-copa-icon {
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+            width: 2.35rem;
+            height: 2.35rem;
+            border-radius: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(160deg, #78350f 0%, #92400e 40%, #b45309 100%);
+            color: #fde68a;
+            font-size: 1rem;
+            box-shadow:
+                0 4px 12px rgba(120, 53, 15, 0.4),
+                0 0 0 2px rgba(255, 255, 255, 0.25) inset,
+                0 -1px 0 rgba(0, 0, 0, 0.15) inset;
+        }
+
+        .header-copa-copy {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.1rem;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .header-copa-title {
+            font-size: 0.84rem;
+            font-weight: 900;
+            letter-spacing: -0.01em;
+            line-height: 1.15;
+            color: #78350f;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+        }
+
+        .header-copa-sub {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #92400e;
+            opacity: 0.88;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        .header-copa-live {
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+            font-size: 0.62rem;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            color: #ef4444 !important;
+            background: transparent;
+            padding: 0.15rem 0.15rem;
+            border: none;
+            box-shadow: none;
+            text-shadow: 0 0 8px rgba(239, 68, 68, 0.35);
+            animation: header-copa-live-pulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes header-copa-live-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.72; }
+        }
+
+        @keyframes header-copa-shine {
+            0%, 100% { transform: skewX(-18deg) translateX(-30%); opacity: 0.35; }
+            45%, 55% { transform: skewX(-18deg) translateX(180%); opacity: 0.7; }
+        }
+
         @media (max-width: 639px) {
             .header-map-logo {
                 max-height: 2.15rem;
@@ -7036,6 +7157,30 @@
             background: var(--dm-surface-2);
         }
 
+        html[data-theme="dark"] .header-more-item-copa {
+            border-color: rgba(251, 191, 36, 0.5);
+            background:
+                linear-gradient(145deg, #fef3c7 0%, #fbbf24 32%, #f59e0b 68%, #d97706 100%);
+            color: #78350f !important;
+            box-shadow:
+                0 10px 24px rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+                0 0 18px rgba(251, 191, 36, 0.25);
+        }
+
+        html[data-theme="dark"] .header-more-item-copa:active {
+            background:
+                linear-gradient(145deg, #fde68a 0%, #f59e0b 40%, #d97706 100%);
+        }
+
+        html[data-theme="dark"] .header-copa-title {
+            color: #451a03;
+        }
+
+        html[data-theme="dark"] .header-copa-sub {
+            color: #78350f;
+        }
+
         html[data-theme="dark"] .panel-hide-btn {
             background: #334155;
             color: #cbd5e1;
@@ -8602,6 +8747,36 @@
             text-align: center;
         }
 
+        .ops-kpi--clickable {
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            font: inherit;
+            color: inherit;
+            width: 100%;
+            transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .ops-kpi--clickable:hover {
+            border-color: rgba(148, 163, 184, 0.85);
+            background: rgba(30, 41, 59, 0.9);
+        }
+
+        .ops-kpi--clickable:active {
+            transform: scale(0.97);
+        }
+
+        .ops-kpi--active {
+            border-color: rgba(167, 139, 250, 0.95) !important;
+            box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.45), 0 8px 20px rgba(88, 28, 135, 0.35);
+            background: rgba(88, 28, 135, 0.45) !important;
+        }
+
+        .ops-kpi--active .ops-kpi-label {
+            color: #e9d5ff;
+        }
+
         .ops-kpi-value {
             display: block;
             font-size: 1.1rem;
@@ -8626,6 +8801,32 @@
         .ops-kpi--cyan .ops-kpi-value { color: #67e8f9; }
         .ops-kpi--violet .ops-kpi-value { color: #c4b5fd; }
         .ops-kpi--purple .ops-kpi-value { color: #d8b4fe; }
+
+        /* Secciones ocultas al filtrar por KPI */
+        .ops-trips-section--hidden,
+        [data-staff-trips-section].ops-trips-section--hidden {
+            display: none !important;
+        }
+
+        .ops-trips-filter-hint {
+            margin: 0.55rem 0 0;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #94a3b8;
+            letter-spacing: 0.02em;
+        }
+
+        .ops-trips-filter-hint b {
+            color: #e2e8f0;
+        }
+
+        .ops-trip-card--filtered-out {
+            display: none !important;
+        }
+
+        .ops-trips-col--hidden {
+            display: none !important;
+        }
 
         .ops-section {
             border-radius: 1.1rem;
@@ -13216,8 +13417,9 @@
             min-height: 0 !important;
         }
 
-        body.trip-active.driver-mode.driver-trip-dest-phase .driver-gmaps-route-btn {
-            min-height: 5.75rem;
+        body.trip-active.driver-mode.driver-trip-dest-phase .driver-gmaps-route-btn,
+        body.trip-active.driver-mode.driver-trip-dest-phase .driver-inapp-nav-btn {
+            min-height: 5.5rem;
         }
 
         body.trip-active.driver-mode #driver-destination-controls .driver-pin-hero-kicker {
@@ -13235,11 +13437,13 @@
             box-shadow: 0 12px 30px rgba(5, 150, 105, 0.32);
         }
 
-        body.trip-active.driver-mode .driver-gmaps-route-btn {
-            min-height: 7.25rem;
+        body.trip-active.driver-mode .driver-gmaps-route-btn,
+        body.trip-active.driver-mode .driver-inapp-nav-btn {
+            min-height: 6.5rem;
         }
 
-        body.trip-active.driver-mode .driver-gmaps-route-icon {
+        body.trip-active.driver-mode .driver-gmaps-route-icon,
+        body.trip-active.driver-mode .driver-inapp-nav-icon {
             width: 2.75rem;
             height: 2.75rem;
             border-radius: 1rem;
@@ -13249,6 +13453,37 @@
             justify-content: center;
             font-size: 1.35rem;
             flex-shrink: 0;
+        }
+
+        /* Botón secundario: siempre visible — abre Google Maps externo */
+        body.trip-active.driver-mode .driver-gmaps-secondary-btn {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+            min-height: 2.65rem;
+            padding: 0.55rem 0.85rem;
+            border-radius: 0.9rem;
+            border: 1.5px solid rgba(66, 133, 244, 0.45);
+            background: #fff;
+            color: #1a73e8;
+            font-size: 0.72rem;
+            font-weight: 900;
+            letter-spacing: 0.02em;
+            box-shadow: 0 4px 14px rgba(26, 115, 232, 0.12);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body.trip-active.driver-mode .driver-gmaps-secondary-btn:active {
+            transform: scale(0.98);
+            background: #e8f0fe;
+        }
+
+        html[data-theme="dark"] body.trip-active.driver-mode .driver-gmaps-secondary-btn {
+            background: #0f172a;
+            border-color: rgba(96, 165, 250, 0.45);
+            color: #93c5fd;
         }
 
         body.trip-active.driver-mode .driver-route-hero-label {
@@ -14174,9 +14409,119 @@
             }
         }
 
-        body.trip-active .passenger-promo-strip,
-        body.is-searching .passenger-promo-strip,
-        body.driver-mode .passenger-promo-strip {
+        body.trip-active .passenger-promo-strip:not(.driver-copa-promo-strip),
+        body.is-searching .passenger-promo-strip:not(.driver-copa-promo-strip),
+        body.driver-mode .passenger-promo-strip:not(.driver-copa-promo-strip) {
+            display: none !important;
+        }
+
+        /*
+         * Copa conductor = mismo UI que promos de pasajero
+         * (passenger-promo-strip: grip + track + ✕, arrastrable).
+         * Visible solo en driver-mode; promos de pasajero se ocultan en driver-mode.
+         */
+        .driver-copa-promo-strip,
+        #driver-copa-map-strip.driver-copa-promo-strip {
+            position: fixed !important;
+            left: 0.55rem;
+            right: auto;
+            top: calc(4.6rem + var(--safe-top, env(safe-area-inset-top, 0px)));
+            bottom: auto;
+            z-index: 120 !important; /* encima del panel (100) */
+            max-width: min(16.5rem, calc(100vw - 1.1rem));
+            display: flex !important;
+            align-items: stretch;
+            gap: 0.2rem;
+            pointer-events: auto !important;
+            touch-action: manipulation;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+        }
+
+        .driver-copa-promo-strip.hidden,
+        #driver-copa-map-strip.driver-copa-promo-strip.hidden {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
+
+        body.driver-mode .driver-copa-promo-strip:not(.hidden) {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 120 !important;
+        }
+
+        body.client-mode .driver-copa-promo-strip {
+            display: none !important;
+        }
+
+        .driver-copa-promo-strip.is-drag-positioned {
+            position: fixed !important;
+            right: auto !important;
+            bottom: auto !important;
+            max-width: min(16.5rem, calc(100vw - 0.75rem));
+            z-index: 120 !important;
+        }
+
+        .driver-copa-promo-strip.is-dragging {
+            opacity: 0.96;
+            z-index: 130 !important;
+            filter: drop-shadow(0 10px 18px rgba(15, 23, 42, 0.22));
+        }
+
+        /* Track con chips de copa */
+        .driver-copa-promo-strip .passenger-promo-track {
+            display: flex;
+            flex-direction: column;
+            gap: 0.28rem;
+            flex: 1 1 auto;
+            min-width: 0;
+            max-width: min(13rem, calc(100vw - 4.5rem));
+            overflow: visible;
+        }
+
+        .driver-copa-promo-strip .copa-chip {
+            max-width: 100%;
+            width: 100%;
+        }
+
+        /* ✕ igual que passenger-promo-close, bien visible */
+        .driver-copa-promo-strip .passenger-promo-close {
+            display: flex !important;
+            flex: 0 0 1.55rem !important;
+            width: 1.55rem !important;
+            min-width: 1.55rem !important;
+            min-height: 2.75rem !important;
+            pointer-events: auto !important;
+            cursor: pointer !important;
+            z-index: 2;
+        }
+
+        @media (max-width: 768px) {
+            .driver-copa-promo-strip .passenger-promo-drag-handle,
+            .driver-copa-promo-strip .passenger-promo-close {
+                width: 1.75rem !important;
+                min-width: 1.75rem !important;
+                min-height: 3rem !important;
+                font-size: 0.78rem;
+            }
+        }
+
+        /* Nunca copa dentro del panel central */
+        #control-panel #driver-copa-strip,
+        #driver-view #driver-copa-strip,
+        #control-panel .copa-strip-bar,
+        #driver-view .copa-strip-bar {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+        }
+
+        /* basura de builds viejos */
+        .driver-copa-badge {
             display: none !important;
         }
 
@@ -14722,8 +15067,8 @@
         }
 
         /* Ocultar promo de descarga en web; el badge de UPDATE nativo usa .is-update */
-        body.trip-active .app-download-badge,
-        body.is-searching .app-download-badge:not(.is-update),
+        body.trip-active .app-download-badge:not(.driver-copa-badge),
+        body.is-searching .app-download-badge:not(.is-update):not(.driver-copa-badge),
         body.driver-mode .app-download-badge:not(.is-update),
         body.map-pick-mode .app-download-badge {
             display: none !important;
@@ -15775,3 +16120,1155 @@
                 max-height: min(88dvh, 860px);
             }
         }
+
+/* ========== Copa HonduRaite — retos globales ========== */
+#driver-copa-active,
+#passenger-copa-active {
+    position: fixed;
+    inset: 0;
+    z-index: 27980;
+    pointer-events: none;
+}
+
+/* Ocultar basura de versiones anteriores */
+.driver-copa-dismiss-fab,
+#driver-copa-strip {
+    display: none !important;
+}
+
+.copa-float {
+    position: fixed;
+    pointer-events: auto;
+    max-width: min(300px, calc(100vw - 1.3rem));
+    padding: 0.75rem 0.85rem;
+    border-radius: 1.1rem;
+    background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 55%, #fde68a 100%);
+    border: 2px solid #f59e0b;
+    box-shadow: 0 8px 24px rgba(245, 158, 11, 0.28);
+    cursor: grab;
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.copa-float--min {
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.copa-float.is-dragging {
+    z-index: 29000 !important;
+    transition: none !important;
+    cursor: grabbing;
+    touch-action: none !important;
+}
+
+.copa-float-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.copa-float-kicker {
+    font-size: 0.58rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #b45309;
+}
+
+.copa-float-title {
+    font-size: 0.88rem;
+    font-weight: 900;
+    color: #78350f;
+    line-height: 1.25;
+}
+
+.copa-float-time {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #92400e;
+    margin: 0.2rem 0 0.45rem;
+}
+
+.copa-float-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    flex-shrink: 0;
+}
+
+.copa-min-btn,
+.copa-close-btn {
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 999px;
+    border: 1px solid #fbbf24;
+    background: #fffbeb;
+    color: #b45309;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    flex-shrink: 0;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.copa-close-btn {
+    width: 1.85rem;
+    height: 1.85rem;
+    border: 1.5px solid rgba(185, 28, 28, 0.45);
+    background: #fff;
+    color: #b91c1c;
+    box-shadow: 0 2px 8px rgba(185, 28, 28, 0.2);
+    font-size: 0.8rem;
+    font-weight: 900;
+    z-index: 2;
+    position: relative;
+}
+
+.copa-close-btn--lg {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.9rem;
+}
+
+
+
+.copa-close-btn:active,
+.copa-min-btn:active {
+    transform: scale(0.94);
+}
+
+.copa-min-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.copa-min-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.34rem 0.65rem 0.34rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid rgba(180, 83, 9, 0.5);
+    background: linear-gradient(145deg, #fffbeb 0%, #fde68a 40%, #fbbf24 100%);
+    color: #78350f;
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    box-shadow:
+        0 4px 16px rgba(180, 83, 9, 0.28),
+        0 0 0 1px rgba(255, 255, 255, 0.45) inset;
+    animation: copa-chip-breathe 2.8s ease-in-out infinite;
+    max-width: min(220px, 70vw);
+}
+
+.copa-min-pill-stat {
+    opacity: 0.85;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.copa-float--min .copa-close-btn {
+    width: 1.4rem;
+    height: 1.4rem;
+    font-size: 0.6rem;
+    box-shadow: 0 2px 8px rgba(185, 28, 28, 0.2);
+}
+
+.copa-progress {
+    margin: 0.35rem 0 0.5rem;
+}
+
+.copa-progress-head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.62rem;
+    font-weight: 800;
+    color: #92400e;
+    margin-bottom: 0.25rem;
+}
+
+.copa-progress-track {
+    height: 0.45rem;
+    border-radius: 999px;
+    background: rgba(251, 191, 36, 0.35);
+    overflow: hidden;
+}
+
+.copa-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #f59e0b, #ea580c);
+    transition: width 0.35s ease;
+}
+
+.copa-tier-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 0.45rem;
+}
+
+.copa-tier-pill {
+    font-size: 0.55rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.2rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+}
+
+.copa-tier-pill--locked {
+    background: #f3f4f6;
+    color: #9ca3af;
+}
+
+.copa-tier-pill--ready {
+    background: #dcfce7;
+    color: #047857;
+    border-color: #6ee7b7;
+}
+
+.copa-tier-pill--claimed {
+    background: #fef3c7;
+    color: #b45309;
+    border-color: #fbbf24;
+}
+
+.copa-tier-pill--paid {
+    background: #dbeafe;
+    color: #1d4ed8;
+    border-color: #93c5fd;
+}
+
+.copa-claim-btn {
+    width: 100%;
+    margin-top: 0.25rem;
+    padding: 0.55rem 0.5rem;
+    border: none;
+    border-radius: 0.75rem;
+    background: linear-gradient(135deg, #059669, #047857);
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 900;
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+}
+
+.copa-open-btn {
+    width: 100%;
+    margin-top: 0.4rem;
+    padding: 0.45rem;
+    border: none;
+    border-radius: 0.7rem;
+    background: rgba(255, 255, 255, 0.7);
+    color: #92400e;
+    font-size: 0.68rem;
+    font-weight: 800;
+}
+
+.copa-status {
+    font-size: 0.68rem;
+    font-weight: 800;
+    margin-top: 0.35rem;
+}
+
+.copa-status--wait { color: #b45309; }
+.copa-status--paid { color: #047857; }
+.copa-status--warn { color: #c2410c; }
+
+/* Chip Copa — barrita con ✕ como promos de pasajeros */
+#driver-copa-strip,
+#passenger-copa-strip {
+    display: block;
+    margin-top: 0.2rem !important;
+    margin-bottom: 0.3rem !important;
+    max-width: 100%;
+}
+
+/* Panel central abierto (pasajero): ocultar banners de copa para no tapar el booking */
+body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-active,
+body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+.copa-strip-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    max-width: 100%;
+    padding: 0.2rem 0.25rem 0.2rem 0.15rem;
+    border-radius: 999px;
+    background: rgba(255, 251, 235, 0.72);
+    border: 1px solid rgba(251, 191, 36, 0.45);
+    box-shadow: 0 4px 14px rgba(180, 83, 9, 0.12);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.copa-strip-track {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.copa-strip-track::-webkit-scrollbar {
+    display: none;
+}
+
+.copa-strip-track .copa-chip {
+    flex: 0 0 auto;
+    max-width: min(240px, 72vw);
+}
+
+/* ✕ estilo passenger-promo-close */
+.copa-strip-close {
+    width: 1.65rem;
+    height: 1.65rem;
+    border-radius: 999px;
+    border: 1px solid rgba(185, 28, 28, 0.35);
+    background: #fef2f2;
+    color: #b91c1c;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.72rem;
+    flex-shrink: 0;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(185, 28, 28, 0.18);
+}
+
+.copa-strip-close:active {
+    transform: scale(0.94);
+    background: #fee2e2;
+}
+
+.copa-chip-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    max-width: 100%;
+}
+
+.copa-chip-close {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    border: 1px solid #fca5a5;
+    background: #fef2f2;
+    color: #b91c1c;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.58rem;
+    flex-shrink: 0;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(185, 28, 28, 0.15);
+}
+
+.copa-chip-close:active {
+    transform: scale(0.94);
+}
+
+.copa-chip {
+    --copa-gold: #fbbf24;
+    --copa-gold-deep: #b45309;
+    --copa-live: #22c55e;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    padding: 0.34rem 0.6rem 0.34rem 0.34rem;
+    border-radius: 999px;
+    border: 1px solid rgba(180, 83, 9, 0.48);
+    background:
+        linear-gradient(145deg, #fffbeb 0%, #fde68a 32%, #fbbf24 68%, #f59e0b 100%);
+    color: #78350f;
+    text-align: left;
+    box-shadow:
+        0 6px 18px rgba(180, 83, 9, 0.28),
+        0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+        0 1px 0 rgba(255, 255, 255, 0.55) inset;
+    overflow: hidden;
+    isolation: isolate;
+    transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease;
+    animation: copa-chip-breathe 2.8s ease-in-out infinite;
+}
+
+/* anillo dorado sutil */
+.copa-chip::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+        120deg,
+        rgba(253, 230, 138, 0.95),
+        rgba(245, 158, 11, 0.75),
+        rgba(180, 83, 9, 0.65),
+        rgba(253, 230, 138, 0.95)
+    );
+    background-size: 220% 220%;
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: copa-chip-border 3.6s linear infinite;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.95;
+}
+
+/* destello dorado */
+.copa-chip::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.55),
+        transparent
+    );
+    transform: skewX(-18deg);
+    animation: copa-chip-sweep 4s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.copa-chip:active {
+    transform: scale(0.97);
+}
+
+.copa-chip--map {
+    max-width: min(16.5rem, calc(100vw - 2rem));
+    box-shadow:
+        0 8px 22px rgba(180, 83, 9, 0.32),
+        0 0 0 1px rgba(255, 255, 255, 0.45) inset,
+        0 0 18px rgba(251, 191, 36, 0.35);
+}
+
+.copa-chip-pulse {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 999px;
+    background: #22c55e !important;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+    flex-shrink: 0;
+    z-index: 2;
+    animation: copa-chip-dot 1.5s ease-out infinite;
+}
+
+.copa-chip-ico {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    line-height: 1;
+    color: #fde68a;
+    background: linear-gradient(160deg, #78350f 0%, #92400e 45%, #b45309 100%);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow:
+        0 2px 8px rgba(120, 53, 15, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.15) inset;
+    flex-shrink: 0;
+}
+
+.copa-chip-body {
+    position: relative;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    min-width: 0;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+    white-space: nowrap;
+    color: #78350f;
+}
+
+.copa-chip-label {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.52rem;
+    font-weight: 900;
+    color: #92400e;
+}
+
+.copa-chip-rank {
+    padding: 0.1rem 0.32rem;
+    border-radius: 999px;
+    background: linear-gradient(145deg, #b45309 0%, #92400e 100%);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: #fffbeb;
+    font-size: 0.55rem;
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    box-shadow: 0 1px 4px rgba(120, 53, 15, 0.3);
+}
+
+/* Letras LIVE en rojo (solo el texto, sin pastilla café) */
+.copa-chip-rank.copa-chip-rank--live,
+.copa-chip-body .copa-chip-rank--live {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #ef4444 !important;
+    padding: 0 0.05rem;
+    text-shadow: 0 0 6px rgba(239, 68, 68, 0.35);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+}
+
+.copa-chip-sep {
+    color: #b45309;
+    font-weight: 700;
+    opacity: 0.7;
+}
+
+.copa-chip-meta {
+    max-width: 8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #92400e;
+    font-weight: 750;
+    font-size: 0.56rem;
+}
+
+.copa-chip-chevron {
+    position: relative;
+    z-index: 2;
+    font-size: 0.5rem;
+    color: #b45309;
+    flex-shrink: 0;
+}
+
+@keyframes copa-chip-breathe {
+    0%, 100% {
+        box-shadow:
+            0 6px 18px rgba(180, 83, 9, 0.26),
+            0 0 0 1px rgba(255, 255, 255, 0.45) inset,
+            0 0 12px rgba(251, 191, 36, 0.2);
+    }
+    50% {
+        box-shadow:
+            0 8px 24px rgba(180, 83, 9, 0.34),
+            0 0 0 1px rgba(255, 255, 255, 0.55) inset,
+            0 0 22px rgba(251, 191, 36, 0.4),
+            0 0 30px rgba(245, 158, 11, 0.18);
+    }
+}
+
+@keyframes copa-chip-border {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+}
+
+@keyframes copa-chip-sweep {
+    0%, 40% { left: -45%; opacity: 0; }
+    50% { opacity: 1; }
+    70%, 100% { left: 110%; opacity: 0; }
+}
+
+@keyframes copa-chip-dot {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.55);
+    }
+    70% {
+        transform: scale(1.08);
+        box-shadow: 0 0 0 7px rgba(34, 197, 94, 0);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+    }
+}
+
+/* legacy aliases → mismo look dorado */
+.copa-strip-btn,
+.copa-public-strip-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    padding: 0.3rem 0.55rem 0.3rem 0.32rem;
+    border-radius: 999px;
+    border: 1px solid rgba(180, 83, 9, 0.48);
+    background: linear-gradient(145deg, #fffbeb 0%, #fde68a 40%, #fbbf24 100%);
+    color: #78350f;
+    box-shadow: 0 6px 18px rgba(180, 83, 9, 0.28);
+}
+
+.copa-strip-emoji { font-size: 0.72rem; }
+.copa-strip-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    min-width: 0;
+}
+.copa-strip-title,
+.copa-strip-meta {
+    font-size: 0.56rem;
+    font-weight: 700;
+    color: #78350f;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 9rem;
+}
+.copa-strip-meta { color: #92400e; font-weight: 650; }
+.copa-strip-chevron { color: #b45309; font-size: 0.5rem; }
+
+/* Modal conductor */
+.copa-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 42000;
+    background: rgba(15, 23, 42, 0.72);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 0.75rem;
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.copa-modal-overlay.hidden { display: none !important; }
+
+.copa-modal {
+    width: 100%;
+    max-width: 28rem;
+    max-height: min(88dvh, 720px);
+    background: #fff;
+    border-radius: 1.35rem 1.35rem 1rem 1rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+}
+
+.copa-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 1rem 1.1rem 0.75rem;
+    background: linear-gradient(135deg, #f59e0b, #ea580c 70%, #c2410c);
+    color: #fff;
+}
+
+.copa-modal-kicker {
+    font-size: 0.62rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.9;
+}
+
+.copa-modal-title {
+    font-size: 1.05rem;
+    font-weight: 900;
+    line-height: 1.25;
+    margin-top: 0.15rem;
+}
+
+.copa-modal-close {
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 999px;
+    border: none;
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.copa-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem 1.1rem 1.25rem;
+    -webkit-overflow-scrolling: touch;
+}
+
+.copa-modal-desc {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.5rem;
+}
+
+.copa-modal-meta {
+    font-size: 0.72rem;
+    font-weight: 800;
+    color: #b45309;
+    margin-bottom: 0.85rem;
+}
+
+.copa-modal-loading {
+    text-align: center;
+    padding: 2rem;
+    color: #64748b;
+    font-weight: 700;
+}
+
+.copa-section {
+    margin-bottom: 1.1rem;
+}
+
+.copa-section-title {
+    font-size: 0.78rem;
+    font-weight: 900;
+    color: #0f172a;
+    margin-bottom: 0.55rem;
+}
+
+.copa-tier-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+    margin-top: 0.55rem;
+}
+
+.copa-tier-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 0.45rem;
+    background: #f8fafc;
+}
+
+.copa-tier-card--ok {
+    border-color: #6ee7b7;
+    background: #ecfdf5;
+}
+
+.copa-tier-card-label {
+    font-size: 0.62rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.copa-tier-card-target {
+    font-size: 0.78rem;
+    font-weight: 900;
+    color: #0f172a;
+}
+
+.copa-tier-card-reward {
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #475569;
+    line-height: 1.25;
+    margin-top: 0.15rem;
+    min-height: 1.8em;
+}
+
+.copa-tier-card-st {
+    font-size: 0.58rem;
+    font-weight: 900;
+    color: #059669;
+    margin-top: 0.25rem;
+}
+
+.copa-quality-note {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #b45309;
+    margin-top: 0.5rem;
+}
+
+.copa-city-list,
+.copa-lb-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.copa-city-row,
+.copa-lb-row {
+    display: grid;
+    grid-template-columns: 2rem 1fr auto;
+    gap: 0.35rem;
+    align-items: center;
+    padding: 0.45rem 0.5rem;
+    border-radius: 0.65rem;
+    background: #f8fafc;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #334155;
+}
+
+.copa-lb-row {
+    grid-template-columns: 2rem 1fr 4.5rem 2rem;
+}
+
+.copa-city-row--me,
+.copa-lb-row--me {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+}
+
+.copa-rank {
+    font-weight: 900;
+    color: #d97706;
+}
+
+.copa-lb-city {
+    font-size: 0.62rem;
+    color: #94a3b8;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.copa-lb-pts {
+    font-weight: 900;
+    color: #0f172a;
+    text-align: right;
+}
+
+.copa-empty {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    font-weight: 700;
+    padding: 0.5rem 0;
+}
+
+/* Staff form */
+.copa-preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+@media (max-width: 480px) {
+    .copa-preset-grid { grid-template-columns: 1fr; }
+}
+
+.copa-preset-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    padding: 0.7rem 0.75rem;
+    border-radius: 0.85rem;
+    border: 1.5px solid #e2e8f0;
+    background: #fff;
+    text-align: left;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.copa-preset-btn:hover {
+    border-color: #fbbf24;
+    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.12);
+}
+
+.copa-preset-emoji { font-size: 1.1rem; }
+.copa-preset-title {
+    font-size: 0.78rem;
+    font-weight: 900;
+    color: #0f172a;
+}
+.copa-preset-sub {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.copa-tier-form-row {
+    display: grid;
+    grid-template-columns: 4.5rem 5rem 1fr;
+    gap: 0.4rem;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.copa-tier-form-label {
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: #64748b;
+}
+
+.copa-check-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #334155;
+    margin: 0.55rem 0 0.25rem;
+}
+
+.copa-quality-row {
+    margin-top: 0.35rem;
+    max-width: 10rem;
+}
+
+/* ========== Copa: rentabilidad + ranking p�blico ========== */
+.copa-econ-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.copa-tier-form-row--4 {
+    grid-template-columns: 4rem 4.5rem 4.5rem 1fr !important;
+}
+
+.copa-profit {
+    margin: 0.75rem 0;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.9rem;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+}
+
+.copa-profit--ok {
+    border-color: #6ee7b7;
+    background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+}
+
+.copa-profit--bad {
+    border-color: #fca5a5;
+    background: linear-gradient(135deg, #fef2f2, #fff1f2);
+}
+
+.copa-profit-title {
+    font-size: 0.82rem;
+    font-weight: 900;
+    color: #0f172a;
+    margin-bottom: 0.25rem;
+}
+
+.copa-profit--ok .copa-profit-title { color: #047857; }
+.copa-profit--bad .copa-profit-title { color: #b91c1c; }
+
+.copa-profit-sub {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+
+.copa-profit-table-wrap {
+    overflow-x: auto;
+    margin: 0.4rem 0;
+}
+
+.copa-profit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.62rem;
+    font-weight: 700;
+}
+
+.copa-profit-table th,
+.copa-profit-table td {
+    padding: 0.3rem 0.35rem;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+
+.copa-profit-table th {
+    color: #64748b;
+    text-transform: uppercase;
+    font-size: 0.55rem;
+    letter-spacing: 0.04em;
+}
+
+.copa-profit-row--bad td {
+    color: #b91c1c;
+    background: rgba(254, 226, 226, 0.45);
+}
+
+.copa-profit-fleet {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #334155;
+    margin-top: 0.4rem;
+}
+
+.copa-profit-blockers {
+    margin: 0.45rem 0 0;
+    padding-left: 1.1rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #b91c1c;
+}
+
+.copa-profit-blockers li { margin-bottom: 0.25rem; }
+
+.copa-profit-ok-msg {
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #047857;
+    margin-top: 0.4rem;
+}
+
+#public-copa-strip,
+#public-pcopa-strip {
+    position: absolute;
+    left: 0.55rem;
+    right: auto;
+    top: max(4.35rem, calc(env(safe-area-inset-top, 0px) + 3.55rem));
+    z-index: 36;
+    pointer-events: none;
+    width: auto;
+    max-width: calc(100vw - 1.2rem);
+    display: none;
+}
+
+#public-pcopa-strip {
+    top: max(6.1rem, calc(env(safe-area-inset-top, 0px) + 5.3rem));
+}
+
+#public-copa-strip:not(.hidden),
+#public-pcopa-strip:not(.hidden) {
+    display: flex !important;
+    align-items: center;
+    gap: 0.25rem;
+    pointer-events: auto;
+}
+
+/* Chip + ✕ en vista pasajero (ranking público Copa conductores) */
+#public-copa-strip .public-copa-strip-inner,
+#public-pcopa-strip .public-copa-strip-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    max-width: 100%;
+    pointer-events: auto;
+}
+
+#public-copa-strip .public-copa-close,
+#public-pcopa-strip .public-copa-close,
+#public-copa-strip .copa-chip-close,
+#public-pcopa-strip .copa-chip-close {
+    flex: 0 0 auto !important;
+    width: 1.55rem !important;
+    min-width: 1.55rem !important;
+    height: 1.55rem !important;
+    min-height: 1.55rem !important;
+    align-self: center;
+    border-radius: 999px !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+    z-index: 2;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+#public-copa-strip .copa-chip--map,
+#public-pcopa-strip .copa-chip--map {
+    max-width: min(14.5rem, calc(100vw - 3.5rem));
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.copa-public-note {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #b45309;
+    margin-top: 0.5rem;
+}
+
+@media (max-width: 480px) {
+    .copa-econ-grid { grid-template-columns: 1fr; }
+    .copa-tier-form-row--4 {
+        grid-template-columns: 3.5rem 1fr 1fr !important;
+    }
+    .copa-tier-form-row--4 .copa-tier-form-label {
+        grid-column: 1;
+    }
+}
+
+/* Competencia todos vs todos */
+.copa-compete-tag {
+    font-size: 0.58rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #b45309;
+    margin: 0.15rem 0 0.25rem;
+}
+.copa-rank-big {
+    font-size: 0.95rem;
+    font-weight: 900;
+    color: #78350f;
+    margin: 0.15rem 0;
+}
+.copa-podium-line {
+    font-size: 0.62rem;
+    font-weight: 800;
+    color: #92400e;
+    margin: 0.25rem 0 0.35rem;
+}
+.copa-podium-banner {
+    padding: 0.65rem 0.75rem;
+    border-radius: 0.85rem;
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    border: 1px solid #fde68a;
+    margin-bottom: 0.85rem;
+}
+.copa-podium-prizes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.45rem;
+}
+.copa-podium-chip {
+    font-size: 0.62rem;
+    font-weight: 900;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid #fbbf24;
+    color: #92400e;
+}
+.copa-lb-row--podium {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+}

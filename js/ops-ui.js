@@ -16,12 +16,31 @@ export function opsHero(title, subtitle = '', extraHtml = '') {
     `;
 }
 
-export function opsKpi(value, label, variant = 'default') {
+/**
+ * @param {string|number} value
+ * @param {string} label
+ * @param {string} [variant='default']
+ * @param {{ filterKey?: string, onclick?: string, title?: string, active?: boolean }} [opts]
+ */
+export function opsKpi(value, label, variant = 'default', opts = {}) {
+    const filterKey = opts?.filterKey ? String(opts.filterKey) : '';
+    const onclick = opts?.onclick
+        || (filterKey ? `window.setStaffTripsPageFilter('${filterKey}', this)` : '');
+    const title = opts?.title
+        || (filterKey ? `Ver solo: ${label}` : '');
+    const activeCls = opts?.active ? ' ops-kpi--active' : '';
+    const clickable = !!onclick;
+    const tag = clickable ? 'button' : 'div';
+    const typeAttr = clickable ? ' type="button"' : '';
+    const clickAttr = onclick ? ` onclick="${onclick}"` : '';
+    const filterAttr = filterKey ? ` data-staff-trips-filter="${filterKey}"` : '';
+    const titleAttr = title ? ` title="${String(title).replace(/"/g, '&quot;')}"` : '';
+    const aria = clickable ? ` role="button" aria-pressed="${opts?.active ? 'true' : 'false'}"` : '';
     return `
-        <div class="ops-kpi ops-kpi--${variant}">
+        <${tag}${typeAttr} class="ops-kpi ops-kpi--${variant}${clickable ? ' ops-kpi--clickable' : ''}${activeCls}"${filterAttr}${clickAttr}${titleAttr}${aria}>
             <span class="ops-kpi-value">${value}</span>
             <span class="ops-kpi-label">${label}</span>
-        </div>
+        </${tag}>
     `;
 }
 
@@ -34,8 +53,10 @@ export function opsBadge(text, variant = 'default') {
     return `<span class="ops-badge ops-badge--${variant}">${text}</span>`;
 }
 
-export function opsSection({ title, subtitle = '', icon = '', badge = '', variant = 'default', body = '', collapsible = false, open = true }) {
+export function opsSection({ title, subtitle = '', icon = '', badge = '', variant = 'default', body = '', collapsible = false, open = true, sectionKey = '', extraClass = '' }) {
     const count = badge !== '' && badge != null ? opsBadge(String(badge), variant) : '';
+    const sectionAttr = sectionKey ? ` data-staff-trips-section="${sectionKey}"` : '';
+    const extra = extraClass ? ` ${extraClass}` : '';
     const head = `
         <div class="ops-section-head">
             <div class="ops-section-title-wrap">
@@ -51,7 +72,7 @@ export function opsSection({ title, subtitle = '', icon = '', badge = '', varian
 
     if (collapsible) {
         return `
-            <details class="ops-section ops-section--${variant}" ${open ? 'open' : ''}>
+            <details class="ops-section ops-section--${variant}${extra}"${sectionAttr} ${open ? 'open' : ''}>
                 <summary class="ops-section-summary">${head}</summary>
                 <div class="ops-section-body">${body}</div>
             </details>
@@ -59,7 +80,7 @@ export function opsSection({ title, subtitle = '', icon = '', badge = '', varian
     }
 
     return `
-        <section class="ops-section ops-section--${variant}">
+        <section class="ops-section ops-section--${variant}${extra}"${sectionAttr}>
             ${head}
             <div class="ops-section-body">${body}</div>
         </section>

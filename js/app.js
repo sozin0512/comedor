@@ -1,24 +1,24 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+﻿import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js";
+} from "./auth-credentials.js?v=2026.07.25.5";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js";
+import { APP_CONFIG } from "./config.js?v=2026.07.25.5";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.25.5";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js";
+} from "./referrals.js?v=2026.07.25.5";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -27,16 +27,16 @@ import {
     collectOnlineServiceZoneIds, collectRegisteredDriverZoneIds,
     tripCityHasLocalDrivers, tripCityHasLocalOnlineDrivers,
     ensurePassengerCityPickerVisible, openCityPickerPanel, showCityPickerModal, promptCityConfirmationIfNeeded, promptDriverCityConfirmationIfNeeded, getRadiusRoleKey, isPassengerAppRole, updateZoneHint,
-    isInsideHondurasProximity, findZoneForCoords, getActiveRadiusKm, getCityCoverageKm,
+    isInsideHondurasProximity, findZoneForCoords, findNearestZone, getActiveRadiusKm, getCityCoverageKm,
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js";
+} from "./zones.js?v=2026.07.25.5";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js";
+} from "./trip-notifications.js?v=2026.07.25.5";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js";
+} from "./notification-tones.js?v=2026.07.25.5";
 
 installNotificationTonesApi();
 
@@ -66,32 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js";
+} from "./passenger-alerts.js?v=2026.07.25.5";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js";
-import { pickPhotoFromCamera } from "./camera-capture.js";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js";
-import { initAppUpdateCheck } from "./pwa-update.js";
-import { initOpsPanels } from "./ops-panels.js";
-import { initOpsUi } from "./ops-ui.js";
-import { initDriverObjectives } from "./ops-driver-objectives.js";
-import { initFloatingPanels } from "./floating-panels.js";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js";
+} from "./passenger-verification.js?v=2026.07.25.5";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.25.5";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.25.5";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.25.5";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.25.5";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.25.5";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.25.5";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.25.5";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.25.5";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.25.5";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.25.5";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js";
+} from "./feedback.js?v=2026.07.25.5";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js";
+} from "./greetings.js?v=2026.07.25.5";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -104,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js";
+} from "./service-types.js?v=2026.07.25.5";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js";
+} from "./driver-vehicles.js?v=2026.07.25.5";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js";
-import { initTheme, toggleTheme } from "./theme.js";
+} from "./route-conditions.js?v=2026.07.25.5";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.25.5";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js";
+} from "./demand-heatmap.js?v=2026.07.25.5";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js";
+} from "./ops-fleet-map.js?v=2026.07.25.5";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js";
+} from "./live-trip-keepalive.js?v=2026.07.25.5";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.25.5";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js";
+} from "./session-keepalive.js?v=2026.07.25.5";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js";
+} from "./passenger-tutorial.js?v=2026.07.25.5";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.25.5";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js";
+} from "./driver-tutorial.js?v=2026.07.25.5";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -191,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.25.5";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js";
+} from "./auth-ui.js?v=2026.07.25.5";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js";
-import { createVerificationAlert } from "./verification-alerts.js";
+} from "./age-verification.js?v=2026.07.25.5";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.25.5";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js";
+} from "./trip-experience.js?v=2026.07.25.5";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js";
-import { initAppDownload } from "./app-download.js";
+} from "./support-tickets.js?v=2026.07.25.5";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.25.5";
+import { initAppDownload } from "./app-download.js?v=2026.07.25.5";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -260,6 +262,7 @@ initAppDownload({
 
 function syncPromoUi() {
     window.updatePassengerPromoStripVisibility?.();
+    window.refreshPassengerCopaUI?.();
     window.syncAppDownloadBadge?.();
 }
 
@@ -1764,9 +1767,10 @@ if (document.readyState === 'loading') {
                         window.placeDestinationMarker?.({ lat: data.destinationLat, lng: data.destinationLng }, 'Destino');
                     }
                     window.selectDriverOfferForPreview?.(tripId, data);
-                    window.openDriverRouteInGoogleMaps?.();
+                    // Navegación principal dentro de la app (Google Maps queda como botón opcional)
+                    window.navigateDriverRouteInApp?.({ silent: true });
                 } catch (_) {}
-                window.showToast?.('Viaje programado iniciado. Ve al origen del pasajero.', 'success');
+                window.showToast?.('Viaje programado iniciado. Ruta en el mapa · podés abrir Google Maps si querés.', 'success');
             } catch (e) {
                 console.error('startScheduledTripNow:', e);
                 window.showToast?.(e?.message || 'No se pudo iniciar el viaje programado.');
@@ -1904,6 +1908,20 @@ if (document.readyState === 'loading') {
             getCurrentUser: () => currentUser,
             getSenderDisplayName: () => window.getSenderDisplayName?.() || 'Supervisor',
             getDriverProfile: () => window.userProfile
+        });
+
+        initDriverGlobalChallenges({
+            db, appId,
+            getCurrentUser: () => currentUser,
+            getSenderDisplayName: () => window.getSenderDisplayName?.() || 'Supervisor',
+            getDriverProfile: () => window.userProfile
+        });
+
+        initPassengerGlobalChallenges({
+            db, appId,
+            getCurrentUser: () => currentUser,
+            getSenderDisplayName: () => window.getSenderDisplayName?.() || 'Supervisor',
+            getPassengerProfile: () => window.userProfile
         });
 
         window.showSuggestionModal = () => showSuggestionModal({
@@ -3444,6 +3462,14 @@ if (document.readyState === 'loading') {
             else if (action === 'supervisor') { window.openSupervisorPanel?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'tutorial') { window.startPassengerTutorial?.({ force: true }); window.closeHeaderMoreMenu?.(); }
             else if (action === 'driver-tutorial') { window.startDriverTutorial?.({ force: true }); window.closeHeaderMoreMenu?.(); }
+            else if (action === 'copa') {
+                window.closeHeaderMoreMenu?.();
+                window.openDriverCopaFromMenu?.();
+            }
+            else if (action === 'copa-pasajeros') {
+                window.closeHeaderMoreMenu?.();
+                window.openPassengerCopaFromMenu?.();
+            }
             else if (action === 'history') { window.showMyPastTrips?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'install') { window.showInstallFlow?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'logout') { window.confirmLogout?.(); window.closeHeaderMoreMenu?.(); }
@@ -3550,7 +3576,9 @@ if (document.readyState === 'loading') {
                 else if (action === 'driver-arrived-dest') window.driverSignalDestinationArrival?.();
                 else if (action === 'verify-pin') window.verifyPin?.();
                 else if (action === 'skip-pin') window.driverSkipPinAndStart?.();
+                else if (action === 'driver-nav-inapp') window.navigateDriverRouteInApp?.();
                 else if (action === 'driver-route') window.openDriverRouteInGoogleMaps?.();
+                else if (action === 'client-nav-inapp') window.navigatePassengerRouteInApp?.();
                 else if (action === 'client-route-gmaps') window.openPassengerTripRouteInGoogleMaps?.();
                 else if (action === 'copy-pin') window.copyClientTripPin?.();
                 else if (action === 'share') window.shareTripWhatsApp?.();
@@ -3593,6 +3621,7 @@ if (document.readyState === 'loading') {
                 else if (action === 'pick-nav-voice') window.openDriverNavVoicePicker?.();
                 else if (action === 'toggle-nav-hud-top') window.toggleNavHudTop?.();
                 else if (action === 'extra-stop-map') window.openExtraStopMapPick?.();
+                else if (action === 'origin-map') window.openOriginMapPick?.();
                 else if (action === 'dest-map' || action === 'delivery-dest-map') window.openDestinationMapPick?.();
             } finally {
                 if (lockable && tripActionLock === action) tripActionLock = null;
@@ -8080,6 +8109,10 @@ if (document.readyState === 'loading') {
             try {
                 window.refreshAdminNegotiationButtons?.();
             } catch (_) {}
+            // Reaplicar filtro de KPIs (Sin atención, En curso, etc.)
+            try {
+                window.applyStaffTripsPageFilterAfterPaint?.(container);
+            } catch (_) {}
         }
 
         function refreshStaffTripsPanels(tripPatches = {}) {
@@ -8128,7 +8161,8 @@ if (document.readyState === 'loading') {
                     badge: 0,
                     body: '<p class="ops-toolbar-hint">No hay viajes cancelados pendientes de cierre manual.</p>',
                     collapsible: true,
-                    open: false
+                    open: false,
+                    sectionKey: 'cancelled_driver'
                 });
             }
 
@@ -8157,7 +8191,8 @@ if (document.readyState === 'loading') {
                 badge: cancelledTrips.length,
                 body,
                 collapsible: true,
-                open: true
+                open: true,
+                sectionKey: 'cancelled_driver'
             });
         }
 
@@ -8243,23 +8278,134 @@ if (document.readyState === 'loading') {
             if (!root) return;
             const key = String(filterKey || 'all');
             root.dataset.activeFilter = key;
+            // with_driver = camino al pasajero + en punto (PIN)
+            const phaseMatch = (phase) => {
+                if (key === 'all') return true;
+                if (key === 'with_driver') return phase === 'to_pickup' || phase === 'at_pickup';
+                return phase === key;
+            };
             root.querySelectorAll('[data-staff-trip-filter]').forEach((chip) => {
                 const on = chip.getAttribute('data-staff-trip-filter') === key;
                 chip.classList.toggle('ops-chip--active', on);
             });
             root.querySelectorAll('[data-trip-phase]').forEach((card) => {
                 const phase = card.getAttribute('data-trip-phase');
-                const show = key === 'all' || phase === key;
-                card.classList.toggle('ops-trip-card--filtered-out', !show);
+                card.classList.toggle('ops-trip-card--filtered-out', !phaseMatch(phase));
             });
             root.querySelectorAll('[data-phase-col]').forEach((col) => {
                 const phase = col.getAttribute('data-phase-col');
-                if (key === 'all') {
-                    col.classList.remove('ops-trips-col--hidden');
+                col.classList.toggle('ops-trips-col--hidden', !phaseMatch(phase));
+            });
+        };
+
+        /**
+         * Filtro del panel Viajes (admin/supervisor): al tocar un KPI solo se ve esa categoría.
+         * Keys: all | unanswered | scheduled | with_driver | in_progress | active | cancelled_search | cancelled_driver | completed | historical
+         */
+        window.setStaffTripsPageFilter = (filterKey, btnEl, opts = {}) => {
+            const quiet = !!opts.quiet;
+            const key = String(filterKey || 'all');
+            window._staffTripsPageFilter = key;
+
+            // Completados → vista de pasados (otra pantalla) — no en reapply silencioso
+            if (key === 'completed' && !quiet) {
+                if (typeof window.showPastTripsInAdmin === 'function' && window.currentAdminTab === 'trips') {
+                    window.showPastTripsInAdmin();
                     return;
                 }
-                col.classList.toggle('ops-trips-col--hidden', phase !== key);
+                if (typeof window.loadSupervisorPastTrips === 'function') {
+                    const supActive = document.querySelector('#supervisor-panel .ops-nav-item[data-sup-tab="trips"].ops-nav-item--active');
+                    if (supActive || document.getElementById('supervisor-pending-list')) {
+                        window.loadSupervisorPastTrips();
+                        return;
+                    }
+                }
+            }
+
+            const page = btnEl?.closest?.('.ops-page')
+                || document.querySelector('#admin-users-list .ops-page')
+                || document.querySelector('#supervisor-pending-list .ops-page')
+                || document.querySelector('.ops-page');
+            if (!page) return;
+
+            page.dataset.staffTripsFilter = key;
+
+            // Resaltar KPI activo
+            page.querySelectorAll('[data-staff-trips-filter]').forEach((kpi) => {
+                const on = kpi.getAttribute('data-staff-trips-filter') === key;
+                kpi.classList.toggle('ops-kpi--active', on);
+                if (kpi.hasAttribute('aria-pressed')) {
+                    kpi.setAttribute('aria-pressed', on ? 'true' : 'false');
+                }
             });
+
+            // Mapa: qué secciones se muestran
+            const sectionVisible = (sectionKey) => {
+                if (key === 'all' || key === 'completed') return true;
+                // Sin atención = solo solicitudes vivas
+                if (key === 'unanswered') return sectionKey === 'unanswered';
+                // Pasados sin revisar = cancelados sin conductor
+                if (key === 'historical' || key === 'unreviewed') return sectionKey === 'historical';
+                if (key === 'scheduled') return sectionKey === 'scheduled';
+                if (key === 'cancelled_search') return sectionKey === 'cancelled_search';
+                if (key === 'cancelled_driver') return sectionKey === 'cancelled_driver';
+                if (key === 'recent') return sectionKey === 'recent';
+                if (key === 'active' || key === 'with_driver' || key === 'in_progress' || key === 'pending') {
+                    return sectionKey === 'active';
+                }
+                return sectionKey === key;
+            };
+
+            page.querySelectorAll('[data-staff-trips-section]').forEach((el) => {
+                const sk = el.getAttribute('data-staff-trips-section');
+                const show = sectionVisible(sk);
+                el.classList.toggle('ops-trips-section--hidden', !show);
+                el.hidden = !show;
+                if (show && el.tagName === 'DETAILS') el.open = true;
+            });
+
+            const dash = page.querySelector('.ops-trips-dash');
+            if (dash && (key === 'with_driver' || key === 'in_progress' || key === 'pending' || key === 'active' || key === 'all')) {
+                const phaseKey = key === 'active' || key === 'all' ? 'all' : key;
+                window.setStaffActiveTripFilter?.(phaseKey, dash.querySelector(`[data-staff-trip-filter="${phaseKey}"]`) || dash);
+            }
+
+            if (!quiet) {
+                requestAnimationFrame(() => {
+                    const first = page.querySelector('[data-staff-trips-section]:not(.ops-trips-section--hidden)');
+                    if (first) {
+                        try {
+                            first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        } catch (_) {}
+                    }
+                });
+                const labels = {
+                    all: 'Todos',
+                    unanswered: 'Sin atención (vivas)',
+                    scheduled: 'Programados reservados',
+                    with_driver: 'Con conductor',
+                    in_progress: 'En curso',
+                    pending: 'Buscando conductor',
+                    active: 'Activos',
+                    cancelled_search: 'Búsquedas canceladas',
+                    cancelled_driver: 'Cancelados con conductor',
+                    historical: 'Pasados sin revisar',
+                    unreviewed: 'Pasados sin revisar',
+                    completed: 'Completados',
+                    recent: 'Recientes'
+                };
+                if (key !== 'all' && key !== 'completed') {
+                    window.showToast?.(`Filtro: ${labels[key] || key}`, 'info');
+                }
+            }
+        };
+
+        window.applyStaffTripsPageFilterAfterPaint = (rootEl) => {
+            const key = window._staffTripsPageFilter || 'all';
+            if (!key || key === 'all' || key === 'completed') return;
+            const page = rootEl?.querySelector?.('.ops-page') || rootEl;
+            const kpi = page?.querySelector?.(`[data-staff-trips-filter="${key}"]`);
+            window.setStaffTripsPageFilter(key, kpi || page, { quiet: true });
         };
 
         window.setStaffActiveTripsView = (mode, btnEl) => {
@@ -8479,8 +8625,10 @@ if (document.readyState === 'loading') {
                 || (autoList ? 'list' : 'board');
             window._staffActiveTripsView = viewMode;
 
+            const withDriverN = (groups.to_pickup?.length || 0) + (groups.at_pickup?.length || 0);
             const filterChips = [
                 { key: 'all', label: `Todos (${total})`, variant: 'purple' },
+                { key: 'with_driver', label: `Con cond. (${withDriverN})`, variant: 'emerald' },
                 ...phases.map((p) => {
                     const meta = getStaffActiveTripPhaseMeta(p);
                     return {
@@ -8624,7 +8772,8 @@ if (document.readyState === 'loading') {
                     badge: 0,
                     body: U.empty('fa-calendar', 'No hay programados reservados', 'Cuando un conductor acepte un viaje a futuro, aparecerá aquí.'),
                     collapsible: true,
-                    open: true
+                    open: true,
+                    sectionKey: 'scheduled'
                 });
             }
 
@@ -8667,7 +8816,8 @@ if (document.readyState === 'loading') {
                 badge: list.length,
                 body,
                 collapsible: true,
-                open: true
+                open: true,
+                sectionKey: 'scheduled'
             });
         }
 
@@ -8697,7 +8847,7 @@ if (document.readyState === 'loading') {
                 ? 'bg-emerald-600 hover:bg-emerald-500'
                 : 'bg-red-600 hover:bg-red-500';
             const completedTotal = allTrips.filter((t) => t.status === 'completed').length;
-            const unseenLive = unanswered.filter((t) => getStaffPendingAttentionMeta(t).nobodySaw).length;
+            const histUnattendedCount = histUnattended.length;
             const phaseCounts = {
                 pending: 0,
                 to_pickup: 0,
@@ -8732,27 +8882,31 @@ if (document.readyState === 'loading') {
                     </div>
                     ${canToggleNegotiation ? `<p class="text-[11px] text-slate-300 mt-2">Regateo global se guarda en el servidor. <b>ON</b> = conductores pueden ofertar precio. <b>OFF</b> = solo tarifa fija de la app (viajes nuevos). El listado se actualiza en vivo; el botón debe seguir en ON/OFF (no en “cargando”).</p>` : ''}
                 </div>
-                <div class="ops-trips-page-kpis">
-                    ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
-                    ${U.kpi(scheduledReserved.length, 'Prog. reservados', scheduledReserved.length ? 'amber' : 'default')}
-                    ${U.kpi(phaseCounts.to_pickup + phaseCounts.at_pickup, 'Con conductor', 'emerald')}
-                    ${U.kpi(phaseCounts.in_progress, 'En curso', 'cyan')}
-                    ${U.kpi(activeTrips.length, 'Activos', 'purple')}
-                    ${U.kpi(cancelledSearches.length, 'Búsquedas cancel.', cancelledSearches.length ? 'cyan' : 'default')}
-                    ${U.kpi(cancelledPending.length, 'Cancel. c/cond.', cancelledPending.length ? 'red' : 'default')}
-                    ${U.kpi(completedTotal, 'Completados', 'emerald')}
+                <div class="ops-trips-page-kpis" role="toolbar" aria-label="Filtrar viajes">
+                    ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default', { filterKey: 'unanswered', title: 'Solicitudes vivas sin vistas u ofertas' })}
+                    ${U.kpi(histUnattendedCount, 'Pasados s/rev.', histUnattendedCount ? 'red' : 'default', { filterKey: 'historical', title: 'Cancelados sin conductor · pasados sin revisar' })}
+                    ${U.kpi(scheduledReserved.length, 'Prog. reservados', scheduledReserved.length ? 'amber' : 'default', { filterKey: 'scheduled' })}
+                    ${U.kpi(phaseCounts.to_pickup + phaseCounts.at_pickup, 'Con conductor', 'emerald', { filterKey: 'with_driver' })}
+                    ${U.kpi(phaseCounts.in_progress, 'En curso', 'cyan', { filterKey: 'in_progress' })}
+                    ${U.kpi(activeTrips.length, 'Activos', 'purple', { filterKey: 'active' })}
+                    ${U.kpi(cancelledSearches.length, 'Búsquedas cancel.', cancelledSearches.length ? 'cyan' : 'default', { filterKey: 'cancelled_search' })}
+                    ${U.kpi(cancelledPending.length, 'Cancel. c/cond.', cancelledPending.length ? 'red' : 'default', { filterKey: 'cancelled_driver' })}
+                    ${U.kpi(completedTotal, 'Completados', 'emerald', { filterKey: 'completed' })}
+                    ${U.kpi('·', 'Ver todos', 'default', { filterKey: 'all', title: 'Quitar filtro y ver todo' })}
                 </div>
+                <p class="ops-trips-filter-hint"><i class="fas fa-hand-pointer"></i> Tocá un recuadro para ver <b>solo</b> esa categoría · <b>Pasados s/rev.</b> = cancelados sin conductor</p>
             </div>`;
-            body += U.tripToolbar(activeTrips.length, completedTotal, "window.renderAdminTab('trips')", 'window.showPastTripsInAdmin()');
+            body += U.tripToolbar(activeTrips.length, completedTotal, "window.renderAdminTab('trips'); window._staffTripsPageFilter='all';", 'window.showPastTripsInAdmin()');
             body += buildStaffScheduledReservedSectionHtml(allTrips, { includeDelete: true });
+            // Pasados sin revisar (cancelados sin conductor) — visible con KPI "Pasados s/rev."
+            body += buildStaffHistoricalUnattendedSectionHtml(allTrips, { includeDelete: true });
             body += buildStaffUnansweredTripsSectionHtml(allTrips, { includeDelete: true, includeCancel: true });
             body += buildStaffCancelledSearchContactSectionHtml(allTrips, { includeDelete: true });
-            body += buildStaffHistoricalUnattendedSectionHtml(allTrips, { includeDelete: true });
-            body += buildStaffActiveTripsDashboardHtml(otherActive, {
+            body += `<div data-staff-trips-section="active">${buildStaffActiveTripsDashboardHtml(otherActive, {
                 includeDelete: true,
                 includeCancel: true,
                 includeInvoice: false
-            });
+            })}</div>`;
             body += buildStaffCancelledTripsSectionHtml(allTrips);
             return U.page(body);
         }
@@ -9583,7 +9737,7 @@ if (document.readyState === 'loading') {
             }
         }
 
-        /** Solicitudes vivas o pasadas que nadie vio / nadie ofreció. */
+        /** Solicitudes vivas o pasadas que nadie vio / nadie ofreció / canceladas sin conductor. */
         function getStaffPendingAttentionMeta(t) {
             const empty = {
                 isPendingOpen: false,
@@ -9602,11 +9756,21 @@ if (document.readyState === 'loading') {
             const counts = getStaffAttentionCounts(t);
             const unattended = counts.nobodySaw || counts.nobodyResponded;
             const isLivePending = t.status === 'pending';
-            const isPastUnserved = t.status === 'cancelled'
-                && (!t.cancelledFromStatus || t.cancelledFromStatus === 'pending');
+            const statusCancel = t.status === 'cancelled' || t.status === 'canceled';
+            const from = String(t.cancelledFromStatus || 'pending').toLowerCase();
+            const isPastUnserved = statusCancel
+                && (!t.cancelledFromStatus
+                    || from === 'pending'
+                    || from === 'scheduled'
+                    || from === 'searching');
 
             if (!isLivePending && !isPastUnserved) return empty;
-            if (!unattended) {
+
+            // Cancelados sin conductor: siempre “históricos sin atención” para ops
+            // (aunque alguien haya abierto el mapa, el viaje no se tomó)
+            const treatAsUnattended = unattended || isPastUnserved;
+
+            if (!treatAsUnattended) {
                 return {
                     ...empty,
                     isPendingOpen: isLivePending,
@@ -9650,11 +9814,23 @@ if (document.readyState === 'loading') {
                 .sort((a, b) => getTripCreatedAtMs(a) - getTripCreatedAtMs(b));
         }
 
-        function getStaffHistoricalUnattendedTrips(allTrips, limitN = 60) {
+        function getStaffHistoricalUnattendedTrips(allTrips, limitN = 120) {
             return (allTrips || [])
                 .filter((t) => {
+                    if (!t || t.isDemandSimulation || t.driverId) return false;
+                    if (t.status !== 'cancelled' && t.status !== 'canceled') return false;
+                    // Cancelados en búsqueda (sin conductor) = sin atención para ops
+                    const from = String(t.cancelledFromStatus || 'pending').toLowerCase();
+                    const fromPending = !t.cancelledFromStatus
+                        || from === 'pending'
+                        || from === 'scheduled'
+                        || from === 'searching';
+                    if (!fromPending) return false;
+                    // Priorizar los que nadie vio / nadie ofreció; si no hay metadata, igual listar
                     const m = getStaffPendingAttentionMeta(t);
-                    return m.isHistorical && m.isUnattended;
+                    if (m.isHistorical && m.isUnattended) return true;
+                    // Fallback: cancelado sin conductor desde pending cuenta como “sin atención”
+                    return true;
                 })
                 .sort((a, b) => getTripEndedAtMs(b) - getTripEndedAtMs(a))
                 .slice(0, limitN);
@@ -9663,10 +9839,10 @@ if (document.readyState === 'loading') {
         /** Búsqueda cancelada antes de que un conductor tomara el viaje (pendiente → cancelado). */
         function isCancelledSearchTrip(t) {
             if (!t || t.isDemandSimulation) return false;
-            if (t.status !== 'cancelled') return false;
+            if (t.status !== 'cancelled' && t.status !== 'canceled') return false;
             if (t.driverId) return false;
-            const from = t.cancelledFromStatus || 'pending';
-            return from === 'pending' || from === 'scheduled';
+            const from = String(t.cancelledFromStatus || 'pending').toLowerCase();
+            return from === 'pending' || from === 'scheduled' || from === 'searching' || !t.cancelledFromStatus;
         }
 
         function getStaffCancelledSearchTrips(allTrips, limitN = 80) {
@@ -9688,7 +9864,8 @@ if (document.readyState === 'loading') {
                     badge: 0,
                     body: '<p class="ops-toolbar-hint">Cuando un pasajero cancele una búsqueda aparecerá aquí con nombre y número.</p>',
                     collapsible: true,
-                    open: false
+                    open: false,
+                    sectionKey: 'cancelled_search'
                 });
             }
 
@@ -9731,7 +9908,8 @@ if (document.readyState === 'loading') {
                 badge: list.length,
                 body,
                 collapsible: true,
-                open: true
+                open: true,
+                sectionKey: 'cancelled_search'
             });
         }
 
@@ -9823,7 +10001,8 @@ if (document.readyState === 'loading') {
                     badge: 0,
                     body: '<p class="ops-toolbar-hint">Ahora no hay solicitudes vivas sin vistas ni sin ofertas. Revisa el historial abajo.</p>',
                     collapsible: true,
-                    open: false
+                    open: false,
+                    sectionKey: 'unanswered'
                 });
             }
 
@@ -9854,7 +10033,8 @@ if (document.readyState === 'loading') {
                 badge: unanswered.length,
                 body,
                 collapsible: true,
-                open: true
+                open: true,
+                sectionKey: 'unanswered'
             });
         }
 
@@ -9866,22 +10046,23 @@ if (document.readyState === 'loading') {
 
             if (!past.length) {
                 return U.section({
-                    title: 'Historial sin atención',
-                    subtitle: 'Solicitudes anteriores canceladas sin conductor (nadie vio o nadie ofreció)',
-                    icon: 'fa-history',
+                    title: 'Pasados sin revisar',
+                    subtitle: 'Cancelados sin conductor (para contactar al pasajero)',
+                    icon: 'fa-user-slash',
                     variant: 'red',
                     badge: 0,
-                    body: '<p class="ops-toolbar-hint">No hay registros anteriores de solicitudes que pasaran sin atención.</p>',
+                    body: '<p class="ops-toolbar-hint">No hay cancelados sin conductor por ahora.</p>',
                     collapsible: true,
-                    open: false
+                    open: true,
+                    sectionKey: 'historical'
                 });
             }
 
             let body = `<p class="ops-trip-unanswered-summary ops-trip-unanswered-summary--hist">
-                Últimas <b>${past.length}</b> que pasaron sin atención
+                <b>${past.length}</b> cancelados sin conductor
                 · <b>${unseen}</b> nadie vio
                 · <b>${noOffer}</b> sin ofertas
-                <span class="ops-trip-unanswered-note">Incluye canceladas en estado pendiente (cliente o staff). Si se borró el viaje, ya no aparece.</span>
+                <span class="ops-trip-unanswered-note">Tocá el recuadro <b>Pasados s/rev.</b> para ver solo estos. Si se borró el viaje, ya no aparece.</span>
             </p>`;
 
             past.forEach((t) => {
@@ -9913,14 +10094,15 @@ if (document.readyState === 'loading') {
             });
 
             return U.section({
-                title: 'Historial sin atención',
-                subtitle: 'Anteriores: quién era el cliente, teléfono, si nadie vio y si nadie ofreció',
-                icon: 'fa-history',
+                title: 'Pasados sin revisar',
+                subtitle: 'Cancelados sin conductor · nombre y teléfono para contactar',
+                icon: 'fa-user-slash',
                 variant: 'red',
                 badge: past.length,
                 body,
                 collapsible: true,
-                open: true
+                open: true,
+                sectionKey: 'historical'
             });
         }
 
@@ -10686,6 +10868,10 @@ if (document.readyState === 'loading') {
 
                 if (trip.driverId) {
                     window.incrementDriverObjectiveOnTripComplete?.(trip.driverId, tripId).catch(() => {});
+                    window.incrementCopaOnTripComplete?.(trip.driverId, tripId, trip).catch(() => {});
+                    if (trip.clientId) {
+                        window.incrementPassengerCopaOnTripComplete?.(trip.clientId, tripId, trip).catch(() => {});
+                    }
                 }
 
                 window.showToast?.(toastMsg, 'success');
@@ -11355,6 +11541,10 @@ if (document.readyState === 'loading') {
 
             if (trip.driverId) {
                 window.incrementDriverObjectiveOnTripComplete?.(trip.driverId, tripId).catch(() => {});
+                window.incrementCopaOnTripComplete?.(trip.driverId, tripId, trip).catch(() => {});
+                    if (trip.clientId) {
+                        window.incrementPassengerCopaOnTripComplete?.(trip.clientId, tripId, trip).catch(() => {});
+                    }
             }
 
             refreshStaffTripsPanels({
@@ -21928,33 +22118,94 @@ window.saveProfileChanges = async () => {
     const isDriverNav = window.userProfile?.role === 'driver' && !!activeTrip;
 
     let lastNavRouteOrigin = null;
+    let lastRerouteAt = 0;
+    let consecutiveRouteFails = 0;
+    let firstFitDone = false;
+    /** metros fuera de la polilínea → re-ruteo agresivo (estilo Maps) */
+    const OFF_ROUTE_M = 42;
+    /** re-ruteo frecuente al desviarse */
+    const REROUTE_COOLDOWN_MS = 4500;
+    /** ~110 m de avance desde el origen de la última ruta */
+    const DRIFT_DEG = 0.001;
+
+    if (isDriverNav) {
+        window.driverNavMode = true;
+        document.body.classList.add('is-navigating', 'driver-nav-mode');
+        // HUD tipo Google Maps
+        setElementDisplay('nav-hud-top', 'flex');
+        const hudB = document.getElementById('nav-hud-bottom');
+        if (hudB) hudB.style.display = 'block';
+        window.hideCenterMapFab?.();
+        // Tráfico en tiempo real sobre el mapa
+        try {
+            if (window.trafficLayer && window.gMap && !window.isTrafficVisible) {
+                window.trafficLayer.setMap(window.gMap);
+                window.isTrafficVisible = true;
+                document.getElementById('fab-traffic')?.classList.add('active');
+            }
+        } catch (_) {}
+        window.syncNavVoiceToggleUi?.();
+        window.syncNavVoicePickerUi?.();
+    }
 
     const renderRoute = async (forceRecompute = false) => {
         if (!window.mapLoaded || !dest) return;
 
         await window.ensureDriverPosition?.();
-        if (!window.currentDriverPos) return;
+        if (!window.currentDriverPos) {
+            if (isDriverNav && consecutiveRouteFails === 0) {
+                window.showToast?.('Activá el GPS para navegar en el mapa.', 'warning');
+            }
+            return;
+        }
 
         try {
             const pos = window.currentDriverPos;
-            const drifted = !lastNavRouteOrigin
-                || Math.hypot(pos.lat - lastNavRouteOrigin.lat, pos.lng - lastNavRouteOrigin.lng) > 0.006;
+            const now = Date.now();
             let route = window.currentNavRoute;
-            const needsFullRoute = !route || forceRecompute || drifted;
+            const path = window.currentRouteFullPath || route?.path || [];
+
+            // Off-route agresivo: recalcular como Maps
+            let offRoute = false;
+            if (isDriverNav && path.length >= 2 && !forceRecompute) {
+                const distToRoute = window.getDistanceToRouteMeters?.(path, pos);
+                if (Number.isFinite(distToRoute) && distToRoute > OFF_ROUTE_M) {
+                    if (now - lastRerouteAt > REROUTE_COOLDOWN_MS) {
+                        offRoute = true;
+                    }
+                }
+            }
+
+            const drifted = !lastNavRouteOrigin
+                || Math.hypot(pos.lat - lastNavRouteOrigin.lat, pos.lng - lastNavRouteOrigin.lng) > DRIFT_DEG;
+            const needsFullRoute = !route || forceRecompute || drifted || offRoute;
 
             if (needsFullRoute) {
+                if (offRoute) {
+                    lastRerouteAt = now;
+                    window.speakNavMessage?.('Recalculando ruta', { interrupt: true });
+                    setElementText('nav-step-text', 'Recalculando ruta…');
+                    setElementText('nav-step-dist', 'Te saliste del recorrido');
+                }
                 route = await window.computeDrivingRoute(pos, dest);
                 if (!route) {
+                    consecutiveRouteFails += 1;
                     if (isDriverNav && window.currentNavRoute?.path?.length >= 2) {
                         route = window.currentNavRoute;
                     } else {
                         window.clearRoutePolylines?.({ force: !isDriverNav });
-                        if (isDriverNav) {
-                            window.showToast?.('No se pudo trazar la ruta. Verifica tu conexión.', 'warning');
+                        if (isDriverNav && consecutiveRouteFails <= 2) {
+                            window.showToast?.(
+                                'No se pudo trazar la ruta en el mapa. Probá de nuevo o "Abrir en Google Maps".',
+                                'warning'
+                            );
                         }
                         return;
                     }
+                } else {
+                    consecutiveRouteFails = 0;
                 }
+                const announceNewRoute = offRoute || forceRecompute || !window.currentNavRoute;
                 window.currentNavRoute = route;
                 lastNavRouteOrigin = { lat: pos.lat, lng: pos.lng };
                 window._progressRoutePolylines = null;
@@ -21962,38 +22213,62 @@ window.saveProfileChanges = async () => {
                     window.currentRouteFullPath = window.getRouteDisplayPath?.(route, { driverNav: isDriverNav })
                         || route.path;
                 }
+                if (isDriverNav && announceNewRoute) {
+                    // Solo anunciar al iniciar o al recalcular por desvío (no en cada refresh)
+                    window._navRouteReadySpoken = false;
+                    window.onDriverNavRouteReady?.(route);
+                }
             } else if (isDriverNav) {
                 window.updateRouteProgress?.(pos, { driverNav: true, force: true });
             }
 
-                if (needsFullRoute || !window._progressRoutePolylines) {
-                    whenMapReady(() => window.drawRouteOnMap(route, { driverNav: isDriverNav }));
-                }
+            if (needsFullRoute || !window._progressRoutePolylines) {
+                whenMapReady(() => window.drawRouteOnMap(route, { driverNav: isDriverNav }));
+            }
             if (isDriverNav && route?.path?.length >= 2) {
                 window.updateRouteProgress?.(pos, { driverNav: true, force: true });
             }
             window.syncTripMiniBar?.(route);
 
+            // Totales (tiempo / km / ETA) — la tarjeta de giro la maneja updateDriverNavTurnCard
+            if (route) {
+                const km = window.getRouteDistanceKm?.(route);
+                const dur = window.formatRouteDuration?.(route);
+                const eta = window.formatRouteEta?.(route);
+                if (Number.isFinite(km)) setElementText('nav-total-dist', `${km.toFixed(1)} km`);
+                if (dur) setElementText('nav-total-time', dur);
+                if (eta) setElementText('nav-total-eta', eta);
+            }
+
             if (isDriverNav) {
+                document.body.classList.add('is-navigating', 'driver-nav-mode');
+                window.driverNavMode = true;
+                setElementDisplay('nav-hud-top', 'flex');
+                const hudB = document.getElementById('nav-hud-bottom');
+                if (hudB) hudB.style.display = 'block';
+
                 const activeV = getActiveVehicle(window.userProfile);
-                window.updateDriverMarker?.(currentUser?.uid, window.currentDriverPos.lat, window.currentDriverPos.lng, true, {
+                window.updateDriverMarker?.(currentUser?.uid, pos.lat, pos.lng, true, {
                     vehicleType: activeV?.type || getActiveVehicleType(window.userProfile) || 'auto'
                 });
-                    if (needsFullRoute && route?.path?.length >= 2 && window.gMap) {
-                        whenMapReady(() => {
-                            try {
-                                const bounds = new google.maps.LatLngBounds();
-                                route.path.forEach((p) => bounds.extend(p));
-                                bounds.extend(pos);
-                                window.gMap.fitBounds(bounds, 56);
-                            } catch (_) {}
-                        });
-                    }
+
+                // Cámara estilo Maps (tilt + heading) + voz + tarjeta de giro
+                if (route) {
+                    window.updateDriverNavTurnCard?.(route, pos);
+                    const heading = window.computeHeadingOnPath?.(
+                        window.currentRouteFullPath || route.path,
+                        pos
+                    );
+                    window.applyDriverNavCamera?.(pos, heading, needsFullRoute && !firstFitDone);
+                    if (needsFullRoute && !firstFitDone) firstFitDone = true;
+                }
+
+                window.syncNavigationMapFabs?.();
             } else {
                 if (route && typeof window.placeDestinationMarker === 'function') {
-                    const path = route.path || [];
-                    if (path.length > 0) {
-                        const endPoint = path[path.length - 1];
+                    const rpath = route.path || [];
+                    if (rpath.length > 0) {
+                        const endPoint = rpath[rpath.length - 1];
                         if (endPoint) {
                             whenMapReady(() => window.placeDestinationMarker(endPoint, 'Destino / Siguiente punto'));
                         }
@@ -22005,11 +22280,6 @@ window.saveProfileChanges = async () => {
                 document.body.classList.add('is-navigating');
                 window.hideCenterMapFab?.();
                 window.syncNavigationMapFabs?.();
-                setElementText('nav-step-text', 'Sigue la ruta');
-                setElementText('nav-step-dist', `${window.getRouteDistanceKm(route).toFixed(1)} km · ${window.formatRouteDuration(route)}`);
-                setElementText('nav-total-time', window.formatRouteDuration(route));
-                setElementText('nav-total-dist', `${window.getRouteDistanceKm(route).toFixed(1)} km`);
-                setElementText('nav-total-eta', window.formatRouteEta(route));
             }
         } catch (error) {
             console.error('Error actualizando navegación:', error);
@@ -22018,9 +22288,10 @@ window.saveProfileChanges = async () => {
     };
 
     renderRoute(true);
+    // Tick frecuente: voz + re-ruteo + progreso (Maps-like)
     const navRefreshMs = shouldUseLowPowerMode()
-        ? (isDriverNav ? 30000 : 18000)
-        : (isDriverNav ? 20000 : 12000);
+        ? (isDriverNav ? 5000 : 12000)
+        : (isDriverNav ? 2500 : 8000);
     navigationInterval = setInterval(() => renderRoute(false), navRefreshMs);
 };
 
@@ -22586,6 +22857,11 @@ onAuthStateChanged(auth, async (user) => {
                 document.body.classList.add(profile.role === 'driver' ? 'driver-mode' : 'client-mode');
                 syncPassengerTutorialMenuVisibility(profile.role);
                 syncDriverTutorialMenuVisibility(profile.role);
+                window.syncDriverCopaMenuVisibility?.(profile.role);
+                window.syncPassengerCopaMenuVisibility?.(profile.role);
+                // Ranking público: pasajeros, staff y conductores
+                window.startPublicCopaListener?.();
+                window.startPublicPassengerCopaListener?.();
                 if (profile.role === 'client') {
                     window.dockControlPanelForClient?.();
                     // Cada inicio de sesión: badge APK y promos vuelven a salir aunque les hayan dado X
@@ -22594,6 +22870,8 @@ onAuthStateChanged(auth, async (user) => {
                     resetPromoStripSessionDismiss?.();
                     // Contar flota registrada para mensajes de espera / tarifa
                     setTimeout(() => window.prefetchRegisteredDriversCount?.(), 600);
+                    window.startPassengerCopaListener?.();
+                    window.renderPassengerCopaPanel?.();
                 } else {
                     window.dockControlPanelForDriverTrip?.();
                     const panelHeader = document.querySelector('#control-panel .control-panel-header');
@@ -22649,6 +22927,11 @@ onAuthStateChanged(auth, async (user) => {
                     window.startPassengerPromoListeners?.();
                     window.refreshClaimedPromosUI?.();
                     syncPromoUi();
+                    // Origen = ubicación actual del cliente (puede borrar y poner otra; la ciudad se actualiza sola)
+                    window._passengerOriginAutofillDone = false;
+                    window._passengerOriginUserCleared = false;
+                    setTimeout(() => window.ensurePassengerOriginFromGps?.(), 700);
+                    setTimeout(() => window.ensurePassengerOriginFromGps?.(), 2200);
                 }
 
                 if (staffAccess) {
@@ -22810,6 +23093,8 @@ onAuthStateChanged(auth, async (user) => {
                         startDriverPayoutListener();
                         window.startDriverObjectivesListener?.();
                         window.renderDriverObjectivesPanel?.();
+                        window.startDriverCopaListener?.();
+                        window.renderDriverCopaPanel?.();
                         if (window.userProfile.driverOnBreak) {
                             // Only clear break if no pending deposit debt (o hay prórroga o aún no vence el plazo 12pm día sig.)
                             try {
@@ -23340,7 +23625,7 @@ window.driverSignalDestinationArrival = async () => {
             const nextLabel = window.getTripRouteLegLabel(activeTrip);
             window.syncDriverDestinationArrivalUi(pos);
             window.showToast?.(
-                `Punto ${legLabel.routeNum} completado. Ruta cargada al punto ${nextLabel.routeNum}. Toca el botón de Google Maps si quieres navegar ahí.`,
+                `Punto ${legLabel.routeNum} completado. Ruta al punto ${nextLabel.routeNum} en el mapa. También podés abrir Google Maps.`,
                 'success'
             );
             return;
@@ -25860,7 +26145,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             }
         };
 
-        window.formatTripGmapsBtnLabel = (data, role = 'client') => {
+        /** Etiqueta del botón principal: navegar DENTRO de la app */
+        window.formatTripNavBtnLabel = (data, role = 'client') => {
             const isDestPhase = data?.status === 'in_progress' || (data?.status === 'accepted' && data?.driverArrived);
             let addr = (isDestPhase ? data?.destination : data?.origin) || '';
             if (isDestPhase && (data?.additionalStops?.length > 0)) {
@@ -25869,19 +26155,25 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 addr = legTarget?.address || addr;
                 const short = addr.length > 42 ? `${addr.slice(0, 42)}…` : addr;
                 const pointPrefix = legLabel?.isFinal
-                    ? 'Ir al destino en Google Maps'
-                    : `Ir al punto ${legLabel?.routeNum || ''} en Google Maps`;
+                    ? 'Navegar al destino en el mapa'
+                    : `Navegar al punto ${legLabel?.routeNum || ''} en el mapa`;
                 return `${pointPrefix}${short ? ` · ${short}` : ''}`;
             }
             const short = addr.length > 42 ? `${addr.slice(0, 42)}…` : addr;
             if (role === 'driver') {
                 return isDestPhase
-                    ? `Ir al destino en Google Maps${short ? ` · ${short}` : ''}`
-                    : `Ir al origen en Google Maps${short ? ` · ${short}` : ''}`;
+                    ? `Navegar al destino${short ? ` · ${short}` : ''}`
+                    : `Navegar al origen${short ? ` · ${short}` : ''}`;
             }
             return isDestPhase
-                ? `Ir al destino en Google Maps${short ? ` · ${short}` : ''}`
-                : `Ir al origen en Google Maps${short ? ` · ${short}` : ''}`;
+                ? `Ver ruta al destino${short ? ` · ${short}` : ''}`
+                : `Ver ruta al origen${short ? ` · ${short}` : ''}`;
+        };
+
+        /** Compat: etiqueta legacy (Google Maps) */
+        window.formatTripGmapsBtnLabel = (data, role = 'client') => {
+            return window.formatTripNavBtnLabel?.(data, role)
+                || (data?.status === 'in_progress' ? 'Navegar al destino en el mapa' : 'Navegar al origen en el mapa');
         };
 
         /**
@@ -25925,9 +26217,13 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                             class="w-full mt-3 py-3 rounded-xl bg-emerald-600 text-white text-sm font-black trip-touch-btn">
                             <i class="fas fa-play"></i> Hacer viaje programado YA
                         </button>
+                        <button type="button" class="w-full mt-2 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-black"
+                            onclick="window.navigateDriverRouteInApp?.()">
+                            <i class="fas fa-location-arrow"></i> Navegar en el mapa
+                        </button>
                         <button type="button" class="w-full mt-2 py-2.5 rounded-xl border border-amber-300 bg-white text-amber-900 text-xs font-black"
                             onclick="window.openDriverRouteInGoogleMaps?.()">
-                            <i class="fas fa-route"></i> Ver ruta en Google Maps
+                            <i class="fab fa-google"></i> Abrir en Google Maps
                         </button>`;
                     const startBtn = actionsEl.querySelector('#btn-start-scheduled-now');
                     startBtn?.addEventListener('click', () => {
@@ -25976,10 +26272,10 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             if (!options.silentToast && window._tripAcceptedToastKey !== toastKey) {
                 window._tripAcceptedToastKey = toastKey;
                 const followUp = role === 'driver'
-                    ? 'Abre Google Maps y ve al origen del pasajero.'
+                    ? 'Ruta en el mapa de HonduRaite. También podés abrir Google Maps.'
                     : (data.driverFinishingOtherTrip
                         ? 'Tu conductor termina otro viaje y luego va hacia ti.'
-                        : 'Tu conductor va en camino. Abre la ruta en Google Maps si lo necesitas.');
+                        : 'Tu conductor va en camino. Seguilo en el mapa de la app.');
                 window.showToast?.(`¡Viaje aceptado! ${followUp}`, 'success');
                 if (role === 'client' && data.pin) {
                     window.setTimeout(() => {
@@ -26127,8 +26423,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
             }
             if (routeLabel) {
-                routeLabel.textContent = window.formatTripGmapsBtnLabel?.(data, 'driver')
-                    || (isDestPhase ? 'Toca para ir al destino en Google Maps' : 'Toca para ir al origen en Google Maps');
+                routeLabel.textContent = window.formatTripNavBtnLabel?.(data, 'driver')
+                    || (isDestPhase ? 'Navegar al destino en el mapa' : 'Navegar al origen en el mapa');
             }
 
             window.syncDriverPickupArrivalUi?.();
@@ -26471,7 +26767,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     window.showToast?.('Viaje programado activo. Ve al origen del pasajero.', 'success');
                 }
                 if (prevStatus === 'pending' && data.status === 'accepted' && data.driverId === currentUser.uid) {
-                    const body = `${data.clientName || 'El pasajero'} confirmó contigo. Abre Google Maps y ve al origen.`;
+                    const body = `${data.clientName || 'El pasajero'} confirmó contigo. Navegá en el mapa o abrí Google Maps.`;
                     notifyTripEvent({
                         title: '¡Viaje aceptado!',
                         body,
@@ -27767,16 +28063,18 @@ window.saveSimplePassengerProfile = async () => {
                 window.ensureDriverNavRouteVisible?.();
                 window.syncDriverDestinationArrivalUi?.(window.currentDriverPos);
 
-                const openMaps = opts.openMaps !== false;
-                if (openMaps) {
+                // Por defecto navegar en la app; Google Maps solo si se pide
+                if (opts.openMaps === true) {
                     await window.openTripRouteInGoogleMaps?.(trip, {
                         navMode: 'full',
                         useDriverPosition: true
                     });
+                } else {
+                    await window.navigateDriverRouteInApp?.({ silent: true });
                 }
 
                 window.showToast?.(
-                    'Ruta actualizada. Sigue el nuevo recorrido (origen · punto · destino).',
+                    'Ruta actualizada en el mapa. También podés abrirla en Google Maps.',
                     'success'
                 );
             } catch (e) {
@@ -28510,7 +28808,17 @@ window.saveSimplePassengerProfile = async () => {
             if (window.nearbyDriversRefreshInterval) { clearInterval(window.nearbyDriversRefreshInterval); window.nearbyDriversRefreshInterval = null; }
             stopDemandHeatmapListener();
             stopOpsFleetMapListener();
+            window.stopDriverObjectivesListener?.();
+            window.stopDriverCopaListener?.();
+            window.stopPublicCopaListener?.();
+            window.stopPassengerCopaListener?.();
+            window.stopPublicPassengerCopaListener?.();
+            window.closeDriverCopaModal?.();
+            window.closePassengerCopaModal?.();
             window.onPassengerAppBadgeSessionEnd?.();
+            window._passengerOriginAutofillDone = false;
+            window._passengerOriginUserCleared = false;
+            window._passengerOriginAutofillBusy = false;
             signOut(auth).then(() => location.reload());
         };
         // Nueva función para cancelar el setup con confirmación
@@ -29408,6 +29716,108 @@ window.cancelSetupAndLogout = () => {
             });
         };
 
+        window.applyOriginFromMapPick = async (geo) => {
+            const originEl = document.getElementById('origin-autocomplete');
+            if (!originEl || !geo?.latLng) return;
+            const latlng = {
+                lat: Number(geo.latLng.lat),
+                lng: Number(geo.latLng.lng),
+            };
+            if (!Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) return;
+
+            const address = geo.address || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+            const snap = window.captureRouteFieldSnapshot?.(originEl);
+            const ok = await window.guardRouteEndpointChange?.(originEl, address);
+            if (!ok) {
+                window.restoreRouteFieldSnapshot?.(originEl, snap);
+                return;
+            }
+
+            window._passengerOriginUserCleared = false;
+
+            if (window.gMap) {
+                try {
+                    window.gMap.panTo(latlng);
+                    window.gMap.setZoom(17);
+                } catch (_) {}
+            }
+
+            window.storeRouteEndpoint?.(originEl, {
+                address,
+                placeName: geo.placeName || null,
+                formattedAddress: geo.formattedAddress || geo.address || null,
+                latLng: latlng,
+                place: null,
+                source: 'map',
+                gpsAddress: address
+            });
+            try {
+                originEl.value = address;
+            } catch (_) {}
+            try {
+                const input = originEl.shadowRoot?.querySelector('input') || originEl.querySelector('input');
+                if (input) {
+                    input.value = address;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            } catch (_) {}
+
+            // Ciudad sigue al pin de origen
+            window.syncCityFromOriginCoords?.(latlng.lat, latlng.lng, { silent: false });
+
+            window.currentRouteData = null;
+            window.dispatchEvent(new CustomEvent('map-route-trigger'));
+            window.updateOriginGPSButton?.();
+            window.showServiceOptionsIfReady?.();
+            await window.calculateTripRoute?.({ silent: true });
+        };
+
+        window.openOriginMapPick = () => {
+            if (!window.gMap) {
+                return window.showToast?.('El mapa aún no está listo.');
+            }
+            const MAP_PICK_USER_ZOOM = 20;
+
+            window.startMapPickMode?.({
+                context: 'origin',
+                onSelect: async (geo) => {
+                    if (geo?.latLng) {
+                        await window.applyOriginFromMapPick?.(geo);
+                        window.showToast?.('Origen marcado en el mapa.', 'success');
+                    }
+                },
+            });
+
+            const flyTo = (lat, lng) => {
+                if (!window._mapPickState) return;
+                window.smoothMapGoTo?.(lat, lng, MAP_PICK_USER_ZOOM);
+            };
+
+            // Si ya hay origen con coords, empezar ahí; si no, GPS / posición conocida
+            const originEl = document.getElementById('origin-autocomplete');
+            const ep = originEl?._routeEndpoint;
+            if (ep?.latLng?.lat != null && ep?.latLng?.lng != null) {
+                flyTo(ep.latLng.lat, ep.latLng.lng);
+            } else if (window.currentDriverPos?.lat != null && window.currentDriverPos?.lng != null) {
+                flyTo(window.currentDriverPos.lat, window.currentDriverPos.lng);
+            }
+
+            if (navigator.geolocation?.getCurrentPosition) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        window.currentDriverPos = { lat, lng };
+                        // Solo volar al GPS si no había un origen ya fijado
+                        if (!ep?.latLng && window._mapPickState) flyTo(lat, lng);
+                    },
+                    () => {},
+                    { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
+                );
+            }
+        };
+
         window.applyDestinationFromMapPick = async (geo) => {
             const destEl = document.getElementById('destination-autocomplete');
             if (!destEl || !geo?.latLng) return;
@@ -29584,8 +29994,13 @@ window.cancelSetupAndLogout = () => {
             window.storeRouteEndpoint?.(el, {
                 address: fav.address,
                 latLng: fav.lat != null ? { lat: fav.lat, lng: fav.lng } : null,
+                source: 'favorite'
             });
             if (typeof el.value !== 'undefined') el.value = fav.address;
+            if (target === 'origin' && fav.lat != null && fav.lng != null) {
+                window._passengerOriginUserCleared = false;
+                window.syncCityFromOriginCoords?.(fav.lat, fav.lng, { silent: false });
+            }
             window.showToast(`${labels[key]} aplicado como ${target === 'origin' ? 'origen' : 'destino'}.`, 'success');
             window.calculateTripRoute?.({ silent: true });
             if (target === 'origin') window.updateOriginGPSButton?.();
@@ -30531,6 +30946,10 @@ window.cancelSetupAndLogout = () => {
 
                 if (activeTrip.driverId) {
                     window.incrementDriverObjectiveOnTripComplete?.(activeTrip.driverId, activeTrip.id).catch(() => {});
+                    window.incrementCopaOnTripComplete?.(activeTrip.driverId, activeTrip.id, activeTrip).catch(() => {});
+                    if (activeTrip.clientId) {
+                        window.incrementPassengerCopaOnTripComplete?.(activeTrip.clientId, activeTrip.id, activeTrip).catch(() => {});
+                    }
                 }
 
                 if (navigationInterval) clearInterval(navigationInterval);
@@ -31148,6 +31567,11 @@ window.cancelSetupAndLogout = () => {
                         }
                     } catch (profileErr) {
                         console.warn('rating public profile sync:', profileErr);
+                    }
+
+                    // Calidad Copa HonduRaite (solo cuando el pasajero califica al conductor)
+                    if (tripAsPassenger && targetRole === 'driver') {
+                        window.applyCopaRatingFromTrip?.(targetId, selectedStars)?.catch?.(() => {});
                     }
                 }
 
@@ -33053,6 +33477,11 @@ window.calculateTripRoute = async (options = {}) => {
             return;
         }
 
+        // Ciudad sigue al origen (aunque el pasajero haya escrito o elegido otra dirección)
+        if (origin?.latLng?.lat != null && origin?.latLng?.lng != null) {
+            window.syncCityFromOriginCoords?.(origin.latLng.lat, origin.latLng.lng, { silent: true });
+        }
+
         // Determine early if we have extra stops (for standard or hourly multi; envíos = solo origen → destino)
         const hasStandardExtraStops = serviceType !== 'delivery'
             && window.tripAdditionalStops
@@ -33519,13 +33948,116 @@ window.addEventListener('map-route-trigger', () => {
             try { window.gMap.setTilt(45); } catch (_) {}
         };
 
-             window.useCurrentLocation = () => {
+        /**
+         * Actualiza la ciudad activa según el punto de origen.
+         * El pasajero puede borrar el origen y poner otro: la ciudad sigue al nuevo punto.
+         */
+        window.syncCityFromOriginCoords = (lat, lng, opts = {}) => {
+            const silent = opts.silent === true;
+            const nlat = Number(lat);
+            const nlng = Number(lng);
+            if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return null;
+
+            let zone = findZoneForCoords(nlat, nlng);
+            if (!zone && isInsideHondurasProximity(nlat, nlng)) {
+                zone = findNearestZone(nlat, nlng)?.zone || null;
+            }
+
+            if (!zone) {
+                if (!isInsideHondurasProximity(nlat, nlng) && getZoneConfig().allowManualZoneSelection) {
+                    const manual = setActiveServiceZone(getDefaultZoneId(), { persist: true, biasMap: true });
+                    if (!silent) {
+                        window.showToast?.(
+                            `Ubicación fuera de Honduras. Usando ${manual?.name || 'ciudad seleccionada'}.`,
+                            'warning'
+                        );
+                    }
+                    return manual || null;
+                }
+                window.updatePlacesLocationBias?.(nlat, nlng);
+                return null;
+            }
+
+            const prevId = window.activeServiceZoneId;
+            if (prevId === zone.id) {
+                window.updatePlacesLocationBias?.(nlat, nlng);
+                return zone;
+            }
+
+            setActiveServiceZone(zone.id, { persist: true, biasMap: true });
+            try { updateServiceZoneSummary(); } catch (_) {}
+            try { updateZoneHint(); } catch (_) {}
+            try { ensurePassengerCityPickerVisible(); } catch (_) {}
+            window.syncMapLocationChipVisibility?.();
+            window.refreshNearbyDriversFromCache?.();
+            window.refreshDemandHeatmapFromCache?.();
+            if (currentUser) {
+                persistOperatingCity(zone.id, zone.name);
+            }
+            window.updatePlacesLocationBias?.(nlat, nlng);
+            if (!silent) {
+                window.showToast?.(`Ciudad: ${zone.name}`, 'success');
+            }
+            return zone;
+        };
+
+        /**
+         * Rellena el origen con GPS del pasajero si el campo está vacío.
+         * No pisa si el usuario ya escribió o limpió a propósito para poner otra dirección.
+         */
+        window.ensurePassengerOriginFromGps = (opts = {}) => {
+            if (window.userProfile?.role !== 'client') return;
+            if (window._passengerOriginAutofillBusy) return;
+            if (!opts.force) {
+                if (window._passengerOriginUserCleared) return;
+                if (window._passengerOriginAutofillDone) return;
+            }
+
+            const originEl = document.getElementById('origin-autocomplete');
+            if (!originEl) return;
+            const existing = String(
+                window.readAutocompleteText?.(originEl)
+                || originEl._routeEndpoint?.address
+                || originEl.value
+                || ''
+            ).trim();
+            if (existing && !opts.force) return;
+
+            if (!navigator.geolocation) return;
+
+            window._passengerOriginAutofillBusy = true;
+            window.useCurrentLocation?.({
+                silent: true,
+                fromAutofill: true,
+                onDone: () => {
+                    window._passengerOriginAutofillBusy = false;
+                    window._passengerOriginAutofillDone = true;
+                },
+                onError: () => {
+                    window._passengerOriginAutofillBusy = false;
+                }
+            });
+        };
+
+        window.markPassengerOriginUserCleared = () => {
+            window._passengerOriginUserCleared = true;
+        };
+
+             window.useCurrentLocation = (opts = {}) => {
+            const silent = opts.silent === true;
+            const fromAutofill = opts.fromAutofill === true;
             if (!navigator.geolocation) {
-                window.showToast("Tu navegador no soporta geolocalización.");
+                if (!silent) window.showToast("Tu navegador no soporta geolocalización.");
+                opts.onError?.();
                 return;
             }
 
-            window.showToast("Obteniendo tu ubicación actual...");
+            // Usuario pidió GPS a propósito: permitir rellenar de nuevo
+            if (!fromAutofill) {
+                window._passengerOriginUserCleared = false;
+            }
+
+            if (!silent) window.showToast("Obteniendo tu ubicación actual...");
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
@@ -33534,15 +34066,10 @@ window.addEventListener('map-route-trigger', () => {
                         lng: position.coords.longitude
                     };
 
-                    const gpsZone = findZoneForCoords(latlng.lat, latlng.lng);
-                    if (gpsZone) {
-                        setActiveServiceZone(gpsZone.id, { persist: true, biasMap: true });
-                    } else if (!isInsideHondurasProximity(latlng.lat, latlng.lng) && getZoneConfig().allowManualZoneSelection) {
-                        const manual = setActiveServiceZone(getDefaultZoneId(), { biasMap: true });
-                        window.showToast(`GPS fuera de Honduras. Usando ${manual?.name || 'ciudad seleccionada'} para el viaje.`);
-                    } else {
-                        window.updatePlacesLocationBias?.(latlng.lat, latlng.lng);
-                    }
+                    // Ciudad sigue al origen GPS
+                    window.syncCityFromOriginCoords?.(latlng.lat, latlng.lng, {
+                        silent: silent || fromAutofill
+                    });
 
                     // Centrar el mapa
                     if (window.gMap) {
@@ -33553,6 +34080,20 @@ window.addEventListener('map-route-trigger', () => {
                     // Obtener dirección (preferir nombre del lugar en el mapa si hay POI cerca)
                     (async () => {
                         try {
+                            // Si el usuario ya escribió algo mientras pedíamos GPS (autofill), no pisar
+                            if (fromAutofill) {
+                                const originCheck = document.getElementById('origin-autocomplete');
+                                const typed = String(
+                                    window.readAutocompleteText?.(originCheck)
+                                    || originCheck?._routeEndpoint?.address
+                                    || ''
+                                ).trim();
+                                if (typed && originCheck?._routeEndpoint?.source !== 'gps') {
+                                    opts.onDone?.();
+                                    return;
+                                }
+                            }
+
                             const geo = await window.reverseGeocodeLatLng?.(latlng);
                             const address = geo?.address || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
                             const placeName = geo?.placeName || null;
@@ -33562,6 +34103,7 @@ window.addEventListener('map-route-trigger', () => {
                             const ok = await window.guardRouteEndpointChange?.(originEl, address);
                             if (!ok) {
                                 window.restoreRouteFieldSnapshot?.(originEl, snap);
+                                opts.onError?.();
                                 return;
                             }
 
@@ -33592,9 +34134,13 @@ window.addEventListener('map-route-trigger', () => {
 
                             window.dispatchEvent(new CustomEvent('map-route-trigger'));
                             window.updateOriginGPSButton?.();
-                            window.showToast("Ubicación actual establecida como origen.");
+                            if (!silent) {
+                                window.showToast("Ubicación actual establecida como origen.");
+                            }
+                            opts.onDone?.();
                         } catch (_) {
-                            window.showToast("No pudimos obtener la dirección exacta.");
+                            if (!silent) window.showToast("No pudimos obtener la dirección exacta.");
+                            opts.onError?.();
                         }
                     })();
                 },
@@ -33609,12 +34155,13 @@ window.addEventListener('map-route-trigger', () => {
                         message = "Tiempo de espera agotado. Intenta de nuevo.";
                     }
 
-                    window.showToast(message);
+                    if (!silent) window.showToast(message);
+                    opts.onError?.(error);
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: 12000,
-                    maximumAge: 0
+                    timeout: fromAutofill ? 10000 : 12000,
+                    maximumAge: fromAutofill ? 30000 : 0
                 }
             );
         };
@@ -33680,6 +34227,7 @@ window.addEventListener('map-route-trigger', () => {
 
             const U = window.OpsUi;
             const completedTotal = allTrips.filter((t) => t.status === 'completed').length;
+            const histUnattendedCount = histUnattended.length;
             const phaseCounts = { pending: 0, to_pickup: 0, at_pickup: 0, in_progress: 0 };
             otherActive.forEach((t) => {
                 const p = getStaffActiveTripPhase(t);
@@ -33693,19 +34241,28 @@ window.addEventListener('map-route-trigger', () => {
                     <h2 class="ops-trips-page-title">Viajes en tiempo real</h2>
                     <p class="ops-trips-page-sub">Activos, programados reservados y sin atención</p>
                 </div>
-                <div class="ops-trips-page-kpis">
-                    ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default')}
-                    ${U.kpi(scheduledReserved.length, 'Prog. reservados', scheduledReserved.length ? 'amber' : 'default')}
-                    ${U.kpi(phaseCounts.to_pickup + phaseCounts.at_pickup, 'Con conductor', 'emerald')}
-                    ${U.kpi(phaseCounts.in_progress, 'En curso', 'cyan')}
-                    ${U.kpi(activeTrips.length, 'Activos', 'purple')}
-                    ${U.kpi(cancelledSearches.length, 'Búsquedas cancel.', cancelledSearches.length ? 'cyan' : 'default')}
-                    ${U.kpi(cancelledPending.length, 'Cancel. c/cond.', cancelledPending.length ? 'red' : 'default')}
-                    ${U.kpi(pastTrips.length, 'Recientes', 'default')}
+                <div class="ops-trips-page-kpis" role="toolbar" aria-label="Filtrar viajes">
+                    ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default', { filterKey: 'unanswered', title: 'Solicitudes vivas sin vistas u ofertas' })}
+                    ${U.kpi(histUnattendedCount, 'Pasados s/rev.', histUnattendedCount ? 'red' : 'default', { filterKey: 'historical', title: 'Cancelados sin conductor · pasados sin revisar' })}
+                    ${U.kpi(scheduledReserved.length, 'Prog. reservados', scheduledReserved.length ? 'amber' : 'default', { filterKey: 'scheduled' })}
+                    ${U.kpi(phaseCounts.to_pickup + phaseCounts.at_pickup, 'Con conductor', 'emerald', { filterKey: 'with_driver' })}
+                    ${U.kpi(phaseCounts.in_progress, 'En curso', 'cyan', { filterKey: 'in_progress' })}
+                    ${U.kpi(activeTrips.length, 'Activos', 'purple', { filterKey: 'active' })}
+                    ${U.kpi(cancelledSearches.length, 'Búsquedas cancel.', cancelledSearches.length ? 'cyan' : 'default', { filterKey: 'cancelled_search' })}
+                    ${U.kpi(cancelledPending.length, 'Cancel. c/cond.', cancelledPending.length ? 'red' : 'default', { filterKey: 'cancelled_driver' })}
+                    ${U.kpi(pastTrips.length, 'Recientes', 'default', { filterKey: 'recent' })}
+                    ${U.kpi(completedTotal, 'Completados', 'emerald', { filterKey: 'completed' })}
+                    ${U.kpi('·', 'Ver todos', 'default', { filterKey: 'all', title: 'Quitar filtro y ver todo' })}
                 </div>
+                <p class="ops-trips-filter-hint"><i class="fas fa-hand-pointer"></i> Tocá un recuadro · <b>Pasados s/rev.</b> = cancelados sin conductor</p>
             </div>`;
-            body += U.tripToolbar(activeTrips.length, completedTotal, 'window.loadSupervisorTrips()', 'window.loadSupervisorPastTrips()');
+            body += U.tripToolbar(activeTrips.length, completedTotal, "window.loadSupervisorTrips(); window._staffTripsPageFilter='all';", 'window.loadSupervisorPastTrips()');
             body += buildStaffScheduledReservedSectionHtml(allTrips, { includeDelete: true });
+            // Pasados sin revisar (cancelados sin conductor)
+            body += buildStaffHistoricalUnattendedSectionHtml(allTrips, {
+                includeDelete: true,
+                maxChatHeight: '8rem'
+            });
             body += buildStaffUnansweredTripsSectionHtml(allTrips, {
                 includeDelete: true,
                 includeInvoice: true,
@@ -33716,16 +34273,12 @@ window.addEventListener('map-route-trigger', () => {
                 includeDelete: true,
                 maxChatHeight: '6rem'
             });
-            body += buildStaffHistoricalUnattendedSectionHtml(allTrips, {
-                includeDelete: true,
-                maxChatHeight: '8rem'
-            });
-            body += buildStaffActiveTripsDashboardHtml(otherActive, {
+            body += `<div data-staff-trips-section="active">${buildStaffActiveTripsDashboardHtml(otherActive, {
                 includeDelete: true,
                 includeInvoice: true,
                 includeCancel: true,
                 maxChatHeight: '10rem'
-            });
+            })}</div>`;
             body += buildStaffCancelledTripsSectionHtml(allTrips);
 
             let pastBody = '';
@@ -33753,7 +34306,8 @@ window.addEventListener('map-route-trigger', () => {
                 badge: pastTrips.length,
                 body: pastBody + `<div class="flex justify-end mt-2">${U.btn('Ver todos los pasados', 'window.loadSupervisorPastTrips()', { variant: 'ghost', icon: 'fa-arrow-right' })}</div>`,
                 collapsible: true,
-                open: pastTrips.length > 0
+                open: pastTrips.length > 0,
+                sectionKey: 'recent'
             });
 
             return U.page(body);
