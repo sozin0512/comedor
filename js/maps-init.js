@@ -5483,6 +5483,9 @@ window.gMap = null;
             window.enableDriverMapFreeGestures?.();
             window.startDriverCompassTracking?.().catch?.(() => {});
             window.syncDriverPanelNavVisibility?.();
+            // Solo mapa: ocultar saludo / logo / bandera del header
+            try { window.syncDriverChromeForActiveTrip?.(); } catch (_) {}
+            try { window.closeHeaderMoreMenu?.(); } catch (_) {}
         };
 
         // Re-centra al girar el celular (vertical/horizontal) siguiendo la ruta

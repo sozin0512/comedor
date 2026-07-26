@@ -7441,7 +7441,46 @@
 
         @media (max-width: 767px) {
             body.is-searching #map-container { opacity: 0.06; }
-            body.is-navigating #app-header { display: none !important; }
+        }
+
+        /*
+         * Navegación / viaje conductor: solo mapa (sin saludo, logo, bandera).
+         * Antes solo se ocultaba el header en móvil + is-navigating.
+         */
+        body.is-navigating #app-header,
+        body.driver-nav-mode #app-header,
+        body.trip-active.driver-mode #app-header,
+        body.is-navigating .hn-flag-stripe,
+        body.driver-nav-mode .hn-flag-stripe,
+        body.trip-active.driver-mode .hn-flag-stripe,
+        body.is-navigating #header-more-menu,
+        body.driver-nav-mode #header-more-menu,
+        body.trip-active.driver-mode #header-more-menu {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+            opacity: 0 !important;
+            border: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        body.is-navigating #app-interface,
+        body.driver-nav-mode #app-interface,
+        body.trip-active.driver-mode #app-interface {
+            /* Mapa a toda la pantalla de la app */
+            padding-top: 0 !important;
+        }
+
+        body.is-navigating #map-container,
+        body.driver-nav-mode #map-container,
+        body.trip-active.driver-mode #map-container {
+            top: 0 !important;
+            bottom: 0 !important;
         }
 
         .chat-msg { max-width: 85%; padding: 8px 12px; border-radius: 14px; margin-bottom: 8px; font-size: 13px; display: flex; flex-direction: column; }
