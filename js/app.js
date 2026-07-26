@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.26.2";
+} from "./auth-credentials.js?v=2026.07.26.3";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.26.2";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.26.2";
+import { APP_CONFIG } from "./config.js?v=2026.07.26.3";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.26.3";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.26.2";
+} from "./referrals.js?v=2026.07.26.3";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.26.2";
+} from "./zones.js?v=2026.07.26.3";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.26.2";
+} from "./trip-notifications.js?v=2026.07.26.3";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.26.2";
+} from "./notification-tones.js?v=2026.07.26.3";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.26.2";
+} from "./passenger-alerts.js?v=2026.07.26.3";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.26.2";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.26.2";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.26.2";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.26.2";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.26.2";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.26.2";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.26.2";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.26.2";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.26.2";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.26.2";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.26.2";
+} from "./passenger-verification.js?v=2026.07.26.3";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.26.3";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.26.3";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.26.3";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.26.3";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.26.3";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.26.3";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.26.3";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.26.3";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.26.3";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.26.3";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.26.2";
+} from "./feedback.js?v=2026.07.26.3";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.26.2";
+} from "./greetings.js?v=2026.07.26.3";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.26.2";
+} from "./service-types.js?v=2026.07.26.3";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.26.2";
+} from "./driver-vehicles.js?v=2026.07.26.3";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.26.2";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.26.2";
+} from "./route-conditions.js?v=2026.07.26.3";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.26.3";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.26.2";
+} from "./demand-heatmap.js?v=2026.07.26.3";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.26.2";
+} from "./ops-fleet-map.js?v=2026.07.26.3";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.26.2";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.26.2";
+} from "./live-trip-keepalive.js?v=2026.07.26.3";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.26.3";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.26.2";
+} from "./session-keepalive.js?v=2026.07.26.3";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.26.2";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.26.2";
+} from "./passenger-tutorial.js?v=2026.07.26.3";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.26.3";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.26.2";
+} from "./driver-tutorial.js?v=2026.07.26.3";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.26.2";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.26.3";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.26.2";
+} from "./auth-ui.js?v=2026.07.26.3";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.26.2";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.26.2";
+} from "./age-verification.js?v=2026.07.26.3";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.26.3";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.26.2";
+} from "./trip-experience.js?v=2026.07.26.3";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.26.2";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.26.2";
-import { initAppDownload } from "./app-download.js?v=2026.07.26.2";
+} from "./support-tickets.js?v=2026.07.26.3";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.26.3";
+import { initAppDownload } from "./app-download.js?v=2026.07.26.3";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -3634,10 +3634,23 @@ if (document.readyState === 'loading') {
                 } else if (action === 'set-radius') {
                     const km = parseInt(btn.dataset.radiusKm || btn.dataset.radius, 10);
                     if (!Number.isNaN(km)) window.onServiceRadiusChange?.(km);
-                } else if (action === 'hide-panel') {
-                    window.hideControlPanel?.();
+                } else if (action === 'hide-panel' || action === 'toggle-panel-chevron') {
+                    // Fallback si no corrió el listener directo del #panel-hide-btn
+                    window.toggleActivePanel?.();
                 } else if (action === 'show-panel') {
-                    window.showControlPanel?.();
+                    // FAB «Abrir panel»: expandir aunque esté minimizado
+                    const panel = document.getElementById('control-panel');
+                    const isCollapsed = !!panel?.classList.contains('panel-collapsed')
+                        || document.body.classList.contains('panel-minimized')
+                        || document.body.classList.contains('panel-hidden');
+                    if (isCollapsed && typeof window.expandDriverControlPanel === 'function'
+                        && document.body.classList.contains('driver-mode')) {
+                        window.expandDriverControlPanel();
+                    } else if (isCollapsed) {
+                        window.toggleActivePanel?.();
+                    } else {
+                        window.showControlPanel?.();
+                    }
                 } else if (action === 'toggle-nav-hud') window.toggleNavHud?.();
                 else if (action === 'toggle-nav-voice') window.toggleDriverVoiceNav?.();
                 else if (action === 'pick-nav-voice') window.openDriverNavVoicePicker?.();
@@ -3774,7 +3787,10 @@ if (document.readyState === 'loading') {
                     if (window.wasRecentPanelDrag?.()) return;
                     if (document.body.classList.contains('panel-hidden')) return;
                     if (!document.body.classList.contains('trip-active')) return;
-                    if (e.target.closest('[data-trip-action], [data-accept-trip], [data-decline-trip], button, a, input, textarea, select, gmp-place-autocomplete, [data-no-drag]')) return;
+                    // No pelear con el chevron / botones (tienen su propio toggle)
+                    if (e.target.closest('#panel-hide-btn, .panel-hide-btn, [data-trip-action], [data-accept-trip], [data-decline-trip], button, a, input, textarea, select, gmp-place-autocomplete, [data-no-drag]')) return;
+                    // Solo asa superior (no toda la franja: en web se confundía con drag)
+                    if (!e.target.closest('.trip-drag-handle, .control-panel-header, .control-panel-grab')) return;
                     const rect = controlPanel.getBoundingClientRect();
                     if (e.clientY - rect.top <= 56) {
                         e.preventDefault();
@@ -3786,6 +3802,8 @@ if (document.readyState === 'loading') {
 
             document.body.addEventListener('pointerup', handleTripInteraction, { passive: false });
             document.body.addEventListener('click', handleTripInteraction, { passive: false });
+            try { window.bindPanelHideChevron?.(); } catch (_) {}
+            try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
         }
 
         bindTripTouchActions();
@@ -23772,10 +23790,11 @@ window.stopClientTracking = () => {
     window.hideCenterMapFab?.();
     window.syncNavigationMapFabs?.();
 
-    // Ocultar panel de llegada al destino
+    // Ocultar panel / pastilla de llegada al destino
     const pArrival = document.getElementById('passenger-destination-arrival-panel');
     if (pArrival) pArrival.style.display = 'none';
     document.getElementById('driver-destination-controls')?.classList.add('hidden');
+    document.getElementById('driver-arrived-dest-float')?.classList.add('hidden');
 };
 
 // ==================== LLEGADA AL ORIGEN (1 km) / DESTINO (1 km) — CONDUCTOR → PASAJERO ====================
@@ -23915,35 +23934,64 @@ window.syncDriverPickupArrivalUi = (driverPos = null) => {
 
 window.syncDriverDestinationArrivalUi = (driverPos = null) => {
     const trip = activeTrip || window.currentActiveTripData;
+    // Panel del sheet ya no muestra el botón (queda oculto); UI = pastilla flotante
     const panel = document.getElementById('driver-destination-controls');
+    const float = document.getElementById('driver-arrived-dest-float');
     const btn = document.getElementById('btn-driver-arrived-dest');
     const hint = document.getElementById('driver-dest-distance-hint');
-    if (!panel || !btn) return;
+    panel?.classList.add('hidden');
+    if (!float || !btn) return;
 
     const isDriver = window.userProfile?.role === 'driver';
     const inProgress = trip?.status === 'in_progress' && trip?.driverId === currentUser?.uid;
     if (!isDriver || !inProgress) {
-        panel.classList.add('hidden');
+        float.classList.add('hidden');
+        btn.classList.remove('is-disabled', 'is-arrival-blocked', 'opacity-60');
+        btn.removeAttribute('aria-disabled');
+        btn.dataset.blocked = '0';
         return;
     }
 
-    panel.classList.remove('hidden');
+    float.classList.remove('hidden');
     const pos = driverPos || window.currentDriverPos;
     const dest = window.getTripDestinationCoords(trip);
     const dist = pos && dest ? window.getDistanceMetersBetween(pos, dest) : Infinity;
     const within = Number.isFinite(dist) && dist <= TRIP_DEST_CONFIRM_RADIUS_M;
     const signaled = !!trip.driverArrivedDestination;
 
+    const legLabel = window.getTripRouteLegLabel?.(trip) || { isFinal: true, routeNum: 2, hasMultipleLegs: false };
+    const pointLabel = legLabel.isFinal ? 'destino' : `punto ${legLabel.routeNum}`;
+    const span = btn.querySelector('span');
+
     if (signaled) {
-        btn.disabled = true;
-        btn.querySelector('span').textContent = 'FINALIZANDO VIAJE…';
+        btn.classList.add('is-disabled', 'is-arrival-blocked');
+        btn.classList.remove('opacity-60');
+        btn.setAttribute('aria-disabled', 'true');
+        btn.dataset.blocked = '1';
+        if (span) span.textContent = 'FINALIZANDO…';
+        float.title = 'Llegada registrada. Completando el viaje…';
         if (hint) hint.innerHTML = '✅ Llegada registrada. Completando el viaje…';
         return;
     }
 
-    const legLabel = window.getTripRouteLegLabel?.(trip) || { isFinal: true, routeNum: 2, hasMultipleLegs: false };
-    const pointLabel = legLabel.isFinal ? 'destino' : `punto ${legLabel.routeNum}`;
-
+    // Distancia en title (tooltip) + estado visual; sin disabled nativo (toques se pierden)
+    let titleMsg = 'Toca al llegar al destino · arrastra para mover';
+    if (!dest) {
+        titleMsg = legLabel.isFinal ? 'Ubicando destino del viaje…' : 'Ubicando siguiente punto…';
+    } else if (!pos) {
+        titleMsg = 'Obteniendo GPS… botón activo a ≤ 1 km del destino';
+    } else if (within) {
+        titleMsg = `A ${Math.round(dist)} m del ${pointLabel}. Toca para confirmar · arrastra para mover`;
+    } else {
+        const radiusLabel = TRIP_DEST_CONFIRM_RADIUS_M >= 1000
+            ? `${(TRIP_DEST_CONFIRM_RADIUS_M / 1000).toFixed(0)} km`
+            : `${TRIP_DEST_CONFIRM_RADIUS_M} m`;
+        const distLabel = dist >= 1000
+            ? `${(dist / 1000).toFixed(1)} km`
+            : `${Math.round(dist)} m`;
+        titleMsg = `A ${distLabel} del ${pointLabel} · botón activo a ≤ ${radiusLabel}`;
+    }
+    float.title = titleMsg;
     if (hint) {
         if (!dest) {
             hint.textContent = legLabel.isFinal ? 'Ubicando destino del viaje…' : 'Ubicando siguiente punto…';
@@ -23962,15 +24010,14 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
         }
     }
 
-    // No usar disabled nativo: a veces el click no llega. Visual + toast si está lejos.
+    const blocked = !within || !dest || !pos;
     btn.disabled = false;
     btn.removeAttribute('disabled');
-    const blocked = !within || !dest || !pos || signaled;
     btn.dataset.blocked = blocked ? '1' : '0';
-    btn.classList.toggle('is-arrival-blocked', blocked && !signaled);
-    btn.classList.toggle('opacity-60', blocked && !signaled);
+    btn.classList.toggle('is-disabled', blocked);
+    btn.classList.toggle('is-arrival-blocked', blocked);
+    btn.classList.toggle('opacity-60', blocked);
     btn.setAttribute('aria-disabled', blocked ? 'true' : 'false');
-    const span = btn.querySelector('span');
     if (span) {
         span.textContent = legLabel.isFinal
             ? 'LLEGUÉ AL DESTINO'
@@ -26842,12 +26889,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
             }
 
-            if (!isInProgress) {
-                destControls?.classList.add('hidden');
-            } else {
-                // En curso: destinos visibles (el botón se habilita por distancia)
-                destControls?.classList.remove('hidden');
-            }
+            // Llegada a destino = pastilla flotante (#driver-arrived-dest-float), no en el sheet
+            destControls?.classList.add('hidden');
 
             const isDestPhase = isInProgress || waitingPin;
             let targetAddress = isDestPhase ? (data.destination || '') : (data.origin || '');

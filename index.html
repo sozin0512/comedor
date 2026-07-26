@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.26.2">
+    <meta name="hr-app-version" content="2026.07.26.3">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.26.2">
+    <link rel="manifest" href="manifest.json?v=2026.07.26.3">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,13 +30,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.26.2">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.26.3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.26.2">
-    <script src="js/maps-init.js?v=2026.07.26.2"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.26.3">
+    <script src="js/maps-init.js?v=2026.07.26.3"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.26.2';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.26.3';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -96,10 +96,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.26.2';
+        window.__HR_BUILD_VERSION__ = '2026.07.26.3';
         (function () {
             try {
-                var build = '2026.07.26.2';
+                var build = '2026.07.26.3';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -400,6 +400,15 @@
                 <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
                 <i class="fas fa-map-marker-alt"></i>
                 <span>¡HE LLEGADO!</span>
+            </div>
+        </div>
+
+        <!-- Llegada a destino: pastilla flotante (visible con panel minimizado, como HE LLEGADO) -->
+        <div id="driver-arrived-dest-float" class="trip-float trip-float--driver trip-float--pill trip-float--dest hidden" data-trip-float="driver-arrived-dest" title="Toca al llegar al destino · arrastra para mover">
+            <div id="btn-driver-arrived-dest" class="trip-arrived-pill-btn trip-arrived-pill-btn--dest" data-trip-float-tap="arrived-dest" role="presentation">
+                <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
+                <i class="fas fa-flag-checkered" aria-hidden="true"></i>
+                <span>LLEGUÉ AL DESTINO</span>
             </div>
         </div>
 
@@ -1514,12 +1523,13 @@
             </div>
 
             <div id="control-panel" class="collapsible-panel glass-panel flex flex-col overflow-hidden">
+                <!-- Chevron fuera del header: el header usa pointer-events:none y en Android el hijo no recibía toques -->
+                <button type="button" id="panel-hide-btn" data-trip-action="hide-panel" data-no-drag class="panel-hide-btn trip-touch-btn" aria-label="Minimizar panel" title="Minimizar" aria-expanded="true">
+                    <i class="fas fa-chevron-down pointer-events-none" aria-hidden="true"></i>
+                </button>
                 <div class="control-panel-header" title="Arrastra desde cualquier parte del panel para moverlo">
                     <span class="control-panel-drag-hint"><i class="fas fa-up-down-left-right"></i> Arrastra el panel</span>
                     <div class="control-panel-grab" aria-hidden="true"></div>
-                    <button type="button" data-trip-action="hide-panel" data-no-drag class="panel-hide-btn trip-touch-btn" aria-label="Ocultar panel y ver más mapa" title="Ocultar panel">
-                        <i class="fas fa-chevron-down pointer-events-none"></i>
-                    </button>
                 </div>
                 <div id="ios-install-banner" class="hidden px-3 py-[7px] bg-blue-600 text-white flex items-center gap-2 text-xs border-b border-blue-700 z-10">
                     <i class="fab fa-apple text-base ml-0.5"></i>
@@ -1969,11 +1979,11 @@
 
                 <!-- PANEL VIAJE ACTIVO — estilo Uber: mapa grande + faja inferior mínima -->
                 <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full min-h-0">
-                    <!-- Asa de minimizar: solo pasajero (conductor en nav va minimizado; reabre con Abrir) -->
-                    <div data-trip-action="toggle-panel" role="button" tabindex="0" aria-label="Minimizar o expandir panel" class="trip-drag-handle trip-drag-handle--passenger flex justify-center items-center gap-2 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors rounded-xl min-h-[48px]">
-                        <div class="w-12 h-1.5 bg-gray-300 rounded-full shadow-sm pointer-events-none"></div>
-                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest pointer-events-none driver-panel-min-hint">Minimizar</span>
-                    </div>
+                    <!-- Asa del sheet: se integra al panel (grabber + Minimizar) -->
+                    <button type="button" id="driver-panel-min-btn" data-trip-action="toggle-panel" data-no-drag class="trip-drag-handle trip-drag-handle--passenger trip-min-label-btn trip-sheet-min-bar" aria-label="Minimizar panel" title="Minimizar panel">
+                        <span class="trip-sheet-grabber" aria-hidden="true"></span>
+                        <span class="driver-panel-min-hint">Minimizar</span>
+                    </button>
 
                     <!-- Barra minimizada (como Uber cuando el sheet está abajo) -->
                     <div id="trip-mini-bar" class="driver-active-eta flex items-center justify-between px-1 py-2 mb-2">
@@ -2073,9 +2083,9 @@
                                 </div>
                             </div>
 
-                            <div id="driver-destination-controls" class="hidden driver-dest-hero mb-0 space-y-2">
-                                <p id="driver-dest-distance-hint" class="driver-pin-hero-hint text-center">Calculando distancia…</p>
-                                <button type="button" id="btn-driver-arrived-dest" data-trip-action="driver-arrived-dest" class="driver-pin-hero-btn driver-active-primary-btn trip-touch-btn w-full"><span class="pointer-events-none">LLEGUÉ AL DESTINO</span></button>
+                            <!-- Llegada a destino: botón flotante #driver-arrived-dest-float (no en panel) -->
+                            <div id="driver-destination-controls" class="hidden driver-dest-hero mb-0 space-y-2" aria-hidden="true">
+                                <p id="driver-dest-distance-hint" class="driver-pin-hero-hint text-center hidden">Calculando distancia…</p>
                             </div>
 
                             <!-- PIN en ficha central (además del flotante) -->
@@ -2311,6 +2321,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.07.26.2"></script>
+    <script type="module" src="js/app.js?v=2026.07.26.3"></script>
 </body>
 </html>

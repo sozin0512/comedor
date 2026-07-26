@@ -49,6 +49,8 @@ function isInteractiveTarget(el) {
     if (el?.closest?.('[data-promo-drag-handle], .passenger-promo-drag-handle, [data-copa-map-drag-handle], .app-download-badge-drag, [data-app-dl-drag]')) return false;
     // Close button must stay clickable (not start drag)
     if (el?.closest?.('.passenger-promo-close, #passenger-promo-close, .app-download-badge-close, [data-copa-close], [data-app-dl-close], .copa-close-btn, .copa-strip-close')) return true;
+    // Chevron min/max del panel: NUNCA iniciar drag (web lo confunde con movimiento)
+    if (el?.closest?.('#panel-hide-btn, .panel-hide-btn, .trip-drag-handle, [data-trip-action="hide-panel"], [data-trip-action="toggle-panel"]')) return true;
     return !!el?.closest?.(
         'button, a, input, textarea, select, label, [data-no-drag], [data-trip-action], gmp-place-autocomplete, .panel-hide-btn, .wallet-compact-btn, .favorite-chip, .passenger-promo-card, [role="tab"], [role="button"], [role="slider"], [contenteditable="true"], .star-btn, .tip-btn'
     );
@@ -238,6 +240,14 @@ function isDriverPanelExpanded() {
 }
 
 function isDriverPanelDocked() {
+    // En viaje activo el sheet no se arrastra (solo min/max); si no, al
+    // minimizar makeDraggable se reactivaba y el toque se sentía como “movimiento”.
+    if (!document.body.classList.contains('driver-mode')) return false;
+    if (document.body.classList.contains('trip-active')
+        || document.body.classList.contains('is-navigating')
+        || document.body.classList.contains('driver-nav-mode')) {
+        return true;
+    }
     return isDriverPanelExpanded();
 }
 
@@ -494,6 +504,8 @@ function defaultTripFloatPosition(el, key) {
         'client-trip': { left: '0.65rem', top: 'max(4.75rem, calc(env(safe-area-inset-top, 0px) + 3.75rem))' },
         'client-pin': { left: '0.65rem', bottom: bottomSafe },
         'driver-arrived': { right: '0.65rem', bottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' },
+        // Destino: un poco más arriba que el chat / mini-bar para no tapar el mapa
+        'driver-arrived-dest': { right: '0.65rem', bottom: 'calc(7.25rem + env(safe-area-inset-bottom, 0px))' },
         'driver-pin': narrow
             ? { left: '0.65rem', right: '0.65rem', bottom: bottomSafe }
             : { right: '0.65rem', bottom: bottomSafe },
@@ -552,6 +564,9 @@ function runTripFloatTapAction(action) {
             return;
         }
         window.markArrival?.();
+    } else if (action === 'arrived-dest') {
+        // Toast de distancia / GPS lo maneja driverSignalDestinationArrival
+        window.driverSignalDestinationArrival?.();
     }
 }
 
@@ -757,6 +772,7 @@ export function syncTripFloatPanels(data) {
         document.getElementById('client-trip-float')?.classList.add('hidden');
         document.getElementById('client-pin-float')?.classList.add('hidden');
         document.getElementById('driver-arrived-float')?.classList.add('hidden');
+        document.getElementById('driver-arrived-dest-float')?.classList.add('hidden');
         document.getElementById('driver-pin-float')?.classList.add('hidden');
         document.getElementById('trip-chat-float-pill')?.classList.add('hidden');
         document.getElementById('chat-float')?.classList.add('hidden');
@@ -770,6 +786,7 @@ export function syncTripFloatPanels(data) {
     const clientTripFloat = document.getElementById('client-trip-float');
     const clientPinDisplay = document.getElementById('client-pin-display');
     const driverArrivedFloat = document.getElementById('driver-arrived-float');
+    const driverArrivedDestFloat = document.getElementById('driver-arrived-dest-float');
     const driverPinFloat = document.getElementById('driver-pin-float');
     const driverPinHero = document.getElementById('driver-pin-hero');
     const pinInputGroup = document.getElementById('pin-input-group');
@@ -823,6 +840,9 @@ export function syncTripFloatPanels(data) {
         && data.status === 'accepted'
         && !data.driverArrived;
 
+    const showDriverArrivedDest = isDriver
+        && data.status === 'in_progress';
+
     const showDriverPin = isDriver
         && data.status === 'accepted'
         && !!data.driverArrived;
@@ -831,6 +851,13 @@ export function syncTripFloatPanels(data) {
         driverArrivedFloat.classList.toggle('hidden', !showDriverArrived);
         if (showDriverArrived) {
             window.syncDriverPickupArrivalUi?.();
+        }
+    }
+
+    if (driverArrivedDestFloat) {
+        driverArrivedDestFloat.classList.toggle('hidden', !showDriverArrivedDest);
+        if (showDriverArrivedDest) {
+            window.syncDriverDestinationArrivalUi?.();
         }
     }
 

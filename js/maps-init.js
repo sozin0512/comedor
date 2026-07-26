@@ -2272,7 +2272,7 @@ window.gMap = null;
          */
         window.expandDriverControlPanel = () => {
             const panel = document.getElementById('control-panel');
-            document.body.classList.remove('panel-hidden', 'panel-minimized');
+            document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
             panel?.classList.remove('panel-hidden', 'panel-collapsed');
             try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
             document.getElementById('active-trip-panel')?.classList.remove('hidden', 'panel-minimized');
@@ -2283,6 +2283,7 @@ window.gMap = null;
                 window._driverNavUserKeptOpen = true;
                 window._driverNavPanelAutoMinDone = true;
             }
+            try { window.syncPanelHideChevron?.(); } catch (_) {}
             // Anclar abajo como sheet (nunca full-screen en viaje)
             try { window.dockControlPanelForDriverTrip?.(); } catch (_) {}
             if (panel && document.body.classList.contains('trip-active')) {
@@ -2335,14 +2336,14 @@ window.gMap = null;
                 panel?.classList.remove('panel-hidden');
                 if (hasTrip && userMinimized) {
                     panel?.classList.add('panel-collapsed');
-                    document.body.classList.add('panel-minimized');
+                    document.body.classList.add('panel-minimized', 'panel-collapsed');
                     window.syncDriverRadarFloatPanel?.();
                     window.syncPassengerPanelToggleLabel?.();
                     window.updatePassengerPromoStripVisibility?.();
                     window.refreshPassengerCopaUI?.();
                     return;
                 }
-                document.body.classList.remove('panel-minimized');
+                document.body.classList.remove('panel-minimized', 'panel-collapsed');
                 panel?.classList.remove('panel-collapsed');
                 try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
                 window.dockControlPanelForDriverTrip?.();
@@ -2394,6 +2395,7 @@ window.gMap = null;
                 }
                 const collapsed = panel ? panel.classList.contains('panel-collapsed') : document.body.classList.contains('panel-minimized');
                 document.body.classList.toggle('panel-minimized', collapsed);
+                document.body.classList.toggle('panel-collapsed', collapsed);
                 document.body.classList.remove('panel-hidden');
                 panel?.classList.remove('panel-hidden');
                 if (isDriver) {
@@ -2401,6 +2403,7 @@ window.gMap = null;
                     if (!collapsed) window._driverNavPanelAutoMinDone = true;
                 }
                 window.syncPassengerPanelToggleLabel?.();
+                try { window.syncPanelHideChevron?.(); } catch (_) {}
                 try { localStorage.setItem(PANEL_HIDDEN_KEY, collapsed ? '1' : '0'); } catch (_) {}
                 window.syncDriverRadarFloatPanel?.();
                 window.syncDriverPanelNavVisibility?.();
@@ -2417,6 +2420,7 @@ window.gMap = null;
             const label = document.getElementById('trip-panel-toggle-label');
             if (label) label.textContent = 'Ver más';
             try { localStorage.setItem(PANEL_HIDDEN_KEY, '1'); } catch (_) {}
+            try { window.syncPanelHideChevron?.(); } catch (_) {}
             window.updatePassengerPromoStripVisibility?.();
             window.refreshPassengerCopaUI?.();
         };
@@ -2425,9 +2429,11 @@ window.gMap = null;
             const isMobile = window.innerWidth < 768;
             const hasTrip = document.body.classList.contains('trip-active');
             const isDriver = document.body.classList.contains('driver-mode');
+            try { window.bindPanelHideChevron?.(); } catch (_) {}
 
             if (document.body.classList.contains('is-searching')) {
                 window.showControlPanel();
+                try { window.syncPanelHideChevron?.(); } catch (_) {}
                 return;
             }
 
@@ -2438,10 +2444,11 @@ window.gMap = null;
                     if (localStorage.getItem(PANEL_HIDDEN_KEY) === '1') {
                         const p = document.getElementById('control-panel');
                         if (p) p.classList.add('panel-collapsed');
-                        document.body.classList.add('panel-minimized');
+                        document.body.classList.add('panel-minimized', 'panel-collapsed');
                     }
                 } catch (_) {}
                 window.syncDriverRadarFloatPanel?.();
+                try { window.syncPanelHideChevron?.(); } catch (_) {}
                 return;
             }
 
@@ -2513,18 +2520,199 @@ window.gMap = null;
             }
         };
 
+        /** Actualiza el chevron de esquina (v / ^) según min/max del panel */
+        window.syncPanelHideChevron = () => {
+            const btn = document.getElementById('panel-hide-btn')
+                || document.querySelector('#control-panel > .panel-hide-btn')
+                || document.querySelector('#control-panel .panel-hide-btn');
+            if (!btn) return;
+            const panel = document.getElementById('control-panel');
+            const collapsed = !!panel?.classList.contains('panel-collapsed')
+                || document.body.classList.contains('panel-minimized')
+                || document.body.classList.contains('panel-hidden');
+            const icon = btn.querySelector('i');
+            if (icon) {
+                icon.classList.remove('fa-chevron-down', 'fa-chevron-up');
+                icon.classList.add(collapsed ? 'fa-chevron-up' : 'fa-chevron-down');
+            }
+            btn.setAttribute('aria-label', collapsed ? 'Maximizar panel' : 'Minimizar panel');
+            btn.setAttribute('title', collapsed ? 'Maximizar' : 'Minimizar');
+            btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            btn.classList.toggle('is-collapsed', collapsed);
+        };
+
+        /**
+         * Chevron min/max: click real (no drag).
+         * En web el panel con cursor:grab / touch-action pan-y convertía el toque en “movimiento”.
+         * Criterio: pointerdown → pointerup con desplazamiento < 18px = click.
+         */
+        window.bindPanelHideChevron = () => {
+            const btn = document.getElementById('panel-hide-btn')
+                || document.querySelector('#control-panel > .panel-hide-btn');
+            if (!btn || btn.dataset.chevronBound === '1') return;
+            btn.dataset.chevronBound = '1';
+
+            let lastFireAt = 0;
+            let press = null; // { x, y, id, t }
+
+            const stopAll = (e) => {
+                try {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                } catch (_) {}
+            };
+
+            const doToggle = () => {
+                const now = Date.now();
+                if (now - lastFireAt < 400) return;
+                lastFireAt = now;
+                // No bloquear por wasRecentPanelDrag: este botón NUNCA es drag
+                if (typeof window.toggleActivePanel === 'function') {
+                    window.toggleActivePanel();
+                } else {
+                    window.hideControlPanel?.();
+                }
+                try { window.syncPanelHideChevron?.(); } catch (_) {}
+            };
+
+            btn.addEventListener('pointerdown', (e) => {
+                if (e.button != null && e.button !== 0) return;
+                stopAll(e);
+                press = { x: e.clientX, y: e.clientY, id: e.pointerId, t: Date.now() };
+                try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+            }, { capture: true, passive: false });
+
+            btn.addEventListener('pointermove', (e) => {
+                if (!press || e.pointerId !== press.id) return;
+                // No dejar que el navegador/gestos del panel tomen el gesto
+                stopAll(e);
+            }, { capture: true, passive: false });
+
+            btn.addEventListener('pointerup', (e) => {
+                if (!press || e.pointerId !== press.id) return;
+                stopAll(e);
+                const dx = Math.abs(e.clientX - press.x);
+                const dy = Math.abs(e.clientY - press.y);
+                const dt = Date.now() - press.t;
+                try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
+                press = null;
+                // Hasta ~18px de “temblor” cuenta como click (no drag)
+                if (dx > 18 || dy > 18) return;
+                if (dt > 900) return; // long-press: ignorar
+                doToggle();
+            }, { capture: true, passive: false });
+
+            btn.addEventListener('pointercancel', (e) => {
+                if (press && e.pointerId === press.id) press = null;
+                try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
+            }, { capture: true });
+
+            // Fallback mouse/accesibilidad (si no hubo pointerup útil)
+            btn.addEventListener('click', (e) => {
+                stopAll(e);
+                doToggle();
+            }, { capture: true, passive: false });
+
+            // Evitar menú contextual / selección en hold
+            btn.addEventListener('contextmenu', (e) => stopAll(e), { capture: true });
+
+            try { window.syncPanelHideChevron?.(); } catch (_) {}
+        };
+
+        /**
+         * Botón «Minimizar» del sheet (texto): mismo criterio click vs drag que el chevron.
+         */
+        window.bindDriverPanelMinBtn = () => {
+            const btn = document.getElementById('driver-panel-min-btn')
+                || document.querySelector('#control-panel .trip-min-label-btn')
+                || document.querySelector('#control-panel .trip-drag-handle[data-trip-action="toggle-panel"]');
+            if (!btn || btn.dataset.minBtnBound === '1') return;
+            btn.dataset.minBtnBound = '1';
+
+            let lastFireAt = 0;
+            let press = null;
+
+            const stopAll = (e) => {
+                try {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+                } catch (_) {}
+            };
+
+            const doToggle = () => {
+                const now = Date.now();
+                if (now - lastFireAt < 400) return;
+                lastFireAt = now;
+                if (typeof window.toggleActivePanel === 'function') {
+                    window.toggleActivePanel();
+                }
+            };
+
+            btn.addEventListener('pointerdown', (e) => {
+                if (e.button != null && e.button !== 0) return;
+                stopAll(e);
+                press = { x: e.clientX, y: e.clientY, id: e.pointerId, t: Date.now() };
+                try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+            }, { capture: true, passive: false });
+
+            btn.addEventListener('pointermove', (e) => {
+                if (!press || e.pointerId !== press.id) return;
+                stopAll(e);
+            }, { capture: true, passive: false });
+
+            btn.addEventListener('pointerup', (e) => {
+                if (!press || e.pointerId !== press.id) return;
+                stopAll(e);
+                const dx = Math.abs(e.clientX - press.x);
+                const dy = Math.abs(e.clientY - press.y);
+                const dt = Date.now() - press.t;
+                try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
+                press = null;
+                if (dx > 18 || dy > 18) return;
+                if (dt > 900) return;
+                doToggle();
+            }, { capture: true, passive: false });
+
+            btn.addEventListener('pointercancel', (e) => {
+                if (press && e.pointerId === press.id) press = null;
+                try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
+            }, { capture: true });
+
+            btn.addEventListener('click', (e) => {
+                stopAll(e);
+                doToggle();
+            }, { capture: true, passive: false });
+        };
+
+        // Bind temprano (HTML ya en el DOM cuando se carga este script)
+        try {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => {
+                    window.bindPanelHideChevron?.();
+                    window.bindDriverPanelMinBtn?.();
+                }, { once: true });
+            } else {
+                window.bindPanelHideChevron();
+                window.bindDriverPanelMinBtn();
+            }
+        } catch (_) {}
+
         window.toggleActivePanel = () => {
             const panel = document.getElementById('control-panel');
             if (!panel) return;
             panel.classList.toggle('panel-collapsed');
             const collapsed = panel.classList.contains('panel-collapsed');
+            // body + panel en sync (CSS usa ambos selectores)
             document.body.classList.toggle('panel-minimized', collapsed);
+            document.body.classList.toggle('panel-collapsed', collapsed);
             document.body.classList.remove('panel-hidden');
             panel.classList.remove('panel-hidden');
             try { localStorage.setItem(PANEL_HIDDEN_KEY, collapsed ? '1' : '0'); } catch (_) {}
             window.syncPassengerPanelToggleLabel?.();
 
-            // Conductor: recordar preferencia del usuario (no auto-minimizar si lo abrió)
+            // Conductor: preferencia del usuario (no auto-minimizar si lo abrió a mano)
             if (document.body.classList.contains('driver-mode')) {
                 if (collapsed) {
                     window._driverNavUserKeptOpen = false;
@@ -2534,7 +2722,7 @@ window.gMap = null;
                 }
             }
 
-            // Etiquetas Abrir / Cerrar (conductor no usa «Minimizar»)
+            // Mini-barra: Abrir (minimizado) / etiqueta auxiliar
             const label = document.getElementById('trip-panel-toggle-label');
             if (label) {
                 label.textContent = collapsed
@@ -2543,6 +2731,15 @@ window.gMap = null;
             }
             const tpLabel = document.getElementById('tp-panel-toggle-label');
             if (tpLabel) tpLabel.textContent = collapsed ? 'Ver más' : 'Minimizar';
+            // Botón superior: Minimizar / Maximizar según estado
+            const minHint = document.querySelector('#control-panel .driver-panel-min-hint');
+            if (minHint) minHint.textContent = collapsed ? 'Maximizar' : 'Minimizar';
+            const minBtn = document.getElementById('driver-panel-min-btn');
+            if (minBtn) {
+                minBtn.setAttribute('aria-label', collapsed ? 'Maximizar panel' : 'Minimizar panel');
+                minBtn.setAttribute('title', collapsed ? 'Maximizar' : 'Minimizar');
+            }
+            try { window.syncPanelHideChevron?.(); } catch (_) {}
 
             if (document.body.classList.contains('driver-mode')) {
                 if (collapsed) window.syncDriverRadarFloatPanel?.();
@@ -5442,7 +5639,7 @@ window.gMap = null;
             }
             panel.classList.add('panel-collapsed');
             panel.classList.remove('panel-hidden');
-            document.body.classList.add('panel-minimized');
+            document.body.classList.add('panel-minimized', 'panel-collapsed');
             document.body.classList.remove('panel-hidden');
             window._driverNavUserKeptOpen = false;
             try { localStorage.setItem('honduber_control_panel_hidden', '1'); } catch (_) {}
@@ -5450,6 +5647,7 @@ window.gMap = null;
             if (label) label.textContent = 'Abrir';
             const tpLabel = document.getElementById('tp-panel-toggle-label');
             if (tpLabel) tpLabel.textContent = 'Ver más';
+            try { window.syncPanelHideChevron?.(); } catch (_) {}
             try { window.syncDriverRadarFloatPanel?.(); } catch (_) {}
             try { window.syncDriverPanelNavVisibility?.(); } catch (_) {}
             try { window.syncPassengerPanelToggleLabel?.(); } catch (_) {}

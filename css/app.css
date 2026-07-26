@@ -3125,23 +3125,84 @@
             transform: none !important;
         }
 
-        .panel-hide-btn {
-            position: absolute;
-            right: 0;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 2.25rem;
-            height: 2.25rem;
-            border: none;
-            border-radius: 0.75rem;
-            background: #f1f5f9;
-            color: #64748b;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-            cursor: pointer;
+        /* Chevron min/max: click puro (no pan/drag del panel) */
+        #control-panel > .panel-hide-btn,
+        #panel-hide-btn,
+        .panel-hide-btn,
+        .panel-hide-btn.trip-touch-btn {
+            position: absolute !important;
+            right: 0.45rem !important;
+            top: 0.35rem !important;
+            left: auto !important;
+            bottom: auto !important;
+            transform: none !important;
+            width: 2.5rem !important;
+            height: 2.5rem !important;
+            min-width: 2.5rem !important;
+            min-height: 2.5rem !important; /* no heredar 48px de .trip-touch-btn */
+            max-width: 2.5rem !important;
+            max-height: 2.5rem !important;
+            border: none !important;
+            border-radius: 999px !important;
+            background: rgba(241, 245, 249, 0.98) !important;
+            color: #475569 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            /* critical: el panel usa pan-y/grab; este botón debe ser solo tap */
+            touch-action: manipulation !important;
+            -webkit-user-drag: none !important;
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            -webkit-touch-callout: none !important;
+            -webkit-tap-highlight-color: rgba(15, 23, 42, 0.08);
+            cursor: pointer !important;
+            z-index: 500 !important;
+            pointer-events: auto !important;
+            box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12) !important;
+            transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+            padding: 0 !important;
+            margin: 0 !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+        }
+
+        /* El panel no debe “robar” el gesto del chevron con cursor grab */
+        body.trip-active #control-panel #panel-hide-btn,
+        body.driver-mode #control-panel #panel-hide-btn {
+            cursor: pointer !important;
+            touch-action: manipulation !important;
+        }
+
+        .panel-hide-btn i,
+        #panel-hide-btn i {
+            font-size: 0.78rem !important;
+            line-height: 1 !important;
+            pointer-events: none !important;
+        }
+
+        .panel-hide-btn:hover,
+        .panel-hide-btn:focus-visible,
+        #panel-hide-btn:hover,
+        #panel-hide-btn:focus-visible {
+            background: #e2e8f0 !important;
+            color: #1e293b !important;
+        }
+
+        .panel-hide-btn:active,
+        #panel-hide-btn:active {
+            transform: scale(0.92) !important;
+        }
+
+        /* Minimizado: chevron apunta arriba (maximizar) */
+        .panel-hide-btn.is-collapsed,
+        body.panel-minimized .panel-hide-btn,
+        body.panel-collapsed .panel-hide-btn,
+        #control-panel.panel-collapsed .panel-hide-btn,
+        body.panel-minimized #panel-hide-btn,
+        #control-panel.panel-collapsed #panel-hide-btn {
+            color: #0f766e !important;
+            background: #ecfdf5 !important;
         }
 
         .panel-expand-fab {
@@ -13251,6 +13312,44 @@
             opacity: 1;
         }
 
+        /* Llegada a destino: pastilla verde flotante (como HE LLEGADO) */
+        .trip-arrived-pill-btn--dest {
+            background: linear-gradient(135deg, #16a34a, #15803d);
+            box-shadow: 0 4px 16px rgba(22, 163, 74, 0.42);
+            letter-spacing: 0.03em;
+            max-width: min(92vw, 280px);
+            white-space: nowrap;
+        }
+
+        .trip-arrived-pill-btn--dest.is-disabled,
+        .trip-arrived-pill-btn--dest.is-arrival-blocked {
+            opacity: 0.48;
+            filter: grayscale(0.2);
+            box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+        }
+
+        #driver-arrived-dest-float:not(.hidden),
+        #trip-floats-layer #driver-arrived-dest-float:not(.hidden) {
+            display: block !important;
+            pointer-events: auto !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 28550 !important;
+        }
+
+        body.trip-active.driver-mode #driver-arrived-dest-float:not(.hidden),
+        body.trip-active.driver-mode #trip-floats-layer #driver-arrived-dest-float:not(.hidden) {
+            display: block !important;
+            pointer-events: auto !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 28550 !important;
+        }
+
+        #driver-arrived-dest-float.hidden {
+            display: none !important;
+        }
+
         .trip-chat-pill {
             position: fixed;
             pointer-events: auto;
@@ -13820,14 +13919,9 @@
         }
 
         /*
-         * Conductor: SIN botón/asa «Minimizar».
-         * En navegación el panel va minimizado; se reabre con «Abrir» en la mini-barra.
+         * Conductor: asa «Minimizar» SOLO con el panel maximizado.
+         * Minimizado → mini-barra con «Abrir» (sin asa).
          */
-        body.trip-active.driver-mode .trip-drag-handle,
-        body.trip-active.driver-mode .trip-drag-handle--passenger,
-        body.trip-active.driver-mode .driver-panel-min-hint,
-        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle,
-        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-panel-min-hint,
         body.trip-active.driver-mode #control-panel.panel-collapsed .trip-drag-handle,
         body.trip-active.driver-mode.panel-minimized #control-panel .trip-drag-handle {
             display: none !important;
@@ -13841,8 +13935,172 @@
             pointer-events: none !important;
         }
 
-        body.trip-active.driver-mode .driver-panel-min-hint {
-            display: none !important;
+        /* Asa del sheet: pastilla fina (estilo Uber / bottom sheet) */
+        .trip-drag-handle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            padding: 0.35rem 0 0.15rem;
+            min-height: 1.5rem;
+            margin: 0;
+            border: none;
+            background: transparent;
+            border-radius: 0;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        .trip-sheet-grabber {
+            display: block;
+            width: 2.25rem;
+            height: 0.28rem;
+            border-radius: 999px;
+            background: #cbd5e1;
+            box-shadow: none;
+            pointer-events: none;
+            transition: background 0.15s ease, transform 0.15s ease, width 0.15s ease;
+        }
+
+        .trip-drag-handle:hover .trip-sheet-grabber,
+        .trip-drag-handle:focus-visible .trip-sheet-grabber {
+            background: #94a3b8;
+            width: 2.6rem;
+        }
+
+        .trip-drag-handle:active .trip-sheet-grabber {
+            background: #64748b;
+            transform: scaleX(0.92);
+        }
+
+        /*
+         * Asa «Minimizar» integrada al sheet (no pastilla flotante).
+         * Ancho completo, suave, como el handle de Uber.
+         */
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle--passenger,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-sheet-min-bar {
+            display: flex !important;
+            flex-direction: column !important;
+            visibility: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 0 0.15rem !important;
+            padding: 0.2rem 0.5rem 0.4rem !important;
+            overflow: visible !important;
+            pointer-events: auto !important;
+            align-items: center;
+            justify-content: center;
+            gap: 0.28rem;
+            cursor: pointer !important;
+            touch-action: manipulation !important;
+            -webkit-tap-highlight-color: transparent;
+            z-index: 6;
+            position: relative;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            -webkit-user-drag: none;
+            user-select: none;
+            opacity: 1 !important;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle:active,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-min-btn:active,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-sheet-min-bar:active {
+            transform: none;
+            background: transparent !important;
+            opacity: 0.72;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle:hover .driver-panel-min-hint,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-min-btn:hover .driver-panel-min-hint {
+            color: #334155 !important;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle:hover .trip-sheet-grabber,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-min-btn:hover .trip-sheet-grabber {
+            background: #94a3b8 !important;
+            width: 2.65rem !important;
+        }
+
+        /* Texto suave, alineado al panel */
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-panel-min-hint {
+            display: block !important;
+            position: static !important;
+            width: auto !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            clip: auto !important;
+            white-space: nowrap !important;
+            border: 0 !important;
+            visibility: visible !important;
+            color: #94a3b8 !important;
+            font-size: 0.58rem !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.12em !important;
+            line-height: 1 !important;
+            pointer-events: none !important;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-sheet-grabber {
+            width: 2.35rem !important;
+            height: 0.22rem !important;
+            border-radius: 999px !important;
+            background: #d1d5db !important;
+            flex-shrink: 0;
+            margin: 0 auto;
+            box-shadow: none !important;
+        }
+
+        /* En viaje expandido: header vacío no ocupa espacio (el asa hace de top) */
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .control-panel-header {
+            min-height: 0 !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            opacity: 0 !important;
+        }
+
+        /* Chevron de esquina: más discreto en viaje (el asa es el control principal) */
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) > #panel-hide-btn {
+            width: 1.75rem !important;
+            height: 1.75rem !important;
+            min-width: 1.75rem !important;
+            min-height: 1.75rem !important;
+            max-width: 1.75rem !important;
+            max-height: 1.75rem !important;
+            top: 0.55rem !important;
+            right: 0.4rem !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            color: #cbd5e1 !important;
+            opacity: 0.85;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) > #panel-hide-btn:hover {
+            color: #64748b !important;
+            background: rgba(241, 245, 249, 0.7) !important;
+        }
+
+        html[data-theme="dark"] .trip-sheet-grabber {
+            background: #475569;
+        }
+
+        html[data-theme="dark"] .trip-drag-handle:hover .trip-sheet-grabber,
+        html[data-theme="dark"] .trip-drag-handle:focus-visible .trip-sheet-grabber {
+            background: #94a3b8;
         }
 
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-active-body {
@@ -13864,10 +14122,30 @@
         }
 
         body.trip-active.driver-mode .control-panel-header {
-            min-height: 0.5rem;
+            min-height: 1.85rem;
             margin-bottom: 0;
-            padding: 0;
-            pointer-events: none !important; /* no bloquear; el asa de minimize es trip-drag-handle */
+            padding: 0 0.15rem;
+            /* Header no arrastra el panel; solo el chevron de esquina es tocable */
+            pointer-events: none !important;
+            position: relative;
+            z-index: 15;
+        }
+
+        /* Chevron «v»: siempre visible y tocable en viaje (hijo directo del panel) */
+        body.trip-active.driver-mode #control-panel > #panel-hide-btn,
+        body.trip-active.driver-mode #control-panel > .panel-hide-btn,
+        body.driver-mode #control-panel > #panel-hide-btn,
+        body.trip-active.driver-mode #control-panel.panel-collapsed > #panel-hide-btn,
+        body.trip-active.driver-mode.panel-minimized #control-panel > #panel-hide-btn {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 500 !important;
+            position: absolute !important;
+            right: 0.45rem !important;
+            top: 0.3rem !important;
+            transform: none !important;
         }
 
         /*
@@ -13890,7 +14168,8 @@
             height: auto !important;
             max-height: min(46dvh, 21rem) !important;
             min-height: 0;
-            padding: 0 0.65rem max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+            /* top padding para el asa del sheet dentro del radio */
+            padding: 0.15rem 0.65rem max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
             cursor: default !important;
             touch-action: pan-y;
             border-radius: 1.35rem 1.35rem 0 0 !important;
@@ -14674,9 +14953,8 @@
             display: none !important;
         }
 
-        /* Fase PIN / destino: botones bien tocables en ficha expandida */
-        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-pin:not(.hidden),
-        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-destination-controls:not(.hidden) {
+        /* Fase PIN: botones bien tocables en ficha expandida (destino = pastilla flotante) */
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-pin:not(.hidden) {
             display: block !important;
             pointer-events: auto !important;
             position: relative;
@@ -14698,9 +14976,19 @@
             filter: grayscale(0.15);
         }
 
+        /* Controles de destino del sheet: el botón vive en #driver-arrived-dest-float */
+        body.trip-active.driver-mode #driver-destination-controls {
+            display: none !important;
+        }
+
         body.trip-active.driver-mode #control-panel.panel-collapsed #trip-mini-bar,
         body.trip-active.driver-mode.panel-minimized #control-panel #trip-mini-bar {
             display: flex !important;
+        }
+
+        /* Mini-barra solo minimizado; maximizado usa el asa superior */
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #trip-mini-bar {
+            display: none !important;
         }
 
         body.trip-active.driver-mode #control-panel.panel-collapsed .trip-drag-handle,
@@ -14711,6 +14999,84 @@
             padding: 0 !important;
             overflow: hidden !important;
             pointer-events: none !important;
+        }
+
+        /* Header compacto minimizado; el chevron vive fuera y sigue tocable */
+        body.trip-active.driver-mode #control-panel.panel-collapsed .control-panel-header,
+        body.trip-active.driver-mode.panel-minimized #control-panel .control-panel-header {
+            display: flex !important;
+            min-height: 0.35rem !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            overflow: visible !important;
+            pointer-events: none !important;
+        }
+
+        /* Espacio superior en mini-barra para no chocar con el chevron */
+        body.trip-active.driver-mode #control-panel.panel-collapsed #trip-mini-bar,
+        body.trip-active.driver-mode.panel-minimized #control-panel #trip-mini-bar {
+            padding-right: 2.75rem !important;
+        }
+
+        /* Refuerzo final: asa integrada (sin pastilla ni márgenes raros) */
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-sheet-min-bar {
+            display: flex !important;
+            flex-direction: column !important;
+            visibility: visible !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 0 0.15rem !important;
+            padding: 0.2rem 0.5rem 0.4rem !important;
+            overflow: visible !important;
+            pointer-events: auto !important;
+            opacity: 1 !important;
+            z-index: 6 !important;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            cursor: pointer !important;
+            touch-action: manipulation !important;
+            gap: 0.28rem !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-panel-min-hint {
+            display: block !important;
+            color: #94a3b8 !important;
+            font-size: 0.58rem !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.12em !important;
+            clip: auto !important;
+            position: static !important;
+            width: auto !important;
+            height: auto !important;
+            margin: 0 !important;
+            overflow: visible !important;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-sheet-grabber {
+            width: 2.35rem !important;
+            height: 0.22rem !important;
+            background: #d1d5db !important;
+        }
+
+        html[data-theme="dark"] body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-panel-min-hint {
+            color: #64748b !important;
+        }
+
+        html[data-theme="dark"] body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-sheet-grabber {
+            background: #475569 !important;
         }
 
         html[data-theme="dark"] body.trip-active.driver-mode #control-panel {
