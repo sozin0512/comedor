@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.26.3";
+} from "./auth-credentials.js?v=2026.07.26.4";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.26.3";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.26.3";
+import { APP_CONFIG } from "./config.js?v=2026.07.26.4";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.26.4";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.26.3";
+} from "./referrals.js?v=2026.07.26.4";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.26.3";
+} from "./zones.js?v=2026.07.26.4";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.26.3";
+} from "./trip-notifications.js?v=2026.07.26.4";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.26.3";
+} from "./notification-tones.js?v=2026.07.26.4";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.26.3";
+} from "./passenger-alerts.js?v=2026.07.26.4";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.26.3";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.26.3";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.26.3";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.26.3";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.26.3";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.26.3";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.26.3";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.26.3";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.26.3";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.26.3";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.26.3";
+} from "./passenger-verification.js?v=2026.07.26.4";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.26.4";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.26.4";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.26.4";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.26.4";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.26.4";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.26.4";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.26.4";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.26.4";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.26.4";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.26.4";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.26.3";
+} from "./feedback.js?v=2026.07.26.4";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.26.3";
+} from "./greetings.js?v=2026.07.26.4";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.26.3";
+} from "./service-types.js?v=2026.07.26.4";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.26.3";
+} from "./driver-vehicles.js?v=2026.07.26.4";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.26.3";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.26.3";
+} from "./route-conditions.js?v=2026.07.26.4";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.26.4";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.26.3";
+} from "./demand-heatmap.js?v=2026.07.26.4";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.26.3";
+} from "./ops-fleet-map.js?v=2026.07.26.4";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.26.3";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.26.3";
+} from "./live-trip-keepalive.js?v=2026.07.26.4";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.26.4";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.26.3";
+} from "./session-keepalive.js?v=2026.07.26.4";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.26.3";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.26.3";
+} from "./passenger-tutorial.js?v=2026.07.26.4";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.26.4";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.26.3";
+} from "./driver-tutorial.js?v=2026.07.26.4";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.26.3";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.26.4";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.26.3";
+} from "./auth-ui.js?v=2026.07.26.4";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.26.3";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.26.3";
+} from "./age-verification.js?v=2026.07.26.4";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.26.4";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.26.3";
+} from "./trip-experience.js?v=2026.07.26.4";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.26.3";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.26.3";
-import { initAppDownload } from "./app-download.js?v=2026.07.26.3";
+} from "./support-tickets.js?v=2026.07.26.4";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.26.4";
+import { initAppDownload } from "./app-download.js?v=2026.07.26.4";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -3804,6 +3804,7 @@ if (document.readyState === 'loading') {
             document.body.addEventListener('click', handleTripInteraction, { passive: false });
             try { window.bindPanelHideChevron?.(); } catch (_) {}
             try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
+            try { window.bindPassengerPanelMinBtn?.(); } catch (_) {}
         }
 
         bindTripTouchActions();
@@ -5434,22 +5435,12 @@ if (document.readyState === 'loading') {
         }
         window.prefetchRegisteredDriversCount = prefetchRegisteredDriversCount;
 
-        function paintRegisteredDriversChip(count) {
-            const n = Number(count);
-            if (!Number.isFinite(n) || n <= 0) return;
+        function paintRegisteredDriversChip(_count) {
+            // Banner del mapa («N conductores en tu ciudad») desactivado: estorba al pasajero
             const indicator = document.getElementById('nearby-drivers-indicator');
             const countEl = document.getElementById('nearby-drivers-count');
-            if (!indicator || !countEl) return;
-            // Solo en modo pasajero sin viaje activo
-            if (window.userProfile?.role === 'driver') return;
-            if (activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status)) return;
-            if (document.body.classList.contains('is-searching')) {
-                // En búsqueda el mensaje va en el panel, no en el chip del mapa
-                return;
-            }
-            // Chip del mapa: flota en ciudad, no "están siendo notificados"
-            countEl.textContent = formatRegisteredDriversFleetLabel(n);
-            indicator.classList.remove('hidden');
+            indicator?.classList.add('hidden');
+            if (countEl) countEl.textContent = '';
         }
 
         window.releaseIncompatibleDriverOffers = async (driverVehicleType) => {
@@ -26742,6 +26733,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
             }
 
+            const wasTripActive = document.body.classList.contains('trip-active');
             document.body.classList.add('trip-active');
             document.body.classList.remove('is-searching');
             syncPromoUi();
@@ -26753,8 +26745,15 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             document.getElementById('fare-card')?.classList.add('hidden');
             const activeP = document.getElementById('active-trip-panel');
             activeP?.classList.remove('hidden', 'panel-minimized');
-            document.body.classList.remove('panel-minimized');
+            // Solo la primera vez que entra a viaje activo: no reabrir en cada snapshot de Firestore
+            if (!wasTripActive) {
+                // Mapa primero: pasajero empieza con panel usable (sin forzar maximizado en cada sync)
+                // Si venía minimizado en búsqueda, respeta; si no, deja expandido
+            }
+            // NO quitar panel-minimized aquí en cada update (rompía minimizar en web/Android)
             window.showControlPanel?.();
+            try { window.syncPanelHideChevron?.(); } catch (_) {}
+            try { window.bindPassengerPanelMinBtn?.(); } catch (_) {}
             window.syncDriverChromeForActiveTrip?.();
 
             if (role === 'driver' && data.driverId === currentUser?.uid) {
@@ -27001,16 +27000,23 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             window.renderTripViewersPanel?.(data);
             renderInstallReminderBanner('passenger_request');
+            const wasSearching = document.body.classList.contains('is-searching');
             document.body.classList.add('is-searching');
-            document.body.classList.remove('trip-active', 'panel-minimized', 'panel-collapsed');
+            document.body.classList.remove('trip-active');
+            // Solo al ENTRAR a búsqueda: abrir panel. En cada update de ofertas NO reabrir
+            // (antes quitaba panel-minimized y el pasajero no podía bajar el panel en web/Android).
+            const panel = document.getElementById('control-panel');
+            if (!wasSearching) {
+                document.body.classList.remove('panel-minimized', 'panel-collapsed');
+                panel?.classList.remove('panel-collapsed', 'panel-hidden');
+                if (panel) panel.scrollTop = 0;
+                try { localStorage.setItem('honduber_control_panel_hidden', '0'); } catch (_) {}
+            }
             syncPromoUi();
             window.showControlPanel?.();
+            try { window.syncPanelHideChevron?.(); } catch (_) {}
             // Sonido en bucle mientras el cliente espera que acepten el viaje
             try { startPassengerWaitingLoop(); } catch (_) {}
-
-            const panel = document.getElementById('control-panel');
-            panel?.classList.remove('panel-collapsed', 'panel-hidden');
-            if (panel) panel.scrollTop = 0;
 
             setStoredClientTripId(data.id);
 
@@ -32791,31 +32797,17 @@ window.cancelSetupAndLogout = () => {
                 const count = Math.max(onlineInZone, visibleIds.size);
                 window.lastNearbyDriversCount = count;
 
-                const indicator = document.getElementById('nearby-drivers-indicator');
+                // Banner del mapa con conteo de conductores: desactivado (estorba)
+                document.getElementById('nearby-drivers-indicator')?.classList.add('hidden');
                 const countEl = document.getElementById('nearby-drivers-count');
+                if (countEl) countEl.textContent = '';
                 const regCount = Number(
                     window.pendingTripRegisteredDrivers
                     ?? window.lastRegisteredDriversCount
                     ?? 0
                 );
-                if (indicator && countEl) {
-                    if (document.body.classList.contains('is-searching')) {
-                        indicator.classList.add('hidden');
-                    } else if (count > 0) {
-                        indicator.classList.remove('hidden');
-                        countEl.textContent = count === 1
-                            ? '1 conductor disponible'
-                            : `${count} conductores disponibles`;
-                    } else if (regCount > 0) {
-                        // Flota registrada en la ciudad — NO "están siendo notificados"
-                        // (eso solo aplica cuando el pasajero ya pidió viaje)
-                        indicator.classList.remove('hidden');
-                        countEl.textContent = formatRegisteredDriversFleetLabel(regCount);
-                    } else {
-                        countEl.textContent = '';
-                        indicator.classList.add('hidden');
-                        prefetchRegisteredDriversCount();
-                    }
+                if (!(regCount > 0) && count <= 0) {
+                    prefetchRegisteredDriversCount();
                 }
 
                 if (activeTrip?.status === 'pending' && activeTrip.clientId === currentUser?.uid) {

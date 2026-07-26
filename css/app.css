@@ -858,7 +858,23 @@
             color: #dc2626;
         }
 
-        /* Copa HonduRaite — botón dorado destacado del menú */
+        /* Menú ⋮: no mostrar Copas (se veían feas en Android; ranking sigue en el mapa) */
+        #header-menu-copa,
+        #header-menu-pcopa,
+        #header-more-menu .header-more-item-copa {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            border: none !important;
+            opacity: 0 !important;
+        }
+
+        /* Copa HonduRaite — estilos (por si se reactivan en el futuro) */
         .header-more-item-copa {
             position: relative;
             margin: 0.15rem 0 0.25rem;
@@ -4523,8 +4539,130 @@
             pointer-events: none;
         }
 
-        body.is-searching #control-panel .panel-hide-btn {
+        /* Antes se ocultaba el chevron en búsqueda y el pasajero no podía bajar el panel */
+        body.is-searching #control-panel .panel-hide-btn,
+        body.is-searching #control-panel #panel-hide-btn {
+            display: flex !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+            opacity: 1 !important;
+            z-index: 500 !important;
+        }
+
+        /* Pasajero: asa Minimizar (web + Android) */
+        .passenger-panel-min-btn {
             display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.28rem;
+            width: 100%;
+            margin: 0;
+            padding: 0.35rem 0.5rem 0.45rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            position: relative;
+            z-index: 30;
+            pointer-events: auto;
+        }
+
+        .passenger-panel-min-label {
+            font-size: 0.58rem;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #94a3b8;
+            line-height: 1;
+            pointer-events: none;
+        }
+
+        body.client-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #passenger-panel-min-btn,
+        body.client-mode.is-searching:not(.panel-minimized) #control-panel:not(.panel-collapsed) #passenger-panel-min-btn,
+        body.client-mode.trip-active:not(.panel-minimized) #control-panel:not(.panel-collapsed) #passenger-panel-min-btn {
+            display: flex !important;
+        }
+
+        body.driver-mode #passenger-panel-min-btn,
+        body.client-mode.panel-minimized #passenger-panel-min-btn,
+        body.client-mode #control-panel.panel-collapsed #passenger-panel-min-btn {
+            display: none !important;
+        }
+
+        body.client-mode.panel-minimized #control-panel #passenger-panel-min-btn.is-collapsed,
+        body.client-mode #control-panel.panel-collapsed #passenger-panel-min-btn {
+            /* Cuando está minimizado usamos chevron ^ / mini contenido; no duplicar */
+            display: none !important;
+        }
+
+        /* Mini-faja al maximizar de nuevo: chevron siempre */
+        body.client-mode.panel-minimized #panel-hide-btn,
+        body.client-mode #control-panel.panel-collapsed #panel-hide-btn {
+            display: flex !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+            opacity: 1 !important;
+            z-index: 500 !important;
+            background: #ecfdf5 !important;
+            color: #0f766e !important;
+        }
+
+        /* Booking / idle pasajero minimizado (no solo búsqueda) */
+        body.client-mode.panel-minimized #control-panel,
+        body.client-mode #control-panel.panel-collapsed {
+            max-height: min(34dvh, 240px) !important;
+            height: auto !important;
+            top: auto !important;
+            bottom: 0 !important;
+            overflow: hidden !important;
+        }
+
+        /*
+         * Pasajero buscando: panel minimizado = faja abajo + mapa usable.
+         * Gana a las reglas capacitor full-screen de is-searching.
+         */
+        body.client-mode.is-searching.panel-minimized #control-panel,
+        body.client-mode.is-searching #control-panel.panel-collapsed,
+        body.client-mode.is-searching.panel-collapsed #control-panel,
+        body.capacitor-native.client-mode.is-searching.panel-minimized #control-panel,
+        body.capacitor-android.client-mode.is-searching.panel-minimized #control-panel,
+        body.capacitor-native.client-mode.is-searching #control-panel.panel-collapsed,
+        body.capacitor-android.client-mode.is-searching #control-panel.panel-collapsed {
+            top: auto !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: auto !important;
+            max-height: min(34dvh, 240px) !important;
+            min-height: 0 !important;
+            border-radius: 1.35rem 1.35rem 0 0 !important;
+            z-index: 12000 !important;
+            overflow: hidden !important;
+            box-shadow: 0 -8px 28px rgba(15, 23, 42, 0.18) !important;
+            padding-top: 0.35rem !important;
+            padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+        }
+
+        body.client-mode.is-searching.panel-minimized #map-container,
+        body.client-mode.is-searching #control-panel.panel-collapsed ~ #map-container,
+        body.is-searching.panel-minimized #map-container,
+        body.is-searching.panel-collapsed #map-container {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+
+        body.client-mode.is-searching.panel-minimized #searching-state .passenger-pending-wrap,
+        body.client-mode.is-searching #control-panel.panel-collapsed #searching-state .passenger-pending-wrap {
+            max-height: none;
+        }
+
+        body.client-mode.is-searching.panel-minimized #panel-content,
+        body.client-mode.is-searching #control-panel.panel-collapsed #panel-content {
+            overflow: hidden !important;
+            max-height: min(30dvh, 210px) !important;
         }
 
         body.is-searching #panel-content {
@@ -6766,6 +6904,15 @@
 
         body.passenger-track-mode #trip-mini-time {
             font-size: 1.35rem;
+        }
+
+        /* Banner «N conductores en tu ciudad / disponibles»: oculto (estorba al pasajero) */
+        #nearby-drivers-indicator,
+        #nearby-drivers-indicator:not(.hidden) {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            opacity: 0 !important;
         }
 
         #nearby-drivers-indicator {
@@ -13096,13 +13243,7 @@
             display: none !important;
         }
 
-        /* Quitar la barrita horizontal (drag handle / ::before) del panel inferior del pasajero */
-        body.client-mode.trip-active #control-panel .trip-drag-handle,
-        body.client-mode.trip-active #control-panel.panel-collapsed .trip-drag-handle,
-        body.passenger-trip-float-active #control-panel .trip-drag-handle,
-        body.passenger-trip-float-active #control-panel.panel-collapsed .trip-drag-handle,
-        body.trip-active:not(.driver-mode) #control-panel .trip-drag-handle,
-        body.trip-active:not(.driver-mode) #control-panel.panel-collapsed .trip-drag-handle,
+        /* ::before del panel pasajero: no (el asa es #driver-panel-min-btn) */
         body.client-mode.trip-active #control-panel::before,
         body.passenger-trip-float-active #control-panel::before,
         body.trip-active:not(.driver-mode) #control-panel::before {
@@ -13115,16 +13256,89 @@
             border: none !important;
         }
 
+        /* Pasajero en viaje: asa «Minimizar» visible (antes estaba oculta → no bajaba el panel en Android) */
+        body.client-mode.trip-active #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
+        body.passenger-trip-float-active #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
+        body.trip-active:not(.driver-mode) #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
+        body.client-mode.trip-active #control-panel:not(.panel-collapsed) .trip-sheet-min-bar,
+        body.trip-active:not(.driver-mode) #control-panel:not(.panel-collapsed) .trip-sheet-min-bar {
+            display: flex !important;
+            flex-direction: column !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 0 0.15rem !important;
+            padding: 0.25rem 0.5rem 0.35rem !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            gap: 0.25rem !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 8 !important;
+            position: relative !important;
+            touch-action: manipulation !important;
+            cursor: pointer !important;
+        }
+
+        body.client-mode.trip-active #control-panel:not(.panel-collapsed) .driver-panel-min-hint,
+        body.trip-active:not(.driver-mode) #control-panel:not(.panel-collapsed) .driver-panel-min-hint {
+            display: block !important;
+            color: #94a3b8 !important;
+            font-size: 0.58rem !important;
+            font-weight: 800 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.12em !important;
+            clip: auto !important;
+            position: static !important;
+            width: auto !important;
+            height: auto !important;
+            margin: 0 !important;
+            overflow: visible !important;
+        }
+
+        body.client-mode.trip-active #control-panel.panel-collapsed #driver-panel-min-btn,
+        body.trip-active:not(.driver-mode) #control-panel.panel-collapsed #driver-panel-min-btn,
+        body.client-mode.trip-active.panel-minimized #control-panel #driver-panel-min-btn,
+        body.trip-active:not(.driver-mode).panel-minimized #control-panel #driver-panel-min-btn {
+            display: none !important;
+        }
+
         /* Panel inferior del pasajero: solo acciones (compartir / SOS / cancelar) */
         body.passenger-trip-float-active.client-mode #control-panel:not(.panel-collapsed) {
             max-height: min(38dvh, 280px) !important;
         }
 
-        body.passenger-trip-float-active.client-mode #control-panel.panel-collapsed {
-            max-height: min(18dvh, 120px) !important;
+        body.passenger-trip-float-active.client-mode #control-panel.panel-collapsed,
+        body.passenger-trip-float-active.client-mode.panel-minimized #control-panel,
+        body.capacitor-android.client-mode.trip-active.panel-minimized #control-panel,
+        body.capacitor-android.client-mode.trip-active #control-panel.panel-collapsed,
+        body.capacitor-native.client-mode.trip-active.panel-minimized #control-panel,
+        body.capacitor-native.client-mode.trip-active #control-panel.panel-collapsed {
+            max-height: min(18dvh, 130px) !important;
+            height: auto !important;
+            top: auto !important;
+            bottom: 0 !important;
+            overflow: hidden !important;
         }
 
         body.passenger-trip-float-active #driver-active-body {
+            display: none !important;
+        }
+
+        /* Al minimizar en viaje: mantener acciones compactas (Compartir/SOS) */
+        body.client-mode.trip-active #control-panel.panel-collapsed #trip-actions-sticky,
+        body.client-mode.trip-active.panel-minimized #control-panel #trip-actions-sticky {
+            display: block !important;
+            padding-top: 0.15rem !important;
+        }
+
+        body.client-mode.trip-active #control-panel.panel-collapsed #passenger-alert-settings,
+        body.client-mode.trip-active.panel-minimized #control-panel #passenger-alert-settings {
             display: none !important;
         }
 

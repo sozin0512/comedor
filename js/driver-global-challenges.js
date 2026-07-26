@@ -3061,12 +3061,12 @@ export function initDriverGlobalChallenges({
         await openPublicCopaRanking();
     };
 
-    /** Visible para todos los roles logueados (pasajeros incluidos) */
-    window.syncDriverCopaMenuVisibility = (role) => {
+    /** Menú ⋮: Copa Conductores oculta (se veía mal en Android; ranking sigue en el mapa) */
+    window.syncDriverCopaMenuVisibility = (_role) => {
         const el = document.getElementById('header-menu-copa');
         if (!el) return;
-        if (role) el.classList.remove('hidden');
-        else el.classList.add('hidden');
+        el.classList.add('hidden');
+        el.setAttribute('aria-hidden', 'true');
     };
 
     window.startPublicCopaListener = () => {

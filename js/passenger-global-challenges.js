@@ -2964,12 +2964,12 @@ export function initPassengerGlobalChallenges({
         await openPublicPassengerCopaRanking();
     };
 
-    /** Visible para todos los roles logueados (pasajeros incluidos) */
-    window.syncPassengerCopaMenuVisibility = (role) => {
+    /** Menú ⋮: Copa Pasajeros oculta (se veía mal en Android; ranking sigue en el mapa) */
+    window.syncPassengerCopaMenuVisibility = (_role) => {
         const el = document.getElementById('header-menu-pcopa');
         if (!el) return;
-        if (role) el.classList.remove('hidden');
-        else el.classList.add('hidden');
+        el.classList.add('hidden');
+        el.setAttribute('aria-hidden', 'true');
     };
 
     window.startPublicPassengerCopaListener = () => {

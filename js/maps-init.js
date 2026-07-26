@@ -2322,11 +2322,16 @@ window.gMap = null;
 
         window.showControlPanel = () => {
             const panel = document.getElementById('control-panel');
-            const isMobile = window.innerWidth < 768;
+            const isMobile = window.innerWidth < 768
+                || document.body.classList.contains('capacitor-android')
+                || document.body.classList.contains('capacitor-native');
             const hasTrip = document.body.classList.contains('trip-active');
             const isDriver = document.body.classList.contains('driver-mode');
+            const isClient = document.body.classList.contains('client-mode');
+            const isSearching = document.body.classList.contains('is-searching');
             const userMinimized = !!panel?.classList.contains('panel-collapsed')
-                || document.body.classList.contains('panel-minimized');
+                || document.body.classList.contains('panel-minimized')
+                || (() => { try { return localStorage.getItem(PANEL_HIDDEN_KEY) === '1'; } catch (_) { return false; } })();
 
             if (isDriver) {
                 // Nunca ocultar del todo. Si el usuario minimizó en viaje, RESPETAR
@@ -2341,6 +2346,7 @@ window.gMap = null;
                     window.syncPassengerPanelToggleLabel?.();
                     window.updatePassengerPromoStripVisibility?.();
                     window.refreshPassengerCopaUI?.();
+                    try { window.syncPanelHideChevron?.(); } catch (_) {}
                     return;
                 }
                 document.body.classList.remove('panel-minimized', 'panel-collapsed');
@@ -2350,20 +2356,22 @@ window.gMap = null;
                 window.syncDriverRadarFloatPanel?.();
                 window.updatePassengerPromoStripVisibility?.();
                 window.refreshPassengerCopaUI?.();
+                try { window.syncPanelHideChevron?.(); } catch (_) {}
                 return;
             }
 
-            if (isMobile && hasTrip) {
-                // En viaje móvil: no forzar expandir; solo el botón minimiza/expande
+            // Pasajero: en búsqueda o viaje NO forzar expandir (Android re-sincronizaba y reabría el panel)
+            if (isClient && (hasTrip || isSearching || (isMobile && userMinimized))) {
                 document.body.classList.remove('panel-hidden');
                 panel?.classList.remove('panel-hidden');
                 if (userMinimized) {
                     panel?.classList.add('panel-collapsed');
-                    document.body.classList.add('panel-minimized');
+                    document.body.classList.add('panel-minimized', 'panel-collapsed');
                 }
                 window.syncPassengerPanelToggleLabel?.();
                 window.updatePassengerPromoStripVisibility?.();
                 window.refreshPassengerCopaUI?.();
+                try { window.syncPanelHideChevron?.(); } catch (_) {}
                 return;
             }
 
@@ -2376,20 +2384,21 @@ window.gMap = null;
             }
             window.updatePassengerPromoStripVisibility?.();
             window.refreshPassengerCopaUI?.();
+            try { window.syncPanelHideChevron?.(); } catch (_) {}
         };
 
         window.hideControlPanel = () => {
-            if (document.body.classList.contains('is-searching')) {
-                window.showToast?.('Durante la búsqueda no se puede ocultar.', 'warning');
-                return;
-            }
             const panel = document.getElementById('control-panel');
-            const isMobile = window.innerWidth < 768;
+            const isMobile = window.innerWidth < 768
+                || document.body.classList.contains('capacitor-android')
+                || document.body.classList.contains('capacitor-native');
             const hasTrip = document.body.classList.contains('trip-active');
             const isDriver = document.body.classList.contains('driver-mode');
+            const isClient = document.body.classList.contains('client-mode');
+            const isSearching = document.body.classList.contains('is-searching');
 
-            if (isDriver || (isMobile && hasTrip)) {
-                // Conductor: solo minimizar/maximizar, nunca ocultar por completo.
+            // Pasajero/conductor (y búsqueda): minimizar/maximizar — no bloquear con toast
+            if (isDriver || isClient || isSearching || (isMobile && hasTrip)) {
                 if (panel) {
                     panel.classList.toggle('panel-collapsed');
                 }
@@ -2409,12 +2418,14 @@ window.gMap = null;
                 window.syncDriverPanelNavVisibility?.();
                 window.updatePassengerPromoStripVisibility?.();
                 window.refreshPassengerCopaUI?.();
+                // iOS/Android: reflow para aplicar max-height del colapsado
+                try { void panel?.offsetHeight; } catch (_) {}
                 return;
             }
 
-            // Permitir ocultar/minimizar durante viaje para conductor y pasajero (non-mobile)
+            // Desktop no-cliente: ocultar del todo
             panel?.classList.remove('panel-collapsed');
-            document.body.classList.remove('panel-minimized');
+            document.body.classList.remove('panel-minimized', 'panel-collapsed');
             document.body.classList.add('panel-hidden');
             panel?.classList.add('panel-hidden');
             const label = document.getElementById('trip-panel-toggle-label');
@@ -2621,12 +2632,10 @@ window.gMap = null;
         };
 
         /**
-         * Botón «Minimizar» del sheet (texto): mismo criterio click vs drag que el chevron.
+         * Botones «Minimizar» del sheet (texto): click real, no drag.
+         * Aplica a conductor (#driver-panel-min-btn) y pasajero (#passenger-panel-min-btn).
          */
-        window.bindDriverPanelMinBtn = () => {
-            const btn = document.getElementById('driver-panel-min-btn')
-                || document.querySelector('#control-panel .trip-min-label-btn')
-                || document.querySelector('#control-panel .trip-drag-handle[data-trip-action="toggle-panel"]');
+        function bindPanelMinButton(btn) {
             if (!btn || btn.dataset.minBtnBound === '1') return;
             btn.dataset.minBtnBound = '1';
 
@@ -2684,6 +2693,28 @@ window.gMap = null;
                 stopAll(e);
                 doToggle();
             }, { capture: true, passive: false });
+        }
+
+        window.bindDriverPanelMinBtn = () => {
+            const btn = document.getElementById('driver-panel-min-btn')
+                || document.querySelector('#control-panel .trip-min-label-btn')
+                || document.querySelector('#control-panel .trip-drag-handle[data-trip-action="toggle-panel"]');
+            bindPanelMinButton(btn);
+        };
+
+        window.bindPassengerPanelMinBtn = () => {
+            bindPanelMinButton(document.getElementById('passenger-panel-min-btn'));
+            // Etiqueta Minimizar / Maximizar
+            const btn = document.getElementById('passenger-panel-min-btn');
+            const label = btn?.querySelector('.passenger-panel-min-label');
+            const collapsed = document.body.classList.contains('panel-minimized')
+                || document.getElementById('control-panel')?.classList.contains('panel-collapsed');
+            if (label) label.textContent = collapsed ? 'Maximizar' : 'Minimizar';
+            if (btn) {
+                btn.setAttribute('aria-label', collapsed ? 'Maximizar panel' : 'Minimizar panel');
+                btn.setAttribute('title', collapsed ? 'Maximizar' : 'Minimizar');
+                btn.classList.toggle('is-collapsed', !!collapsed);
+            }
         };
 
         // Bind temprano (HTML ya en el DOM cuando se carga este script)
@@ -2692,10 +2723,12 @@ window.gMap = null;
                 document.addEventListener('DOMContentLoaded', () => {
                     window.bindPanelHideChevron?.();
                     window.bindDriverPanelMinBtn?.();
+                    window.bindPassengerPanelMinBtn?.();
                 }, { once: true });
             } else {
                 window.bindPanelHideChevron();
                 window.bindDriverPanelMinBtn();
+                window.bindPassengerPanelMinBtn();
             }
         } catch (_) {}
 
@@ -2740,6 +2773,7 @@ window.gMap = null;
                 minBtn.setAttribute('title', collapsed ? 'Maximizar' : 'Minimizar');
             }
             try { window.syncPanelHideChevron?.(); } catch (_) {}
+            try { window.bindPassengerPanelMinBtn?.(); } catch (_) {}
 
             if (document.body.classList.contains('driver-mode')) {
                 if (collapsed) window.syncDriverRadarFloatPanel?.();
