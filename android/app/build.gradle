@@ -1,4 +1,4 @@
-apply plugin: 'com.android.application'
+﻿apply plugin: 'com.android.application'
 
 // Firma release local (android/key.properties - no se sube a git)
 def keystorePropertiesFile = rootProject.file('key.properties')
@@ -14,8 +14,8 @@ android {
         applicationId "honduraite.com"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2026072505
-        versionName "2026.07.25.5"
+        versionCode 2026072601
+        versionName "2026.07.26.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -56,7 +56,7 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    // Necesario en el mÃ³dulo app: HonduMessagingService extiende FirebaseMessagingService
+    // Necesario en el mÃƒÂ³dulo app: HonduMessagingService extiende FirebaseMessagingService
     // (el plugin de Capacitor la trae como implementation, no se reexporta al app)
     implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
     testImplementation "junit:junit:$junitVersion"

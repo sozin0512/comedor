@@ -65,6 +65,8 @@ const MINIMIZED_KEY = 'honduber_pcopa_min';
 /** Cierre con ✕ solo para esta sesión (como promos). Al re-login vuelve a salir. */
 const STRIP_DISMISS_KEY = 'honduber_pcopa_strip_dismissed';
 const DISMISSED_KEY = 'honduber_pcopa_dismiss';
+/** Ranking público de Copa Pasajeros (chip en mapa para conductores / no-clientes). */
+const PUBLIC_STRIP_DISMISS_KEY = 'honduber_public_pcopa_strip_dismissed';
 
 const DURATION_PRESETS = {
     /** Sin reloj: la competencia sigue hasta que se cumpla la meta (o staff cierre). */
@@ -837,9 +839,38 @@ function setDismissed(challengeId, dismissed) {
     } catch (_) {}
 }
 
+function isPublicPassengerCopaStripDismissedThisSession() {
+    try {
+        return sessionStorage.getItem(PUBLIC_STRIP_DISMISS_KEY) === '1';
+    } catch (_) {
+        return false;
+    }
+}
+
+function setPublicPassengerCopaStripDismissedThisSession(dismissed) {
+    try {
+        if (dismissed) sessionStorage.setItem(PUBLIC_STRIP_DISMISS_KEY, '1');
+        else sessionStorage.removeItem(PUBLIC_STRIP_DISMISS_KEY);
+    } catch (_) {}
+}
+
+function dismissPublicPassengerCopaStripOnScreen() {
+    const already = isPublicPassengerCopaStripDismissedThisSession();
+    setPublicPassengerCopaStripDismissedThisSession(true);
+    const el = document.getElementById('public-pcopa-strip');
+    if (el) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+    }
+    if (!already) {
+        window.showToast?.('Ranking de Copa Pasajeros oculto. Volverá al iniciar sesión o desde el menú ☰.', 'info');
+    }
+}
+
 function resetCopaSessionDismiss() {
     try {
         sessionStorage.removeItem(STRIP_DISMISS_KEY);
+        sessionStorage.removeItem(PUBLIC_STRIP_DISMISS_KEY);
         const toRemove = [];
         for (let i = 0; i < sessionStorage.length; i++) {
             const k = sessionStorage.key(i);
@@ -1527,6 +1558,8 @@ async function openPassengerCopaModal(challengeId, opts = {}) {
 
 async function openPublicPassengerCopaRanking(challengeId = null) {
     try {
+        // Si abren desde menú tras la ✕, volver a mostrar el chip
+        setPublicPassengerCopaStripDismissedThisSession(false);
         let list = publicCachedChallenges.filter(isChallengeActive);
         if (!list.length) {
             const snap = await getDocs(query(challengesCol(), where('status', '==', 'active'), limit(20)));
@@ -1545,6 +1578,7 @@ async function openPublicPassengerCopaRanking(challengeId = null) {
             );
         }
         const id = challengeId || list[0].id;
+        renderPublicPassengerCopaStrip();
         await openPassengerCopaModal(id, { publicView: true, forcePublic: window.userProfile?.role !== 'client' });
     } catch (e) {
         console.error('openPublicPassengerCopaRanking:', e);
@@ -1555,21 +1589,35 @@ async function openPublicPassengerCopaRanking(challengeId = null) {
 function renderPublicPassengerCopaStrip() {
     const el = document.getElementById('public-pcopa-strip');
     if (!el) return;
-    const active = publicCachedChallenges.filter((c) => isChallengeActive(c) && c.publicRanking !== false);
-    if (!active.length || window.userProfile?.role === 'client') {
-        // drivers use their own strip
-        if (window.userProfile?.role === 'client') {
-            el.classList.add('hidden');
-            el.innerHTML = '';
-            return;
-        }
-        if (!active.length) {
-            el.classList.add('hidden');
-            el.innerHTML = '';
-            return;
-        }
+
+    // Pasajeros usan su propia UI de copa; este chip es ranking público (p. ej. conductores)
+    if (window.userProfile?.role === 'client') {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
     }
-    if (window.userProfile?.role === 'client') return;
+
+    // En viaje activo: ocultar (no tapa HUD ni bloquea toques)
+    if (document.body.classList.contains('trip-active')
+        && (document.body.classList.contains('driver-mode') || window.userProfile?.role === 'driver')) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    const active = publicCachedChallenges.filter((c) => isChallengeActive(c) && c.publicRanking !== false);
+    if (!active.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
+
+    // ✕ de esta sesión (vista conductor)
+    if (isPublicPassengerCopaStripDismissedThisSession()) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+    }
 
     const first = active[0];
     if (!first) {
@@ -1577,25 +1625,51 @@ function renderPublicPassengerCopaStrip() {
         el.innerHTML = '';
         return;
     }
-    const kind = KIND_META[first.kind] || KIND_META.copa;
     const shortTitle = String(first.title || 'Copa Pasajeros')
         .replace(/Copa Pasajeros\s*[—–-]?\s*/i, '')
         .replace(/Todos vs Todos/i, 'Todos vs todos')
         .trim() || 'Ranking';
     el.classList.remove('hidden');
+    // Chip + ✕ (misma idea que ranking público de Copa conductores)
     el.innerHTML = `
-        <button type="button" class="copa-chip copa-chip--map" onclick="window.openPublicPassengerCopaRanking('${first.id}')" title="${escHtml(first.title)}">
-            <span class="copa-chip-pulse" aria-hidden="true"></span>
-            <span class="copa-chip-ico" aria-hidden="true"><i class="fas fa-trophy"></i></span>
-            <span class="copa-chip-body">
-                <span class="copa-chip-label">Copa</span>
-                <span class="copa-chip-rank copa-chip-rank--live">LIVE</span>
-                <span class="copa-chip-sep" aria-hidden="true">·</span>
-                <span class="copa-chip-meta">${escHtml(shortTitle.slice(0, 26))}</span>
-            </span>
-            <i class="fas fa-chevron-right copa-chip-chevron" aria-hidden="true"></i>
-        </button>
+        <div class="copa-chip-wrap public-copa-strip-inner">
+            <button type="button" class="copa-chip copa-chip--map" data-public-pcopa-open
+                    title="${escHtml(first.title)}">
+                <span class="copa-chip-pulse" aria-hidden="true"></span>
+                <span class="copa-chip-ico" aria-hidden="true"><i class="fas fa-trophy"></i></span>
+                <span class="copa-chip-body">
+                    <span class="copa-chip-label">Copa pax</span>
+                    <span class="copa-chip-rank copa-chip-rank--live">LIVE</span>
+                    <span class="copa-chip-sep" aria-hidden="true">·</span>
+                    <span class="copa-chip-meta">${escHtml(shortTitle.slice(0, 20))}</span>
+                </span>
+                <i class="fas fa-chevron-right copa-chip-chevron" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="copa-chip-close passenger-promo-close public-copa-close"
+                    data-public-pcopa-close title="Ocultar ranking" aria-label="Ocultar ranking Copa Pasajeros">
+                <i class="fas fa-times pointer-events-none"></i>
+            </button>
+        </div>
     `;
+
+    el.querySelector('[data-public-pcopa-open]')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.openPublicPassengerCopaRanking?.(first.id);
+    });
+
+    const closeBtn = el.querySelector('[data-public-pcopa-close]');
+    if (closeBtn) {
+        const onClose = (e) => {
+            if (e.type === 'pointerup' && e.pointerType === 'mouse' && e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            try { e.stopImmediatePropagation?.(); } catch (_) {}
+            dismissPublicPassengerCopaStripOnScreen();
+        };
+        closeBtn.addEventListener('pointerup', onClose, { capture: true });
+        closeBtn.addEventListener('click', onClose);
+    }
 }
 
 function closePassengerCopaModal() {
@@ -2863,6 +2937,8 @@ export function initPassengerGlobalChallenges({
     };
     window.closePassengerCopaModal = closePassengerCopaModal;
     window.openPublicPassengerCopaRanking = openPublicPassengerCopaRanking;
+    window.dismissPublicPassengerCopaStrip = () => dismissPublicPassengerCopaStripOnScreen();
+    window.renderPublicPassengerCopaStrip = () => renderPublicPassengerCopaStrip();
 
     window.openPassengerCopaFromMenu = async () => {
         const role = window.userProfile?.role;

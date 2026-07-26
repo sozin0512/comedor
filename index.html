@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.25.5">
+    <meta name="hr-app-version" content="2026.07.26.1">
     <meta name="theme-color" content="#2563eb">
     <script>
         (function () {
@@ -20,7 +20,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.25.5">
+    <link rel="manifest" href="manifest.json?v=2026.07.26.1">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -30,13 +30,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.25.5">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.26.1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.25.5">
-    <script src="js/maps-init.js?v=2026.07.25.5"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.26.1">
+    <script src="js/maps-init.js?v=2026.07.26.1"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.25.5';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.26.1';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -96,10 +96,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.25.5';
+        window.__HR_BUILD_VERSION__ = '2026.07.26.1';
         (function () {
             try {
-                var build = '2026.07.25.5';
+                var build = '2026.07.26.1';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -427,8 +427,8 @@
                 </button>
                 <div id="pin-input-group" class="hidden driver-pin-input-group mt-2">
                     <input id="driver-pin-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="PIN" aria-label="PIN del pasajero" class="driver-pin-input w-full min-w-0 px-3 py-3 border-2 border-blue-100 rounded-2xl outline-none text-center font-black text-2xl tracking-[0.25em]">
-                    <button type="button" data-trip-action="verify-pin" class="driver-pin-submit bg-blue-600 text-white w-full rounded-2xl font-black text-xs uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]"><span class="pointer-events-none">INICIAR VIAJE</span></button>
-                    <button type="button" id="driver-skip-pin-btn" data-trip-action="skip-pin" class="w-full mt-2 py-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-800 font-black text-[11px] uppercase active:scale-95 transition-all trip-touch-btn min-h-[44px]">
+                    <button type="button" data-trip-action="verify-pin" data-no-drag class="driver-pin-submit bg-blue-600 text-white w-full rounded-2xl font-black text-xs uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]"><span class="pointer-events-none">INICIAR VIAJE</span></button>
+                    <button type="button" id="driver-skip-pin-btn" data-trip-action="skip-pin" data-no-drag class="w-full mt-2 py-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-800 font-black text-[11px] uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]">
                         <span class="pointer-events-none"><i class="fas fa-forward mr-1"></i> Iniciar sin PIN</span>
                     </button>
                     <p class="text-[9px] text-slate-500 mt-1.5 text-center leading-snug">Úsalo si el pasajero no tiene el código a la mano. Admin/supervisor también pueden omitirlo desde el panel.</p>
@@ -932,39 +932,38 @@
         </div>
     </div>
 
-    <!-- HUD NAVEGACIÓN TOP (arrastrable + minimizable) -->
+    <!-- HUD NAVEGACIÓN TOP: faja compacta (estilo Google Maps, no media pantalla) -->
     <div id="nav-hud-top" class="nav-hud-top-card">
         <div class="nav-hud-top-chrome">
-            <span class="nav-hud-top-drag-hint" aria-hidden="true"><i class="fas fa-up-down-left-right"></i> Mover</span>
+            <span class="nav-hud-top-drag-hint" aria-hidden="true"><i class="fas fa-grip-lines"></i></span>
             <button type="button" data-trip-action="toggle-nav-hud-top" data-no-drag class="nav-hud-top-min-btn" aria-label="Minimizar instrucciones" title="Minimizar">
                 <i class="fas fa-minus nav-hud-top-min-icon" aria-hidden="true"></i>
                 <i class="fas fa-location-arrow nav-hud-top-expand-icon" aria-hidden="true"></i>
             </button>
         </div>
         <div class="nav-hud-top-body">
-            <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center shrink-0">
-                <i class="fas fa-location-arrow text-2xl text-white" id="nav-step-icon"></i>
+            <div class="nav-hud-step-icon-wrap">
+                <i class="fas fa-location-arrow" id="nav-step-icon"></i>
             </div>
-            <div class="flex-1 min-w-0">
-                <p id="nav-step-text" class="text-lg font-bold leading-tight">En camino...</p>
-                <p id="nav-step-dist" class="text-sm opacity-80 font-medium">Sigue la ruta azul</p>
+            <div class="nav-hud-step-text-wrap min-w-0 flex-1">
+                <p id="nav-step-text" class="nav-hud-step-text">En camino…</p>
+                <p id="nav-step-dist" class="nav-hud-step-dist">Sigue la ruta</p>
             </div>
-            <i class="fas fa-sparkles text-blue-200 animate-pulse shrink-0"></i>
         </div>
     </div>
 
-    <!-- HUD NAVEGACIÓN BOTTOM (conductor: ETA + llegada estimada) -->
+    <!-- HUD NAVEGACIÓN BOTTOM: chip ETA compacto (no banner grande) -->
     <div id="nav-hud-bottom">
         <button type="button" data-trip-action="toggle-nav-hud" class="nav-hud-toggle-btn" aria-label="Minimizar panel de navegación" title="Minimizar navegación">
             <span class="nav-hud-toggle-expanded" aria-hidden="true">−</span>
-            <span class="nav-hud-toggle-collapsed" aria-hidden="true"><i class="fas fa-route"></i> Abrir nav</span>
+            <span class="nav-hud-toggle-collapsed" aria-hidden="true"><i class="fas fa-clock"></i> ETA</span>
         </button>
         <div class="nav-hud-panel">
-            <div class="nav-hud-panel-header flex items-center justify-between gap-2">
-                <span class="text-[10px] font-bold tracking-widest text-white/80">NAV</span>
-                <div class="flex items-center gap-1.5">
+            <div class="nav-hud-panel-header flex items-center justify-between gap-1">
+                <span class="nav-hud-eta-kicker">Llegada</span>
+                <div class="flex items-center gap-1">
                     <button type="button" data-trip-action="pick-nav-voice" class="nav-voice-pick-btn" aria-label="Elegir voz de navegación" title="Elegir voz">
-                        <i class="fas fa-user-astronaut text-[11px]"></i>
+                        <i class="fas fa-user-astronaut text-[10px]"></i>
                         <span class="nav-voice-pick-label">Voz</span>
                     </button>
                     <button type="button" data-trip-action="toggle-nav-voice" class="nav-voice-toggle-btn" aria-pressed="true" aria-label="Silenciar voz de navegación" title="Silenciar voz">
@@ -972,16 +971,16 @@
                     </button>
                 </div>
             </div>
-            <div class="nav-hud-panel-content flex items-center justify-between gap-3 p-2">
+            <div class="nav-hud-panel-content flex items-center justify-between gap-2">
                 <div class="flex flex-col min-w-0">
-                    <div class="flex items-center gap-2">
-                        <span id="nav-total-time" class="text-3xl font-black text-green-600">-- min</span>
-                    </div>
-                    <div class="flex items-center gap-2 text-gray-500 font-bold text-xs uppercase tracking-widest">
-                        <span id="nav-total-dist">-- km</span> • <span id="nav-total-eta">--:--</span>
-                    </div>
+                    <span id="nav-total-time" class="nav-hud-eta-time">-- min</span>
+                    <span class="nav-hud-eta-meta">
+                        <span id="nav-total-dist">-- km</span> · <span id="nav-total-eta">--:--</span>
+                    </span>
                 </div>
-                <button type="button" data-trip-action="center-map" class="driver-nav-recenter-btn px-5 py-3 rounded-full bg-blue-600 text-white font-black text-xs uppercase shadow-lg trip-touch-btn shrink-0"><span class="pointer-events-none"><i class="fas fa-location-arrow"></i> Centrar</span></button>
+                <button type="button" data-trip-action="center-map" class="driver-nav-recenter-btn trip-touch-btn shrink-0" aria-label="Centrar mapa">
+                    <span class="pointer-events-none"><i class="fas fa-location-arrow"></i></span>
+                </button>
             </div>
         </div>
     </div>
@@ -1968,35 +1967,143 @@
                     <div id="driver-objectives-pending" class="hidden mb-3"></div>
                 </div>
 
-                <!-- PANEL VIAJE ACTIVO -->
+                <!-- PANEL VIAJE ACTIVO — estilo Uber: mapa grande + faja inferior mínima -->
                 <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full min-h-0">
-                    <div data-trip-action="toggle-panel" role="button" tabindex="0" aria-label="Minimizar o expandir panel" class="trip-drag-handle flex justify-center py-2 cursor-pointer hover:bg-gray-50 transition-colors rounded-xl">
-                        <div class="w-12 h-1 bg-gray-300 rounded-full shadow-sm pointer-events-none"></div>
+                    <!-- Asa de minimizar: solo pasajero (conductor en nav va minimizado; reabre con Abrir) -->
+                    <div data-trip-action="toggle-panel" role="button" tabindex="0" aria-label="Minimizar o expandir panel" class="trip-drag-handle trip-drag-handle--passenger flex justify-center items-center gap-2 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors rounded-xl min-h-[48px]">
+                        <div class="w-12 h-1.5 bg-gray-300 rounded-full shadow-sm pointer-events-none"></div>
+                        <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest pointer-events-none driver-panel-min-hint">Minimizar</span>
                     </div>
 
+                    <!-- Barra minimizada (como Uber cuando el sheet está abajo) -->
                     <div id="trip-mini-bar" class="driver-active-eta flex items-center justify-between px-1 py-2 mb-2">
-                        <div>
-                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5 driver-active-eta-label">Tiempo estimado</p>
-                            <p id="trip-mini-time" class="text-2xl font-black text-emerald-600 leading-none">-- min</p>
-                            <p class="text-[10px] text-gray-500 font-bold mt-0.5 uppercase tracking-widest">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5 driver-active-eta-label">En viaje</p>
+                            <p id="trip-mini-time" class="text-xl font-black text-emerald-600 leading-none">-- min</p>
+                            <p class="text-[10px] text-gray-500 font-bold mt-0.5 uppercase tracking-widest truncate">
                                 <span id="trip-mini-dist">-- km</span> • <span id="trip-mini-eta">--:--</span>
                             </p>
                         </div>
-                        <button type="button" data-trip-action="toggle-panel" class="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2 py-1 min-h-[44px]">
-                            <span id="trip-panel-toggle-label" class="pointer-events-none">Minimizar</span>
-                        </button>
+                        <div class="flex items-center gap-1.5 shrink-0">
+                            <button type="button" data-trip-action="center-map" class="trip-mini-center-btn shrink-0 text-[10px] font-black text-teal-800 uppercase tracking-widest px-2.5 py-2 min-h-[44px] rounded-xl bg-teal-50 border border-teal-100" title="Centrar mapa" aria-label="Centrar mapa">
+                                <i class="fas fa-location-crosshairs pointer-events-none"></i>
+                                <span class="pointer-events-none hidden sm:inline">Centrar</span>
+                            </button>
+                            <button type="button" data-trip-action="toggle-panel" class="shrink-0 text-[10px] font-black text-emerald-700 uppercase tracking-widest px-3 py-2 min-h-[44px] rounded-xl bg-emerald-50 border border-emerald-100">
+                                <span id="trip-panel-toggle-label" class="pointer-events-none">Abrir</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div id="driver-active-body" class="driver-active-body flex-1 min-h-0 overflow-y-auto -mx-1 px-1">
-                    <div id="active-trip-route-summary" class="driver-active-route p-4 bg-white rounded-2xl border border-slate-200 shadow-sm mb-3">
-                         <p class="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2.5"><i class="fas fa-route"></i> Ruta del viaje</p>
-                         <div class="flex items-start gap-2 mb-2.5">
+                    <!-- Faja estilo Uber: pasajero + dirección + 1 acción principal -->
+                    <div id="driver-uber-sheet" class="driver-uber-sheet">
+                        <div id="driver-uber-pax" class="driver-uber-pax">
+                            <img id="driver-uber-pax-photo" class="driver-uber-pax-photo" alt="" src="https://placehold.co/64x64/e2e8f0/64748b?text=·" onerror="this.src='https://placehold.co/64x64/e2e8f0/64748b?text=·'">
+                            <div class="driver-uber-pax-text min-w-0">
+                                <p id="driver-uber-pax-name" class="driver-uber-pax-name">Pasajero</p>
+                                <p id="driver-uber-next-addr" class="driver-uber-next-addr">Cargando…</p>
+                            </div>
+                            <div class="driver-uber-eta shrink-0">
+                                <span id="driver-uber-eta-time" class="driver-uber-eta-time">--</span>
+                                <span class="driver-uber-eta-label">min</span>
+                            </div>
+                        </div>
+
+                        <!-- Navegación en el panel central (sin banners flotantes verdes) -->
+                        <div id="driver-panel-nav" class="driver-panel-nav hidden" aria-live="polite">
+                            <div class="driver-panel-nav-step">
+                                <div class="driver-panel-nav-icon" aria-hidden="true">
+                                    <i id="panel-nav-step-icon" class="fas fa-location-arrow"></i>
+                                </div>
+                                <div class="driver-panel-nav-copy min-w-0 flex-1">
+                                    <p id="panel-nav-step-text" class="driver-panel-nav-text">En camino…</p>
+                                    <p id="panel-nav-step-dist" class="driver-panel-nav-dist">Sigue la ruta</p>
+                                </div>
+                                <div class="driver-panel-nav-voice">
+                                    <button type="button" data-trip-action="pick-nav-voice" class="driver-panel-nav-voice-btn" aria-label="Elegir voz" title="Elegir voz">
+                                        <i class="fas fa-user-astronaut pointer-events-none"></i>
+                                    </button>
+                                    <button type="button" data-trip-action="toggle-nav-voice" class="driver-panel-nav-voice-btn" aria-pressed="true" aria-label="Silenciar voz" title="Voz">
+                                        <i class="fas fa-volume-up pointer-events-none"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="driver-panel-nav-eta-row">
+                                <span id="panel-nav-total-time" class="driver-panel-nav-eta-time">-- min</span>
+                                <span class="driver-panel-nav-eta-meta">
+                                    <span id="panel-nav-total-dist">-- km</span>
+                                    ·
+                                    <span id="panel-nav-total-eta">--:--</span>
+                                </span>
+                                <button type="button" data-trip-action="center-map" class="driver-panel-nav-center-btn trip-touch-btn" aria-label="Centrar mapa">
+                                    <i class="fas fa-location-crosshairs pointer-events-none"></i>
+                                    <span class="pointer-events-none">Centrar</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="driver-active-cta" class="driver-active-cta space-y-2">
+                            <div id="driver-route-hero" class="hidden driver-route-hero driver-gmaps-route-wrap">
+                                <p id="driver-trip-accepted-kicker" class="driver-route-hero-kicker hidden"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
+                                <button type="button" data-trip-action="driver-nav-inapp" id="driver-target-address" class="driver-route-hero-btn driver-active-primary-btn driver-inapp-nav-btn trip-touch-btn w-full" aria-label="Navegar">
+                                    <div class="flex items-center justify-center gap-3 pointer-events-none">
+                                        <span class="driver-gmaps-route-icon driver-inapp-nav-icon" aria-hidden="true"><i class="fas fa-location-arrow"></i></span>
+                                        <div class="text-left flex-1 min-w-0">
+                                            <p class="driver-route-hero-label">IR AHORA</p>
+                                            <p id="driver-pickup-display" class="driver-route-hero-addr driver-gmaps-route-addr">Cargando dirección…</p>
+                                        </div>
+                                    </div>
+                                </button>
+                                <div class="driver-uber-secondary-row">
+                                    <button type="button" data-trip-action="driver-route" id="driver-open-gmaps" class="driver-gmaps-secondary-btn trip-touch-btn" aria-label="Google Maps">
+                                        <i class="fab fa-google pointer-events-none"></i>
+                                        <span class="pointer-events-none">Maps</span>
+                                    </button>
+                                    <button type="button" data-trip-action="toggle-chat" class="driver-active-tool-btn trip-touch-btn" title="Chat">
+                                        <i class="fas fa-comments pointer-events-none"></i>
+                                        <span class="pointer-events-none">Chat</span>
+                                        <span id="driver-tools-chat-badge" class="hidden driver-active-tool-badge">0</span>
+                                    </button>
+                                    <!-- Reabrir mapa = colapsar panel (sin texto «Minimizar») -->
+                                    <button type="button" data-trip-action="toggle-panel" class="driver-active-tool-btn trip-touch-btn" title="Ver mapa" aria-label="Ver mapa">
+                                        <i class="fas fa-map pointer-events-none"></i>
+                                        <span class="pointer-events-none">Mapa</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="driver-destination-controls" class="hidden driver-dest-hero mb-0 space-y-2">
+                                <p id="driver-dest-distance-hint" class="driver-pin-hero-hint text-center">Calculando distancia…</p>
+                                <button type="button" id="btn-driver-arrived-dest" data-trip-action="driver-arrived-dest" class="driver-pin-hero-btn driver-active-primary-btn trip-touch-btn w-full"><span class="pointer-events-none">LLEGUÉ AL DESTINO</span></button>
+                            </div>
+
+                            <!-- PIN en ficha central (además del flotante) -->
+                            <div id="driver-panel-pin" class="hidden driver-panel-pin space-y-2 mt-1">
+                                <p class="driver-pin-hero-kicker text-center"><i class="fas fa-key"></i> PIN del pasajero</p>
+                                <p class="driver-pin-hero-hint text-center text-[11px]">Ingresá el PIN o iniciá sin PIN</p>
+                                <input id="driver-panel-pin-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="PIN" aria-label="PIN del pasajero" class="driver-pin-input w-full min-w-0 px-3 py-3 border-2 border-blue-100 rounded-2xl outline-none text-center font-black text-2xl tracking-[0.25em]" data-no-drag>
+                                <button type="button" data-trip-action="verify-pin" data-no-drag class="driver-pin-submit bg-blue-600 text-white w-full rounded-2xl font-black text-xs uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]"><span class="pointer-events-none">INICIAR VIAJE</span></button>
+                                <button type="button" id="driver-panel-skip-pin-btn" data-trip-action="skip-pin" data-no-drag class="w-full py-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-800 font-black text-[11px] uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]">
+                                    <span class="pointer-events-none"><i class="fas fa-forward mr-1"></i> Iniciar sin PIN</span>
+                                </button>
+                            </div>
+
+                            <!-- tools legacy id (compat) -->
+                            <div id="driver-active-tools" class="driver-active-tools hidden" aria-hidden="true"></div>
+                        </div>
+                    </div>
+
+                    <!-- Detalle de ruta (oculto en CSS en modo conductor; IDs se rellenan igual) -->
+                    <div id="active-trip-route-summary" class="driver-active-route p-3 bg-white rounded-2xl border border-slate-200 shadow-sm mb-2">
+                         <p class="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2"><i class="fas fa-route"></i> Ruta</p>
+                         <div class="flex items-start gap-2 mb-1.5">
                              <div class="w-2.5 h-2.5 rounded-full bg-blue-600 mt-1 flex-shrink-0"></div>
-                             <p class="text-[10px] text-gray-600 leading-tight uppercase font-medium"><b>Recogida:</b> <span id="active-origin-text" class="font-bold text-gray-900 normal-case">...</span></p>
+                             <p class="text-[11px] text-gray-700 leading-snug font-medium"><b>A:</b> <span id="active-origin-text" class="font-bold text-gray-900">...</span></p>
                          </div>
                          <div class="flex items-start gap-2">
                              <div class="w-2.5 h-2.5 rounded bg-red-600 mt-1 flex-shrink-0"></div>
-                             <p class="text-[10px] text-gray-600 leading-tight uppercase font-medium"><b>Destino:</b> <span id="active-dest-text" class="font-bold text-gray-900 normal-case">...</span></p>
+                             <p class="text-[11px] text-gray-700 leading-snug font-medium"><b>B:</b> <span id="active-dest-text" class="font-bold text-gray-900">...</span></p>
                          </div>
                          <div id="active-hourly-note" class="hidden mt-1"></div>
                     </div>
@@ -2070,48 +2177,6 @@
                                  </div>
                              </div>
                          </div>
-                    </div>
-                    </div>
-
-                    <div id="driver-active-cta" class="driver-active-cta trip-actions-sticky space-y-2 pt-1">
-                    <div id="driver-route-hero" class="hidden driver-route-hero driver-gmaps-route-wrap">
-                        <p id="driver-trip-accepted-kicker" class="driver-route-hero-kicker hidden"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
-                        <!-- Principal: navegar DENTRO de HonduRaite (sin salir del sitio) -->
-                        <button type="button" data-trip-action="driver-nav-inapp" id="driver-target-address" class="driver-route-hero-btn driver-active-primary-btn driver-inapp-nav-btn trip-touch-btn w-full" aria-label="Navegar en el mapa de HonduRaite">
-                            <div class="flex items-center justify-center gap-3 pointer-events-none">
-                                <span class="driver-gmaps-route-icon driver-inapp-nav-icon" aria-hidden="true"><i class="fas fa-location-arrow"></i></span>
-                                <div class="text-left flex-1 min-w-0">
-                                    <p class="driver-route-hero-label">Navegar en el mapa</p>
-                                    <p id="driver-pickup-display" class="driver-route-hero-addr driver-gmaps-route-addr">Cargando dirección…</p>
-                                </div>
-                                <i class="fas fa-chevron-right text-base opacity-90 shrink-0"></i>
-                            </div>
-                        </button>
-                        <!-- Secundario: siempre disponible — abre Google Maps externo -->
-                        <button type="button" data-trip-action="driver-route" id="driver-open-gmaps" class="driver-gmaps-secondary-btn trip-touch-btn w-full mt-2" aria-label="Abrir ruta en Google Maps">
-                            <i class="fab fa-google pointer-events-none"></i>
-                            <span class="pointer-events-none">Abrir en Google Maps</span>
-                            <i class="fas fa-external-link-alt text-[10px] opacity-80 pointer-events-none"></i>
-                        </button>
-                    </div>
-
-                    <div id="driver-destination-controls" class="hidden driver-dest-hero mb-0 space-y-2">
-                        <p class="driver-pin-hero-kicker"><i class="fas fa-flag-checkered"></i> Llegada al destino</p>
-                        <p id="driver-dest-distance-hint" class="driver-pin-hero-hint">Calculando distancia al destino…</p>
-                        <button type="button" id="btn-driver-arrived-dest" data-trip-action="driver-arrived-dest" disabled class="driver-pin-hero-btn driver-active-primary-btn trip-touch-btn w-full disabled:bg-slate-300 disabled:text-slate-500 disabled:opacity-80"><span class="pointer-events-none">LLEGUÉ AL DESTINO</span></button>
-                        <p class="text-[9px] text-center text-slate-500 font-bold leading-snug">Se activa a 1 km del punto. Finaliza el viaje al presionarlo.</p>
-                    </div>
-
-                    <div id="driver-active-tools" class="driver-active-tools">
-                        <button type="button" data-trip-action="toggle-chat" class="driver-active-tool-btn trip-touch-btn" title="Chat del viaje">
-                            <i class="fas fa-comments pointer-events-none"></i>
-                            <span class="pointer-events-none">Chat</span>
-                            <span id="driver-tools-chat-badge" class="hidden driver-active-tool-badge">0</span>
-                        </button>
-                        <button type="button" data-trip-action="center-map" class="driver-active-tool-btn trip-touch-btn" title="Centrar mapa">
-                            <i class="fas fa-location-arrow pointer-events-none"></i>
-                            <span class="pointer-events-none">Centrar</span>
-                        </button>
                     </div>
                     </div>
 
@@ -2246,6 +2311,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.07.25.5"></script>
+    <script type="module" src="js/app.js?v=2026.07.26.1"></script>
 </body>
 </html>

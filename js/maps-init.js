@@ -116,7 +116,13 @@ window.gMap = null;
             zoom: LOW ? 15 : 16,
             disableDefaultUI: true,
             mapTypeId: 'roadmap',
-            gestureHandling: LOW ? 'cooperative' : 'greedy',
+            // greedy: 1 dedo mueve el mapa (como Google Maps app)
+            gestureHandling: 'greedy',
+            draggable: true,
+            scrollwheel: true,
+            disableDoubleClickZoom: false,
+            keyboardShortcuts: true,
+            isFractionalZoomEnabled: true,
         };
         if (LOW) {
             // lighter for low-end / slow net
@@ -656,41 +662,183 @@ window.gMap = null;
         };
 
         window.hideCenterMapFab = () => {
+            // Usado al centrar: reanudar seguimiento de cámara
+            window.resumeDriverNavCameraFollow?.();
             window.autoCenter = true;
+            window._driverMapFreeLook = false;
             window.setMapFabVisible?.('fab-center', false);
         };
 
+        /** Conductor en viaje: el FAB del mapa no se usa (Centrar va en el panel verde). */
+        window.isDriverTripCenterOnPanel = () =>
+            document.body.classList.contains('driver-mode')
+            && (document.body.classList.contains('trip-active')
+                || document.body.classList.contains('driver-nav-mode')
+                || document.body.classList.contains('is-navigating'));
+
         window.showCenterMapFabIfNavigating = () => {
-            if (!document.body.classList.contains('is-navigating')) return;
+            // Conductor: nunca FAB flotante de centrar
+            if (window.isDriverTripCenterOnPanel?.()) {
+                window.autoCenter = false;
+                window.setMapFabVisible?.('fab-center', false);
+                return;
+            }
+            const navigating = document.body.classList.contains('is-navigating')
+                || document.body.classList.contains('driver-nav-mode');
+            if (!navigating) return;
             window.autoCenter = false;
             window.setMapFabVisible?.('fab-center', true);
         };
 
         window.syncNavigationMapFabs = () => {
-            if (document.body.classList.contains('trip-active')
-                && document.body.classList.contains('driver-mode')) {
+            const navigating = document.body.classList.contains('is-navigating')
+                || document.body.classList.contains('driver-nav-mode');
+            const passengerNav = document.body.classList.contains('passenger-nav-mode');
+            const driverTrip = document.body.classList.contains('trip-active')
+                && document.body.classList.contains('driver-mode');
+            // Tráfico: opcional en viaje (no forzar oculto)
+            window.setMapFabVisible?.('fab-traffic', navigating && !passengerNav && !driverTrip);
+            // Conductor en viaje: Centrar solo en panel verde (no FAB del mapa)
+            if (driverTrip || window.isDriverTripCenterOnPanel?.()) {
                 window.setMapFabVisible?.('fab-center', false);
-                window.setMapFabVisible?.('fab-traffic', false);
                 return;
             }
-            const navigating = document.body.classList.contains('is-navigating');
-            const passengerNav = document.body.classList.contains('passenger-nav-mode');
-            window.setMapFabVisible?.('fab-traffic', navigating && !passengerNav);
-            if (!navigating || window.autoCenter !== false) {
+            const followBroken = window.autoCenter === false;
+            if (navigating && followBroken) {
+                window.setMapFabVisible?.('fab-center', true);
+            } else {
                 window.setMapFabVisible?.('fab-center', false);
             }
         };
 
         window.hideCenterMapFab?.();
-        window.gMap.addListener('dragstart', () => {
-            if (document.body.classList.contains('is-navigating')) {
-                window.showCenterMapFabIfNavigating?.();
+
+        /**
+         * Usuario mueve el mapa con los dedos (como Google Maps):
+         * se pausa el seguimiento de cámara; brújula/GPS siguen midiendo por dentro
+         * y no pelean hasta que toque «Centrar».
+         */
+        window.pauseDriverNavCameraFollow = (reason = 'gesture') => {
+            if (window._mapCameraProgrammatic) return;
+            const driverTrip = document.body.classList.contains('driver-mode')
+                && (document.body.classList.contains('trip-active')
+                    || document.body.classList.contains('driver-nav-mode')
+                    || document.body.classList.contains('is-navigating'));
+            if (!driverTrip && !document.body.classList.contains('is-navigating')) {
+                if (document.body.classList.contains('passenger-track-mode')) {
+                    window.passengerTrackFollow = false;
+                    window.setMapFabVisible?.('fab-center', true);
+                }
+                return;
             }
+            window.autoCenter = false;
+            window._driverMapFreeLook = true;
+            document.body.classList.add('map-free-look');
+            // Brújula sigue actualizando _deviceCompassHeading; el loop de cámara no mueve el mapa
+            if (window.isDriverTripCenterOnPanel?.()) {
+                window.setMapFabVisible?.('fab-center', false);
+            } else {
+                window.showCenterMapFabIfNavigating?.();
+                window.setMapFabVisible?.('fab-center', true);
+            }
+            window._driverMapFreeLookReason = reason;
+        };
+
+        window.resumeDriverNavCameraFollow = () => {
+            window.autoCenter = true;
+            window._driverMapFreeLook = false;
+            window._driverMapFreeLookReason = null;
+            document.body.classList.remove('map-free-look');
+            window.setMapFabVisible?.('fab-center', false);
+        };
+
+        window.withProgrammaticMapCamera = (fn) => {
+            window._mapCameraProgrammatic = true;
+            try {
+                fn?.();
+            } finally {
+                // zoom_changed/idle de Maps llegan un tick después
+                clearTimeout(window._mapCameraProgrammaticTimer);
+                window._mapCameraProgrammaticTimer = setTimeout(() => {
+                    window._mapCameraProgrammatic = false;
+                }, 120);
+            }
+        };
+
+        /** Gestos libres en navegación: pan, pellizco, rotar (si el mapa vector lo permite). */
+        window.enableDriverMapFreeGestures = () => {
+            if (!window.gMap) return;
+            try {
+                window.gMap.setOptions({
+                    gestureHandling: 'greedy',
+                    draggable: true,
+                    scrollwheel: true,
+                    disableDoubleClickZoom: false,
+                    isFractionalZoomEnabled: true,
+                    // no bloquear tilt/rotate en mapas vector (mapId)
+                    headingInteractionEnabled: true,
+                    tiltInteractionEnabled: true,
+                });
+            } catch (_) {
+                try {
+                    window.gMap.setOptions({
+                        gestureHandling: 'greedy',
+                        draggable: true,
+                        scrollwheel: true,
+                    });
+                } catch (__) {}
+            }
+            if (window._driverMapGestureBound) return;
+            window._driverMapGestureBound = true;
+
+            const onUserGesture = () => window.pauseDriverNavCameraFollow?.('gesture');
+
+            window.gMap.addListener('dragstart', onUserGesture);
+            // Pellizco / zoom manual (ignorar cambios programáticos de la nav)
+            window.gMap.addListener('zoom_changed', () => {
+                if (window._mapCameraProgrammatic) return;
+                if (window.autoCenter === false) return; // ya en free-look
+                // Si el zoom cambió sin drag (pinch), pausar seguimiento
+                onUserGesture();
+            });
+            window.gMap.addListener('tilt_changed', () => {
+                if (window._mapCameraProgrammatic) return;
+                onUserGesture();
+            });
+            window.gMap.addListener('heading_changed', () => {
+                if (window._mapCameraProgrammatic) return;
+                // Rotar el mapa con 2 dedos: no pelear con la brújula
+                onUserGesture();
+            });
+
+            // Multi-touch en el contenedor (WebView a veces no dispara dragstart al pellizcar)
+            const mapEl = document.getElementById('map') || document.getElementById('map-container');
+            if (mapEl && mapEl.dataset.freeLookTouchBound !== '1') {
+                mapEl.dataset.freeLookTouchBound = '1';
+                mapEl.addEventListener('touchstart', (e) => {
+                    if (!e.touches || e.touches.length < 1) return;
+                    const driverTrip = document.body.classList.contains('driver-mode')
+                        && (document.body.classList.contains('trip-active')
+                            || document.body.classList.contains('is-navigating'));
+                    if (!driverTrip) return;
+                    // 1+ dedos sobre el mapa: si luego se mueve, dragstart lo confirma;
+                    // 2 dedos = zoom/rotar → pausar ya
+                    if (e.touches.length >= 2) {
+                        window.pauseDriverNavCameraFollow?.('pinch');
+                    }
+                }, { passive: true, capture: true });
+            }
+        };
+
+        window.gMap.addListener('dragstart', () => {
+            window.pauseDriverNavCameraFollow?.('drag');
             if (document.body.classList.contains('passenger-track-mode')) {
                 window.passengerTrackFollow = false;
                 window.setMapFabVisible?.('fab-center', true);
             }
         });
+        // Activar gestos greedy desde el inicio
+        try { window.enableDriverMapFreeGestures?.(); } catch (_) {}
 
         const activeZone = window.activeServiceZone;
         if (activeZone?.center) {
@@ -1309,6 +1457,7 @@ window.gMap = null;
   };
 
   window._vehicleIconCache = window._vehicleIconCache || {};
+  window._topDownVehicleIconCache = window._topDownVehicleIconCache || {};
   window._driverMarkerMeta = window._driverMarkerMeta || {};
 
   window.getCachedVehicleIconUrl = (vehicleType, bg) => {
@@ -1319,24 +1468,226 @@ window.gMap = null;
       return window._vehicleIconCache[key];
   };
 
+  /**
+   * Carrito VISTA DESDE ARRIBA — diseño limpio tipo Maps/Uber (no “bicho”).
+   * Frente del vehículo = arriba del SVG. Gira con brújula/GPS.
+   */
+  window.createTopDownVehicleIcon = (vehicleType = 'auto', color = '#2563eb') => {
+      const type = vehicleType || 'auto';
+      // ids únicos por color para no chocar gradientes al reusar cache
+      const uid = String(color).replace(/[^a-zA-Z0-9]/g, '').slice(-6) || 'c';
+      let svg;
+
+      if (type === 'moto') {
+          svg = `<svg width="36" height="52" viewBox="0 0 36 52" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="mg${uid}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${color}"/>
+                <stop offset="100%" stop-color="#1e1b4b"/>
+              </linearGradient>
+              <filter id="mf${uid}" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity="0.35"/>
+              </filter>
+            </defs>
+            <ellipse cx="18" cy="14" rx="6" ry="8" fill="url(#mg${uid})" stroke="#0f172a" stroke-width="1" filter="url(#mf${uid})"/>
+            <rect x="13.5" y="18" width="9" height="16" rx="3.5" fill="url(#mg${uid})" stroke="#0f172a" stroke-width="0.9"/>
+            <ellipse cx="18" cy="38" rx="7" ry="6.5" fill="#1e293b" stroke="#0f172a" stroke-width="1"/>
+            <ellipse cx="18" cy="38" rx="3.5" ry="3" fill="#475569"/>
+            <circle cx="18" cy="11" r="2" fill="#e0f2fe"/>
+            <rect x="15.5" y="24" width="5" height="6" rx="1.2" fill="#0f172a" opacity="0.3"/>
+          </svg>`;
+      } else if (type === 'taxi' || type === 'taxi_vip' || type === 'vip') {
+          // Sedán top-down limpio + techo taxi
+          svg = `<svg width="42" height="58" viewBox="0 0 42 58" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="tg${uid}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#fde047"/>
+                <stop offset="55%" stop-color="#facc15"/>
+                <stop offset="100%" stop-color="#a16207"/>
+              </linearGradient>
+              <filter id="tf${uid}" x="-40%" y="-40%" width="180%" height="180%">
+                <feDropShadow dx="0" dy="1.2" stdDeviation="1.3" flood-opacity="0.4"/>
+              </filter>
+            </defs>
+            <!-- ruedas -->
+            <rect x="5" y="16" width="4" height="9" rx="1.5" fill="#0f172a"/>
+            <rect x="33" y="16" width="4" height="9" rx="1.5" fill="#0f172a"/>
+            <rect x="5" y="33" width="4" height="9" rx="1.5" fill="#0f172a"/>
+            <rect x="33" y="33" width="4" height="9" rx="1.5" fill="#0f172a"/>
+            <!-- carrocería ancha y corta -->
+            <path d="M11 9
+              C13 5.5 17 4 21 4
+              C25 4 29 5.5 31 9
+              L34 18
+              C35.5 21 35.5 24 34.5 27
+              L33.5 40
+              C33 46 28 50 21 50.5
+              C14 50 9 46 8.5 40
+              L7.5 27
+              C6.5 24 6.5 21 8 18
+              Z"
+              fill="url(#tg${uid})" stroke="#713f12" stroke-width="1" filter="url(#tf${uid})"/>
+            <!-- parabrisas -->
+            <path d="M14 12 C17 9.5 21 9 25 9.5 C28 10 29 12 29.5 14.5 L29 20 C21 18.5 13.5 19 13 20.5 Z"
+                  fill="#7dd3fc" opacity="0.9"/>
+            <!-- techo -->
+            <rect x="14.5" y="21.5" width="13" height="11" rx="2.2" fill="#0f172a" opacity="0.18"/>
+            <!-- luneta -->
+            <path d="M13.5 35 L28.5 35 L28 42 C21 43.5 14 42.5 13.5 41.5 Z" fill="#38bdf8" opacity="0.45"/>
+            <!-- letrero taxi -->
+            <rect x="16" y="2.2" width="10" height="3.2" rx="0.7" fill="#1e293b"/>
+            <!-- luces -->
+            <rect x="12" y="7.5" width="4" height="2.2" rx="0.6" fill="#fef9c3"/>
+            <rect x="26" y="7.5" width="4" height="2.2" rx="0.6" fill="#fef9c3"/>
+            <rect x="12.5" y="47.5" width="3.5" height="2" rx="0.5" fill="#ef4444"/>
+            <rect x="26" y="47.5" width="3.5" height="2" rx="0.5" fill="#ef4444"/>
+          </svg>`;
+      } else if (type === 'camion' || type === 'paila') {
+          svg = `<svg width="44" height="60" viewBox="0 0 44 60" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="cg${uid}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="${color}"/>
+                <stop offset="100%" stop-color="#1e293b"/>
+              </linearGradient>
+              <filter id="cf${uid}" x="-40%" y="-40%" width="180%" height="180%">
+                <feDropShadow dx="0" dy="1.2" stdDeviation="1.3" flood-opacity="0.4"/>
+              </filter>
+            </defs>
+            <rect x="6" y="14" width="4" height="8" rx="1.2" fill="#0f172a"/>
+            <rect x="34" y="14" width="4" height="8" rx="1.2" fill="#0f172a"/>
+            <rect x="6" y="34" width="4" height="8" rx="1.2" fill="#0f172a"/>
+            <rect x="34" y="34" width="4" height="8" rx="1.2" fill="#0f172a"/>
+            <!-- cabina -->
+            <rect x="10" y="5" width="24" height="14" rx="3" fill="url(#cg${uid})" stroke="#0f172a" stroke-width="1" filter="url(#cf${uid})"/>
+            <rect x="12.5" y="7.5" width="19" height="6.5" rx="1.5" fill="#7dd3fc" opacity="0.7"/>
+            <!-- caja -->
+            <rect x="8" y="19" width="28" height="32" rx="2.5" fill="url(#cg${uid})" stroke="#0f172a" stroke-width="1"/>
+            <rect x="11" y="22" width="22" height="26" rx="1.5" fill="#0f172a" opacity="0.15"/>
+            <rect x="12" y="6.5" width="3.5" height="2" rx="0.5" fill="#fef9c3"/>
+            <rect x="28.5" y="6.5" width="3.5" height="2" rx="0.5" fill="#fef9c3"/>
+          </svg>`;
+      } else {
+          // Auto sedán moderno top-down (proporciones de carro real, frente arriba)
+          svg = `<svg width="42" height="58" viewBox="0 0 42 58" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="ag${uid}" x1="0.15" y1="0" x2="0.85" y2="1">
+                <stop offset="0%" stop-color="${color}"/>
+                <stop offset="45%" stop-color="${color}"/>
+                <stop offset="100%" stop-color="#0f172a"/>
+              </linearGradient>
+              <linearGradient id="agw${uid}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#e0f2fe"/>
+                <stop offset="100%" stop-color="#38bdf8"/>
+              </linearGradient>
+              <filter id="af${uid}" x="-45%" y="-45%" width="190%" height="190%">
+                <feDropShadow dx="0" dy="1.4" stdDeviation="1.4" flood-color="#000" flood-opacity="0.42"/>
+              </filter>
+            </defs>
+            <!-- ruedas (negras, bajo la carrocería) -->
+            <rect x="4.5" y="15" width="4.2" height="10" rx="1.6" fill="#0f172a"/>
+            <rect x="33.3" y="15" width="4.2" height="10" rx="1.6" fill="#0f172a"/>
+            <rect x="4.5" y="33" width="4.2" height="10" rx="1.6" fill="#0f172a"/>
+            <rect x="33.3" y="33" width="4.2" height="10" rx="1.6" fill="#0f172a"/>
+            <!-- carrocería: forma de sedán ancha y limpia -->
+            <path d="M12 8.5
+              C14 5 17.5 3.5 21 3.5
+              C24.5 3.5 28 5 30 8.5
+              L33.5 17
+              C35 20.5 35 24 34 27.5
+              L33 40
+              C32.5 46.5 27.5 51 21 51.5
+              C14.5 51 9.5 46.5 9 40
+              L8 27.5
+              C7 24 7 20.5 8.5 17
+              Z"
+              fill="url(#ag${uid})"
+              stroke="#020617"
+              stroke-width="1.05"
+              filter="url(#af${uid})"/>
+            <!-- parabrisas delantero (trapecio) -->
+            <path d="M14.2 11.5
+              C16.5 9.2 21 8.6 25.5 9.2
+              C28.2 9.7 29.2 11.2 29.5 13.5
+              L29 19.5
+              C21.5 18 13.5 18.2 12.8 19.8
+              Z"
+              fill="url(#agw${uid})"
+              opacity="0.92"/>
+            <!-- techo / habitáculo -->
+            <rect x="13.8" y="21" width="14.4" height="12.5" rx="2.4" fill="#0f172a" opacity="0.22"/>
+            <!-- líneas de puertas sutiles -->
+            <line x1="13.5" y1="27.5" x2="28.5" y2="27.5" stroke="#020617" stroke-width="0.55" opacity="0.25"/>
+            <line x1="21" y1="21" x2="21" y2="33.5" stroke="#020617" stroke-width="0.5" opacity="0.2"/>
+            <!-- luneta trasera -->
+            <path d="M13.2 35.5 L28.8 35.5 L28.2 43
+              C21.5 45 13.8 44.2 13.2 42.5 Z"
+              fill="#7dd3fc" opacity="0.5"/>
+            <!-- capó / línea delantera -->
+            <path d="M15 8.8 C18 7.2 24 7.2 27 8.8" fill="none" stroke="#f8fafc" stroke-width="0.7" opacity="0.25"/>
+            <!-- faros delanteros -->
+            <rect x="12.2" y="7.2" width="4.2" height="2.4" rx="0.7" fill="#fefce8"/>
+            <rect x="25.6" y="7.2" width="4.2" height="2.4" rx="0.7" fill="#fefce8"/>
+            <!-- calaveras -->
+            <rect x="12.8" y="48.2" width="3.6" height="2.1" rx="0.55" fill="#f87171"/>
+            <rect x="25.6" y="48.2" width="3.6" height="2.1" rx="0.55" fill="#f87171"/>
+            <!-- espejos -->
+            <ellipse cx="9.2" cy="20" rx="1.6" ry="1.1" fill="#cbd5e1"/>
+            <ellipse cx="32.8" cy="20" rx="1.6" ry="1.1" fill="#cbd5e1"/>
+          </svg>`;
+      }
+      return 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  };
+
+  window.getCachedTopDownVehicleIconUrl = (vehicleType, bg) => {
+      // v3: rediseño limpio (evita iconos viejos en caché de sesión)
+      const key = `tdv3:${vehicleType}:${bg}`;
+      if (!window._topDownVehicleIconCache[key]) {
+          window._topDownVehicleIconCache[key] = window.createTopDownVehicleIcon(vehicleType, bg);
+      }
+      return window._topDownVehicleIconCache[key];
+  };
+
+  /** Rotación del carrito en pantalla (0 = hacia arriba). Igual que Google: rumbo − heading del mapa. */
+  window.getDriverMarkerScreenRotation = (headingDeg) => {
+      let h = Number(headingDeg);
+      if (!Number.isFinite(h)) h = 0;
+      h = ((h % 360) + 360) % 360;
+      let mapH = 0;
+      try {
+          if (window.gMap && typeof window.gMap.getHeading === 'function') {
+              mapH = Number(window.gMap.getHeading()) || 0;
+          }
+      } catch (_) {}
+      return ((h - mapH) + 360) % 360;
+  };
+
+  /**
+   * Carrito top-down (todos los vehículos en el mapa).
+   * Rota con brújula/GPS respecto al mapa (como Google Maps).
+   */
   window.buildDriverMarkerContent = (vehicleType, bg, heading, inDriverNav) => {
+      const selfNav = !!inDriverNav;
+      const size = selfNav ? 52 : 44;
+      const imgW = selfNav ? 38 : 32;
+      const imgH = selfNav ? 52 : 44;
       const markerContent = document.createElement('div');
-      markerContent.style.width = inDriverNav ? '44px' : '42px';
-      markerContent.style.height = inDriverNav ? '44px' : '42px';
+      markerContent.className = 'driver-map-car';
+      markerContent.style.width = `${size}px`;
+      markerContent.style.height = `${size}px`;
       markerContent.style.display = 'flex';
       markerContent.style.alignItems = 'center';
       markerContent.style.justifyContent = 'center';
-      if (!inDriverNav) {
-          markerContent.style.transform = `rotate(${heading}deg)`;
-          markerContent.style.transition = 'transform 0.25s linear';
-      }
       markerContent.style.willChange = 'transform';
-      const iconUrl = inDriverNav
-          ? (window._navChevronIcon || (window._navChevronIcon = window.createNavChevronIcon()))
-          : window.getCachedVehicleIconUrl(vehicleType, bg);
-      markerContent.innerHTML = inDriverNav
-          ? `<img src="${iconUrl}" style="width:44px;height:44px;object-fit:contain;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.45));" />`
-          : `<img src="${iconUrl}" style="width:40px;height:32px;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));" />`;
+      markerContent.style.transition = 'transform 0.12s linear';
+      markerContent.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.45))';
+      markerContent.style.transformOrigin = '50% 50%';
+
+      const iconUrl = window.getCachedTopDownVehicleIconUrl(vehicleType, bg);
+      markerContent.innerHTML =
+          `<img src="${iconUrl}" alt="" draggable="false" style="width:${imgW}px;height:${imgH}px;object-fit:contain;pointer-events:none;" />`;
+
+      const rot = window.getDriverMarkerScreenRotation?.(heading) ?? (Number(heading) || 0);
+      markerContent.style.transform = `rotate(${rot}deg)`;
       return markerContent;
   };
 
@@ -1372,7 +1723,9 @@ window.gMap = null;
         title += ` • ${options.phone}`;
     }
 
-    const styleKey = `${vehicleType}|${variant}|${inDriverNav ? 1 : 0}|${bg}`;
+    // Todos los carros: vista superior + brújula/rumbo
+    const useTopDown = true;
+    const styleKey = `${vehicleType}|${variant}|tdv4|1|${bg}`;
     const existing = window.driverMarkers[driverId];
     const meta = window._driverMarkerMeta[driverId];
 
@@ -1406,10 +1759,10 @@ window.gMap = null;
         }
 
         if (meta?.contentEl && meta.styleKey === styleKey) {
-            if (!inDriverNav) {
-                meta.contentEl.style.transform = `rotate(${heading}deg)`;
-                meta.lastHeading = heading;
-            }
+            // Carrito top-down: rotar con brújula/GPS (relativo al mapa)
+            const rot = window.getDriverMarkerScreenRotation?.(heading) ?? (Number(heading) || 0);
+            meta.contentEl.style.transform = `rotate(${rot}deg)`;
+            meta.lastHeading = heading;
             if (existing.title !== title) existing.title = title;
             meta.lastLat = nextPos.lat;
             meta.lastLng = nextPos.lng;
@@ -1468,14 +1821,15 @@ window.gMap = null;
             console.warn('No AdvancedMarkerElement support for this driver marker; skipping to prevent deprecation.');
         }
     } else {
-        const iconUrl = inDriverNav
-            ? (window._navChevronIcon || (window._navChevronIcon = window.createNavChevronIcon()))
-            : window.getCachedVehicleIconUrl(vehicleType, bg);
-        
+        // Classic Marker: carrito top-down + rotation por brújula (todos)
+        const iconUrl = window.getCachedTopDownVehicleIconUrl(vehicleType, bg);
+        const szW = isSelf || inDriverNav ? 40 : 34;
+        const szH = isSelf || inDriverNav ? 54 : 46;
         const icon = {
             url: iconUrl,
-            scaledSize: new google.maps.Size(inDriverNav ? 44 : 32, inDriverNav ? 44 : 32),
-            anchor: new google.maps.Point(inDriverNav ? 22 : 16, inDriverNav ? 22 : 16)
+            scaledSize: new google.maps.Size(szW, szH),
+            anchor: new google.maps.Point(szW / 2, szH / 2),
+            rotation: window.getDriverMarkerScreenRotation?.(heading) ?? (Number(heading) || 0),
         };
 
         if (window.driverMarkers[driverId]) {
@@ -1809,6 +2163,14 @@ window.gMap = null;
                         : (data.clientName || 'Pasajero');
                 }
                 if (rating) rating.textContent = data.clientRating || '5.0';
+                // Sheet estilo Uber (faja inferior)
+                const uberName = document.getElementById('driver-uber-pax-name');
+                const uberPhoto = document.getElementById('driver-uber-pax-photo');
+                if (uberName) uberName.textContent = data.clientName || 'Pasajero';
+                if (uberPhoto) {
+                    uberPhoto.src = data.clientPhoto || 'https://placehold.co/64x64/e2e8f0/64748b?text=·';
+                    uberPhoto.onerror = () => { uberPhoto.src = 'https://placehold.co/64x64/e2e8f0/64748b?text=·'; };
+                }
                 // No mostrar placa ni info de vehículo del pasajero al conductor
                 // (el pasajero es cliente, no tiene placa; y si es servicio carro, no corresponde)
                 const extra = document.getElementById('tp-driver-extra');
@@ -1904,6 +2266,59 @@ window.gMap = null;
 
         const PANEL_HIDDEN_KEY = 'honduber_control_panel_hidden';
 
+        /**
+         * Expande el panel del conductor (p. ej. pill «Viaje activo» / Abrir).
+         * Si el usuario lo abre en navegación, se queda abierto hasta que lo minimice a mano.
+         */
+        window.expandDriverControlPanel = () => {
+            const panel = document.getElementById('control-panel');
+            document.body.classList.remove('panel-hidden', 'panel-minimized');
+            panel?.classList.remove('panel-hidden', 'panel-collapsed');
+            try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
+            document.getElementById('active-trip-panel')?.classList.remove('hidden', 'panel-minimized');
+            // Preferencia del usuario: no volver a auto-minimizar mientras navegue
+            if (document.body.classList.contains('is-navigating')
+                || document.body.classList.contains('driver-nav-mode')
+                || document.body.classList.contains('trip-active')) {
+                window._driverNavUserKeptOpen = true;
+                window._driverNavPanelAutoMinDone = true;
+            }
+            // Anclar abajo como sheet (nunca full-screen en viaje)
+            try { window.dockControlPanelForDriverTrip?.(); } catch (_) {}
+            if (panel && document.body.classList.contains('trip-active')) {
+                try {
+                    panel.style.top = '';
+                    panel.style.bottom = '';
+                    panel.style.height = '';
+                    panel.style.maxHeight = '';
+                    panel.classList.remove('panel-is-floating', 'is-drag-positioned');
+                } catch (_) {}
+            }
+            try { window.syncPassengerPanelToggleLabel?.(); } catch (_) {}
+            try { window.syncDriverRadarFloatPanel?.(); } catch (_) {}
+            try { window.syncDriverTripControls?.(window.currentActiveTripData); } catch (_) {}
+            try { window.syncTripFloatPanels?.(window.currentActiveTripData); } catch (_) {}
+            try { window.syncDriverPanelNavVisibility?.(); } catch (_) {}
+            // Cámara de nav: seguir con el panel abierto (padding inferior = sheet)
+            try {
+                if (window.isDriverNavigating?.() && window.currentDriverPos && window.autoCenter !== false) {
+                    window._lastDriverNavCamPos = null;
+                    window.applyDriverNavCamera?.(
+                        window.currentDriverPos,
+                        window.currentDriverHeading,
+                        true
+                    );
+                }
+            } catch (_) {}
+            // Scroll a los botones grandes (navegar / llegué), no a detalles
+            try {
+                const cta = document.getElementById('driver-active-cta');
+                cta?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+            } catch (_) {}
+            const label = document.getElementById('trip-panel-toggle-label');
+            if (label) label.textContent = 'Cerrar';
+        };
+
         window.showControlPanel = () => {
             const panel = document.getElementById('control-panel');
             const isMobile = window.innerWidth < 768;
@@ -1913,14 +2328,16 @@ window.gMap = null;
                 || document.body.classList.contains('panel-minimized');
 
             if (isDriver) {
-                // Nunca ocultar del todo, pero respetar si el usuario minimizó durante el viaje
+                // Nunca ocultar del todo. Si el usuario minimizó en viaje, RESPETAR
+                // (antes expandDriverControlPanel aquí reabría el panel en cada sync).
+                // La pastilla «Viaje activo» llama expandDriverControlPanel a propósito.
                 document.body.classList.remove('panel-hidden');
                 panel?.classList.remove('panel-hidden');
                 if (hasTrip && userMinimized) {
                     panel?.classList.add('panel-collapsed');
                     document.body.classList.add('panel-minimized');
-                    window.syncPassengerPanelToggleLabel?.();
                     window.syncDriverRadarFloatPanel?.();
+                    window.syncPassengerPanelToggleLabel?.();
                     window.updatePassengerPromoStripVisibility?.();
                     window.refreshPassengerCopaUI?.();
                     return;
@@ -1979,9 +2396,14 @@ window.gMap = null;
                 document.body.classList.toggle('panel-minimized', collapsed);
                 document.body.classList.remove('panel-hidden');
                 panel?.classList.remove('panel-hidden');
+                if (isDriver) {
+                    window._driverNavUserKeptOpen = !collapsed;
+                    if (!collapsed) window._driverNavPanelAutoMinDone = true;
+                }
                 window.syncPassengerPanelToggleLabel?.();
                 try { localStorage.setItem(PANEL_HIDDEN_KEY, collapsed ? '1' : '0'); } catch (_) {}
                 window.syncDriverRadarFloatPanel?.();
+                window.syncDriverPanelNavVisibility?.();
                 window.updatePassengerPromoStripVisibility?.();
                 window.refreshPassengerCopaUI?.();
                 return;
@@ -2102,12 +2524,52 @@ window.gMap = null;
             try { localStorage.setItem(PANEL_HIDDEN_KEY, collapsed ? '1' : '0'); } catch (_) {}
             window.syncPassengerPanelToggleLabel?.();
 
+            // Conductor: recordar preferencia del usuario (no auto-minimizar si lo abrió)
+            if (document.body.classList.contains('driver-mode')) {
+                if (collapsed) {
+                    window._driverNavUserKeptOpen = false;
+                } else {
+                    window._driverNavUserKeptOpen = true;
+                    window._driverNavPanelAutoMinDone = true;
+                }
+            }
+
+            // Etiquetas Abrir / Cerrar (conductor no usa «Minimizar»)
+            const label = document.getElementById('trip-panel-toggle-label');
+            if (label) {
+                label.textContent = collapsed
+                    ? 'Abrir'
+                    : (document.body.classList.contains('driver-mode') ? 'Cerrar' : 'Minimizar');
+            }
+            const tpLabel = document.getElementById('tp-panel-toggle-label');
+            if (tpLabel) tpLabel.textContent = collapsed ? 'Ver más' : 'Minimizar';
+
             if (document.body.classList.contains('driver-mode')) {
                 if (collapsed) window.syncDriverRadarFloatPanel?.();
                 else {
                     window.dockControlPanelForDriverTrip?.();
+                    // Sheet abajo: limpiar estilos full-screen residuales
+                    if (panel && document.body.classList.contains('trip-active')) {
+                        panel.style.top = '';
+                        panel.style.bottom = '';
+                        panel.style.height = '';
+                        panel.style.maxHeight = '';
+                        panel.classList.remove('panel-is-floating', 'is-drag-positioned');
+                    }
                     window.syncDriverRadarFloatPanel?.();
+                    // Seguir navegando con el panel abierto
+                    if (window.isDriverNavigating?.() && window.currentDriverPos && window.autoCenter !== false) {
+                        try {
+                            window._lastDriverNavCamPos = null;
+                            window.applyDriverNavCamera?.(
+                                window.currentDriverPos,
+                                window.currentDriverHeading,
+                                true
+                            );
+                        } catch (_) {}
+                    }
                 }
+                window.syncDriverPanelNavVisibility?.();
             } else if (!collapsed) {
                 window.dockControlPanelForClient?.();
             }
@@ -2171,6 +2633,18 @@ window.gMap = null;
             if (miniDist) miniDist.textContent = dist;
             if (miniEta) miniEta.textContent = eta;
             if (navEta) navEta.textContent = eta;
+            // Panel central + HUD legacy
+            window.setNavHudText?.('totalTime', time);
+            window.setNavHudText?.('totalDist', dist);
+            window.setNavHudText?.('totalEta', eta);
+            // Sheet Uber: solo el número de minutos
+            const uberEta = document.getElementById('driver-uber-eta-time');
+            if (uberEta) {
+                const mins = route.durationMillis
+                    ? Math.max(1, Math.round(route.durationMillis / 60000))
+                    : (String(time).match(/(\d+)/)?.[1] || '--');
+                uberEta.textContent = mins;
+            }
         };
 
         window.chatOpen = false;
@@ -2394,15 +2868,27 @@ window.gMap = null;
                 window.driverNavMode = true;
                 window.driverVoiceNavEnabled = window.driverVoiceNavEnabled !== false;
                 document.body.classList.add('driver-nav-mode', 'is-navigating');
-                const top = document.getElementById('nav-hud-top');
-                const bottom = document.getElementById('nav-hud-bottom');
-                if (top) top.style.display = 'flex';
-                if (bottom) bottom.style.display = 'block';
+                window.autoCenter = true;
                 // Tráfico visible durante navegación
                 if (window.trafficLayer && window.gMap) {
                     window.trafficLayer.setMap(window.gMap);
                     window.isTrafficVisible = true;
                     document.getElementById('fab-traffic')?.classList.add('active');
+                }
+                // Entra nav: auto-min una vez; si el usuario maximizó, se respeta
+                window.enterDriverNavMode?.();
+                if (!window._driverNavPanelAutoMinDone && !window._driverNavUserKeptOpen) {
+                    window._driverNavPanelAutoMinDone = true;
+                    window.minimizeDriverPanelForNav?.();
+                }
+                window.startDriverCompassTracking?.().catch?.(() => {});
+                window.syncDriverPanelNavVisibility?.();
+                if (window.currentDriverPos) {
+                    window.applyDriverNavCamera?.(
+                        window.currentDriverPos,
+                        window.currentDriverHeading,
+                        true
+                    );
                 }
             } catch (_) {}
 
@@ -2529,12 +3015,18 @@ window.gMap = null;
                 document.body.classList.remove('driver-trip-dest-phase');
                 return;
             }
-            const navTop = document.getElementById('nav-hud-top');
-            const navBottom = document.getElementById('nav-hud-bottom');
-            if (navTop) navTop.style.display = 'none';
-            if (navBottom) navBottom.style.display = 'none';
+            // NO ocultar HUD de navegación si hay ruta activa hacia el cliente
+            const navigating = window.isDriverNavigating?.()
+                || window.driverNavMode
+                || document.body.classList.contains('is-navigating')
+                || window.hasActiveDriverNavRoute?.();
+            if (!navigating) {
+                const navTop = document.getElementById('nav-hud-top');
+                const navBottom = document.getElementById('nav-hud-bottom');
+                if (navTop) navTop.style.display = 'none';
+                if (navBottom) navBottom.style.display = 'none';
+            }
             window.hideCenterMapFab?.();
-            window.setMapFabVisible?.('fab-traffic', false);
             window.dockControlPanelForDriverTrip?.();
         };
 
@@ -2814,14 +3306,14 @@ window.gMap = null;
         };
 
         window.syncNavVoiceToggleUi = () => {
-            const btn = document.querySelector('[data-trip-action="toggle-nav-voice"]');
-            if (!btn) return;
             const on = window.driverVoiceNavEnabled !== false;
-            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-            btn.setAttribute('title', on ? 'Silenciar voz' : 'Activar voz');
-            btn.setAttribute('aria-label', on ? 'Silenciar voz de navegación' : 'Activar voz de navegación');
-            const icon = btn.querySelector('i');
-            if (icon) icon.className = on ? 'fas fa-volume-up' : 'fas fa-volume-mute';
+            document.querySelectorAll('[data-trip-action="toggle-nav-voice"]').forEach((btn) => {
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                btn.setAttribute('title', on ? 'Silenciar voz' : 'Activar voz');
+                btn.setAttribute('aria-label', on ? 'Silenciar voz de navegación' : 'Activar voz de navegación');
+                const icon = btn.querySelector('i');
+                if (icon) icon.className = on ? 'fas fa-volume-up pointer-events-none' : 'fas fa-volume-mute pointer-events-none';
+            });
             window.syncNavVoicePickerUi?.();
         };
 
@@ -2922,6 +3414,158 @@ window.gMap = null;
             return path.length >= 2;
         };
 
+        /**
+         * Recupera la ruta del conductor cuando se perdió (GPS lento, API, cambio de tramo).
+         * Evita tener que recargar la app varias veces.
+         */
+        window.recoverDriverNavRoute = async (opts = {}) => {
+            const force = opts.force !== false;
+            const silent = opts.silent === true;
+            const trip = window.currentActiveTripData || window.activeTrip;
+            if (!trip || window.userProfile?.role !== 'driver') return false;
+            if (trip.driverId && window.currentUser?.uid && trip.driverId !== window.currentUser.uid) {
+                return false;
+            }
+            if (!['accepted', 'in_progress'].includes(trip.status)) return false;
+            if (!document.body.classList.contains('trip-active')
+                && trip.status !== 'in_progress'
+                && trip.status !== 'accepted') {
+                return false;
+            }
+
+            const now = Date.now();
+            if (!force && window._navRecoverAt && now - window._navRecoverAt < 2200) {
+                return false;
+            }
+            window._navRecoverAt = now;
+
+            // Esperar mapa si aún no cargó
+            if (!window.mapLoaded) {
+                for (let i = 0; i < 8 && !window.mapLoaded; i++) {
+                    await new Promise((r) => setTimeout(r, 350));
+                }
+                if (!window.mapLoaded) {
+                    if (!silent) {
+                        window.showToast?.('El mapa aún no carga. Reintentando…', 'warning');
+                    }
+                    clearTimeout(window._navRecoverRetryTimer);
+                    window._navRecoverRetryTimer = setTimeout(
+                        () => window.recoverDriverNavRoute?.({ force: true, silent: true }),
+                        2800
+                    );
+                    return false;
+                }
+            }
+
+            // GPS con reintentos (causa #1 de “no hay ruta”)
+            for (let i = 0; i < 5 && !window.currentDriverPos; i++) {
+                try { await window.ensureDriverPosition?.(); } catch (_) {}
+                if (!window.currentDriverPos) {
+                    await new Promise((r) => setTimeout(r, 500 + i * 400));
+                }
+            }
+            if (!window.currentDriverPos) {
+                if (!silent) {
+                    window.showToast?.('Esperando GPS para trazar la ruta…', 'warning');
+                }
+                clearTimeout(window._navRecoverRetryTimer);
+                window._navRecoverRetryTimer = setTimeout(
+                    () => window.recoverDriverNavRoute?.({ force: true, silent: true }),
+                    3200
+                );
+                return false;
+            }
+
+            // Resolver destino del tramo
+            let target = null;
+            try {
+                if (trip.status === 'in_progress') {
+                    target = window.getTripCurrentLegNavTarget?.(trip)
+                        || (trip.destinationLat != null
+                            ? {
+                                lat: Number(trip.destinationLat),
+                                lng: Number(trip.destinationLng),
+                                address: trip.destination || 'Destino'
+                            }
+                            : trip.destination);
+                } else if (!trip.driverArrived) {
+                    target = await window.resolveTripPickupNavTarget?.(trip);
+                } else {
+                    target = window.getTripCurrentLegNavTarget?.(trip)
+                        || (trip.destinationLat != null
+                            ? {
+                                lat: Number(trip.destinationLat),
+                                lng: Number(trip.destinationLng),
+                                address: trip.destination || 'Destino'
+                            }
+                            : trip.destination);
+                }
+            } catch (e) {
+                console.warn('[NAV] recover target:', e);
+            }
+            if (!target) {
+                if (!silent) {
+                    window.showToast?.('No hay destino para la ruta. Revisá el viaje.', 'warning');
+                }
+                return false;
+            }
+
+            // Invalidar ruta rota / vacía
+            if (force || !window.hasActiveDriverNavRoute?.()) {
+                try {
+                    window.currentNavRoute = null;
+                    window.currentRouteFullPath = null;
+                    window._progressRoutePolylines = null;
+                    window._inProgressNavBootKey = null;
+                } catch (_) {}
+            }
+
+            window.driverNavMode = true;
+            document.body.classList.add('is-navigating', 'driver-nav-mode', 'trip-active');
+            if (trip.status === 'in_progress') {
+                document.body.classList.add('driver-trip-dest-phase');
+            }
+
+            try {
+                window.updateNavigation?.(target, true);
+            } catch (e) {
+                console.warn('[NAV] recover updateNavigation:', e);
+            }
+
+            // Verificar a los 3–5 s si la ruta quedó dibujada; si no, reintentar
+            clearTimeout(window._navRecoverCheckTimer);
+            window._navRecoverCheckTimer = setTimeout(async () => {
+                if (!document.body.classList.contains('trip-active')) return;
+                if (window.userProfile?.role !== 'driver') return;
+                const ok = window.hasActiveDriverNavRoute?.();
+                const remainingOnMap = window._progressRoutePolylines?.remaining?.getMap?.()
+                    || (Array.isArray(window.currentRoutePolyline)
+                        ? window.currentRoutePolyline[0]?.getMap?.()
+                        : window.currentRoutePolyline?.getMap?.());
+                if (!ok || !remainingOnMap) {
+                    // redibujar si hay datos
+                    if (ok && window.currentNavRoute) {
+                        try {
+                            window.drawRouteOnMap?.(window.currentNavRoute, { driverNav: true });
+                            if (window.currentDriverPos) {
+                                window.updateRouteProgress?.(window.currentDriverPos, {
+                                    driverNav: true,
+                                    force: true
+                                });
+                            }
+                        } catch (_) {}
+                    }
+                    if (!window.hasActiveDriverNavRoute?.()
+                        || !(window._progressRoutePolylines?.remaining?.getMap?.())) {
+                        window._navRecoverAt = 0;
+                        window.recoverDriverNavRoute?.({ force: true, silent: true });
+                    }
+                }
+            }, 3500);
+
+            return true;
+        };
+
         window.ensureDriverNavRouteVisible = () => {
             if (!window.shouldPreserveDriverNavRoute?.()) return;
             const trip = window.currentActiveTripData;
@@ -2929,29 +3573,26 @@ window.gMap = null;
 
             const hasRoute = window.hasActiveDriverNavRoute?.();
             if (!hasRoute) {
-                let target = null;
-                if (trip.status === 'in_progress') {
-                    target = (trip.destinationLat != null && trip.destinationLng != null)
-                        ? { lat: trip.destinationLat, lng: trip.destinationLng, address: trip.destination }
-                        : trip.destination;
-                } else if (!trip.driverArrived) {
-                    target = (trip.originLat != null && trip.originLng != null)
-                        ? { lat: trip.originLat, lng: trip.originLng, address: trip.origin }
-                        : trip.origin;
-                } else {
-                    target = (trip.destinationLat != null && trip.destinationLng != null)
-                        ? { lat: trip.destinationLat, lng: trip.destinationLng, address: trip.destination }
-                        : trip.destination;
-                }
-                if (target) window.updateNavigation?.(target, true);
+                // Recuperación completa (GPS + compute + draw)
+                window.recoverDriverNavRoute?.({ force: true, silent: true });
                 return;
             }
 
             const pos = window.currentDriverPos;
-            if (!pos) return;
+            if (!pos) {
+                window.ensureDriverPosition?.().then((p) => {
+                    if (p) window.ensureDriverNavRouteVisible?.();
+                    else window.recoverDriverNavRoute?.({ force: true, silent: true });
+                });
+                return;
+            }
 
             const remainingOnMap = window._progressRoutePolylines?.remaining?.getMap?.();
-            if (!remainingOnMap && window.currentNavRoute) {
+            const polyOnMap = remainingOnMap
+                || (Array.isArray(window.currentRoutePolyline)
+                    ? window.currentRoutePolyline.some?.((p) => p?.getMap?.())
+                    : window.currentRoutePolyline?.getMap?.());
+            if (!polyOnMap && window.currentNavRoute) {
                 window.drawRouteOnMap?.(window.currentNavRoute, { driverNav: true });
             }
             window.updateRouteProgress?.(pos, { driverNav: true, force: true });
@@ -3491,14 +4132,16 @@ window.gMap = null;
             // Primary: modern Routes API (Route.computeRoutes).
             const routesLib = await window.routesLibraryReady;
             const RouteCtor = (routesLib && routesLib.Route) || window.RouteClass;
-            const navDriving = window.isDriverNavigating?.() || window.driverNavMode
-                || document.body.classList.contains('driver-mode');
+            // Solo modo nav estricto cuando realmente estamos navegando (no todo driver-mode:
+            // si no, fallos de API dejan sin ruta al cliente / preview de oferta).
+            const navDriving = !!(window.isDriverNavigating?.() || window.driverNavMode === true);
 
             const isSparseStreetPath = (built) => {
                 if (!built?.path?.length) return true;
-                // Aceptar paths cortos en trayectos muy cortos
-                if (built.path.length < 4 && (built.distanceMeters || 0) > 200) return true;
-                if (built.path.length < 8 && (built.distanceMeters || 0) > 800) return true;
+                // Menos estricto: muchos tramos cortos en ciudad traen pocos puntos en overview
+                if (built.path.length < 2) return true;
+                if (built.path.length < 3 && (built.distanceMeters || 0) > 400) return true;
+                if (built.path.length < 5 && (built.distanceMeters || 0) > 2500) return true;
                 return false;
             };
 
@@ -3579,7 +4222,8 @@ window.gMap = null;
                                 window._routesWarned = true;
                                 console.warn('[ROUTE] Intento de ruta falló:', msg);
                             }
-                            if (msg.includes('invalid fields')) break;
+                            // Seguir con el siguiente intento (no abortar todo el bucle)
+                            continue;
                         }
                     }
                 }
@@ -3588,10 +4232,6 @@ window.gMap = null;
             // Fallback: Directions Service clásico (más compatible / a menudo ya habilitado)
             try {
                 const dirResult = await window.computeDrivingRouteViaDirectionsService?.(o, d, { navDriving });
-                if (dirResult && !isSparseStreetPath(dirResult)) {
-                    window._directionsFallbackWorked = true;
-                    return cacheRoute(dirResult);
-                }
                 if (dirResult && dirResult.path?.length >= 2) {
                     window._directionsFallbackWorked = true;
                     return cacheRoute(dirResult);
@@ -3603,17 +4243,15 @@ window.gMap = null;
                 }
             }
 
-            // Conductor: nunca dibujar línea recta; dejar que la UI muestre error/carga.
-            if (navDriving) {
-                console.warn('[ROUTE] No se pudo obtener ruta por calles para navegación.');
-                return null;
-            }
-            // Last resort para pasajero/tarifa: estimación en línea recta.
+            // Último recurso: línea estimada (mejor que dejar el mapa vacío hacia el cliente)
             if (!window._routeEstimateWarned) {
                 window._routeEstimateWarned = true;
                 console.info('[ROUTE] Ruta estimada activa. Habilita "Routes API" o "Directions API" en Google Cloud.');
             }
-            return buildEstimatedDrivingRoute(o, d);
+            const estimated = buildEstimatedDrivingRoute(o, d);
+            // En navegación activa preferimos calles; si no hay, igual dibujamos estimado
+            // para no dejar al conductor sin orientación.
+            return estimated;
         };
 
         /**
@@ -3736,6 +4374,20 @@ window.gMap = null;
             return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
         };
 
+        /** Distancia en metros entre dos {lat,lng} (para rumbo de movimiento). */
+        window.haversineMeters = window.haversineMeters || ((a, b) => {
+            if (!a || !b) return 0;
+            const R = 6371000;
+            const toRad = (d) => d * Math.PI / 180;
+            const dLat = toRad(Number(b.lat) - Number(a.lat));
+            const dLng = toRad(Number(b.lng) - Number(a.lng));
+            const lat1 = toRad(Number(a.lat));
+            const lat2 = toRad(Number(b.lat));
+            const h = Math.sin(dLat / 2) ** 2
+                + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+            return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+        });
+
         window.computeHeadingOnPath = (path, pos) => {
             if (!path?.length || !pos) return window.currentDriverHeading || 0;
             const split = window.splitPathAtDriver?.(path, pos);
@@ -3752,16 +4404,203 @@ window.gMap = null;
             return window.bearingBetweenPoints(from, to);
         };
 
-        window.smoothDriverNavHeading = (nextHeading, prevHeading) => {
+        window.smoothDriverNavHeading = (nextHeading, prevHeading, maxStep = 14) => {
             const next = Number(nextHeading);
             if (!Number.isFinite(next)) return prevHeading ?? 0;
             if (prevHeading == null || !Number.isFinite(prevHeading)) return next;
             let delta = ((next - prevHeading + 540) % 360) - 180;
             const abs = Math.abs(delta);
-            if (abs <= 2) return prevHeading;
-            if (abs > 28) return next;
-            const step = Math.min(abs, 12);
+            if (abs <= 0.8) return prevHeading;
+            // Giros grandes (intersección / brújula): saltar sin lag
+            if (abs > 45) return next;
+            const step = Math.min(abs, maxStep);
             return ((prevHeading + Math.sign(delta) * step) + 360) % 360;
+        };
+
+        window.normalizeCompassHeading = (deg) => {
+            const n = Number(deg);
+            if (!Number.isFinite(n)) return null;
+            return ((n % 360) + 360) % 360;
+        };
+
+        /**
+         * Rumbo desde evento de orientación (brújula del teléfono).
+         * iOS: webkitCompassHeading. Android: absolute alpha / deviceorientationabsolute.
+         */
+        window.headingFromDeviceOrientationEvent = (e) => {
+            if (!e) return null;
+            // iOS Safari / WKWebView
+            if (e.webkitCompassHeading != null && Number.isFinite(e.webkitCompassHeading)) {
+                let h = Number(e.webkitCompassHeading);
+                const orient = window.screen?.orientation?.angle
+                    ?? (typeof window.orientation === 'number' ? window.orientation : 0)
+                    ?? 0;
+                h = (h + Number(orient || 0) + 360) % 360;
+                return window.normalizeCompassHeading(h);
+            }
+            if (e.alpha == null || !Number.isFinite(e.alpha)) return null;
+            // Absolute: alpha 0 = norte (con conversión habitual a rumbo de mapa)
+            let heading = (360 - Number(e.alpha)) % 360;
+            const orient = window.screen?.orientation?.angle
+                ?? (typeof window.orientation === 'number' ? window.orientation : 0)
+                ?? 0;
+            heading = (heading + Number(orient || 0) + 360) % 360;
+            return window.normalizeCompassHeading(heading);
+        };
+
+        /**
+         * Registra GPS para rumbo de movimiento (course-over-ground) + velocidad.
+         * Llamar en cada fix del conductor.
+         */
+        window.recordDriverGpsNavSample = (lat, lng, opts = {}) => {
+            const now = Date.now();
+            const nlat = Number(lat);
+            const nlng = Number(lng);
+            if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return;
+
+            const speed = opts.speed != null ? Number(opts.speed) : null;
+            if (speed != null && Number.isFinite(speed) && speed >= 0) {
+                // coords.speed en m/s
+                window._gpsSpeedMps = speed;
+                window._gpsSpeedAt = now;
+            }
+
+            const rawH = opts.heading != null ? Number(opts.heading) : null;
+            if (rawH != null && Number.isFinite(rawH) && rawH >= 0) {
+                // GPS heading del SO (solo confiable en movimiento)
+                window._gpsRawHeading = rawH;
+                window._gpsRawHeadingAt = now;
+            }
+
+            const hist = window._gpsPosHistory || (window._gpsPosHistory = []);
+            const last = hist[hist.length - 1];
+            if (!last || Math.hypot(nlat - last.lat, nlng - last.lng) > 1e-7 || now - last.t > 400) {
+                hist.push({ lat: nlat, lng: nlng, t: now });
+                while (hist.length > 10) hist.shift();
+            }
+
+            // Course over ground con muestras separadas ≥ ~3.5 m
+            if (hist.length >= 2) {
+                let a = null;
+                const b = hist[hist.length - 1];
+                for (let i = hist.length - 2; i >= 0; i--) {
+                    const cand = hist[i];
+                    const dt = b.t - cand.t;
+                    if (dt < 250 || dt > 10000) continue;
+                    const meters = window.haversineMeters?.(cand, b)
+                        ?? (Math.hypot(b.lat - cand.lat, b.lng - cand.lng) * 111320);
+                    if (meters >= 3.5) {
+                        a = cand;
+                        break;
+                    }
+                }
+                if (a) {
+                    const course = window.bearingBetweenPoints(a, b);
+                    const dtSec = Math.max(0.25, (b.t - a.t) / 1000);
+                    const meters = window.haversineMeters?.(a, b)
+                        ?? (Math.hypot(b.lat - a.lat, b.lng - a.lng) * 111320);
+                    const derivedSpeed = meters / dtSec;
+                    window._gpsCourseHeading = course;
+                    window._gpsCourseAt = now;
+                    if (!(speed != null && Number.isFinite(speed) && speed >= 0)) {
+                        window._gpsSpeedMps = derivedSpeed;
+                        window._gpsSpeedAt = now;
+                    }
+                }
+            }
+        };
+
+        window.getDriverMotionHeading = () => {
+            const now = Date.now();
+            const speed = Number(window._gpsSpeedMps);
+            const speedFresh = window._gpsSpeedAt && (now - window._gpsSpeedAt < 5000);
+            const moving = speedFresh && Number.isFinite(speed) && speed >= 1.2; // ~4.3 km/h
+
+            const course = window.normalizeCompassHeading(window._gpsCourseHeading);
+            const courseFresh = course != null && window._gpsCourseAt && (now - window._gpsCourseAt < 4500);
+
+            const raw = window.normalizeCompassHeading(window._gpsRawHeading);
+            const rawFresh = raw != null && window._gpsRawHeadingAt && (now - window._gpsRawHeadingAt < 4000);
+
+            // En movimiento: priorizar rumbo del trayecto GPS (más estable que brújula en auto)
+            if (moving || courseFresh) {
+                if (courseFresh && rawFresh) {
+                    const delta = Math.abs(((course - raw + 540) % 360) - 180);
+                    // Si coinciden, promediar angularmente hacia course
+                    if (delta < 40) return course;
+                }
+                if (courseFresh) return course;
+                if (rawFresh && (moving || speed >= 0.8)) return raw;
+            }
+            if (rawFresh && moving) return raw;
+            if (courseFresh) return course;
+            return null;
+        };
+
+        window.getDriverCompassHeading = () => {
+            const now = Date.now();
+            const h = window.normalizeCompassHeading(window._deviceCompassHeading);
+            if (h == null) return null;
+            if (!window._deviceCompassAt || now - window._deviceCompassAt > 2200) return null;
+            return h;
+        };
+
+        /**
+         * Fusión estilo Google Maps Navigation:
+         * - En movimiento → GPS (dirección de tu trayecto)
+         * - Parado / lento → brújula del teléfono
+         * - En ruta y el rumbo de movimiento alinea con la calle → snap suave a la ruta
+         */
+        window.resolveDriverNavHeading = (pos, gpsHeading, path) => {
+            const now = Date.now();
+            if (gpsHeading != null && Number.isFinite(Number(gpsHeading)) && Number(gpsHeading) >= 0) {
+                window._gpsRawHeading = Number(gpsHeading);
+                window._gpsRawHeadingAt = now;
+            }
+
+            const motion = window.getDriverMotionHeading?.()
+                ?? (gpsHeading != null && Number.isFinite(Number(gpsHeading)) && Number(gpsHeading) >= 0
+                    ? Number(gpsHeading)
+                    : null);
+            const compass = window.getDriverCompassHeading?.();
+            const speed = Number(window._gpsSpeedMps);
+            const speedFresh = window._gpsSpeedAt && (now - window._gpsSpeedAt < 5000);
+            const moving = speedFresh && Number.isFinite(speed) && speed >= 1.2;
+
+            const pathHeading = path?.length >= 2 ? window.computeHeadingOnPath(path, pos) : null;
+            let onRoute = false;
+            if (path?.length >= 2 && pos) {
+                const distToRoute = window.getDistanceToRouteMeters?.(path, pos);
+                onRoute = Number.isFinite(distToRoute) && distToRoute < 90;
+            }
+
+            // 1) Movimiento: alinear con dirección de viaje (GPS)
+            if (moving && motion != null) {
+                if (onRoute && pathHeading != null) {
+                    const delta = Math.abs(((pathHeading - motion + 540) % 360) - 180);
+                    // Si vas casi por la calle, preferir rumbo de la ruta (más limpio en curvas)
+                    if (delta < 32) return pathHeading;
+                }
+                return motion;
+            }
+
+            // 2) Lento / parado: brújula (hacia dónde apunta el teléfono)
+            if (compass != null) {
+                if (onRoute && pathHeading != null && !moving) {
+                    // Parado en ruta: brújula manda (usuario mira a dónde va a girar)
+                    return compass;
+                }
+                return compass;
+            }
+
+            // 3) Fallbacks
+            if (motion != null) return motion;
+            if (onRoute && pathHeading != null) return pathHeading;
+            if (pathHeading != null) return pathHeading;
+            if (window.currentDriverHeading != null && Number.isFinite(window.currentDriverHeading)) {
+                return window.currentDriverHeading;
+            }
+            return 0;
         };
 
         window.getDriverNavCameraState = (rawPos, gpsHeading) => {
@@ -3781,28 +4620,179 @@ window.gMap = null;
             const heading = window.resolveDriverNavHeading?.(pos, gpsHeading, path)
                 ?? window.currentDriverHeading
                 ?? 0;
+            // Brújula en idle: pasos más grandes; en movimiento: más suaves
+            const speed = Number(window._gpsSpeedMps) || 0;
+            const maxStep = speed >= 1.2 ? 16 : 22;
             const smooth = window.smoothDriverNavHeading?.(
                 heading,
-                window._lastDriverNavCamHeading
+                window._lastDriverNavCamHeading,
+                maxStep
             );
             return { pos, heading: smooth, path };
         };
 
-        window.resolveDriverNavHeading = (pos, gpsHeading, path) => {
-            const pathHeading = path?.length >= 2 ? window.computeHeadingOnPath(path, pos) : null;
-            if (pathHeading != null && window.isDriverNavigating?.()) {
-                const distToRoute = window.getDistanceToRouteMeters?.(path, pos);
-                const onRoute = Number.isFinite(distToRoute) && distToRoute < 90;
-                if (onRoute) return pathHeading;
-                if (gpsHeading != null && Number.isFinite(gpsHeading)) {
-                    const delta = Math.abs(((pathHeading - gpsHeading + 540) % 360) - 180);
-                    return delta > 28 ? pathHeading : gpsHeading;
-                }
-                return pathHeading;
+        /**
+         * Brújula del dispositivo + bucle de cámara para girar el mapa en tiempo real.
+         */
+        window.startDriverCompassTracking = async () => {
+            if (window._driverCompassActive) {
+                window.startDriverCompassCameraLoop?.();
+                return true;
             }
-            if (gpsHeading != null && Number.isFinite(gpsHeading)) return gpsHeading;
-            if (pathHeading != null) return pathHeading;
-            return window.currentDriverHeading || 0;
+
+            // iOS 13+: permiso explícito (mejor al tocar IR AHORA)
+            try {
+                const DOE = window.DeviceOrientationEvent;
+                if (DOE && typeof DOE.requestPermission === 'function') {
+                    const perm = await DOE.requestPermission();
+                    if (perm !== 'granted') {
+                        console.warn('[NAV] Permiso de brújula denegado');
+                        window.startDriverCompassCameraLoop?.();
+                        return false;
+                    }
+                }
+            } catch (e) {
+                console.warn('[NAV] requestPermission brújula:', e);
+            }
+
+            const onOrientation = (e) => {
+                if (!window.isDriverNavigating?.()) return;
+                const h = window.headingFromDeviceOrientationEvent?.(e);
+                if (h == null) return;
+                // Siempre actualizar brújula interna (aunque el usuario mueva el mapa a mano)
+                const prev = window._deviceCompassHeading;
+                if (prev != null && Number.isFinite(prev)) {
+                    let delta = ((h - prev + 540) % 360) - 180;
+                    if (Math.abs(delta) < 0.4) return;
+                    const blended = (Math.abs(delta) > 25)
+                        ? h
+                        : ((prev + delta * 0.45) + 360) % 360;
+                    window._deviceCompassHeading = blended;
+                } else {
+                    window._deviceCompassHeading = h;
+                }
+                window._deviceCompassAt = Date.now();
+                // Free-look: NO girar el mapa aquí (el loop de cámara ya respeta autoCenter).
+                // Sí rotar el carrito top-down con la brújula (como Google).
+                window.syncSelfDriverMarkerHeading?.(window._deviceCompassHeading);
+            };
+
+            // Preferir absolute (norte real)
+            window._driverCompassHandler = onOrientation;
+            const absOpts = { absolute: true };
+            try {
+                window.addEventListener('deviceorientationabsolute', onOrientation, true);
+                window._driverCompassUsesAbsolute = true;
+            } catch (_) {
+                window._driverCompassUsesAbsolute = false;
+            }
+            window.addEventListener('deviceorientation', onOrientation, true);
+            window._driverCompassActive = true;
+            window.startDriverCompassCameraLoop?.();
+            return true;
+        };
+
+        window.stopDriverCompassTracking = () => {
+            const h = window._driverCompassHandler;
+            if (h) {
+                try { window.removeEventListener('deviceorientationabsolute', h, true); } catch (_) {}
+                try { window.removeEventListener('deviceorientation', h, true); } catch (_) {}
+            }
+            window._driverCompassHandler = null;
+            window._driverCompassActive = false;
+            window.stopDriverCompassCameraLoop?.();
+        };
+
+        /** Actualiza solo la rotación del carrito propio (barato, cada tick de brújula). */
+        window.syncSelfDriverMarkerHeading = (headingDeg) => {
+            const uid = window.currentUser?.uid;
+            if (!uid || !window.currentDriverPos) return;
+            const h = Number(headingDeg);
+            if (!Number.isFinite(h)) return;
+            window.currentDriverHeading = h;
+            const meta = window._driverMarkerMeta?.[uid];
+            const rot = window.getDriverMarkerScreenRotation?.(h) ?? h;
+            if (meta?.contentEl) {
+                meta.contentEl.style.transform = `rotate(${rot}deg)`;
+                meta.lastHeading = h;
+                return;
+            }
+            // Si aún no hay meta, forzar update completo de vez en cuando
+            const now = Date.now();
+            if (!window._lastSelfMarkerFullSync || now - window._lastSelfMarkerFullSync > 800) {
+                window._lastSelfMarkerFullSync = now;
+                const vType = window.getActiveVehicleType?.(window.userProfile)
+                    || window.userProfile?.vehicleType
+                    || 'auto';
+                window.updateDriverMarker?.(uid, window.currentDriverPos.lat, window.currentDriverPos.lng, true, {
+                    heading: h,
+                    vehicleType: vType,
+                    forceReposition: false,
+                });
+            }
+        };
+
+        window.startDriverCompassCameraLoop = () => {
+            if (window._driverCompassCamLoopOn) return;
+            window._driverCompassCamLoopOn = true;
+            let lastTs = 0;
+
+            const tick = (ts) => {
+                if (!window._driverCompassCamLoopOn) return;
+                window._driverCompassCamRaf = requestAnimationFrame(tick);
+                if (!window.isDriverNavigating?.()) return;
+                if (!window.currentDriverPos) return;
+
+                // Siempre alinear carrito con brújula (aunque el mapa esté en free-look)
+                const compass = window.getDriverCompassHeading?.();
+                const motion = window.getDriverMotionHeading?.();
+                const hHint = (compass != null)
+                    ? compass
+                    : (motion ?? window.currentDriverHeading);
+                if (hHint != null && Number.isFinite(Number(hHint))) {
+                    if (ts - (window._lastSelfCarRotTs || 0) > 50) {
+                        window._lastSelfCarRotTs = ts;
+                        window.syncSelfDriverMarkerHeading?.(hHint);
+                    }
+                }
+
+                // Usuario movió el mapa: brújula no toca la cámara
+                if (window.autoCenter === false || window._driverMapFreeLook) return;
+                // ~12–15 fps basta para brújula fluida sin matar batería
+                if (ts - lastTs < 70) return;
+                lastTs = ts;
+
+                const speed = Number(window._gpsSpeedMps) || 0;
+                // Si no hay brújula ni movimiento, no spamear cámara
+                if (compass == null && motion == null && hHint == null) return;
+
+                const preferCompass = speed < 1.2 && compass != null;
+                const camHeading = preferCompass
+                    ? compass
+                    : (motion ?? compass ?? window.currentDriverHeading);
+
+                const prev = window._lastDriverNavCamHeading;
+                if (prev != null && camHeading != null) {
+                    const delta = Math.abs(((camHeading - prev + 540) % 360) - 180);
+                    // En movimiento solo actualizar si hay cambio útil (GPS manda el resto)
+                    if (!preferCompass && delta < 1.2 && window._lastDriverNavCamPos) return;
+                }
+
+                window.applyDriverNavCamera?.(
+                    window.currentDriverPos,
+                    camHeading,
+                    false
+                );
+            };
+            window._driverCompassCamRaf = requestAnimationFrame(tick);
+        };
+
+        window.stopDriverCompassCameraLoop = () => {
+            window._driverCompassCamLoopOn = false;
+            if (window._driverCompassCamRaf) {
+                try { cancelAnimationFrame(window._driverCompassCamRaf); } catch (_) {}
+                window._driverCompassCamRaf = null;
+            }
         };
 
         window.normalizeRoutePoint = (point) => {
@@ -4115,13 +5105,62 @@ window.gMap = null;
             return `${(m / 1000).toFixed(1)} km`;
         };
 
+        /** Escribe texto de nav en panel central (+ HUD flotante si existe, p. ej. pasajero). */
+        window.setNavHudText = (field, text) => {
+            const ids = {
+                stepText: ['panel-nav-step-text', 'nav-step-text'],
+                stepDist: ['panel-nav-step-dist', 'nav-step-dist'],
+                totalTime: ['panel-nav-total-time', 'nav-total-time'],
+                totalDist: ['panel-nav-total-dist', 'nav-total-dist'],
+                totalEta: ['panel-nav-total-eta', 'nav-total-eta'],
+            }[field];
+            if (!ids) return;
+            const val = text == null ? '' : String(text);
+            ids.forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = val;
+            });
+        };
+
+        window.setNavHudIcon = (iconClass) => {
+            const cls = iconClass || 'fas fa-location-arrow';
+            ['panel-nav-step-icon', 'nav-step-icon'].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.className = cls;
+            });
+        };
+
+        /** Conductor: nav vive en el panel central. Pasajero: HUDs flotantes. */
+        window.syncDriverPanelNavVisibility = () => {
+            const isDriver = document.body.classList.contains('driver-mode')
+                || window.userProfile?.role === 'driver';
+            const navigating = window.isDriverNavigating?.()
+                || document.body.classList.contains('is-navigating');
+            const panelNav = document.getElementById('driver-panel-nav');
+            if (panelNav) {
+                panelNav.classList.toggle('hidden', !(isDriver && navigating));
+            }
+            if (isDriver) {
+                const top = document.getElementById('nav-hud-top');
+                const bottom = document.getElementById('nav-hud-bottom');
+                if (top) {
+                    top.style.display = 'none';
+                    top.classList.add('hidden');
+                }
+                if (bottom) {
+                    bottom.style.display = 'none';
+                    bottom.classList.add('hidden');
+                }
+            }
+        };
+
         window.updateDriverNavTurnCard = (route, pos) => {
             if (!window.isDriverNavigating?.()) return;
+            window.syncDriverPanelNavVisibility?.();
             const step = window.getNextNavStep(route, pos);
-            const stepText = document.getElementById('nav-step-text');
-            const stepDist = document.getElementById('nav-step-dist');
-            const stepIcon = document.getElementById('nav-step-icon');
-            if (!stepText || !stepDist) return;
+            const hasPanel = !!document.getElementById('panel-nav-step-text');
+            const hasFloat = !!document.getElementById('nav-step-text');
+            if (!hasPanel && !hasFloat) return;
 
             const dest = route?.path?.[route.path.length - 1];
             const distToDest = dest ? window.getDistanceToNavPoint(pos, dest) : Infinity;
@@ -4131,26 +5170,27 @@ window.gMap = null;
             if (pickupPhase) {
                 window.syncDriverPickupArrivalUi?.(pos);
                 if (distToDest <= 1000) {
-                    stepText.innerText = '¡Cerca del pasajero!';
-                    stepDist.innerText = distToDest <= DESTINATION_ARRIVAL_RADIUS_M
-                        ? 'Presiona ¡HE LLEGADO! en el botón flotante'
-                        : 'Ya puedes presionar ¡HE LLEGADO!';
-                    if (stepIcon) stepIcon.className = 'fas fa-map-marker-alt text-2xl text-white';
+                    window.setNavHudText('stepText', '¡Cerca del pasajero!');
+                    window.setNavHudText(
+                        'stepDist',
+                        distToDest <= DESTINATION_ARRIVAL_RADIUS_M
+                            ? 'Presiona ¡HE LLEGADO! en el panel'
+                            : 'Ya puedes presionar ¡HE LLEGADO!'
+                    );
+                    window.setNavHudIcon('fas fa-map-marker-alt');
                     return;
                 }
             } else if (distToDest <= DESTINATION_ARRIVAL_RADIUS_M) {
                 const legLabel = window.getTripRouteLegLabel?.(trip);
                 if (legLabel?.isFinal !== false) {
-                    stepText.innerText = '¡Estás en el destino!';
-                    stepDist.innerText = 'Presiona LLEGUÉ AL DESTINO en el panel';
+                    window.setNavHudText('stepText', '¡Estás en el destino!');
+                    window.setNavHudText('stepDist', 'Presiona LLEGUÉ AL DESTINO en el panel');
                 } else {
-                    stepText.innerText = `¡Estás en el punto ${legLabel.routeNum}!`;
-                    stepDist.innerText = `Presiona LLEGUÉ AL PUNTO ${legLabel.routeNum} en el panel`;
+                    window.setNavHudText('stepText', `¡Estás en el punto ${legLabel.routeNum}!`);
+                    window.setNavHudText('stepDist', `Presiona LLEGUÉ AL PUNTO ${legLabel.routeNum} en el panel`);
                 }
-                if (stepIcon) stepIcon.className = 'fas fa-map-marker-alt text-2xl text-white';
-
+                window.setNavHudIcon('fas fa-map-marker-alt');
                 window.syncDriverDestinationArrivalUi?.(pos);
-
                 return;
             }
 
@@ -4159,15 +5199,16 @@ window.gMap = null;
                 const distM = step.endLocation
                     ? window.getDistanceToNavPoint(pos, step.endLocation)
                     : Number(step.distanceMeters) || 0;
-                stepText.innerText = text.length > 72 ? `${text.slice(0, 69)}…` : text;
-                stepDist.innerText = `En ${window.formatNavStepDistance(distM)}`;
-                if (stepIcon) {
-                    stepIcon.className = `fas ${window.getNavManeuverIcon(step.maneuver)} text-2xl text-white`;
-                }
+                window.setNavHudText('stepText', text.length > 72 ? `${text.slice(0, 69)}…` : text);
+                window.setNavHudText('stepDist', `En ${window.formatNavStepDistance(distM)}`);
+                window.setNavHudIcon(`fas ${window.getNavManeuverIcon(step.maneuver)}`);
             } else if (route) {
-                stepText.innerText = 'Sigue la ruta azul';
-                stepDist.innerText = `${window.getRouteDistanceKm(route).toFixed(1)} km · ${window.formatRouteDuration(route)}`;
-                if (stepIcon) stepIcon.className = 'fas fa-location-arrow text-2xl text-white';
+                window.setNavHudText('stepText', 'Sigue la ruta azul');
+                window.setNavHudText(
+                    'stepDist',
+                    `${window.getRouteDistanceKm(route).toFixed(1)} km · ${window.formatRouteDuration(route)}`
+                );
+                window.setNavHudIcon('fas fa-location-arrow');
             }
 
             window.updateDriverVoiceNav?.(route, pos);
@@ -4178,104 +5219,244 @@ window.gMap = null;
             const vw = vv?.width || window.innerWidth || 360;
             const vh = vv?.height || window.innerHeight || 640;
             const landscape = vw > vh;
-            const safeSide = Math.max(12, Math.round(Math.min(vw, vh) * 0.04));
+            const safeSide = Math.max(10, Math.round(Math.min(vw, vh) * 0.03));
             const navHudBottom = document.getElementById('nav-hud-bottom');
             const navHudTop = document.getElementById('nav-hud-top');
             const driverNav = document.body.classList.contains('driver-nav-mode');
             const panelOpen = document.body.classList.contains('trip-active')
                 && !document.body.classList.contains('panel-minimized')
                 && !document.body.classList.contains('panel-hidden');
+            const panelMin = document.body.classList.contains('panel-minimized');
 
-            let bottomUi = 72;
-            if (navHudBottom && navHudBottom.offsetParent !== null) {
-                bottomUi = Math.max(bottomUi, navHudBottom.offsetHeight + (landscape ? 16 : 24));
-            }
-            if (driverNav) {
-                bottomUi = panelOpen
-                    ? Math.max(bottomUi, Math.round(vh * (landscape ? 0.16 : 0.2)))
-                    : Math.max(bottomUi, (navHudBottom?.offsetHeight || 72) + 20);
-            } else if (panelOpen) {
-                bottomUi = Math.max(bottomUi, Math.round(vh * 0.28));
+            // Panel maximizado = faja inferior (~46dvh); minimizado = mini-barra
+            let bottomUi = 64;
+            if (driverNav || document.body.classList.contains('trip-active')) {
+                const panelEl = document.getElementById('control-panel');
+                const sheetH = panelEl && panelEl.offsetParent !== null
+                    ? panelEl.getBoundingClientRect().height
+                    : 0;
+                if (panelOpen) {
+                    // Reservar solo la altura real del sheet (mapa sigue navegable arriba)
+                    bottomUi = Math.max(
+                        Math.round(vh * 0.22),
+                        Math.min(sheetH > 40 ? sheetH + 12 : Math.round(vh * 0.42), Math.round(vh * 0.5))
+                    );
+                } else if (panelMin) {
+                    bottomUi = Math.max(bottomUi, Math.min(sheetH > 20 ? sheetH + 10 : 100, 120));
+                } else {
+                    bottomUi = Math.max(bottomUi, 72);
+                }
+            } else {
+                if (navHudBottom && navHudBottom.offsetParent !== null
+                    && !document.body.classList.contains('nav-hud-minimized')) {
+                    bottomUi = Math.max(bottomUi, Math.min(90, navHudBottom.offsetHeight + 12));
+                }
+                if (panelOpen) {
+                    bottomUi = Math.max(bottomUi, Math.round(vh * 0.18));
+                }
             }
 
-            const topUi = (navHudTop && navHudTop.offsetParent !== null)
-                ? Math.max(landscape ? 52 : 64, navHudTop.offsetHeight + 12)
-                : (landscape ? 52 : 64);
-            const lookAhead = Math.round(vh * (landscape ? 0.24 : 0.22));
+            const topMin = landscape ? 36 : 44;
+            // Conductor: no reservar espacio arriba por banners verdes
+            const topUi = driverNav
+                ? topMin
+                : ((navHudTop && navHudTop.offsetParent !== null
+                    && !document.body.classList.contains('nav-hud-top-minimized'))
+                    ? Math.max(topMin, Math.min(78, navHudTop.offsetHeight + 10))
+                    : topMin);
+            // Carro más abajo en pantalla → más mapa ADELANTE (calles por donde vas)
+            // top alto + bottom = sheet → centro óptico en ~65–72% de la altura
+            const forwardBias = Math.round(vh * (landscape ? 0.16 : 0.2));
             const safeTop = Math.round(vv?.offsetTop || 0);
             const safeBottom = Math.max(0, Math.round((window.innerHeight || vh) - (vv?.height || vh) - safeTop));
 
             return {
-                top: topUi + lookAhead + safeTop,
+                top: Math.max(topUi, 36) + forwardBias + safeTop,
                 right: safeSide,
-                bottom: bottomUi + Math.round(vh * 0.05) + safeBottom,
+                bottom: bottomUi + Math.round(vh * 0.01) + safeBottom,
                 left: safeSide,
             };
         };
 
         window.applyDriverNavCamera = (rawPos, rawHeading, force = false) => {
             if (!window.gMap || !rawPos || !window.isDriverNavigating?.()) return;
+            // Free-look con los dedos: no pelear con pan/zoom/rotar del usuario
+            // (la brújula sigue midiendo; no mueve la cámara hasta «Centrar»)
+            if (!force && (window.autoCenter === false || window._driverMapFreeLook)) return;
+
             const cam = window.getDriverNavCameraState?.(rawPos, rawHeading) || { pos: rawPos, heading: rawHeading || 0 };
             const pos = cam.pos || rawPos;
             const h = Number.isFinite(cam.heading) ? cam.heading : 0;
             const lowPower = typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode();
             const lastCam = window._lastDriverNavCamPos;
-            const moved = !lastCam || Math.hypot(pos.lat - lastCam.lat, pos.lng - lastCam.lng) > (lowPower ? 0.00012 : 0.00004);
+            const moved = !lastCam || Math.hypot(pos.lat - lastCam.lat, pos.lng - lastCam.lng) > (lowPower ? 0.0001 : 0.00003);
             const headingDelta = window._lastDriverNavCamHeading == null
                 ? 999
                 : Math.abs(((h - window._lastDriverNavCamHeading + 540) % 360) - 180);
-            if (!force && !moved && headingDelta < 2) return;
+            // Brújula: umbral bajo para que el mapa gire con el teléfono
+            if (!force && !moved && headingDelta < 0.9) return;
             window._lastDriverNavCamPos = { lat: pos.lat, lng: pos.lng };
             window._lastDriverNavCamHeading = h;
+            // Solo actualizar rumbo “oficial” cuando la nav controla la cámara
             window.currentDriverHeading = h;
 
-            try {
+            const applyCam = () => {
                 const hasMapId = !!(window.gMap && window.gMap.getMapId && window.gMap.getMapId());
                 const landscape = (window.visualViewport?.width || window.innerWidth || 360)
                     > (window.visualViewport?.height || window.innerHeight || 640);
-                const tilt = lowPower ? 0 : (landscape ? 40 : 48);
-                const zoom = lowPower ? 17 : 18;
-                const padding = window.getDriverNavMapPadding?.() || { top: 80, right: 16, bottom: 120, left: 16 };
+                // Estilo Google Maps al centrar: zoom calle, mirás hacia adelante (no el pasado)
+                const tilt = lowPower ? (landscape ? 28 : 38) : (landscape ? 52 : 62);
+                const speed = Number(window._gpsSpeedMps);
+                const mps = Number.isFinite(speed) && speed >= 0 ? speed : 0;
+                // Zoom alto tipo “centrar” de Maps (~20–21). Solo baja un poco a mucha velocidad.
+                let zoom = lowPower ? 20 : 20.8;
+                if (mps >= 22) zoom = lowPower ? 19.2 : 19.8;      // ~80 km/h
+                else if (mps >= 14) zoom = lowPower ? 19.6 : 20.3;  // ~50 km/h
+                else if (mps < 2) zoom = lowPower ? 20.2 : 21;      // parado / lento: máximo detalle
+                zoom = Math.min(21, Math.max(18.5, zoom));
+
+                // Centro un poco ADELANTE del carro → ves calles por donde vas, no por donde venís
+                const lookAheadM = mps < 2
+                    ? (lowPower ? 18 : 22)
+                    : (mps >= 18 ? (lowPower ? 48 : 62) : (lowPower ? 32 : 45));
+                const camCenter = window.offsetLatLngByMeters?.(pos.lat, pos.lng, h, lookAheadM) || pos;
+
+                const padding = window.getDriverNavMapPadding?.() || {
+                    top: 48,
+                    right: 12,
+                    bottom: 120,
+                    left: 12,
+                };
                 const cameraOpts = {
-                    center: pos,
+                    center: camCenter,
                     zoom,
                     padding,
+                    heading: h,
+                    tilt,
                 };
-                if (hasMapId && !lowPower) {
-                    cameraOpts.tilt = tilt;
-                    cameraOpts.heading = h;
-                }
-                if (typeof window.gMap.moveCamera === 'function') {
+                // Preferir APIs que rotan de verdad
+                if (typeof window.gMap.moveCamera === 'function' && hasMapId) {
                     window.gMap.moveCamera(cameraOpts);
                 } else {
-                    window.gMap.setCenter(pos);
-                    window.gMap.setZoom(zoom);
-                    if (hasMapId && !lowPower) {
-                        window.gMap.setTilt(tilt);
-                        window.gMap.setHeading(h);
-                    }
+                    try { window.gMap.setCenter(camCenter); } catch (_) {}
+                    try { window.gMap.setZoom(zoom); } catch (_) {}
+                    try { window.gMap.setHeading(h); } catch (_) {}
+                    try { window.gMap.setTilt(tilt); } catch (_) {}
                 }
+            };
+
+            try {
+                if (typeof window.withProgrammaticMapCamera === 'function') {
+                    window.withProgrammaticMapCamera(applyCam);
+                } else {
+                    applyCam();
+                }
+                // Tras girar el mapa, re-alinear carrito top-down (frente = arriba en pantalla)
+                window.syncSelfDriverMarkerHeading?.(h);
             } catch (_) {
-                try { window.gMap.panTo(pos); } catch (__) {}
+                try {
+                    window.gMap.setCenter(pos);
+                    window.gMap.setZoom(20.5);
+                    window.gMap.setHeading(h);
+                    window.syncSelfDriverMarkerHeading?.(h);
+                } catch (__) {
+                    try { window.gMap.panTo(pos); } catch (___) {}
+                }
             }
+        };
+
+        /** Desplaza un punto N metros en rumbo (grados, 0 = norte). */
+        window.offsetLatLngByMeters = (lat, lng, headingDeg, meters) => {
+            const nlat = Number(lat);
+            const nlng = Number(lng);
+            const m = Number(meters);
+            const hdg = Number(headingDeg);
+            if (!Number.isFinite(nlat) || !Number.isFinite(nlng) || !Number.isFinite(m) || m === 0) {
+                return { lat: nlat, lng: nlng };
+            }
+            const R = 6378137;
+            const brng = ((Number.isFinite(hdg) ? hdg : 0) * Math.PI) / 180;
+            const dLat = (m * Math.cos(brng)) / R;
+            const dLng = (m * Math.sin(brng)) / (R * Math.cos((nlat * Math.PI) / 180));
+            return {
+                lat: nlat + (dLat * 180) / Math.PI,
+                lng: nlng + (dLng * 180) / Math.PI,
+            };
         };
 
         window.recenterDriverNav = () => {
             if (!window.gMap) return;
             if (!window.currentDriverPos) {
-                window.showToast?.('Esperando ubicación GPS…');
+                window.showToast?.('Esperando ubicación GPS…', 'warning');
                 return;
             }
+            // Salir de free-look: brújula + GPS vuelven a manejar la cámara
+            window.resumeDriverNavCameraFollow?.();
             window.autoCenter = true;
-            window.hideCenterMapFab?.();
+            window._driverMapFreeLook = false;
+            window.setMapFabVisible?.('fab-center', false);
             window._lastDriverNavCamPos = null;
             window._lastDriverNavCamHeading = null;
             window._lastDriverCameraUpdate = 0;
-            window.applyDriverNavCamera?.(
-                window.currentDriverPos,
-                window.currentDriverHeading,
-                true
-            );
+            // Asegurar modo nav si hay viaje de conductor con ruta
+            if (document.body.classList.contains('driver-mode')
+                && document.body.classList.contains('trip-active')) {
+                document.body.classList.add('driver-nav-mode', 'is-navigating');
+                window.driverNavMode = true;
+            }
+            window.enableDriverMapFreeGestures?.();
+            try {
+                window.applyDriverNavCamera?.(
+                    window.currentDriverPos,
+                    window.currentDriverHeading
+                        ?? window.getDriverCompassHeading?.()
+                        ?? window.getDriverMotionHeading?.()
+                        ?? 0,
+                    true
+                );
+            } catch (_) {
+                try {
+                    window.gMap.panTo(window.currentDriverPos);
+                    window.gMap.setZoom(20.8);
+                } catch (__) {}
+            }
+            window.syncNavigationMapFabs?.();
+        };
+
+        /**
+         * Minimiza el panel en navegación (mapa grande).
+         * Si el usuario lo maximizó a mano, NO lo cierra de nuevo (salvo force: true).
+         */
+        window.minimizeDriverPanelForNav = (opts = {}) => {
+            const force = opts.force === true;
+            // Preferencia del usuario: panel abierto hasta que lo cierre él
+            if (!force && window._driverNavUserKeptOpen) return;
+
+            const panel = document.getElementById('control-panel');
+            if (!panel) return;
+            // Ya minimizado: no pelear
+            if (!force
+                && panel.classList.contains('panel-collapsed')
+                && document.body.classList.contains('panel-minimized')) {
+                return;
+            }
+            panel.classList.add('panel-collapsed');
+            panel.classList.remove('panel-hidden');
+            document.body.classList.add('panel-minimized');
+            document.body.classList.remove('panel-hidden');
+            window._driverNavUserKeptOpen = false;
+            try { localStorage.setItem('honduber_control_panel_hidden', '1'); } catch (_) {}
+            const label = document.getElementById('trip-panel-toggle-label');
+            if (label) label.textContent = 'Abrir';
+            const tpLabel = document.getElementById('tp-panel-toggle-label');
+            if (tpLabel) tpLabel.textContent = 'Ver más';
+            try { window.syncDriverRadarFloatPanel?.(); } catch (_) {}
+            try { window.syncDriverPanelNavVisibility?.(); } catch (_) {}
+            try { window.syncPassengerPanelToggleLabel?.(); } catch (_) {}
+            try {
+                // eslint-disable-next-line no-unused-expressions
+                panel.offsetHeight;
+            } catch (_) {}
         };
 
         window.enterDriverNavMode = () => {
@@ -4289,10 +5470,19 @@ window.gMap = null;
             window.hideDriverTripExtraPanels?.();
             window.bindNavHudTopPanel?.();
             window.syncNavHudTopToggleUi?.();
-            // Do not force collapse the main panel here.
-            // User controls minimize via the explicit buttons only.
+            // Auto-minimizar solo la primera vez; si el usuario abrió el panel, respétalo
+            if (!window._driverNavPanelAutoMinDone && !window._driverNavUserKeptOpen) {
+                window._driverNavPanelAutoMinDone = true;
+                window.minimizeDriverPanelForNav?.();
+            } else {
+                window._driverNavPanelAutoMinDone = true;
+            }
 
             window.setupDriverRotationListener?.();
+            // Gestos libres con dedos + brújula (sin pelear en free-look)
+            window.enableDriverMapFreeGestures?.();
+            window.startDriverCompassTracking?.().catch?.(() => {});
+            window.syncDriverPanelNavVisibility?.();
         };
 
         // Re-centra al girar el celular (vertical/horizontal) siguiendo la ruta
@@ -4302,7 +5492,8 @@ window.gMap = null;
 
             const recenterAfterLayout = () => {
                 if (!window.isDriverNavigating?.() || !window.currentDriverPos) return;
-                window.autoCenter = true;
+                // Si el usuario está mirando el mapa a mano, no forzar re-centro al rotar el teléfono
+                if (window.autoCenter === false || window._driverMapFreeLook) return;
                 window._lastDriverNavCamPos = null;
                 window._lastDriverNavCamHeading = null;
                 window._lastDriverCameraUpdate = 0;
@@ -4343,8 +5534,13 @@ window.gMap = null;
             }
             window.hideNavRouteLoading?.();
             window.resetDriverNavVoice?.();
+            window.stopDriverCompassTracking?.();
             window._lastDriverNavCamPos = null;
             window._lastDriverNavCamHeading = null;
+            window._gpsPosHistory = [];
+            window._driverNavPanelAutoMinDone = false;
+            window._driverNavUserKeptOpen = false;
+            document.getElementById('driver-panel-nav')?.classList.add('hidden');
             if (!window.gMap) return;
             try {
                 window.gMap.setTilt(0);
@@ -4352,6 +5548,7 @@ window.gMap = null;
             } catch (_) {}
             const hud = document.getElementById('nav-hud-bottom');
             if (hud) hud.style.display = 'none';
+            window.syncDriverPanelNavVisibility?.();
         };
 
         window.isPassengerTracking = () =>
@@ -4792,7 +5989,9 @@ window.gMap = null;
             const driverOfferPreview = options.driverOfferPreview
                 || (!driverNav && !passengerTrack && route.previewOnly);
 
-            if ((driverNav || driverOfferPreview) && route.estimated) return;
+            // Antes se rechazaba estimated en nav/preview → mapa vacío si fallaba Routes API.
+            // Ahora dibujamos igual (línea estimada o por calles).
+            if (!route.path?.length && route.estimated) return;
 
             window.clearStopMarkers?.();
 

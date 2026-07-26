@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.25.5";
+} from "./auth-credentials.js?v=2026.07.26.1";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.25.5";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.25.5";
+import { APP_CONFIG } from "./config.js?v=2026.07.26.1";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.26.1";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.25.5";
+} from "./referrals.js?v=2026.07.26.1";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.25.5";
+} from "./zones.js?v=2026.07.26.1";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.25.5";
+} from "./trip-notifications.js?v=2026.07.26.1";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.25.5";
+} from "./notification-tones.js?v=2026.07.26.1";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.25.5";
+} from "./passenger-alerts.js?v=2026.07.26.1";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.25.5";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.25.5";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.25.5";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.25.5";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.25.5";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.25.5";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.25.5";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.25.5";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.25.5";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.25.5";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.25.5";
+} from "./passenger-verification.js?v=2026.07.26.1";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.26.1";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.26.1";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.26.1";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.26.1";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.26.1";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.26.1";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.26.1";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.26.1";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.26.1";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.26.1";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.25.5";
+} from "./feedback.js?v=2026.07.26.1";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.25.5";
+} from "./greetings.js?v=2026.07.26.1";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.25.5";
+} from "./service-types.js?v=2026.07.26.1";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.25.5";
+} from "./driver-vehicles.js?v=2026.07.26.1";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.25.5";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.25.5";
+} from "./route-conditions.js?v=2026.07.26.1";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.26.1";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.25.5";
+} from "./demand-heatmap.js?v=2026.07.26.1";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.25.5";
+} from "./ops-fleet-map.js?v=2026.07.26.1";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.25.5";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.25.5";
+} from "./live-trip-keepalive.js?v=2026.07.26.1";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.26.1";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.25.5";
+} from "./session-keepalive.js?v=2026.07.26.1";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.25.5";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.25.5";
+} from "./passenger-tutorial.js?v=2026.07.26.1";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.26.1";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.25.5";
+} from "./driver-tutorial.js?v=2026.07.26.1";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.25.5";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.26.1";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.25.5";
+} from "./auth-ui.js?v=2026.07.26.1";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.25.5";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.25.5";
+} from "./age-verification.js?v=2026.07.26.1";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.26.1";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.25.5";
+} from "./trip-experience.js?v=2026.07.26.1";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.25.5";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.25.5";
-import { initAppDownload } from "./app-download.js?v=2026.07.25.5";
+} from "./support-tickets.js?v=2026.07.26.1";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.26.1";
+import { initAppDownload } from "./app-download.js?v=2026.07.26.1";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -1547,11 +1547,15 @@ if (document.readyState === 'loading') {
                     const force = true;
 
                     window.currentDriverPos = { lat, lng };
+                    window._driverLiveUpdatedAt = Date.now();
+                    window._driverLiveAccuracy = accuracy;
                     if (heading != null && Number.isFinite(heading)) {
                         window.currentDriverHeading = heading;
                     }
-
                     if (trip.driverId === currentUser.uid) {
+                        window._driverGpsOk = true;
+                        window._driverGpsError = null;
+                        try { window.notifyDriverGpsHealth?.(true); } catch (_) {}
                         if (window.__publishDriverGpsPulse) {
                             window.__publishDriverGpsPulse(lat, lng, heading, accuracy);
                         } else {
@@ -1578,7 +1582,17 @@ if (document.readyState === 'loading') {
                         window.__publishPassengerGpsPulse?.(lat, lng, heading, accuracy, force);
                     }
                 },
-                () => {},
+                (err) => {
+                    if (trip.driverId === currentUser.uid) {
+                        window._driverGpsOk = false;
+                        window._driverGpsError = {
+                            code: err?.code ?? 2,
+                            message: err?.message || '',
+                            at: Date.now()
+                        };
+                        try { window.notifyDriverGpsHealth?.(false, err); } catch (_) {}
+                    }
+                },
                 geoOpts
             );
         });
@@ -3576,7 +3590,15 @@ if (document.readyState === 'loading') {
                 else if (action === 'driver-arrived-dest') window.driverSignalDestinationArrival?.();
                 else if (action === 'verify-pin') window.verifyPin?.();
                 else if (action === 'skip-pin') window.driverSkipPinAndStart?.();
-                else if (action === 'driver-nav-inapp') window.navigateDriverRouteInApp?.();
+                else if (action === 'driver-nav-inapp') {
+                    window.navigateDriverRouteInApp?.();
+                    // Por si la primera traza falló (GPS/API), recuperar sin recargar
+                    setTimeout(() => {
+                        if (!window.hasActiveDriverNavRoute?.()) {
+                            window.recoverDriverNavRoute?.({ force: true });
+                        }
+                    }, 1800);
+                }
                 else if (action === 'driver-route') window.openDriverRouteInGoogleMaps?.();
                 else if (action === 'client-nav-inapp') window.navigatePassengerRouteInApp?.();
                 else if (action === 'client-route-gmaps') window.openPassengerTripRouteInGoogleMaps?.();
@@ -3725,12 +3747,20 @@ if (document.readyState === 'loading') {
             if (e.target.closest('#chat-compose-form, #chat-send-btn, #chat-input')) return;
 
             const btn = e.target.closest('[data-trip-action]');
-            if (!btn || btn.disabled || btn.getAttribute('aria-disabled') === 'true') return;
+            if (!btn) return;
+            // Permitir "LLEGUÉ AL DESTINO" / skip-pin aunque visualmente bloqueado (muestran toast)
+            const alwaysClickable = actionAlwaysClickable(btn);
+            if (!alwaysClickable && (btn.disabled || btn.getAttribute('aria-disabled') === 'true')) return;
             if (shouldIgnoreDuplicateTripTouch(btn)) return;
             e.preventDefault();
             e.stopPropagation();
             blurTripAutocompletes();
             await runTripTouchAction(btn);
+        }
+
+        function actionAlwaysClickable(btn) {
+            const a = btn?.dataset?.tripAction;
+            return a === 'driver-arrived-dest' || a === 'skip-pin' || a === 'verify-pin' || a === 'arrived';
         }
 
         function bindTripTouchActions() {
@@ -3968,7 +3998,13 @@ if (document.readyState === 'loading') {
             ensurePassengerCityPickerVisible();
             window.syncMapLocationChipVisibility?.();
             if (window.userProfile?.role === 'driver') {
-                document.getElementById('service-zone-map-chip')?.classList.remove('hidden');
+                // En viaje/navegación no mostrar chip de ciudad
+                if (!document.body.classList.contains('trip-active')
+                    && !document.body.classList.contains('is-navigating')
+                    && !document.body.classList.contains('driver-nav-mode')) {
+                    document.getElementById('service-zone-map-chip')?.classList.remove('hidden');
+                    document.getElementById('service-zone-map-chip')?.style.removeProperty('display');
+                }
                 // Re-filtrar ofertas con la ciudad nueva
                 try { window.startDriverListener?.(); } catch (_) {}
             }
@@ -5905,21 +5941,42 @@ if (document.readyState === 'loading') {
             const km = route?.distanceMeters ? (route.distanceMeters / 1000).toFixed(1) : null;
             const mins = route?.durationMillis ? Math.max(1, Math.round(route.durationMillis / 60000)) : null;
             const etaBits = [km ? `${km} km` : null, mins ? `~${mins} min` : null].filter(Boolean).join(' · ');
+            const hourly = isHourlyTripOffer(trip) || route?.hourly;
+            const hourlyOnlyPickup = route?.hourlyPickupOnly;
             titleEl.textContent = etaBits
                 ? `Ruta hacia ${clientName} · ${etaBits}`
                 : `Ruta hacia ${clientName}`;
-            subEl.textContent = _driverOfferPopupMapPeek
-                ? 'Orientación por calles — toca «Oferta» para volver'
-                : 'Solo orientación por calles — no es navegación activa';
+            if (hourly && hourlyOnlyPickup) {
+                subEl.textContent = _driverOfferPopupMapPeek
+                    ? 'Por horas: ruta al inicio · toca «Oferta» para volver'
+                    : 'Reserva por horas · ruta al punto de inicio (sin destino fijo)';
+            } else if (hourly) {
+                subEl.textContent = _driverOfferPopupMapPeek
+                    ? 'Por horas: orientación por calles · «Oferta» para volver'
+                    : 'Reserva por horas · orientación por calles';
+            } else {
+                subEl.textContent = _driverOfferPopupMapPeek
+                    ? 'Orientación por calles — toca «Oferta» para volver'
+                    : 'Solo orientación por calles — no es navegación activa';
+            }
         }
 
+        function isHourlyTripOffer(t) {
+            return t?.bookingType === 'hourly' || t?.bookingMode === 'hourly';
+        }
+
+        /**
+         * Ruta previa de oferta (incluye reservas por horas).
+         * Por horas: al menos conductor → origen; si hay destino/paradas, se suman.
+         */
         async function buildDriverOfferPreviewRoute(t, driverPos) {
-            if (!t || t.bookingType === 'hourly') return null;
+            if (!t) return null;
 
             let originLat = t.originLat;
             let originLng = t.originLng;
             let destLat = t.destinationLat;
             let destLng = t.destinationLng;
+            const hourly = isHourlyTripOffer(t);
 
             if (originLat == null || originLng == null) {
                 const originCoords = await resolveTripOriginCoords(t);
@@ -5944,6 +6001,7 @@ if (document.readyState === 'loading') {
             let totalDur = 0;
             const originPoint = { address: t.origin, latLng: { lat: originLat, lng: originLng } };
 
+            // Siempre: ruta del conductor al punto de recogida (también por horas)
             if (driverPos?.lat != null && driverPos?.lng != null) {
                 const toPickup = await window.computeDrivingRoute?.(
                     { latLng: driverPos },
@@ -5956,6 +6014,7 @@ if (document.readyState === 'loading') {
                 }
             }
 
+            // Si hay destino (viaje normal o hourly con destino opcional), sumar tramos
             if (destLat != null && destLng != null) {
                 const destPoint = { address: t.destination, latLng: { lat: destLat, lng: destLng } };
                 const stops = t.additionalStops || [];
@@ -5978,6 +6037,7 @@ if (document.readyState === 'loading') {
                     }
                 }
             } else if (!segments.length) {
+                // Sin GPS conductor y sin destino: no hay polilínea
                 return null;
             }
 
@@ -5989,10 +6049,12 @@ if (document.readyState === 'loading') {
                 distanceMeters: totalDist,
                 durationMillis: totalDur,
                 previewOnly: true,
+                hourly,
+                hourlyPickupOnly: hourly && (destLat == null || destLng == null),
                 origin: { lat: originLat, lng: originLng },
                 destination: destLat != null && destLng != null
                     ? { lat: destLat, lng: destLng }
-                    : null
+                    : { lat: originLat, lng: originLng }
             };
         }
 
@@ -6002,6 +6064,9 @@ if (document.readyState === 'loading') {
 
             window._driverPreviewOfferTripId = null;
             window._driverOfferPreviewRoute = null;
+            window._driverOfferPreviewRouteTripId = null;
+            window._driverOfferPreviewFailToastFor = null;
+            window._driverOfferPreviewForce = false;
             document.body.classList.remove('driver-offer-preview-active');
             document.querySelectorAll('.driver-offer-card--selected').forEach((el) => {
                 el.classList.remove('driver-offer-card--selected');
@@ -6020,7 +6085,7 @@ if (document.readyState === 'loading') {
             if (window.isDriverNavigating?.()) return;
 
             window._driverPreviewOfferTripId = tripId;
-            window._driverOfferPreviewRoute = null;
+            // No borrar la ruta previa hasta tener la nueva (evita parpadeo / re-toasts)
             document.querySelectorAll('.driver-offer-card[data-preview-offer]').forEach((card) => {
                 card.classList.toggle('driver-offer-card--selected', card.dataset.previewOffer === tripId);
             });
@@ -6039,8 +6104,14 @@ if (document.readyState === 'loading') {
                 t = { id: tripId, ...t };
             }
 
-            if (t.bookingType === 'hourly') {
-                window.showToast?.('Las reservas por horas no muestran ruta previa en el mapa.');
+            // Si ya tenemos preview de este viaje, no recalcular en cada snapshot (evita spam)
+            if (
+                window._driverPreviewOfferTripId === tripId
+                && window._driverOfferPreviewRoute
+                && window._driverOfferPreviewRouteTripId === tripId
+                && !window._driverOfferPreviewForce
+            ) {
+                updateDriverOfferMapHint({ trip: t, route: window._driverOfferPreviewRoute });
                 return;
             }
 
@@ -6052,11 +6123,26 @@ if (document.readyState === 'loading') {
 
             if (!route) {
                 updateDriverOfferMapHint({});
-                window.showToast?.('No se pudo trazar la ruta por calles. Revisa tu GPS o conexión.');
+                // Una sola vez por viaje: no spamear en cada refresh de ofertas
+                if (window._driverOfferPreviewFailToastFor !== tripId) {
+                    window._driverOfferPreviewFailToastFor = tripId;
+                    const hourly = isHourlyTripOffer(t);
+                    window.showToast?.(
+                        hourly
+                            ? 'No se pudo trazar la ruta al punto de inicio. Revisá GPS o que el origen tenga ubicación.'
+                            : 'No se pudo trazar la ruta por calles. Revisa tu GPS o conexión.',
+                        'warning'
+                    );
+                }
+                // Marcar como “intentado” para que sync no reintente en bucle
+                window._driverOfferPreviewRoute = { path: [], previewOnly: true, failed: true };
+                window._driverOfferPreviewRouteTripId = tripId;
                 return;
             }
 
             window._driverOfferPreviewRoute = route;
+            window._driverOfferPreviewRouteTripId = tripId;
+            window._driverOfferPreviewForce = false;
             window.drawRouteOnMap?.(route, { driverOfferPreview: true });
             updateDriverOfferMapHint({ trip: t, route });
         };
@@ -6080,7 +6166,14 @@ if (document.readyState === 'loading') {
             }
 
             if (offers.length === 1) {
-                if (window._driverPreviewOfferTripId === offers[0].id && window._driverOfferPreviewRoute) return;
+                // Ya dibujado o ya intentado para este viaje → no re-disparar (evita toast en bucle)
+                if (
+                    window._driverPreviewOfferTripId === offers[0].id
+                    && window._driverOfferPreviewRouteTripId === offers[0].id
+                    && window._driverOfferPreviewRoute
+                ) {
+                    return;
+                }
                 updateDriverOfferMapHint({});
                 window.selectDriverOfferForPreview?.(offers[0].id, offers[0]);
                 return;
@@ -6089,7 +6182,13 @@ if (document.readyState === 'loading') {
             const selected = window._driverPreviewOfferTripId;
             const selectedTrip = selected ? offers.find((o) => o.id === selected) : null;
             if (selectedTrip) {
-                if (window._driverPreviewOfferTripId === selected && window._driverOfferPreviewRoute) return;
+                if (
+                    window._driverPreviewOfferTripId === selected
+                    && window._driverOfferPreviewRouteTripId === selected
+                    && window._driverOfferPreviewRoute
+                ) {
+                    return;
+                }
                 window.selectDriverOfferForPreview?.(selected, selectedTrip);
                 return;
             }
@@ -18570,6 +18669,61 @@ if (document.readyState === 'loading') {
             });
         }
 
+        /** Oculta flotantes que estorban en viaje (ganancias, copas públicas, etc.). */
+        window.syncDriverChromeForActiveTrip = () => {
+            const onTrip = document.body.classList.contains('trip-active')
+                && document.body.classList.contains('driver-mode');
+            const earn = document.getElementById('driver-earnings-float');
+            const pcopa = document.getElementById('public-pcopa-strip');
+            const dcopa = document.getElementById('driver-copa-map-strip');
+            const publicCopa = document.getElementById('public-copa-strip');
+            const objs = document.getElementById('driver-objectives-active');
+            const zoneChip = document.getElementById('service-zone-map-chip');
+            const radarFloat = document.getElementById('driver-radar-float');
+            if (onTrip) {
+                if (earn) {
+                    earn.classList.add('hidden');
+                    earn.style.setProperty('display', 'none', 'important');
+                }
+                if (pcopa) {
+                    pcopa.classList.add('hidden');
+                    pcopa.innerHTML = '';
+                }
+                if (dcopa) {
+                    dcopa.classList.add('hidden');
+                }
+                if (publicCopa) {
+                    publicCopa.classList.add('hidden');
+                    publicCopa.innerHTML = '';
+                }
+                // Sin chip de ciudad ni pill «Viaje activo» en navegación
+                if (zoneChip) {
+                    zoneChip.classList.add('hidden');
+                    zoneChip.style.setProperty('display', 'none', 'important');
+                }
+                if (radarFloat) {
+                    radarFloat.classList.add('hidden');
+                    radarFloat.innerHTML = '';
+                }
+                if (objs) {
+                    objs.classList.add('hidden');
+                    objs.innerHTML = '';
+                }
+            } else {
+                // Restaurar ganancias / ciudad al salir del viaje
+                if (earn) {
+                    earn.style.removeProperty('display');
+                }
+                if (zoneChip) {
+                    zoneChip.style.removeProperty('display');
+                    // Solo mostrar chip si es conductor en mapa (no trip)
+                    if (document.body.classList.contains('driver-mode')) {
+                        zoneChip.classList.remove('hidden');
+                    }
+                }
+            }
+        };
+
         window.renderDriverEarningsToday = async () => {
             const wrap = document.getElementById('driver-earnings-float');
             if (!wrap || window.userProfile?.role !== 'driver' || !currentUser) {
@@ -18577,6 +18731,15 @@ if (document.readyState === 'loading') {
                 if (wrap) wrap.innerHTML = '';
                 return;
             }
+
+            // En viaje activo: no tapar el mapa / HUD (X y minimizar no se alcanzan)
+            if (document.body.classList.contains('trip-active')) {
+                wrap.classList.add('hidden');
+                wrap.style.setProperty('display', 'none', 'important');
+                wrap.innerHTML = '';
+                return;
+            }
+            wrap.style.removeProperty('display');
 
             try {
                 const s = await computeDriverDayStats(currentUser.uid);
@@ -21947,18 +22110,8 @@ window.saveProfileChanges = async () => {
             if (trip.driverId === currentUser?.uid) {
                 window.startDriverLocationTracking?.().catch?.(() => {});
                 if (trip.status === 'in_progress') {
-                    const legIdx = window.getTripCurrentLegIndex?.(trip) || 1;
-                    const legTarget = window.getTripCurrentLegNavTarget?.(trip);
-                    const navBootKey = `${trip.id}:live:${legIdx}:${legTarget?.lat || ''}:${legTarget?.lng || ''}:${legTarget?.address || trip.destination || ''}`;
-                    const hasRoute = window.hasActiveDriverNavRoute?.();
-                    if (window._inProgressNavBootKey !== navBootKey || !hasRoute) {
-                        window._inProgressNavBootKey = navBootKey;
-                        const dest = legTarget || (trip.destinationLat != null
-                            ? { lat: trip.destinationLat, lng: trip.destinationLng, address: trip.destination }
-                            : trip.destination);
-                        if (dest) window.updateNavigation?.(dest, true);
-                    }
-                    window.ensureDriverNavRouteVisible?.();
+                    // Misma navegación que al pickup: carrito, brújula, zoom, ruta al destino
+                    startDriverDestinationNavigation(trip);
                 } else if (!trip.driverArrived) {
                     startDriverPickupNavigation?.(trip);
                 }
@@ -21975,10 +22128,120 @@ window.saveProfileChanges = async () => {
             if (!trip.driverArrived) {
                 startDriverPickupNavigation(trip);
             } else if (trip.destination) {
-                window.updateNavigation?.(trip.destination, true);
+                // Llegó al pickup, esperando PIN: mantener mapa, no forzar destino aún
+                window.ensureDriverNavRouteVisible?.();
             }
             window.ensureDriverNavRouteVisible?.();
         }
+
+        /**
+         * Tras PIN / in_progress: navegación completa al destino
+         * (misma UX que ir al pasajero: carrito top-down, brújula, zoom calle, panel).
+         */
+        function startDriverDestinationNavigation(trip) {
+            if (!trip?.id || trip.driverId !== currentUser?.uid) return;
+            if (trip.status !== 'in_progress') return;
+
+            if (!activeTrip || activeTrip.id !== trip.id) {
+                activeTrip = { id: trip.id, ...trip };
+                window.currentActiveTripData = activeTrip;
+            }
+
+            const legIdx = window.getTripCurrentLegIndex?.(trip) || 1;
+            const legTarget = window.getTripCurrentLegNavTarget?.(trip);
+            const dest = legTarget || (trip.destinationLat != null
+                ? {
+                    lat: Number(trip.destinationLat),
+                    lng: Number(trip.destinationLng),
+                    address: trip.destination || 'Destino'
+                }
+                : trip.destination);
+            if (!dest) {
+                console.warn('startDriverDestinationNavigation: sin destino');
+                return;
+            }
+
+            const navBootKey = `${trip.id}:dest:${legIdx}:${legTarget?.lat || dest.lat || ''}:${legTarget?.lng || dest.lng || ''}`;
+            const hasRoute = window.hasActiveDriverNavRoute?.();
+            // Evitar reinicios en cada snapshot si ya navegamos a este tramo
+            if (window._inProgressNavBootKey === navBootKey && hasRoute && window.isDriverNavigating?.()) {
+                window.ensureDriverNavRouteVisible?.();
+                return;
+            }
+            window._inProgressNavBootKey = navBootKey;
+
+            window.driverNavMode = true;
+            document.body.classList.add('is-navigating', 'driver-nav-mode', 'trip-active', 'driver-trip-dest-phase');
+            // Salir de free-look y forzar centrado (como al tocar «Centrar»)
+            try { window.resumeDriverNavCameraFollow?.(); } catch (_) {}
+            window.autoCenter = true;
+            window._driverMapFreeLook = false;
+            document.body.classList.remove('map-free-look');
+
+            window.enterDriverNavMode?.();
+            // Al iniciar tramo al destino: mapa grande (si el usuario no tenía el panel abierto a propósito)
+            const destMinKey = `${trip.id}:dest-min`;
+            if (window._driverDestNavMinKey !== destMinKey) {
+                window._driverDestNavMinKey = destMinKey;
+                if (!window._driverNavUserKeptOpen) {
+                    window.minimizeDriverPanelForNav?.();
+                }
+            }
+
+            window.enableDriverMapFreeGestures?.();
+            window.startDriverCompassTracking?.().catch?.(() => {});
+            window.syncDriverPanelNavVisibility?.();
+            window.syncDriverChromeForActiveTrip?.();
+
+            window.updateNavigation?.(dest, true);
+            window.ensureDriverNavRouteVisible?.();
+            // Si no hay ruta a los 2 s, recuperación automática (sin recargar app)
+            setTimeout(() => {
+                if (!window.hasActiveDriverNavRoute?.()) {
+                    window.recoverDriverNavRoute?.({ force: true, silent: true });
+                }
+            }, 2000);
+
+            // Centrar ya + re-centrar cuando cargue la ruta (async)
+            const snapCenter = () => {
+                try { window.recenterDriverNav?.(); } catch (_) {
+                    if (!window.currentDriverPos || !window.gMap) return;
+                    try {
+                        window.applyDriverNavCamera?.(
+                            window.currentDriverPos,
+                            window.currentDriverHeading
+                                || window.getDriverCompassHeading?.()
+                                || 0,
+                            true
+                        );
+                    } catch (__) {}
+                }
+                if (window.currentDriverPos && currentUser?.uid) {
+                    const vType = getActiveVehicleType(window.userProfile)
+                        || window.userProfile?.vehicleType
+                        || 'auto';
+                    try {
+                        window.updateDriverMarker?.(
+                            currentUser.uid,
+                            window.currentDriverPos.lat,
+                            window.currentDriverPos.lng,
+                            true,
+                            {
+                                heading: window.currentDriverHeading
+                                    || window.getDriverCompassHeading?.()
+                                    || 0,
+                                vehicleType: vType,
+                                forceReposition: true
+                            }
+                        );
+                    } catch (_) {}
+                }
+            };
+            snapCenter();
+            setTimeout(snapCenter, 350);
+            setTimeout(snapCenter, 900);
+        }
+        window.startDriverDestinationNavigation = startDriverDestinationNavigation;
 
         window.resolveTripPickupNavTarget = async (trip) => {
             if (!trip) return null;
@@ -21988,9 +22251,58 @@ window.saveProfileChanges = async () => {
         };
 
         function startDriverPickupNavigation(trip) {
+            if (!trip?.id) return;
+            // Asegurar activeTrip antes del async (si no, el check fallaba y no cargaba la ruta)
+            if (!activeTrip || activeTrip.id !== trip.id) {
+                activeTrip = { id: trip.id, ...trip };
+                window.currentActiveTripData = activeTrip;
+            }
             window.resolveTripPickupNavTarget(trip).then((target) => {
-                if (!target || activeTrip?.id !== trip.id) return;
+                if (!target) {
+                    console.warn('startDriverPickupNavigation: sin destino de recogida');
+                    return;
+                }
+                // Si el viaje activo cambió a otro id, no navegar
+                if (activeTrip?.id && activeTrip.id !== trip.id) return;
+                window.driverNavMode = true;
+                document.body.classList.add('is-navigating', 'driver-nav-mode', 'trip-active');
+                document.body.classList.remove('driver-trip-dest-phase');
+                // Siempre empezar centrado (como Google Maps al iniciar ruta)
+                try { window.resumeDriverNavCameraFollow?.(); } catch (_) {}
+                window.autoCenter = true;
+                window._driverMapFreeLook = false;
+                document.body.classList.remove('map-free-look');
+                window.enterDriverNavMode?.();
+                if (!window._driverNavPanelAutoMinDone && !window._driverNavUserKeptOpen) {
+                    window._driverNavPanelAutoMinDone = true;
+                    window.minimizeDriverPanelForNav?.();
+                }
+                window.enableDriverMapFreeGestures?.();
+                window.startDriverCompassTracking?.().catch?.(() => {});
+                window.syncDriverPanelNavVisibility?.();
                 window.updateNavigation?.(target, true);
+                window.ensureDriverNavRouteVisible?.();
+                setTimeout(() => {
+                    if (!window.hasActiveDriverNavRoute?.()) {
+                        window.recoverDriverNavRoute?.({ force: true, silent: true });
+                    }
+                }, 2000);
+                const snapCenter = () => {
+                    try { window.recenterDriverNav?.(); } catch (_) {
+                        if (window.currentDriverPos) {
+                            window.applyDriverNavCamera?.(
+                                window.currentDriverPos,
+                                window.currentDriverHeading || 0,
+                                true
+                            );
+                        }
+                    }
+                };
+                snapCenter();
+                setTimeout(snapCenter, 350);
+                setTimeout(snapCenter, 900);
+            }).catch((e) => {
+                console.warn('startDriverPickupNavigation:', e);
             });
         }
 
@@ -22131,10 +22443,13 @@ window.saveProfileChanges = async () => {
     if (isDriverNav) {
         window.driverNavMode = true;
         document.body.classList.add('is-navigating', 'driver-nav-mode');
-        // HUD tipo Google Maps
-        setElementDisplay('nav-hud-top', 'flex');
-        const hudB = document.getElementById('nav-hud-bottom');
-        if (hudB) hudB.style.display = 'block';
+        // Navegación: auto-min solo al entrar; si maximizó, se queda abierto
+        window.enterDriverNavMode?.();
+        if (!window._driverNavPanelAutoMinDone && !window._driverNavUserKeptOpen) {
+            window._driverNavPanelAutoMinDone = true;
+            window.minimizeDriverPanelForNav?.();
+        }
+        window.syncDriverPanelNavVisibility?.();
         window.hideCenterMapFab?.();
         // Tráfico en tiempo real sobre el mapa
         try {
@@ -22149,14 +22464,36 @@ window.saveProfileChanges = async () => {
     }
 
     const renderRoute = async (forceRecompute = false) => {
-        if (!window.mapLoaded || !dest) return;
+        if (!dest) return;
+        if (!window.mapLoaded) {
+            if (isDriverNav) {
+                clearTimeout(window._navWaitMapTimer);
+                window._navWaitMapTimer = setTimeout(() => renderRoute(true), 800);
+            }
+            return;
+        }
 
         await window.ensureDriverPosition?.();
         if (!window.currentDriverPos) {
-            if (isDriverNav && consecutiveRouteFails === 0) {
-                window.showToast?.('Activá el GPS para navegar en el mapa.', 'warning');
+            // Reintentar GPS (no rendirse a la primera)
+            for (let g = 0; g < 3 && !window.currentDriverPos; g++) {
+                await new Promise((r) => setTimeout(r, 400 + g * 350));
+                try { await window.ensureDriverPosition?.(); } catch (_) {}
             }
-            return;
+            if (!window.currentDriverPos) {
+                if (isDriverNav) {
+                    if (consecutiveRouteFails === 0) {
+                        window.showToast?.('Esperando GPS para trazar la ruta…', 'warning');
+                    }
+                    consecutiveRouteFails += 1;
+                    // Recuperación en background (sin recargar la app)
+                    clearTimeout(window._navNoGpsRecoverTimer);
+                    window._navNoGpsRecoverTimer = setTimeout(() => {
+                        window.recoverDriverNavRoute?.({ force: true, silent: true });
+                    }, 2500);
+                }
+                return;
+            }
         }
 
         try {
@@ -22178,27 +22515,55 @@ window.saveProfileChanges = async () => {
 
             const drifted = !lastNavRouteOrigin
                 || Math.hypot(pos.lat - lastNavRouteOrigin.lat, pos.lng - lastNavRouteOrigin.lng) > DRIFT_DEG;
-            const needsFullRoute = !route || forceRecompute || drifted || offRoute;
+            // Si la ruta existe en memoria pero no está en el mapa, forzar redibujo/recompute
+            const polyMissing = isDriverNav
+                && path.length >= 2
+                && !(window._progressRoutePolylines?.remaining?.getMap?.())
+                && !(Array.isArray(window.currentRoutePolyline)
+                    ? window.currentRoutePolyline.some?.((p) => p?.getMap?.())
+                    : window.currentRoutePolyline?.getMap?.());
+            const needsFullRoute = !route || forceRecompute || drifted || offRoute
+                || (polyMissing && (!route || (now - (window._lastNavPolyRecoverAt || 0) > 4000)));
 
             if (needsFullRoute) {
                 if (offRoute) {
                     lastRerouteAt = now;
                     window.speakNavMessage?.('Recalculando ruta', { interrupt: true });
-                    setElementText('nav-step-text', 'Recalculando ruta…');
-                    setElementText('nav-step-dist', 'Te saliste del recorrido');
+                    if (window.setNavHudText) {
+                        window.setNavHudText('stepText', 'Recalculando ruta…');
+                        window.setNavHudText('stepDist', 'Te saliste del recorrido');
+                    } else {
+                        setElementText('nav-step-text', 'Recalculando ruta…');
+                        setElementText('nav-step-dist', 'Te saliste del recorrido');
+                    }
                 }
+                if (polyMissing) window._lastNavPolyRecoverAt = now;
+
+                // Reintentos de compute (red / Routes API a veces falla a la 1ª)
                 route = await window.computeDrivingRoute(pos, dest);
+                if (!route) {
+                    for (let retry = 0; retry < 2 && !route; retry++) {
+                        await new Promise((r) => setTimeout(r, 600 + retry * 500));
+                        route = await window.computeDrivingRoute(pos, dest);
+                    }
+                }
                 if (!route) {
                     consecutiveRouteFails += 1;
                     if (isDriverNav && window.currentNavRoute?.path?.length >= 2) {
                         route = window.currentNavRoute;
                     } else {
                         window.clearRoutePolylines?.({ force: !isDriverNav });
-                        if (isDriverNav && consecutiveRouteFails <= 2) {
+                        if (isDriverNav && consecutiveRouteFails <= 3) {
                             window.showToast?.(
-                                'No se pudo trazar la ruta en el mapa. Probá de nuevo o "Abrir en Google Maps".',
+                                'No se pudo trazar la ruta. Reintentando…',
                                 'warning'
                             );
+                        }
+                        if (isDriverNav && consecutiveRouteFails >= 2) {
+                            clearTimeout(window._navFailRecoverTimer);
+                            window._navFailRecoverTimer = setTimeout(() => {
+                                window.recoverDriverNavRoute?.({ force: true, silent: true });
+                            }, 2000);
                         }
                         return;
                     }
@@ -22230,22 +22595,31 @@ window.saveProfileChanges = async () => {
             }
             window.syncTripMiniBar?.(route);
 
-            // Totales (tiempo / km / ETA) — la tarjeta de giro la maneja updateDriverNavTurnCard
+            // Totales (tiempo / km / ETA) — panel central + HUD legacy
             if (route) {
                 const km = window.getRouteDistanceKm?.(route);
                 const dur = window.formatRouteDuration?.(route);
                 const eta = window.formatRouteEta?.(route);
-                if (Number.isFinite(km)) setElementText('nav-total-dist', `${km.toFixed(1)} km`);
-                if (dur) setElementText('nav-total-time', dur);
-                if (eta) setElementText('nav-total-eta', eta);
+                if (window.setNavHudText) {
+                    if (Number.isFinite(km)) window.setNavHudText('totalDist', `${km.toFixed(1)} km`);
+                    if (dur) window.setNavHudText('totalTime', dur);
+                    if (eta) window.setNavHudText('totalEta', eta);
+                } else {
+                    if (Number.isFinite(km)) setElementText('nav-total-dist', `${km.toFixed(1)} km`);
+                    if (dur) setElementText('nav-total-time', dur);
+                    if (eta) setElementText('nav-total-eta', eta);
+                }
             }
 
             if (isDriverNav) {
                 document.body.classList.add('is-navigating', 'driver-nav-mode');
                 window.driverNavMode = true;
-                setElementDisplay('nav-hud-top', 'flex');
-                const hudB = document.getElementById('nav-hud-bottom');
-                if (hudB) hudB.style.display = 'block';
+                // No re-minimizar en cada refresh; minimizeDriverPanelForNav respeta preferencia
+                if (!window._driverNavPanelAutoMinDone && !window._driverNavUserKeptOpen) {
+                    window._driverNavPanelAutoMinDone = true;
+                    window.minimizeDriverPanelForNav?.();
+                }
+                window.syncDriverPanelNavVisibility?.();
 
                 const activeV = getActiveVehicle(window.userProfile);
                 window.updateDriverMarker?.(currentUser?.uid, pos.lat, pos.lng, true, {
@@ -22958,7 +23332,16 @@ onAuthStateChanged(auth, async (user) => {
                     const zonePicker = document.getElementById('service-zone-picker');
                     const zoneChip = document.getElementById('service-zone-map-chip');
                     if (zonePicker) zonePicker.classList.add('hidden');
-                    if (zoneChip) zoneChip.classList.remove('hidden');
+                    // Chip de ciudad solo fuera de viaje (en nav se oculta)
+                    if (zoneChip) {
+                        if (document.body.classList.contains('trip-active')
+                            || document.body.classList.contains('is-navigating')) {
+                            zoneChip.classList.add('hidden');
+                        } else {
+                            zoneChip.classList.remove('hidden');
+                            zoneChip.style.removeProperty('display');
+                        }
+                    }
 
                     window.showControlPanel?.();
 
@@ -23569,10 +23952,20 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
         }
     }
 
-    btn.disabled = !within || !dest || !pos;
-    btn.querySelector('span').textContent = legLabel.isFinal
-        ? 'LLEGUÉ AL DESTINO'
-        : (legLabel.hasMultipleLegs ? `LLEGUÉ AL PUNTO ${legLabel.routeNum}` : 'LLEGUÉ AL DESTINO');
+    // No usar disabled nativo: a veces el click no llega. Visual + toast si está lejos.
+    btn.disabled = false;
+    btn.removeAttribute('disabled');
+    const blocked = !within || !dest || !pos || signaled;
+    btn.dataset.blocked = blocked ? '1' : '0';
+    btn.classList.toggle('is-arrival-blocked', blocked && !signaled);
+    btn.classList.toggle('opacity-60', blocked && !signaled);
+    btn.setAttribute('aria-disabled', blocked ? 'true' : 'false');
+    const span = btn.querySelector('span');
+    if (span) {
+        span.textContent = legLabel.isFinal
+            ? 'LLEGUÉ AL DESTINO'
+            : (legLabel.hasMultipleLegs ? `LLEGUÉ AL PUNTO ${legLabel.routeNum}` : 'LLEGUÉ AL DESTINO');
+    }
 };
 
 window.driverSignalDestinationArrival = async () => {
@@ -26305,9 +26698,20 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             activeP?.classList.remove('hidden', 'panel-minimized');
             document.body.classList.remove('panel-minimized');
             window.showControlPanel?.();
+            window.syncDriverChromeForActiveTrip?.();
 
             if (role === 'driver' && data.driverId === currentUser?.uid) {
                 window.syncDriverTripControls?.(data);
+                // Mapa grande por defecto al aceptar; si el usuario ya abrió el panel, no lo cierres
+                setTimeout(() => {
+                    if (!document.body.classList.contains('trip-active')) return;
+                    if (window.userProfile?.role !== 'driver') return;
+                    if (window._driverNavUserKeptOpen) return;
+                    // Si ya entró a nav y el usuario maximizó, respetar
+                    if (window.isDriverNavigating?.() && window._driverNavUserKeptOpen) return;
+                    window.minimizeDriverPanelForNav?.();
+                    window._driverNavPanelAutoMinDone = true;
+                }, 1800);
             }
             if (role === 'client' && data.clientId === currentUser?.uid) {
                 window.syncClientPinDisplay?.(data);
@@ -26370,6 +26774,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         window.syncDriverTripControls = (data) => {
             const routeHero = document.getElementById('driver-route-hero');
             const destControls = document.getElementById('driver-destination-controls');
+            const panelPin = document.getElementById('driver-panel-pin');
             const driverTools = document.getElementById('driver-active-tools');
             const dp = document.getElementById('driver-pickup-display');
             const routeLabel = routeHero?.querySelector('.driver-route-hero-label');
@@ -26383,6 +26788,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             if (!active) {
                 routeHero?.classList.add('hidden');
                 destControls?.classList.add('hidden');
+                panelPin?.classList.add('hidden');
                 driverTools?.classList.add('hidden');
                 document.body.classList.remove('driver-trip-dest-phase', 'driver-pin-phase');
                 if (isDriver) {
@@ -26395,9 +26801,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             document.getElementById('service-zone-picker')?.classList.add('hidden');
             document.getElementById('trip-panel-setup')?.classList.add('hidden');
             activePanel?.classList.remove('hidden');
-            // Chat + centrar siempre disponibles para el conductor en viaje aceptado / en curso / PIN
-            driverTools?.classList.remove('hidden');
-            window.showControlPanel?.();
+            // No forzar abrir el panel en cada sync (Uber = mapa primero)
+            // driverTools legacy queda oculto; acciones van en sheet Uber
+            driverTools?.classList.add('hidden');
 
             const wasRouteHidden = routeHero?.classList.contains('hidden');
             routeHero?.classList.remove('hidden');
@@ -26407,24 +26813,58 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             document.body.classList.toggle('driver-trip-dest-phase', isInProgress);
             document.body.classList.toggle('driver-pin-phase', waitingPin);
 
+            // Fase PIN: mostrar botones en ficha central
+            if (panelPin) {
+                panelPin.classList.toggle('hidden', !waitingPin);
+                if (waitingPin) {
+                    // Sincronizar input del flotante ↔ panel
+                    const floatPin = document.getElementById('driver-pin-input');
+                    const panelPinInput = document.getElementById('driver-panel-pin-input');
+                    if (panelPinInput && floatPin && !panelPinInput.dataset.syncBound) {
+                        panelPinInput.dataset.syncBound = '1';
+                        panelPinInput.addEventListener('input', () => {
+                            if (floatPin) floatPin.value = panelPinInput.value;
+                        });
+                        floatPin.addEventListener('input', () => {
+                            if (panelPinInput) panelPinInput.value = floatPin.value;
+                        });
+                    }
+                }
+            }
+
             if (!isInProgress) {
                 destControls?.classList.add('hidden');
+            } else {
+                // En curso: destinos visibles (el botón se habilita por distancia)
+                destControls?.classList.remove('hidden');
             }
 
             const isDestPhase = isInProgress || waitingPin;
-            const targetAddress = isDestPhase ? (data.destination || '') : (data.origin || '');
+            let targetAddress = isDestPhase ? (data.destination || '') : (data.origin || '');
+            if (isDestPhase && data.additionalStops?.length) {
+                const leg = window.getTripCurrentLegNavTarget?.(data);
+                if (leg?.address) targetAddress = leg.address;
+            }
             if (dp) dp.textContent = targetAddress || 'Sin dirección';
+
+            // Faja estilo Uber
+            const uberAddr = document.getElementById('driver-uber-next-addr');
+            if (uberAddr) {
+                const short = targetAddress.length > 48 ? `${targetAddress.slice(0, 48)}…` : targetAddress;
+                uberAddr.textContent = short || (isDestPhase ? 'Hacia el destino' : 'Hacia el pasajero');
+            }
+            const uberName = document.getElementById('driver-uber-pax-name');
+            if (uberName && data.clientName) uberName.textContent = data.clientName;
+            const uberPhoto = document.getElementById('driver-uber-pax-photo');
+            if (uberPhoto && data.clientPhoto) uberPhoto.src = data.clientPhoto;
+
             if (acceptedKicker) {
-                if (!isInProgress && data.status === 'accepted') {
-                    acceptedKicker.classList.remove('hidden');
-                    acceptedKicker.innerHTML = '<i class="fas fa-check-circle"></i> ¡Viaje aceptado!';
-                } else {
-                    acceptedKicker.classList.add('hidden');
-                }
+                // En UI Uber no hace falta kicker grande
+                acceptedKicker.classList.add('hidden');
             }
             if (routeLabel) {
-                routeLabel.textContent = window.formatTripNavBtnLabel?.(data, 'driver')
-                    || (isDestPhase ? 'Navegar al destino en el mapa' : 'Navegar al origen en el mapa');
+                if (waitingPin) routeLabel.textContent = 'ESPERANDO PIN';
+                else routeLabel.textContent = isInProgress ? 'IR AL DESTINO' : 'IR AL PASAJERO';
             }
 
             window.syncDriverPickupArrivalUi?.();
@@ -26432,13 +26872,10 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             window.hideDriverTripExtraPanels?.();
             window.syncTripFloatPanels?.(data);
 
+            // Mapa primero (como Uber): no forzar panel abierto en cada sync
             if (wasRouteHidden) {
-                const panel = document.getElementById('control-panel');
-                panel?.classList.remove('panel-collapsed');
-                document.body.classList.remove('panel-minimized');
                 const label = document.getElementById('trip-panel-toggle-label');
-                if (label) label.textContent = 'Minimizar';
-                if (panel) panel.scrollTop = 0;
+                if (label) label.textContent = 'Abrir';
             }
         };
 
@@ -26560,6 +26997,11 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 syncLiveTripKeepalive(data);
                 if (['accepted', 'in_progress'].includes(data.status)) {
                     ensureInProgressLiveTracking(data);
+                    // Conductor en viaje: ocultar ganancias / copas que tapan el mapa
+                    if (data.driverId === currentUser.uid && window.userProfile?.role === 'driver') {
+                        document.body.classList.add('trip-active');
+                        window.syncDriverChromeForActiveTrip?.();
+                    }
                 }
             }
 
@@ -26851,6 +27293,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 clearPassengerSearchPanelLayout();
                 window.refreshIOSInstallBanner?.();
                 window.showControlPanel?.();
+                window.syncDriverChromeForActiveTrip?.();
                 const activeP = document.getElementById('active-trip-panel');
                 if (activeP) {
                     activeP.classList.remove('hidden');
@@ -26916,6 +27359,16 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     }
                     syncDriverTripControls?.(data);
                     syncClientPinDisplay?.(data);
+                    // Primero arrancar ruta al cliente; luego ocultar paneles extra
+                    // (hideDriverTripExtraPanels ya no mata el HUD de navegación)
+                    if (data.status === 'accepted' && !data.driverArrived) {
+                        startDriverPickupNavigation(data);
+                    } else if (data.driverArrived && data.status === 'accepted') {
+                        ensureDriverTripNavRoute(data);
+                    } else if (data.status === 'in_progress') {
+                        ensureInProgressLiveTracking(data);
+                        window.ensureDriverNavRouteVisible?.();
+                    }
                     window.hideDriverTripExtraPanels?.();
                     document.getElementById('client-security-controls')?.classList.add('hidden');
                     window.renderTripPartnerInfo?.(data, 'driver');
@@ -26949,15 +27402,6 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                             ensureDriverTripNavRoute(data);
                         }
                         window.showToast?.(noticeText, 'warning');
-                    }
-
-                    if (data.status === 'accepted' && !data.driverArrived) {
-                        startDriverPickupNavigation(data);
-                    } else if (data.driverArrived && data.status === 'accepted') {
-                        ensureDriverTripNavRoute(data);
-                    } else if (data.status === 'in_progress') {
-                        ensureInProgressLiveTracking(data);
-                        window.ensureDriverNavRouteVisible?.();
                     }
                 } else {
                     syncDriverTripControls?.(data);
@@ -27030,11 +27474,14 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (etaInterval) clearInterval(etaInterval);
             }
             if (window.userProfile.role === 'driver' && data.driverId === currentUser.uid) {
-                scheduleDriverEarningsRefresh();
                 window.clearRoutePolylines?.({ force: true });
                 window.clearOriginDestinationMarkers?.();
                 window.resetDriverNavCamera?.({ force: true });
                 document.body.classList.remove('trip-active', 'is-navigating', 'driver-nav-mode', 'driver-trip-dest-phase');
+                window.syncDriverChromeForActiveTrip?.();
+                scheduleDriverEarningsRefresh();
+                try { window.refreshDriverCopaUI?.(); } catch (_) {}
+                try { window.renderPublicPassengerCopaStrip?.(); } catch (_) {}
                 window.minimizeControlPanelForDriverRating?.();
                 window.ensureDriverOnlineAfterTripComplete?.();
                 window.refreshPendingTripOffersAfterDriverFreed?.(currentUser.uid);
@@ -30838,7 +31285,8 @@ window.cancelSetupAndLogout = () => {
         }
 
         window.verifyPin = async () => {
-            let entered = document.getElementById('driver-pin-input')?.value?.trim();
+            let entered = document.getElementById('driver-pin-input')?.value?.trim()
+                || document.getElementById('driver-panel-pin-input')?.value?.trim();
             if (!entered) {
                 return window.showToast("Ingresa el PIN que te dio el pasajero.");
             }
@@ -30865,6 +31313,9 @@ window.cancelSetupAndLogout = () => {
 
             try {
                 await startActiveTripAfterPin({ skipped: false });
+                document.getElementById('driver-panel-pin')?.classList.add('hidden');
+                // Navegación al destino: misma experiencia que al ir por el pasajero
+                startDriverDestinationNavigation(activeTrip);
                 window.showToast("¡Viaje iniciado! Sigue la ruta al destino.", "success");
             } catch (e) {
                 console.error('verifyPin error:', e);
@@ -30883,6 +31334,7 @@ window.cancelSetupAndLogout = () => {
             }
             if (activeTrip.status === 'in_progress') {
                 document.getElementById('pin-input-group')?.classList.add('hidden');
+                document.getElementById('driver-panel-pin')?.classList.add('hidden');
                 return window.showToast('El viaje ya está en curso.');
             }
             if (activeTrip.status !== 'accepted') {
@@ -30896,6 +31348,8 @@ window.cancelSetupAndLogout = () => {
             }
             try {
                 await startActiveTripAfterPin({ skipped: true, skipBy: 'driver' });
+                document.getElementById('driver-panel-pin')?.classList.add('hidden');
+                startDriverDestinationNavigation(activeTrip);
                 window.showToast('Viaje iniciado sin PIN. Sigue al destino.', 'success');
             } catch (e) {
                 console.error('driverSkipPinAndStart:', e);
@@ -32255,20 +32709,24 @@ window.cancelSetupAndLogout = () => {
                         const prev = window._nearbyDriverPosCache[d.id];
                         const moved = !prev
                             || Math.hypot(data.lat - prev.lat, data.lng - prev.lng) > 0.00012;
-                        if (moved || !window.driverMarkers?.[d.id]) {
-                            window._nearbyDriverPosCache[d.id] = { lat: data.lat, lng: data.lng };
+                        const hdg = Number(data.heading);
+                        const headingOk = Number.isFinite(hdg) ? hdg : 0;
+                        const prevH = Number(window._nearbyDriverPosCache[d.id]?.heading);
+                        const headingChanged = !Number.isFinite(prevH)
+                            || Math.abs(((headingOk - prevH + 540) % 360) - 180) > 4;
+                        if (moved || headingChanged || !window.driverMarkers?.[d.id]) {
+                            window._nearbyDriverPosCache[d.id] = {
+                                lat: data.lat,
+                                lng: data.lng,
+                                heading: headingOk
+                            };
                             window.updateDriverMarker?.(d.id, data.lat, data.lng, false, {
                                 variant: 'nearby',
                                 name: data.name || 'Conductor',
                                 vehicleType: data.vehicleType || 'auto',
-                                heading: data.heading || 0,
+                                heading: headingOk,
                                 phone: data.phone || null
                             });
-                        } else if (window.driverMarkers[d.id]) {
-                            const m = window.driverMarkers[d.id];
-                            const pos = { lat: data.lat, lng: data.lng };
-                            if (m.position !== undefined) m.position = pos;
-                            else if (typeof m.setPosition === 'function') m.setPosition(pos);
                         }
                     }
                 });
@@ -32552,6 +33010,21 @@ window.cancelSetupAndLogout = () => {
             if (navigator.geolocation.getCurrentPosition) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
+                        window._driverGpsOk = true;
+                        window._driverGpsError = null;
+                        window._driverLiveUpdatedAt = Date.now();
+                        try { window.notifyDriverGpsHealth?.(true); } catch (_) {}
+                        try {
+                            window.recordDriverGpsNavSample?.(
+                                position.coords.latitude,
+                                position.coords.longitude,
+                                {
+                                    heading: position.coords.heading,
+                                    speed: position.coords.speed,
+                                    accuracy: position.coords.accuracy
+                                }
+                            );
+                        } catch (_) {}
                         publishDriverGps(
                             position.coords.latitude,
                             position.coords.longitude,
@@ -32559,7 +33032,15 @@ window.cancelSetupAndLogout = () => {
                             position.coords.accuracy
                         );
                     },
-                    () => {},
+                    (err) => {
+                        window._driverGpsOk = false;
+                        window._driverGpsError = {
+                            code: err?.code ?? 2,
+                            message: err?.message || '',
+                            at: Date.now()
+                        };
+                        try { window.notifyDriverGpsHealth?.(false, err); } catch (_) {}
+                    },
                     { enableHighAccuracy: !shouldUseLowPowerMode(), maximumAge: 60000, timeout: 12000 }
                 );
             }
@@ -32587,6 +33068,17 @@ window.cancelSetupAndLogout = () => {
                     window.currentDriverPos = { lat, lng };
                     window._driverLiveAccuracy = accuracy;
                     window._driverLiveUpdatedAt = now;
+                    window._driverGpsOk = true;
+                    window._driverGpsError = null;
+                    try { window.notifyDriverGpsHealth?.(true); } catch (_) {}
+                    // Rumbo de movimiento + velocidad para rotar el mapa (GPS course)
+                    try {
+                        window.recordDriverGpsNavSample?.(lat, lng, {
+                            heading,
+                            speed: position.coords.speed,
+                            accuracy
+                        });
+                    } catch (_) {}
 
                     const activeV = getActiveVehicle(window.userProfile);
                     const navPath = window.currentRouteFullPath
@@ -32657,19 +33149,27 @@ window.cancelSetupAndLogout = () => {
                         }
                     }
 
-                    // Vista conductor estilo Google Maps: seguir posición + rotar mapa con la ruta
-                    if (window.isDriverNavigating?.() && window.autoCenter !== false) {
+                    // Vista conductor estilo Google Maps: GPS + brújula (mapa heading-up)
+                    // Si el usuario movió el mapa a mano (free-look), no tocar la cámara
+                    if (window.isDriverNavigating?.()
+                        && window.autoCenter !== false
+                        && !window._driverMapFreeLook) {
+                        // Asegurar brújula activa si se entró a nav por otro camino
+                        if (!window._driverCompassActive) {
+                            window.startDriverCompassTracking?.().catch?.(() => {});
+                        }
                         const prevH = window._lastDriverNavCamHeading;
                         const headingDelta = prevH == null
                             ? 999
                             : Math.abs(((navHeading - prevH + 540) % 360) - 180);
-                        const turning = headingDelta >= 7;
-                        const camMs = turning ? 320 : (LOW_POWER ? 1000 : 520);
+                        const turning = headingDelta >= 5;
+                        const camMs = turning ? 220 : (LOW_POWER ? 700 : 380);
                         if (turning
                             || !window._lastDriverCameraUpdate
                             || now - window._lastDriverCameraUpdate > camMs) {
                             window._lastDriverCameraUpdate = now;
-                            window.applyDriverNavCamera?.({ lat, lng }, heading, turning);
+                            // force=false: nunca pisar free-look del usuario
+                            window.applyDriverNavCamera?.({ lat, lng }, heading, false);
                         }
                         const turnMs = turning ? 900 : (LOW_POWER ? 3500 : 2000);
                         if (turning
@@ -32737,7 +33237,24 @@ window.cancelSetupAndLogout = () => {
                         );
                     } catch (e) {}
                 },
-                () => window.showToast("No se pudo obtener tu ubicación GPS."),
+                (err) => {
+                    window._driverGpsOk = false;
+                    window._driverGpsError = {
+                        code: err?.code ?? 2,
+                        message: err?.message || '',
+                        at: Date.now()
+                    };
+                    try { window.notifyDriverGpsHealth?.(false, err); } catch (_) {}
+                    // Un solo aviso, no spamear en cada tick de error del watch
+                    const nowErr = Date.now();
+                    if (!window._lastDriverGpsErrToast || nowErr - window._lastDriverGpsErrToast > 45000) {
+                        window._lastDriverGpsErrToast = nowErr;
+                        const msg = err?.code === 1
+                            ? 'GPS sin permiso. Actívalo en Ajustes de la app.'
+                            : 'GPS apagado o no disponible. Enciéndelo o dale permiso.';
+                        window.showToast?.(msg, 'warning');
+                    }
+                },
                 { enableHighAccuracy: !LOW_POWER, maximumAge: LOW_POWER ? 30000 : 5000, timeout: 15000 }
             );
 
@@ -33934,18 +34451,45 @@ window.addEventListener('map-route-trigger', () => {
                 );
                 return;
             }
-            if (window.isDriverNavigating?.()) {
-                window.recenterDriverNav?.();
+            // Conductor en viaje / navegación: mismo “Centrar” del panel verde
+            const driverTripNav = document.body.classList.contains('driver-mode')
+                && (document.body.classList.contains('trip-active')
+                    || document.body.classList.contains('driver-nav-mode')
+                    || document.body.classList.contains('is-navigating')
+                    || window.isDriverNavigating?.());
+            if (driverTripNav) {
+                window.autoCenter = true;
+                window.setMapFabVisible?.('fab-center', false);
+                if (typeof window.recenterDriverNav === 'function') {
+                    window.recenterDriverNav();
+                } else if (window.gMap && window.currentDriverPos) {
+                    try {
+                        const h = window.currentDriverHeading || 0;
+                        const ahead = window.offsetLatLngByMeters?.(
+                            window.currentDriverPos.lat,
+                            window.currentDriverPos.lng,
+                            h,
+                            40
+                        ) || window.currentDriverPos;
+                        window.gMap.panTo(ahead);
+                        window.gMap.setZoom(20.8);
+                        try { window.gMap.setHeading(h); } catch (_) {}
+                        try { window.gMap.setTilt(60); } catch (_) {}
+                    } catch (_) {}
+                } else {
+                    window.showToast?.('Esperando ubicación GPS…', 'warning');
+                }
                 return;
             }
             window.hideCenterMapFab?.();
             if (!window.gMap || !window.currentDriverPos) {
-                window.showToast?.('Esperando ubicación GPS…');
+                window.showToast?.('Esperando ubicación GPS…', 'warning');
                 return;
             }
+            window.autoCenter = true;
             window.gMap.panTo(window.currentDriverPos);
-            window.gMap.setZoom(18);
-            try { window.gMap.setTilt(45); } catch (_) {}
+            window.gMap.setZoom(20);
+            try { window.gMap.setTilt(55); } catch (_) {}
         };
 
         /**

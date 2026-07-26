@@ -648,8 +648,18 @@ export function syncMapLocationChipVisibility(forceOpen = null) {
     const chip = document.getElementById("service-zone-map-chip");
     if (!chip) return;
 
-    // Durante búsqueda/viaje activo del pasajero el chip se oculta en app.js; no forzar aquí.
-    if (document.body.classList.contains("is-searching") || document.body.classList.contains("trip-active")) {
+    // Viaje / navegación: nunca mostrar ciudad en el mapa
+    if (document.body.classList.contains("trip-active")
+        || document.body.classList.contains("is-navigating")
+        || document.body.classList.contains("driver-nav-mode")) {
+        chip.classList.add("hidden");
+        try { chip.style.setProperty("display", "none", "important"); } catch (_) {}
+        return;
+    }
+    try { chip.style.removeProperty("display"); } catch (_) {}
+
+    // Durante búsqueda del pasajero el chip se oculta en app.js; no forzar aquí.
+    if (document.body.classList.contains("is-searching")) {
         if (window.userProfile?.role === "client") return;
     }
 

@@ -87,8 +87,14 @@ export function makeDraggable(element, options = {}) {
     const applyPos = (x, y, persist = true) => {
         const w = element.offsetWidth || 280;
         const h = element.offsetHeight || 120;
-        const cx = clamp(x, -w + minVisible, window.innerWidth - minVisible);
-        const cy = clamp(y, 0, window.innerHeight - minVisible);
+        // Margen mínimo con el borde (safe-area + 8px) y al menos minVisible del control a la vista
+        const edge = 8;
+        const safeL = edge;
+        const safeT = edge;
+        const safeR = window.innerWidth - edge;
+        const safeB = window.innerHeight - edge;
+        const cx = clamp(x, safeL - w + minVisible, safeR - minVisible);
+        const cy = clamp(y, safeT, Math.max(safeT, safeB - minVisible));
         element.style.position = 'fixed';
         element.style.left = `${cx}px`;
         element.style.top = `${cy}px`;
@@ -318,39 +324,58 @@ export function setDriverEarningsMinimized(minimized) {
     } catch (_) {}
 }
 
+/**
+ * Pill «Viaje activo» / radar — mismo patrón que #trip-chat-float-pill:
+ * cara tappable + arrastre; al tocar abre el panel del viaje.
+ */
 export function bindFloatingRadarPanel() {
     const wrap = document.getElementById('driver-radar-float');
-    const el = wrap?.querySelector('.driver-radar-float');
-    if (!el || el.dataset.floatDragBound === '1') return;
-    el.dataset.floatDragBound = '1';
+    const el = wrap?.querySelector('.driver-radar-float, .driver-radar-pill');
+    if (!el) return;
 
-    const storageKey = 'driver-radar-float';
-    if (!loadPosition(storageKey)) {
-        el.style.position = 'fixed';
-        el.style.left = '0.65rem';
-        el.style.bottom = 'calc(8.25rem + env(safe-area-inset-bottom, 0px))';
-        el.style.right = 'auto';
-        el.style.top = 'auto';
-    }
+    // Re-bind tras cada re-render (innerHTML limpia listeners)
+    if (el.dataset.floatDragBound !== '1') {
+        el.dataset.floatDragBound = '1';
+        const storageKey = 'driver-radar-float';
+        if (!loadPosition(storageKey)) {
+            el.style.position = 'fixed';
+            el.style.left = '0.65rem';
+            el.style.bottom = 'calc(8.25rem + env(safe-area-inset-bottom, 0px))';
+            el.style.right = 'auto';
+            el.style.top = 'auto';
+        }
 
-    makeDraggable(el, {
-        handle: el,
-        storageKey,
-        minVisible: 40,
-        onActivate: (node) => {
-            node.style.right = 'auto';
-            node.style.bottom = 'auto';
-        },
-        enabled: () => !wrap?.classList.contains('hidden')
-    });
-
-    if (el.dataset.radarExpand === '1') {
-        el.addEventListener('pointerup', (e) => {
-            if (wasRecentPanelDrag()) return;
-            if (isInteractiveTarget(e.target)) return;
-            window.showControlPanel?.();
+        makeDraggable(el, {
+            handle: el,
+            storageKey,
+            minVisible: 40,
+            onActivate: (node) => {
+                node.style.right = 'auto';
+                node.style.bottom = 'auto';
+            },
+            enabled: () => !wrap?.classList.contains('hidden')
         });
     }
+
+    const face = el.querySelector('[data-radar-tap]') || el;
+    if (face.dataset.radarTapBound === '1') return;
+    face.dataset.radarTapBound = '1';
+
+    const openPanel = (e) => {
+        if (wasRecentPanelDrag()) return;
+        if (isInteractiveTarget(e.target) && !e.target.closest?.('[data-radar-tap]')) return;
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        // Igual de fiable que el chat: expandir panel del viaje / radar
+        if (typeof window.expandDriverControlPanel === 'function') {
+            window.expandDriverControlPanel();
+        } else {
+            window.showControlPanel?.();
+        }
+    };
+
+    face.addEventListener('pointerup', openPanel, { passive: false });
+    face.addEventListener('click', openPanel);
 }
 
 export function syncDriverRadarFloatPanel() {
@@ -359,28 +384,34 @@ export function syncDriverRadarFloatPanel() {
 
     const isDriver = document.body.classList.contains('driver-mode');
     const minimized = document.body.classList.contains('panel-minimized');
+    const onTrip = document.body.classList.contains('trip-active')
+        || document.body.classList.contains('is-navigating')
+        || document.body.classList.contains('driver-nav-mode');
 
-    if (!isDriver || !minimized) {
+    // En viaje / navegación: sin pill «Viaje activo» (el panel mini-barra basta)
+    if (!isDriver || !minimized || onTrip) {
         wrap.classList.add('hidden');
         wrap.innerHTML = '';
-        if (isDriverPanelExpanded()) {
+        if (isDriver && !onTrip && isDriverPanelExpanded()) {
             dockControlPanelForDriverTrip();
         }
         return;
     }
 
-    const onTrip = document.body.classList.contains('trip-active');
+    // Solo sin viaje: atajo a ofertas cuando el panel está minimizado
     const count = Number(window._driverRadarOfferCount) || 0;
-    const label = onTrip ? 'Viaje activo' : 'Clientes pidiendo viajes';
-    const sub = onTrip
-        ? (count > 0 ? `${count} en cola` : 'Toca para abrir')
-        : (count > 0 ? `${count} en cola` : 'Buscando clientes');
+    const label = 'Clientes pidiendo viajes';
+    const sub = count > 0 ? `${count} en cola` : 'Toca para abrir ofertas';
+    const ico = 'fa-radar';
 
     wrap.classList.remove('hidden');
     wrap.innerHTML = `
-        <div class="driver-radar-float driver-radar-float--min" data-radar-expand="1" title="Toca para abrir · arrastra para mover">
-            <div class="driver-radar-min-pill" role="presentation">
-                <i class="fas fa-radar"></i>
+        <div class="driver-radar-float driver-radar-float--min driver-radar-pill trip-chat-pill"
+             title="Toca para abrir ofertas · arrastra para mover">
+            <div class="trip-pill-face driver-radar-min-pill" data-radar-tap="1" role="button" tabindex="0"
+                 aria-label="${label}. ${sub}">
+                <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
+                <i class="fas ${ico}" aria-hidden="true"></i>
                 <span>${label}</span>
                 ${count > 0 ? `<span class="driver-radar-min-count">${count}</span>` : ''}
                 <span class="sr-only">${sub}</span>
@@ -598,13 +629,16 @@ export function bindFloatingTripPanels() {
             defaultTripFloatPosition(el, key);
         }
 
+        // Pastilla de chat / flotantes: se mueven por toda la pantalla; queda un trozo visible en el borde
+        const isChatPill = key === 'chat-pill';
         makeDraggable(el, {
             handle: dragHandle,
             storageKey,
-            minVisible: 40,
+            minVisible: isChatPill ? 48 : 40,
             onActivate: (node) => {
                 node.style.right = 'auto';
                 node.style.bottom = 'auto';
+                node.style.margin = '0';
             },
             enabled: () => !layer.classList.contains('hidden') && !el.classList.contains('hidden')
         });
@@ -803,20 +837,21 @@ export function syncTripFloatPanels(data) {
     if (driverPinFloat && driverPinHero) {
         if (showDriverPin) {
             const driverMin = isTripFloatMinimized('driver-pin');
-            // Solo re-anclar posición si NO está minimizado (evita reabrir el PIN en cada sync en web)
+            // Siempre mostrar controles de PIN (iniciar / sin PIN) aunque esté minimizado el float
+            pinInputGroup?.classList.remove('hidden');
+            driverPinHero.classList.remove('hidden');
+            // Solo re-anclar posición si NO está minimizado
             if (!driverMin) {
                 dockTripFloat(driverPinFloat, 'driver-pin');
-                driverPinHero.classList.remove('hidden');
-                pinInputGroup?.classList.remove('hidden');
-            } else {
-                // Mantener datos listos al expandir, pero no forzar el panel completo
-                pinInputGroup?.classList.remove('hidden');
             }
             applyTripFloatMinState(driverPinFloat, 'driver-pin', driverMin);
             driverPinFloat.classList.remove('hidden');
+            // Asegurar que los botones no queden bajo el drag
+            driverPinFloat.querySelectorAll('[data-trip-action], button, input').forEach((el) => {
+                el.setAttribute('data-no-drag', '');
+            });
             if (!driverMin) {
                 window.setTimeout(() => {
-                    // No enfocar si el usuario minimizó en el ínterin
                     if (isTripFloatMinimized('driver-pin')) return;
                     document.getElementById('driver-pin-input')?.focus?.();
                 }, 280);

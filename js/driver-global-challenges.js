@@ -1056,6 +1056,18 @@ function refreshDriverCopaUI() {
         if (badge) badge.classList.add('hidden');
         return;
     }
+    // En viaje activo: no tapar mapa / navegación
+    if (document.body.classList.contains('trip-active')) {
+        document.getElementById('driver-copa-active')?.classList.add('hidden');
+        const activeLayer = document.getElementById('driver-copa-active');
+        if (activeLayer) activeLayer.innerHTML = '';
+        const badge = document.getElementById('driver-copa-map-strip');
+        if (badge) {
+            badge.classList.add('hidden');
+            setDriverCopaBadgeVisible(badge, false);
+        }
+        return;
+    }
     // ✕ de esta sesión: ocultar todo hasta re-login o menú Copa
     if (isStripDismissedThisSession()) {
         document.getElementById('driver-copa-active')?.classList.add('hidden');
@@ -3022,6 +3034,7 @@ export function initDriverGlobalChallenges({
     window.closeDriverCopaModal = closeDriverCopaModal;
     window.openPublicCopaRanking = openPublicCopaRanking;
     window.dismissPublicCopaStrip = () => dismissPublicCopaStripOnScreen();
+    window.refreshDriverCopaUI = () => refreshDriverCopaUI();
 
     window.openDriverCopaFromMenu = async () => {
         const role = window.userProfile?.role;
