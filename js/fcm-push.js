@@ -411,6 +411,8 @@ function routeForegroundPush(payload) {
 function shouldOpenNotificationsCenter(data = {}) {
     const type = String(data.type || '');
     const tag = String(data.tag || '');
+    if (data.openDeposit === 'true' || data.openDeposit === true || type === 'deposit_reminder'
+        || tag.startsWith('deposit-reminder-')) return false;
     if (data.openNotifications === 'true' || data.openNotifications === true) return true;
     if (data.openChat === 'true' || data.openChat === true) return false;
     if (data.openDriver === 'true' || data.openDriver === true) return false;
@@ -431,6 +433,27 @@ function shouldOpenNotificationsCenter(data = {}) {
         || tag.startsWith('campaign-')
         || tag.startsWith('fcm-admin')
         || tag.startsWith('notif-');
+}
+
+function openDepositFromPush(data = {}) {
+    const amt = Number(data.amount) || 0;
+    try { location.hash = 'deposit'; } catch (_) {}
+    const open = () => {
+        try {
+            if (typeof window.openDriverDepositFromReminder === 'function') {
+                window.openDriverDepositFromReminder(amt);
+            } else {
+                window.showDailyDepositInfo?.({ amount: amt || undefined, fromReminder: true, forceForm: true });
+            }
+        } catch (_) {}
+    };
+    if (typeof window.openDriverDepositFromReminder === 'function' || typeof window.showDailyDepositInfo === 'function') {
+        open();
+        setTimeout(open, 400);
+    } else {
+        setTimeout(open, 900);
+        setTimeout(open, 2000);
+    }
 }
 
 export function openNotificationsCenterFromPush() {
@@ -480,6 +503,15 @@ function handleNotificationNavigation(data = {}) {
         location.hash = 'chat';
         const chat = document.getElementById('chat-section');
         if (chat?.classList.contains('collapsed')) window.toggleChat?.();
+        return;
+    }
+    if (
+        data.openDeposit === 'true'
+        || data.openDeposit === true
+        || type === 'deposit_reminder'
+        || tag.startsWith('deposit-reminder-')
+    ) {
+        openDepositFromPush(data);
         return;
     }
     if (isTripOffer || data.openDriver === 'true' || data.openDriver === true) {

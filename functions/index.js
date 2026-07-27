@@ -1524,13 +1524,18 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             && data.openClient !== 'true'
             && data.openAdmin !== 'true'
             && data.openReports !== 'true'
+            && data.openDeposit !== 'true'
+            && type !== 'deposit_reminder'
             && !isHonduRideAlertType(type)
             && type !== 'chat'
         );
 
     let link = '/';
     if (data.openReports === 'true') link = '/#admin-reports';
-    else if (type === 'trip_offer' || type === 'ride_demand_alert' || data.openDriver === 'true') {
+    else if (type === 'deposit_reminder' || data.openDeposit === 'true') {
+        // Conductor: abrir flujo de depósito (cuentas + baucher)
+        link = '/#deposit';
+    } else if (type === 'trip_offer' || type === 'ride_demand_alert' || data.openDriver === 'true') {
         link = '/#driver';
     } else if (
         type === 'driver_bid'
@@ -3621,6 +3626,8 @@ exports.onNotificationBroadcastPush = onDocumentCreated(
                     type: String(data.type || 'admin_notify'),
                     tag: String(data.tag || `notif-${event.params.notifId}`),
                     personal: 'true',
+                    amount: data.amount != null ? String(data.amount) : '',
+                    openDeposit: data.openDeposit === true || data.type === 'deposit_reminder' ? 'true' : 'false',
                     forceUpdate: data.forceUpdate === true || data.type === 'app_update' ? 'true' : 'false',
                     version: String(data.version || '')
                 },

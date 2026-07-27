@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.07.27.8';
+const HR_SW_VERSION = '2026.07.27.9';
 /* HonduRaite — Service Worker + FCM: TODAS las notificaciones emergentes tipo Temu */
 
 importScripts('https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js');
@@ -56,6 +56,8 @@ messaging.onBackgroundMessage((payload) => {
             openPassenger: isPassengerTrip,
             openClient: isPassengerTrip,
             openAdmin: data.openAdmin === 'true' || type === 'new_trip_staff',
+            openDeposit: data.openDeposit === 'true' || type === 'deposit_reminder'
+                || String(tag || '').startsWith('deposit-reminder-'),
             openNotifications: data.openNotifications === 'true'
                 || type === 'admin_notify'
                 || type === 'app_update'
@@ -63,6 +65,7 @@ messaging.onBackgroundMessage((payload) => {
                 || type === 'promo_new',
             type,
             tag,
+            amount: data.amount || '',
             serviceType: data.serviceType || ''
         },
         vibrate: HONDU_TEMU_VIBRATE
@@ -108,13 +111,19 @@ self.addEventListener('notificationclick', (event) => {
         || tag.startsWith('trip-accepted-')
         || tag.startsWith('trip-arrived-');
     const openAdmin = type === 'new_trip_staff' || data.openAdmin === true || data.openAdmin === 'true';
-    const openNotifications = data.openNotifications === true
+    const openDeposit = type === 'deposit_reminder'
+        || data.openDeposit === true
+        || data.openDeposit === 'true'
+        || tag.startsWith('deposit-reminder-');
+    const openNotifications = !openDeposit && (
+        data.openNotifications === true
         || data.openNotifications === 'true'
         || type === 'admin_notify'
         || type === 'app_update'
         || type === 'recurring_notify'
         || type === 'promo_new'
-        || (!openChat && !openDriver && !openPassenger && !openAdmin);
+        || (!openChat && !openDriver && !openPassenger && !openAdmin)
+    );
 
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
@@ -126,7 +135,9 @@ self.addEventListener('notificationclick', (event) => {
                     openDriver,
                     openPassenger,
                     openAdmin,
+                    openDeposit,
                     openNotifications,
+                    amount: data.amount || '',
                     notifType: type,
                     tag
                 });
@@ -134,6 +145,7 @@ self.addEventListener('notificationclick', (event) => {
             }
             const url = new URL(self.registration.scope);
             if (openChat) url.hash = 'chat';
+            else if (openDeposit) url.hash = 'deposit';
             else if (openDriver) url.hash = 'driver';
             else if (openPassenger) url.hash = 'client';
             else if (openAdmin) url.hash = 'admin';

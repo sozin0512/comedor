@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.27.8";
+} from "./auth-credentials.js?v=2026.07.27.9";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.27.8";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.8";
+import { APP_CONFIG } from "./config.js?v=2026.07.27.9";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.9";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.27.8";
+} from "./referrals.js?v=2026.07.27.9";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.27.8";
+} from "./zones.js?v=2026.07.27.9";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.27.8";
+} from "./trip-notifications.js?v=2026.07.27.9";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.27.8";
+} from "./notification-tones.js?v=2026.07.27.9";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.27.8";
+} from "./passenger-alerts.js?v=2026.07.27.9";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.27.8";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.8";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.8";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.8";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.8";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.27.8";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.8";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.8";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.8";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.8";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.8";
+} from "./passenger-verification.js?v=2026.07.27.9";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.9";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.9";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.9";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.9";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.27.9";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.9";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.9";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.9";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.9";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.9";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.27.8";
+} from "./feedback.js?v=2026.07.27.9";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.27.8";
+} from "./greetings.js?v=2026.07.27.9";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.27.8";
+} from "./service-types.js?v=2026.07.27.9";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.27.8";
+} from "./driver-vehicles.js?v=2026.07.27.9";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.27.8";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.8";
+} from "./route-conditions.js?v=2026.07.27.9";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.9";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.27.8";
+} from "./demand-heatmap.js?v=2026.07.27.9";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.27.8";
+} from "./ops-fleet-map.js?v=2026.07.27.9";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.27.8";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.8";
+} from "./live-trip-keepalive.js?v=2026.07.27.9";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.9";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.27.8";
+} from "./session-keepalive.js?v=2026.07.27.9";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.27.8";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.8";
+} from "./passenger-tutorial.js?v=2026.07.27.9";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.9";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.27.8";
+} from "./driver-tutorial.js?v=2026.07.27.9";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.8";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.9";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.27.8";
+} from "./auth-ui.js?v=2026.07.27.9";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.27.8";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.8";
+} from "./age-verification.js?v=2026.07.27.9";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.9";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.27.8";
+} from "./trip-experience.js?v=2026.07.27.9";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.27.8";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.8";
-import { initAppDownload } from "./app-download.js?v=2026.07.27.8";
+} from "./support-tickets.js?v=2026.07.27.9";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.9";
+import { initAppDownload } from "./app-download.js?v=2026.07.27.9";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -2001,6 +2001,18 @@ if (document.readyState === 'loading') {
                     window.resetTripPanelCollapse?.();
                     return;
                 }
+                // Recordatorio de depósito → abrir cuentas + envío de baucher
+                if (
+                    event.data.openDeposit
+                    || event.data.type === 'deposit_reminder'
+                    || event.data.notifType === 'deposit_reminder'
+                    || String(event.data.tag || '').startsWith('deposit-reminder-')
+                ) {
+                    const amt = Number(event.data.amount) || 0;
+                    setTimeout(() => window.openDriverDepositFromReminder?.(amt), 200);
+                    setTimeout(() => window.openDriverDepositFromReminder?.(amt), 900);
+                    return;
+                }
                 // Avisos generales / versión / admin → pantalla de notificaciones
                 if (event.data.openNotifications
                     || event.data.type === 'admin_notify'
@@ -2039,6 +2051,18 @@ if (document.readyState === 'loading') {
         if (location.hash === '#notifications' || location.hash === '#notif') {
             setTimeout(() => window.showNotificationsModal?.(), 900);
             setTimeout(() => window.showNotificationsModal?.(), 1800);
+        }
+        if (location.hash === '#deposit' || location.hash === '#deposito' || location.hash.startsWith('#deposit')) {
+            setTimeout(() => {
+                if (window.userProfile?.role === 'driver') {
+                    window.openDriverDepositFromReminder?.();
+                }
+            }, 1000);
+            setTimeout(() => {
+                if (window.userProfile?.role === 'driver') {
+                    window.openDriverDepositFromReminder?.();
+                }
+            }, 2000);
         }
 
         /** Link compartido por WhatsApp: ?staffTrip=ID o #staffTrip=ID */
@@ -19477,15 +19501,30 @@ if (document.readyState === 'loading') {
         };
 
         // === CÁLCULO AUTOMÁTICO DEL DEPÓSITO DEL DÍA PARA CONDUCTORES ===
-        window.showDailyDepositInfo = async () => {
+        /**
+         * Abre Depósito del Día (cuentas bancarias + envío de voucher).
+         * @param {{ amount?: number, forceForm?: boolean, fromReminder?: boolean }} [opts]
+         */
+        window.showDailyDepositInfo = async (opts = {}) => {
+            const prefillAmount = Number(opts?.amount);
+            const forceForm = opts?.forceForm === true || opts?.fromReminder === true
+                || (Number.isFinite(prefillAmount) && prefillAmount > 0.009);
+            // Evitar modales duplicados si viene del push + campana a la vez
+            document.querySelectorAll('[data-daily-deposit-modal="1"]').forEach((el) => el.remove());
+
             const modal = document.createElement('div');
             modal.className = `fixed inset-0 bg-black/70 z-[40000] flex items-center justify-center p-4`;
+            modal.dataset.dailyDepositModal = '1';
             modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
 
             modal.innerHTML = `
                 <div class="bg-white rounded-3xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
                     <h3 class="font-black text-xl mb-1">Depósito del Día</h3>
-                    <p class="text-gray-500 text-xs mb-4">Comisión de viajes en efectivo · el monto validado aparece cuando un supervisor aprueba tu comprobante</p>
+                    <p class="text-gray-500 text-xs mb-4">
+                        ${forceForm || opts?.fromReminder
+                            ? 'Deposita a la cuenta mostrada y sube la foto del comprobante (baucher) para revisión.'
+                            : 'Comisión de viajes en efectivo · el monto validado aparece cuando un supervisor aprueba tu comprobante'}
+                    </p>
                     <div id="daily-deposit-content" class="min-h-[120px]">
                         <div class="flex justify-center py-8"><i class="fas fa-spinner fa-spin text-3xl text-emerald-500"></i></div>
                     </div>
@@ -19497,6 +19536,45 @@ if (document.readyState === 'loading') {
 
             try {
                 const s = await computeDriverDayStats(currentUser.uid);
+
+                // Hueco de últimos 7 días (por si viajes de hace 2 días no se consolidaron a deuda)
+                let lookbackOwed = 0;
+                try {
+                    const lookback = new Date();
+                    lookback.setDate(lookback.getDate() - 7);
+                    lookback.setHours(0, 0, 0, 0);
+                    const platformPct = s.commission || (await getPlatformCommission());
+                    let cashComm = 0;
+                    let saldoCovered = 0;
+                    let deposited = 0;
+                    const tripsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
+                    tripsSnap.forEach((tripDoc) => {
+                        const t = tripDoc.data();
+                        if (t.driverId !== currentUser.uid || t.status !== 'completed') return;
+                        const tripDate = tripCompletedDate(t);
+                        if (!tripDate || tripDate < lookback) return;
+                        const price = parseTripPrice(t);
+                        const pct = resolveDepositCommissionPercent(t, platformPct);
+                        const split = calcTripCommissionSplit(price, pct);
+                        if (t.paymentMethod === 'saldo' || t.paymentMethod === 'birthday_gift' || t.birthdayFree) {
+                            saldoCovered += split.commissionAmount || 0;
+                        } else if (!t.commissionWaivedBirthday) {
+                            cashComm += split.commissionAmount || 0;
+                        }
+                    });
+                    const depSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposit_requests'));
+                    depSnap.forEach((d) => {
+                        const dep = d.data() || {};
+                        if (dep.driverId !== currentUser.uid || dep.status !== 'approved') return;
+                        const depDate = dep.createdAt?.toDate?.()
+                            || (dep.createdAt?.seconds ? new Date(dep.createdAt.seconds * 1000) : null);
+                        if (depDate && depDate < lookback) return;
+                        deposited += parseFloat(dep.amount) || 0;
+                    });
+                    lookbackOwed = Math.max(0, Math.round((cashComm - saldoCovered - deposited) * 100) / 100);
+                } catch (lookErr) {
+                    console.warn('deposit lookback:', lookErr);
+                }
 
                 let bankHtml = '<p class="text-xs text-gray-500 text-center py-2">Cargando cuentas para depósito...</p>';
                 try {
@@ -19513,22 +19591,45 @@ if (document.readyState === 'loading') {
                             const holder = b.accountHolder || b.holder || 'N/A';
                             const type = b.accountType || b.type || '';
                             bankHtml += `
-                                <div class="border border-gray-200 rounded-xl p-3 text-xs">
-                                    <p class="font-black">${bankName}</p>
-                                    <p><span class="text-gray-500">Cuenta:</span> ${account}</p>
+                                <div class="border border-emerald-200 bg-emerald-50/40 rounded-xl p-3 text-xs">
+                                    <p class="font-black text-emerald-900">${bankName}</p>
+                                    <p class="mt-1"><span class="text-gray-500">Cuenta:</span>
+                                        <b class="text-base text-slate-900 tracking-wide select-all">${account}</b>
+                                    </p>
                                     <p><span class="text-gray-500">Titular:</span> ${holder}</p>
                                     ${type ? `<p class="text-[10px] text-gray-500">${type}</p>` : ''}
+                                    <button type="button"
+                                        onclick="navigator.clipboard?.writeText('${String(account).replace(/'/g, "\\'")}').then(()=>window.showToast?.('Número de cuenta copiado','success')).catch(()=>{})"
+                                        class="mt-2 w-full py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-[10px] font-black">
+                                        <i class="fas fa-copy"></i> Copiar número de cuenta
+                                    </button>
                                 </div>`;
                         });
                     }
                 } catch (_) {}
 
-                const totalOwed = (s.totalOwed != null) ? s.totalOwed : ((s.pendingDepositDebt || 0) + (s.remainingToDeposit || 0));
-                const suggestedAmount = totalOwed > 0 ? totalOwed.toFixed(2) : (s.remainingToDeposit > 0 ? s.remainingToDeposit.toFixed(2) : '0.00');
+                const dayTotal = (s.totalOwed != null) ? s.totalOwed : ((s.pendingDepositDebt || 0) + (s.remainingToDeposit || 0));
+                const reminderAmt = Number.isFinite(prefillAmount) && prefillAmount > 0 ? prefillAmount : 0;
+                const totalOwed = Math.max(dayTotal || 0, lookbackOwed || 0, reminderAmt || 0);
+                const suggestedAmount = (totalOwed > 0.009
+                    ? totalOwed
+                    : (s.remainingToDeposit > 0 ? s.remainingToDeposit : (reminderAmt || 0))).toFixed(2);
                 const driverWallet = window.userProfile.driverBalance || 0;
+                // Siempre mostrar formulario si hay algo por depositar, viene del recordatorio, o forceForm
+                const showVoucherForm = forceForm || totalOwed > 0.009 || (s.remainingToDeposit || 0) > 0.009;
 
                 contentDiv.innerHTML = `
                     <div class="space-y-4">
+                        ${opts?.fromReminder ? `
+                        <div class="bg-amber-100 border border-amber-400 rounded-2xl p-3 text-center">
+                            <p class="text-amber-900 text-xs font-black uppercase tracking-wide">
+                                <i class="fas fa-bell"></i> Recordatorio de depósito
+                            </p>
+                            <p class="text-[11px] text-amber-800 font-bold mt-1 leading-snug">
+                                Deposita a la cuenta de abajo y sube la foto del baucher para que un supervisor lo revise.
+                            </p>
+                        </div>` : ''}
+
                         <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
                             <p class="text-emerald-600 text-xs font-black">GANADO HOY (TOTAL)</p>
                             <p class="text-3xl font-black text-emerald-700">L. ${s.totalEarnedToday.toFixed(2)}</p>
@@ -19591,7 +19692,7 @@ if (document.readyState === 'loading') {
                         <div class="bg-red-100 border-2 border-red-500 rounded-2xl p-4 text-center mt-1">
                             <p class="text-[10px] text-red-800 font-black uppercase tracking-widest">TOTAL QUE DEBES DEPOSITAR</p>
                             <p class="text-3xl font-black text-red-700">L. ${totalOwed.toFixed(2)}</p>
-                            <p class="text-[10px] text-red-600 mt-0.5">Deuda consolidada + pendiente de hoy</p>
+                            <p class="text-[10px] text-red-600 mt-0.5">Incluye deuda, pendiente de hoy y viajes recientes sin depositar</p>
                         </div>
 
                         ${s.pendingDepositsToday > 0 ? `
@@ -19602,33 +19703,42 @@ if (document.readyState === 'loading') {
                         ` : ''}
 
                         <div class="border-t border-gray-200 pt-4">
-                            <p class="text-xs font-black text-gray-600 uppercase mb-2">Cuentas para depositar</p>
+                            <p class="text-xs font-black text-emerald-800 uppercase mb-2">
+                                <i class="fas fa-university"></i> Cuentas para depositar (transfiere aquí)
+                            </p>
                             <div class="space-y-2">${bankHtml}</div>
                         </div>
 
-                        ${(totalOwed > 0 || s.remainingToDeposit > 0) ? `
+                        ${showVoucherForm ? `
                             <div class="border-t border-gray-200 pt-4 space-y-3">
-                                <p class="text-xs font-black text-gray-600 uppercase">Enviar comprobante de depósito</p>
+                                <p class="text-xs font-black text-gray-600 uppercase">Enviar comprobante (baucher) a revisión</p>
                                 <div class="bg-red-50 border border-red-200 rounded-xl p-2 text-xs mb-2">
-                                    <span class="font-black text-red-700">Deuda acumulada:</span> L. ${(s.pendingDepositDebt || 0).toFixed(2)} 
-                                    + <span class="font-black">hoy:</span> L. ${(s.remainingToDeposit || 0).toFixed(2)} = 
-                                    <span class="font-black text-red-700">L. ${totalOwed.toFixed(2)}</span>
+                                    <span class="font-black text-red-700">Deuda acumulada:</span> L. ${(s.pendingDepositDebt || 0).toFixed(2)}
+                                    + <span class="font-black">hoy:</span> L. ${(s.remainingToDeposit || 0).toFixed(2)}
+                                    ${lookbackOwed > dayTotal + 0.01 ? ` · <span class="font-black">últ. 7 d:</span> L. ${lookbackOwed.toFixed(2)}` : ''}
+                                    = <span class="font-black text-red-700">L. ${totalOwed.toFixed(2)}</span>
                                 </div>
+                                <label class="text-[10px] font-black text-gray-500 uppercase">Monto depositado (L.)</label>
                                 <input type="number" id="driver-deposit-amount" step="0.01" min="0.01"
                                     value="${suggestedAmount}"
                                     class="w-full border border-gray-300 rounded-2xl px-4 py-3 text-lg font-black" placeholder="Monto depositado">
                                 <div onclick="document.getElementById('driver-deposit-receipt').click()"
-                                     class="border-2 border-dashed border-gray-300 rounded-2xl h-28 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50">
-                                    <i class="fas fa-camera text-2xl text-gray-400 mb-1"></i>
-                                    <p class="text-[10px] text-gray-500">Foto del comprobante</p>
+                                     class="border-2 border-dashed border-emerald-400 bg-emerald-50/30 rounded-2xl h-28 flex flex-col items-center justify-center cursor-pointer hover:bg-emerald-50">
+                                    <i class="fas fa-camera text-2xl text-emerald-600 mb-1"></i>
+                                    <p class="text-[10px] text-emerald-800 font-bold">Foto del baucher / comprobante</p>
                                     <img id="driver-deposit-preview" class="hidden max-h-20 rounded-xl mt-1">
                                 </div>
-                                <input type="file" id="driver-deposit-receipt" accept="image/*" class="hidden" onchange="window.previewDriverDepositReceipt(this)">
+                                <input type="file" id="driver-deposit-receipt" accept="image/*" capture="environment" class="hidden" onchange="window.previewDriverDepositReceipt(this)">
                                 <button type="button" onclick="window.submitDriverDepositRequest(this)"
-                                    class="w-full bg-emerald-600 text-white py-3.5 rounded-2xl font-black text-sm">ENVIAR COMPROBANTE</button>
+                                    class="w-full bg-emerald-600 text-white py-3.5 rounded-2xl font-black text-sm">ENVIAR COMPROBANTE A REVISIÓN</button>
                                 <p class="text-[9px] text-center text-gray-500">Al enviar, un supervisor revisará y reducirá tu deuda acumulada.</p>
                             </div>
-                        ` : ''}
+                        ` : `
+                            <div class="border-t border-gray-200 pt-4 text-center">
+                                <p class="text-emerald-600 text-sm font-black">No tienes monto pendiente por depositar ahora.</p>
+                                <p class="text-[10px] text-gray-500 mt-1">Si ya transferiste, puedes esperar o contactar a un supervisor.</p>
+                            </div>
+                        `}
 
                         <button type="button" onclick="this.closest('.fixed').remove()" class="w-full py-3 text-sm font-bold text-gray-600">Cerrar</button>
                     </div>
@@ -19643,6 +19753,24 @@ if (document.readyState === 'loading') {
                     </div>
                 `;
             }
+        };
+
+        /** Abre depósito desde recordatorio / push (cuentas + baucher). */
+        window.openDriverDepositFromReminder = (amount) => {
+            const amt = Number(amount);
+            try {
+                // Cerrar modal de notificaciones si está abierto
+                document.querySelectorAll('.fixed.inset-0').forEach((el) => {
+                    if (el.querySelector && el.querySelector('h3')?.textContent?.includes('Notificaciones')) {
+                        el.remove();
+                    }
+                });
+            } catch (_) {}
+            return window.showDailyDepositInfo({
+                amount: Number.isFinite(amt) && amt > 0 ? amt : undefined,
+                fromReminder: true,
+                forceForm: true
+            });
         };
 
         window.previewDriverDepositReceipt = (input) => {
@@ -37431,15 +37559,34 @@ window.addEventListener('map-route-trigger', () => {
 
                         const scheduled = n.scheduledFor ? `<span class="text-amber-500 text-xs">Programada para: ${new Date(n.scheduledFor).toLocaleString('es-HN')}</span>` : '';
                         const personalTag = n.targetUserId ? '<span class="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Para ti</span>' : '';
+                        const isDepositReminder = n.type === 'deposit_reminder'
+                            || String(n.tag || '').startsWith('deposit-reminder-');
+                        const depositAmt = Number(n.amount) || 0;
+                        const depositCta = isDepositReminder
+                            ? `<button type="button"
+                                    onclick="window.openDriverDepositFromReminder(${depositAmt > 0 ? depositAmt.toFixed(2) : '0'})"
+                                    class="mt-3 w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-black active:scale-[0.98]">
+                                    <i class="fas fa-wallet"></i> Depositar ahora
+                                    ${depositAmt > 0 ? ` · L. ${depositAmt.toFixed(2)}` : ''}
+                               </button>
+                               <p class="text-[10px] text-emerald-700 font-bold text-center mt-1.5 leading-snug">
+                                   Abre cuentas bancarias + envío del baucher a revisión
+                               </p>`
+                            : '';
+                        const titleLine = n.title
+                            ? `<p class="mt-2 text-sm font-black text-slate-900">${escapeNotifHtml(n.title)}</p>`
+                            : '';
 
                         html += `
-                            <div class="border border-gray-100 rounded-2xl p-4 mb-3">
+                            <div class="border ${isDepositReminder ? 'border-amber-300 bg-amber-50/40' : 'border-gray-100'} rounded-2xl p-4 mb-3">
                                 <div class="flex justify-between items-start gap-2 text-xs text-gray-500">
                                     <span>${formatNotifDate(n)}</span>
                                     <div class="flex flex-col items-end gap-1">${personalTag}<span class="font-bold">${getNotificationTargetLabel(n)}</span></div>
                                 </div>
+                                ${titleLine}
                                 <p class="mt-2 text-sm text-gray-800">${escapeNotifHtml(n.message)}</p>
                                 ${scheduled}
+                                ${depositCta}
                                 <div class="text-right mt-2">
                                     <span class="text-xs text-gray-400">Enviado por: ${escapeNotifHtml(n.sentByName || 'Admin')}</span>
                                 </div>
@@ -37943,7 +38090,7 @@ window.sendDepositReminderToDriver = async (uid, userName, amount, sinceLabel = 
     const urgency = overdue
         ? '⚠ Tu plazo de depósito ya venció. '
         : '';
-    const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de L. ${amt.toFixed(2)}.${waitBit} Hazlo desde la app → Depósito del día.`;
+    const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de L. ${amt.toFixed(2)}.${waitBit} Toca «Depositar ahora» para ver el número de cuenta y enviar el baucher a revisión.`;
     if (!confirm(`¿Enviar recordatorio de depósito a ${name}?\n\nMonto: L. ${amt.toFixed(2)}\nTiempo sin depositar: ${sinceLabel || '—'}`)) {
         return;
     }
@@ -37958,6 +38105,7 @@ window.sendDepositReminderToDriver = async (uid, userName, amount, sinceLabel = 
             sendPush: true,
             broadcastPush: false,
             pushDispatched: false,
+            openDeposit: true,
             type: 'deposit_reminder',
             title: overdue ? '⚠ Depósito vencido' : 'Recordatorio de depósito',
             body: msg,
@@ -37993,7 +38141,7 @@ window.sendDepositReminderBulk = async () => {
                 ? ` Llevas ${d.sinceLabel} sin depositar.`
                 : '';
             const urgency = d.overdue ? '⚠ Tu plazo de depósito ya venció. ' : '';
-            const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de L. ${amt.toFixed(2)}.${waitBit} App → Depósito del día.`;
+            const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de L. ${amt.toFixed(2)}.${waitBit} Toca «Depositar ahora» para ver la cuenta y enviar el baucher.`;
             const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'notifications');
             const newRef = doc(colRef);
             await setDoc(newRef, {
@@ -38004,6 +38152,7 @@ window.sendDepositReminderBulk = async () => {
                 sendPush: true,
                 broadcastPush: false,
                 pushDispatched: false,
+                openDeposit: true,
                 type: 'deposit_reminder',
                 title: d.overdue ? '⚠ Depósito vencido' : 'Recordatorio de depósito',
                 body: msg,
