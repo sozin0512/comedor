@@ -1842,6 +1842,194 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
     }
 });
 
+// ─── Copa HonduRaite (servidor): suma viajes al completar ───────────────────
+
+function isDriverApprovedForCopaServer(profile) {
+    if (!profile) return false;
+    if (profile.accountRestricted === true) return false;
+    const status = profile.approvalStatus;
+    if (status === 'suspended' || status === 'rejected' || status === 'pending') return false;
+    if (status === 'approved') return true;
+    if (profile.verified === true) return true;
+    if (status == null || status === '') {
+        const vehicles = Array.isArray(profile.vehicles) ? profile.vehicles : [];
+        return vehicles.some((v) => v?.approvalStatus === 'approved');
+    }
+    return false;
+}
+
+function isPassengerVerifiedForCopaServer(profile) {
+    if (!profile) return false;
+    if (profile.accountRestricted === true) return false;
+    const status = profile.approvalStatus;
+    if (status === 'suspended' || status === 'rejected') return false;
+    if (status === 'approved') return true;
+    if (profile.verified === true || profile.clientVerified === true) return true;
+    // Verificación de identidad enviada y no rechazada
+    if (profile.identityVerificationStatus === 'approved') return true;
+    if (profile.passengerVerificationStatus === 'approved') return true;
+    return false;
+}
+
+function isCopaChallengeActiveServer(ch) {
+    if (!ch || ch.status !== 'active') return false;
+    const unlimited = ch.durationKey === 'unlimited' || ch.unlimited === true
+        || ch.durationMs === 0 || ch.expiresAtMs === 0;
+    if (!unlimited) {
+        let exp = typeof ch.expiresAtMs === 'number' ? ch.expiresAtMs : 0;
+        if (!exp && ch.expiresAt) {
+            exp = ch.expiresAt.toMillis ? ch.expiresAt.toMillis()
+                : (ch.expiresAt.seconds ? ch.expiresAt.seconds * 1000 : 0);
+        }
+        if (exp && Date.now() >= exp) return false;
+    }
+    const start = typeof ch.startsAtMs === 'number' ? ch.startsAtMs : 0;
+    if (start && Date.now() < start) return false;
+    return true;
+}
+
+/**
+ * Suma +1 viaje en entries de copa (conductor y pasajero).
+ * Idempotente: no cuenta el mismo tripId dos veces.
+ * Incluye viajes programados, staff-assisted, etc. (todo completed real).
+ */
+async function creditCopaOnTripCompleted(appId, tripId, trip) {
+    if (!tripId || !trip || trip.isDemandSimulation) return { driver: false, passenger: false };
+    if (trip.copaCreditedServer === true) return { driver: false, passenger: false, already: true };
+
+    const results = { driver: false, passenger: false };
+
+    // —— Conductor ——
+    if (trip.driverId) {
+        try {
+            const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${trip.driverId}`).get();
+            const profile = uSnap.exists ? (uSnap.data() || {}) : {};
+            if (isDriverApprovedForCopaServer(profile)) {
+                const chSnap = await db.collection(`artifacts/${appId}/public/data/driver_global_challenges`)
+                    .where('status', '==', 'active')
+                    .limit(20)
+                    .get();
+                for (const chDoc of chSnap.docs) {
+                    const ch = { id: chDoc.id, ...chDoc.data() };
+                    if (!isCopaChallengeActiveServer(ch)) continue;
+                    const entryRef = chDoc.ref.collection('entries').doc(trip.driverId);
+                    await db.runTransaction(async (tx) => {
+                        const eSnap = await tx.get(entryRef);
+                        let entry = eSnap.exists ? eSnap.data() : null;
+                        if (!entry) {
+                            entry = {
+                                driverUid: trip.driverId,
+                                driverName: profile.name || trip.driverName || 'Conductor',
+                                cityId: profile.serviceZoneId || trip.serviceZoneId || null,
+                                cityName: profile.serviceZoneName || trip.serviceZoneName || null,
+                                progress: 0,
+                                points: 0,
+                                countedTripIds: [],
+                                tiersClaimed: {},
+                                rewardPaidTiers: {},
+                                ratingSum: 0,
+                                ratingCount: 0,
+                                identityVerified: true,
+                                joinedAt: FieldValue.serverTimestamp(),
+                                updatedAt: FieldValue.serverTimestamp()
+                            };
+                            tx.set(entryRef, entry);
+                        }
+                        const counted = Array.isArray(entry.countedTripIds) ? entry.countedTripIds : [];
+                        if (counted.includes(tripId)) return;
+                        const progress = parseInt(entry.progress, 10) || 0;
+                        const newProgress = progress + 1;
+                        tx.set(entryRef, {
+                            progress: newProgress,
+                            points: newProgress,
+                            countedTripIds: FieldValue.arrayUnion(tripId),
+                            driverName: entry.driverName || profile.name || trip.driverName || 'Conductor',
+                            cityId: entry.cityId || profile.serviceZoneId || trip.serviceZoneId || null,
+                            cityName: entry.cityName || profile.serviceZoneName || trip.serviceZoneName || null,
+                            identityVerified: true,
+                            updatedAt: FieldValue.serverTimestamp()
+                        }, { merge: true });
+                        results.driver = true;
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('creditCopa driver:', e?.message || e);
+        }
+    }
+
+    // —— Pasajero ——
+    if (trip.clientId) {
+        try {
+            const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${trip.clientId}`).get();
+            const profile = uSnap.exists ? (uSnap.data() || {}) : {};
+            if (isPassengerVerifiedForCopaServer(profile)) {
+                const chSnap = await db.collection(`artifacts/${appId}/public/data/passenger_global_challenges`)
+                    .where('status', '==', 'active')
+                    .limit(20)
+                    .get();
+                for (const chDoc of chSnap.docs) {
+                    const ch = { id: chDoc.id, ...chDoc.data() };
+                    if (!isCopaChallengeActiveServer(ch)) continue;
+                    const entryRef = chDoc.ref.collection('entries').doc(trip.clientId);
+                    await db.runTransaction(async (tx) => {
+                        const eSnap = await tx.get(entryRef);
+                        let entry = eSnap.exists ? eSnap.data() : null;
+                        if (!entry) {
+                            entry = {
+                                passengerUid: trip.clientId,
+                                passengerName: profile.name || trip.clientName || 'Pasajero',
+                                cityId: profile.serviceZoneId || trip.serviceZoneId || null,
+                                cityName: profile.serviceZoneName || trip.serviceZoneName || null,
+                                progress: 0,
+                                points: 0,
+                                countedTripIds: [],
+                                tiersClaimed: {},
+                                rewardPaidTiers: {},
+                                ratingSum: 0,
+                                ratingCount: 0,
+                                identityVerified: true,
+                                joinedAt: FieldValue.serverTimestamp(),
+                                updatedAt: FieldValue.serverTimestamp()
+                            };
+                            tx.set(entryRef, entry);
+                        }
+                        const counted = Array.isArray(entry.countedTripIds) ? entry.countedTripIds : [];
+                        if (counted.includes(tripId)) return;
+                        const progress = parseInt(entry.progress, 10) || 0;
+                        const newProgress = progress + 1;
+                        tx.set(entryRef, {
+                            progress: newProgress,
+                            points: newProgress,
+                            countedTripIds: FieldValue.arrayUnion(tripId),
+                            passengerName: entry.passengerName || profile.name || trip.clientName || 'Pasajero',
+                            cityId: entry.cityId || profile.serviceZoneId || trip.serviceZoneId || null,
+                            cityName: entry.cityName || profile.serviceZoneName || trip.serviceZoneName || null,
+                            identityVerified: true,
+                            updatedAt: FieldValue.serverTimestamp()
+                        }, { merge: true });
+                        results.passenger = true;
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn('creditCopa passenger:', e?.message || e);
+        }
+    }
+
+    // Marcar viaje para no re-procesar (y auditar)
+    try {
+        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
+            copaCreditedServer: true,
+            copaCreditedAt: FieldValue.serverTimestamp(),
+            copaCreditedDriver: !!results.driver,
+            copaCreditedPassenger: !!results.passenger
+        });
+    } catch (_) {}
+
+    return results;
+}
+
 exports.onTripUpdatePush = onDocumentUpdated(
     'artifacts/{appId}/public/data/trips/{tripId}',
     async (event) => {
@@ -2131,6 +2319,16 @@ exports.onTripUpdatePush = onDocumentUpdated(
                     superVibrate: 'true'
                 },
                 highPriority: true
+            });
+        }
+
+        // —— Copa HonduRaite: al completar viaje, sumar en SERVIDOR (Admin SDK) ——
+        // El cliente a menudo falla: el conductor no puede escribir la entry del pasajero
+        // (reglas Firestore), y en web/iOS a veces no corre el JS viejo. Viajes programados
+        // cuentan igual que los normales.
+        if (before.status !== 'completed' && after.status === 'completed' && !after.isDemandSimulation) {
+            await creditCopaOnTripCompleted(appId, tripId, after).catch((e) => {
+                console.warn('creditCopaOnTripCompleted:', e?.message || e);
             });
         }
 

@@ -2156,7 +2156,7 @@ async function incrementPassengerCopaOnTripComplete(passengerId, tripId, tripMet
 
         for (const ch of active) {
             const entry = await ensureEntry(ch.id, passengerId, profile, tripMeta);
-            if (entry?._needsVerification || (entry?._localOnly && entry?.identityVerified !== true)) continue;
+            if (entry?._needsVerification) continue;
             const counted = Array.isArray(entry.countedTripIds) ? entry.countedTripIds : [];
             if (counted.includes(tripId)) continue;
 
@@ -2177,6 +2177,8 @@ async function incrementPassengerCopaOnTripComplete(passengerId, tripId, tripMet
                 cityId: entry.cityId || cityId,
                 cityName: entry.cityName || cityName,
                 passengerName: entry.passengerName || profile?.name || 'Pasajero',
+                passengerUid: passengerId,
+                identityVerified: true,
                 updatedAt: serverTimestamp()
             };
 
@@ -2187,7 +2189,32 @@ async function incrementPassengerCopaOnTripComplete(passengerId, tripId, tripMet
                 patch.ratingCount = increment(1);
             }
 
-            await updateDoc(entryDocRef(ch.id, passengerId), patch);
+            const ref = entryDocRef(ch.id, passengerId);
+            try {
+                await updateDoc(ref, patch);
+            } catch (updErr) {
+                try {
+                    await setDoc(ref, {
+                        passengerUid: passengerId,
+                        passengerName: patch.passengerName,
+                        cityId: patch.cityId,
+                        cityName: patch.cityName,
+                        progress: newProgress,
+                        points: newProgress,
+                        countedTripIds: [tripId],
+                        tiersClaimed: {},
+                        rewardPaidTiers: {},
+                        ratingSum: 0,
+                        ratingCount: 0,
+                        identityVerified: true,
+                        joinedAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                } catch (setErr) {
+                    console.warn('incrementPassengerCopa write:', setErr?.code || setErr);
+                    continue;
+                }
+            }
 
             // Sin reloj: al cumplir la meta de viajes se cierra y se fija el podio
             const goal = getGoalTrips(ch);
