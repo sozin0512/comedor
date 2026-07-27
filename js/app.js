@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.27.5";
+} from "./auth-credentials.js?v=2026.07.27.6";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.27.5";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.5";
+import { APP_CONFIG } from "./config.js?v=2026.07.27.6";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.6";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.27.5";
+} from "./referrals.js?v=2026.07.27.6";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.27.5";
+} from "./zones.js?v=2026.07.27.6";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.27.5";
+} from "./trip-notifications.js?v=2026.07.27.6";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.27.5";
+} from "./notification-tones.js?v=2026.07.27.6";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.27.5";
+} from "./passenger-alerts.js?v=2026.07.27.6";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.27.5";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.5";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.5";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.5";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.5";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.27.5";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.5";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.5";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.5";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.5";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.5";
+} from "./passenger-verification.js?v=2026.07.27.6";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.6";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.6";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.6";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.6";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.27.6";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.6";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.6";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.6";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.6";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.6";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.27.5";
+} from "./feedback.js?v=2026.07.27.6";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.27.5";
+} from "./greetings.js?v=2026.07.27.6";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.27.5";
+} from "./service-types.js?v=2026.07.27.6";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.27.5";
+} from "./driver-vehicles.js?v=2026.07.27.6";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.27.5";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.5";
+} from "./route-conditions.js?v=2026.07.27.6";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.6";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.27.5";
+} from "./demand-heatmap.js?v=2026.07.27.6";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.27.5";
+} from "./ops-fleet-map.js?v=2026.07.27.6";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.27.5";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.5";
+} from "./live-trip-keepalive.js?v=2026.07.27.6";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.6";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.27.5";
+} from "./session-keepalive.js?v=2026.07.27.6";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.27.5";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.5";
+} from "./passenger-tutorial.js?v=2026.07.27.6";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.6";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.27.5";
+} from "./driver-tutorial.js?v=2026.07.27.6";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.5";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.6";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.27.5";
+} from "./auth-ui.js?v=2026.07.27.6";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.27.5";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.5";
+} from "./age-verification.js?v=2026.07.27.6";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.6";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.27.5";
+} from "./trip-experience.js?v=2026.07.27.6";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.27.5";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.5";
-import { initAppDownload } from "./app-download.js?v=2026.07.27.5";
+} from "./support-tickets.js?v=2026.07.27.6";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.6";
+import { initAppDownload } from "./app-download.js?v=2026.07.27.6";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -21619,7 +21619,19 @@ window.saveProfileChanges = async () => {
                     }
                 });
 
-                const commissionGenerated = (cashEarned * 0.30); // 30%
+                // % real de platformConfig (ej. 18%), no 30% fijo
+                let platformPct = 25;
+                try {
+                    platformPct = await getPlatformCommission();
+                } catch (_) {
+                    platformPct = Number(APP_CONFIG.commissionPercent) || 25;
+                }
+                if (!Number.isFinite(platformPct) || platformPct < 0 || platformPct > 100) {
+                    platformPct = Number(APP_CONFIG.commissionPercent) || 25;
+                }
+                const cashComm = Math.round(cashEarned * (platformPct / 100) * 100) / 100;
+                const saldoComm = Math.round(saldoEarned * (platformPct / 100) * 100) / 100;
+                const commissionGenerated = Math.round((cashComm + saldoComm) * 100) / 100;
 
                 contentDiv.innerHTML = `
                     <div class="grid grid-cols-2 gap-3 text-center">
@@ -21643,9 +21655,10 @@ window.saveProfileChanges = async () => {
                             <span class="font-bold">L. ${saldoEarned.toFixed(2)} (${saldoTrips})</span>
                         </div>
                         <div class="flex justify-between pt-2 border-t mt-2">
-                            <span class="font-bold">Comisión generada (30%):</span>
+                            <span class="font-bold">Comisión generada (${platformPct}%):</span>
                             <span class="font-black text-amber-600">L. ${commissionGenerated.toFixed(2)}</span>
                         </div>
+                        <p class="text-[10px] text-slate-500 font-bold pt-1">% de Cuentas bancarias → Comisión de plataforma</p>
                     </div>
                 `;
 
@@ -37556,7 +37569,19 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
 
         tripRows.sort((a, b) => b.date - a.date);
 
-        const commission = cashEarned * 0.30;
+        // % real de Cuentas bancarias / platformConfig (ej. 18%). Antes estaba hardcodeado 30%.
+        let platformPct = 25;
+        try {
+            platformPct = await getPlatformCommission();
+        } catch (_) {
+            platformPct = Number(APP_CONFIG.commissionPercent) || 25;
+        }
+        if (!Number.isFinite(platformPct) || platformPct < 0 || platformPct > 100) {
+            platformPct = Number(APP_CONFIG.commissionPercent) || 25;
+        }
+        const cashCommission = Math.round(cashEarned * (platformPct / 100) * 100) / 100;
+        const saldoCommission = Math.round(saldoEarned * (platformPct / 100) * 100) / 100;
+        const commission = Math.round((cashCommission + saldoCommission) * 100) / 100;
         const driverSummary = Object.values(driverStats)
             .sort((a, b) => b.earned - a.earned)
             .map((d) => `
@@ -37601,9 +37626,13 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                     <span class="font-bold">L. ${saldoEarned.toFixed(2)} <span class="text-xs text-gray-400">(${saldoTrips} viajes)</span></span>
                 </div>
                 <div class="pt-3 border-t border-gray-700 flex justify-between">
-                    <span class="font-bold text-amber-400">Comisión generada (30%)</span>
+                    <span class="font-bold text-amber-400">Comisión generada (${platformPct}%)</span>
                     <span class="font-black text-amber-400">L. ${commission.toFixed(2)}</span>
                 </div>
+                <p class="text-[10px] text-slate-400 font-bold leading-snug">
+                    Usa el % de <b>Cuentas bancarias → Comisión de plataforma</b> (hoy ${platformPct}%).
+                    Efectivo: L. ${cashCommission.toFixed(2)} · Saldo: L. ${saldoCommission.toFixed(2)}.
+                </p>
             </div>
 
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Por conductor</p>
