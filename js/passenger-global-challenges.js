@@ -123,7 +123,7 @@ const LAUNCH_PRESETS = {
         qualityEnabled: false,
         minRatingToClaim: 0,
         publicRanking: true,
-        minTripsToRank: 3,
+        minTripsToRank: 1,
         avgTripsPerPassenger: 25,
         podiumPrizes: [
             { place: 1, label: '1er lugar', rewardAmountLps: 1500, reward: 'L. 1500 — Campeón nacional' },
@@ -143,7 +143,7 @@ const LAUNCH_PRESETS = {
         qualityEnabled: true,
         minRatingToClaim: 4.5,
         publicRanking: true,
-        minTripsToRank: 5,
+        minTripsToRank: 1,
         avgTripsPerPassenger: 40,
         podiumPrizes: [
             { place: 1, label: '1er lugar', rewardAmountLps: 2000, reward: 'L. 2000' },
@@ -163,7 +163,7 @@ const LAUNCH_PRESETS = {
         qualityEnabled: true,
         minRatingToClaim: 4.5,
         publicRanking: true,
-        minTripsToRank: 20,
+        minTripsToRank: 1,
         avgTripsPerPassenger: 200,
         podiumPrizes: [
             { place: 1, label: '1er lugar', rewardAmountLps: 5000, reward: 'L. 5000 — Leyenda' },
@@ -203,7 +203,7 @@ const LAUNCH_PRESETS = {
         qualityEnabled: true,
         minRatingToClaim: 4.8,
         publicRanking: true,
-        minTripsToRank: 8,
+        minTripsToRank: 1,
         avgTripsPerPassenger: 40,
         podiumPrizes: [
             { place: 1, label: '1er lugar', rewardAmountLps: 800, reward: 'L. 800' },
@@ -223,7 +223,7 @@ const LAUNCH_PRESETS = {
         qualityEnabled: true,
         minRatingToClaim: 4.5,
         publicRanking: true,
-        minTripsToRank: 3,
+        minTripsToRank: 1,
         avgTripsPerPassenger: 30,
         podiumPrizes: [
             { place: 1, label: '1er lugar', rewardAmountLps: 1200, reward: 'L. 1200' },
@@ -1779,6 +1779,7 @@ function renderStaffChallengeCard(ch, entries = []) {
     if (ch.status === 'active' && isChallengeActive(ch)) {
         actions = `
             <div class="ops-trip-actions">
+                ${U.btn('Reconfigurar', `window.openReconfigurePassengerCopa('${ch.id}')`, { variant: 'primary', icon: 'fa-sliders-h' })}
                 ${U.btn('Cerrar y fijar podio', `window.closePassengerGlobalChallenge('${ch.id}')`, { variant: 'ghost', icon: 'fa-flag-checkered' })}
                 ${U.btn('Cancelar', `window.cancelPassengerGlobalChallenge('${ch.id}')`, { variant: 'ghost', icon: 'fa-ban' })}
             </div>
@@ -1943,8 +1944,9 @@ function renderSupervisorCopaPage(challenges, entriesMap) {
                     <input type="number" id="pcopa-min-margin" class="ops-input" min="0" max="80" step="1" value="${DEFAULT_MIN_MARGIN_PCT}" oninput="window.refreshPassengerCopaProfitability?.()">
                 </div>
                 <div>
-                    ${U.fieldLabel('Mín. viajes para rankear')}
-                    <input type="number" id="pcopa-min-trips-rank" class="ops-input" min="0" max="999" value="3">
+                    ${U.fieldLabel('Mín. viajes para aparecer en ranking')}
+                    <input type="number" id="pcopa-min-trips-rank" class="ops-input" min="0" max="999" value="1" title="1 = desde el primer viaje. 0 = todos.">
+                    <p class="ops-toolbar-hint" style="margin:0.2rem 0 0">Usa <b>1</b> (o 0) para que cuente desde el primer viaje. No borra puntos ya sumados.</p>
                 </div>
             </div>
 
@@ -2724,6 +2726,119 @@ export function initPassengerGlobalChallenges({
             console.error(e);
             window.showToast?.('Error al cancelar.');
         }
+    };
+
+    /**
+     * Reconfigurar copa pasajeros SIN borrar ranking ni poner viajes en 0.
+     */
+    window.openReconfigurePassengerCopa = async (challengeId) => {
+        if (!challengeId) return;
+        let ch = null;
+        try {
+            const snap = await getDoc(challengeDocRef(challengeId));
+            if (!snap.exists()) return window.showToast?.('Reto no encontrado.');
+            ch = { id: snap.id, ...snap.data() };
+        } catch (e) {
+            console.error(e);
+            return window.showToast?.('No se pudo cargar el reto.');
+        }
+        if (ch.status !== 'active') {
+            return window.showToast?.('Solo se reconfiguran retos activos.', 'warning');
+        }
+
+        document.getElementById('pcopa-reconfig-modal')?.remove();
+        const minRank = parseInt(ch.minTripsToRank, 10);
+        const goal = getGoalTrips(ch) || DEFAULT_GOAL_TRIPS;
+        const modal = document.createElement('div');
+        modal.id = 'pcopa-reconfig-modal';
+        modal.setAttribute('style',
+            'position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;'
+            + 'padding:1rem;background:rgba(0,0,0,0.78);'
+        );
+        modal.innerHTML = `
+            <div style="background:#0f172a;color:#fff;width:100%;max-width:26rem;border-radius:1.25rem;border:1px solid #334155;
+                box-shadow:0 25px 50px rgba(0,0,0,.5);padding:1.15rem;max-height:90dvh;overflow:auto;">
+                <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#a78bfa;">Copa pasajeros</p>
+                <h3 style="margin:0.25rem 0 0;font-size:1.1rem;font-weight:900;">Reconfigurar (sin borrar ranking)</h3>
+                <p style="margin:0.45rem 0 0.85rem;font-size:12px;color:#94a3b8;font-weight:700;line-height:1.4;">
+                    <b style="color:#c4b5fd;">${escHtml(ch.title || 'Reto')}</b><br>
+                    Los puntos y viajes ya contados <b style="color:#fde68a;">se mantienen</b>. Solo cambias reglas.
+                </p>
+                <label style="display:block;font-size:10px;font-weight:900;text-transform:uppercase;color:#94a3b8;margin-bottom:0.25rem;">
+                    Mín. viajes para aparecer en el ranking
+                </label>
+                <input type="number" id="pcopa-reconfig-min-rank" min="0" max="999" value="${Number.isFinite(minRank) ? minRank : 1}"
+                    style="width:100%;padding:0.65rem 0.75rem;border-radius:0.75rem;border:1px solid #334155;background:#020617;color:#fff;font-weight:800;margin-bottom:0.35rem;">
+                <p style="margin:0 0 0.75rem;font-size:11px;color:#64748b;font-weight:700;line-height:1.35;">
+                    Pon <b style="color:#c4b5fd;">1</b> (o 0) para que cuente desde el <b>primer viaje</b>.
+                </p>
+                <label style="display:block;font-size:10px;font-weight:900;text-transform:uppercase;color:#94a3b8;margin-bottom:0.25rem;">
+                    Meta de viajes (cierre automático)
+                </label>
+                <input type="number" id="pcopa-reconfig-goal" min="0" max="9999" value="${goal}"
+                    style="width:100%;padding:0.65rem 0.75rem;border-radius:0.75rem;border:1px solid #334155;background:#020617;color:#fff;font-weight:800;margin-bottom:0.75rem;">
+                <label style="display:block;font-size:10px;font-weight:900;text-transform:uppercase;color:#94a3b8;margin-bottom:0.25rem;">
+                    Título
+                </label>
+                <input type="text" id="pcopa-reconfig-title" maxlength="120" value="${escHtml(ch.title || '')}"
+                    style="width:100%;padding:0.65rem 0.75rem;border-radius:0.75rem;border:1px solid #334155;background:#020617;color:#fff;font-weight:800;margin-bottom:0.75rem;">
+                <label style="display:flex;align-items:center;gap:0.45rem;font-size:12px;font-weight:800;color:#e2e8f0;cursor:pointer;margin-bottom:1rem;">
+                    <input type="checkbox" id="pcopa-reconfig-public" ${ch.publicRanking !== false ? 'checked' : ''}>
+                    Ranking público (todos lo ven)
+                </label>
+                <button type="button" id="pcopa-reconfig-save"
+                    style="width:100%;padding:0.85rem;font-weight:900;border:0;border-radius:0.85rem;cursor:pointer;background:#7c3aed;color:#fff;">
+                    Guardar cambios (sin reiniciar a 0)
+                </button>
+                <button type="button" id="pcopa-reconfig-close"
+                    style="width:100%;margin-top:0.45rem;padding:0.65rem;background:transparent;border:0;color:#94a3b8;font-weight:900;font-size:12px;cursor:pointer;">
+                    Cancelar
+                </button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const close = () => modal.remove();
+        modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+        modal.querySelector('#pcopa-reconfig-close')?.addEventListener('click', close);
+        modal.querySelector('#pcopa-reconfig-save')?.addEventListener('click', async () => {
+            const btn = modal.querySelector('#pcopa-reconfig-save');
+            const minTripsToRank = Math.max(0, parseInt(modal.querySelector('#pcopa-reconfig-min-rank')?.value, 10) || 0);
+            const goalTrips = Math.max(0, parseInt(modal.querySelector('#pcopa-reconfig-goal')?.value, 10) || 0);
+            const title = String(modal.querySelector('#pcopa-reconfig-title')?.value || '').trim() || ch.title;
+            const publicRanking = !!modal.querySelector('#pcopa-reconfig-public')?.checked;
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Guardando…';
+            }
+            try {
+                await updateDoc(challengeDocRef(challengeId), {
+                    minTripsToRank,
+                    goalTrips,
+                    title,
+                    publicRanking,
+                    reconfiguredAt: serverTimestamp(),
+                    reconfiguredBy: getCurrentUser()?.uid || null,
+                    updatedAt: serverTimestamp()
+                });
+                window.showToast?.(
+                    minTripsToRank <= 1
+                        ? `Listo. Ranking pasajeros desde el 1.er viaje (mín. ${minTripsToRank}). Puntos intactos.`
+                        : `Listo. Mín. ${minTripsToRank} viajes para rankear. Puntos intactos.`,
+                    'success'
+                );
+                close();
+                await window.loadSupervisorPassengerCopa?.();
+                try { window.refreshPassengerCopaUI?.(); } catch (_) {}
+                try { window.startPublicPassengerCopaListener?.(); } catch (_) {}
+            } catch (e) {
+                console.error('reconfigure passenger copa:', e);
+                window.showToast?.(e?.message || 'No se pudo guardar.', 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Guardar cambios (sin reiniciar a 0)';
+                }
+            }
+        });
     };
 
     window.markPassengerCopaRewardPaid = async (challengeId, passengerUid, tierId) => {
