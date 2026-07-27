@@ -1642,6 +1642,7 @@ if (document.readyState === 'loading') {
             const scheduledMs = getScheduledTripMs(trip);
             if (!scheduledMs) return '';
             return new Date(scheduledMs).toLocaleString('es-HN', {
+                timeZone: 'America/Tegucigalpa',
                 weekday: 'short',
                 day: 'numeric',
                 month: 'short',
@@ -1770,6 +1771,8 @@ if (document.readyState === 'loading') {
                 };
                 activeTrip = data;
                 window.currentActiveTripData = data;
+                try { document.body.classList.remove('scheduled-reserved-active'); } catch (_) {}
+                document.getElementById('scheduled-trip-card')?.classList.add('hidden');
                 hideDriverTripOfferPopup?.();
                 window.presentTripAcceptedUi?.(data, { role: 'driver' });
                 // Ruta / mapa
@@ -1782,7 +1785,7 @@ if (document.readyState === 'loading') {
                     }
                     window.selectDriverOfferForPreview?.(tripId, data);
                     // Navegación principal dentro de la app (Google Maps queda como botón opcional)
-                    window.navigateDriverRouteInApp?.({ silent: true });
+                    await window.navigateDriverRouteInApp?.({ silent: true });
                 } catch (_) {}
                 window.showToast?.('Viaje programado iniciado. Ruta en el mapa · podés abrir Google Maps si querés.', 'success');
             } catch (e) {
@@ -26682,71 +26685,123 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
         /**
          * UI de viaje programado YA RESERVADO (con conductor), aún no en camino.
+         * La tarjeta #scheduled-trip-card vive en panel-content (no dentro de client-view)
+         * para que el CONDUCTOR también vea «Iniciar YA» y la ruta.
          */
         window.presentScheduledReservedUi = (data, options = {}) => {
             if (!data?.id) return;
-            const role = options.role || window.userProfile?.role;
+            const role = options.role
+                || (data.driverId === currentUser?.uid ? 'driver' : null)
+                || window.userProfile?.role;
+            const isDriverSide = role === 'driver' || data.driverId === currentUser?.uid;
             const when = formatScheduledTripWhen(data);
+
+            activeTrip = { id: data.id, ...data, status: data.status || 'scheduled' };
+            window.currentActiveTripData = activeTrip;
 
             try { stopPassengerWaitingLoop(); } catch (_) {}
             document.body.classList.remove('is-searching', 'trip-active');
-            syncPromoUi();
+            document.body.classList.add('scheduled-reserved-active');
+            syncPromoUi?.();
             clearPassengerSearchPanelLayout?.();
             document.getElementById('searching-state')?.classList.add('hidden');
             document.getElementById('trip-viewers-panel')?.classList.add('hidden');
             document.getElementById('fare-card')?.classList.add('hidden');
             document.getElementById('active-trip-panel')?.classList.add('hidden');
+            document.getElementById('ride-options')?.classList.add('hidden');
+
+            // Abrir panel (no minimizado) para que se vea el botón Iniciar
+            try {
+                document.body.classList.remove('panel-minimized');
+                document.getElementById('control-panel')?.classList.remove('panel-collapsed');
+                window.showControlPanel?.();
+            } catch (_) {}
 
             const card = document.getElementById('scheduled-trip-card');
             const whenEl = document.getElementById('scheduled-trip-when');
             const detailEl = document.getElementById('scheduled-trip-detail');
             const actionsEl = document.getElementById('scheduled-trip-actions');
             card?.classList.remove('hidden');
-
             if (whenEl) whenEl.textContent = when || 'Fecha por confirmar';
 
-            if (role === 'driver' || data.driverId === currentUser?.uid) {
+            // Marcadores en mapa para orientarse sin haber iniciado aún
+            try {
+                if (data.originLat != null && data.originLng != null) {
+                    window.placePickupMarker?.({ lat: data.originLat, lng: data.originLng }, 'Origen');
+                }
+                if (data.destinationLat != null && data.destinationLng != null) {
+                    window.placeDestinationMarker?.({ lat: data.destinationLat, lng: data.destinationLng }, 'Destino');
+                }
+            } catch (_) {}
+
+            if (isDriverSide) {
                 document.getElementById('driver-view')?.classList.remove('hidden');
                 document.getElementById('client-view')?.classList.add('hidden');
+                // Radar de ofertas: no tapa la tarjeta; se puede seguir viendo debajo
                 if (detailEl) {
                     detailEl.innerHTML = `
                         <p class="text-xs font-bold text-amber-900 mt-2">Pasajero: <b>${escapeViewerText(data.clientName || 'Cliente')}</b></p>
                         <p class="text-[11px] text-amber-800 mt-1"><i class="fas fa-map-marker-alt"></i> ${escapeViewerText(data.origin || 'Origen')}</p>
                         <p class="text-[11px] text-amber-800"><i class="fas fa-flag-checkered"></i> ${escapeViewerText(data.destination || 'Destino')}</p>
-                        <p class="text-[10px] text-amber-700 mt-2">Te avisamos 1 h, 30, 10 y 5 min antes. O inicia cuando quieras.</p>`;
+                        <p class="text-[11px] text-amber-900 font-black mt-2">${data.price || ''}</p>
+                        <p class="text-[10px] text-amber-700 mt-2">Te avisamos 1 h, 30, 10 y 5 min antes. O inicia cuando quieras con el botón de abajo.</p>`;
                 }
                 if (actionsEl) {
                     actionsEl.innerHTML = `
                         <button type="button" id="btn-start-scheduled-now" data-trip-id="${data.id}"
-                            class="w-full mt-3 py-3 rounded-xl bg-emerald-600 text-white text-sm font-black trip-touch-btn">
-                            <i class="fas fa-play"></i> Hacer viaje programado YA
+                            class="w-full mt-3 py-3.5 rounded-xl bg-emerald-600 text-white text-sm font-black trip-touch-btn shadow-md">
+                            <i class="fas fa-play"></i> Iniciar viaje programado YA
                         </button>
-                        <button type="button" class="w-full mt-2 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-black"
-                            onclick="window.navigateDriverRouteInApp?.()">
-                            <i class="fas fa-location-arrow"></i> Navegar en el mapa
+                        <button type="button" id="btn-scheduled-nav-map" class="w-full mt-2 py-2.5 rounded-xl bg-teal-600 text-white text-xs font-black trip-touch-btn">
+                            <i class="fas fa-location-arrow"></i> Ver ruta en el mapa
                         </button>
-                        <button type="button" class="w-full mt-2 py-2.5 rounded-xl border border-amber-300 bg-white text-amber-900 text-xs font-black"
-                            onclick="window.openDriverRouteInGoogleMaps?.()">
+                        <button type="button" id="btn-scheduled-gmaps" class="w-full mt-2 py-2.5 rounded-xl border border-amber-300 bg-white text-amber-900 text-xs font-black trip-touch-btn">
                             <i class="fab fa-google"></i> Abrir en Google Maps
                         </button>`;
                     const startBtn = actionsEl.querySelector('#btn-start-scheduled-now');
-                    startBtn?.addEventListener('click', () => {
+                    startBtn?.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         window.startScheduledTripNow?.(data.id, startBtn);
                     });
+                    actionsEl.querySelector('#btn-scheduled-nav-map')?.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        window.navigateDriverRouteInApp?.();
+                    });
+                    actionsEl.querySelector('#btn-scheduled-gmaps')?.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        window.openDriverRouteInGoogleMaps?.();
+                    });
                 }
+                // Preview de ruta al origen (sin exigir accepted)
+                try {
+                    window.selectDriverOfferForPreview?.(data.id, data);
+                } catch (_) {}
             } else {
                 document.getElementById('client-view')?.classList.remove('hidden');
                 document.getElementById('driver-view')?.classList.add('hidden');
+                // Ocultar formulario de pedir viaje: solo reserva
+                [
+                    'passenger-booking-route',
+                    'passenger-booking-advanced',
+                    'passenger-booking-service',
+                    'trip-panel-setup',
+                    'client-trip-headline',
+                    'client-trip-subline',
+                    'favorites-bar',
+                    'trip-options-panel'
+                ].forEach((id) => document.getElementById(id)?.classList.add('hidden'));
+                document.querySelector('.trip-route-fields')?.classList.add('hidden');
                 if (detailEl) {
                     detailEl.innerHTML = `
                         <p class="text-xs font-bold text-amber-900 mt-2">Conductor: <b>${escapeViewerText(data.driverName || 'Asignado')}</b>
                         ${data.pin ? ` · PIN <b>${escapeViewerText(data.pin)}</b>` : ''}</p>
                         <p class="text-[11px] text-amber-800 mt-1"><i class="fas fa-map-marker-alt"></i> ${escapeViewerText(data.origin || 'Origen')}</p>
-                        <p class="text-[10px] text-amber-700 mt-2">Te avisaremos cuando se active (~10 min antes). El conductor puede iniciar antes.</p>`;
+                        <p class="text-[11px] text-amber-800"><i class="fas fa-flag-checkered"></i> ${escapeViewerText(data.destination || 'Destino')}</p>
+                        <p class="text-[10px] text-amber-700 mt-2">Te avisaremos ~10 min antes. El conductor puede iniciar antes.</p>`;
                 }
                 if (actionsEl) actionsEl.innerHTML = '';
             }
-            window.showControlPanel?.();
             setStoredClientTripId?.(data.id);
         };
 
@@ -26771,6 +26826,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
             }
 
+            try { document.body.classList.remove('scheduled-reserved-active'); } catch (_) {}
             document.getElementById('scheduled-trip-card')?.classList.add('hidden');
 
             if (!options.silentToast && window._tripAcceptedToastKey !== toastKey) {
@@ -27329,6 +27385,15 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (prevStatus === 'scheduled' && data.status === 'accepted' && data.driverId === currentUser.uid) {
                     window.presentTripAcceptedUi?.(data, { role: 'driver' });
                     window.showToast?.('Viaje programado activo. Ve al origen del pasajero.', 'success');
+                    try {
+                        if (data.originLat != null && data.originLng != null) {
+                            window.placePickupMarker?.({ lat: data.originLat, lng: data.originLng }, 'Origen');
+                        }
+                        if (data.destinationLat != null && data.destinationLng != null) {
+                            window.placeDestinationMarker?.({ lat: data.destinationLat, lng: data.destinationLng }, 'Destino');
+                        }
+                        window.navigateDriverRouteInApp?.({ silent: true });
+                    } catch (_) {}
                 }
                 if (prevStatus === 'pending' && data.status === 'accepted' && data.driverId === currentUser.uid) {
                     const body = `${data.clientName || 'El pasajero'} confirmó contigo. Navegá en el mapa o abrí Google Maps.`;

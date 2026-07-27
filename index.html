@@ -1551,6 +1551,17 @@
                 </div>
                 <div id="panel-content" class="trip-panel-scroll flex flex-col flex-1 min-h-0">
 
+    <!-- Viaje programado reservado: FUERA de client-view/driver-view
+         (si está solo en client-view, el conductor nunca ve el botón «Iniciar YA») -->
+    <div id="scheduled-trip-card" class="hidden shrink-0 m-3 p-5 bg-amber-50 border border-amber-200 rounded-2xl text-center">
+        <i class="fas fa-calendar-check text-amber-500 text-3xl mb-2"></i>
+        <p class="font-black text-amber-800 text-sm">Viaje programado</p>
+        <p id="scheduled-trip-when" class="text-xs text-amber-700 mt-1"></p>
+        <div id="scheduled-trip-detail" class="text-left px-1"></div>
+        <div id="scheduled-trip-actions"></div>
+        <p class="text-[10px] text-amber-600 mt-2">Queda reservado hasta la hora. El conductor puede iniciar antes con el botón.</p>
+    </div>
+
               <!-- VISTA PASAJERO -->
 <div id="client-view" class="trip-client-flow flex-1">
 
@@ -1893,15 +1904,6 @@
         </div>
 
     </section>
-
-    <div id="scheduled-trip-card" class="hidden mt-6 p-5 bg-amber-50 border border-amber-200 rounded-2xl text-center">
-        <i class="fas fa-calendar-check text-amber-500 text-3xl mb-2"></i>
-        <p class="font-black text-amber-800 text-sm">Viaje programado</p>
-        <p id="scheduled-trip-when" class="text-xs text-amber-700 mt-1"></p>
-        <div id="scheduled-trip-detail" class="text-left px-1"></div>
-        <div id="scheduled-trip-actions"></div>
-        <p class="text-[10px] text-amber-600 mt-2">Primero se negocia y un conductor acepta; luego queda reservado hasta la hora.</p>
-    </div>
 
     <div id="searching-state" class="mt-6 hidden passenger-pending-wrap">
         <div id="install-reminder-banner" class="hidden"></div>
