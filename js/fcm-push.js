@@ -383,6 +383,29 @@ function routeForegroundPush(payload) {
             });
         }
     }
+
+    // Admin envió “nueva versión” / broadcast de update → forzar chequeo PWA (web/iOS/Android instalados)
+    if (
+        type === 'app_update'
+        || type === 'broadcast'
+        || data.forceUpdate === 'true'
+        || String(data.tag || '').startsWith('app-update-')
+        || String(data.tag || '').startsWith('broadcast-')
+    ) {
+        try {
+            // Si el push trae version, guardarla como pendiente
+            const remoteV = String(data.version || data.appVersion || '').trim();
+            if (remoteV) {
+                try { localStorage.setItem('hr_pending_version', remoteV); } catch (_) {}
+            }
+            setTimeout(() => {
+                window.checkForAppUpdate?.({ force: true });
+            }, 400);
+            setTimeout(() => {
+                window.checkForAppUpdate?.({ force: true });
+            }, 2500);
+        } catch (_) {}
+    }
 }
 
 function shouldOpenNotificationsCenter(data = {}) {

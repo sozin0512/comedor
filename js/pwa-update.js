@@ -397,12 +397,17 @@ export function initAppUpdateCheck() {
 
     window.setTimeout(() => checkForAppUpdate({ force: true }), 1800);
     window.setTimeout(() => verifyPendingVersionAfterLoad(), 3200);
+    // PWA iOS a veces cachea fuerte: segundo y tercer chequeo
+    window.setTimeout(() => checkForAppUpdate({ force: true }), 8000);
+    window.setTimeout(() => checkForAppUpdate({ force: true }), 20000);
 
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) checkForAppUpdate({ force: true });
     });
 
     window.addEventListener('focus', () => checkForAppUpdate({ force: true }));
+
+    window.addEventListener('online', () => checkForAppUpdate({ force: true }));
 
     window.addEventListener('pageshow', (event) => {
         if (event.persisted) {

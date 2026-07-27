@@ -3345,7 +3345,9 @@ exports.onNotificationBroadcastPush = onDocumentCreated(
                 data: {
                     type: String(data.type || 'admin_notify'),
                     tag: String(data.tag || `notif-${event.params.notifId}`),
-                    personal: 'true'
+                    personal: 'true',
+                    forceUpdate: data.forceUpdate === true || data.type === 'app_update' ? 'true' : 'false',
+                    version: String(data.version || '')
                 },
                 highPriority: true
             });
@@ -3375,7 +3377,11 @@ exports.onNotificationBroadcastPush = onDocumentCreated(
                     type: String(data.type || 'admin_notify'),
                     tag: String(data.tag || `notif-${event.params.notifId}`),
                     targetRole: String(targetRole),
-                    tripFilter
+                    tripFilter,
+                    // PWA web/iOS/Android instalados: cliente chequea version.json y muestra “Actualizar”
+                    forceUpdate: data.forceUpdate === true || data.type === 'app_update' ? 'true' : 'false',
+                    version: String(data.version || ''),
+                    openNotifications: data.type === 'app_update' ? 'true' : String(data.openNotifications || 'false')
                 },
                 highPriority: true
             });

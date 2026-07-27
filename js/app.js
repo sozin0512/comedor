@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.26.4";
+} from "./auth-credentials.js?v=2026.07.27.2";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.26.4";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.26.4";
+import { APP_CONFIG } from "./config.js?v=2026.07.27.2";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.2";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.26.4";
+} from "./referrals.js?v=2026.07.27.2";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.26.4";
+} from "./zones.js?v=2026.07.27.2";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.26.4";
+} from "./trip-notifications.js?v=2026.07.27.2";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.26.4";
+} from "./notification-tones.js?v=2026.07.27.2";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.26.4";
+} from "./passenger-alerts.js?v=2026.07.27.2";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.26.4";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.26.4";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.26.4";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.26.4";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.26.4";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.26.4";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.26.4";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.26.4";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.26.4";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.26.4";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.26.4";
+} from "./passenger-verification.js?v=2026.07.27.2";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.2";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.2";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.2";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.2";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.27.2";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.2";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.2";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.2";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.2";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.2";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.26.4";
+} from "./feedback.js?v=2026.07.27.2";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.26.4";
+} from "./greetings.js?v=2026.07.27.2";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.26.4";
+} from "./service-types.js?v=2026.07.27.2";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.26.4";
+} from "./driver-vehicles.js?v=2026.07.27.2";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.26.4";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.26.4";
+} from "./route-conditions.js?v=2026.07.27.2";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.2";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.26.4";
+} from "./demand-heatmap.js?v=2026.07.27.2";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.26.4";
+} from "./ops-fleet-map.js?v=2026.07.27.2";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.26.4";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.26.4";
+} from "./live-trip-keepalive.js?v=2026.07.27.2";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.2";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.26.4";
+} from "./session-keepalive.js?v=2026.07.27.2";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.26.4";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.26.4";
+} from "./passenger-tutorial.js?v=2026.07.27.2";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.2";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.26.4";
+} from "./driver-tutorial.js?v=2026.07.27.2";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.26.4";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.2";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.26.4";
+} from "./auth-ui.js?v=2026.07.27.2";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.26.4";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.26.4";
+} from "./age-verification.js?v=2026.07.27.2";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.2";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.26.4";
+} from "./trip-experience.js?v=2026.07.27.2";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.26.4";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.26.4";
-import { initAppDownload } from "./app-download.js?v=2026.07.26.4";
+} from "./support-tickets.js?v=2026.07.27.2";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.2";
+import { initAppDownload } from "./app-download.js?v=2026.07.27.2";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -1997,6 +1997,15 @@ if (document.readyState === 'loading') {
                     || event.data.type === 'promo_new') {
                     setTimeout(() => window.showNotificationsModal?.(), 150);
                     setTimeout(() => window.showNotificationsModal?.(), 800);
+                }
+                // Push de actualización de app (PWA web/iOS/Android): abrir chequeo de version.json
+                if (
+                    event.data.type === 'app_update'
+                    || event.data.forceUpdate
+                    || String(event.data.tag || '').startsWith('app-update-')
+                ) {
+                    setTimeout(() => window.checkForAppUpdate?.({ force: true }), 200);
+                    setTimeout(() => window.checkForAppUpdate?.({ force: true }), 1500);
                 }
                 window.resetTripPanelCollapse?.();
             });
@@ -37113,6 +37122,7 @@ window.addEventListener('map-route-trigger', () => {
 
         // Modal simple para que el supervisor envíe notificaciones rápido
         window.showNotifyModal = (targetRole = 'driver') => {
+            const runningVer = window.getBuildVersion?.() || APP_CONFIG?.appVersion || '';
             const modal = document.createElement('div');
             modal.className = `fixed inset-0 bg-black/70 z-[40000] flex items-center justify-center p-4`;
             modal.innerHTML = `
@@ -37121,6 +37131,10 @@ window.addEventListener('map-route-trigger', () => {
                     <p class="text-xs text-gray-500 mb-3">Se enviará a todos los <b>${targetRole === 'driver' ? 'conductores' : 'usuarios'}</b></p>
                     
                     <textarea id="quick-notify-msg" class="w-full border border-gray-300 rounded-2xl p-4 text-sm h-28" placeholder="Escribe el mensaje..."></textarea>
+                    <label class="flex items-start gap-2 mt-3 text-xs font-bold text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="quick-notify-force-update" class="mt-0.5">
+                        <span>Forzar actualización de la app (PWA web/iOS/Android instalados). Versión actual: <b>${runningVer || '—'}</b>. Solo llega push a quien activó avisos.</span>
+                    </label>
                     
                     <div class="flex gap-3 mt-4">
                         <button onclick="this.closest('.fixed').remove()" class="flex-1 py-3 rounded-2xl border font-bold text-sm">Cancelar</button>
@@ -37138,6 +37152,8 @@ window.addEventListener('map-route-trigger', () => {
 
             const msg = document.getElementById('quick-notify-msg').value.trim();
             if (!msg) return alert('Escribe un mensaje');
+            const forceUpdate = !!document.getElementById('quick-notify-force-update')?.checked;
+            const appVer = window.getBuildVersion?.() || APP_CONFIG?.appVersion || '';
 
             btn.disabled = true;
             btn.innerText = 'ENVIANDO...';
@@ -37146,19 +37162,27 @@ window.addEventListener('map-route-trigger', () => {
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
                     targetRole: targetRole || 'all',
                     message: msg,
-                    title: 'HonduRaite',
+                    title: forceUpdate ? 'Nueva versión HonduRaite' : 'HonduRaite',
                     body: msg,
                     broadcast: true,
                     broadcastPush: true,
                     sendPush: true,
                     pushDispatched: false,
-                    type: 'admin_notify',
+                    type: forceUpdate ? 'app_update' : 'admin_notify',
+                    forceUpdate: forceUpdate === true,
+                    version: forceUpdate ? appVer : null,
+                    tag: forceUpdate ? `app-update-${appVer || Date.now()}` : `notif-${Date.now()}`,
                     sentBy: currentUser.uid,
                     sentByName: window.getSenderDisplayName(),
                     createdAt: serverTimestamp(),
                     createdAtMs: Date.now()
                 });
-                window.showToast('Notificación enviada (push + campana).', 'success');
+                window.showToast(
+                    forceUpdate
+                        ? 'Aviso de actualización enviado (push a quien tiene avisos ON + campana).'
+                        : 'Notificación enviada (push + campana).',
+                    'success'
+                );
                 btn.closest('.fixed').remove();
             } catch (e) {
                 console.error(e);
