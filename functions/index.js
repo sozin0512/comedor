@@ -524,11 +524,69 @@ exports.validateTripCreation = onCall(async (request) => {
     const settings = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
     const globalNegotiationEnabled = settings.negotiationEnabled == null ? true : !!settings.negotiationEnabled;
 
-    if (!termsAccepted) {
-        return { ok: true, warning: 'terms_not_accepted', negotiationEnabled: globalNegotiationEnabled, role };
+    // Revalidar saldo en servidor al CREAR el viaje (no solo al aceptar)
+    const paymentMethod = String(trip.paymentMethod || 'efectivo').toLowerCase().trim();
+    const isBirthdayGift = !!(trip.birthdayFree || paymentMethod === 'birthday_gift');
+    const balance = Math.round((parseFloat(pub.balance ?? priv.balance) || 0) * 100) / 100;
+    let chargeAmount = 0;
+    let saldoOk = true;
+    let saldoWarning = null;
+
+    if (!isBirthdayGift && paymentMethod === 'saldo') {
+        const pays = parseFloat(trip.passengerPaysAmount);
+        const priceN = parseFloat(trip.priceNum);
+        const priceFromText = parseFloat(String(trip.price || '').replace(/[^\d.]/g, ''));
+        chargeAmount = Math.round(
+            (Number.isFinite(pays) && pays >= 0
+                ? pays
+                : (Number.isFinite(priceN) ? priceN : (Number.isFinite(priceFromText) ? priceFromText : 0))) * 100
+        ) / 100;
+
+        if (chargeAmount > 0 && balance < chargeAmount) {
+            throw new HttpsError(
+                'failed-precondition',
+                `Tu saldo no alcanza este viaje (saldo L. ${balance.toFixed(2)}, viaje L. ${chargeAmount.toFixed(2)}). Recarga o elige efectivo.`
+            );
+        }
+        saldoOk = true;
+    } else if (!isBirthdayGift && paymentMethod === 'efectivo') {
+        const priceN = parseFloat(trip.priceNum);
+        const priceFromText = parseFloat(String(trip.price || '').replace(/[^\d.]/g, ''));
+        const fare = Math.round(
+            (Number.isFinite(priceN) ? priceN : (Number.isFinite(priceFromText) ? priceFromText : 0)) * 100
+        ) / 100;
+        chargeAmount = fare;
+        // Efectivo permitido siempre; si tiene algo de saldo pero no cubre, avisar al cliente
+        if (fare > 0 && balance > 0 && balance < fare) {
+            saldoOk = false;
+            saldoWarning = 'saldo_no_alcanza_efectivo';
+        }
     }
 
-    return { ok: true, negotiationEnabled: globalNegotiationEnabled, role };
+    if (!termsAccepted) {
+        return {
+            ok: true,
+            warning: 'terms_not_accepted',
+            negotiationEnabled: globalNegotiationEnabled,
+            role,
+            balance,
+            chargeAmount,
+            paymentMethod,
+            saldoOk,
+            saldoWarning
+        };
+    }
+
+    return {
+        ok: true,
+        negotiationEnabled: globalNegotiationEnabled,
+        role,
+        balance,
+        chargeAmount,
+        paymentMethod,
+        saldoOk,
+        saldoWarning
+    };
 });
 
 /** Admin: setea negociación globalmente en appSettings */
@@ -1120,7 +1178,10 @@ function isHonduRideAlertType(type) {
         || type === 'scheduled_trip_active'
         || type === 'scheduled_reminder'
         || type === 'trip_scheduled_reserved'
-        || type === 'staff_created_trip';
+        || type === 'staff_created_trip'
+        // Pedidos de tiendas virtuales (emprendedor / cliente)
+        || type === 'store_order'
+        || type === 'store_order_update';
 }
 
 /** Snapshot comparable de ofertas de conductores (para detectar cambios y mandar push). */
@@ -1547,6 +1608,11 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     ) {
         // Pasajero: abrir búsqueda / panel de ofertas al tocar el push
         link = type === 'passenger_counter' ? '/#driver' : '/#client';
+    } else if (type === 'store_order' || data.openMerchant === 'true') {
+        // Emprendedor: panel de pedidos de tienda
+        link = '/#merchant-store';
+    } else if (type === 'store_order_update' || data.openStores === 'true') {
+        link = '/#tiendas';
     } else if (openNotifications || type === 'admin_notify' || type === 'app_update' || type === 'recurring_notify' || type === 'promo_new') {
         link = '/#notifications';
     }
@@ -2549,6 +2615,156 @@ exports.onSupportTicketPush = onDocumentCreated(
             body: `${d.userName || 'Usuario'}: ${(d.subject || d.message || '').slice(0, 160)}`,
             data: { type: 'support_ticket', tag: `ticket-${event.params.ticketId}`, openReports: 'true' }
         });
+    }
+);
+
+/**
+ * Tiendas virtuales: push al emprendedor cuando llega un pedido nuevo.
+ * Suena en web/Android (canal Temu) y el tono se personaliza en admin → Personalización.
+ */
+exports.onStoreOrderCreatedPush = onDocumentCreated(
+    'artifacts/{appId}/public/data/store_orders/{orderId}',
+    async (event) => {
+        const d = event.data.data() || {};
+        const { appId, orderId } = event.params;
+        if (!d.ownerId) return;
+        // Solo pedidos nuevos del cliente
+        if (d.status && d.status !== 'pending') return;
+
+        const items = Array.isArray(d.items) ? d.items : [];
+        const summary = items
+            .slice(0, 3)
+            .map((i) => `${i.qty || 1}× ${i.name || 'producto'}`)
+            .join(', ');
+        const total = Number(d.itemsTotal);
+        const totalTxt = Number.isFinite(total) ? ` · L. ${total.toFixed(2)}` : '';
+        const storeName = d.storeName ? String(d.storeName).slice(0, 40) : 'tu tienda';
+        const clientName = d.clientName ? String(d.clientName).slice(0, 36) : 'Cliente';
+
+        await sendPushToUser(appId, d.ownerId, {
+            title: '🛒 ¡Nuevo pedido en tu tienda!',
+            body: `${storeName}: ${clientName} · ${summary || 'Pedido nuevo'}${totalTxt}`,
+            data: {
+                type: 'store_order',
+                toneEvent: 'store_order',
+                orderId,
+                storeId: d.storeId || '',
+                tag: `store-order-${orderId}`,
+                openMerchant: 'true',
+                superVibrate: 'true'
+            },
+            highPriority: true
+        }).catch((e) => console.warn('onStoreOrderCreatedPush', e?.message || e));
+    }
+);
+
+/** Reembolso admin de puntos de un pedido de tienda pagado con saldo. */
+async function refundStoreOrderSaldoAdmin(appId, orderId, after, reason = 'cancel') {
+    if (!after || after.paymentMethod !== 'saldo') return false;
+    if (after.paymentStatus === 'refunded') return false;
+    if (after.paymentStatus !== 'paid' && after.paidAmount == null) return false;
+    const clientId = after.clientId;
+    const amt = Math.round(parseFloat(after.paidAmount ?? after.itemsTotal) * 100) / 100;
+    if (!clientId || amt <= 0) return false;
+
+    const clientRef = db.doc(`artifacts/${appId}/public/data/users/${clientId}`);
+    const orderRef = db.doc(`artifacts/${appId}/public/data/store_orders/${orderId}`);
+    let newBal = 0;
+    await db.runTransaction(async (tx) => {
+        const orderSnap = await tx.get(orderRef);
+        const order = orderSnap.exists ? (orderSnap.data() || {}) : {};
+        if (order.paymentStatus === 'refunded') return;
+        if (order.paymentMethod !== 'saldo') return;
+        const clientSnap = await tx.get(clientRef);
+        const bal = clientSnap.exists ? (parseFloat(clientSnap.data().balance) || 0) : 0;
+        newBal = Math.round((bal + amt) * 100) / 100;
+        if (clientSnap.exists) tx.update(clientRef, { balance: newBal });
+        else tx.set(clientRef, { balance: newBal }, { merge: true });
+        tx.update(orderRef, {
+            paymentStatus: 'refunded',
+            refundedAt: FieldValue.serverTimestamp(),
+            refundReason: reason,
+            refundAmount: amt,
+            updatedAt: FieldValue.serverTimestamp()
+        });
+    });
+    try {
+        await db.doc(`artifacts/${appId}/users/${clientId}/profile/data`).set({ balance: newBal }, { merge: true });
+    } catch (_) {}
+    return true;
+}
+
+/** Avisos al cliente (y refuerzo al emprendedor) cuando el pedido cambia de estado. */
+exports.onStoreOrderUpdatedPush = onDocumentUpdated(
+    'artifacts/{appId}/public/data/store_orders/{orderId}',
+    async (event) => {
+        const before = event.data.before.data() || {};
+        const after = event.data.after.data() || {};
+        const { appId, orderId } = event.params;
+        if (!after || before.status === after.status) return;
+
+        const status = String(after.status || '');
+        const storeName = after.storeName ? String(after.storeName).slice(0, 40) : 'Tienda';
+
+        // Reembolso automático de puntos si se cancela y se pagó con saldo
+        if (status === 'cancelled' && after.paymentMethod === 'saldo' && after.paymentStatus === 'paid') {
+            const reason = after.cancelledBy === 'merchant' ? 'merchant_reject' : 'client_cancel';
+            await refundStoreOrderSaldoAdmin(appId, orderId, after, reason).catch((e) => {
+                console.warn('refundStoreOrderSaldoAdmin', e?.message || e);
+            });
+        }
+
+        const labels = {
+            accepted: { title: '✅ Pedido aceptado', body: `${storeName} aceptó tu pedido y lo está preparando.` },
+            preparing: { title: '👨‍🍳 Preparando tu pedido', body: `${storeName} está preparando tu pedido.` },
+            ready: { title: '📦 Pedido listo', body: `${storeName}: tu pedido está listo. Pronto sale la entrega.` },
+            out_for_delivery: { title: '🛵 Pedido en camino', body: `${storeName}: un conductor va con tu pedido.` },
+            delivered: { title: '🎉 Pedido entregado', body: `${storeName}: ¡pedido entregado! Gracias por usar HonduRaite.` },
+            cancelled: {
+                title: '❌ Pedido cancelado',
+                body: after.paymentMethod === 'saldo'
+                    ? `${storeName}: pedido cancelado. Si pagaste con puntos, se reembolsan a tu saldo.`
+                    : `${storeName}: el pedido fue cancelado.`
+            }
+        };
+        const copy = labels[status];
+        if (!copy) return;
+
+        // Aviso al cliente
+        if (after.clientId) {
+            await sendPushToUser(appId, after.clientId, {
+                title: copy.title,
+                body: copy.body,
+                data: {
+                    type: 'store_order_update',
+                    toneEvent: 'store_order_update',
+                    orderId,
+                    storeId: after.storeId || '',
+                    status,
+                    tag: `store-order-upd-${orderId}-${status}`,
+                    openStores: 'true'
+                },
+                highPriority: true
+            }).catch(() => {});
+        }
+
+        // Si el cliente canceló, avisar al emprendedor
+        if (status === 'cancelled' && after.cancelledBy === 'client' && after.ownerId) {
+            await sendPushToUser(appId, after.ownerId, {
+                title: '❌ Pedido cancelado por el cliente',
+                body: `${after.clientName || 'Cliente'} canceló el pedido en ${storeName}.`,
+                data: {
+                    type: 'store_order_update',
+                    toneEvent: 'store_order_update',
+                    orderId,
+                    storeId: after.storeId || '',
+                    status,
+                    tag: `store-order-cancel-${orderId}`,
+                    openMerchant: 'true'
+                },
+                highPriority: true
+            }).catch(() => {});
+        }
     }
 );
 

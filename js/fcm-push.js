@@ -299,6 +299,8 @@ function playConfiguredToneFromPush(data = {}) {
             return !!window.playDriverTripOfferSound?.();
         }
         if (type === 'new_trip_staff') return !!window.playStaffTripAlertSound?.();
+        if (type === 'store_order') return !!window.playStoreOrderTone?.();
+        if (type === 'store_order_update') return !!window.playStoreOrderUpdateTone?.();
         if (type.includes('deposit')) return !!window.playDepositAlertSound?.();
         return !!window.playNotificationSound?.();
     } catch (_) {
@@ -530,6 +532,32 @@ function handleNotificationNavigation(data = {}) {
             document.getElementById('driver-view')?.classList.add('hidden');
             window.showControlPanel?.();
         } catch (_) {}
+        return;
+    }
+    // Pedido de tienda virtual → panel del emprendedor
+    if (
+        type === 'store_order'
+        || data.openMerchant === 'true'
+        || data.openMerchant === true
+        || tag.startsWith('store-order-')
+    ) {
+        try { location.hash = 'merchant-store'; } catch (_) {}
+        const open = () => {
+            try { window.openMerchantPanel?.({ createNew: false }); } catch (_) {}
+        };
+        open();
+        setTimeout(open, 400);
+        setTimeout(open, 1200);
+        return;
+    }
+    if (
+        type === 'store_order_update'
+        || data.openStores === 'true'
+        || data.openStores === true
+        || tag.startsWith('store-order-upd-')
+    ) {
+        try { location.hash = 'tiendas'; } catch (_) {}
+        try { window.openStoresMarketplace?.(); } catch (_) {}
         return;
     }
     if (type === 'new_trip_staff' || data.openAdmin === 'true' || data.openAdmin === true) {

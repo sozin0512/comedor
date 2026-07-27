@@ -57,7 +57,17 @@ export const TONE_EVENTS = [
     },
     { id: 'staff_trip', label: 'Staff · viaje nuevo', desc: 'Admin / supervisor: viaje pendiente' },
     { id: 'freight', label: 'Flete / carga', desc: 'Alertas de flete o paila' },
-    { id: 'deposit', label: 'Depósito / plazo', desc: 'Recordatorios y bloqueos de depósito' }
+    { id: 'deposit', label: 'Depósito / plazo', desc: 'Recordatorios y bloqueos de depósito' },
+    {
+        id: 'store_order',
+        label: 'Tienda · pedido nuevo',
+        desc: 'Emprendedor: llega un pedido a tu tienda virtual (push + sonido)'
+    },
+    {
+        id: 'store_order_update',
+        label: 'Tienda · actualización de pedido',
+        desc: 'Cliente o negocio: el pedido cambió de estado (aceptado, listo, en camino…)'
+    }
 ];
 
 /** Catálogo de tonos sintetizados (id estable) */
@@ -216,6 +226,18 @@ export const TONE_CATALOG = [
             { f: 784, t: 0.14, d: 0.12, v: 0.3, wave: 'triangle' },
             { f: 988, t: 0.28, d: 0.35, v: 0.34, wave: 'sine' }
         ]
+    },
+    {
+        id: 'store_cash_ring',
+        name: 'Pedido tienda (caja)',
+        flavor: 'shared',
+        blurb: 'Timbre de caja · ideal para nuevo pedido al emprendedor',
+        notes: [
+            { f: 1200, t: 0, d: 0.08, v: 0.28, wave: 'square' },
+            { f: 1600, t: 0.09, d: 0.1, v: 0.3, wave: 'square' },
+            { f: 980, t: 0.22, d: 0.18, v: 0.26, wave: 'triangle' },
+            { f: 1320, t: 0.42, d: 0.28, v: 0.32, wave: 'sine' }
+        ]
     }
 ];
 
@@ -237,7 +259,9 @@ const DEFAULT_MAP_WEB = {
     passenger_arrived: 'accepted_fanfare',
     staff_trip: 'staff_dispatch',
     freight: 'freight_horn',
-    deposit: 'deposit_warn'
+    deposit: 'deposit_warn',
+    store_order: 'store_cash_ring',
+    store_order_update: 'web_chime'
 };
 
 const DEFAULT_MAP_NATIVE = {
@@ -253,7 +277,9 @@ const DEFAULT_MAP_NATIVE = {
     passenger_arrived: 'accepted_fanfare',
     staff_trip: 'staff_dispatch',
     freight: 'freight_horn',
-    deposit: 'deposit_warn'
+    deposit: 'deposit_warn',
+    store_order: 'store_cash_ring',
+    store_order_update: 'native_pulse'
 };
 
 /** Intervalo del bucle de espera (ms) */
@@ -543,6 +569,7 @@ export function playPassengerWaitingTone() {
 export function playPassengerAcceptedTone() {
     return playEventTone('passenger_accepted');
 }
+// playStoreOrderTone / playStoreOrderUpdateTone definidos junto a resolveToneEventFromPush
 
 /**
  * Reproduce en bucle el tono de un evento (p. ej. espera del pasajero).
@@ -610,6 +637,10 @@ export function stopPassengerWaitingLoop() {
 export function resolveToneEventFromPush(data = {}) {
     const type = String(data.type || '');
     const tag = String(data.tag || '');
+    // Admin puede forzar evento de tono desde el payload
+    if (data.toneEvent && TONE_EVENTS.some((e) => e.id === data.toneEvent)) {
+        return String(data.toneEvent);
+    }
     if (type === 'chat' || data.openChat === 'true' || tag.startsWith('chat-')) return 'chat';
     if (type === 'freight_trip_alert' || tag.startsWith('freight-')) return 'freight';
     if (type === 'ride_demand_alert' || tag.startsWith('ride-demand-')) return 'ride_demand';
@@ -621,6 +652,8 @@ export function resolveToneEventFromPush(data = {}) {
     if (type === 'staff_created_trip' || tag.startsWith('staff-created-')) return 'passenger_waiting';
     if (type === 'trip_accepted' || tag.startsWith('trip-accepted-')) return 'passenger_accepted';
     if (type === 'trip_arrived' || tag.startsWith('trip-arrived-')) return 'passenger_arrived';
+    if (type === 'store_order' || tag.startsWith('store-order-')) return 'store_order';
+    if (type === 'store_order_update' || tag.startsWith('store-order-upd-')) return 'store_order_update';
     if (
         type === 'deposit_deadline_warning'
         || type === 'deposit_auto_blocked'
@@ -630,6 +663,13 @@ export function resolveToneEventFromPush(data = {}) {
         || tag.startsWith('dep-')
     ) return 'deposit';
     return 'general';
+}
+
+export function playStoreOrderTone() {
+    return playEventTone('store_order');
+}
+export function playStoreOrderUpdateTone() {
+    return playEventTone('store_order_update');
 }
 
 export function getPlatformToneLabel() {
@@ -707,6 +747,8 @@ export function installNotificationTonesApi() {
     };
 
     window.playNotificationSound = () => playGeneralTone();
+    window.playStoreOrderTone = () => playStoreOrderTone();
+    window.playStoreOrderUpdateTone = () => playStoreOrderUpdateTone();
     window.playChatSound = () => playChatTone();
     window.playDriverTripOfferSound = () => playDriverOfferTone();
     window.playStaffTripAlertSound = () => playStaffTripTone();

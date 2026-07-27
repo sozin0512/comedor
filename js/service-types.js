@@ -107,7 +107,7 @@ export const SERVICE_TYPE_META = {
         id: 'grua',
         label: 'Grúa / remolque',
         shortLabel: 'Servicio de grúa',
-        icon: 'fa-truck-monster',
+        icon: 'icon-grua', // grúa con pluma y gancho (CSS), no troca
         color: 'rose',
         base: 1500,
         perKm: 95,
@@ -614,7 +614,25 @@ export function formatFreightFareBreakdown(serviceType, quote) {
     return parts.join(' · ');
 }
 
-export function driverCanServeTrip(driverVehicleType, tripServiceType, vehiclePlate = null) {
+/** Entrega de pedido de tienda virtual (marketplace): moto y Taxi VIP. */
+export function isStoreMarketplaceDelivery(tripOrFlag = null) {
+    if (tripOrFlag === true) return true;
+    if (!tripOrFlag || typeof tripOrFlag !== 'object') return false;
+    return !!(
+        tripOrFlag.storeOrderId
+        || tripOrFlag.storeDelivery === true
+        || tripOrFlag.createdByMerchant === true
+        || tripOrFlag.deliveryDetails?.storeOrderId
+    );
+}
+
+/**
+ * @param {string} driverVehicleType
+ * @param {string} tripServiceType
+ * @param {string|null} vehiclePlate
+ * @param {object|null} trip - opcional; si es delivery de tienda virtual, permite moto y Taxi VIP
+ */
+export function driverCanServeTrip(driverVehicleType, tripServiceType, vehiclePlate = null, trip = null) {
     const driverRaw = (driverVehicleType || 'auto').toLowerCase();
     const tripRaw = normalizeServiceType(tripServiceType);
     const plate = (vehiclePlate || '').trim();
@@ -629,7 +647,15 @@ export function driverCanServeTrip(driverVehicleType, tripServiceType, vehiclePl
     if (isVipTrip) {
         return isVipDriver;
     }
-    if (tripRaw === 'moto' || tripRaw === 'delivery') {
+    if (tripRaw === 'moto') {
+        return driverRaw === 'moto';
+    }
+    if (tripRaw === 'delivery') {
+        // Mensajería normal: solo moto.
+        // Pedidos de tiendas virtuales: moto + Taxi VIP (auto).
+        if (isStoreMarketplaceDelivery(trip)) {
+            return driverRaw === 'moto' || isVipDriver;
+        }
         return driverRaw === 'moto';
     }
     if (tripRaw === 'flete_paila') {
@@ -644,27 +670,45 @@ export function driverCanServeTrip(driverVehicleType, tripServiceType, vehiclePl
     return false;
 }
 
-export function driverTripMismatchMessage(tripServiceType, driverVehicleType = null) {
-    const trip = normalizeServiceType(tripServiceType);
+export function driverTripMismatchMessage(tripServiceType, driverVehicleType = null, trip = null) {
+    const tripType = normalizeServiceType(tripServiceType);
     const driver = (driverVehicleType || 'auto').toLowerCase();
-    if (trip === 'auto' || trip === 'vip' || trip === 'taxi_vip') {
+    if (tripType === 'auto' || tripType === 'vip' || tripType === 'taxi_vip') {
         return 'Este viaje es Taxi VIP. Selecciona un vehículo VIP / Auto / Taxi VIP en "Vehículo de hoy".';
     }
-    if (trip === 'taxi') {
+    if (tripType === 'taxi') {
         if (driver === 'taxi') {
             return 'Tu taxi necesita placa oficial (T-1234). Registra un taxi con número T- válido.';
         }
         return 'Este viaje es taxi tradicional. Cambia a tu taxi con número T- en "Vehículo de hoy".';
     }
-    if (trip === 'delivery') return 'Este envío/comida es en moto. Selecciona tu moto en "Vehículo de hoy".';
-    if (trip === 'flete_paila') return 'Este flete requiere paila/pickup. Selecciona tu vehículo de paila en "Vehículo de hoy".';
-    if (trip === 'flete_camion') return 'Este flete requiere camión. Selecciona tu camión en "Vehículo de hoy".';
-    if (trip === 'grua') return 'Esta solicitud es de grúa. Selecciona tu grúa registrada en "Vehículo de hoy".';
+    if (tripType === 'delivery') {
+        if (isStoreMarketplaceDelivery(trip)) {
+            return 'Este pedido de tienda lo entregan moto o Taxi VIP. Selecciona moto o Taxi VIP en "Vehículo de hoy".';
+        }
+        return 'Este envío/comida es en moto. Selecciona tu moto en "Vehículo de hoy".';
+    }
+    if (tripType === 'flete_paila') return 'Este flete requiere paila/pickup. Selecciona tu vehículo de paila en "Vehículo de hoy".';
+    if (tripType === 'flete_camion') return 'Este flete requiere camión. Selecciona tu camión en "Vehículo de hoy".';
+    if (tripType === 'grua') return 'Esta solicitud es de grúa. Selecciona tu grúa registrada en "Vehículo de hoy".';
     return 'Este viaje es en moto. Selecciona tu moto en "Vehículo de hoy".';
 }
 
 export function getServiceLabel(type) {
     return getServiceMeta(type).shortLabel;
+}
+
+/** Clase CSS del icono de servicio (soporta iconos custom como grúa con gancho). */
+export function getServiceIconClass(typeOrMeta) {
+    const meta = typeof typeOrMeta === 'string' ? getServiceMeta(typeOrMeta) : (typeOrMeta || {});
+    const icon = String(meta.icon || 'fa-car');
+    if (icon.startsWith('icon-') || icon === 'icon-grua') return icon;
+    return `fas ${icon}`;
+}
+
+export function getServiceIconHtml(typeOrMeta, extraClass = '') {
+    const cls = [getServiceIconClass(typeOrMeta), extraClass].filter(Boolean).join(' ');
+    return `<i class="${cls}" aria-hidden="true"></i>`;
 }
 
 export function getServiceBadgeHtml(type, compact = false) {
@@ -680,7 +724,7 @@ export function getServiceBadgeHtml(type, compact = false) {
         rose: 'bg-rose-100 text-rose-800',
     };
     const cls = colors[meta.color] || colors.blue;
-    return `<span class="${size} font-black uppercase px-2 py-0.5 rounded-full ${cls}"><i class="fas ${meta.icon}"></i> ${meta.label}</span>`;
+    return `<span class="${size} font-black uppercase px-2 py-0.5 rounded-full ${cls}">${getServiceIconHtml(meta)} ${meta.label}</span>`;
 }
 
 export function getDriverVehicleTypeLabel(type) {

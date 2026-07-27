@@ -132,6 +132,7 @@ service cloud.firestore {
       // Antes: solo isClient(role==client|null) → fallaba admin/supervisor y perfiles con role raro
       // Ahora: cualquiera autenticado puede crear viaje PARA SÍ (clientId == uid)
       // Staff puede armar viaje para un cliente (staffAssistedClient)
+      // Emprendedor puede crear delivery al marcar pedido de tienda listo (createdByMerchant)
       allow create: if isSelfTripCreate()
         || (
           isSignedIn()
@@ -140,6 +141,17 @@ service cloud.firestore {
           && request.resource.data.clientId is string
           && request.resource.data.clientId.size() > 0
           && request.resource.data.staffAssistedClient == true
+        )
+        || (
+          isSignedIn()
+          && request.resource.data.createdByMerchant == true
+          && request.resource.data.merchantId == requestUid()
+          && request.resource.data.serviceType == 'delivery'
+          && request.resource.data.status == 'pending'
+          && request.resource.data.storeOrderId is string
+          && request.resource.data.storeOrderId.size() > 0
+          && request.resource.data.clientId is string
+          && request.resource.data.clientId.size() > 0
         );
 
       // ACTUALIZAR / CANCELAR: dueño (pasajero), conductor asignado, ofertado, staff
@@ -275,6 +287,62 @@ service cloud.firestore {
     match /artifacts/{app}/public/data/promotions/{promoId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && isStaff(app);
+    }
+
+    // ============================================================
+    // TIENDAS VIRTUALES (emprendedores / marketplace tipo PedidosYa)
+    // ============================================================
+
+    match /artifacts/{app}/public/data/stores/{storeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == requestUid()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0;
+      allow update: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.ownerId == requestUid()
+      );
+      allow delete: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.ownerId == requestUid()
+      );
+    }
+
+    match /artifacts/{app}/public/data/store_products/{productId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == requestUid()
+        && request.resource.data.storeId is string;
+      allow update, delete: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.ownerId == requestUid()
+      );
+    }
+
+    match /artifacts/{app}/public/data/store_orders/{orderId} {
+      // Cliente, dueño de tienda y staff ven el pedido
+      allow read: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.clientId == requestUid()
+        || resource.data.ownerId == requestUid()
+      );
+      // Cliente crea su pedido
+      allow create: if isSignedIn()
+        && request.resource.data.clientId == requestUid()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.storeId is string
+        && request.resource.data.ownerId is string;
+      // Cliente puede cancelar; dueño avanza estados; staff todo
+      allow update: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.ownerId == requestUid()
+        || (
+          resource.data.clientId == requestUid()
+          && request.resource.data.status == 'cancelled'
+        )
+      );
+      allow delete: if isSignedIn() && isStaff(app);
     }
 
     // Copa HonduRaite — retos globales conductores (ranking público: todos los logueados leen)

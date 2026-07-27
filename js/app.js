@@ -101,12 +101,12 @@ import {
     collectFreightDetailsFromUI, validateFreightDetails, formatFreightHelpersLabel,
     calculateTowFare, formatTowFareBreakdown, collectTowDetailsFromUI, validateTowDetails, formatTowDetailsSummary,
     isValidTaxiPlate,
-    getServiceBadgeHtml, getServiceLabel, getDriverVehicleTypeLabel, getTripOfferNotificationCopy,
+    getServiceBadgeHtml, getServiceIconClass, getServiceIconHtml, getServiceLabel, getDriverVehicleTypeLabel, getTripOfferNotificationCopy,
     getDriverVehicleBadgeHtml, getDriverVehicleEmoji, getDriverVehicleTypeColorClass, getDriverVehicleNoun,
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.27.9";
+} from "./service-types.js?v=2026.07.27.12";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
@@ -212,6 +212,8 @@ import {
 } from "./support-tickets.js?v=2026.07.27.9";
 import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.9";
 import { initAppDownload } from "./app-download.js?v=2026.07.27.9";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.07.27.17";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.07.27.12";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -270,6 +272,18 @@ initAppDownload({
     getCurrentUser: () => currentUser,
     getUserProfile: () => window.userProfile,
     isAdminUser: (user, profile) => isAdminUser(user, profile),
+});
+
+initMerchantStores({
+    db,
+    appId,
+    storage,
+    getCurrentUser: () => currentUser,
+    getUserProfile: () => window.userProfile,
+});
+
+initPassengerHome({
+    getUserProfile: () => window.userProfile,
 });
 
 function syncPromoUi() {
@@ -1060,6 +1074,11 @@ const isStaffUser = (user, profile) =>
     || isSupervisorUser(user, profile)
     || profile?.role === 'admin'
     || profile?.role === 'supervisor';
+
+// Expuestos para módulos (tiendas virtuales, moderación, etc.)
+window.isAdminUser = isAdminUser;
+window.isSupervisorUser = isSupervisorUser;
+window.isStaffUser = isStaffUser;
 
 /** Solo pasajeros regulares (role client) usan saldo de pasajero y solicitan viajes. */
 const canUsePassengerSaldo = (profile) => {
@@ -3377,7 +3396,12 @@ if (document.readyState === 'loading') {
 
                 const card = document.createElement('div');
                 card.className = `ride-card flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all min-h-[60px] ${isSelected ? 'border-blue-600 bg-blue-50 shadow-sm' : 'border-gray-200 bg-white hover:border-gray-300'}`;
-                let iconBg = type === 'moto' ? 'bg-violet-100 text-violet-600' : type === 'auto' ? 'bg-blue-100 text-blue-600' : type === 'taxi' ? 'bg-yellow-100 text-yellow-700' : 'bg-amber-100 text-amber-600';
+                let iconBg = type === 'moto' ? 'bg-violet-100 text-violet-600'
+                    : type === 'auto' ? 'bg-blue-100 text-blue-600'
+                    : type === 'taxi' ? 'bg-yellow-100 text-yellow-700'
+                    : type === 'grua' ? 'bg-rose-100 text-rose-600'
+                    : type === 'flete_camion' || type === 'flete_paila' ? 'bg-slate-100 text-slate-600'
+                    : 'bg-amber-100 text-amber-600';
                 let paxText;
                 if (isHourly) {
                     const stopType = window.currentHourlyStopType === 'multi' ? 'múltiples paradas' : '2 paradas';
@@ -3390,7 +3414,7 @@ if (document.readyState === 'loading') {
                 }
                 card.innerHTML = `
                     <div class="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center ${iconBg}">
-                        <i class="fas ${meta.icon} text-xl"></i>
+                        ${getServiceIconHtml(meta, 'text-xl')}
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="font-black text-sm">${meta.label}${isHourly ? ' <span class="text-emerald-600">· por horas</span>' : ''}</div>
@@ -3454,7 +3478,11 @@ if (document.readyState === 'loading') {
             if (deliveryPanel) {
                 const isDelivery = window.currentServiceType === 'delivery';
                 deliveryPanel.classList.toggle('hidden', !isDelivery);
-                if (isDelivery) window.expandTripAdvancedPanel?.();
+                if (isDelivery) {
+                    window.expandTripAdvancedPanel?.();
+                }
+                // Tiendas virtuales viven en sección propia (no dentro de Envíos)
+                try { onMerchantAuthReady?.(); } catch (_) {}
             }
 
             const destMapBtn = document.getElementById('btn-dest-map');
@@ -3566,7 +3594,18 @@ if (document.readyState === 'loading') {
                 window.showToast?.('Decreto 91-2012 se aplica de forma estricta en 34 municipios que se refiere a que 2 hombres no pueden circular en moto. Se seleccionó Taxi VIP.', 'warning');
             }
 
-            setClientServiceTypeWrapVisible(true);
+            // El menú de inicio controla si se ve el picker de servicios
+            const mode = window.getPassengerHomeMode?.() || 'home';
+            if (mode === 'home') {
+                setClientServiceTypeWrapVisible(false);
+            } else if (mode === 'trip') {
+                setClientServiceTypeWrapVisible(true);
+            } else if (mode === 'delivery' || mode === 'freight' || mode === 'tow') {
+                // Un solo tipo (o pocos): el home ya filtra/oculta
+                setClientServiceTypeWrapVisible(mode === 'freight' || mode === 'trip');
+            } else {
+                setClientServiceTypeWrapVisible(false);
+            }
 
             // Deshabilitar botón de Moto para pasajeros hombres (Decreto 91-2012)
             const motoBtn = document.getElementById('svc-btn-moto');
@@ -3585,6 +3624,7 @@ if (document.readyState === 'loading') {
 
             ensurePassengerCityPickerVisible();
             refreshPassengerBalanceUI();
+            try { syncPassengerHomeForRole?.(); } catch (_) {}
         }
 
         window.ensurePassengerTripPanelUI = ensurePassengerTripPanelUI;
@@ -3777,10 +3817,19 @@ if (document.readyState === 'loading') {
                 else if (action === 'submit-cancel-survey') window.submitCancellationSurvey?.();
                 else if (action === 'payment') {
                     const method = btn.dataset.paymentMethod;
+                    // Si eligen saldo y no alcanza, no cerrar con "saldo": forzar recarga o efectivo
+                    if (method === 'saldo' && btn.dataset.saldoShort === '1') {
+                        window.showToast?.('Tu saldo no alcanza este viaje. Recarga o paga en efectivo.', 'warning');
+                        return;
+                    }
                     if (method && window.resolvePayment) {
                         window.resolvePayment(method);
                         btn.closest('.fixed')?.remove();
                     }
+                } else if (action === 'payment-recharge') {
+                    window.resolvePayment?.(null);
+                    btn.closest('.fixed')?.remove();
+                    setTimeout(() => window.showRechargeModal?.(), 200);
                 } else if (action === 'payment-cancel') {
                     window.resolvePayment?.(null);
                     btn.closest('.fixed')?.remove();
@@ -3801,14 +3850,24 @@ if (document.readyState === 'loading') {
                     // Fallback si no corrió el listener directo del #panel-hide-btn
                     window.toggleActivePanel?.();
                 } else if (action === 'show-panel') {
-                    // FAB «Abrir panel»: expandir aunque esté minimizado
+                    // FAB «Abrir panel»: volver a mostrar el panel central completo
                     const panel = document.getElementById('control-panel');
                     const isCollapsed = !!panel?.classList.contains('panel-collapsed')
+                        || panel?.classList.contains('panel-hidden')
                         || document.body.classList.contains('panel-minimized')
                         || document.body.classList.contains('panel-hidden');
                     if (isCollapsed && typeof window.expandDriverControlPanel === 'function'
                         && document.body.classList.contains('driver-mode')) {
                         window.expandDriverControlPanel();
+                    } else if (document.body.classList.contains('client-mode')) {
+                        // Forzar apertura total del panel central
+                        document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
+                        panel?.classList.remove('panel-hidden', 'panel-collapsed');
+                        try { localStorage.setItem('honduber_control_panel_hidden', '0'); } catch (_) {}
+                        window.showControlPanel?.();
+                        try { window.syncPanelHideChevron?.(); } catch (_) {}
+                        const paxMinLabel = document.querySelector('#passenger-panel-min-btn .passenger-panel-min-label');
+                        if (paxMinLabel) paxMinLabel.textContent = 'Minimizar';
                     } else if (isCollapsed) {
                         window.toggleActivePanel?.();
                     } else {
@@ -4063,8 +4122,8 @@ if (document.readyState === 'loading') {
                 if (model) model.placeholder = 'Marca y modelo de la grúa';
                 if (plate) plate.placeholder = 'Placa de la grúa';
                 if (hint) hint.innerText = 'Grúa: remolque y auxilio vial. Indica capacidad de carga o remolque y sube fotos del equipo.';
-                if (interiorLabel) interiorLabel.innerHTML = '<i class="fas fa-truck-monster"></i> CABINA Y EQUIPO (3 fotos)';
-                if (exteriorLabel) exteriorLabel.innerHTML = '<i class="fas fa-truck-monster"></i> EXTERIOR DE LA GRÚA (2 fotos)';
+                if (interiorLabel) interiorLabel.innerHTML = '<i class="icon-grua"></i> CABINA Y EQUIPO (3 fotos)';
+                if (exteriorLabel) exteriorLabel.innerHTML = '<i class="icon-grua"></i> EXTERIOR DE LA GRÚA (2 fotos)';
                 if (vehicleStepTitle) vehicleStepTitle.textContent = 'Fotos de la grúa';
                 if (int1Span) int1Span.innerText = 'Cabina';
                 if (int2Span) int2Span.innerText = 'Equipo / pluma';
@@ -5071,9 +5130,9 @@ if (document.readyState === 'loading') {
             if (!driverId || !t) return false;
             if ((t.declinedDriverIds || []).includes(driverId)) return false;
             if (!tripVisibleToDriver(t, { zoneId: driverZoneId, registeredDriverZones })) return false;
-            if (driverCanServeTrip(driverVehicleType, t.serviceType || 'auto', driverPlate)) return true;
+            if (driverCanServeTrip(driverVehicleType, t.serviceType || 'auto', driverPlate, t)) return true;
             return approvedForDriver.some((v) =>
-                driverCanServeTrip(v.type, t.serviceType || 'auto', v.vehicle?.plate || null)
+                driverCanServeTrip(v.type, t.serviceType || 'auto', v.vehicle?.plate || null, t)
             );
         }
 
@@ -5198,7 +5257,7 @@ if (document.readyState === 'loading') {
             driversSnap.forEach((d) => {
                 const loc = d.data();
                 if (!isDriverOnline(loc)) return;
-                if (!driverCanServeTrip(loc.vehicleType || 'auto', trip.serviceType || 'auto', loc.vehiclePlate)) return;
+                if (!driverCanServeTrip(loc.vehicleType || 'auto', trip.serviceType || 'auto', loc.vehiclePlate, trip)) return;
                 if (!driverLocationMatchesTripCity(loc, tZone, null, {
                     tripCityHasLocalDrivers: hasLocalFleet
                 })) return;
@@ -5616,7 +5675,7 @@ if (document.readyState === 'loading') {
                 for (const d of snap.docs) {
                     const t = d.data();
                     if (t.status !== 'pending' || t.offeredToDriverId !== currentUser.uid) continue;
-                    if (driverCanServeTrip(vType, t.serviceType || 'auto', plate)) continue;
+                    if (driverCanServeTrip(vType, t.serviceType || 'auto', plate, t)) continue;
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', d.id), {
                         declinedDriverIds: arrayUnion(currentUser.uid),
                         offeredToDriverId: null,
@@ -5686,7 +5745,7 @@ if (document.readyState === 'loading') {
                 if (!isDriverOnline(loc)) continue;
 
                 const driverVehicleType = loc.vehicleType || 'auto';
-                if (!driverCanServeTrip(driverVehicleType, trip.serviceType || 'auto', loc.vehiclePlate)) continue;
+                if (!driverCanServeTrip(driverVehicleType, trip.serviceType || 'auto', loc.vehiclePlate, trip)) continue;
                 if (!tripZoneId || !driverLocationMatchesTripCity(loc, tripZoneId, null, {
                     tripCityHasLocalDrivers: hasLocalFleet
                 })) continue;
@@ -6634,7 +6693,12 @@ if (document.readyState === 'loading') {
                 detailParts.push('<p class="driver-offer-detail-line"><i class="fas fa-info-circle"></i> Tienes un viaje en curso; este iría después de terminar y calificar.</p>');
             }
             if (t.serviceType === 'delivery' && t.deliveryDetails) {
-                detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-utensils"></i> ${t.deliveryDetails.category === 'comida' ? 'Comida' : 'Envío'} · ${t.deliveryDetails.recipientName || 'destinatario'}${t.deliveryDetails.packageDescription ? ` · ${t.deliveryDetails.packageDescription}` : ''}</p>`);
+                const isStoreOrder = !!(t.storeOrderId || t.storeDelivery || t.createdByMerchant || t.deliveryDetails.storeOrderId);
+                if (isStoreOrder) {
+                    detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-store"></i> Pedido de tienda · moto o Taxi VIP · ${t.deliveryDetails.recipientName || 'destinatario'}${t.deliveryDetails.packageDescription ? ` · ${t.deliveryDetails.packageDescription}` : ''}</p>`);
+                } else {
+                    detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-utensils"></i> ${t.deliveryDetails.category === 'comida' ? 'Comida' : 'Envío'} · ${t.deliveryDetails.recipientName || 'destinatario'}${t.deliveryDetails.packageDescription ? ` · ${t.deliveryDetails.packageDescription}` : ''}</p>`);
+                }
             }
             if (isFreightService(t.serviceType) && t.freightDetails) {
                 detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-truck-loading"></i> ${t.freightDetails.cargoDescription || 'Carga'}${t.freightDetails.estimatedWeight ? ` · ${t.freightDetails.estimatedWeight}` : ''} · ${t.freightDetails.contactName || 'contacto'}${formatFreightHelpersLabel(t.freightDetails)}</p>`);
@@ -7402,9 +7466,9 @@ if (document.readyState === 'loading') {
                     const hasCompatiblePending = pendingInZone.some(d => {
                         const t = d.data();
                         const svc = t.serviceType || 'auto';
-                        if (driverCanServeTrip(driverVehicleType, svc, t.vehiclePlate || driverPlate)) return true;
+                        if (driverCanServeTrip(driverVehicleType, svc, t.vehiclePlate || driverPlate, t)) return true;
                         return approvedForDriver.some((v) =>
-                            driverCanServeTrip(v.type, svc, v.vehicle?.plate || null)
+                            driverCanServeTrip(v.type, svc, v.vehicle?.plate || null, t)
                         );
                     });
                     const incompatibleVehicle = pendingInCity > 0 && !hasCompatiblePending;
@@ -7545,11 +7609,11 @@ if (document.readyState === 'loading') {
                 let vTypeForTrip = operatingVehicleType || 'auto';
                 let plateForTrip = operatingVehicle?.vehicle?.plate || null;
 
-                const currentMatches = !testAccept && driverCanServeTrip(vTypeForTrip, tripService, plateForTrip);
+                const currentMatches = !testAccept && driverCanServeTrip(vTypeForTrip, tripService, plateForTrip, trip);
 
                 if (!currentMatches) {
                     const match = approvedVehicles.find((v) =>
-                        driverCanServeTrip(v.type, tripService, v.vehicle?.plate || null)
+                        driverCanServeTrip(v.type, tripService, v.vehicle?.plate || null, trip)
                     );
                     if (match) {
                         vehicleForTrip = match;
@@ -7562,8 +7626,8 @@ if (document.readyState === 'loading') {
                     }
                 }
 
-                if (!testAccept && !driverCanServeTrip(vTypeForTrip, tripService, plateForTrip)) {
-                    throw new Error(driverTripMismatchMessage(tripService, operatingVehicleType));
+                if (!testAccept && !driverCanServeTrip(vTypeForTrip, tripService, plateForTrip, trip)) {
+                    throw new Error(driverTripMismatchMessage(tripService, operatingVehicleType, trip));
                 }
 
                 const driverSync = {
@@ -7750,7 +7814,7 @@ if (document.readyState === 'loading') {
             
             const previewDiv = document.getElementById('edit-photo-preview');
             if (window.userProfile.photo) {
-                previewDiv.innerHTML = `<img src="${window.userProfile.photo}" class="w-full h-full object-cover">`;
+                previewDiv.innerHTML = `<img src="${window.userProfile.photo}" alt="Foto de perfil" class="profile-photo-img">`;
                 editProfilePhotoBase64 = window.userProfile.photo;
             } else {
                 previewDiv.innerHTML = `<i class="fas fa-user-shield"></i>`;
@@ -7912,19 +7976,24 @@ if (document.readyState === 'loading') {
                 reader.onload = (e) => {
                     const img = new Image();
                     img.onload = () => {
+                        // Recorte centrado a cuadrado para que se vea bien en el círculo de perfil
+                        const size = 320;
+                        const side = Math.min(img.width, img.height);
+                        const sx = Math.max(0, (img.width - side) / 2);
+                        const sy = Math.max(0, (img.height - side) / 2);
                         const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
-                        if (width > height) {
-                            if (width > 256) { height *= 256 / width; width = 256; }
-                        } else {
-                            if (height > 256) { width *= 256 / height; height = 256; }
+                        canvas.width = size;
+                        canvas.height = size;
+                        const ctx = canvas.getContext('2d');
+                        ctx.imageSmoothingEnabled = true;
+                        ctx.imageSmoothingQuality = 'high';
+                        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+
+                        editProfilePhotoBase64 = canvas.toDataURL('image/jpeg', 0.82);
+                        const preview = document.getElementById('edit-photo-preview');
+                        if (preview) {
+                            preview.innerHTML = `<img src="${editProfilePhotoBase64}" alt="Foto de perfil" class="profile-photo-img">`;
                         }
-                        canvas.width = width; canvas.height = height;
-                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                        
-                        editProfilePhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                        document.getElementById('edit-photo-preview').innerHTML = `<img src="${editProfilePhotoBase64}" class="w-full h-full object-cover">`;
                     };
                     img.src = e.target.result;
                 };
@@ -8775,7 +8844,7 @@ if (document.readyState === 'loading') {
             return `
             <article class="ops-trip-compact ops-trip-compact--${meta.accent}" data-trip-phase="${phase}" data-trip-id="${t.id}">
                 <button type="button" class="ops-trip-compact-main" onclick="window.toggleStaffTripCompactExpand('${expandId}')">
-                    <span class="ops-trip-compact-phase"><i class="fas ${meta.icon}"></i></span>
+                    <span class="ops-trip-compact-phase">${getServiceIconHtml(meta)}</span>
                     <span class="ops-trip-compact-body">
                         <span class="ops-trip-compact-people"><b>${client}</b> · ${driver}${metaBits}</span>
                         <span class="ops-trip-compact-route">${origin} → ${dest}</span>
@@ -8955,7 +9024,7 @@ if (document.readyState === 'loading') {
                 const n = groups[p].length;
                 return `<div class="ops-trips-mini-kpi ops-trips-mini-kpi--${meta.accent}">
                     <span class="ops-trips-mini-kpi-val">${n}</span>
-                    <span class="ops-trips-mini-kpi-lab"><i class="fas ${meta.icon}"></i> ${meta.title}</span>
+                    <span class="ops-trips-mini-kpi-lab">${getServiceIconHtml(meta)} ${meta.title}</span>
                 </div>`;
             }).join('');
 
@@ -8970,7 +9039,7 @@ if (document.readyState === 'loading') {
                     return `
                     <section class="ops-trips-list-section ops-trips-list-section--${meta.accent}" data-phase-col="${p}">
                         <header class="ops-trips-list-head">
-                            <span class="ops-trips-col-icon"><i class="fas ${meta.icon}"></i></span>
+                            <span class="ops-trips-col-icon">${getServiceIconHtml(meta)}</span>
                             <div>
                                 <h4 class="ops-trips-col-title">${meta.title}</h4>
                                 <p class="ops-trips-col-sub">${list.length} viaje${list.length === 1 ? '' : 's'} · ${meta.sub}</p>
@@ -9004,7 +9073,7 @@ if (document.readyState === 'loading') {
                     <section class="ops-trips-col ops-trips-col--${meta.accent}" data-phase-col="${p}">
                         <header class="ops-trips-col-head">
                             <div class="ops-trips-col-title-wrap">
-                                <span class="ops-trips-col-icon"><i class="fas ${meta.icon}"></i></span>
+                                <span class="ops-trips-col-icon">${getServiceIconHtml(meta)}</span>
                                 <div>
                                     <h4 class="ops-trips-col-title">${meta.title}</h4>
                                     <p class="ops-trips-col-sub">${meta.sub}</p>
@@ -20672,7 +20741,8 @@ window.saveProfileChanges = async () => {
 
         const headerAvatar = document.getElementById('avatar-placeholder');
         if (headerAvatar && editProfilePhotoBase64) {
-            headerAvatar.innerHTML = `<img src="${editProfilePhotoBase64}" class="w-full h-full object-cover">`;
+            headerAvatar.innerHTML = `<img src="${editProfilePhotoBase64}" alt="Perfil" class="profile-photo-img">`;
+            headerAvatar.classList.remove('bg-blue-600', 'text-white', 'font-bold');
         }
 
         if (!bankChanged) window.showToast("Cambios guardados correctamente", "success");
@@ -22017,7 +22087,7 @@ window.saveProfileChanges = async () => {
                         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
                         
                         profilePhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                        document.getElementById('photo-preview').innerHTML = `<img src="${profilePhotoBase64}" class="w-full h-full object-cover">`;
+                        document.getElementById('photo-preview').innerHTML = `<img src="${profilePhotoBase64}" alt="Foto de perfil" class="profile-photo-img">`;
                     };
                     img.src = e.target.result;
                 };
@@ -23523,6 +23593,8 @@ onAuthStateChanged(auth, async (user) => {
 
     if (user) {
         currentUser = user;
+        try { onMerchantAuthReady?.(); } catch (_) {}
+        try { syncPassengerHomeForRole?.(); } catch (_) {}
 
         // Define download helpers early so onclick in admin lists work immediately
         if (!window.downloadRefImage) {
@@ -24018,10 +24090,10 @@ onAuthStateChanged(auth, async (user) => {
                     }
                 }, 800);
 
-                // Avatar en el header
+                // Avatar en el header (cualquier tamaño se adapta al círculo)
                 const headerAvatar = document.getElementById('avatar-placeholder');
                 if (headerAvatar && profile.photo) {
-                    headerAvatar.innerHTML = `<img src="${profile.photo}" class="w-full h-full object-cover">`;
+                    headerAvatar.innerHTML = `<img src="${profile.photo}" alt="Perfil" class="profile-photo-img">`;
                     headerAvatar.classList.remove('bg-blue-600', 'text-white', 'font-bold');
                 }
 
@@ -24393,6 +24465,15 @@ onAuthStateChanged(auth, async (user) => {
                     const passengerPanelBlocked = profile.accountRestricted || clientStatus === 'suspended';
                     if (!passengerPanelBlocked) {
                         ensurePassengerTripPanelUI();
+                        // Menú de inicio: solo si no hay viaje activo restaurado
+                        try {
+                            if (restoredActiveTrip) {
+                                document.getElementById('passenger-home-hub')?.classList.add('hidden');
+                                document.getElementById('passenger-mode-bar')?.classList.add('hidden');
+                            } else {
+                                showPassengerHomeMenu?.();
+                            }
+                        } catch (_) {}
                     }
                     updateZoneHint();
 
@@ -25092,6 +25173,12 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             window.resetTripPanelCollapse?.();
             window.restoreControlPanelAfterDriverTrip?.();
             window.hideTripFloatPanels?.();
+            // Volver al menú de inicio del pasajero (viaje / pedido / envío…)
+            try {
+                if (window.userProfile?.role === 'client' || !window.userProfile?.role) {
+                    setTimeout(() => showPassengerHomeMenu?.(), 50);
+                }
+            } catch (_) {}
 
             const atp = document.getElementById('active-trip-panel');
             if (atp) {
@@ -28680,8 +28767,8 @@ function showSimplePassengerSetup() {
             <div class="text-center">
                 <p class="text-[9px] font-black text-gray-600 uppercase mb-1">Foto de perfil <span class="text-gray-400 font-semibold normal-case">(opcional)</span></p>
                 <div data-reg-photo-pick
-                     class="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-blue-100 to-white flex items-center justify-center cursor-pointer overflow-hidden border-2 border-dashed border-blue-200 shadow-md active:scale-95 transition-all">
-                    <img id="passenger-reg-photo-preview" class="w-full h-full object-cover hidden rounded-full">
+                     class="profile-photo-box profile-photo-box--lg w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-blue-100 to-white flex items-center justify-center cursor-pointer overflow-hidden border-2 border-dashed border-blue-200 shadow-md active:scale-95 transition-all">
+                    <img id="passenger-reg-photo-preview" class="profile-photo-img hidden rounded-full" alt="Foto de perfil">
                     <div id="passenger-reg-photo-placeholder" class="text-center">
                         <i class="fas fa-camera text-xl text-blue-400"></i>
                     </div>
@@ -29301,11 +29388,16 @@ window.saveSimplePassengerProfile = async () => {
     }
 };
 
-        // NUEVO: Modal para elegir método de pago
-        window.choosePaymentMethod = () => {
+        // Modal para elegir método de pago (muestra tarifa + saldo; avisa si no alcanza)
+        window.choosePaymentMethod = (opts = {}) => {
             if (window._paymentModalOpen && window._paymentModalResolve) {
                 return window._paymentModalPromise || Promise.resolve(null);
             }
+
+            const priceNum = Math.round((parseFloat(opts.priceNum) || 0) * 100) / 100;
+            const bal = Math.round((parseFloat(window.userProfile?.balance) || 0) * 100) / 100;
+            const saldoShort = priceNum > 0 && bal < priceNum;
+            const shortfall = saldoShort ? Math.round((priceNum - bal) * 100) / 100 : 0;
 
             window._paymentModalPromise = new Promise((resolve) => {
                 window._paymentModalOpen = true;
@@ -29313,29 +29405,66 @@ window.saveSimplePassengerProfile = async () => {
 
                 const modal = document.createElement('div');
                 modal.className = `fixed inset-0 bg-black/70 z-[40000] flex items-center justify-center p-4`;
-                
+
+                const warnBanner = saldoShort
+                    ? `<div class="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-left">
+                            <p class="text-xs font-black text-amber-900 leading-snug">
+                                Tu saldo no alcanza este viaje
+                            </p>
+                            <p class="text-[11px] font-semibold text-amber-800 mt-0.5 leading-snug">
+                                Viaje L. ${priceNum.toFixed(2)} · Saldo L. ${bal.toFixed(2)}
+                                ${shortfall > 0 ? ` · Faltan L. ${shortfall.toFixed(2)}` : ''}
+                            </p>
+                            <p class="text-[11px] text-amber-700 mt-1 leading-snug">
+                                Puedes pagar en <b>efectivo</b> al conductor, o recargar y usar puntos.
+                            </p>
+                       </div>`
+                    : (priceNum > 0
+                        ? `<div class="mb-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                                <p class="text-[11px] font-bold text-slate-600">
+                                    Tarifa L. ${priceNum.toFixed(2)} · Tu saldo L. ${bal.toFixed(2)}
+                                </p>
+                           </div>`
+                        : '');
+
+                const saldoBtnClass = saldoShort
+                    ? 'w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-purple-200 bg-purple-50/60 opacity-70'
+                    : 'w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-gray-200 hover:border-purple-500 active:bg-purple-50';
+                const saldoSub = saldoShort
+                    ? `Saldo L. ${bal.toFixed(2)} — no alcanza (recarga primero)`
+                    : `Usar saldo de recargas (L. ${bal.toFixed(2)})`;
+
                 modal.innerHTML = `
                     <div class="bg-white rounded-3xl w-full max-w-sm p-6">
-                        <h3 class="font-black text-xl mb-4 text-center">¿Cómo deseas pagar este viaje?</h3>
-                        
+                        <h3 class="font-black text-xl mb-3 text-center">¿Cómo deseas pagar este viaje?</h3>
+                        ${warnBanner}
                         <div class="space-y-3">
                             <button type="button" data-trip-action="payment" data-payment-method="efectivo"
                                     class="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-gray-200 hover:border-emerald-500 active:bg-emerald-50">
                                 <i class="fas fa-money-bill-wave text-2xl text-emerald-600 pointer-events-none"></i>
                                 <div class="text-left pointer-events-none">
                                     <p class="font-black">Efectivo</p>
-                                    <p class="text-xs text-gray-500">Pagar al conductor al finalizar</p>
+                                    <p class="text-xs text-gray-500">${saldoShort ? 'Pagar al conductor (saldo no cubre la tarifa)' : 'Pagar al conductor al finalizar'}</p>
                                 </div>
                             </button>
 
                             <button type="button" data-trip-action="payment" data-payment-method="saldo"
-                                    class="w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-gray-200 hover:border-purple-500 active:bg-purple-50">
+                                    class="${saldoBtnClass}"
+                                    ${saldoShort ? 'data-saldo-short="1"' : ''}>
                                 <i class="fas fa-wallet text-2xl text-purple-600 pointer-events-none"></i>
                                 <div class="text-left pointer-events-none">
                                     <p class="font-black">Mis Puntos / Saldo</p>
-                                    <p class="text-xs text-gray-500">Usar saldo de recargas</p>
+                                    <p class="text-xs text-gray-500">${saldoSub}</p>
                                 </div>
                             </button>
+
+                            ${saldoShort
+                                ? `<button type="button" data-trip-action="payment-recharge"
+                                        class="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-amber-400 bg-amber-50 text-amber-900 font-black text-sm">
+                                        <i class="fas fa-plus-circle pointer-events-none"></i>
+                                        <span class="pointer-events-none">Recargar saldo</span>
+                                   </button>`
+                                : ''}
                         </div>
 
                         <button type="button" data-trip-action="payment-cancel"
@@ -31861,25 +31990,35 @@ window.cancelSetupAndLogout = () => {
                 paymentMethod = 'birthday_gift';
                 window.showToast('🎂 ¡Viaje gratis por tu cumpleaños! Disfrútalo.', 'success');
             } else if (!isScheduled) {
-                paymentMethod = await window.choosePaymentMethod();
+                // Saldo fresco del servidor antes de decidir (evita saldo viejo en caché)
+                try {
+                    await refreshPassengerBalanceFromServer(false);
+                } catch (_) {}
+                paymentMethod = await window.choosePaymentMethod({ priceNum });
                 if (!paymentMethod) return;
+                const balNow = Math.round((parseFloat(window.userProfile?.balance) || 0) * 100) / 100;
                 if (paymentMethod === 'saldo') {
                     promoFields = await buildPromoTripFields(currentUser.uid, priceNum);
-                    const chargeAmount = promoFields.passengerPaysAmount ?? priceNum;
-                    const bal = window.userProfile.balance || 0;
-                    if (bal < chargeAmount) {
+                    const chargeAmount = Math.round((parseFloat(promoFields.passengerPaysAmount ?? priceNum) || 0) * 100) / 100;
+                    if (balNow < chargeAmount) {
                         const promoHint = promoFields.promoDiscountApplied
                             ? ` (con promo necesitas L. ${chargeAmount.toFixed(2)})`
-                            : '';
-                        window.showToast(`Saldo insuficiente${promoHint}. Toca RECARGAR en tu saldo.`, "warning");
+                            : ` (viaje L. ${chargeAmount.toFixed(2)}, saldo L. ${balNow.toFixed(2)})`;
+                        window.showToast(`Tu saldo no alcanza este viaje${promoHint}. Recarga o elige efectivo.`, 'warning');
                         setTimeout(() => {
                             if (window.showRechargeModal) window.showRechargeModal();
-                        }, 1200);
+                        }, 900);
                         return;
                     }
                     if (promoFields.promoDiscountApplied) {
                         window.showToast(`🎁 Promo ${promoFields.promoCode}: pagarás L. ${chargeAmount.toFixed(2)} con saldo.`, 'success');
                     }
+                } else if (paymentMethod === 'efectivo' && balNow > 0 && balNow < priceNum) {
+                    // Aviso claro: puede pedir en efectivo, pero el saldo no cubre la tarifa
+                    window.showToast(
+                        `Tu saldo (L. ${balNow.toFixed(2)}) no alcanza este viaje (L. ${priceNum.toFixed(2)}). Pagarás en efectivo al conductor.`,
+                        'info'
+                    );
                 }
             } else {
                 paymentMethod = 'efectivo';
@@ -32039,6 +32178,20 @@ window.cancelSetupAndLogout = () => {
                         // Fuente de verdad del servidor (appSettings)
                         tripPayload.negotiationEnabled = !!vfData.negotiationEnabled;
                     }
+                    // Sincronizar saldo real del servidor
+                    if (vfData && Number.isFinite(Number(vfData.balance)) && window.userProfile) {
+                        window.userProfile.balance = Number(vfData.balance);
+                        try { refreshPassengerBalanceUI?.(); } catch (_) {}
+                    }
+                    // Aviso si va en efectivo y el saldo no cubría la tarifa
+                    if (vfData?.saldoWarning === 'saldo_no_alcanza_efectivo' && paymentMethod === 'efectivo') {
+                        const b = Number(vfData.balance) || 0;
+                        const c = Number(vfData.chargeAmount) || priceNum;
+                        window.showToast(
+                            `Tu saldo (L. ${b.toFixed(2)}) no alcanza este viaje (L. ${c.toFixed(2)}). Pagarás en efectivo.`,
+                            'info'
+                        );
+                    }
                 } catch (vfErr) {
                     const code = String(vfErr?.code || '');
                     const msg = String(vfErr?.message || vfErr?.details || '');
@@ -32120,15 +32273,27 @@ window.cancelSetupAndLogout = () => {
                 const isAuth = code.includes('unauthenticated') || /unauth|sesión|sesion/i.test(msg);
                 const isBlocked = code.includes('failed-precondition')
                     || /suspend|rechazad|restring/i.test(msg);
+                const isSaldoShort = /saldo|puntos|balance|insuficiente|no alcanza/i.test(msg);
+                const cleanMsg = msg
+                    .replace(/^FirebaseError:\s*/i, '')
+                    .replace(/^functions\/[a-z-]+:\s*/i, '')
+                    .trim();
                 window.showToast(
                     isAuth
                         ? 'Tu sesión expiró. Cierra sesión y vuelve a entrar.'
-                        : isBlocked
-                            ? (msg || 'Tu cuenta no puede solicitar viajes ahora.')
-                            : isPerm
-                                ? 'No se pudo crear el viaje (permisos). Recarga con Ctrl+F5 o vuelve a iniciar sesión. Si eres admin de prueba, ya debería funcionar tras actualizar reglas.'
-                                : (msg && msg.length < 120 ? msg : 'Error al solicitar el viaje. Intenta de nuevo.')
+                        : isSaldoShort
+                            ? (cleanMsg && cleanMsg.length < 140
+                                ? cleanMsg
+                                : 'Tu saldo no alcanza este viaje. Recarga o paga en efectivo.')
+                            : isBlocked
+                                ? (cleanMsg || 'Tu cuenta no puede solicitar viajes ahora.')
+                                : isPerm
+                                    ? 'No se pudo crear el viaje (permisos). Recarga con Ctrl+F5 o vuelve a iniciar sesión. Si eres admin de prueba, ya debería funcionar tras actualizar reglas.'
+                                    : (cleanMsg && cleanMsg.length < 120 ? cleanMsg : 'Error al solicitar el viaje. Intenta de nuevo.')
                 );
+                if (isSaldoShort) {
+                    setTimeout(() => window.showRechargeModal?.(), 1000);
+                }
             }
         };
 

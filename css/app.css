@@ -1,4 +1,4 @@
-:root {
+﻿:root {
             --app-height: 100%;
             --hn-blue: #0c4a8e;
             --hn-blue-light: #1a6bb5;
@@ -49,7 +49,7 @@
 
         /*
          * App nativa (Capacitor): respetar reloj, notificaciones y notch.
-         * En WebView Android env(safe-area-*) a veces es 0; usamos mínimo + valor
+         * En WebView Android env(safe-area-*) a veces es 0; usamos mÃ­nimo + valor
          * inyectado por MainActivity (--native-safe-top / --native-safe-bottom).
          */
         body.capacitor-native {
@@ -60,7 +60,7 @@
         }
 
         body.capacitor-android {
-            /* Status bar + aire extra: reloj/notificaciones no deben tapar atrás / cerrar */
+            /* Status bar + aire extra: reloj/notificaciones no deben tapar atrÃ¡s / cerrar */
             --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 56px));
             --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 18px));
         }
@@ -91,13 +91,13 @@
         }
 
         body.capacitor-android .hn-flag-stripe {
-            /* La franja de bandera también queda bajo el safe-area del shell */
+            /* La franja de bandera tambiÃ©n queda bajo el safe-area del shell */
             flex-shrink: 0;
         }
 
         /*
          * Paneles fixed a pantalla completa (admin / supervisor / perfil / setup).
-         * inset:0 ignora el padding de #app-interface → hay que aplicar safe-area aquí.
+         * inset:0 ignora el padding de #app-interface â†’ hay que aplicar safe-area aquÃ­.
          */
         body.capacitor-native .ops-panel,
         body.capacitor-android .ops-panel {
@@ -127,7 +127,7 @@
             padding-bottom: var(--safe-bottom, 16px);
         }
 
-        /* Modales fijos genéricos: respetar safe-area en APK */
+        /* Modales fijos genÃ©ricos: respetar safe-area en APK */
         body.capacitor-android .fixed.inset-0,
         body.capacitor-native .fixed.inset-0 {
             padding-top: max(0.75rem, var(--safe-top, 0px));
@@ -145,7 +145,7 @@
             padding-bottom: max(0.45rem, var(--safe-bottom)) !important;
         }
 
-        /* Viaje activo en APK: faja inferior, no full-screen (mapa + navegación visibles) */
+        /* Viaje activo en APK: faja inferior, no full-screen (mapa + navegaciÃ³n visibles) */
         body.capacitor-native.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel,
         body.capacitor-android.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
             top: auto !important;
@@ -171,7 +171,7 @@
             padding-bottom: max(0.75rem, var(--safe-bottom));
         }
 
-        /* Header fijo arriba — el logo no invade el panel de viajes */
+        /* Header fijo arriba â€” el logo no invade el panel de viajes */
         #app-header {
             flex-shrink: 0;
             overflow: visible;
@@ -313,7 +313,7 @@
             border: 0;
         }
 
-        /* —— Ciudad: tarjeta compacta en panel de viajes —— */
+        /* â€”â€” Ciudad: tarjeta compacta en panel de viajes â€”â€” */
         .city-zone-compact {
             border-radius: 1.15rem;
             background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
@@ -402,7 +402,7 @@
             border-radius: 0.65rem;
         }
 
-        /* —— Barra ciudad pasajero —— */
+        /* â€”â€” Barra ciudad pasajero â€”â€” */
         .passenger-city-card {
             display: flex;
             align-items: center;
@@ -444,7 +444,7 @@
             touch-action: manipulation;
         }
 
-        /* —— Modal selector de ciudad —— */
+        /* â€”â€” Modal selector de ciudad â€”â€” */
         #city-picker-modal {
             animation: cityModalFadeIn 0.22s ease-out;
         }
@@ -858,7 +858,7 @@
             color: #dc2626;
         }
 
-        /* Menú ⋮: no mostrar Copas (se veían feas en Android; ranking sigue en el mapa) */
+        /* MenÃº â‹®: no mostrar Copas (se veÃ­an feas en Android; ranking sigue en el mapa) */
         #header-menu-copa,
         #header-menu-pcopa,
         #header-more-menu .header-more-item-copa {
@@ -874,7 +874,7 @@
             opacity: 0 !important;
         }
 
-        /* Copa HonduRaite — estilos (por si se reactivan en el futuro) */
+        /* Copa HonduRaite â€” estilos (por si se reactivan en el futuro) */
         .header-more-item-copa {
             position: relative;
             margin: 0.15rem 0 0.25rem;
@@ -1176,7 +1176,7 @@
             z-index: 1;
         }
 
-        /* Envíos: solo recogida → entrega, sin paradas cobradas */
+        /* EnvÃ­os: solo recogida â†’ entrega, sin paradas cobradas */
         body.trip-service-delivery #standard-extra-stops-wrap {
             display: none !important;
         }
@@ -1430,7 +1430,7 @@
             color: #1e40af;
         }
 
-        /* Al minimizar el panel NO mantener el botón de ruta GMaps a pantalla grande */
+        /* Al minimizar el panel NO mantener el botÃ³n de ruta GMaps a pantalla grande */
         body.trip-active #control-panel.panel-collapsed #driver-route-hero,
         body.trip-active #control-panel.panel-collapsed #driver-destination-controls,
         body.trip-active #control-panel.panel-collapsed #driver-panel-pin,
@@ -1768,7 +1768,7 @@
             z-index: 45;
         }
 
-        /* Chip de ciudad siempre accesible (pasajeros y conductores) — no ocultar por heatmap */
+        /* Chip de ciudad siempre accesible (pasajeros y conductores) â€” no ocultar por heatmap */
 
         .demand-legend-pulse {
             display: inline-flex;
@@ -2186,8 +2186,8 @@
             margin: 0;
         }
 
-        /* --- LOGIN MÓVIL: logo hero grande --- */
-        /* El safe-area ya lo aplica .login-screen; aquí solo respiro visual */
+        /* --- LOGIN MÃ“VIL: logo hero grande --- */
+        /* El safe-area ya lo aplica .login-screen; aquÃ­ solo respiro visual */
         .login-hero {
             padding-top: 2rem;
         }
@@ -2369,7 +2369,7 @@
             scrollbar-color: #cbd5e1 transparent;
         }
 
-        /* Login más compacto en celular */
+        /* Login mÃ¡s compacto en celular */
         @media (max-width: 639px) {
             .login-hero {
                 padding-top: 0.85rem;
@@ -2414,7 +2414,7 @@
         .login-hero-compact .login-brand-sub { font-size: 0.52rem; }
         .login-hero-compact .login-brand-tagline { font-size: 0.5rem; }
 
-        /* Registro conductor — móvil primero, formulario completo con fotos */
+        /* Registro conductor â€” mÃ³vil primero, formulario completo con fotos */
         .driver-setup-screen {
             position: fixed;
             inset: 0;
@@ -2435,7 +2435,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 0.5rem;
-            /* Pantalla full-screen fixed: sí necesita safe-top propio */
+            /* Pantalla full-screen fixed: sÃ­ necesita safe-top propio */
             padding: max(0.5rem, var(--safe-top, env(safe-area-inset-top, 0px))) 0.75rem 0.5rem;
             background: rgba(4, 30, 66, 0.92);
             border-bottom: 1px solid rgba(255, 255, 255, 0.12);
@@ -2445,7 +2445,7 @@
 
         body.capacitor-native .driver-setup-bar,
         body.capacitor-android .driver-setup-bar {
-            /* Atrás/cerrar debajo del reloj (no colisionar con status bar) */
+            /* AtrÃ¡s/cerrar debajo del reloj (no colisionar con status bar) */
             padding-top: max(0.85rem, calc(var(--safe-top, 52px) + 0.55rem)) !important;
             padding-bottom: 0.65rem;
             min-height: calc(3.1rem + var(--safe-top, 52px));
@@ -2729,7 +2729,7 @@
             }
         }
 
-        /* --- INTERFAZ DE NAVEGACIÓN (compacta, no media pantalla) --- */
+        /* --- INTERFAZ DE NAVEGACIÃ“N (compacta, no media pantalla) --- */
         #nav-hud-top {
             position: fixed;
             top: max(8px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 6px));
@@ -2876,7 +2876,7 @@
             display: inline;
         }
 
-        /* Base bottom: oculto; en driver-nav se convierte en chip pequeño */
+        /* Base bottom: oculto; en driver-nav se convierte en chip pequeÃ±o */
         #nav-hud-bottom {
             position: absolute;
             bottom: 0;
@@ -3165,7 +3165,7 @@
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            /* critical: el panel usa pan-y/grab; este botón debe ser solo tap */
+            /* critical: el panel usa pan-y/grab; este botÃ³n debe ser solo tap */
             touch-action: manipulation !important;
             -webkit-user-drag: none !important;
             user-select: none !important;
@@ -3183,7 +3183,7 @@
             visibility: visible !important;
         }
 
-        /* El panel no debe “robar” el gesto del chevron con cursor grab */
+        /* El panel no debe â€œrobarâ€ el gesto del chevron con cursor grab */
         body.trip-active #control-panel #panel-hide-btn,
         body.driver-mode #control-panel #panel-hide-btn {
             cursor: pointer !important;
@@ -3282,12 +3282,16 @@
         }
 
         body.client-mode .control-panel-header {
-            cursor: default;
-            touch-action: pan-y;
+            /* Pasajero ya tiene Â«MinimizarÂ»; esta asa duplicada solo quita espacio */
+            display: none !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
 
-        body.client-mode .control-panel-drag-hint {
-            display: none;
+        body.client-mode .control-panel-drag-hint,
+        body.client-mode .control-panel-grab {
+            display: none !important;
         }
 
         body.driver-mode #control-panel {
@@ -3354,7 +3358,7 @@
 
         /*
          * Viaje activo (conductor): ocultar flotantes que tapan el mapa / HUD
-         * y bloquean la ✕ de copas o el minimizar de ganancias.
+         * y bloquean la âœ• de copas o el minimizar de ganancias.
          */
         body.trip-active.driver-mode #driver-earnings-float,
         body.trip-active.driver-mode #driver-objectives-active,
@@ -3426,7 +3430,7 @@
             background: rgba(100, 116, 139, 0.55);
         }
 
-        /* En viaje / navegación del conductor: ocultar scrollbar (sigue scrollable al tacto) */
+        /* En viaje / navegaciÃ³n del conductor: ocultar scrollbar (sigue scrollable al tacto) */
         body.trip-active.driver-mode #panel-content,
         body.trip-active.driver-mode .driver-active-body,
         body.trip-active.driver-mode #active-trip-panel,
@@ -3449,7 +3453,7 @@
             background: transparent !important;
         }
 
-        /* Móvil en general: scrollbars menos molestas en el panel */
+        /* MÃ³vil en general: scrollbars menos molestas en el panel */
         @media (max-width: 768px) {
             #panel-content,
             .driver-active-body,
@@ -3497,7 +3501,7 @@
             flex-shrink: 0;
         }
 
-        /* —— Panel de viajes reorganizado —— */
+        /* â€”â€” Panel de viajes reorganizado â€”â€” */
         #panel-content.trip-panel-scroll {
             padding: 0 1rem 0.65rem;
         }
@@ -4539,7 +4543,7 @@
             pointer-events: none;
         }
 
-        /* Antes se ocultaba el chevron en búsqueda y el pasajero no podía bajar el panel */
+        /* Antes se ocultaba el chevron en bÃºsqueda y el pasajero no podÃ­a bajar el panel */
         body.is-searching #control-panel .panel-hide-btn,
         body.is-searching #control-panel #panel-hide-btn {
             display: flex !important;
@@ -4549,16 +4553,16 @@
             z-index: 500 !important;
         }
 
-        /* Pasajero: asa Minimizar (web + Android) */
+        /* Pasajero: asa Minimizar (web + Android) â€” compacta, sin barra extra abajo */
         .passenger-panel-min-btn {
             display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 0.28rem;
+            gap: 0.15rem;
             width: 100%;
             margin: 0;
-            padding: 0.35rem 0.5rem 0.45rem;
+            padding: 0.22rem 0.5rem 0.2rem;
             border: none;
             background: transparent;
             cursor: pointer;
@@ -4571,13 +4575,20 @@
         }
 
         .passenger-panel-min-label {
-            font-size: 0.58rem;
+            font-size: 0.55rem;
             font-weight: 800;
             letter-spacing: 0.12em;
             text-transform: uppercase;
             color: #94a3b8;
             line-height: 1;
             pointer-events: none;
+        }
+
+        /* Una sola rayita (la del botÃ³n Minimizar); sin segunda barra debajo */
+        body.client-mode #passenger-panel-min-btn .trip-sheet-grabber {
+            width: 2rem;
+            height: 0.22rem;
+            margin-bottom: 0;
         }
 
         body.client-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #passenger-panel-min-btn,
@@ -4594,7 +4605,7 @@
 
         body.client-mode.panel-minimized #control-panel #passenger-panel-min-btn.is-collapsed,
         body.client-mode #control-panel.panel-collapsed #passenger-panel-min-btn {
-            /* Cuando está minimizado usamos chevron ^ / mini contenido; no duplicar */
+            /* Cuando estÃ¡ minimizado usamos chevron ^ / mini contenido; no duplicar */
             display: none !important;
         }
 
@@ -4610,7 +4621,7 @@
             color: #0f766e !important;
         }
 
-        /* Booking / idle pasajero minimizado (no solo búsqueda) */
+        /* Booking / idle pasajero minimizado (no solo bÃºsqueda) */
         body.client-mode.panel-minimized #control-panel,
         body.client-mode #control-panel.panel-collapsed {
             max-height: min(34dvh, 240px) !important;
@@ -4697,7 +4708,7 @@
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             margin-top: 0 !important;
-            /* Hueco para el botón fijo "Cancelar solicitud" */
+            /* Hueco para el botÃ³n fijo "Cancelar solicitud" */
             padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px)) !important;
         }
 
@@ -4836,7 +4847,7 @@
             box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35) !important;
         }
 
-        /* Countdown más compacto para no empujar el cancelar fuera de vista */
+        /* Countdown mÃ¡s compacto para no empujar el cancelar fuera de vista */
         body.is-searching #searching-state .passenger-pending-countdown {
             margin-top: 0.45rem;
             padding: 0.5rem 0.7rem 0.55rem;
@@ -4994,7 +5005,7 @@
             box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
         }
 
-        /* —— Conductor: tarjeta de oferta compacta (negociar sin scroll) —— */
+        /* â€”â€” Conductor: tarjeta de oferta compacta (negociar sin scroll) â€”â€” */
         .driver-offer-card {
             display: flex;
             flex-direction: column;
@@ -5485,12 +5496,12 @@
         }
 
         .driver-offer-details summary::before {
-            content: '▸ ';
+            content: 'â–¸ ';
             color: #94a3b8;
         }
 
         .driver-offer-details[open] summary::before {
-            content: '▾ ';
+            content: 'â–¾ ';
         }
 
         .driver-offer-details-body {
@@ -5527,7 +5538,7 @@
             color: #dc2626;
         }
 
-        /* —— Panel de decisión (precio + aceptar / rechazar) —— */
+        /* â€”â€” Panel de decisiÃ³n (precio + aceptar / rechazar) â€”â€” */
         .driver-offer-decision {
             display: flex;
             flex-direction: column;
@@ -6218,7 +6229,7 @@
 
         /*
          * Conductor: SIN banners verdes flotantes.
-         * La navegación vive en #driver-panel-nav (panel central).
+         * La navegaciÃ³n vive en #driver-panel-nav (panel central).
          * El panel ya tiene Minimizar / Mapa.
          */
         body.driver-mode #nav-hud-top,
@@ -6235,7 +6246,7 @@
             opacity: 0 !important;
         }
 
-        /* Navegación dentro del panel central del conductor */
+        /* NavegaciÃ³n dentro del panel central del conductor */
         .driver-panel-nav {
             display: flex;
             flex-direction: column;
@@ -6388,7 +6399,7 @@
             max-width: min(320px, calc(100vw - 1.25rem));
         }
 
-        /* Chip ETA inferior izquierdo — compacto, anclado al sheet Uber (~18rem), NO a 70dvh */
+        /* Chip ETA inferior izquierdo â€” compacto, anclado al sheet Uber (~18rem), NO a 70dvh */
         body.driver-nav-mode #nav-hud-bottom {
             position: absolute;
             left: max(8px, env(safe-area-inset-left, 0px));
@@ -6419,7 +6430,7 @@
             bottom: calc(min(46%, 22rem) + 0.45rem + env(safe-area-inset-bottom, 0px));
         }
 
-        /* Sheet minimizado: chip más abajo */
+        /* Sheet minimizado: chip mÃ¡s abajo */
         body.driver-nav-mode.trip-active.panel-minimized #nav-hud-bottom {
             bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
         }
@@ -6552,7 +6563,7 @@
             display: none !important;
         }
 
-        /* Botón flotante ETA cuando el chip está minimizado */
+        /* BotÃ³n flotante ETA cuando el chip estÃ¡ minimizado */
         body.driver-nav-mode.nav-hud-minimized #nav-hud-bottom .nav-hud-toggle-btn {
             position: absolute;
             left: max(8px, env(safe-area-inset-left, 0px));
@@ -6708,7 +6719,7 @@
             }
         }
 
-        /* Vista pasajero estilo Uber — mapa grande + seguimiento del conductor.
+        /* Vista pasajero estilo Uber â€” mapa grande + seguimiento del conductor.
            Minimizado: barra compacta (status + conductor), no full height. */
         body.passenger-track-mode.trip-active #control-panel.panel-collapsed,
         body.passenger-track-mode.trip-active.panel-minimized #control-panel {
@@ -6742,7 +6753,7 @@
             display: none !important;
         }
 
-        /* Pasajero: un solo panel — barra ETA + tarjeta conductor fusionados */
+        /* Pasajero: un solo panel â€” barra ETA + tarjeta conductor fusionados */
         body.trip-active:not(.driver-mode) #trip-mini-bar {
             display: none !important;
         }
@@ -6820,7 +6831,7 @@
         }
 
         body.trip-active:not(.driver-mode) #control-panel.panel-collapsed #tp-name::after {
-            content: ' · ' attr(data-plate);
+            content: ' Â· ' attr(data-plate);
             font-size: 0.62rem;
             font-weight: 800;
             color: #64748b;
@@ -6906,7 +6917,7 @@
             font-size: 1.35rem;
         }
 
-        /* Banner «N conductores en tu ciudad / disponibles»: oculto (estorba al pasajero) */
+        /* Banner Â«N conductores en tu ciudad / disponiblesÂ»: oculto (estorba al pasajero) */
         #nearby-drivers-indicator,
         #nearby-drivers-indicator:not(.hidden) {
             display: none !important;
@@ -6935,7 +6946,7 @@
         }
         .searching-pulse { animation: pulse-blue 2s infinite; }
 
-        /* —— Pasajero: esperando conductor (panel simple) —— */
+        /* â€”â€” Pasajero: esperando conductor (panel simple) â€”â€” */
         .passenger-pending-wrap {
             text-align: center;
             padding: 0 0.25rem 0.5rem;
@@ -7652,8 +7663,8 @@
         }
 
         /*
-         * Navegación / viaje conductor: solo mapa (sin saludo, logo, bandera).
-         * Antes solo se ocultaba el header en móvil + is-navigating.
+         * NavegaciÃ³n / viaje conductor: solo mapa (sin saludo, logo, bandera).
+         * Antes solo se ocultaba el header en mÃ³vil + is-navigating.
          */
         body.is-navigating #app-header,
         body.driver-nav-mode #app-header,
@@ -7697,7 +7708,7 @@
         
         input { font-size: 16px !important; }
 
-        /* ========== MODO DÍA / NOCHE ========== */
+        /* ========== MODO DÃA / NOCHE ========== */
         html[data-theme="light"] {
             color-scheme: light;
         }
@@ -8137,7 +8148,7 @@
             }
         }
 
-        /* — Empresa SOZIN: aviso de derechos reservados — */
+        /* â€” Empresa SOZIN: aviso de derechos reservados â€” */
         .sozin-copyright {
             text-align: center;
             line-height: 1.35;
@@ -8188,7 +8199,7 @@
             opacity: 0.85;
         }
 
-        /* — Pantallas pequeñas: que todo quepa sin amontonarse — */
+        /* â€” Pantallas pequeÃ±as: que todo quepa sin amontonarse â€” */
         @media (max-width: 639px) {
             #login-screen > [data-sozin-copyright="on-gradient"] {
                 display: none;
@@ -8361,7 +8372,7 @@
             }
         }
 
-        /* Ride options (Moto/Auto/Envío) - Uber style after locations */
+        /* Ride options (Moto/Auto/EnvÃ­o) - Uber style after locations */
         #ride-options {
             margin-top: 0.75rem;
         }
@@ -8470,7 +8481,7 @@
             border-color: #475569 !important;
         }
 
-        /* —— Modal actualización de app —— */
+        /* â€”â€” Modal actualizaciÃ³n de app â€”â€” */
         .app-update-modal-overlay {
             position: fixed;
             inset: 0;
@@ -8604,7 +8615,7 @@
             color: var(--dm-text-muted);
         }
 
-        /* —— Modal parada extra (origen + destino listos) —— */
+        /* â€”â€” Modal parada extra (origen + destino listos) â€”â€” */
         .extra-stop-prompt-overlay {
             position: fixed;
             inset: 0;
@@ -8843,7 +8854,7 @@
             background: #475569;
         }
 
-        /* —— Paneles Admin / Supervisión (ops dashboard) —— */
+        /* â€”â€” Paneles Admin / SupervisiÃ³n (ops dashboard) â€”â€” */
         .ops-panel {
             display: flex;
             /* Cadena flex: sin min-height:0 el contenido crece y se recorta (body overflow:hidden) */
@@ -8878,7 +8889,7 @@
             position: fixed;
             inset: 0;
             background: rgba(2, 6, 23, 0.55);
-            /* Por encima del contenido sticky (buscador z-index 5–8); si no, en WebView el input “tapa” el menú */
+            /* Por encima del contenido sticky (buscador z-index 5â€“8); si no, en WebView el input â€œtapaâ€ el menÃº */
             z-index: 40;
             pointer-events: auto;
         }
@@ -9174,7 +9185,7 @@
             padding: 1rem;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
-            /* pan-y: permite scroll táctil aunque html/body usen touch-action: manipulation */
+            /* pan-y: permite scroll tÃ¡ctil aunque html/body usen touch-action: manipulation */
             touch-action: pan-y;
         }
 
@@ -9270,7 +9281,7 @@
                 transform: translateX(-104%);
                 transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
                 box-shadow: 12px 0 40px rgba(0, 0, 0, 0.45);
-                /* Evita que un input sticky del contenido se pinte encima del menú en Android WebView */
+                /* Evita que un input sticky del contenido se pinte encima del menÃº en Android WebView */
                 z-index: 50;
             }
 
@@ -9285,7 +9296,7 @@
 
             /*
              * Con drawer abierto: el listado/buscador no debe capturar toques
-             * (si no, el sticky search se siente “trabado” sobre el menú).
+             * (si no, el sticky search se siente â€œtrabadoâ€ sobre el menÃº).
              * El topbar sigue activo para poder cerrar con la hamburguesa.
              */
             .ops-panel.ops-drawer-open .ops-content {
@@ -9315,14 +9326,14 @@
                 padding: 0.75rem;
             }
 
-            /* Sticky en móvil con teclado + drawer suele “congelar” el scroll; priorizar estabilidad */
+            /* Sticky en mÃ³vil con teclado + drawer suele â€œcongelarâ€ el scroll; priorizar estabilidad */
             .ops-toolbar--sticky {
                 top: 0;
                 z-index: 4;
             }
         }
 
-        /* —— Páginas internas Admin / Supervisión —— */
+        /* â€”â€” PÃ¡ginas internas Admin / SupervisiÃ³n â€”â€” */
         .ops-page {
             display: flex;
             flex-direction: column;
@@ -9554,7 +9565,7 @@
         .ops-toolbar--sticky {
             position: sticky;
             top: 0;
-            /* Bajo el drawer (40/50). z-index alto hacía que el buscador flotara encima de la hamburguesa en móvil */
+            /* Bajo el drawer (40/50). z-index alto hacÃ­a que el buscador flotara encima de la hamburguesa en mÃ³vil */
             z-index: 5;
             backdrop-filter: blur(8px);
             -webkit-backdrop-filter: blur(8px);
@@ -9643,7 +9654,7 @@
             padding-top: 0.75rem;
         }
 
-        /* Al scrollear: compactar hint/chips, NUNCA ocultar el input de búsqueda */
+        /* Al scrollear: compactar hint/chips, NUNCA ocultar el input de bÃºsqueda */
         #admin-users-list.admin-search-scrolled .ops-toolbar-hint,
         #supervisor-pending-list.admin-search-scrolled .ops-toolbar-hint {
             display: none;
@@ -9905,7 +9916,7 @@
             min-width: 0;
         }
 
-        /* —— Dashboard de viajes activos (admin / supervisor) —— */
+        /* â€”â€” Dashboard de viajes activos (admin / supervisor) â€”â€” */
         .ops-trips-page-hero {
             display: flex;
             flex-direction: column;
@@ -10195,7 +10206,7 @@
             flex-direction: column;
             gap: 0.55rem;
             padding: 0.65rem;
-            /* Sin max-height en móvil: el scroll único es .ops-content (evita scroll anidado roto al expandir cartas) */
+            /* Sin max-height en mÃ³vil: el scroll Ãºnico es .ops-content (evita scroll anidado roto al expandir cartas) */
             max-height: none;
             overflow: visible;
         }
@@ -10442,7 +10453,7 @@
             cursor: pointer;
         }
 
-        /* Vista previa “pantalla del conductor” (staff revisa mapa/GPS) */
+        /* Vista previa â€œpantalla del conductorâ€ (staff revisa mapa/GPS) */
         .staff-driver-screen-preview .staff-driver-screen-kicker {
             color: #0d9488;
         }
@@ -10483,7 +10494,7 @@
         }
         body.staff-driver-screen-preview-active #admin-panel,
         body.staff-driver-screen-preview-active #supervisor-panel {
-            /* dejar el mapa visible detrás */
+            /* dejar el mapa visible detrÃ¡s */
         }
 
         /* Panel flotante viaje en vivo desde mapa de flota */
@@ -10873,7 +10884,7 @@
         .staff-live-trip-chat-body .ops-trip-chat-sender--client { color: #60a5fa; }
         .staff-live-trip-chat-body .ops-trip-chat-sender--driver { color: #34d399; }
 
-        /* Dropzone tonos (Personalización admin) */
+        /* Dropzone tonos (PersonalizaciÃ³n admin) */
         .admin-tone-dropzone--active {
             border-color: #10b981 !important;
             background: rgba(16, 185, 129, 0.12) !important;
@@ -12477,8 +12488,8 @@
             justify-content: center;
         }
 
-        /* Viaje activo: mismo estilo de pastilla táctil que el chat */
-        /* Viaje / nav: sin pill flotante «Viaje activo» */
+        /* Viaje activo: mismo estilo de pastilla tÃ¡ctil que el chat */
+        /* Viaje / nav: sin pill flotante Â«Viaje activoÂ» */
         body.trip-active.driver-mode #driver-radar-float,
         body.driver-nav-mode #driver-radar-float,
         body.is-navigating.driver-mode #driver-radar-float,
@@ -12489,7 +12500,7 @@
             opacity: 0 !important;
         }
 
-        /* Ciudad en el mapa: oculta en viaje / navegación */
+        /* Ciudad en el mapa: oculta en viaje / navegaciÃ³n */
         body.trip-active #service-zone-map-chip,
         body.driver-nav-mode #service-zone-map-chip,
         body.is-navigating #service-zone-map-chip,
@@ -12805,7 +12816,7 @@
             margin-top: 0.25rem;
         }
 
-        /* Flotantes de viaje activo (PIN + chat) — z-index alto para que el botón minimizar reciba clicks en web */
+        /* Flotantes de viaje activo (PIN + chat) â€” z-index alto para que el botÃ³n minimizar reciba clicks en web */
         #driver-pin-float.trip-float--fixed {
             z-index: 28600;
             cursor: default;
@@ -12911,7 +12922,7 @@
             -webkit-user-select: none;
         }
 
-        /* —— Flotante unificado pasajero: conductor + PIN (1 sola tarjeta) —— */
+        /* â€”â€” Flotante unificado pasajero: conductor + PIN (1 sola tarjeta) â€”â€” */
         #client-trip-float.trip-float {
             max-width: min(320px, calc(100vw - 1.3rem));
             padding: 0.55rem 0.6rem 0.65rem;
@@ -13300,7 +13311,7 @@
             border: none !important;
         }
 
-        /* Pasajero en viaje: asa «Minimizar» visible (antes estaba oculta → no bajaba el panel en Android) */
+        /* Pasajero en viaje: asa Â«MinimizarÂ» visible (antes estaba oculta â†’ no bajaba el panel en Android) */
         body.client-mode.trip-active #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
         body.passenger-trip-float-active #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
         body.trip-active:not(.driver-mode) #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
@@ -14111,7 +14122,7 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* Ya no se usa el verde de “todo bien” (se oculta si GPS OK) */
+        /* Ya no se usa el verde de â€œtodo bienâ€ (se oculta si GPS OK) */
         .live-trip-gps-pill--ok {
             display: none !important;
         }
@@ -14148,10 +14159,10 @@
         }
 
         /*
-         * Conductor · viaje activo — estilo UBER:
+         * Conductor Â· viaje activo â€” estilo UBER:
          * - Mapa casi a pantalla completa (gesto libre)
-         * - Faja inferior mínima: pasajero + IR AHORA + Maps/Chat
-         * Importante: ganar a body.driver-mode:not(.panel-minimized)… (pantalla completa)
+         * - Faja inferior mÃ­nima: pasajero + IR AHORA + Maps/Chat
+         * Importante: ganar a body.driver-mode:not(.panel-minimized)â€¦ (pantalla completa)
          * y a body.driver-mode.panel-minimized { display:none }.
          */
         body.trip-active.driver-mode #fab-traffic,
@@ -14177,8 +14188,8 @@
         }
 
         /*
-         * Conductor: asa «Minimizar» SOLO con el panel maximizado.
-         * Minimizado → mini-barra con «Abrir» (sin asa).
+         * Conductor: asa Â«MinimizarÂ» SOLO con el panel maximizado.
+         * Minimizado â†’ mini-barra con Â«AbrirÂ» (sin asa).
          */
         body.trip-active.driver-mode #control-panel.panel-collapsed .trip-drag-handle,
         body.trip-active.driver-mode.panel-minimized #control-panel .trip-drag-handle {
@@ -14234,7 +14245,7 @@
         }
 
         /*
-         * Asa «Minimizar» integrada al sheet (no pastilla flotante).
+         * Asa Â«MinimizarÂ» integrada al sheet (no pastilla flotante).
          * Ancho completo, suave, como el handle de Uber.
          */
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle,
@@ -14321,7 +14332,7 @@
             box-shadow: none !important;
         }
 
-        /* En viaje expandido: header vacío no ocupa espacio (el asa hace de top) */
+        /* En viaje expandido: header vacÃ­o no ocupa espacio (el asa hace de top) */
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .control-panel-header {
             min-height: 0 !important;
             height: 0 !important;
@@ -14331,7 +14342,7 @@
             opacity: 0 !important;
         }
 
-        /* Chevron de esquina: más discreto en viaje (el asa es el control principal) */
+        /* Chevron de esquina: mÃ¡s discreto en viaje (el asa es el control principal) */
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) > #panel-hide-btn {
             width: 1.75rem !important;
             height: 1.75rem !important;
@@ -14389,7 +14400,7 @@
             z-index: 15;
         }
 
-        /* Chevron «v»: siempre visible y tocable en viaje (hijo directo del panel) */
+        /* Chevron Â«vÂ»: siempre visible y tocable en viaje (hijo directo del panel) */
         body.trip-active.driver-mode #control-panel > #panel-hide-btn,
         body.trip-active.driver-mode #control-panel > .panel-hide-btn,
         body.driver-mode #control-panel > #panel-hide-btn,
@@ -14481,7 +14492,7 @@
             opacity: 0 !important;
         }
 
-        /* Capa de flotantes: el contenedor no come toques; el chat sí es tocable */
+        /* Capa de flotantes: el contenedor no come toques; el chat sÃ­ es tocable */
         body.trip-active.driver-mode #trip-floats-layer {
             display: block !important;
             visibility: visible !important;
@@ -14568,7 +14579,7 @@
             height: 2.25rem !important;
         }
 
-        /* Conductor en viaje: NO FAB «Centrar» en el mapa (va en el panel verde / mini-barra) */
+        /* Conductor en viaje: NO FAB Â«CentrarÂ» en el mapa (va en el panel verde / mini-barra) */
         body.trip-active.driver-mode #fab-center,
         body.driver-nav-mode #fab-center,
         body.driver-mode.is-navigating #fab-center,
@@ -14626,7 +14637,7 @@
             display: none !important;
         }
 
-        /* —— Sheet Uber —— */
+        /* â€”â€” Sheet Uber â€”â€” */
         body.trip-active.driver-mode .driver-uber-sheet {
             display: flex;
             flex-direction: column;
@@ -14743,7 +14754,7 @@
 
         /*
          * Minimizado: barra compacta (NO display:none del driver idle).
-         * body.driver-mode.panel-minimized #control-panel { display:none } se anula aquí.
+         * body.driver-mode.panel-minimized #control-panel { display:none } se anula aquÃ­.
          */
         body.trip-active.driver-mode #control-panel.panel-collapsed,
         body.trip-active.driver-mode.panel-minimized #control-panel,
@@ -14773,7 +14784,7 @@
             pointer-events: auto !important;
         }
 
-        /* Sin asa «Minimizar» ni en minimizado: solo mini-barra con Abrir */
+        /* Sin asa Â«MinimizarÂ» ni en minimizado: solo mini-barra con Abrir */
         body.trip-active.driver-mode #control-panel.panel-collapsed .trip-drag-handle,
         body.trip-active.driver-mode.panel-minimized #control-panel .trip-drag-handle {
             display: none !important;
@@ -15201,7 +15212,7 @@
             display: none !important;
         }
 
-        /* Minimizado: no mostrar “Ir al origen/destino” ni controles de llegada / PIN */
+        /* Minimizado: no mostrar â€œIr al origen/destinoâ€ ni controles de llegada / PIN */
         body.trip-active.driver-mode #control-panel.panel-collapsed #driver-route-hero,
         body.trip-active.driver-mode #control-panel.panel-collapsed #driver-destination-controls,
         body.trip-active.driver-mode #control-panel.panel-collapsed #driver-panel-pin,
@@ -15234,7 +15245,7 @@
             filter: grayscale(0.15);
         }
 
-        /* Controles de destino del sheet: el botón vive en #driver-arrived-dest-float */
+        /* Controles de destino del sheet: el botÃ³n vive en #driver-arrived-dest-float */
         body.trip-active.driver-mode #driver-destination-controls {
             display: none !important;
         }
@@ -15279,7 +15290,7 @@
             padding-right: 2.75rem !important;
         }
 
-        /* Refuerzo final: asa integrada (sin pastilla ni márgenes raros) */
+        /* Refuerzo final: asa integrada (sin pastilla ni mÃ¡rgenes raros) */
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-drag-handle,
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .trip-sheet-min-bar {
@@ -15342,9 +15353,9 @@
         }
 
         /*
-         * Viaje activo maximizado en móvil: SIEMPRE faja abajo (no full-screen).
-         * El mapa de arriba sigue tocable y la navegación (giro/GPS) sigue activa.
-         * Estas reglas van al final a propósito para ganar a height:100% del driver idle.
+         * Viaje activo maximizado en mÃ³vil: SIEMPRE faja abajo (no full-screen).
+         * El mapa de arriba sigue tocable y la navegaciÃ³n (giro/GPS) sigue activa.
+         * Estas reglas van al final a propÃ³sito para ganar a height:100% del driver idle.
          */
         body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel,
         body.trip-active.driver-mode.is-navigating:not(.panel-minimized):not(.panel-collapsed) #control-panel,
@@ -15379,7 +15390,7 @@
             }
         }
 
-        /* Mapa sigue recibiendo gestos aunque el panel esté maximizado abajo */
+        /* Mapa sigue recibiendo gestos aunque el panel estÃ© maximizado abajo */
         body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #map,
         body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #map-container,
         body.trip-active.driver-mode.is-navigating:not(.panel-minimized) #map,
@@ -15404,7 +15415,7 @@
             color: #e2e8f0;
         }
 
-        /* —— Banner verificación pasajero —— */
+        /* â€”â€” Banner verificaciÃ³n pasajero â€”â€” */
         .passenger-verify-banner {
             display: flex;
             align-items: center;
@@ -15501,7 +15512,7 @@
             color: rgba(255, 255, 255, 0.95);
         }
 
-        /* —— Modal elección verificar ahora / más tarde (estilo Uber) —— */
+        /* â€”â€” Modal elecciÃ³n verificar ahora / mÃ¡s tarde (estilo Uber) â€”â€” */
         .passenger-verify-choice-overlay {
             position: fixed;
             inset: 0;
@@ -15916,7 +15927,7 @@
             }
         }
 
-        /* —— Promociones pasajero (compactas + arrastrables) —— */
+        /* â€”â€” Promociones pasajero (compactas + arrastrables) â€”â€” */
         /* fixed por defecto: en WebView Android absolute dentro del mapa a menudo no se ve */
         .passenger-promo-strip {
             position: fixed;
@@ -16044,7 +16055,7 @@
 
         /*
          * Copa conductor = mismo UI que promos de pasajero
-         * (passenger-promo-strip: grip + track + ✕, arrastrable).
+         * (passenger-promo-strip: grip + track + âœ•, arrastrable).
          * Visible solo en driver-mode; promos de pasajero se ocultan en driver-mode.
          */
         .driver-copa-promo-strip,
@@ -16113,7 +16124,7 @@
             width: 100%;
         }
 
-        /* ✕ igual que passenger-promo-close, bien visible */
+        /* âœ• igual que passenger-promo-close, bien visible */
         .driver-copa-promo-strip .passenger-promo-close {
             display: flex !important;
             flex: 0 0 1.55rem !important;
@@ -16407,7 +16418,7 @@
             background: #1e293b;
         }
 
-        /* —— Admin APK upload —— */
+        /* â€”â€” Admin APK upload â€”â€” */
         .admin-apk-step-hint {
             margin: 0 0 0.75rem;
             padding: 0.55rem 0.75rem;
@@ -16511,7 +16522,7 @@
             100% { background-position: -100% 0; }
         }
 
-        /* —— Badge dorado "Descarga nuestra app" (compacto) —— */
+        /* â€”â€” Badge dorado "Descarga nuestra app" (compacto) â€”â€” */
         .app-download-badge {
             position: absolute;
             right: 0.45rem;
@@ -16731,7 +16742,7 @@
             }
         }
 
-        /* —— Tutorial instalación APK —— */
+        /* â€”â€” Tutorial instalaciÃ³n APK â€”â€” */
         .apk-tutorial-overlay,
         .apk-update-overlay {
             position: fixed;
@@ -16936,7 +16947,7 @@
             color: #a8a29e;
         }
 
-        /* —— Modal update APK nativo —— */
+        /* â€”â€” Modal update APK nativo â€”â€” */
         .apk-update-sheet {
             width: 100%;
             max-width: 22.5rem;
@@ -17092,7 +17103,7 @@
             color: #f8fafc;
         }
 
-        /* ─── HonduBot (asistente IA de soporte) ─── */
+        /* â”€â”€â”€ HonduBot (asistente IA de soporte) â”€â”€â”€ */
         #hondubot-root {
             position: fixed;
             inset: 0;
@@ -17386,7 +17397,7 @@
             color: #f8fafc;
         }
 
-        /* —— Conductor: pantalla emergente tipo Uber (oferta de viaje) —— */
+        /* â€”â€” Conductor: pantalla emergente tipo Uber (oferta de viaje) â€”â€” */
         .driver-trip-offer-popup {
             position: fixed;
             inset: 0;
@@ -17439,7 +17450,7 @@
             box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.28);
             animation: driver-offer-popup-slide 0.32s cubic-bezier(0.22, 1, 0.36, 1);
             overflow: hidden;
-            /* Mejor composición en GPUs móviles */
+            /* Mejor composiciÃ³n en GPUs mÃ³viles */
             transform: translateZ(0);
             -webkit-transform: translateZ(0);
         }
@@ -17566,7 +17577,7 @@
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
             padding-bottom: 0.35rem;
-            /* Espacio extra para el teclado numérico al ofertar */
+            /* Espacio extra para el teclado numÃ©rico al ofertar */
             scroll-padding-bottom: 6rem;
         }
 
@@ -17577,7 +17588,7 @@
             margin: 0;
         }
 
-        /* Botones más grandes y fáciles de tocar en el popup del celular */
+        /* Botones mÃ¡s grandes y fÃ¡ciles de tocar en el popup del celular */
         .driver-trip-offer-popup-body .driver-offer-decision-accept,
         .driver-trip-offer-popup-body .driver-offer-decision-accept--go {
             min-height: 3.25rem;
@@ -17611,7 +17622,7 @@
 
         body.driver-offer-popup-open {
             overflow: hidden;
-            /* Evita scroll del mapa/fondo detrás en iOS */
+            /* Evita scroll del mapa/fondo detrÃ¡s en iOS */
             position: relative;
             touch-action: none;
         }
@@ -17691,7 +17702,7 @@
             }
         }
 
-        /* APK Capacitor: un poco más de aire abajo (gesto home) */
+        /* APK Capacitor: un poco mÃ¡s de aire abajo (gesto home) */
         body.capacitor-native .driver-trip-offer-popup-sheet,
         body.capacitor-android .driver-trip-offer-popup-sheet {
             padding-bottom: max(1rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.5rem));
@@ -17748,7 +17759,7 @@
             }
         }
 
-/* ========== Copa HonduRaite — retos globales ========== */
+/* ========== Copa HonduRaite â€” retos globales ========== */
 #driver-copa-active,
 #passenger-copa-active {
     position: fixed;
@@ -18013,7 +18024,7 @@
 .copa-status--paid { color: #047857; }
 .copa-status--warn { color: #c2410c; }
 
-/* Chip Copa — barrita con ✕ como promos de pasajeros */
+/* Chip Copa â€” barrita con âœ• como promos de pasajeros */
 #driver-copa-strip,
 #passenger-copa-strip {
     display: block;
@@ -18067,7 +18078,7 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
     max-width: min(240px, 72vw);
 }
 
-/* ✕ estilo passenger-promo-close */
+/* âœ• estilo passenger-promo-close */
 .copa-strip-close {
     width: 1.65rem;
     height: 1.65rem;
@@ -18270,7 +18281,7 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
     box-shadow: 0 1px 4px rgba(120, 53, 15, 0.3);
 }
 
-/* Letras LIVE en rojo (solo el texto, sin pastilla café) */
+/* Letras LIVE en rojo (solo el texto, sin pastilla cafÃ©) */
 .copa-chip-rank.copa-chip-rank--live,
 .copa-chip-body .copa-chip-rank--live {
     background: transparent !important;
@@ -18348,7 +18359,7 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
     }
 }
 
-/* legacy aliases → mismo look dorado */
+/* legacy aliases â†’ mismo look dorado */
 .copa-strip-btn,
 .copa-public-strip-btn {
     position: relative;
@@ -18670,7 +18681,7 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
     max-width: 10rem;
 }
 
-/* ========== Copa: rentabilidad + ranking p�blico ========== */
+/* ========== Copa: rentabilidad + ranking pï¿½blico ========== */
 .copa-econ-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -18798,7 +18809,7 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
     pointer-events: auto;
 }
 
-/* Chip + ✕ en vista pasajero (ranking público Copa conductores) */
+/* Chip + âœ• en vista pasajero (ranking pÃºblico Copa conductores) */
 #public-copa-strip .public-copa-strip-inner,
 #public-pcopa-strip .public-copa-strip-inner {
     display: inline-flex;
@@ -18898,4 +18909,1863 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
 .copa-lb-row--podium {
     background: #fffbeb;
     border: 1px solid #fde68a;
+}
+
+/* ===== Tiendas virtuales / marketplace emprendedores ===== */
+body.stores-panel-open { overflow: hidden; }
+.stores-panel {
+  position: fixed; inset: 0; z-index: 42000;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 0;
+}
+.stores-panel.hidden { display: none !important; }
+.stores-panel-sheet {
+  width: 100%; max-width: 32rem; max-height: min(94dvh, 900px);
+  background: #fff; border-radius: 1.5rem 1.5rem 0 0;
+  display: flex; flex-direction: column;
+  box-shadow: 0 -12px 40px rgba(15,23,42,.2);
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+.stores-panel-head {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.85rem 0.9rem 0.65rem;
+  border-bottom: 1px solid #f1f5f9;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+}
+.stores-panel-head--merchant {
+  background: linear-gradient(180deg, #ecfdf5 0%, #fff 100%);
+}
+.stores-kicker {
+  font-size: 0.62rem; font-weight: 900; letter-spacing: .08em;
+  text-transform: uppercase; color: #b45309; margin: 0;
+}
+.stores-panel-head--merchant .stores-kicker { color: #047857; }
+.stores-title {
+  font-size: 1rem; font-weight: 900; color: #0f172a; margin: 0;
+  line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stores-icon-btn {
+  width: 2.35rem; height: 2.35rem; border-radius: 0.85rem;
+  border: 1px solid #e2e8f0; background: #fff; color: #334155;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.stores-icon-btn--close { color: #b91c1c; }
+.stores-toggle-open {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.4rem 0.7rem; border-radius: 999px;
+  border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c;
+  font-size: 0.65rem; font-weight: 900; text-transform: uppercase;
+}
+.stores-toggle-open.is-open {
+  border-color: #a7f3d0; background: #ecfdf5; color: #047857;
+}
+.stores-panel-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 0.85rem 0.9rem 1.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+.stores-cart-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-top: 1px solid #fde68a;
+  background: #fffbeb;
+}
+.stores-cart-bar.hidden { display: none !important; }
+.stores-cart-count { font-size: 0.7rem; font-weight: 800; color: #92400e; margin: 0; }
+.stores-cart-total { font-size: 1.05rem; font-weight: 900; color: #78350f; margin: 0; }
+.stores-primary-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  padding: 0.7rem 1rem; border-radius: 0.9rem; border: none;
+  background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff;
+  font-size: 0.75rem; font-weight: 900; text-transform: uppercase;
+  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.28);
+}
+.stores-secondary-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  padding: 0.55rem 0.85rem; border-radius: 0.8rem;
+  border: 1px solid #e2e8f0; background: #fff; color: #334155;
+  font-size: 0.72rem; font-weight: 800;
+}
+.stores-danger-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.5rem 0.75rem; border-radius: 0.75rem;
+  border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c;
+  font-size: 0.7rem; font-weight: 800;
+}
+.stores-banner {
+  padding: 0.85rem; border-radius: 1rem;
+  background: linear-gradient(135deg, #fff7ed, #fef3c7);
+  border: 1px solid #fde68a; margin-bottom: 0.85rem;
+}
+.stores-banner-title {
+  font-size: 0.85rem; font-weight: 900; color: #92400e; margin: 0 0 0.25rem;
+}
+.stores-banner-sub {
+  font-size: 0.72rem; color: #78350f; margin: 0; line-height: 1.35;
+}
+.stores-list, .orders-list, .store-products { display: flex; flex-direction: column; gap: 0.55rem; }
+.store-card {
+  display: flex; align-items: center; gap: 0.7rem; width: 100%;
+  text-align: left; padding: 0.75rem; border-radius: 1rem;
+  border: 1px solid #e2e8f0; background: #fff;
+  box-shadow: 0 2px 8px rgba(15,23,42,.04);
+}
+.store-card--closed { opacity: 0.72; }
+.store-card-icon {
+  width: 2.6rem; height: 2.6rem; border-radius: 0.85rem;
+  background: #fff7ed; color: #d97706;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.store-card-name { font-size: 0.9rem; font-weight: 900; color: #0f172a; margin: 0; }
+.store-card-meta { font-size: 0.68rem; color: #64748b; margin: 0.1rem 0 0; font-weight: 700; }
+.store-card-addr { font-size: 0.65rem; color: #94a3b8; margin: 0.15rem 0 0; }
+.store-card-status {
+  font-size: 0.58rem; font-weight: 900; text-transform: uppercase;
+  padding: 0.25rem 0.45rem; border-radius: 999px;
+  background: #f1f5f9; color: #64748b; flex-shrink: 0;
+}
+.store-card-status.is-open { background: #ecfdf5; color: #047857; }
+.stores-empty {
+  text-align: center; padding: 2rem 1rem; color: #64748b;
+}
+.stores-empty i { font-size: 1.6rem; color: #cbd5e1; margin-bottom: 0.5rem; display: block; }
+.stores-empty--sm { padding: 1rem; }
+.stores-section-label {
+  font-size: 0.65rem; font-weight: 900; letter-spacing: .08em;
+  text-transform: uppercase; color: #94a3b8; margin: 0 0 0.4rem;
+}
+.store-detail-head {
+  display: flex; gap: 0.75rem; padding: 0.75rem;
+  border-radius: 1rem; background: #fff7ed; border: 1px solid #fde68a;
+  margin-bottom: 0.85rem;
+}
+.store-detail-avatar {
+  width: 3rem; height: 3rem; border-radius: 1rem;
+  background: #fff; color: #d97706;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.store-detail-name { font-size: 1rem; font-weight: 900; margin: 0; color: #0f172a; }
+.store-detail-meta { font-size: 0.72rem; color: #64748b; margin: 0.15rem 0 0; font-weight: 700; }
+.store-detail-addr, .store-detail-desc {
+  font-size: 0.72rem; color: #475569; margin: 0.25rem 0 0; line-height: 1.3;
+}
+.product-card {
+  display: flex; align-items: center; gap: 0.65rem;
+  padding: 0.7rem; border-radius: 0.9rem; border: 1px solid #e2e8f0; background: #fff;
+}
+.product-card--off { opacity: 0.55; }
+.product-card-name { font-size: 0.85rem; font-weight: 900; color: #0f172a; margin: 0; }
+.product-card-desc { font-size: 0.68rem; color: #64748b; margin: 0.15rem 0 0; }
+.product-card-price { font-size: 0.85rem; font-weight: 900; color: #b45309; margin: 0.2rem 0 0; }
+.product-qty {
+  display: inline-flex; align-items: center; gap: 0.35rem; flex-shrink: 0;
+  font-weight: 900; font-size: 0.85rem; color: #0f172a;
+}
+.product-qty-btn {
+  width: 1.85rem; height: 1.85rem; border-radius: 0.55rem;
+  border: 1px solid #fcd34d; background: #fffbeb; color: #b45309; font-weight: 900;
+}
+.stores-add-btn {
+  padding: 0.45rem 0.7rem; border-radius: 0.65rem; border: none;
+  background: #f59e0b; color: #fff; font-size: 0.68rem; font-weight: 900;
+}
+.cart-line {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.65rem 0; border-bottom: 1px solid #f1f5f9;
+}
+.cart-line-total { font-size: 0.8rem; font-weight: 900; color: #0f172a; min-width: 4.2rem; text-align: right; }
+.cart-summary {
+  margin-top: 0.75rem; padding: 0.75rem; border-radius: 0.9rem;
+  background: #f8fafc; border: 1px solid #e2e8f0;
+}
+.stores-field { display: block; }
+.stores-field > span {
+  display: block; font-size: 0.65rem; font-weight: 900;
+  text-transform: uppercase; letter-spacing: .06em; color: #64748b; margin-bottom: 0.3rem;
+}
+.stores-input {
+  width: 100%; padding: 0.7rem 0.8rem; border-radius: 0.8rem;
+  border: 1px solid #e2e8f0; background: #fff; font-size: 0.85rem;
+  outline: none;
+}
+.stores-input:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.15); }
+.checkout-store-pill {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.4rem 0.7rem; border-radius: 999px;
+  background: #ecfdf5; color: #047857; font-size: 0.75rem; font-weight: 800;
+}
+.order-card {
+  padding: 0.8rem; border-radius: 1rem; border: 1px solid #e2e8f0; background: #fff;
+}
+.order-card-top { display: flex; justify-content: space-between; gap: 0.5rem; align-items: flex-start; }
+.order-card-title { font-size: 0.88rem; font-weight: 900; margin: 0; color: #0f172a; }
+.order-card-sub { font-size: 0.7rem; color: #64748b; margin: 0.2rem 0 0; line-height: 1.3; }
+.order-card-meta {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem;
+  margin-top: 0.5rem; font-size: 0.72rem; font-weight: 800; color: #475569;
+}
+.order-notes { font-size: 0.7rem; color: #64748b; margin: 0.4rem 0 0; font-style: italic; }
+.order-status {
+  font-size: 0.58rem; font-weight: 900; text-transform: uppercase;
+  padding: 0.25rem 0.45rem; border-radius: 999px; flex-shrink: 0;
+}
+.order-status--amber { background: #fef3c7; color: #b45309; }
+.order-status--blue { background: #dbeafe; color: #1d4ed8; }
+.order-status--violet { background: #ede9fe; color: #6d28d9; }
+.order-status--emerald { background: #d1fae5; color: #047857; }
+.order-status--slate { background: #f1f5f9; color: #475569; }
+.order-status--red { background: #fee2e2; color: #b91c1c; }
+.order-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.65rem; }
+.merchant-tabs {
+  display: flex; gap: 0.35rem; padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid #f1f5f9; background: #fff;
+}
+.merchant-tab {
+  flex: 1; padding: 0.55rem 0.35rem; border-radius: 0.75rem;
+  border: 1px solid transparent; background: #f8fafc; color: #64748b;
+  font-size: 0.7rem; font-weight: 900; text-transform: uppercase;
+}
+.merchant-tab.active {
+  background: #ecfdf5; color: #047857; border-color: #a7f3d0;
+}
+.delivery-stores-entry {
+  margin-bottom: 0.65rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px dashed #fcd34d;
+}
+.delivery-mode-tabs {
+  display: flex; gap: 0.4rem; margin-bottom: 0.55rem;
+}
+.delivery-mode-tab {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem;
+  padding: 0.5rem 0.4rem; border-radius: 0.75rem;
+  border: 1px solid #fde68a; background: #fff; color: #92400e;
+  font-size: 0.68rem; font-weight: 900;
+}
+.delivery-mode-tab.active {
+  background: #f59e0b; border-color: #d97706; color: #fff;
+}
+.delivery-stores-cta {
+  width: 100%; display: flex; align-items: center; gap: 0.65rem;
+  padding: 0.7rem 0.75rem; border-radius: 0.95rem;
+  border: 1px solid #fcd34d; background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  text-align: left; color: #78350f;
+}
+.delivery-stores-cta-icon {
+  width: 2.4rem; height: 2.4rem; border-radius: 0.75rem;
+  background: #fff; color: #d97706;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.delivery-stores-cta-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.delivery-stores-cta-copy strong { font-size: 0.8rem; font-weight: 900; }
+.delivery-stores-cta-copy small { font-size: 0.65rem; opacity: 0.85; font-weight: 600; }
+
+/* ===== Tiendas virtuales: secciï¿½n propia + fotos de producto ===== */
+.client-stores-section {
+  margin-bottom: 0.65rem !important;
+  border: 1px solid #fde68a !important;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 70%) !important;
+}
+.trip-step-badge--stores {
+  background: #f59e0b !important;
+  color: #fff !important;
+  font-size: 0.7rem !important;
+}
+.client-stores-cta {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.75rem 0.8rem;
+  border-radius: 1rem;
+  border: 1px solid #fcd34d;
+  background: #fff;
+  text-align: left;
+  color: #78350f;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.12);
+}
+.client-stores-cta-icon {
+  width: 2.55rem;
+  height: 2.55rem;
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+.client-stores-cta-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+.client-stores-cta-copy strong {
+  font-size: 0.84rem;
+  font-weight: 900;
+  color: #92400e;
+}
+.client-stores-cta-copy small {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #a16207;
+  line-height: 1.25;
+}
+.client-stores-cta-chevron { color: #d97706; flex-shrink: 0; }
+.client-stores-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+.client-stores-actions .stores-secondary-btn {
+  flex: 1;
+  font-size: 0.65rem;
+  padding: 0.5rem 0.4rem;
+}
+.trip-service-chip--stores {
+  border-color: #fcd34d !important;
+  color: #b45309 !important;
+  background: #fffbeb !important;
+}
+.product-card-photo {
+  width: 4.1rem;
+  height: 4.1rem;
+  border-radius: 0.85rem;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+.product-card-photo--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  font-size: 1.1rem;
+}
+.product-card-photo.is-broken {
+  display: none;
+}
+.cart-line-photo {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.65rem;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+.cart-line-photo--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  font-size: 0.85rem;
+}
+.m-prod-photo-pick {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem;
+  border-radius: 0.95rem;
+  border: 1px dashed #f59e0b;
+  background: #fff;
+}
+.m-prod-photo-preview {
+  width: 100%;
+  max-height: 9rem;
+  min-height: 5.5rem;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  background: #fff7ed;
+}
+.m-prod-photo-preview--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  color: #d97706;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.m-prod-photo-preview--empty i { font-size: 1.4rem; opacity: 0.7; }
+.m-prod-photo-hint {
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #b45309;
+}
+
+/* ===== Menï¿½ inicial pasajero (elige viaje / pedido / envï¿½oï¿½) ===== */
+.passenger-home-hub {
+  padding: 0.35rem 0.15rem 0.85rem;
+}
+.passenger-home-hub.hidden { display: none !important; }
+.passenger-home-hero {
+  margin-bottom: 0.85rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 1.15rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 55%, #fff 100%);
+  border: 1px solid #dbeafe;
+}
+.passenger-home-kicker {
+  margin: 0;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #2563eb;
+}
+.passenger-home-title {
+  margin: 0.2rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.15;
+}
+.passenger-home-sub {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  line-height: 1.35;
+}
+.passenger-home-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.passenger-home-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 0.9rem;
+  border-radius: 1.1rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  text-align: left;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.passenger-home-card:active {
+  transform: scale(0.985);
+}
+.passenger-home-card-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  font-size: 1.05rem;
+}
+.passenger-home-card--trip .passenger-home-card-icon {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+.passenger-home-card--stores .passenger-home-card-icon {
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+}
+.passenger-home-card--delivery .passenger-home-card-icon {
+  background: linear-gradient(135deg, #f59e0b, #b45309);
+}
+.passenger-home-card--freight .passenger-home-card-icon {
+  background: linear-gradient(135deg, #10b981, #047857);
+}
+.passenger-home-card--tow .passenger-home-card-icon {
+  background: linear-gradient(135deg, #f43f5e, #be123c);
+}
+.passenger-home-card-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+.passenger-home-card-text strong {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+.passenger-home-card-text small {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #64748b;
+  line-height: 1.25;
+}
+.passenger-home-card-chevron {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.passenger-home-foot {
+  margin: 0.85rem 0.25rem 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.35;
+}
+.passenger-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.15rem 0.65rem;
+  margin-bottom: 0.15rem;
+  border-bottom: 1px solid #f1f5f9;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: blur(8px);
+}
+.passenger-mode-bar.hidden { display: none !important; }
+.passenger-mode-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.75rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 900;
+  flex-shrink: 0;
+}
+.passenger-mode-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #0f172a;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.passenger-mode-sub {
+  margin: 0.1rem 0 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.passenger-mode-change {
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 0.4rem 0.65rem;
+  border-radius: 0.7rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+body.passenger-mode-home #passenger-booking-route,
+body.passenger-mode-home #passenger-booking-advanced,
+body.passenger-mode-home #passenger-booking-service,
+body.passenger-mode-home #client-stores-section {
+  display: none !important;
+}
+/* En bï¿½squeda/viaje activo no mostrar hub */
+body.is-searching #passenger-home-hub,
+body.is-active-trip #passenger-home-hub {
+  display: none !important;
+}
+body.is-searching #passenger-mode-bar,
+body.is-active-trip #passenger-mode-bar {
+  display: none !important;
+}
+.passenger-stores-landing {
+  margin-top: 0.25rem;
+}
+.passenger-stores-landing.hidden { display: none !important; }
+
+/* ===== Menï¿½ inicio: botones horizontales compactos (sin scroll) ===== */
+.passenger-home-hub {
+  padding: 0.2rem 0.1rem 0.45rem !important;
+}
+.passenger-home-hero {
+  margin-bottom: 0.5rem !important;
+  padding: 0.55rem 0.75rem !important;
+  border-radius: 0.95rem !important;
+}
+.passenger-home-title {
+  font-size: 1.05rem !important;
+  margin: 0.1rem 0 0 !important;
+}
+.passenger-home-sub { display: none !important; }
+.passenger-home-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0.45rem !important;
+  flex-direction: unset !important;
+}
+/* ï¿½ltima fila: Flete + Grï¿½a centrados en 2 columnas del grid de 3 */
+.passenger-home-card--freight {
+  grid-column: 1 / 2;
+}
+.passenger-home-card--tow {
+  grid-column: 2 / 3;
+}
+.passenger-home-card {
+  width: 100% !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0.35rem !important;
+  padding: 0.65rem 0.35rem 0.55rem !important;
+  border-radius: 0.95rem !important;
+  text-align: center !important;
+  min-height: 5.4rem;
+}
+.passenger-home-card-icon {
+  width: 2.35rem !important;
+  height: 2.35rem !important;
+  border-radius: 0.75rem !important;
+  font-size: 0.95rem !important;
+}
+.passenger-home-card-text {
+  flex: none !important;
+  align-items: center !important;
+  gap: 0.05rem !important;
+}
+.passenger-home-card-text strong {
+  font-size: 0.72rem !important;
+  line-height: 1.1 !important;
+}
+.passenger-home-card-text small {
+  font-size: 0.58rem !important;
+  line-height: 1.15 !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.passenger-home-card-chevron { display: none !important; }
+.passenger-home-foot {
+  margin: 0.45rem 0.15rem 0 !important;
+  font-size: 0.62rem !important;
+}
+/* Pantallas muy angostas: 2 columnas, filas cortas */
+@media (max-width: 340px) {
+  .passenger-home-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .passenger-home-card--freight,
+  .passenger-home-card--tow {
+    grid-column: auto !important;
+  }
+}
+/* Si hay mï¿½s alto disponible, un poco mï¿½s grandes */
+@media (min-width: 400px) {
+  .passenger-home-card {
+    min-height: 5.8rem;
+    padding: 0.75rem 0.4rem 0.65rem !important;
+  }
+  .passenger-home-card-text strong { font-size: 0.78rem !important; }
+}
+
+/* Botones Mi tienda / Crear tienda */
+.client-stores-actions--3 {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem !important;
+}
+.client-stores-actions--3 .stores-primary-btn--sm {
+  grid-column: 1 / -1;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.7rem;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2);
+}
+.stores-primary-btn--sm {
+  font-size: 0.7rem;
+  padding: 0.55rem 0.7rem;
+}
+
+/* ===== Mundo de tiendas: pantalla completa (no panel chico) ===== */
+.stores-world {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 46000 !important;
+  background: #f1f5f9 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 0 !important;
+  align-items: stretch !important;
+}
+.stores-world.hidden { display: none !important; }
+.stores-world-inner {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.stores-world-head {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
+  border-bottom: 1px solid #fde68a;
+  padding: max(0.55rem, env(safe-area-inset-top, 0px)) 0.75rem 0.55rem;
+}
+.stores-world-head--merchant {
+  background: linear-gradient(180deg, #ecfdf5 0%, #fff 100%);
+  border-bottom-color: #a7f3d0;
+}
+.stores-world-head-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+.stores-world-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.stores-world-toolbar.hidden { display: none !important; }
+.stores-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.stores-search-wrap > i {
+  position: absolute;
+  left: 0.75rem;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+.stores-search-input {
+  width: 100%;
+  padding: 0.7rem 2.2rem 0.7rem 2.2rem;
+  border-radius: 0.9rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  outline: none;
+}
+.stores-search-input:focus {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+}
+.stores-search-clear {
+  position: absolute;
+  right: 0.45rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: none;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1;
+}
+/* Acciones de emprendedor: siempre 2 columnas, legibles en celular */
+.stores-merchant-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  width: 100%;
+}
+.stores-action-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-width: 0;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 0.85rem;
+  border: 1px solid #e2e8f0;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.15;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stores-action-chip i {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+}
+.stores-action-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stores-action-chip--my-store {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+.stores-action-chip--create {
+  border-color: #f59e0b;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.25);
+}
+
+/* CategorÃ­as: en celular se envuelven; en ancho mayor pueden ser una fila con scroll */
+.stores-category-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  width: 100%;
+  padding-bottom: 0.1rem;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.stores-category-chips::-webkit-scrollbar { display: none; }
+.stores-cat-chip {
+  flex: 1 1 auto;
+  min-width: calc(33.333% - 0.35rem);
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  padding: 0.42rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 0.68rem;
+  font-weight: 800;
+  white-space: nowrap;
+  line-height: 1.15;
+}
+.stores-cat-chip i {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+}
+.stores-cat-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stores-cat-chip.active {
+  background: #f59e0b;
+  border-color: #d97706;
+  color: #fff;
+}
+@media (max-width: 359px) {
+  .stores-cat-chip {
+    min-width: calc(50% - 0.35rem);
+    font-size: 0.64rem;
+    padding: 0.4rem 0.4rem;
+  }
+  .stores-action-chip {
+    font-size: 0.66rem;
+    min-height: 2.2rem;
+    padding: 0.4rem 0.35rem;
+  }
+}
+@media (min-width: 480px) {
+  .stores-category-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .stores-cat-chip {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+}
+.stores-world-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #64748b;
+}
+.stores-city-label i { color: #f59e0b; margin-right: 0.2rem; }
+.stores-world-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.75rem 0.75rem 1.25rem;
+}
+.stores-world-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.75rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #fff7ed, #fef3c7);
+  border: 1px solid #fde68a;
+}
+.stores-world-hero-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #92400e;
+}
+.stores-world-hero-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #a16207;
+  line-height: 1.3;
+}
+.stores-world-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.stores-browse-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+@media (min-width: 420px) {
+  .stores-browse-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 768px) {
+  .stores-browse-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .stores-world-inner {
+    max-width: 56rem;
+    margin: 0 auto;
+    border-left: 1px solid #e2e8f0;
+    border-right: 1px solid #e2e8f0;
+  }
+}
+.store-card--browse {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  padding: 0 !important;
+  overflow: hidden;
+  text-align: left;
+  min-height: 0;
+}
+.store-card-cover {
+  width: 100%;
+  height: 6.5rem;
+  object-fit: cover;
+  background: linear-gradient(135deg, #fef3c7, #fdba74);
+  display: block;
+}
+.store-card-cover--icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d97706;
+  font-size: 1.75rem;
+}
+.store-card-body {
+  padding: 0.65rem 0.7rem 0.75rem;
+}
+.store-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.store-card-desc {
+  margin: 0.3rem 0 0;
+  font-size: 0.68rem;
+  color: #64748b;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.stores-empty--full {
+  grid-column: 1 / -1;
+  padding: 2.5rem 1rem;
+}
+/* Ocultar mapa y panel de viaje cuando el mundo de tiendas estï¿½ abierto */
+body.stores-world-open #map-container.stores-world-hidden,
+body.stores-world-open #control-panel.stores-world-hidden,
+body.stores-world-open #panel-expand-fab.stores-world-hidden,
+.stores-world-hidden {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+body.stores-world-open #app-header {
+  /* El marketplace usa su propio header; el header app puede quedar detrï¿½s */
+}
+body.stores-world-open .stores-world {
+  /* por encima del header de la app */
+  z-index: 50000 !important;
+}
+/* Cart bar en mundo full */
+.stores-world .stores-cart-bar {
+  flex-shrink: 0;
+}
+
+/* ===== Usar TODO el ancho horizontal (tiendas + menï¿½) ===== */
+.stores-world,
+.stores-world-inner {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  border-left: none !important;
+  border-right: none !important;
+}
+.stores-world-head {
+  padding-left: max(0.65rem, env(safe-area-inset-left, 0px)) !important;
+  padding-right: max(0.65rem, env(safe-area-inset-right, 0px)) !important;
+}
+.stores-world-body {
+  padding-left: max(0.55rem, env(safe-area-inset-left, 0px)) !important;
+  padding-right: max(0.55rem, env(safe-area-inset-right, 0px)) !important;
+}
+/* Toolbar: bï¿½squeda ancha + chips en fila cuando hay espacio */
+@media (min-width: 560px) {
+  .stores-world-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-areas:
+      " search search\
+ \chips meta\;
+ align-items: center;
+ gap: 0.45rem 0.75rem !important;
+ }
+ .stores-search-wrap { grid-area: search; }
+ .stores-category-chips { grid-area: chips; min-width: 0; }
+ .stores-world-meta { grid-area: meta; justify-content: flex-end; }
+}
+@media (min-width: 900px) {
+ .stores-world-toolbar {
+ grid-template-columns: minmax(14rem, 1fr) minmax(0, 2fr) auto;
+ grid-template-areas: \search chips meta\;
+ }
+}
+/* Hero a lo ancho */
+.stores-world-hero {
+ width: 100%;
+ flex-wrap: nowrap !important;
+ align-items: center !important;
+}
+@media (max-width: 480px) {
+ .stores-world-hero { flex-wrap: wrap !important; }
+}
+/* Grid de tiendas: mï¿½s columnas, menos aire perdido */
+.stores-browse-grid {
+ grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+ gap: 0.5rem !important;
+}
+@media (min-width: 520px) {
+ .stores-browse-grid {
+ grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+ }
+}
+@media (min-width: 760px) {
+ .stores-browse-grid {
+ grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+ gap: 0.65rem !important;
+ }
+}
+@media (min-width: 1024px) {
+ .stores-browse-grid {
+ grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+ }
+}
+@media (min-width: 1280px) {
+ .stores-browse-grid {
+ grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+ }
+}
+/* Tarjetas: cubrir ancho de celda */
+.store-card--browse {
+ width: 100% !important;
+ height: 100%;
+}
+.store-card-cover {
+ height: 5.5rem !important;
+}
+@media (min-width: 760px) {
+ .store-card-cover { height: 6.75rem !important; }
+}
+/* Productos del menï¿½ en columnas */
+.store-products {
+ display: grid !important;
+ grid-template-columns: 1fr !important;
+ gap: 0.5rem !important;
+}
+.store-products > .stores-section-label {
+ grid-column: 1 / -1;
+}
+@media (min-width: 480px) {
+ .store-products {
+ grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+ }
+}
+@media (min-width: 800px) {
+ .store-products {
+ grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+ }
+}
+/* Detalle de tienda a lo ancho */
+.store-detail-head {
+ width: 100%;
+}
+/* Menï¿½ inicio: 5 botones en una sola fila cuando cabe */
+@media (min-width: 420px) {
+ .passenger-home-grid {
+ grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+ }
+ .passenger-home-card--freight,
+ .passenger-home-card--tow {
+ grid-column: auto !important;
+ }
+ .passenger-home-card {
+ min-height: 5.2rem;
+ }
+}
+/* Panel control del pasajero: no estrechar de mï¿½s en tablets */
+@media (min-width: 768px) {
+ #control-panel.collapsible-panel,
+ #control-panel {
+ max-width: min(100%, 42rem);
+ }
+}
+/* Cart bar full width */
+.stores-world .stores-cart-bar {
+ width: 100%;
+ padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+ padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+}
+
+/* Buscador de tiendas: siempre a todo el ancho (tambiï¿½n en pantallas grandes) */
+.stores-world-toolbar {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.45rem !important;
+  width: 100% !important;
+}
+.stores-search-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  grid-area: unset !important;
+  flex: none !important;
+}
+.stores-search-input {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.stores-merchant-chips,
+.stores-category-chips {
+  width: 100% !important;
+  max-width: 100% !important;
+  grid-area: unset !important;
+}
+.stores-world-meta {
+  width: 100% !important;
+  grid-area: unset !important;
+  justify-content: space-between !important;
+}
+/* Anular layouts de grid en tablet/desktop que partï¿½an el buscador */
+@media (min-width: 560px) {
+  .stores-world-toolbar {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    grid-template-areas: none !important;
+  }
+  .stores-search-wrap,
+  .stores-merchant-chips,
+  .stores-category-chips,
+  .stores-world-meta {
+    grid-area: unset !important;
+  }
+}
+@media (min-width: 900px) {
+  .stores-world-toolbar {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-columns: none !important;
+    grid-template-areas: none !important;
+  }
+}
+
+/* Logo / imagen de tienda (emprendedor + catï¿½logo) */
+.m-store-logo-pick {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem;
+  border-radius: 0.95rem;
+  border: 1px dashed #f59e0b;
+  background: #fff;
+}
+.m-store-logo-preview {
+  width: 100%;
+  max-height: 10rem;
+  min-height: 6.5rem;
+  object-fit: cover;
+  border-radius: 0.75rem;
+  background: #fff7ed;
+}
+.m-store-logo-preview--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  color: #d97706;
+  font-size: 0.75rem;
+  font-weight: 800;
+  min-height: 6.5rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  background: #fffbeb;
+}
+.m-store-logo-preview--empty i {
+  font-size: 1.75rem;
+  opacity: 0.8;
+}
+.store-detail-logo {
+  width: 4.25rem;
+  height: 4.25rem;
+  border-radius: 1rem;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid #fde68a;
+  background: #fff7ed;
+}
+.stores-world-hero-limit {
+  width: 100%;
+  margin: 0.15rem 0 0;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #a16207;
+}
+
+/* ===== Imï¿½genes de tienda: se adaptan al espacio sin deformarse ===== */
+.store-card-cover,
+.store-detail-logo,
+.m-store-logo-preview,
+.product-card-photo,
+.cart-line-photo {
+  object-fit: cover !important;
+  object-position: center center !important;
+  background: linear-gradient(145deg, #fff7ed 0%, #ffedd5 50%, #fde68a 100%) !important;
+  image-rendering: auto;
+}
+
+/* Portada en el listado de tiendas */
+.store-card--browse {
+  overflow: hidden !important;
+}
+.store-card-cover {
+  width: 100% !important;
+  height: 0 !important;
+  padding-bottom: 62% !important; /* ratio fijo ~16:10 */
+  position: relative !important;
+  display: block !important;
+  flex-shrink: 0 !important;
+}
+/* img con padding-bottom trick necesita absolute fill */
+img.store-card-cover {
+  height: auto !important;
+  padding-bottom: 0 !important;
+  aspect-ratio: 16 / 10;
+  max-height: none !important;
+  min-height: 0 !important;
+}
+.store-card-cover--icon {
+  aspect-ratio: 16 / 10;
+  height: auto !important;
+  padding-bottom: 0 !important;
+  min-height: 5rem;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Logo grande en detalle de tienda */
+.store-detail-head {
+  align-items: center !important;
+  gap: 0.85rem !important;
+}
+.store-detail-logo,
+.store-detail-avatar {
+  width: 4.75rem !important;
+  height: 4.75rem !important;
+  min-width: 4.75rem !important;
+  min-height: 4.75rem !important;
+  max-width: 4.75rem !important;
+  max-height: 4.75rem !important;
+  border-radius: 1.05rem !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  flex-shrink: 0 !important;
+  border: 2px solid #fde68a;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.12);
+}
+@media (min-width: 520px) {
+  .store-detail-logo,
+  .store-detail-avatar {
+    width: 5.5rem !important;
+    height: 5.5rem !important;
+    min-width: 5.5rem !important;
+    min-height: 5.5rem !important;
+    max-width: 5.5rem !important;
+    max-height: 5.5rem !important;
+  }
+}
+
+/* Vista previa al subir logo en Mi tienda */
+.m-store-logo-pick {
+  overflow: hidden;
+}
+.m-store-logo-preview {
+  width: 100% !important;
+  aspect-ratio: 16 / 9 !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 0.85rem !important;
+}
+.m-store-logo-preview--empty {
+  aspect-ratio: 16 / 9 !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+/* Productos: cuadrado consistente */
+.product-card-photo {
+  width: 4.1rem !important;
+  height: 4.1rem !important;
+  min-width: 4.1rem !important;
+  min-height: 4.1rem !important;
+  max-width: 4.1rem !important;
+  max-height: 4.1rem !important;
+  border-radius: 0.85rem !important;
+  object-fit: cover !important;
+  object-position: center !important;
+}
+.product-card-photo--placeholder {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.cart-line-photo {
+  width: 2.85rem !important;
+  height: 2.85rem !important;
+  min-width: 2.85rem !important;
+  min-height: 2.85rem !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 0.65rem !important;
+}
+
+/* Vista previa producto al agregar */
+.m-prod-photo-preview {
+  width: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  max-height: 12rem !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 0.85rem !important;
+  background: #fff7ed !important;
+}
+.m-prod-photo-preview--empty {
+  aspect-ratio: 1 / 1 !important;
+  max-height: 12rem !important;
+  width: 100% !important;
+}
+
+/* Evitar que imï¿½genes rotas rompan el layout */
+.store-card-cover.is-broken,
+.store-detail-logo.is-broken,
+.product-card-photo.is-broken {
+  opacity: 0.35;
+  object-fit: contain !important;
+}
+
+/* Contenedor de portada: recorta cualquier tamaï¿½o de imagen */
+.store-card-cover-wrap {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  position: relative;
+  background: linear-gradient(145deg, #fff7ed, #fde68a);
+  flex-shrink: 0;
+}
+.store-card-cover-wrap .store-card-cover,
+.store-card-cover-wrap img.store-card-cover {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  aspect-ratio: auto !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  display: block !important;
+}
+.store-card-cover-wrap .store-card-cover--icon {
+  position: absolute !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.85rem;
+  color: #d97706;
+}
+.store-detail-logo-wrap {
+  width: 4.75rem;
+  height: 4.75rem;
+  min-width: 4.75rem;
+  min-height: 4.75rem;
+  border-radius: 1.05rem;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid #fde68a;
+  background: #fff7ed;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.12);
+}
+.store-detail-logo-wrap .store-detail-logo {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  display: block;
+}
+@media (min-width: 520px) {
+  .store-detail-logo-wrap {
+    width: 5.5rem;
+    height: 5.5rem;
+    min-width: 5.5rem;
+    min-height: 5.5rem;
+  }
+}
+
+/* ===== Foto de perfil: se adapta al cï¿½rculo en toda la app ===== */
+.profile-photo-box {
+  position: relative;
+  overflow: hidden !important;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+.profile-photo-box--header {
+  width: 2rem !important;
+  height: 2rem !important;
+  min-width: 2rem !important;
+  min-height: 2rem !important;
+  border-radius: 999px !important;
+}
+@media (min-width: 640px) {
+  .profile-photo-box--header {
+    width: 2.25rem !important;
+    height: 2.25rem !important;
+    min-width: 2.25rem !important;
+    min-height: 2.25rem !important;
+  }
+}
+.profile-photo-box--lg {
+  width: 5rem !important;
+  height: 5rem !important;
+  min-width: 5rem !important;
+  min-height: 5rem !important;
+  border-radius: 999px !important;
+}
+
+/* Cualquier img de perfil llena el contenedor y se recorta al centro */
+.profile-photo-img,
+.profile-photo-box > img,
+#avatar-placeholder > img,
+#edit-photo-preview > img,
+#photo-preview > img,
+#passenger-reg-photo-preview,
+#client-trip-photo,
+#client-trip-min-photo,
+#tp-photo,
+.client-trip-photo {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  display: block !important;
+  border-radius: inherit;
+  background: #e2e8f0;
+}
+
+/* Avatar header: el contenedor es el recorte */
+#avatar-placeholder {
+  position: relative;
+  overflow: hidden !important;
+  border-radius: 999px !important;
+  padding: 0 !important;
+  line-height: 0;
+}
+#avatar-placeholder > img {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 999px !important;
+}
+
+/* Preview en panel de perfil */
+#edit-photo-preview {
+  position: relative;
+  overflow: hidden !important;
+  border-radius: 999px !important;
+  padding: 0 !important;
+}
+#edit-photo-preview > img {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  border-radius: 999px !important;
+}
+#edit-photo-preview > i {
+  line-height: normal;
+}
+
+/* Registro / setup conductor: cara */
+.setup-photo-face {
+  overflow: hidden !important;
+  position: relative;
+}
+.setup-photo-face img {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  border-radius: inherit;
+}
+
+/* Fotos redondas en paneles de viaje / ops */
+img.rounded-full.object-cover,
+.rounded-full > img {
+  object-fit: cover !important;
+  object-position: center center !important;
+}
+
+.client-trip-photo,
+#tp-photo {
+  object-fit: cover !important;
+  object-position: center center !important;
+  overflow: hidden;
+}
+/* Refuerzo: sin barra horizontal extra bajo Minimizar (pasajero) */
+body.client-mode #control-panel > .control-panel-header {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: none !important;
+}
+body.client-mode #control-panel > .control-panel-header .control-panel-grab {
+  display: none !important;
+}
+
+/* ===== Pasajero: Minimizar = ocultar panel central del TODO (mapa limpio) ===== */
+body.client-mode.panel-hidden #control-panel,
+body.client-mode #control-panel.panel-hidden,
+body.client-mode.panel-hidden.panel-minimized #control-panel,
+body.client-mode.is-searching.panel-hidden #control-panel,
+body.client-mode.trip-active.panel-hidden #control-panel,
+body.capacitor-native.client-mode.panel-hidden #control-panel,
+body.capacitor-android.client-mode.panel-hidden #control-panel {
+  transform: translateY(110%) !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+  max-height: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* FAB para volver a abrir el panel cuando estï¿½ oculto del todo */
+body.client-mode.panel-hidden .panel-expand-fab,
+body.panel-hidden .panel-expand-fab {
+  display: inline-flex !important;
+  z-index: 200 !important;
+}
+
+/* Mapa a pantalla completa cuando el panel estï¿½ oculto */
+body.client-mode.panel-hidden #map-container,
+body.client-mode.panel-hidden #map {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  height: 100% !important;
+  max-height: none !important;
+}
+
+/* Mi tienda / Crear tienda en la franja de categorï¿½as */
+.stores-cat-chip--action {
+  border-color: #fcd34d !important;
+  background: #fffbeb !important;
+  color: #b45309 !important;
+  font-weight: 900 !important;
+}
+.stores-cat-chip--my-store {
+  border-color: #a7f3d0 !important;
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+}
+.stores-cat-chip--create {
+  border-color: #f59e0b !important;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
+  color: #fff !important;
+}
+/* En pantallas angostas: acciones arriba, filtros abajo sin cortar texto */
+@media (max-width: 479px) {
+  .stores-merchant-chips {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 0.4rem !important;
+  }
+  .stores-category-chips {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    overflow-x: visible !important;
+  }
+}
+.stores-world-hero--compact {
+  padding: 0.55rem 0.75rem !important;
+  margin-bottom: 0.55rem !important;
+}
+.stores-world-hero--compact .stores-world-hero-actions { display: none !important; }
+
+/* Compartir catï¿½logo */
+.merchant-share-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid #bfdbfe;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+}
+.merchant-share-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: #1d4ed8;
+}
+.merchant-share-sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #3b82f6;
+  line-height: 1.25;
+}
+.order-pay-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+}
+.order-pay-badge--saldo {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+.order-pay-badge--cash {
+  background: #d1fae5;
+  color: #047857;
+}
+
+/* ===== Icono Grua con gancho (no troca) ===== */
+.icon-grua,
+i.icon-grua,
+.fas.icon-grua,
+.fa-solid.icon-grua,
+.fa-truck-monster {
+  display: inline-block !important;
+  width: 1.15em !important;
+  height: 1.15em !important;
+  min-width: 1.15em;
+  min-height: 1.15em;
+  line-height: 1 !important;
+  font-size: inherit !important;
+  font-family: inherit !important;
+  font-weight: normal !important;
+  font-style: normal !important;
+  vertical-align: -0.18em;
+  speak: never;
+  background-color: currentColor !important;
+  background-image: none !important;
+  /* Silueta: cabina + pluma + cable + gancho */
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='%23fff'%3E%3Cpath d='M6 32h18l4-12h10l3 8h4v-5H30l-3-9H8v18zm3-13h12l2.5 7H9v-7z'/%3E%3Crect x='4' y='34' width='36' height='6' rx='1'/%3E%3Crect x='38' y='36' width='16' height='4' rx='1'/%3E%3Cpath d='M26 34l5-3 20-24 4 3.2L32 36z'/%3E%3Crect x='48' y='10' width='3.2' height='20' rx='1'/%3E%3Cpath d='M44.5 29h10.5v3H53c0 4.2-3.2 7.5-7.2 7.5-2.3 0-4.4-1-5.8-2.6l2.5-2.1c.8 1 2 1.6 3.3 1.6 2.2 0 4-1.7 4-3.9h-5.3V29z'/%3E%3Ccircle cx='13' cy='48' r='5.5'/%3E%3Ccircle cx='13' cy='48' r='2.2' fill='%23000'/%3E%3Ccircle cx='42' cy='48' r='5.5'/%3E%3Ccircle cx='42' cy='48' r='2.2' fill='%23000'/%3E%3Crect x='18' y='40' width='20' height='3.5' rx='1'/%3E%3C/g%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cg fill='%23fff'%3E%3Cpath d='M6 32h18l4-12h10l3 8h4v-5H30l-3-9H8v18zm3-13h12l2.5 7H9v-7z'/%3E%3Crect x='4' y='34' width='36' height='6' rx='1'/%3E%3Crect x='38' y='36' width='16' height='4' rx='1'/%3E%3Cpath d='M26 34l5-3 20-24 4 3.2L32 36z'/%3E%3Crect x='48' y='10' width='3.2' height='20' rx='1'/%3E%3Cpath d='M44.5 29h10.5v3H53c0 4.2-3.2 7.5-7.2 7.5-2.3 0-4.4-1-5.8-2.6l2.5-2.1c.8 1 2 1.6 3.3 1.6 2.2 0 4-1.7 4-3.9h-5.3V29z'/%3E%3Ccircle cx='13' cy='48' r='5.5'/%3E%3Ccircle cx='13' cy='48' r='2.2' fill='%23000'/%3E%3Ccircle cx='42' cy='48' r='5.5'/%3E%3Ccircle cx='42' cy='48' r='2.2' fill='%23000'/%3E%3Crect x='18' y='40' width='20' height='3.5' rx='1'/%3E%3C/g%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  color: inherit;
+}
+.icon-grua::before,
+i.icon-grua::before,
+.fas.icon-grua::before,
+.fa-solid.icon-grua::before,
+.fa-truck-monster::before {
+  content: none !important;
+  display: none !important;
+  background: none !important;
+}
+.passenger-home-card--tow .icon-grua,
+.passenger-home-card--tow .fa-truck-monster,
+.driver-type-btn--grua .icon-grua,
+.driver-type-btn--grua .fa-truck-monster,
+.service-type-btn .icon-grua,
+.service-type-btn .fa-truck-monster {
+  width: 1.4em !important;
+  height: 1.4em !important;
+}
+
+/* Admin/supervisor: borrar tiendas virtuales */
+.store-card-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
+}
+.store-card-wrap .store-card--browse {
+  flex: 1 1 auto;
+  width: 100%;
+}
+.store-admin-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.7rem;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+.store-admin-delete-btn:active {
+  background: #fee2e2;
+}
+.store-staff-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.65rem 0 0.85rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.9rem;
+  border: 1px solid #fecaca;
+  background: linear-gradient(135deg, #fff1f2, #fef2f2);
+}
+.store-staff-bar-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #9f1239;
+}
+.store-staff-delete-btn {
+  flex: 0 0 auto;
+  min-height: 2.2rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.72rem;
+}
+
+/* Staff: invitar empresa por WhatsApp */
+.stores-merchant-chips--staff {
+  grid-template-columns: 1fr 1fr !important;
+}
+.stores-merchant-chips--staff .stores-action-chip--invite {
+  grid-column: 1 / -1;
+}
+.stores-action-chip--invite {
+  border-color: #6ee7b7 !important;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5) !important;
+  color: #047857 !important;
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.18);
+}
+.stores-action-chip--invite i {
+  color: #25d366;
+  font-size: 0.95rem;
+}
+.hr-invite-business-banner {
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 1rem;
+  border: 1px solid #fcd34d;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+.hr-invite-business-banner-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: #92400e;
+}
+.hr-invite-business-banner-text {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #78350f;
+  line-height: 1.35;
 }

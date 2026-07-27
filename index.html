@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -33,7 +33,7 @@
     <link rel="stylesheet" href="css/tailwind.css?v=2026.07.27.9">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.27.9">
+    <link rel="stylesheet" href="css/app.css?v=2026.07.27.14">
     <script src="js/maps-init.js?v=2026.07.27.9"></script>
     <script type="module">
         import { APP_CONFIG } from './js/config.js?v=2026.07.27.9';
@@ -336,7 +336,7 @@
                         <span id="client-trip-status-eta" class="client-trip-status-eta hidden">-- min</span>
                     </div>
                     <div class="client-trip-driver-row">
-                        <img id="client-trip-photo" class="client-trip-photo" alt="Conductor" src="https://placehold.co/100x100/e2e8f0/64748b?text=Conductor">
+                        <img id="client-trip-photo" class="client-trip-photo profile-photo-img" alt="Conductor" src="https://placehold.co/100x100/e2e8f0/64748b?text=Conductor">
                         <div class="client-trip-driver-meta min-w-0">
                             <p id="client-trip-name" class="client-trip-name">Conductor</p>
                             <p class="client-trip-rating"><i class="fas fa-star"></i> <span id="client-trip-rating">5.0</span>
@@ -503,7 +503,7 @@
             <div class="flex justify-center">
                 <div class="relative group cursor-pointer" onclick="document.getElementById('edit-photo-input').click()">
                     <div id="edit-photo-preview" 
-                         class="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl overflow-hidden border-4 border-white shadow-md">
+                         class="profile-photo-box profile-photo-box--lg w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl overflow-hidden border-4 border-white shadow-md">
                         <i class="fas fa-user-shield"></i>
                     </div>
                     <div class="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1049,7 +1049,7 @@
                 <p class="text-[8px] font-black text-slate-700 uppercase mt-0.5">Camión</p>
             </div>
             <div class="text-center py-1">
-                <i class="fas fa-truck-monster text-rose-600 text-sm"></i>
+                <i class="icon-grua text-rose-600 text-sm"></i>
                 <p class="text-[8px] font-black text-rose-700 uppercase mt-0.5">Grúa</p>
             </div>
         </div>
@@ -1116,7 +1116,7 @@
                 <button type="button" id="drv-type-camion" data-type="camion" onclick="window.selectDriverVehicleType('camion')"
                         class="driver-type-btn driver-type-btn--flete"><i class="fas fa-truck"></i><span>Camión</span></button>
                 <button type="button" id="drv-type-grua" data-type="grua" onclick="window.selectDriverVehicleType('grua')"
-                        class="driver-type-btn driver-type-btn--grua"><i class="fas fa-truck-monster"></i><span>Grúa</span></button>
+                        class="driver-type-btn driver-type-btn--grua"><i class="icon-grua"></i><span>Grúa</span></button>
             </div>
             <select id="driver-vehicle-type" class="hidden" onchange="window.onDriverVehicleTypeChange()">
                 <option value="auto">Automóvil — viajes en auto</option>
@@ -1284,7 +1284,7 @@
     
     <!-- IZQUIERDA: avatar -->
     <div class="header-slot header-slot-left flex items-center gap-2 min-w-0">
-        <div class="w-8 h-8 sm:w-9 sm:h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-sm overflow-hidden shrink-0" id="avatar-placeholder">C</div>
+        <div class="profile-photo-box profile-photo-box--header w-8 h-8 sm:w-9 sm:h-9 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-sm overflow-hidden shrink-0" id="avatar-placeholder">C</div>
         <div id="header-user-text" class="header-user-text min-w-0 hidden sm:block">
             <h2 class="font-black text-gray-900 text-sm leading-tight truncate max-w-[7.5rem] lg:max-w-none" id="user-greeting-display">USUARIO</h2>
             <p id="user-holiday-badge" class="hidden text-[9px] text-amber-600 font-bold leading-tight"></p>
@@ -1706,7 +1706,7 @@
     </div>
 
     <div id="tow-details-panel" class="hidden trip-advanced-block tow-panel space-y-2">
-        <p class="trip-advanced-block-title"><i class="fas fa-truck-monster"></i> Datos de la grúa</p>
+        <p class="trip-advanced-block-title"><i class="icon-grua"></i> Datos de la grúa</p>
         <p class="text-[10px] text-rose-700 font-semibold leading-snug -mt-1">
             Tarifa premium: salida desde <b>L. 1,800</b> en ciudad · interurbano desde <b>L. 3,500</b>. Foto del vehículo obligatoria.
         </p>
@@ -1861,7 +1861,7 @@
                 </button>
                 <button type="button" data-service-type="grua" id="svc-btn-grua" role="tab" aria-selected="false"
                         class="service-type-btn service-type-grua trip-service-chip" title="Grúa y remolque · tarifa premium">
-                    <i class="fas fa-truck-monster pointer-events-none"></i><span class="pointer-events-none">Grúa</span>
+                    <i class="icon-grua pointer-events-none"></i><span class="pointer-events-none">Grúa</span>
                 </button>
             </div>
         </div>
@@ -2141,7 +2141,7 @@
                          <div class="driver-assigned-body p-4 flex flex-col gap-3">
                              <p id="tp-role-label" class="text-[9px] font-black text-blue-600 uppercase tracking-widest">Tu conductor</p>
                              <div class="flex items-center gap-3">
-                                 <img id="tp-photo" src="" alt="" class="w-14 h-14 rounded-full object-cover bg-gray-200 ring-2 ring-white shadow-md flex-shrink-0" onerror="this.src='https://placehold.co/100x100/e2e8f0/64748b?text=Usuario'">
+                                 <img id="tp-photo" src="" alt="" class="profile-photo-img w-14 h-14 rounded-full object-cover object-center bg-gray-200 ring-2 ring-white shadow-md flex-shrink-0" onerror="this.src='https://placehold.co/100x100/e2e8f0/64748b?text=Usuario'">
                                  <div class="flex-1 min-w-0">
                                      <p id="tp-name" class="font-black text-base uppercase text-gray-900 leading-tight truncate">...</p>
                                      <p class="text-amber-500 text-xs font-bold mt-0.5"><i class="fas fa-star"></i> <span id="tp-rating">5.0</span></p>
@@ -2328,6 +2328,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.07.27.9"></script>
+    <script type="module" src="js/app.js?v=2026.07.27.17"></script>
 </body>
 </html>

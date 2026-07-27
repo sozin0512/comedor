@@ -2362,11 +2362,13 @@ window.gMap = null;
 
             // Pasajero: en búsqueda o viaje NO forzar expandir (Android re-sincronizaba y reabría el panel)
             if (isClient && (hasTrip || isSearching || (isMobile && userMinimized))) {
-                document.body.classList.remove('panel-hidden');
-                panel?.classList.remove('panel-hidden');
+                // Si el usuario ocultó el panel del todo, respetar panel-hidden
                 if (userMinimized) {
-                    panel?.classList.add('panel-collapsed');
-                    document.body.classList.add('panel-minimized', 'panel-collapsed');
+                    document.body.classList.add('panel-hidden', 'panel-minimized', 'panel-collapsed');
+                    panel?.classList.add('panel-hidden', 'panel-collapsed');
+                } else {
+                    document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
+                    panel?.classList.remove('panel-hidden', 'panel-collapsed');
                 }
                 window.syncPassengerPanelToggleLabel?.();
                 window.updatePassengerPromoStripVisibility?.();
@@ -2397,8 +2399,14 @@ window.gMap = null;
             const isClient = document.body.classList.contains('client-mode');
             const isSearching = document.body.classList.contains('is-searching');
 
-            // Pasajero/conductor (y búsqueda): minimizar/maximizar — no bloquear con toast
-            if (isDriver || isClient || isSearching || (isMobile && hasTrip)) {
+            // Pasajero: ocultar del TODO el panel (mapa limpio)
+            if (isClient && !isDriver) {
+                window.toggleActivePanel?.();
+                return;
+            }
+
+            // Conductor (y búsqueda): minimizar/maximizar — no bloquear con toast
+            if (isDriver || isSearching || (isMobile && hasTrip)) {
                 if (panel) {
                     panel.classList.toggle('panel-collapsed');
                 }
@@ -2735,6 +2743,42 @@ window.gMap = null;
         window.toggleActivePanel = () => {
             const panel = document.getElementById('control-panel');
             if (!panel) return;
+            const isClient = document.body.classList.contains('client-mode');
+            const isDriver = document.body.classList.contains('driver-mode');
+
+            // PASAJERO: Minimizar = ocultar del TODO el panel central (mapa limpio).
+            // Abrir de nuevo con FAB «Abrir panel» o toggle.
+            if (isClient && !isDriver) {
+                const currentlyHidden = document.body.classList.contains('panel-hidden')
+                    || panel.classList.contains('panel-hidden')
+                    || document.body.classList.contains('panel-minimized')
+                    || panel.classList.contains('panel-collapsed');
+                if (currentlyHidden) {
+                    document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
+                    panel.classList.remove('panel-hidden', 'panel-collapsed');
+                    try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
+                } else {
+                    document.body.classList.add('panel-hidden', 'panel-minimized', 'panel-collapsed');
+                    panel.classList.add('panel-hidden', 'panel-collapsed');
+                    try { localStorage.setItem(PANEL_HIDDEN_KEY, '1'); } catch (_) {}
+                }
+                const hidden = document.body.classList.contains('panel-hidden');
+                const paxMinLabel = document.querySelector('#passenger-panel-min-btn .passenger-panel-min-label');
+                if (paxMinLabel) paxMinLabel.textContent = hidden ? 'Abrir panel' : 'Minimizar';
+                const paxMinBtn = document.getElementById('passenger-panel-min-btn');
+                if (paxMinBtn) {
+                    paxMinBtn.setAttribute('aria-label', hidden ? 'Abrir panel' : 'Ocultar panel del mapa');
+                    paxMinBtn.setAttribute('title', hidden ? 'Abrir panel' : 'Ocultar panel');
+                }
+                window.syncPassengerPanelToggleLabel?.();
+                try { window.syncPanelHideChevron?.(); } catch (_) {}
+                try { window.bindPassengerPanelMinBtn?.(); } catch (_) {}
+                window.updatePassengerPromoStripVisibility?.();
+                window.refreshPassengerCopaUI?.();
+                try { void panel.offsetHeight; } catch (_) {}
+                return;
+            }
+
             panel.classList.toggle('panel-collapsed');
             const collapsed = panel.classList.contains('panel-collapsed');
             // body + panel en sync (CSS usa ambos selectores)
