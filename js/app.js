@@ -9657,6 +9657,10 @@ if (document.readyState === 'loading') {
                                     class="flex-1 min-w-[110px] bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] py-2.5 rounded-xl font-bold flex items-center justify-center gap-1 active:scale-[0.985]">
                                 <i class="fas fa-bell"></i> <span>NOTIFICAR</span>
                             </button>
+                            <button type="button" onclick="event.stopPropagation(); window.staffPreviewDriverScreen('${u.uid}', '${u.name.replace(/'/g, "\\'")}')"
+                                    class="flex-1 min-w-[110px] bg-teal-600 hover:bg-teal-500 text-white text-[10px] py-2.5 rounded-xl font-bold flex items-center justify-center gap-1 active:scale-[0.985]">
+                                <i class="fas fa-mobile-alt"></i> <span>VER SU PANTALLA</span>
+                            </button>
                             <button onclick="window.showDriverFullDetails('${u.uid}', '${u.name.replace(/'/g, "\\'")}')" 
                                     class="flex-1 min-w-[110px] bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-2.5 rounded-xl font-bold flex items-center justify-center gap-1 active:scale-[0.985]">
                                 <i class="fas fa-chart-bar"></i> <span>VER DETALLES</span>
@@ -9740,6 +9744,9 @@ if (document.readyState === 'loading') {
                     u.name, phoneRawForSearch, phoneDigitsForSearch,
                     getUserDisplayEmail(u), u.referralCode, u.identity, u.vehicle?.plate, u.uid
                 ].filter(Boolean).join(' ');
+                const openScreenOnClick = role === 'driver'
+                    ? `onclick="if(!event.target.closest('button,a,input,select,textarea,label')){event.stopPropagation();window.staffPreviewDriverScreen('${u.uid}','${(u.name || '').replace(/'/g, "\\'")}');}" style="cursor:pointer;"`
+                    : '';
                 body += `
                     <div class="ops-user-card driver-card admin-user-card flex flex-col items-start gap-2" 
                          data-role="${role}"
@@ -9748,7 +9755,8 @@ if (document.readyState === 'loading') {
                          data-referral="${escData(referralCodeData)}"
                          data-search="${escData(searchBlob)}"
                          data-resting="${isRestingForCard ? 1 : 0}" data-pending="${hasPendingForCard ? 1 : 0}"
-                         data-status="${status}">
+                         data-status="${status}"
+                         ${openScreenOnClick}>
                         <div class="flex items-center gap-3 w-full">
                             ${u.photo ? `<img src="${u.photo}" class="w-10 h-10 rounded-full object-cover">` : `<div class="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center text-white"><i class="fas fa-user"></i></div>`}
                             <div class="flex-1 min-w-0">
@@ -9760,6 +9768,7 @@ if (document.readyState === 'loading') {
                                     </div>
                                 </div>
                                 ${renderUserContactBlock(u)}
+                                ${role === 'driver' ? '<p class="text-[9px] text-teal-300/90 font-bold mt-0.5"><i class="fas fa-mobile-alt"></i> Toca la ficha → ver su pantalla / mapa</p>' : ''}
                             </div>
                         </div>
                         ${balanceBadge}
@@ -15920,6 +15929,350 @@ if (document.readyState === 'loading') {
         };
 
         /**
+         * Staff: ver “pantalla del conductor” sobre el mapa de HonduRaite
+         * (GPS del conductor + viaje/ruta si tiene). Sirve para revisar si el mapa
+         * y la ruta se ven bien; no es login del conductor.
+         */
+        window.staffPreviewDriverScreen = async (driverId, driverName = '') => {
+            if (!isStaffUser(currentUser, window.userProfile) && !window.canViewOpsFleetMap?.()) {
+                return window.showToast?.('Solo admin o supervisor.', 'warning');
+            }
+            if (!driverId) return;
+
+            try {
+                document.getElementById('admin-panel')?.classList.remove('ops-drawer-open');
+                document.getElementById('supervisor-panel')?.classList.remove('ops-drawer-open');
+            } catch (_) {}
+
+            document.getElementById('staff-driver-screen-preview')?.remove();
+            document.getElementById('staff-live-trip-sheet')?.remove();
+            document.getElementById('staff-driver-finance-sheet')?.remove();
+            document.getElementById('staff-route-map-panel')?.remove();
+
+            // Limpiar poll anterior
+            if (window._staffDriverScreenPoll) {
+                try { clearInterval(window._staffDriverScreenPoll); } catch (_) {}
+                window._staffDriverScreenPoll = null;
+            }
+            if (window._staffDriverScreenMarker) {
+                try { window._staffDriverScreenMarker.setMap?.(null); } catch (_) {}
+                window._staffDriverScreenMarker = null;
+            }
+
+            // Maximizar mapa: minimizar panel de control
+            try {
+                document.body.classList.add('panel-minimized', 'staff-driver-screen-preview-active');
+                document.getElementById('control-panel')?.classList.add('panel-collapsed');
+            } catch (_) {}
+
+            const sheet = document.createElement('div');
+            sheet.id = 'staff-driver-screen-preview';
+            sheet.className = 'staff-live-trip-sheet staff-driver-screen-preview';
+            sheet.innerHTML = `
+                <div class="staff-live-trip-sheet-inner staff-driver-screen-preview-inner">
+                    <div class="staff-live-trip-sheet-head">
+                        <div>
+                            <p class="staff-live-trip-kicker staff-driver-screen-kicker">
+                                <i class="fas fa-mobile-alt"></i> Vista · pantalla del conductor
+                            </p>
+                            <h3 class="staff-live-trip-title" id="staff-drv-screen-title">${escapeViewerText(driverName || 'Conductor')}</h3>
+                            <p class="staff-driver-screen-sub" id="staff-drv-screen-sub">Cargando GPS y mapa…</p>
+                        </div>
+                        <button type="button" class="staff-live-trip-close" id="staff-drv-screen-close" aria-label="Cerrar">&times;</button>
+                    </div>
+                    <div id="staff-drv-screen-body" class="staff-driver-screen-body">
+                        <div class="staff-driver-finance-loading">
+                            <i class="fas fa-spinner fa-spin"></i> Revisando mapa y posición…
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(sheet);
+
+            const closePreview = () => {
+                if (window._staffDriverScreenPoll) {
+                    try { clearInterval(window._staffDriverScreenPoll); } catch (_) {}
+                    window._staffDriverScreenPoll = null;
+                }
+                if (window._staffDriverScreenMarker) {
+                    try { window._staffDriverScreenMarker.setMap?.(null); } catch (_) {}
+                    window._staffDriverScreenMarker = null;
+                }
+                try { document.body.classList.remove('staff-driver-screen-preview-active'); } catch (_) {}
+                sheet.remove();
+            };
+            sheet.querySelector('#staff-drv-screen-close')?.addEventListener('click', closePreview);
+
+            const bodyEl = sheet.querySelector('#staff-drv-screen-body');
+            const subEl = sheet.querySelector('#staff-drv-screen-sub');
+            const titleEl = sheet.querySelector('#staff-drv-screen-title');
+
+            const mapOk = !!(window.gMap && (window.mapLoaded !== false));
+            const mapsApiOk = typeof google !== 'undefined' && !!google.maps;
+
+            let userData = {};
+            try {
+                const userSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', driverId));
+                if (userSnap.exists()) userData = userSnap.data() || {};
+                [userData] = await enrichUsersWithContact([{ ...userData, uid: driverId }]);
+            } catch (_) {}
+
+            const name = (userData.name || driverName || 'Conductor').toString();
+            if (titleEl) titleEl.textContent = name;
+
+            // Viaje activo o programado reservado
+            let trip = null;
+            try {
+                const live = getFleetActiveTripForDriver?.(driverId);
+                if (live?.trip) trip = { id: live.trip.id || live.id, ...live.trip };
+            } catch (_) {}
+            if (!trip) {
+                try {
+                    const qSnap = await getDocs(query(
+                        collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
+                        where('driverId', '==', driverId),
+                        where('status', 'in', ['accepted', 'in_progress', 'scheduled'])
+                    ));
+                    if (!qSnap.empty) {
+                        const docs = qSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                        const prio = { in_progress: 3, accepted: 2, scheduled: 1 };
+                        docs.sort((a, b) => (prio[b.status] || 0) - (prio[a.status] || 0));
+                        trip = docs[0];
+                    }
+                } catch (_) {}
+            }
+
+            const readLoc = async () => {
+                try {
+                    const locSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', driverId));
+                    if (!locSnap.exists()) return null;
+                    return locSnap.data() || null;
+                } catch (_) {
+                    return null;
+                }
+            };
+
+            const placeDriverDot = (lat, lng) => {
+                if (!window.gMap || typeof google === 'undefined' || !google.maps) return;
+                const pos = { lat: Number(lat), lng: Number(lng) };
+                if (window._staffDriverScreenMarker) {
+                    window._staffDriverScreenMarker.setPosition?.(pos);
+                    return;
+                }
+                try {
+                    window._staffDriverScreenMarker = new google.maps.Marker({
+                        map: window.gMap,
+                        position: pos,
+                        title: name,
+                        zIndex: 9999,
+                        icon: {
+                            path: google.maps.SymbolPath.CIRCLE,
+                            scale: 10,
+                            fillColor: '#0d9488',
+                            fillOpacity: 1,
+                            strokeColor: '#fff',
+                            strokeWeight: 3
+                        }
+                    });
+                } catch (_) {}
+            };
+
+            const centerOn = (lat, lng, zoom = 16) => {
+                if (!window.gMap || lat == null || lng == null) return;
+                try {
+                    const pos = { lat: Number(lat), lng: Number(lng) };
+                    if (typeof window.smoothMapGoTo === 'function') {
+                        window.smoothMapGoTo(pos.lat, pos.lng, zoom);
+                    } else {
+                        window.gMap.panTo(pos);
+                        window.gMap.setZoom?.(zoom);
+                    }
+                    placeDriverDot(pos.lat, pos.lng);
+                } catch (_) {}
+            };
+
+            let loc = await readLoc();
+            const hasGps = loc && loc.lat != null && loc.lng != null;
+            const gpsAgeMs = hasGps && loc.updatedAt
+                ? Math.max(0, Date.now() - Number(loc.updatedAt))
+                : null;
+            const gpsAgeLabel = gpsAgeMs == null
+                ? 'Sin GPS'
+                : (gpsAgeMs < 15000
+                    ? 'GPS en vivo'
+                    : (gpsAgeMs < 120000
+                        ? `GPS hace ${Math.round(gpsAgeMs / 1000)} s`
+                        : `GPS hace ${Math.round(gpsAgeMs / 60000)} min`));
+            const online = !!(loc && typeof isDriverOnline === 'function' ? isDriverOnline(loc) : (gpsAgeMs != null && gpsAgeMs < 180000));
+            const appBg = loc?.appVisible === false;
+            const onBreak = !!userData.driverOnBreak;
+
+            if (hasGps) centerOn(loc.lat, loc.lng, 16);
+            else if (subEl) subEl.textContent = 'Sin GPS reciente · mapa de la ciudad';
+
+            // Ruta del viaje si hay
+            let routeNote = 'Sin viaje activo';
+            if (trip) {
+                const stLabel = trip.status === 'scheduled'
+                    ? 'Programado reservado'
+                    : (trip.status === 'in_progress' ? 'En curso' : 'Aceptado · al origen');
+                routeNote = `${stLabel} · ${trip.clientName || 'pasajero'}`;
+                try {
+                    if (trip.originLat != null && trip.originLng != null) {
+                        window.placePickupMarker?.({ lat: trip.originLat, lng: trip.originLng }, 'Origen');
+                    }
+                    if (trip.destinationLat != null && trip.destinationLng != null) {
+                        window.placeDestinationMarker?.({ lat: trip.destinationLat, lng: trip.destinationLng }, 'Destino');
+                    }
+                    if (hasGps && trip.originLat != null && typeof window.computeDrivingRoute === 'function') {
+                        const from = { latLng: { lat: Number(loc.lat), lng: Number(loc.lng) } };
+                        const toPickup = {
+                            latLng: { lat: Number(trip.originLat), lng: Number(trip.originLng) },
+                            address: trip.origin
+                        };
+                        const seg = await window.computeDrivingRoute(from, toPickup);
+                        if (seg?.path?.length >= 2) {
+                            window.drawRouteOnMap?.(seg, { driverOfferPreview: true, staffPreview: true });
+                            routeNote += ' · ruta al origen dibujada';
+                        }
+                    } else if (trip.originLat != null && trip.destinationLat != null && typeof window.computeDrivingRoute === 'function') {
+                        const o = { latLng: { lat: Number(trip.originLat), lng: Number(trip.originLng) }, address: trip.origin };
+                        const d = { latLng: { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng) }, address: trip.destination };
+                        const seg = await window.computeDrivingRoute(o, d);
+                        if (seg?.path?.length >= 2) {
+                            window.drawRouteOnMap?.(seg, { driverOfferPreview: true, staffPreview: true });
+                            routeNote += ' · trazo origen→destino';
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[staff] preview driver route', e);
+                    routeNote += ' · no se pudo trazar ruta';
+                }
+            }
+
+            const mapHealth = !mapsApiOk
+                ? { ok: false, label: 'Maps API no cargó en ESTA app (staff)', cls: 'is-debt' }
+                : (!mapOk
+                    ? { ok: false, label: 'Mapa principal no listo en ESTA sesión staff', cls: 'is-debt' }
+                    : { ok: true, label: 'Mapa de HonduRaite OK en esta sesión', cls: 'is-online' });
+
+            if (subEl) {
+                subEl.textContent = [
+                    gpsAgeLabel,
+                    online ? 'en línea' : 'offline / idle',
+                    onBreak ? 'descanso' : null,
+                    appBg ? 'app en 2.º plano' : null
+                ].filter(Boolean).join(' · ');
+            }
+
+            const safeName = name.replace(/'/g, "\\'");
+            if (bodyEl) {
+                bodyEl.innerHTML = `
+                    <div class="staff-driver-finance-status">
+                        <span class="staff-driver-finance-chip ${mapHealth.cls}">
+                            <i class="fas fa-${mapHealth.ok ? 'check-circle' : 'exclamation-triangle'}"></i>
+                            ${escapeViewerText(mapHealth.label)}
+                        </span>
+                        <span class="staff-driver-finance-chip ${online && !onBreak ? 'is-online' : 'is-idle'}">
+                            <i class="fas fa-circle"></i> ${escapeViewerText(gpsAgeLabel)}
+                        </span>
+                        ${onBreak ? '<span class="staff-driver-finance-chip is-idle"><i class="fas fa-pause"></i> Descanso</span>' : ''}
+                        ${appBg ? '<span class="staff-driver-finance-chip is-idle"><i class="fas fa-eye-slash"></i> 2.º plano</span>' : ''}
+                    </div>
+
+                    <div class="staff-driver-screen-fakephone" aria-hidden="true">
+                        <div class="staff-driver-screen-fakephone-bar">
+                            <span>HonduRaite · conductor</span>
+                            <span>${escapeViewerText((userData.vehicleType || 'auto').toString().toUpperCase())}</span>
+                        </div>
+                        <p class="staff-driver-screen-fakephone-hint">
+                            El mapa grande de fondo es lo que debería ver centrado en su GPS.
+                            Esto es revisión staff (no es el teléfono real del conductor).
+                        </p>
+                    </div>
+
+                    <div class="staff-driver-finance-grid" style="margin-top:0.5rem;">
+                        <div><span>Conductor</span><b>${escapeViewerText(name)}</b></div>
+                        <div><span>Estado app</span><b>${escapeViewerText(onBreak ? 'Descanso' : (online ? 'En línea' : 'Idle'))}</b></div>
+                        <div><span>GPS</span><b>${escapeViewerText(hasGps ? `${Number(loc.lat).toFixed(5)}, ${Number(loc.lng).toFixed(5)}` : '—')}</b></div>
+                        <div><span>Viaje</span><b>${escapeViewerText(routeNote)}</b></div>
+                        ${trip ? `
+                        <div><span>Origen</span><b>${escapeViewerText(String(trip.origin || '—').slice(0, 48))}</b></div>
+                        <div><span>Destino</span><b>${escapeViewerText(String(trip.destination || '—').slice(0, 48))}</b></div>
+                        ` : ''}
+                    </div>
+
+                    <div class="staff-live-trip-actions">
+                        <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-drv-screen-recenter">
+                            <i class="fas fa-crosshairs"></i> Centrar en su GPS
+                        </button>
+                        <button type="button" class="staff-live-trip-btn" id="staff-drv-screen-refresh">
+                            <i class="fas fa-sync"></i> Actualizar
+                        </button>
+                        ${trip ? `
+                        <button type="button" class="staff-live-trip-btn" id="staff-drv-screen-live">
+                            <i class="fas fa-route"></i> Panel viaje en vivo
+                        </button>` : ''}
+                        <button type="button" class="staff-live-trip-btn" id="staff-drv-screen-full">
+                            <i class="fas fa-id-badge"></i> Ficha completa
+                        </button>
+                    </div>
+                    <p class="staff-live-trip-hint">
+                        Si el mapa de fondo no se mueve o sale gris: problema de Maps en esta sesión staff o GPS del conductor viejo.
+                        Si el GPS está en vivo y el trazo se ve, su pantalla debería poder cargar la ruta igual.
+                    </p>
+                `;
+
+                bodyEl.querySelector('#staff-drv-screen-recenter')?.addEventListener('click', async () => {
+                    const L = await readLoc();
+                    if (L?.lat != null) {
+                        centerOn(L.lat, L.lng, 17);
+                        window.showToast?.('Centrado en GPS del conductor.', 'success');
+                    } else {
+                        window.showToast?.('Sin GPS del conductor ahora.', 'warning');
+                    }
+                });
+                bodyEl.querySelector('#staff-drv-screen-refresh')?.addEventListener('click', () => {
+                    window.staffPreviewDriverScreen?.(driverId, name);
+                });
+                bodyEl.querySelector('#staff-drv-screen-live')?.addEventListener('click', () => {
+                    if (trip) {
+                        closePreview();
+                        window.showStaffLiveTripMapSheet?.(trip, { driverId, driverName: name });
+                    }
+                });
+                bodyEl.querySelector('#staff-drv-screen-full')?.addEventListener('click', () => {
+                    window.staffParkMapSheetsForModal?.(true);
+                    window.showDriverFullDetails?.(driverId, safeName);
+                });
+            }
+
+            // Poll GPS cada 4s mientras la vista está abierta
+            window._staffDriverScreenPoll = setInterval(async () => {
+                if (!document.getElementById('staff-driver-screen-preview')) {
+                    clearInterval(window._staffDriverScreenPoll);
+                    window._staffDriverScreenPoll = null;
+                    return;
+                }
+                const L = await readLoc();
+                if (L?.lat != null && L?.lng != null) {
+                    placeDriverDot(L.lat, L.lng);
+                    const age = L.updatedAt ? Math.max(0, Date.now() - Number(L.updatedAt)) : null;
+                    if (subEl && age != null) {
+                        const label = age < 15000 ? 'GPS en vivo' : `GPS hace ${Math.round(age / 1000)} s`;
+                        subEl.textContent = label + (L.appVisible === false ? ' · app en 2.º plano' : '');
+                    }
+                }
+            }, 4000);
+
+            window.showToast?.(
+                mapOk
+                    ? `Vista de ${name.split(' ')[0]} · mapa centrado en su GPS`
+                    : 'Mapa staff no listo; revisa conexión o recarga la app.',
+                mapOk ? 'success' : 'warning'
+            );
+        };
+
+        /**
          * Ficha de finanzas al tocar un carro libre en el mapa (admin/supervisor).
          */
         window.showStaffDriverFinanceMapSheet = async (driverId, driverName = 'Conductor') => {
@@ -16060,7 +16413,10 @@ if (document.readyState === 'loading') {
                     </div>
 
                     <div class="staff-live-trip-actions">
-                        <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-driver-finance-full">
+                        <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-driver-finance-screen">
+                            <i class="fas fa-mobile-alt"></i> Ver su pantalla / mapa
+                        </button>
+                        <button type="button" class="staff-live-trip-btn" id="staff-driver-finance-full">
                             <i class="fas fa-id-badge"></i> Ficha completa
                         </button>
                         <button type="button" class="staff-live-trip-btn" id="staff-driver-finance-deposits">
@@ -16089,6 +16445,10 @@ if (document.readyState === 'loading') {
                     </p>
                 `;
 
+                body.querySelector('#staff-driver-finance-screen')?.addEventListener('click', () => {
+                    sheet.remove();
+                    window.staffPreviewDriverScreen?.(driverId, name);
+                });
                 body.querySelector('#staff-driver-finance-full')?.addEventListener('click', () => {
                     // Ocultar ficha del mapa para no apilar recuadros con el modal
                     window.staffParkMapSheetsForModal?.(true);
@@ -16328,6 +16688,9 @@ if (document.readyState === 'loading') {
                         <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-live-trip-route">
                             <i class="fas fa-route"></i> Cargar trazo / km
                         </button>
+                        <button type="button" class="staff-live-trip-btn" id="staff-live-trip-screen">
+                            <i class="fas fa-mobile-alt"></i> Su pantalla / mapa
+                        </button>
                         <button type="button" class="staff-live-trip-btn" id="staff-live-trip-center">
                             <i class="fas fa-crosshairs"></i> Centrar conductor
                         </button>
@@ -16377,6 +16740,10 @@ if (document.readyState === 'loading') {
             });
             sheet.querySelector('#staff-live-trip-edit')?.addEventListener('click', () => {
                 window.staffOpenTripRouteEditor?.(trip.id);
+            });
+            sheet.querySelector('#staff-live-trip-screen')?.addEventListener('click', () => {
+                sheet.remove();
+                window.staffPreviewDriverScreen?.(driverId, driverName);
             });
             sheet.querySelector('#staff-live-trip-profile')?.addEventListener('click', () => {
                 window.staffParkMapSheetsForModal?.(true);

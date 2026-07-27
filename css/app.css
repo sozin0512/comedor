@@ -10442,6 +10442,50 @@
             cursor: pointer;
         }
 
+        /* Vista previa “pantalla del conductor” (staff revisa mapa/GPS) */
+        .staff-driver-screen-preview .staff-driver-screen-kicker {
+            color: #0d9488;
+        }
+        .staff-driver-screen-preview-inner {
+            border-color: #99f6e4 !important;
+            box-shadow: 0 20px 50px rgba(13, 148, 136, 0.22) !important;
+        }
+        .staff-driver-screen-sub {
+            margin: 0.2rem 0 0;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: #64748b;
+            line-height: 1.35;
+        }
+        .staff-driver-screen-fakephone {
+            margin-top: 0.45rem;
+            border-radius: 0.9rem;
+            border: 1px dashed #5eead4;
+            background: linear-gradient(180deg, #f0fdfa 0%, #ecfeff 100%);
+            padding: 0.55rem 0.65rem;
+        }
+        .staff-driver-screen-fakephone-bar {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            font-size: 0.62rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #0f766e;
+        }
+        .staff-driver-screen-fakephone-hint {
+            margin: 0.35rem 0 0;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #475569;
+            line-height: 1.35;
+        }
+        body.staff-driver-screen-preview-active #admin-panel,
+        body.staff-driver-screen-preview-active #supervisor-panel {
+            /* dejar el mapa visible detrás */
+        }
+
         /* Panel flotante viaje en vivo desde mapa de flota */
         .staff-live-trip-sheet {
             position: fixed;
