@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.27.6";
+} from "./auth-credentials.js?v=2026.07.27.7";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.27.6";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.6";
+import { APP_CONFIG } from "./config.js?v=2026.07.27.7";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.7";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.27.6";
+} from "./referrals.js?v=2026.07.27.7";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.27.6";
+} from "./zones.js?v=2026.07.27.7";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.27.6";
+} from "./trip-notifications.js?v=2026.07.27.7";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.27.6";
+} from "./notification-tones.js?v=2026.07.27.7";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.27.6";
+} from "./passenger-alerts.js?v=2026.07.27.7";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.27.6";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.6";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.6";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.6";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.6";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.27.6";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.6";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.6";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.6";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.6";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.6";
+} from "./passenger-verification.js?v=2026.07.27.7";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.7";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.7";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.7";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.7";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.27.7";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.7";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.7";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.7";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.7";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.7";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.27.6";
+} from "./feedback.js?v=2026.07.27.7";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.27.6";
+} from "./greetings.js?v=2026.07.27.7";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.27.6";
+} from "./service-types.js?v=2026.07.27.7";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.27.6";
+} from "./driver-vehicles.js?v=2026.07.27.7";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.27.6";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.6";
+} from "./route-conditions.js?v=2026.07.27.7";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.7";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.27.6";
+} from "./demand-heatmap.js?v=2026.07.27.7";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.27.6";
+} from "./ops-fleet-map.js?v=2026.07.27.7";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.27.6";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.6";
+} from "./live-trip-keepalive.js?v=2026.07.27.7";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.7";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.27.6";
+} from "./session-keepalive.js?v=2026.07.27.7";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.27.6";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.6";
+} from "./passenger-tutorial.js?v=2026.07.27.7";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.7";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.27.6";
+} from "./driver-tutorial.js?v=2026.07.27.7";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.6";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.7";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.27.6";
+} from "./auth-ui.js?v=2026.07.27.7";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.27.6";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.6";
+} from "./age-verification.js?v=2026.07.27.7";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.7";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.27.6";
+} from "./trip-experience.js?v=2026.07.27.7";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.27.6";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.6";
-import { initAppDownload } from "./app-download.js?v=2026.07.27.6";
+} from "./support-tickets.js?v=2026.07.27.7";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.7";
+import { initAppDownload } from "./app-download.js?v=2026.07.27.7";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -37604,6 +37604,148 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
             </div>
         `).join('');
 
+        // —— Conductores que aún no depositaron la comisión ——
+        const formatElapsedSince = (fromMs) => {
+            if (!fromMs || !Number.isFinite(fromMs)) return '—';
+            const sec = Math.max(0, Math.floor((Date.now() - fromMs) / 1000));
+            if (sec < 60) return `${sec} s`;
+            const min = Math.floor(sec / 60);
+            if (min < 60) return `${min} min`;
+            const h = Math.floor(min / 60);
+            if (h < 48) {
+                const m = min % 60;
+                return m ? `${h} h ${m} min` : `${h} h`;
+            }
+            const d = Math.floor(h / 24);
+            const rh = h % 24;
+            return rh ? `${d} d ${rh} h` : `${d} d`;
+        };
+
+        // Por conductor: primer y último viaje en efectivo del período (para “hace cuánto”)
+        const cashTripAgeByDriver = {};
+        tripsSnap.forEach((tripDoc) => {
+            const t = tripDoc.data();
+            if (t.status !== 'completed' || !t.driverId) return;
+            if (t.paymentMethod === 'saldo' || t.paymentMethod === 'birthday_gift' || t.birthdayFree) return;
+            const tripDate = t.completedAt?.toDate?.()
+                || (t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null));
+            if (!tripDate || tripDate < startDate) return;
+            const ms = tripDate.getTime();
+            const id = t.driverId;
+            if (!cashTripAgeByDriver[id]) {
+                cashTripAgeByDriver[id] = { oldestMs: ms, newestMs: ms, name: t.driverName || 'Conductor', trips: 0 };
+            }
+            const row = cashTripAgeByDriver[id];
+            row.oldestMs = Math.min(row.oldestMs, ms);
+            row.newestMs = Math.max(row.newestMs, ms);
+            row.trips += 1;
+            if (t.driverName) row.name = t.driverName;
+        });
+
+        const owingDrivers = [];
+        const candidateIds = new Set([
+            ...Object.keys(cashTripAgeByDriver),
+            ...Object.keys(driverStats).filter((k) => k !== 'sin-conductor')
+        ]);
+        (window.allUsersData || []).forEach((u) => {
+            if (u.role === 'driver' && (parseFloat(u.pendingDepositDebt) || 0) > 0.009) {
+                candidateIds.add(u.uid);
+            }
+        });
+
+        for (const driverId of candidateIds) {
+            if (!driverId || driverId === 'sin-conductor') continue;
+            let stats = null;
+            try {
+                stats = typeof computeDriverDayStats === 'function'
+                    ? await computeDriverDayStats(driverId)
+                    : (await window.computeDriverDayStats?.(driverId));
+            } catch (_) {}
+            const totalOwed = Math.max(0, Number(stats?.totalOwed) || 0);
+            if (totalOwed < 0.01) continue;
+
+            const profile = (window.allUsersData || []).find((u) => u.uid === driverId) || {};
+            const age = cashTripAgeByDriver[driverId] || {};
+            const workStart = getDriverDepositWorkStartMs(profile);
+            const sinceMs = age.oldestMs || workStart || 0;
+            const deadlineMs = getDriverDepositDeadlineMs(profile);
+            const graceOn = isDriverDepositGraceActive(profile);
+            const overdue = !graceOn && totalOwed > 0.009
+                && ((deadlineMs > 0 && Date.now() >= deadlineMs) || !!profile.depositAutoBlocked);
+
+            owingDrivers.push({
+                uid: driverId,
+                name: age.name || profile.name || stats?.name || 'Conductor',
+                phone: profile.phone || '',
+                totalOwed,
+                remainingToday: Math.max(0, Number(stats?.remainingToDeposit) || 0),
+                debt: Math.max(0, Number(stats?.pendingDepositDebt) || parseFloat(profile.pendingDepositDebt) || 0),
+                sinceMs,
+                sinceLabel: formatElapsedSince(sinceMs),
+                newestLabel: age.newestMs ? formatElapsedSince(age.newestMs) : '—',
+                cashTripsPeriod: age.trips || 0,
+                deadlineLabel: formatDepositDeadlineLabel(profile) || '—',
+                graceOn,
+                overdue
+            });
+        }
+        owingDrivers.sort((a, b) => {
+            if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
+            return (a.sinceMs || 0) - (b.sinceMs || 0);
+        });
+
+        const owingHtml = owingDrivers.length
+            ? owingDrivers.map((d) => {
+                const safeName = String(d.name || 'Conductor').replace(/'/g, "\\'");
+                const border = d.overdue ? 'border-rose-500/50 bg-rose-950/40' : 'border-amber-600/40 bg-amber-950/30';
+                return `
+                <div class="rounded-xl border ${border} p-3 text-[11px] space-y-1.5">
+                    <div class="flex justify-between gap-2 items-start">
+                        <div class="min-w-0">
+                            <p class="font-black text-white truncate">${String(d.name || '').replace(/</g, '')}</p>
+                            <p class="text-[10px] font-bold ${d.overdue ? 'text-rose-300' : 'text-amber-200'}">
+                                ${d.overdue ? '⚠ PLAZO VENCIDO' : 'Pendiente de depósito'}
+                                ${d.graceOn ? ' · prórroga activa' : ''}
+                            </p>
+                        </div>
+                        <p class="font-black text-amber-300 shrink-0">L. ${d.totalOwed.toFixed(2)}</p>
+                    </div>
+                    <p class="text-slate-300 font-bold leading-snug">
+                        Sin depositar desde el 1.er viaje en efectivo del período:
+                        <b class="text-white">hace ${d.sinceLabel}</b>
+                        ${d.cashTripsPeriod ? ` · ${d.cashTripsPeriod} viaje(s) efectivo` : ''}
+                    </p>
+                    <p class="text-slate-400 font-bold text-[10px]">
+                        Último viaje efectivo: hace ${d.newestLabel}
+                        · Deuda acumulada L. ${d.debt.toFixed(2)}
+                        · Hoy L. ${d.remainingToday.toFixed(2)}
+                        · Plazo: ${d.deadlineLabel}
+                    </p>
+                    <div class="flex flex-wrap gap-2 pt-1">
+                        <button type="button"
+                            onclick="window.sendDepositReminderToDriver('${d.uid}', '${safeName}', ${d.totalOwed.toFixed(2)}, '${d.sinceLabel}', ${d.overdue ? 'true' : 'false'})"
+                            class="flex-1 min-w-[7rem] py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black">
+                            <i class="fas fa-bell"></i> Recordar depósito
+                        </button>
+                        <button type="button"
+                            onclick="window.sendIndividualNotification('${d.uid}', '${safeName}', 'driver')"
+                            class="flex-1 min-w-[7rem] py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-black">
+                            Mensaje libre
+                        </button>
+                    </div>
+                </div>`;
+            }).join('')
+            : '<p class="text-emerald-400/90 text-xs font-bold py-2">Ningún conductor con depósito pendiente ahora.</p>';
+
+        const bulkBtn = owingDrivers.length
+            ? `<button type="button" onclick="window.sendDepositReminderBulk()"
+                class="w-full mb-3 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-xs font-black">
+                <i class="fas fa-bullhorn"></i> Recordar a todos (${owingDrivers.length})
+               </button>`
+            : '';
+
+        window._statsOwingDrivers = owingDrivers;
+
         contentDiv.innerHTML = `
             <div class="grid grid-cols-2 gap-4 text-center mb-6">
                 <div class="bg-gray-800 p-4 rounded-2xl">
@@ -37635,6 +37777,17 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                 </p>
             </div>
 
+            <div class="bg-gray-900 border border-amber-700/40 rounded-2xl p-4 mb-4">
+                <p class="text-[10px] font-black text-amber-300 uppercase tracking-widest mb-1">
+                    <i class="fas fa-piggy-bank"></i> Sin depositar · comisión
+                </p>
+                <p class="text-[10px] text-slate-400 font-bold mb-3 leading-snug">
+                    Conductores que aún deben depositar. Muestra <b>cuánto tiempo pasó</b> desde el primer viaje en efectivo del período sin depositar.
+                </p>
+                ${bulkBtn}
+                <div class="space-y-2 max-h-72 overflow-y-auto">${owingHtml}</div>
+            </div>
+
             <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Por conductor</p>
             <div class="space-y-2 mb-4 max-h-40 overflow-y-auto">${driverSummary || '<p class="text-gray-500 text-xs">Sin viajes</p>'}</div>
 
@@ -37651,6 +37804,100 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
             </div>
         `;
     }
+};
+
+/** Recordatorio de depósito a un conductor (push + campana). */
+window.sendDepositReminderToDriver = async (uid, userName, amount, sinceLabel = '', overdue = false) => {
+    if (!canManageUsers()) {
+        return window.showToast?.('Solo admin o supervisor.', 'warning');
+    }
+    if (!uid) return;
+    const amt = Number(amount) || 0;
+    const name = userName || 'Conductor';
+    const waitBit = sinceLabel && sinceLabel !== '—'
+        ? ` Llevas ${sinceLabel} sin depositar desde tu primer viaje en efectivo del período.`
+        : '';
+    const urgency = overdue
+        ? '⚠ Tu plazo de depósito ya venció. '
+        : '';
+    const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de L. ${amt.toFixed(2)}.${waitBit} Hazlo desde la app → Depósito del día.`;
+    if (!confirm(`¿Enviar recordatorio de depósito a ${name}?\n\nMonto: L. ${amt.toFixed(2)}\nTiempo sin depositar: ${sinceLabel || '—'}`)) {
+        return;
+    }
+    try {
+        const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'notifications');
+        const newRef = doc(colRef);
+        await setDoc(newRef, {
+            targetRole: 'driver',
+            targetUserId: String(uid),
+            targetUserName: name,
+            personal: true,
+            sendPush: true,
+            broadcastPush: false,
+            pushDispatched: false,
+            type: 'deposit_reminder',
+            title: overdue ? '⚠ Depósito vencido' : 'Recordatorio de depósito',
+            body: msg,
+            message: msg,
+            tag: `deposit-reminder-${uid}-${Date.now()}`,
+            amount: amt,
+            sentBy: currentUser?.uid || null,
+            sentByName: window.getSenderDisplayName?.() || 'Staff',
+            createdAt: serverTimestamp(),
+            createdAtMs: Date.now()
+        });
+        window.showToast?.(`Recordatorio enviado a ${name}.`, 'success');
+    } catch (e) {
+        console.error('sendDepositReminderToDriver:', e);
+        window.showToast?.(e?.message || 'No se pudo enviar el recordatorio.', 'error');
+    }
+};
+
+/** Recordatorio masivo a todos los de la lista de estadísticas. */
+window.sendDepositReminderBulk = async () => {
+    if (!canManageUsers()) {
+        return window.showToast?.('Solo admin o supervisor.', 'warning');
+    }
+    const list = Array.isArray(window._statsOwingDrivers) ? window._statsOwingDrivers : [];
+    if (!list.length) return window.showToast?.('No hay conductores pendientes en la lista.', 'warning');
+    if (!confirm(`¿Enviar recordatorio de depósito a ${list.length} conductor(es)?`)) return;
+    let ok = 0;
+    let fail = 0;
+    for (const d of list) {
+        try {
+            const amt = Number(d.totalOwed) || 0;
+            const waitBit = d.sinceLabel && d.sinceLabel !== '—'
+                ? ` Llevas ${d.sinceLabel} sin depositar.`
+                : '';
+            const urgency = d.overdue ? '⚠ Tu plazo de depósito ya venció. ' : '';
+            const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de L. ${amt.toFixed(2)}.${waitBit} App → Depósito del día.`;
+            const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'notifications');
+            const newRef = doc(colRef);
+            await setDoc(newRef, {
+                targetRole: 'driver',
+                targetUserId: String(d.uid),
+                targetUserName: d.name || 'Conductor',
+                personal: true,
+                sendPush: true,
+                broadcastPush: false,
+                pushDispatched: false,
+                type: 'deposit_reminder',
+                title: d.overdue ? '⚠ Depósito vencido' : 'Recordatorio de depósito',
+                body: msg,
+                message: msg,
+                tag: `deposit-reminder-${d.uid}-${Date.now()}`,
+                amount: amt,
+                sentBy: currentUser?.uid || null,
+                sentByName: window.getSenderDisplayName?.() || 'Staff',
+                createdAt: serverTimestamp(),
+                createdAtMs: Date.now()
+            });
+            ok += 1;
+        } catch (_) {
+            fail += 1;
+        }
+    }
+    window.showToast?.(`Recordatorios: ${ok} enviados${fail ? ` · ${fail} fallaron` : ''}.`, ok ? 'success' : 'error');
 };
 
 const urlReferralCode = storeReferralFromURL();
