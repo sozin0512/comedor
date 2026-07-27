@@ -22,6 +22,49 @@ import { getDefaultZoneId, getZoneById, getZoneConfig, getCityCoverageKm } from 
 /** Host público siempre (WhatsApp no linkifica capacitor:// ni localhost). */
 const STAFF_TRIP_PUBLIC_BASE = 'https://comedor-86278.web.app';
 
+/**
+ * Honduras = UTC-6 fijo (sin DST). Evita que la hora se desfase por la zona del teléfono
+ * o por mezclar toISOString (UTC) con inputs date/time locales.
+ */
+function isoToHondurasDateTimeParts(isoOrDate) {
+    try {
+        const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+        if (!Number.isFinite(d.getTime())) return { date: '', time: '' };
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Tegucigalpa',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hourCycle: 'h23'
+        }).formatToParts(d);
+        const get = (type) => parts.find((p) => p.type === type)?.value || '';
+        let hour = get('hour') || '00';
+        if (hour === '24') hour = '00';
+        return {
+            date: `${get('year')}-${get('month')}-${get('day')}`,
+            time: `${String(hour).padStart(2, '0')}:${String(get('minute') || '00').padStart(2, '0')}`
+        };
+    } catch (_) {
+        return { date: '', time: '' };
+    }
+}
+
+/** YYYY-MM-DD + HH:mm como hora de pared en Honduras → ISO UTC */
+function hondurasWallTimeToIso(dateStr, timeStr) {
+    const m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const t = String(timeStr || '').match(/^(\d{1,2}):(\d{2})/);
+    if (!m || !t) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const day = Number(m[3]);
+    const hh = Number(t[1]);
+    const mm = Number(t[2]);
+    if (!(y >= 2020) || mo < 1 || mo > 12 || day < 1 || day > 31 || hh > 23 || mm > 59) return null;
+    return new Date(Date.UTC(y, mo - 1, day, hh + 6, mm, 0, 0)).toISOString();
+}
+
 function getPublicAppBaseUrl() {
     try {
         const origin = String(window.location?.origin || '').replace(/\/$/, '');
@@ -98,6 +141,7 @@ function buildStaffTripWhatsAppMessage({
     } else if (scheduledFor) {
         try {
             const when = new Date(scheduledFor).toLocaleString('es-HN', {
+                timeZone: 'America/Tegucigalpa',
                 weekday: 'short', day: 'numeric', month: 'short',
                 hour: '2-digit', minute: '2-digit'
             });
@@ -489,10 +533,10 @@ export function installStaffCreateClientTrip({
             const schedDateInput = modal.querySelector('#staff-cct-date');
             const schedTimeInput = modal.querySelector('#staff-cct-time');
 
-            // Mínimo ~20 min
+            // Mínimo ~20 min (fecha en hora de Honduras, no UTC)
             try {
-                const minD = new Date(Date.now() + 20 * 60 * 1000);
-                if (schedDateInput) schedDateInput.min = minD.toISOString().slice(0, 10);
+                const minParts = isoToHondurasDateTimeParts(new Date(Date.now() + 20 * 60 * 1000));
+                if (schedDateInput && minParts.date) schedDateInput.min = minParts.date;
             } catch (_) {}
 
             const syncSchedUi = () => {
@@ -1184,8 +1228,9 @@ export function installStaffCreateClientTrip({
             if (!dateStr || !timeStr) {
                 return toast(showToast, 'Pon fecha y hora del programado, o marca «Cliente elige».');
             }
-            scheduledFor = new Date(`${dateStr}T${timeStr}:00`).toISOString();
-            if (new Date(scheduledFor).getTime() <= Date.now() + 5 * 60 * 1000) {
+            // Hora de pared en Honduras (UTC-6), no la zona del dispositivo del staff
+            scheduledFor = hondurasWallTimeToIso(dateStr, timeStr);
+            if (!scheduledFor || new Date(scheduledFor).getTime() <= Date.now() + 5 * 60 * 1000) {
                 return toast(showToast, 'La fecha/hora debe ser al menos unos minutos en el futuro.');
             }
         }
@@ -1285,12 +1330,13 @@ export function installStaffCreateClientTrip({
                 : applyPassengerSurcharge(50, serviceType, passengers, tripDistanceKm);
 
             // Precio: override manual si hay; si no, tarifa de la ruta (base 1 pers. si cliente elige)
-            let priceNum = priceOverride > 0 ? priceOverride : routeFare;
+            const staffManualPrice = priceOverride > 0;
+            let priceNum = staffManualPrice ? priceOverride : routeFare;
             priceNum = Math.round(priceNum * 100) / 100;
 
             if (hint) {
                 hint.textContent = tripDistanceKm > 0
-                    ? `Ruta ${tripDistanceKm.toFixed(1)} km · tarifa L. ${priceNum.toFixed(2)}${priceOverride > 0 ? ' (manual)' : ''}`
+                    ? `Ruta ${tripDistanceKm.toFixed(1)} km · tarifa L. ${priceNum.toFixed(2)}${staffManualPrice ? ' (manual)' : ''}`
                     : `Guardando con tarifa L. ${priceNum.toFixed(2)}…`;
             }
 
@@ -1322,6 +1368,9 @@ export function installStaffCreateClientTrip({
                 searchRadiusKm: typeof getCityCoverageKm === 'function' ? getCityCoverageKm(zoneId) : 25,
                 price: `L. ${priceNum.toFixed(2)}`,
                 priceNum,
+                // Si staff escribió un monto a mano, el cliente debe ver ESE precio (no la tarifa de ruta)
+                staffManualPrice,
+                routeFareNum: Math.round(routeFare * 100) / 100,
                 paymentMethod: 'efectivo',
                 clientId,
                 clientName: client.name || 'Cliente',
@@ -1548,6 +1597,7 @@ export function installStaffCreateClientTrip({
         if (t?.scheduledFor) {
             try {
                 return new Date(t.scheduledFor).toLocaleString('es-HN', {
+                    timeZone: 'America/Tegucigalpa',
                     weekday: 'short', day: 'numeric', month: 'short',
                     hour: '2-digit', minute: '2-digit'
                 });

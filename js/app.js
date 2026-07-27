@@ -2282,6 +2282,50 @@ if (document.readyState === 'loading') {
 
         // staff create-client-trip ya se instaló al cargar el módulo
 
+        /**
+         * Honduras es UTC-6 fijo (sin horario de verano).
+         * Evita que la hora se “adelante/atrasé” por la zona del teléfono o por mezclar toISOString (UTC) con getHours (local).
+         */
+        function isoToHondurasDateTimeParts(isoOrDate) {
+            try {
+                const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+                if (!Number.isFinite(d.getTime())) return { date: '', time: '' };
+                const parts = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: 'America/Tegucigalpa',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hourCycle: 'h23'
+                }).formatToParts(d);
+                const get = (type) => parts.find((p) => p.type === type)?.value || '';
+                let hour = get('hour') || '00';
+                if (hour === '24') hour = '00';
+                return {
+                    date: `${get('year')}-${get('month')}-${get('day')}`,
+                    time: `${String(hour).padStart(2, '0')}:${String(get('minute') || '00').padStart(2, '0')}`
+                };
+            } catch (_) {
+                return { date: '', time: '' };
+            }
+        }
+
+        /** Interpreta YYYY-MM-DD + HH:mm como hora de pared en Honduras → ISO UTC */
+        function hondurasWallTimeToIso(dateStr, timeStr) {
+            const m = String(dateStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            const t = String(timeStr || '').match(/^(\d{1,2}):(\d{2})/);
+            if (!m || !t) return null;
+            const y = Number(m[1]);
+            const mo = Number(m[2]);
+            const day = Number(m[3]);
+            const hh = Number(t[1]);
+            const mm = Number(t[2]);
+            if (!(y >= 2020) || mo < 1 || mo > 12 || day < 1 || day > 31 || hh > 23 || mm > 59) return null;
+            // Wall HN (UTC-6) → UTC = wall + 6h
+            return new Date(Date.UTC(y, mo - 1, day, hh + 6, mm, 0, 0)).toISOString();
+        }
+
         /** Modal: cliente acepta adueñarse del viaje armado por staff (puede ajustar personas y hora). */
         window.showStaffCreatedTripClaimModal = (trip, { force = false } = {}) => {
             if (!trip?.id || trip.clientId !== currentUser?.uid) return;
@@ -2321,33 +2365,39 @@ if (document.readyState === 'loading') {
             const mustSetSchedule = !!(trip.clientChoosesSchedule === true && !trip.scheduledFor);
 
             const baseKm = Number(trip.tripDistanceKm) || 0;
-            const baseFareWithoutPax = (() => {
-                const listed = Number(trip.priceNum) || 0;
-                const storedSur = Number(trip.passengerSurcharge) || 0;
-                if (listed > 0 && storedSur > 0 && baseKm > 25) return Math.max(0, listed - storedSur);
-                if (baseKm > 0) return calculateServiceFare(svcType, baseKm, null, 1);
-                return listed || 0;
-            })();
+            // Precio publicado por staff (manual o de ruta). NUNCA recalcular tarifa “normal” y pisarlo.
+            const listedPrice = Number(trip.priceNum) || 0;
+            const staffManualPrice = trip.staffManualPrice === true;
+            const origPax = Math.max(1, Number(trip.passengers) || 1);
+            const storedSur = Number(trip.passengerSurcharge) || 0;
             const priceForPax = (p) => {
                 const n = Math.max(1, parseInt(p, 10) || 1);
+                if (listedPrice > 0) {
+                    // Mismo # de personas → el precio que armó el staff
+                    if (n === origPax) return Math.round(listedPrice * 100) / 100;
+                    // Si cambia personas: conservar base del precio staff y solo mover el extra por pasajero
+                    const origSur = storedSur > 0
+                        ? storedSur
+                        : getPassengerSurcharge(svcType, origPax, baseKm);
+                    const base = Math.max(0, listedPrice - origSur);
+                    const newSur = getPassengerSurcharge(svcType, n, baseKm);
+                    return Math.round((base + newSur) * 100) / 100;
+                }
                 if (baseKm > 0) return calculateServiceFare(svcType, baseKm, null, n);
-                return applyPassengerSurcharge(baseFareWithoutPax || 50, svcType, n, baseKm);
+                return applyPassengerSurcharge(50, svcType, n, baseKm);
             };
             let livePrice = priceForPax(claimPassengers || 1);
             const priceLabel = () => `L. ${livePrice.toFixed(2)}`;
 
-            const minDate = new Date(Date.now() + 20 * 60 * 1000);
-            const minDateStr = minDate.toISOString().slice(0, 10);
+            // Fecha/hora mínima y prefill siempre en hora de Honduras (no UTC del toISOString)
+            const minParts = isoToHondurasDateTimeParts(new Date(Date.now() + 20 * 60 * 1000));
+            const minDateStr = minParts.date || '';
             let preDate = '';
             let preTime = '';
             if (trip.scheduledFor) {
-                try {
-                    const d = new Date(trip.scheduledFor);
-                    if (Number.isFinite(d.getTime())) {
-                        preDate = d.toISOString().slice(0, 10);
-                        preTime = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                    }
-                } catch (_) {}
+                const parts = isoToHondurasDateTimeParts(trip.scheduledFor);
+                preDate = parts.date || '';
+                preTime = parts.time || '';
             }
 
             const confirmLabel = () => 'Confirmar y quiero este viaje';
@@ -2518,8 +2568,9 @@ if (document.readyState === 'loading') {
                             syncWhenUi();
                         }
                     } else {
-                        scheduledFor = new Date(`${dateStr}T${timeStr}:00`).toISOString();
-                        if (new Date(scheduledFor).getTime() < Date.now() + 10 * 60 * 1000) {
+                        // Guardar como hora de pared en Honduras (no zona del dispositivo)
+                        scheduledFor = hondurasWallTimeToIso(dateStr, timeStr);
+                        if (!scheduledFor || new Date(scheduledFor).getTime() < Date.now() + 10 * 60 * 1000) {
                             missing.push('una hora más adelante');
                             if (schedHint) {
                                 schedHint.innerHTML = '<span class="text-red-600 font-black">La hora debe ser al menos ~10–20 min en el futuro.</span>';
@@ -2550,7 +2601,9 @@ if (document.readyState === 'loading') {
                         scheduledFor: wantScheduled ? scheduledFor : null,
                         clearSchedule: !wantScheduled,
                         passengers: paxFinal,
-                        priceNum: priceForPax(paxFinal)
+                        // Respetar precio staff (priceForPax ya no pisa con tarifa de ruta)
+                        priceNum: priceForPax(paxFinal),
+                        staffManualPrice: staffManualPrice || listedPrice > 0
                     });
                     modal.remove();
                 } catch (e) {
@@ -2613,17 +2666,25 @@ if (document.readyState === 'loading') {
             const pax = opts?.passengers != null
                 ? normalizePassengerCount(svc, opts.passengers)
                 : normalizePassengerCount(svc, t.passengers || 1);
-            const paxSurcharge = getPassengerSurcharge(svc, pax, trip.tripDistanceKm || trip.tripDistanceKmForCharge || 0);
+            // Usar `t` (datos del viaje en Firestore). `trip` no existe en este scope y rompía el botón Aceptar.
+            const tripKm = Number(t.tripDistanceKm) || Number(t.tripDistanceKmForCharge) || 0;
+            const paxSurcharge = getPassengerSurcharge(svc, pax, tripKm);
+            const listed = Number(t.priceNum) || 0;
+            const origPax = Math.max(1, Number(t.passengers) || 1);
             let priceNum = opts?.priceNum != null ? Number(opts.priceNum) : null;
-            if (!(priceNum > 0) && Number(t.tripDistanceKm) > 0) {
-                priceNum = calculateServiceFare(svc, t.tripDistanceKm, null, pax);
-            } else if (!(priceNum > 0)) {
-                priceNum = Number(t.priceNum) || 0;
-                if (pax !== (Number(t.passengers) || 1) && Number(t.priceNum) > 0) {
-                    const oldSur = Number(t.passengerSurcharge) || 0;
-                    const base = Math.max(0, Number(t.priceNum) - oldSur);
-                    priceNum = applyPassengerSurcharge(base, svc, pax, trip.tripDistanceKm || trip.tripDistanceKmForCharge || 0);
+            // Prioridad: 1) lo que mandó el modal 2) precio staff publicado 3) tarifa de ruta
+            if (!(priceNum > 0) && listed > 0) {
+                if (pax === origPax) {
+                    priceNum = listed;
+                } else {
+                    const oldSur = Number(t.passengerSurcharge) || getPassengerSurcharge(svc, origPax, tripKm);
+                    const base = Math.max(0, listed - oldSur);
+                    priceNum = base + paxSurcharge;
                 }
+            } else if (!(priceNum > 0) && tripKm > 0) {
+                priceNum = calculateServiceFare(svc, tripKm, null, pax);
+            } else if (!(priceNum > 0)) {
+                priceNum = listed || 0;
             }
             priceNum = Math.round((priceNum || 0) * 100) / 100;
 
@@ -2638,6 +2699,8 @@ if (document.readyState === 'loading') {
                 clientChosePassengersAt: serverTimestamp(),
                 clientChoosesSchedule: false,
                 staffSetPassengers: true,
+                // Conservar si el staff fijó precio a mano
+                staffManualPrice: t.staffManualPrice === true || opts?.staffManualPrice === true,
                 priceNum,
                 price: `L. ${priceNum.toFixed(2)}`,
                 scheduledFor: scheduledFor || null,
