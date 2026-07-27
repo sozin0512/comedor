@@ -22914,11 +22914,27 @@ window.saveProfileChanges = async () => {
 
         async function startClientDestinationTracking(trip) {
             if (!trip?.driverId) return;
-            window._passengerTrackKey = `${trip.id}:destination`;
+            // Misma clave que ensurePassengerTrackingForTrip (incluye leg).
+            // Antes se usaba solo `id:destination` y cada snapshot del viaje
+            // (p. ej. clientLive*) reiniciaba el track → carro congelado al destino.
+            const legIdx = window.getTripCurrentLegIndex?.(trip) || 1;
+            const trackKey = `${trip.id}:destination:${legIdx}`;
+            window._passengerTrackKey = trackKey;
 
             try {
                 const workingTrip = (await ensureTripOriginAtPinStart(trip)) || trip;
                 if (activeTrip?.id && activeTrip.id !== workingTrip.id) return;
+
+                // Si mientras await otra corrida ya dejó el track activo, no pisar
+                if (
+                    window._passengerTrackKey === trackKey
+                    && window.passengerTrackPhase === 'destination'
+                    && window.clientTrackingUnsub
+                    && window._passengerTrackDriverId === workingTrip.driverId
+                ) {
+                    window.syncPassengerTripMapEndpoints?.(workingTrip);
+                    return;
+                }
 
                 let dest = await resolveTripDestinationTarget(workingTrip);
                 if (!dest && workingTrip.destination) {
@@ -22929,6 +22945,7 @@ window.saveProfileChanges = async () => {
                     return;
                 }
 
+                window._passengerTrackKey = trackKey;
                 window.enterPassengerTrackMode?.('destination', workingTrip);
                 whenMapReady(() => {
                     window.syncPassengerTripMapEndpoints?.(workingTrip);
@@ -22962,7 +22979,13 @@ window.saveProfileChanges = async () => {
                 window.startPassengerLiveLocationSharing?.(data.id);
                 const legIdx = window.getTripCurrentLegIndex?.(data) || 1;
                 const trackKey = `${data.id}:destination:${legIdx}`;
-                if (window._passengerTrackKey !== trackKey) {
+                // Solo (re)arrancar si cambió el tramo o se cayó el listener.
+                // clientLive* actualiza el viaje cada ~2s; reiniciar el track congelaba el carro.
+                const alreadyTracking = window._passengerTrackKey === trackKey
+                    && window.passengerTrackPhase === 'destination'
+                    && !!window.clientTrackingUnsub
+                    && window._passengerTrackDriverId === data.driverId;
+                if (!alreadyTracking) {
                     window._passengerTrackKey = trackKey;
                     startClientDestinationTracking(data);
                 }
@@ -22979,6 +23002,7 @@ window.saveProfileChanges = async () => {
                     window._passengerTrackKey !== trackKey
                     || window.passengerTrackPhase !== 'pickup'
                     || !window.clientTrackingUnsub
+                    || window._passengerTrackDriverId !== data.driverId
                 ) {
                     window._passengerTrackKey = trackKey;
                     startClientPickupTracking(data);
@@ -33223,13 +33247,17 @@ window.cancelSetupAndLogout = () => {
                     lastRouteCalc = now;
                     try {
                         const route = await window.computeDrivingRoute(vehiclePos, destinationAddress);
-                        if (!route?.path?.length) return;
-                        window._passengerTrackRouteSession = trackSessionKey;
-                        window.currentPassengerTrackRoute = route;
-                        window.syncPassengerTripMapEndpoints?.(tripData);
-                        window.drawRouteOnMap(route, { passengerTrack: true });
-                        window.syncPassengerTrackEta?.(route, tripData, phase);
-                        window.updateRouteProgress?.(vehiclePos, { passengerTrack: true, force: true });
+                        // Si falla la ruta, NO abortar el frame: el carro debe seguir moviéndose
+                        if (route?.path?.length) {
+                            window._passengerTrackRouteSession = trackSessionKey;
+                            window.currentPassengerTrackRoute = route;
+                            window.syncPassengerTripMapEndpoints?.(tripData);
+                            window.drawRouteOnMap(route, { passengerTrack: true });
+                            window.syncPassengerTrackEta?.(route, tripData, phase);
+                            window.updateRouteProgress?.(vehiclePos, { passengerTrack: true, force: true });
+                        }
+                    } catch (routeErr) {
+                        console.warn('passenger track route:', routeErr);
                     } finally {
                         if (window._passengerRouteComputeKey === trackSessionKey) {
                             window._passengerRouteComputeKey = null;
@@ -33237,8 +33265,23 @@ window.cancelSetupAndLogout = () => {
                     }
                 }
 
+                // Siempre re-pintar el carro (por si el await de ruta tardó y llegó otro GPS)
+                window.updateDriverMarker?.(driverId, markerPos.lat, markerPos.lng, false, {
+                    variant: 'assigned',
+                    name: driverName,
+                    vehicleType: markerVehicleType,
+                    heading: markerHeading,
+                    forceReposition: true
+                });
+
                 if (phase === 'destination') {
-                    window.applyPassengerLiveTripCamera?.(markerPos, tripData, false);
+                    // Seguir al conductor al destino (no congelar cámara en origen+destino fijos)
+                    window.applyPassengerNavCamera?.(markerPos, markerHeading, false);
+                    // fitBounds ocasional para no perder el destino en pantalla
+                    if (!window._passengerDestCamBoundAt || now - window._passengerDestCamBoundAt > 12000) {
+                        window._passengerDestCamBoundAt = now;
+                        window.applyPassengerLiveTripCamera?.(markerPos, tripData, true);
+                    }
                 } else if (!routePath.length) {
                     window.applyPassengerNavCamera?.(markerPos, markerHeading, true);
                 } else {
