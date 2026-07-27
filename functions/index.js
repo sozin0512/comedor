@@ -38,7 +38,8 @@ function getScheduledTripMs(trip) {
     return Number.isFinite(ms) ? ms : 0;
 }
 const TRIP_OFFER_NEAR_RADIUS_KM = 8;
-const TRIP_OFFER_POOL_SIZE = 1;
+// Más de 1: se guardan candidates y se les manda push (web/iOS se enteran aunque no sean el “primero”)
+const TRIP_OFFER_POOL_SIZE = 8;
 const CITY_COVERAGE_KM = {
     comayagua: 18,
     siguatepeque: 14,
@@ -1569,15 +1570,18 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
         ),
         webpush: {
-            headers: { Urgency: 'high' },
+            // high = priorizar entrega (web/iOS PWA)
+            headers: { Urgency: 'high', TTL: '300' },
             notification: {
                 title,
                 body,
                 icon: PUSH_ICON,
+                badge: PUSH_ICON,
                 requireInteraction: true,
                 renotify: true,
                 tag: data.tag || undefined,
-                vibrate: androidVibrate
+                vibrate: androidVibrate,
+                // No marcar silent: el SO (Safari iOS / Chrome) debe sonar
             },
             fcmOptions: { link }
         },
@@ -1895,20 +1899,30 @@ exports.onTripUpdatePush = onDocumentUpdated(
             const offerTitle = minsUntilPickup > 0
                 ? '📅 Viaje programado'
                 : (isFreight ? '🚛 ¡Flete disponible!' : tripOfferPushTitle(after.serviceType));
-            await sendPushToUser(appId, after.offeredToDriverId, {
+            const offerBody = `${bodyCore}${bodyExtra ? ` · ${bodyExtra}` : ''}${scheduledHint}${busyHint}`;
+            const offerData = {
+                type: 'trip_offer',
+                tripId,
+                serviceType: after.serviceType || '',
+                scheduledFor: after.scheduledFor || '',
+                tag: `trip-offer-${tripId}`,
+                openDriver: 'true',
+                superVibrate: 'true'
+            };
+            // Push al ofertado + candidatos del pool (web/iOS no miran el radar si no hay push)
+            const pushRecipients = new Set([String(after.offeredToDriverId)]);
+            (after.candidateDriverIds || []).forEach((id) => {
+                if (id) pushRecipients.add(String(id));
+            });
+            await Promise.all([...pushRecipients].map((driverId) => sendPushToUser(appId, driverId, {
                 title: offerTitle,
-                body: `${bodyCore}${bodyExtra ? ` · ${bodyExtra}` : ''}${scheduledHint}${busyHint}`,
+                body: offerBody,
                 data: {
-                    type: 'trip_offer',
-                    tripId,
-                    serviceType: after.serviceType || '',
-                    scheduledFor: after.scheduledFor || '',
-                    tag: `trip-offer-${tripId}`,
-                    openDriver: 'true',
-                    superVibrate: 'true'
+                    ...offerData,
+                    tag: `trip-offer-${tripId}-${driverId.slice(0, 8)}`
                 },
                 highPriority: true
-            });
+            }).catch(() => {})));
         }
 
         // —— Oferta de precio del conductor → push al pasajero (aunque esté en otra app) ——

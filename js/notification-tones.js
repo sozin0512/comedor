@@ -719,9 +719,14 @@ export function installNotificationTonesApi() {
     window.startPassengerWaitingLoop = (opts) => startPassengerWaitingLoop(opts);
     window.stopPassengerWaitingLoop = () => stopPassengerWaitingLoop();
     window.stopNotificationToneLoop = () => stopLoopingTone();
+    window.unlockNotificationTones = unlockNotificationTones;
 
     const unlock = () => unlockNotificationTones();
     ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((evt) => {
         document.addEventListener(evt, unlock, { passive: true, capture: true });
+    });
+    // iOS/Safari: al volver a la pestaña intentar reactivar audio
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') unlockNotificationTones();
     });
 }

@@ -106,6 +106,11 @@ export function triggerSuperTripVibration() {
     triggerVibration(SUPER_TRIP_OFFER_VIBRATE);
 }
 
+/**
+ * Web/iOS: notificaciones del sistema.
+ * - silent:true → sin tono del SO (solo Web Audio). En iOS/Safari en 2.º plano Web Audio
+ *   está muteado → el conductor NO se entera. Por eso las ofertas de viaje usan silent:false.
+ */
 export async function showTripNotification({
     title,
     body,
@@ -113,24 +118,37 @@ export async function showTripNotification({
     tripId,
     openChat = false,
     openNotifications = false,
-    vibrate = DEFAULT_VIBRATE
+    vibrate = DEFAULT_VIBRATE,
+    /** true = tono del sistema (imprescindible iOS/web en background) */
+    systemSound = false,
+    requireInteraction = false
 }) {
     if (isCapacitorAndroid()) return false;
     if (!isNotificationSupported() || Notification.permission !== 'granted') return false;
     if (!title || !body) return false;
 
-    // silent: el tono lo pone la app (Web Audio), no el del sistema del teléfono
+    const tagStr = String(tag || '');
+    // Ofertas de carrera / demanda: SIEMPRE con sonido de sistema en web/iOS
+    const isRideAlert = systemSound
+        || tagStr.startsWith('trip-offer-')
+        || tagStr.startsWith('ride-demand-')
+        || tagStr.startsWith('trip-price-boost-')
+        || tagStr.startsWith('freight-alert-');
+
     const options = {
         body: String(body).slice(0, 180),
         icon: ICON,
         badge: BADGE,
         tag: tag || 'honduber-trip',
         renotify: true,
-        silent: true,
+        // silent:false en ofertas → iPhone/Safari suena aunque la pestaña esté en segundo plano
+        silent: !isRideAlert,
+        requireInteraction: !!requireInteraction || isRideAlert,
         data: {
             tripId: tripId || null,
             openChat: !!openChat,
-            openNotifications: !!openNotifications || (!openChat && String(tag || '').startsWith('fcm-admin'))
+            openNotifications: !!openNotifications || (!openChat && String(tag || '').startsWith('fcm-admin')),
+            openDriver: isRideAlert ? true : false
         },
         vibrate
     };
@@ -248,34 +266,58 @@ export async function notifyRideDemandAlert(args) {
     });
 }
 
-export async function notifyTripEvent({ title, body, tag, tripId, openChat = false, force = false, sound = 'default', superVibrate = false }) {
+export async function notifyTripEvent({
+    title,
+    body,
+    tag,
+    tripId,
+    openChat = false,
+    force = false,
+    sound = 'default',
+    superVibrate = false,
+    systemSound = false
+}) {
     if (!title || !body) return false;
 
     const inBackground = shouldNotifyInBackground();
+    const tagStr = String(tag || '');
+    const isRideAlert = systemSound
+        || tagStr.startsWith('trip-offer-')
+        || tagStr.startsWith('ride-demand-')
+        || tagStr.startsWith('trip-price-boost-');
     const dedupKey = `trip-event:${tripId || 'global'}:${tag || title}`;
     const now = Date.now();
     const cache = window.__tripNotificationDedup || (window.__tripNotificationDedup = new Map());
     const last = cache.get(dedupKey);
-    if (last && now - last < 2000) return false;
+    // Ofertas: dedup más corto para no tragarse renotifies de rotación
+    const dedupMs = isRideAlert ? 1200 : 2000;
+    if (last && now - last < dedupMs) return false;
     cache.set(dedupKey, now);
 
     let shown = false;
 
     if (superVibrate) triggerSuperTripVibration();
 
-    if (force || inBackground) {
+    // Ofertas / force / background: SIEMPRE banner del sistema (web/iOS)
+    if (force || inBackground || isRideAlert) {
         shown = await showTripNotification({
             title,
             body,
             tag,
             tripId,
             openChat,
-            vibrate: superVibrate ? SUPER_TRIP_OFFER_VIBRATE : DEFAULT_VIBRATE
+            vibrate: superVibrate ? SUPER_TRIP_OFFER_VIBRATE : DEFAULT_VIBRATE,
+            systemSound: isRideAlert || systemSound,
+            requireInteraction: isRideAlert
         });
     }
 
-    if (sound && sound !== 'none') {
+    // Web Audio solo en primer plano (en background iOS lo mutea)
+    if (sound && sound !== 'none' && !inBackground) {
         playEventSound(sound, tag);
+    } else if (isRideAlert && !inBackground && sound === 'none') {
+        // Aun con sound none desde el caller: intentar tono de oferta si hay gesto/audio desbloqueado
+        try { window.playDriverTripOfferSound?.(); } catch (_) {}
     }
 
     return shown || !inBackground;

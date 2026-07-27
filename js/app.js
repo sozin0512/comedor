@@ -2876,11 +2876,24 @@ if (document.readyState === 'loading') {
                 window._driverOfferSoundReady = true;
                 window._lastDriverOfferKeys = currentKeys;
                 const now = Date.now();
+                // Primera carga: avisar ofertas recientes (2.5 min) — web/iOS a menudo abren tarde
                 freshOffers = offers.filter((t) => {
-                    const sent = t.offerSentAt?.toMillis?.() || 0;
-                    return sent && now - sent < 90000;
+                    const sent = t.offerSentAt?.toMillis?.()
+                        || (t.offerSentAt?.seconds ? t.offerSentAt.seconds * 1000 : 0)
+                        || getTripCreatedAtMs?.(t)
+                        || 0;
+                    return sent && now - sent < 150000;
                 });
-                if (!freshOffers.length) return;
+                // Si hay pendientes visibles y ninguna “fresh”, igual abrir popup (sin spam de tono)
+                if (!freshOffers.length) {
+                    try {
+                        window.syncDriverTripOfferPopup?.(offers, {
+                            onActiveTrip: !!(activeTrip && CONFIRMED_TRIP_STATUSES.includes(activeTrip.status)),
+                            forceShow: true
+                        });
+                    } catch (_) {}
+                    return;
+                }
             } else {
                 freshOffers = offers.filter((t) => !window._lastDriverOfferKeys.has(getDriverOfferAlertKey(t)));
                 window._lastDriverOfferKeys = currentKeys;
@@ -2893,27 +2906,30 @@ if (document.readyState === 'loading') {
             }
 
             const t = freshOffers[0];
-            const LOW = shouldUseLowPowerMode();
-            const isTripOffer = true; // All trips (moto, delivery, carro, taxi) now get super treatment
-            if (!LOW) {
-                window.playDriverTripOfferSound();
-                // Super vibration for ALL driver trip offers (moto + delivery + carro)
-                try {
-                    if (typeof window.triggerSuperTripVibration === 'function') {
-                        window.triggerSuperTripVibration();
-                    } else if (typeof triggerSuperFreightVibration === 'function') {
-                        triggerSuperFreightVibration();
-                    } else {
-                        navigator.vibrate?.([0, 300, 80, 300, 80, 400, 120, 600, 80, 800]);
-                    }
-                } catch (_) {}
+            const inBackground = typeof document !== 'undefined'
+                && (document.hidden || document.visibilityState === 'hidden');
+            // Desbloquear Web Audio si se puede (iOS necesita gesto previo; visibility a veces basta)
+            try { window.HonduTones?.unlock?.() || window.unlockNotificationTones?.(); } catch (_) {}
+
+            // SIEMPRE vibrar + tono si la pestaña está visible (no silenciar por “low power”)
+            if (!inBackground) {
+                try { window.playDriverTripOfferSound?.(); } catch (_) {}
             }
+            try {
+                if (typeof window.triggerSuperTripVibration === 'function') {
+                    window.triggerSuperTripVibration();
+                } else if (typeof triggerSuperFreightVibration === 'function') {
+                    triggerSuperFreightVibration();
+                } else {
+                    navigator.vibrate?.([0, 300, 80, 300, 80, 400, 120, 600, 80, 800]);
+                }
+            } catch (_) {}
 
             const dist = t.offerDistanceKm != null ? ` · ${parseFloat(t.offerDistanceKm).toFixed(1)} km` : '';
             const payLabel = t.paymentMethod === 'saldo' ? 'Saldo' : 'Efectivo';
             const svcCopy = getTripOfferNotificationCopy(t.serviceType || '');
             const toastTitle = `${svcCopy.toast} ${t.price || ''}${dist} · ${payLabel}`;
-            window.showToast(toastTitle, 'success');
+            if (!inBackground) window.showToast(toastTitle, 'success');
 
             // Forzar pantalla emergente tipo Uber al llegar oferta nueva
             try {
@@ -2924,16 +2940,52 @@ if (document.readyState === 'loading') {
                 });
             } catch (_) {}
 
-            if (!LOW) {
-                notifyTripEvent({
-                    title: svcCopy.title,
-                    body: `${t.price || 'Nueva oferta'}${dist} · ${payLabel}. Acepta o rechaza ya.`,
-                    tag: `trip-offer-${getDriverOfferAlertKey(t)}`,
-                    force: true,
-                    sound: 'none',
-                    superVibrate: true
-                }).catch(() => {});
-            }
+            // Banner del sistema CON sonido (web/iOS). Antes silent:true + skip en low-power
+            // → Safari/iPhone nunca se enteraban con la pestaña en segundo plano.
+            notifyTripEvent({
+                title: svcCopy.title || '🚕 Nueva carrera',
+                body: `${t.price || 'Nueva oferta'}${dist} · ${payLabel}. ¡Entrá ya a aceptar!`,
+                tag: `trip-offer-${getDriverOfferAlertKey(t)}`,
+                tripId: t.id,
+                force: true,
+                sound: inBackground ? 'none' : 'driver',
+                systemSound: true,
+                superVibrate: true
+            }).catch(() => {});
+        }
+
+        /** Al volver a la app: si hay carreras, reabrir popup y avisar (web/iOS) */
+        function bindDriverOfferVisibilityWake() {
+            if (window._driverOfferVisibilityWakeBound) return;
+            window._driverOfferVisibilityWakeBound = true;
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState !== 'visible') return;
+                if (window.userProfile?.role !== 'driver') return;
+                try { window.HonduTones?.unlock?.(); } catch (_) {}
+                const offers = window._lastDriverMyOffers;
+                if (!Array.isArray(offers) || !offers.length) return;
+                try {
+                    window.syncDriverTripOfferPopup?.(offers, {
+                        onActiveTrip: !!(activeTrip && CONFIRMED_TRIP_STATUSES.includes(activeTrip.status)),
+                        forceShow: true
+                    });
+                } catch (_) {}
+                // Re-alertar la más reciente si llegó hace < 3 min
+                const top = offers[0];
+                if (!top) return;
+                const sent = top.offerSentAt?.toMillis?.()
+                    || (top.offerSentAt?.seconds ? top.offerSentAt.seconds * 1000 : 0)
+                    || getTripCreatedAtMs?.(top)
+                    || 0;
+                if (sent && Date.now() - sent < 180000) {
+                    const key = getDriverOfferAlertKey(top);
+                    if (window._driverOfferWakeKey !== key) {
+                        window._driverOfferWakeKey = key;
+                        try { window.playDriverTripOfferSound?.(); } catch (_) {}
+                        window.showToast?.('Hay una carrera esperándote', 'warning');
+                    }
+                }
+            });
         }
 
         // --- FUNCIONES DEL CONDUCTOR ---
@@ -7151,6 +7203,22 @@ if (document.readyState === 'loading') {
 
             const container = document.getElementById('requests-list');
             const offerBanner = document.getElementById('driver-incoming-offer');
+            try { bindDriverOfferVisibilityWake?.(); } catch (_) {}
+            // Conductor web/iOS: pedir avisos si aún no (sin esto no suena nada en Safari)
+            try {
+                const perm = typeof getNotificationPermission === 'function'
+                    ? getNotificationPermission()
+                    : (typeof Notification !== 'undefined' ? Notification.permission : 'default');
+                if (perm !== 'granted' && perm !== 'unsupported') {
+                    setTimeout(() => {
+                        if (window.userProfile?.role !== 'driver') return;
+                        if (document.getElementById('notif-prompt-modal')) return;
+                        promptForNotificationsPersistently?.();
+                    }, 1800);
+                } else if (perm === 'granted') {
+                    registerPushServices?.().catch?.(() => {});
+                }
+            } catch (_) {}
 
             window.driverTripsUnsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
                 const driverZoneId = window.activeServiceZoneId
