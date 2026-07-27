@@ -8984,7 +8984,7 @@ if (document.readyState === 'loading') {
 
             return U.section({
                 title: 'Programados reservados',
-                subtitle: 'Reasignar conductor o volver a poner en línea para otro',
+                subtitle: 'Iniciar YA (si el conductor no puede) · reasignar · volver a línea',
                 icon: 'fa-calendar-check',
                 variant: 'amber',
                 badge: list.length,
@@ -10547,8 +10547,12 @@ if (document.readyState === 'loading') {
             const parts = [buildStaffTripPinActionsHtml(t)];
 
             const rowBtns = [];
-            // Programado ya reservado: reasignar o volver a mercado
+            // Programado ya reservado: iniciar (por si el conductor no puede), reasignar o volver a mercado
             if (isStaffUser(currentUser, window.userProfile) && t.status === 'scheduled' && t.driverId) {
+                rowBtns.push(U.btn('Iniciar YA', `window.staffStartScheduledTripNow('${t.id}')`, {
+                    variant: 'emerald',
+                    icon: 'fa-play'
+                }));
                 rowBtns.push(U.btn('Otro conductor', `window.staffOpenAssignAnyDriver('${t.id}')`, {
                     variant: 'primary',
                     icon: 'fa-user-exchange'
@@ -11107,6 +11111,114 @@ if (document.readyState === 'loading') {
         };
 
         /**
+         * Staff/admin/moderador: forzar inicio de un programado reservado
+         * (por si al conductor le falla el botón o la app).
+         * Pasa status scheduled → accepted; el conductor ve el viaje activo y la ruta.
+         */
+        window.staffStartScheduledTripNow = async (tripId, btnEl = null) => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor puede forzar el inicio.', 'warning');
+            }
+            if (!tripId) return;
+            if (btnEl) {
+                btnEl.disabled = true;
+                if (!btnEl.dataset.origHtml) btnEl.dataset.origHtml = btnEl.innerHTML;
+                btnEl.innerHTML = '<span class="pointer-events-none">Iniciando…</span>';
+            }
+            try {
+                const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+                const snap = await getDoc(tripRef);
+                if (!snap.exists()) throw new Error('El viaje ya no existe.');
+                const trip = snap.data() || {};
+
+                if (trip.status === 'accepted' || trip.status === 'in_progress') {
+                    window.showToast?.('Ese viaje ya está activo.', 'success');
+                    return;
+                }
+                if (trip.status !== 'scheduled') {
+                    throw new Error('Solo aplica a viajes programados ya reservados (status scheduled).');
+                }
+                if (!trip.driverId) {
+                    throw new Error('No hay conductor reservado. Asigna uno o espera a que acepten.');
+                }
+
+                const when = trip.scheduledFor
+                    ? (typeof formatScheduledTripWhen === 'function'
+                        ? formatScheduledTripWhen(trip)
+                        : String(trip.scheduledFor))
+                    : 'sin hora fija';
+                if (!confirm(
+                    `¿Iniciar YA este viaje programado?\n\n`
+                    + `Cliente: ${trip.clientName || '—'}\n`
+                    + `Conductor: ${trip.driverName || '—'}\n`
+                    + `Programado: ${when}\n\n`
+                    + 'El viaje pasará a ACTIVO (en camino al origen). Úsalo si al conductor le falla la app.'
+                )) {
+                    if (btnEl) {
+                        btnEl.disabled = false;
+                        btnEl.innerHTML = btnEl.dataset.origHtml || btnEl.innerHTML;
+                    }
+                    return;
+                }
+
+                const staffName = window.userProfile?.name || currentUser?.email || 'Staff';
+                await updateDoc(tripRef, {
+                    status: 'accepted',
+                    activatedAt: serverTimestamp(),
+                    scheduledEarlyActivated: true,
+                    scheduledActivatedFrom: 'staff_force_start',
+                    staffForcedStartAt: serverTimestamp(),
+                    staffForcedStartBy: currentUser.uid,
+                    staffForcedStartByName: staffName,
+                    acceptedAt: trip.acceptedAt || serverTimestamp()
+                });
+
+                // Avisar al conductor
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
+                        targetUserId: trip.driverId,
+                        targetRole: 'driver',
+                        type: 'scheduled_trip_active',
+                        title: 'Viaje programado ACTIVADO',
+                        message: `Soporte (${staffName}) inició tu viaje con ${trip.clientName || 'el pasajero'}. Ve al origen · ruta en el mapa.`,
+                        tripId,
+                        createdAt: serverTimestamp(),
+                        sentBy: currentUser.uid
+                    });
+                } catch (_) {}
+                // Avisar al pasajero
+                if (trip.clientId) {
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
+                            targetUserId: trip.clientId,
+                            targetRole: 'client',
+                            type: 'scheduled_trip_active',
+                            title: 'Tu viaje programado ya va',
+                            message: `${trip.driverName || 'Tu conductor'} va en camino (activado por soporte).`,
+                            tripId,
+                            createdAt: serverTimestamp(),
+                            sentBy: currentUser.uid
+                        });
+                    } catch (_) {}
+                }
+
+                window.showToast?.(
+                    `Viaje iniciado por staff. Conductor: ${trip.driverName || '—'}. Ya debe ver ruta al origen.`,
+                    'success'
+                );
+                document.getElementById('staff-scheduled-reserved-modal')?.remove();
+                try { window.refreshStaffTripsPanels?.(); } catch (_) {}
+            } catch (e) {
+                console.error('staffStartScheduledTripNow:', e);
+                window.showToast?.(e?.message || 'No se pudo iniciar el programado.', 'error');
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerHTML = btnEl.dataset.origHtml || btnEl.innerHTML;
+                }
+            }
+        };
+
+        /**
          * Staff: quitar conductor de un programado y volver a publicarlo (pending).
          * Otros conductores pueden verlo/aceptarlo de nuevo.
          */
@@ -11258,6 +11370,10 @@ if (document.readyState === 'loading') {
                             ${t.price ? ` · ${escapeViewerText(t.price)}` : ''}
                         </p>
                         <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.55rem;">
+                            <button type="button" onclick="window.staffStartScheduledTripNow('${t.id}', this)"
+                                style="flex:1;min-width:7rem;padding:0.55rem;border:0;border-radius:0.65rem;background:#059669;color:#fff;font-weight:900;font-size:11px;cursor:pointer;">
+                                <i class="fas fa-play"></i> Iniciar YA
+                            </button>
                             <button type="button" onclick="window.staffOpenAssignAnyDriver('${t.id}')"
                                 style="flex:1;min-width:7rem;padding:0.55rem;border:0;border-radius:0.65rem;background:#2563eb;color:#fff;font-weight:900;font-size:11px;cursor:pointer;">
                                 <i class="fas fa-user-exchange"></i> Otro conductor
@@ -11281,7 +11397,7 @@ if (document.readyState === 'loading') {
                             <p style="margin:0;font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:#fbbf24;">Staff</p>
                             <h3 style="margin:0.2rem 0 0;font-size:1.1rem;font-weight:900;">Programados reservados</h3>
                             <p style="margin:0.35rem 0 0;font-size:11px;color:#94a3b8;font-weight:700;line-height:1.35;">
-                                Reasigna conductor o vuelve a publicar el viaje para que otro lo acepte.
+                                Inicia el viaje si al conductor le falla, reasigna, o vuelve a publicar.
                             </p>
                         </div>
                         <button type="button" id="staff-sched-res-close" style="width:2.5rem;height:2.5rem;border-radius:999px;background:#1e293b;color:#cbd5e1;border:0;font-size:1.25rem;cursor:pointer;">&times;</button>
