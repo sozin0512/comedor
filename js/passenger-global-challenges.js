@@ -1780,6 +1780,7 @@ function renderStaffChallengeCard(ch, entries = []) {
         actions = `
             <div class="ops-trip-actions">
                 ${U.btn('Reconfigurar', `window.openReconfigurePassengerCopa('${ch.id}')`, { variant: 'primary', icon: 'fa-sliders-h' })}
+                ${U.btn('Sincronizar viajes', `window.staffRepairCopaCredits({ hours: 36 })`, { variant: 'emerald', icon: 'fa-sync' })}
                 ${U.btn('Cerrar y fijar podio', `window.closePassengerGlobalChallenge('${ch.id}')`, { variant: 'ghost', icon: 'fa-flag-checkered' })}
                 ${U.btn('Cancelar', `window.cancelPassengerGlobalChallenge('${ch.id}')`, { variant: 'ghost', icon: 'fa-ban' })}
             </div>

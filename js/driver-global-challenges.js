@@ -2105,9 +2105,20 @@ function renderSupervisorCopaPage(challenges, entriesMap) {
         icon: 'fa-flag-checkered',
         badge: active.length,
         variant: 'emerald',
-        body: active.length
-            ? active.map((c) => renderStaffChallengeCard(c, entriesMap[c.id] || [])).join('')
-            : U.empty('fa-trophy', 'Sin retos globales', 'Lanzá una Copa para motivar a toda la flota.')
+        body: `
+            <div class="ops-trip-actions" style="margin-bottom:0.75rem">
+                ${U.btn('Sincronizar viajes de hoy a la copa', 'window.staffRepairCopaCredits({ hours: 36 })', {
+                    variant: 'emerald',
+                    icon: 'fa-sync'
+                })}
+            </div>
+            <p class="ops-toolbar-hint" style="margin:0 0 0.75rem">
+                Si un conductor <b>ya finalizó</b> y no aparece: tocá sincronizar. <b>No borra</b> el ranking; solo agrega viajes completed que faltaban (incl. programados).
+            </p>
+            ${active.length
+                ? active.map((c) => renderStaffChallengeCard(c, entriesMap[c.id] || [])).join('')
+                : U.empty('fa-trophy', 'Sin retos globales', 'Lanzá una Copa para motivar a toda la flota.')}
+        `
     });
 
     if (history.length) {
@@ -2836,6 +2847,50 @@ export function initDriverGlobalChallenges({
      * Reconfigurar copa activa SIN borrar ranking ni poner viajes en 0.
      * Sirve para bajar "mín. viajes para rankear" a 1 (desde el primer viaje).
      */
+    /**
+     * Staff: acreditar a la copa los viajes completed recientes que no se contaron
+     * (p. ej. programados de hoy). No reinicia ranking a 0.
+     */
+    window.staffRepairCopaCredits = async (opts = {}) => {
+        const hours = Math.min(168, Math.max(1, parseInt(opts.hours, 10) || 36));
+        if (!confirm(
+            `¿Sincronizar viajes COMPLETED de las últimas ${hours} h a la Copa?\n\n`
+            + '• No borra puntos ni pone ranking en 0\n'
+            + '• Solo suma viajes que faltaban (programados incluidos)\n'
+            + '• Conductores y pasajeros'
+        )) return;
+        try {
+            window.showToast?.('Sincronizando copa…', 'warning');
+            const fn = window.httpsCallable?.(window.cloudFunctions, 'repairCopaCredits')
+                || (typeof httpsCallable === 'function' && typeof cloudFunctions !== 'undefined'
+                    ? httpsCallable(cloudFunctions, 'repairCopaCredits')
+                    : null);
+            // Preferir el callable expuesto en app.js
+            let result;
+            if (typeof window.callRepairCopaCredits === 'function') {
+                result = await window.callRepairCopaCredits({ hours, force: true });
+            } else {
+                const { getFunctions, httpsCallable: hc } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js');
+                const { getApp } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js');
+                const functions = getFunctions(getApp(), 'us-central1');
+                const callable = hc(functions, 'repairCopaCredits');
+                result = (await callable({ hours, force: true })).data;
+            }
+            const r = result?.data || result || {};
+            window.showToast?.(
+                `Copa sync: ${r.scanned || 0} viajes revisados · +cond ${r.driversCredited || 0} · +pax ${r.passengersCredited || 0}`,
+                'success'
+            );
+            await window.loadSupervisorCopa?.();
+            await window.loadSupervisorPassengerCopa?.();
+            try { window.refreshDriverCopaUI?.(); } catch (_) {}
+            try { window.refreshPassengerCopaUI?.(); } catch (_) {}
+        } catch (e) {
+            console.error('staffRepairCopaCredits:', e);
+            window.showToast?.(e?.message || e?.details || 'No se pudo sincronizar la copa.', 'error');
+        }
+    };
+
     window.openReconfigureDriverCopa = async (challengeId) => {
         if (!challengeId) return;
         let ch = null;

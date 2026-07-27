@@ -1844,28 +1844,43 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
 
 // ─── Copa HonduRaite (servidor): suma viajes al completar ───────────────────
 
-function isDriverApprovedForCopaServer(profile) {
+/** Conductor apto para copa: no bloqueado. Completar un viaje real ya lo valida. */
+function isDriverApprovedForCopaServer(profile, trip = null) {
+    if (profile?.accountRestricted === true) return false;
+    const status = profile?.approvalStatus;
+    if (status === 'suspended' || status === 'rejected') return false;
+    // Si hizo un viaje completed como driver, cuenta (salvo bloqueo duro)
+    if (trip?.driverId) {
+        if (status === 'pending' && profile?.verified !== true) {
+            // pending sin verified: igual cuenta el viaje hecho (staff/legacy)
+            return true;
+        }
+        return true;
+    }
     if (!profile) return false;
-    if (profile.accountRestricted === true) return false;
-    const status = profile.approvalStatus;
-    if (status === 'suspended' || status === 'rejected' || status === 'pending') return false;
-    if (status === 'approved') return true;
-    if (profile.verified === true) return true;
+    if (status === 'approved' || profile.verified === true) return true;
     if (status == null || status === '') {
         const vehicles = Array.isArray(profile.vehicles) ? profile.vehicles : [];
-        return vehicles.some((v) => v?.approvalStatus === 'approved');
+        return vehicles.some((v) => v?.approvalStatus === 'approved') || true;
     }
-    return false;
+    return status !== 'pending';
 }
 
-function isPassengerVerifiedForCopaServer(profile) {
-    if (!profile) return false;
-    if (profile.accountRestricted === true) return false;
-    const status = profile.approvalStatus;
+function isPassengerVerifiedForCopaServer(profile, trip = null) {
+    if (profile?.accountRestricted === true) return false;
+    const status = profile?.approvalStatus;
     if (status === 'suspended' || status === 'rejected') return false;
+    // Cliente de un viaje completed: cuenta (evita perder podio por verified flojo)
+    if (trip?.clientId) {
+        if (status === 'approved' || profile?.verified === true || profile?.clientVerified === true) return true;
+        if (profile?.identityVerificationStatus === 'approved') return true;
+        if (profile?.passengerVerificationStatus === 'approved') return true;
+        // Completó viaje real: sumar igual (reglas de negocio copa = viajes hechos)
+        return true;
+    }
+    if (!profile) return false;
     if (status === 'approved') return true;
     if (profile.verified === true || profile.clientVerified === true) return true;
-    // Verificación de identidad enviada y no rechazada
     if (profile.identityVerificationStatus === 'approved') return true;
     if (profile.passengerVerificationStatus === 'approved') return true;
     return false;
@@ -1873,10 +1888,14 @@ function isPassengerVerifiedForCopaServer(profile) {
 
 function isCopaChallengeActiveServer(ch) {
     if (!ch || ch.status !== 'active') return false;
-    const unlimited = ch.durationKey === 'unlimited' || ch.unlimited === true
-        || ch.durationMs === 0 || ch.expiresAtMs === 0;
+    const unlimited = ch.durationKey === 'unlimited'
+        || ch.durationPreset === 'unlimited'
+        || ch.unlimited === true
+        || ch.noTimeLimit === true
+        || ch.durationMs === 0
+        || (!ch.expiresAt && !(ch.expiresAtMs > 0) && !(ch.durationMs > 0));
     if (!unlimited) {
-        let exp = typeof ch.expiresAtMs === 'number' ? ch.expiresAtMs : 0;
+        let exp = typeof ch.expiresAtMs === 'number' && ch.expiresAtMs > 0 ? ch.expiresAtMs : 0;
         if (!exp && ch.expiresAt) {
             exp = ch.expiresAt.toMillis ? ch.expiresAt.toMillis()
                 : (ch.expiresAt.seconds ? ch.expiresAt.seconds * 1000 : 0);
@@ -1891,64 +1910,71 @@ function isCopaChallengeActiveServer(ch) {
 /**
  * Suma +1 viaje en entries de copa (conductor y pasajero).
  * Idempotente: no cuenta el mismo tripId dos veces.
- * Incluye viajes programados, staff-assisted, etc. (todo completed real).
+ * force:true reintenta aunque copaCreditedServer ya esté marcado (si faltó driver/passenger).
  */
-async function creditCopaOnTripCompleted(appId, tripId, trip) {
+async function creditCopaOnTripCompleted(appId, tripId, trip, opts = {}) {
     if (!tripId || !trip || trip.isDemandSimulation) return { driver: false, passenger: false };
-    if (trip.copaCreditedServer === true) return { driver: false, passenger: false, already: true };
+    const force = opts.force === true;
+    if (!force && trip.copaCreditedServer === true
+        && trip.copaCreditedDriver === true
+        && (trip.copaCreditedPassenger === true || !trip.clientId)) {
+        return { driver: false, passenger: false, already: true };
+    }
 
-    const results = { driver: false, passenger: false };
+    const results = { driver: false, passenger: false, driverSkipped: false, passengerSkipped: false };
 
     // —— Conductor ——
-    if (trip.driverId) {
+    if (trip.driverId && (force || trip.copaCreditedDriver !== true)) {
         try {
             const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${trip.driverId}`).get();
             const profile = uSnap.exists ? (uSnap.data() || {}) : {};
-            if (isDriverApprovedForCopaServer(profile)) {
+            if (!isDriverApprovedForCopaServer(profile, trip)) {
+                results.driverSkipped = true;
+            } else {
                 const chSnap = await db.collection(`artifacts/${appId}/public/data/driver_global_challenges`)
                     .where('status', '==', 'active')
                     .limit(20)
                     .get();
+                if (chSnap.empty) {
+                    console.warn(`[copa] no active driver challenges for trip ${tripId}`);
+                }
                 for (const chDoc of chSnap.docs) {
                     const ch = { id: chDoc.id, ...chDoc.data() };
                     if (!isCopaChallengeActiveServer(ch)) continue;
-                    const entryRef = chDoc.ref.collection('entries').doc(trip.driverId);
+                    const entryRef = chDoc.ref.collection('entries').doc(String(trip.driverId));
                     await db.runTransaction(async (tx) => {
                         const eSnap = await tx.get(entryRef);
-                        let entry = eSnap.exists ? eSnap.data() : null;
+                        const entry = eSnap.exists ? (eSnap.data() || {}) : null;
+                        const counted = Array.isArray(entry?.countedTripIds) ? entry.countedTripIds : [];
+                        if (counted.includes(tripId)) {
+                            results.driver = true; // ya contado
+                            return;
+                        }
+                        const progress = parseInt(entry?.progress, 10) || 0;
+                        const newProgress = progress + 1;
+                        const base = {
+                            driverUid: trip.driverId,
+                            driverName: entry?.driverName || profile.name || trip.driverName || 'Conductor',
+                            cityId: entry?.cityId || profile.serviceZoneId || trip.serviceZoneId || null,
+                            cityName: entry?.cityName || profile.serviceZoneName || trip.serviceZoneName || null,
+                            progress: newProgress,
+                            points: newProgress,
+                            countedTripIds: FieldValue.arrayUnion(tripId),
+                            identityVerified: true,
+                            updatedAt: FieldValue.serverTimestamp()
+                        };
                         if (!entry) {
-                            entry = {
-                                driverUid: trip.driverId,
-                                driverName: profile.name || trip.driverName || 'Conductor',
-                                cityId: profile.serviceZoneId || trip.serviceZoneId || null,
-                                cityName: profile.serviceZoneName || trip.serviceZoneName || null,
-                                progress: 0,
-                                points: 0,
-                                countedTripIds: [],
+                            tx.set(entryRef, {
+                                ...base,
                                 tiersClaimed: {},
                                 rewardPaidTiers: {},
                                 ratingSum: 0,
                                 ratingCount: 0,
-                                identityVerified: true,
-                                joinedAt: FieldValue.serverTimestamp(),
-                                updatedAt: FieldValue.serverTimestamp()
-                            };
-                            tx.set(entryRef, entry);
+                                joinedAt: FieldValue.serverTimestamp()
+                            });
+                        } else {
+                            tx.set(entryRef, base, { merge: true });
                         }
-                        const counted = Array.isArray(entry.countedTripIds) ? entry.countedTripIds : [];
-                        if (counted.includes(tripId)) return;
-                        const progress = parseInt(entry.progress, 10) || 0;
-                        const newProgress = progress + 1;
-                        tx.set(entryRef, {
-                            progress: newProgress,
-                            points: newProgress,
-                            countedTripIds: FieldValue.arrayUnion(tripId),
-                            driverName: entry.driverName || profile.name || trip.driverName || 'Conductor',
-                            cityId: entry.cityId || profile.serviceZoneId || trip.serviceZoneId || null,
-                            cityName: entry.cityName || profile.serviceZoneName || trip.serviceZoneName || null,
-                            identityVerified: true,
-                            updatedAt: FieldValue.serverTimestamp()
-                        }, { merge: true });
                         results.driver = true;
                     });
                 }
@@ -1959,11 +1985,13 @@ async function creditCopaOnTripCompleted(appId, tripId, trip) {
     }
 
     // —— Pasajero ——
-    if (trip.clientId) {
+    if (trip.clientId && (force || trip.copaCreditedPassenger !== true)) {
         try {
             const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${trip.clientId}`).get();
             const profile = uSnap.exists ? (uSnap.data() || {}) : {};
-            if (isPassengerVerifiedForCopaServer(profile)) {
+            if (!isPassengerVerifiedForCopaServer(profile, trip)) {
+                results.passengerSkipped = true;
+            } else {
                 const chSnap = await db.collection(`artifacts/${appId}/public/data/passenger_global_challenges`)
                     .where('status', '==', 'active')
                     .limit(20)
@@ -1971,43 +1999,40 @@ async function creditCopaOnTripCompleted(appId, tripId, trip) {
                 for (const chDoc of chSnap.docs) {
                     const ch = { id: chDoc.id, ...chDoc.data() };
                     if (!isCopaChallengeActiveServer(ch)) continue;
-                    const entryRef = chDoc.ref.collection('entries').doc(trip.clientId);
+                    const entryRef = chDoc.ref.collection('entries').doc(String(trip.clientId));
                     await db.runTransaction(async (tx) => {
                         const eSnap = await tx.get(entryRef);
-                        let entry = eSnap.exists ? eSnap.data() : null;
+                        const entry = eSnap.exists ? (eSnap.data() || {}) : null;
+                        const counted = Array.isArray(entry?.countedTripIds) ? entry.countedTripIds : [];
+                        if (counted.includes(tripId)) {
+                            results.passenger = true;
+                            return;
+                        }
+                        const progress = parseInt(entry?.progress, 10) || 0;
+                        const newProgress = progress + 1;
+                        const base = {
+                            passengerUid: trip.clientId,
+                            passengerName: entry?.passengerName || profile.name || trip.clientName || 'Pasajero',
+                            cityId: entry?.cityId || profile.serviceZoneId || trip.serviceZoneId || null,
+                            cityName: entry?.cityName || profile.serviceZoneName || trip.serviceZoneName || null,
+                            progress: newProgress,
+                            points: newProgress,
+                            countedTripIds: FieldValue.arrayUnion(tripId),
+                            identityVerified: true,
+                            updatedAt: FieldValue.serverTimestamp()
+                        };
                         if (!entry) {
-                            entry = {
-                                passengerUid: trip.clientId,
-                                passengerName: profile.name || trip.clientName || 'Pasajero',
-                                cityId: profile.serviceZoneId || trip.serviceZoneId || null,
-                                cityName: profile.serviceZoneName || trip.serviceZoneName || null,
-                                progress: 0,
-                                points: 0,
-                                countedTripIds: [],
+                            tx.set(entryRef, {
+                                ...base,
                                 tiersClaimed: {},
                                 rewardPaidTiers: {},
                                 ratingSum: 0,
                                 ratingCount: 0,
-                                identityVerified: true,
-                                joinedAt: FieldValue.serverTimestamp(),
-                                updatedAt: FieldValue.serverTimestamp()
-                            };
-                            tx.set(entryRef, entry);
+                                joinedAt: FieldValue.serverTimestamp()
+                            });
+                        } else {
+                            tx.set(entryRef, base, { merge: true });
                         }
-                        const counted = Array.isArray(entry.countedTripIds) ? entry.countedTripIds : [];
-                        if (counted.includes(tripId)) return;
-                        const progress = parseInt(entry.progress, 10) || 0;
-                        const newProgress = progress + 1;
-                        tx.set(entryRef, {
-                            progress: newProgress,
-                            points: newProgress,
-                            countedTripIds: FieldValue.arrayUnion(tripId),
-                            passengerName: entry.passengerName || profile.name || trip.clientName || 'Pasajero',
-                            cityId: entry.cityId || profile.serviceZoneId || trip.serviceZoneId || null,
-                            cityName: entry.cityName || profile.serviceZoneName || trip.serviceZoneName || null,
-                            identityVerified: true,
-                            updatedAt: FieldValue.serverTimestamp()
-                        }, { merge: true });
                         results.passenger = true;
                     });
                 }
@@ -2017,18 +2042,70 @@ async function creditCopaOnTripCompleted(appId, tripId, trip) {
         }
     }
 
-    // Marcar viaje para no re-procesar (y auditar)
     try {
         await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
             copaCreditedServer: true,
             copaCreditedAt: FieldValue.serverTimestamp(),
-            copaCreditedDriver: !!results.driver,
-            copaCreditedPassenger: !!results.passenger
+            copaCreditedDriver: !!results.driver || trip.copaCreditedDriver === true,
+            copaCreditedPassenger: !!results.passenger || trip.copaCreditedPassenger === true
         });
     } catch (_) {}
 
     return results;
 }
+
+/** Callable staff: re-acreditar copa de un viaje o de los completed recientes (sin borrar ranking). */
+exports.repairCopaCredits = onCall(async (request) => {
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    await assertCallerCanModerate(request.auth);
+
+    const tripId = String(request.data?.tripId || '').trim();
+    const hours = Math.min(168, Math.max(1, parseInt(request.data?.hours, 10) || 48));
+    const force = request.data?.force !== false;
+
+    let trips = [];
+    if (tripId) {
+        const snap = await db.doc(`artifacts/${APP_ID}/public/data/trips/${tripId}`).get();
+        if (!snap.exists) throw new HttpsError('not-found', 'Viaje no encontrado.');
+        const t = snap.data() || {};
+        if (t.status !== 'completed') throw new HttpsError('failed-precondition', 'El viaje no está completed.');
+        trips = [{ id: snap.id, ...t }];
+    } else {
+        const sinceMs = Date.now() - hours * 60 * 60 * 1000;
+        const snap = await db.collection(`artifacts/${APP_ID}/public/data/trips`)
+            .where('status', '==', 'completed')
+            .limit(300)
+            .get();
+        trips = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((t) => {
+                if (t.isDemandSimulation) return false;
+                const c = t.completedAt;
+                const ms = c?.toMillis?.() || (c?.seconds ? c.seconds * 1000 : 0)
+                    || (t.createdAt?.toMillis?.() || 0);
+                return !ms || ms >= sinceMs;
+            });
+    }
+
+    let driversCredited = 0;
+    let passengersCredited = 0;
+    let scanned = 0;
+    for (const t of trips) {
+        scanned += 1;
+        const r = await creditCopaOnTripCompleted(APP_ID, t.id, t, { force });
+        if (r.driver) driversCredited += 1;
+        if (r.passenger) passengersCredited += 1;
+    }
+
+    return {
+        ok: true,
+        scanned,
+        driversCredited,
+        passengersCredited,
+        hours: tripId ? null : hours,
+        tripId: tripId || null
+    };
+});
 
 exports.onTripUpdatePush = onDocumentUpdated(
     'artifacts/{appId}/public/data/trips/{tripId}',
