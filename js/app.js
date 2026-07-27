@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.27.7";
+} from "./auth-credentials.js?v=2026.07.27.8";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.27.7";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.7";
+import { APP_CONFIG } from "./config.js?v=2026.07.27.8";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.8";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.27.7";
+} from "./referrals.js?v=2026.07.27.8";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.27.7";
+} from "./zones.js?v=2026.07.27.8";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.27.7";
+} from "./trip-notifications.js?v=2026.07.27.8";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.27.7";
+} from "./notification-tones.js?v=2026.07.27.8";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.27.7";
+} from "./passenger-alerts.js?v=2026.07.27.8";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.27.7";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.7";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.7";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.7";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.7";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.27.7";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.7";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.7";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.7";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.7";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.7";
+} from "./passenger-verification.js?v=2026.07.27.8";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.8";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.8";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.8";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.8";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.27.8";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.8";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.8";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.8";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.8";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.8";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.27.7";
+} from "./feedback.js?v=2026.07.27.8";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.27.7";
+} from "./greetings.js?v=2026.07.27.8";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.27.7";
+} from "./service-types.js?v=2026.07.27.8";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.27.7";
+} from "./driver-vehicles.js?v=2026.07.27.8";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.27.7";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.7";
+} from "./route-conditions.js?v=2026.07.27.8";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.8";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.27.7";
+} from "./demand-heatmap.js?v=2026.07.27.8";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.27.7";
+} from "./ops-fleet-map.js?v=2026.07.27.8";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.27.7";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.7";
+} from "./live-trip-keepalive.js?v=2026.07.27.8";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.8";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.27.7";
+} from "./session-keepalive.js?v=2026.07.27.8";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.27.7";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.7";
+} from "./passenger-tutorial.js?v=2026.07.27.8";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.8";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.27.7";
+} from "./driver-tutorial.js?v=2026.07.27.8";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,25 +193,25 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.7";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.8";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.27.7";
+} from "./auth-ui.js?v=2026.07.27.8";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.27.7";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.7";
+} from "./age-verification.js?v=2026.07.27.8";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.8";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.27.7";
+} from "./trip-experience.js?v=2026.07.27.8";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.27.7";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.7";
-import { initAppDownload } from "./app-download.js?v=2026.07.27.7";
+} from "./support-tickets.js?v=2026.07.27.8";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.8";
+import { initAppDownload } from "./app-download.js?v=2026.07.27.8";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -37605,6 +37605,8 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
         `).join('');
 
         // —— Conductores que aún no depositaron la comisión ——
+        // Antes solo miraba “hoy” (remainingToDeposit). Si el día no se consolidó a deuda,
+        // un viaje de hace 2 días desaparecía. Ahora: comisión efectivo 7d − depósitos aprobados.
         const formatElapsedSince = (fromMs) => {
             if (!fromMs || !Number.isFinite(fromMs)) return '—';
             const sec = Math.max(0, Math.floor((Date.now() - fromMs) / 1000));
@@ -37621,77 +37623,195 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
             return rh ? `${d} d ${rh} h` : `${d} d`;
         };
 
-        // Por conductor: primer y último viaje en efectivo del período (para “hace cuánto”)
-        const cashTripAgeByDriver = {};
+        const depositLookback = new Date();
+        depositLookback.setDate(depositLookback.getDate() - 7);
+        depositLookback.setHours(0, 0, 0, 0);
+        // Más amplio entre período elegido y 7 días (viajes de hace 2 días siempre entran)
+        const depositSince = startDate < depositLookback ? startDate : depositLookback;
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        // Por conductor: viajes en efectivo + comisión debida (últimos 7d / período)
+        // Usa el % vivo de plataforma (igual que el sistema de depósito del conductor).
+        const cashByDriver = {};
+        const saldoCoveredByDriver = {};
         tripsSnap.forEach((tripDoc) => {
             const t = tripDoc.data();
             if (t.status !== 'completed' || !t.driverId) return;
-            if (t.paymentMethod === 'saldo' || t.paymentMethod === 'birthday_gift' || t.birthdayFree) return;
-            const tripDate = t.completedAt?.toDate?.()
+            const tripDate = (typeof tripCompletedDate === 'function'
+                ? tripCompletedDate(t)
+                : null)
+                || t.completedAt?.toDate?.()
                 || (t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null));
-            if (!tripDate || tripDate < startDate) return;
-            const ms = tripDate.getTime();
+            if (!tripDate || tripDate < depositSince) return;
             const id = t.driverId;
-            if (!cashTripAgeByDriver[id]) {
-                cashTripAgeByDriver[id] = { oldestMs: ms, newestMs: ms, name: t.driverName || 'Conductor', trips: 0 };
+            const price = parseTripPrice(t);
+            const pct = (typeof resolveDepositCommissionPercent === 'function')
+                ? resolveDepositCommissionPercent(t, platformPct)
+                : ((t.commissionWaivedBirthday || t.birthdayFree || t.paymentMethod === 'birthday_gift')
+                    ? 0
+                    : platformPct);
+            const split = (typeof calcTripCommissionSplit === 'function')
+                ? calcTripCommissionSplit(price, pct)
+                : { commissionAmount: Math.round(price * (pct / 100) * 100) / 100 };
+
+            // Viajes con saldo cubren parte de la comisión a depositar (igual que computeDriverDayStats)
+            if (t.paymentMethod === 'saldo' || t.paymentMethod === 'birthday_gift' || t.birthdayFree) {
+                saldoCoveredByDriver[id] = (saldoCoveredByDriver[id] || 0) + (split.commissionAmount || 0);
+                return;
             }
-            const row = cashTripAgeByDriver[id];
+            if (t.commissionWaivedBirthday) return;
+
+            const ms = tripDate.getTime();
+            const comm = Number(split.commissionAmount) || 0;
+            if (!cashByDriver[id]) {
+                cashByDriver[id] = {
+                    oldestMs: ms,
+                    newestMs: ms,
+                    name: t.driverName || 'Conductor',
+                    trips: 0,
+                    cashGross: 0,
+                    commissionDue: 0,
+                    commissionDueToday: 0
+                };
+            }
+            const row = cashByDriver[id];
             row.oldestMs = Math.min(row.oldestMs, ms);
             row.newestMs = Math.max(row.newestMs, ms);
             row.trips += 1;
+            row.cashGross += price;
+            row.commissionDue += comm;
+            if (tripDate >= todayStart) row.commissionDueToday += comm;
             if (t.driverName) row.name = t.driverName;
         });
 
+        // Depósitos aprobados por conductor (desde lookback) + de hoy
+        const depositsByDriver = {};
+        const depositsTodayByDriver = {};
+        try {
+            const depSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposit_requests'));
+            depSnap.forEach((d) => {
+                const dep = d.data() || {};
+                if (dep.status !== 'approved' || !dep.driverId) return;
+                const depDate = dep.createdAt?.toDate?.()
+                    || (dep.createdAt?.seconds ? new Date(dep.createdAt.seconds * 1000) : null)
+                    || (dep.approvedAt?.toDate?.() || null);
+                if (depDate && depDate < depositSince) return;
+                const amt = parseFloat(dep.amount) || 0;
+                depositsByDriver[dep.driverId] = (depositsByDriver[dep.driverId] || 0) + amt;
+                if (depDate && depDate >= todayStart) {
+                    depositsTodayByDriver[dep.driverId] = (depositsTodayByDriver[dep.driverId] || 0) + amt;
+                }
+            });
+        } catch (depErr) {
+            console.warn('stats deposits scan:', depErr);
+        }
+
+        // Deuda / perfil: allUsersData si ya se cargó; si no, un scan de public/users (una sola lectura)
+        const debtByDriver = {};
+        const profileByDriver = {};
+        const ingestUserDebt = (id, u) => {
+            if (!id || !u) return;
+            profileByDriver[id] = { uid: id, ...u, ...(profileByDriver[id] || {}) };
+            const role = u.role;
+            if (role && role !== 'driver' && role !== 'conductor') return;
+            const d = Math.max(
+                0,
+                parseFloat(u.pendingDepositDebt) || 0,
+                parseFloat(u.driverLastDepositOwed) || 0
+            );
+            if (d > 0.009 || u.depositAutoBlocked) {
+                debtByDriver[id] = Math.max(debtByDriver[id] || 0, d);
+            }
+        };
+        (window.allUsersData || []).forEach((u) => {
+            if (u?.uid) ingestUserDebt(u.uid, u);
+        });
+        try {
+            // Siempre leer users públicos: cubre deudas aunque no se haya abierto la pestaña Usuarios
+            // y da nombre/plazo para conductores de hace 2 días.
+            const usersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
+            usersSnap.forEach((ud) => ingestUserDebt(ud.id, ud.data() || {}));
+        } catch (usersDebtErr) {
+            console.warn('stats debt scan:', usersDebtErr);
+        }
+
         const owingDrivers = [];
         const candidateIds = new Set([
-            ...Object.keys(cashTripAgeByDriver),
+            ...Object.keys(cashByDriver),
+            ...Object.keys(debtByDriver),
             ...Object.keys(driverStats).filter((k) => k !== 'sin-conductor')
         ]);
-        (window.allUsersData || []).forEach((u) => {
-            if (u.role === 'driver' && (parseFloat(u.pendingDepositDebt) || 0) > 0.009) {
-                candidateIds.add(u.uid);
-            }
-        });
 
         for (const driverId of candidateIds) {
             if (!driverId || driverId === 'sin-conductor') continue;
-            let stats = null;
-            try {
-                stats = typeof computeDriverDayStats === 'function'
-                    ? await computeDriverDayStats(driverId)
-                    : (await window.computeDriverDayStats?.(driverId));
-            } catch (_) {}
-            const totalOwed = Math.max(0, Number(stats?.totalOwed) || 0);
+            const cash = cashByDriver[driverId] || {
+                oldestMs: 0, newestMs: 0, name: 'Conductor', trips: 0,
+                cashGross: 0, commissionDue: 0, commissionDueToday: 0
+            };
+            const deposited = Math.max(0, Number(depositsByDriver[driverId]) || 0);
+            const depositedToday = Math.max(0, Number(depositsTodayByDriver[driverId]) || 0);
+            const saldoCovered = Math.max(0, Number(saldoCoveredByDriver[driverId]) || 0);
+            const commissionDue = Math.round((cash.commissionDue || 0) * 100) / 100;
+            // Hueco 7d = comisión efectivo − cobertura saldo − depósitos aprobados
+            const gapFromTrips = Math.max(
+                0,
+                Math.round((commissionDue - saldoCovered - deposited) * 100) / 100
+            );
+            const remainingToday = Math.max(
+                0,
+                Math.round(((cash.commissionDueToday || 0) - depositedToday) * 100) / 100
+            );
+            const profile = profileByDriver[driverId]
+                || (window.allUsersData || []).find((u) => u.uid === driverId)
+                || {};
+            const debt = Math.max(
+                0,
+                Number(debtByDriver[driverId]) || 0,
+                parseFloat(profile.pendingDepositDebt) || 0,
+                parseFloat(profile.driverLastDepositOwed) || 0
+            );
+            // total: el mayor entre deuda+hoy y el hueco de 7 días (no se pierde lo de hace 2 días)
+            const totalOwed = Math.max(debt + remainingToday, gapFromTrips, debt, remainingToday);
             if (totalOwed < 0.01) continue;
 
-            const profile = (window.allUsersData || []).find((u) => u.uid === driverId) || {};
-            const age = cashTripAgeByDriver[driverId] || {};
-            const workStart = getDriverDepositWorkStartMs(profile);
-            const sinceMs = age.oldestMs || workStart || 0;
-            const deadlineMs = getDriverDepositDeadlineMs(profile);
-            const graceOn = isDriverDepositGraceActive(profile);
+            const workStart = typeof getDriverDepositWorkStartMs === 'function'
+                ? getDriverDepositWorkStartMs(profile)
+                : 0;
+            const sinceMs = cash.oldestMs || workStart || 0;
+            const deadlineMs = typeof getDriverDepositDeadlineMs === 'function'
+                ? getDriverDepositDeadlineMs(profile)
+                : 0;
+            const graceOn = typeof isDriverDepositGraceActive === 'function'
+                ? isDriverDepositGraceActive(profile)
+                : false;
             const overdue = !graceOn && totalOwed > 0.009
                 && ((deadlineMs > 0 && Date.now() >= deadlineMs) || !!profile.depositAutoBlocked);
 
             owingDrivers.push({
                 uid: driverId,
-                name: age.name || profile.name || stats?.name || 'Conductor',
+                name: cash.name || profile.name || driverStats[driverId]?.name || 'Conductor',
                 phone: profile.phone || '',
                 totalOwed,
-                remainingToday: Math.max(0, Number(stats?.remainingToDeposit) || 0),
-                debt: Math.max(0, Number(stats?.pendingDepositDebt) || parseFloat(profile.pendingDepositDebt) || 0),
+                remainingToday,
+                debt,
+                gapFromTrips,
+                commissionDue,
+                deposited,
                 sinceMs,
                 sinceLabel: formatElapsedSince(sinceMs),
-                newestLabel: age.newestMs ? formatElapsedSince(age.newestMs) : '—',
-                cashTripsPeriod: age.trips || 0,
-                deadlineLabel: formatDepositDeadlineLabel(profile) || '—',
+                newestLabel: cash.newestMs ? formatElapsedSince(cash.newestMs) : '—',
+                cashTripsPeriod: cash.trips || 0,
+                deadlineLabel: (typeof formatDepositDeadlineLabel === 'function'
+                    ? formatDepositDeadlineLabel(profile)
+                    : null) || '—',
                 graceOn,
                 overdue
             });
         }
         owingDrivers.sort((a, b) => {
             if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
-            return (a.sinceMs || 0) - (b.sinceMs || 0);
+            return (a.sinceMs || Date.now()) - (b.sinceMs || Date.now());
         });
 
         const owingHtml = owingDrivers.length
@@ -37711,13 +37831,15 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                         <p class="font-black text-amber-300 shrink-0">L. ${d.totalOwed.toFixed(2)}</p>
                     </div>
                     <p class="text-slate-300 font-bold leading-snug">
-                        Sin depositar desde el 1.er viaje en efectivo del período:
+                        Sin depositar desde el 1.er viaje en efectivo:
                         <b class="text-white">hace ${d.sinceLabel}</b>
-                        ${d.cashTripsPeriod ? ` · ${d.cashTripsPeriod} viaje(s) efectivo` : ''}
+                        ${d.cashTripsPeriod ? ` · ${d.cashTripsPeriod} viaje(s) efectivo (últ. 7 d)` : ''}
                     </p>
-                    <p class="text-slate-400 font-bold text-[10px]">
-                        Último viaje efectivo: hace ${d.newestLabel}
-                        · Deuda acumulada L. ${d.debt.toFixed(2)}
+                    <p class="text-slate-400 font-bold text-[10px] leading-snug">
+                        Último viaje efectivo: hace ${d.newestLabel}<br>
+                        Comisión debida ~L. ${Number(d.commissionDue || 0).toFixed(2)}
+                        · Depositado L. ${Number(d.deposited || 0).toFixed(2)}
+                        · Deuda perfil L. ${d.debt.toFixed(2)}
                         · Hoy L. ${d.remainingToday.toFixed(2)}
                         · Plazo: ${d.deadlineLabel}
                     </p>
@@ -37735,7 +37857,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                     </div>
                 </div>`;
             }).join('')
-            : '<p class="text-emerald-400/90 text-xs font-bold py-2">Ningún conductor con depósito pendiente ahora.</p>';
+            : '<p class="text-emerald-400/90 text-xs font-bold py-2">Ningún conductor con hueco de depósito en los últimos 7 días ni deuda en perfil.</p>';
 
         const bulkBtn = owingDrivers.length
             ? `<button type="button" onclick="window.sendDepositReminderBulk()"
@@ -37782,7 +37904,8 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                     <i class="fas fa-piggy-bank"></i> Sin depositar · comisión
                 </p>
                 <p class="text-[10px] text-slate-400 font-bold mb-3 leading-snug">
-                    Conductores que aún deben depositar. Muestra <b>cuánto tiempo pasó</b> desde el primer viaje en efectivo del período sin depositar.
+                    Revisa <b>últimos 7 días</b> (también si el filtro es “Hoy”): comisión en efectivo − depósitos aprobados + deuda en perfil.
+                    Así salen los que viajaron <b>hace 2 días</b> y no depositaron.
                 </p>
                 ${bulkBtn}
                 <div class="space-y-2 max-h-72 overflow-y-auto">${owingHtml}</div>
