@@ -42,8 +42,14 @@ service cloud.firestore {
       return role == 'supervisor' || isAdmin(app);
     }
 
+    function getPrivateRole(app) {
+      let priv = get(/databases/$(database)/documents/artifacts/$(app)/users/$(requestUid())/profile/data);
+      return priv.exists ? priv.data.role : null;
+    }
+
+    // Público o privado: perfiles viejos a veces solo tienen role en uno de los dos
     function isDriver(app) {
-      return getRole(app) == 'driver';
+      return getRole(app) == 'driver' || getPrivateRole(app) == 'driver';
     }
 
     function isClient(app) {
@@ -155,11 +161,18 @@ service cloud.firestore {
         );
 
       // ACTUALIZAR / CANCELAR: dueño (pasajero), conductor asignado, ofertado, staff
-      // Conductores pueden tocar pending (ofertas / visto / regateo)
+      // Conductores pueden tocar pending (ofertas / visto / regateo / rechazar)
       allow update: if isSignedIn() && (
         isStaff(app)
         || isTripParticipant()
         || (resource.data.status in ['pending', 'scheduled'] && isDriver(app))
+        // Candidato de oferta (aunque no sea offeredToDriverId todavía): puede declinar
+        || (
+          resource.data.status == 'pending'
+          && isDriver(app)
+          && request.resource.data.status == 'pending'
+          && request.resource.data.clientId == resource.data.clientId
+        )
       );
 
       // Borrar solo staff

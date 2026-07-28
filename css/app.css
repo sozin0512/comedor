@@ -20769,3 +20769,98 @@ i.icon-grua::before,
   color: #78350f;
   line-height: 1.35;
 }
+
+/* ===== Vista previa de oferta en mapa (NO es viaje aceptado) ===== */
+body.driver-offer-map-peek #control-panel,
+body.driver-offer-map-peek #control-panel.driver-offer-peek-hidden {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(110%) !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+}
+body.driver-offer-map-peek #active-trip-panel,
+body.driver-offer-map-peek #trip-mini-bar,
+body.driver-offer-map-peek #driver-active-cta,
+body.driver-offer-map-peek #driver-active-tools {
+  display: none !important;
+  visibility: hidden !important;
+}
+body.driver-offer-map-peek #driver-trip-offer-popup {
+  display: none !important;
+}
+body.driver-offer-map-peek #driver-offer-map-hint {
+  display: block !important;
+  z-index: 45000 !important;
+  top: max(0.85rem, calc(env(safe-area-inset-top, 0px) + 0.55rem)) !important;
+}
+body.driver-offer-map-peek #map-container,
+body.driver-offer-map-peek #map {
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+.driver-offer-peek-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 46000;
+  padding: 0.55rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+.driver-offer-peek-bar.hidden { display: none !important; }
+.driver-offer-peek-bar-inner {
+  pointer-events: auto;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 0.65rem 0.75rem;
+  border-radius: 1.15rem 1.15rem 0.9rem 0.9rem;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 55%);
+  border: 2px solid #f59e0b;
+  box-shadow: 0 -8px 28px rgba(15, 23, 42, 0.18);
+}
+.driver-offer-peek-badge {
+  margin: 0 0 0.5rem;
+  text-align: center;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #b45309;
+}
+.driver-offer-peek-actions {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr;
+  gap: 0.4rem;
+}
+.driver-offer-peek-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 2.65rem;
+  padding: 0.45rem 0.4rem;
+  border-radius: 0.85rem;
+  border: 1px solid #e2e8f0;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.1;
+  -webkit-tap-highlight-color: transparent;
+}
+.driver-offer-peek-btn--back {
+  background: #0f172a;
+  border-color: #0f172a;
+  color: #fff;
+}
+.driver-offer-peek-btn--accept {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+.driver-offer-peek-btn--decline {
+  background: #fff;
+  border-color: #fca5a5;
+  color: #b91c1c;
+}

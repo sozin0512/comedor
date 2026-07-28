@@ -2334,11 +2334,20 @@ window.gMap = null;
                 || (() => { try { return localStorage.getItem(PANEL_HIDDEN_KEY) === '1'; } catch (_) { return false; } })();
 
             if (isDriver) {
+                // Vista previa de oferta en mapa: NO reabrir el panel central (evita caos / “parece aceptado”)
+                if (document.body.classList.contains('driver-offer-map-peek')) {
+                    panel?.classList.add('panel-collapsed', 'driver-offer-peek-hidden');
+                    document.body.classList.add('panel-minimized', 'panel-collapsed');
+                    document.body.classList.remove('panel-hidden');
+                    document.getElementById('active-trip-panel')?.classList.add('hidden');
+                    try { window.syncPanelHideChevron?.(); } catch (_) {}
+                    return;
+                }
                 // Nunca ocultar del todo. Si el usuario minimizó en viaje, RESPETAR
                 // (antes expandDriverControlPanel aquí reabría el panel en cada sync).
                 // La pastilla «Viaje activo» llama expandDriverControlPanel a propósito.
                 document.body.classList.remove('panel-hidden');
-                panel?.classList.remove('panel-hidden');
+                panel?.classList.remove('panel-hidden', 'driver-offer-peek-hidden');
                 if (hasTrip && userMinimized) {
                     panel?.classList.add('panel-collapsed');
                     document.body.classList.add('panel-minimized', 'panel-collapsed');
