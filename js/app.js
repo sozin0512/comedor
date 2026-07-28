@@ -4358,39 +4358,115 @@ if (document.readyState === 'loading') {
             return `<span class="inline-flex items-center gap-0.5 text-[11px] leading-none">${stars.join('')}</span>`;
         }
 
-        window.recordDriverTripView = async (tripId) => {
-            if (!tripId || !currentUser || window.userProfile?.role !== 'driver') return;
-            if (window.recordedTripViews.has(tripId)) return;
+        /**
+         * Normaliza viewedBy (mapa por uid o legado array) a lista de conductores.
+         * Evita que se “pierdan” vistas si el formato no es el esperado.
+         */
+        function normalizeTripViewedByEntries(viewedBy) {
+            if (!viewedBy || typeof viewedBy !== 'object') return [];
+            const out = [];
+            const pushEntry = (raw, fallbackId = null) => {
+                if (!raw) return;
+                if (typeof raw === 'string') {
+                    const id = raw.trim();
+                    if (!id) return;
+                    out.push({ driverId: id, name: 'Conductor', viewedAt: 0 });
+                    return;
+                }
+                if (typeof raw !== 'object') return;
+                const driverId = raw.driverId || fallbackId || null;
+                const name = (raw.name || '').toString().trim();
+                if (!driverId && !name) return;
+                out.push({
+                    driverId: driverId || null,
+                    name: name || 'Conductor',
+                    photo: raw.photo || null,
+                    rating: raw.rating != null ? raw.rating : null,
+                    viewedAt: Number(raw.viewedAt) || 0
+                });
+            };
+            if (Array.isArray(viewedBy)) {
+                viewedBy.forEach((v) => pushEntry(v));
+            } else {
+                Object.entries(viewedBy).forEach(([key, v]) => pushEntry(v, key));
+            }
+            // Deduplicar por driverId (o nombre si no hay id)
+            const byKey = new Map();
+            out.forEach((v) => {
+                const key = v.driverId || `name:${String(v.name).toLowerCase()}`;
+                const prev = byKey.get(key);
+                if (!prev || (v.viewedAt || 0) >= (prev.viewedAt || 0)) byKey.set(key, v);
+            });
+            return Array.from(byKey.values());
+        }
 
-            const isApproved = window.userProfile.approvalStatus === 'approved'
-                || typeof window.userProfile.approvalStatus === 'undefined'
+        /** Refresco de “sigo mirando” para no perder el rastro si el 1er write falló o se actualizó el perfil. */
+        const DRIVER_TRIP_VIEW_RERECORD_MS = 45000;
+
+        window.recordDriverTripView = async (tripId) => {
+            if (!tripId || !currentUser) return;
+            const role = String(window.userProfile?.role || '').toLowerCase();
+            if (role !== 'driver') return;
+
+            const now = Date.now();
+            const lastAt = window._recordedTripViewAt?.get?.(tripId) || 0;
+            if (window.recordedTripViews.has(tripId) && (now - lastAt) < DRIVER_TRIP_VIEW_RERECORD_MS) {
+                return;
+            }
+
+            // Mismo criterio amplio que aceptar viajes: aprobado, legacy sin status, o con vehículo aprobado
+            const status = window.userProfile?.approvalStatus;
+            const hasApprovedVehicle = (window.userProfile?.vehicles || []).some((v) => v?.approvalStatus === 'approved');
+            const isApproved = status === 'approved'
+                || typeof status === 'undefined'
+                || status === null
+                || status === ''
+                || hasApprovedVehicle
                 || isTestDriverProfile();
             if (!isApproved) return;
 
             window.recordedTripViews.add(tripId);
+            if (!window._recordedTripViewAt) window._recordedTripViewAt = new Map();
+            window._recordedTripViewAt.set(tripId, now);
 
-            const fullName = (window.userProfile.name || 'Conductor').trim();
+            const fullName = (window.userProfile?.name || 'Conductor').trim() || 'Conductor';
             const ratingValue = getDriverDisplayRating(window.userProfile).toFixed(1);
-            let photoUrl = window.userProfile.photo || null;
-            try {
-                if (photoUrl && storage) {
-                    photoUrl = await resolvePhotoUrl(storage, photoUrl, `artifacts/${appId}/users/${currentUser.uid}/profile/avatar.jpg`);
-                }
-            } catch (_) {}
+            // Escribir YA con la foto local: no bloquear el registro por resolvePhotoUrl (red lenta)
+            const quickPhoto = window.userProfile?.photo || null;
+            const payload = {
+                driverId: currentUser.uid,
+                name: fullName,
+                photo: quickPhoto || null,
+                rating: ratingValue,
+                viewedAt: now
+            };
 
             try {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId), {
-                    [`viewedBy.${currentUser.uid}`]: {
-                        driverId: currentUser.uid,
-                        name: fullName,
-                        photo: photoUrl || null,
-                        rating: ratingValue,
-                        viewedAt: Date.now()
-                    }
+                    [`viewedBy.${currentUser.uid}`]: payload
                 });
             } catch (e) {
                 window.recordedTripViews.delete(tripId);
+                window._recordedTripViewAt?.delete?.(tripId);
+                console.warn('recordDriverTripView failed:', tripId, e?.code || e?.message || e);
+                return;
             }
+
+            // Mejorar foto en segundo plano (sin borrar el registro si falla)
+            try {
+                if (quickPhoto && storage) {
+                    const resolved = await resolvePhotoUrl(
+                        storage,
+                        quickPhoto,
+                        `artifacts/${appId}/users/${currentUser.uid}/profile/avatar.jpg`
+                    );
+                    if (resolved && resolved !== quickPhoto) {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId), {
+                            [`viewedBy.${currentUser.uid}.photo`]: resolved
+                        });
+                    }
+                }
+            } catch (_) {}
         };
 
         function syncPassengerSearchPanelLayout(trip) {
@@ -4614,12 +4690,10 @@ if (document.readyState === 'loading') {
         };
 
         function getTripViewersSorted(trip) {
-            const viewedBy = trip?.viewedBy;
-            if (!viewedBy || typeof viewedBy !== 'object') return [];
             const bidIds = new Set(Object.keys(trip?.driverBids || {}));
-            return Object.values(viewedBy)
-                .filter((v) => v && (v.name || v.driverId))
-                .filter((v) => !bidIds.has(v.driverId))
+            return normalizeTripViewedByEntries(trip?.viewedBy)
+                // En panel pasajero: quien ya ofreció sale en “ofertas”, no como “mirando”
+                .filter((v) => !v.driverId || !bidIds.has(v.driverId))
                 .sort((a, b) => (b.viewedAt || 0) - (a.viewedAt || 0));
         }
 
@@ -5358,28 +5432,65 @@ if (document.readyState === 'loading') {
             const cacheKey = `${zone || 'all'}|${originLat != null ? Number(originLat).toFixed(2) : 'x'}`;
             const cache = window._registeredDriversCountCache || {};
             const hit = cache[cacheKey];
+
+            // Siempre reinyectar quienes YA vieron el viaje (viewedBy), aunque haya cache.
+            // Antes el cache de 2 min ocultaba a los conductores que abrieron la solicitud después.
+            const mergeViewedInto = (driversList) => {
+                const byKey = new Map();
+                const add = (entry, { prefer = false } = {}) => {
+                    if (!entry?.name) return;
+                    const key = entry.uid
+                        ? `uid:${entry.uid}`
+                        : `name:${String(entry.name).toLowerCase()}`;
+                    if (!byKey.has(key) || prefer) byKey.set(key, entry);
+                };
+                (driversList || []).forEach((d) => add(d));
+                try {
+                    const viewed = (trip?.viewedBy || activeTrip?.viewedBy || {});
+                    normalizeTripViewedByEntries(viewed).forEach((v) => {
+                        const first = driverFirstNameFromProfile(v)
+                            || String(v.name || '').split(/\s+/)[0]
+                            || null;
+                        if (!first || first.length < 2) return;
+                        add({
+                            name: first.charAt(0).toUpperCase() + first.slice(1).toLowerCase(),
+                            photo: driverPhotoFromProfile(v) || NOTIFY_AVATAR_PLACEHOLDER,
+                            uid: v.driverId || null,
+                            viewed: true
+                        }, { prefer: true });
+                    });
+                } catch (_) {}
+                return Array.from(byKey.values());
+            };
+
             if (hit && (Date.now() - hit.at) < REGISTERED_DRIVERS_CACHE_TTL_MS && Array.isArray(hit.drivers)) {
-                return { count: hit.count, drivers: hit.drivers, names: hit.drivers.map((d) => d.name) };
+                const drivers = mergeViewedInto(hit.drivers).slice(0, NOTIFY_DRIVERS_MAX);
+                const count = Math.max(hit.count || 0, drivers.length);
+                return { count, drivers, names: drivers.map((d) => d.name) };
             }
 
             let usersSnap;
             try {
                 usersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
             } catch (_) {
-                const fallbackDrivers = hit?.drivers
+                const fallbackDrivers = mergeViewedInto(
+                    hit?.drivers
                     || window.lastRegisteredNotifyDrivers
-                    || normalizeNotifyDriverList(window.lastRegisteredDriverNames);
+                    || normalizeNotifyDriverList(window.lastRegisteredDriverNames)
+                ).slice(0, NOTIFY_DRIVERS_MAX);
                 return {
-                    count: hit?.count || window.lastRegisteredDriversCount || 0,
+                    count: Math.max(hit?.count || window.lastRegisteredDriversCount || 0, fallbackDrivers.length),
                     drivers: fallbackDrivers,
                     names: fallbackDrivers.map((d) => d.name)
                 };
             }
 
-            const byKey = new Map(); // name lower → entry
+            const byKey = new Map(); // uid o name → entry
             const addEntry = (entry, { prefer = false } = {}) => {
                 if (!entry?.name) return;
-                const key = String(entry.name).toLowerCase();
+                const key = entry.uid
+                    ? `uid:${entry.uid}`
+                    : `name:${String(entry.name).toLowerCase()}`;
                 if (!byKey.has(key) || prefer) byKey.set(key, entry);
             };
 
@@ -5465,21 +5576,18 @@ if (document.readyState === 'loading') {
             // Quienes ya abrieron/vieron el viaje (aunque no estén en la lista base)
             try {
                 const viewed = (trip?.viewedBy || activeTrip?.viewedBy || {});
-                if (viewed && typeof viewed === 'object') {
-                    Object.values(viewed).forEach((v) => {
-                        if (!v) return;
-                        const first = driverFirstNameFromProfile(v)
-                            || String(v.name || '').split(/\s+/)[0]
-                            || null;
-                        if (!first || first.length < 2) return;
-                        addEntry({
-                            name: first.charAt(0).toUpperCase() + first.slice(1).toLowerCase(),
-                            photo: driverPhotoFromProfile(v) || NOTIFY_AVATAR_PLACEHOLDER,
-                            uid: v.driverId || null,
-                            viewed: true
-                        }, { prefer: true });
-                    });
-                }
+                normalizeTripViewedByEntries(viewed).forEach((v) => {
+                    const first = driverFirstNameFromProfile(v)
+                        || String(v.name || '').split(/\s+/)[0]
+                        || null;
+                    if (!first || first.length < 2) return;
+                    addEntry({
+                        name: first.charAt(0).toUpperCase() + first.slice(1).toLowerCase(),
+                        photo: driverPhotoFromProfile(v) || NOTIFY_AVATAR_PLACEHOLDER,
+                        uid: v.driverId || null,
+                        viewed: true
+                    }, { prefer: true });
+                });
             } catch (_) {}
 
             const merged = Array.from(byKey.values());
@@ -5498,8 +5606,13 @@ if (document.readyState === 'loading') {
                 priority.length
             ) || (countInZone > 0 ? countInZone : countAllDrivers);
 
+            // Cache SIN exigir viewedBy (se re-mezcla al leer); evita lista incompleta por TTL
             window._registeredDriversCountCache = cache;
-            cache[cacheKey] = { count, drivers, at: Date.now() };
+            cache[cacheKey] = {
+                count,
+                drivers: drivers.map((d) => ({ ...d, viewed: false })),
+                at: Date.now()
+            };
             if (count > 0) window.lastRegisteredDriversCount = count;
             window.lastRegisteredNotifyDrivers = drivers;
             window.lastRegisteredDriverNames = drivers.map((d) => d.name);
@@ -6782,6 +6895,24 @@ if (document.readyState === 'loading') {
                 ? `<span class="driver-offer-first-badge" title="Este es el primer viaje de este cliente"><i class="fas fa-star"></i> 1er viaje</span>`
                 : '';
 
+            // Otros conductores que ya abrieron esta solicitud (competencia)
+            const allViewers = normalizeTripViewedByEntries(t?.viewedBy);
+            const otherViewers = allViewers.filter((v) => v.driverId && v.driverId !== currentUser?.uid);
+            const otherViewerNames = otherViewers
+                .slice(0, 4)
+                .map((v) => escapeViewerText(String(v.name || 'Conductor').trim().split(/\s+/)[0] || 'Conductor'));
+            const viewersCompetitionHtml = otherViewers.length
+                ? `<p class="driver-offer-viewers-line" title="Conductores que ya abrieron esta solicitud">
+                        <i class="fas fa-eye"></i>
+                        ${otherViewers.length === 1
+                            ? `<b>1</b> conductor más ya la vio${otherViewerNames[0] ? ` · ${otherViewerNames[0]}` : ''}`
+                            : `<b>${otherViewers.length}</b> conductores más ya la vieron${otherViewerNames.length ? ` · ${otherViewerNames.join(', ')}${otherViewers.length > otherViewerNames.length ? '…' : ''}` : ''}`
+                        }
+                   </p>`
+                : (allViewers.length
+                    ? `<p class="driver-offer-viewers-line driver-offer-viewers-line--solo"><i class="fas fa-eye"></i> Solo tú has abierto esta solicitud por ahora</p>`
+                    : '');
+
             const detailParts = [];
             if (isFirstTrip) {
                 detailParts.push('<p class="driver-offer-detail-line driver-offer-detail-line--first"><i class="fas fa-star"></i> <b>Primer viaje</b> de este cliente — sé amable y claro</p>');
@@ -6898,6 +7029,7 @@ if (document.readyState === 'loading') {
                     </button>
                     ${firstTripAlert}
                     ${unverifiedAlert}
+                    ${viewersCompetitionHtml}
                     ${buildDriverOfferRouteHtml(t)}
                     ${buildDriverOfferDistanceHeroHtml(tripId, t, { distanceKm: dist, idPrefix: pfx })}
                     ${detailsHtml}
@@ -9032,9 +9164,7 @@ if (document.readyState === 'loading') {
             const dest = escapeViewerText(
                 (window.shortenMapPlaceLabel?.(t.destination) || t.destination || 'Destino').toString().slice(0, 42)
             );
-            const viewersN = (t.viewedBy && typeof t.viewedBy === 'object')
-                ? Object.values(t.viewedBy).filter((v) => v && (v.name || v.driverId)).length
-                : 0;
+            const viewersN = getPendingTripViewedCount(t?.viewedBy);
             const bidsN = (t.driverBids && typeof t.driverBids === 'object')
                 ? Object.keys(t.driverBids).length
                 : 0;
@@ -10712,11 +10842,8 @@ if (document.readyState === 'loading') {
                 </div>`;
             }
 
-            const viewers = t.viewedBy && typeof t.viewedBy === 'object'
-                ? Object.values(t.viewedBy)
-                    .filter((v) => v && (v.name || v.driverId))
-                    .sort((a, b) => (b.viewedAt || 0) - (a.viewedAt || 0))
-                : [];
+            const viewers = normalizeTripViewedByEntries(t?.viewedBy)
+                .sort((a, b) => (b.viewedAt || 0) - (a.viewedAt || 0));
 
             const offerLine = (t.status === 'pending' && t.offeredToDriverId && t.offeredToDriverName)
                 ? `<p class="ops-trip-viewers-offer"><i class="fas fa-paper-plane"></i> Oferta activa: <b>${escapeViewerText(t.offeredToDriverName)}</b>${t.offerDistanceKm != null ? ` · ${parseFloat(t.offerDistanceKm).toFixed(1)} km` : ''}${t.offerToBusyDriver ? ' · terminando otro viaje' : ''}</p>`
@@ -25414,6 +25541,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             document.getElementById('fare-card')?.classList.add('hidden');
             document.getElementById('eta-indicator')?.classList.add('hidden');
             window.recordedTripViews?.clear();
+            try { window._recordedTripViewAt?.clear?.(); } catch (_) {}
             setElementDisplay('nav-hud-top', 'none');
             setElementDisplay('nav-hud-bottom', 'none');
 
@@ -26831,27 +26959,39 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const name = data.offeredToDriverName || 'Un conductor';
             const firstName = String(name).split(' ')[0];
             const dist = data.offerDistanceKm != null ? `${parseFloat(data.offerDistanceKm).toFixed(1)} km` : 'cerca';
+            const viewedN = getPendingTripViewedCount(data?.viewedBy);
+            const othersN = Math.max(0, viewedN - 1);
+            const othersHint = othersN > 0
+                ? (othersN === 1
+                    ? ' · +1 conductor más también la abrió'
+                    : ` · +${othersN} conductores más también la abrieron`)
+                : '';
 
             card.classList.remove('hidden');
             if (data.offerToBusyDriver) {
                 title.innerHTML = `<i class="fas fa-user-check text-emerald-600"></i> ${firstName} está cerca (${dist}) terminando un viaje`;
-                sub.textContent = 'Si acepta, quedas reservado: no pierdes tu turno y verás en el mapa cuándo viene por ti.';
+                sub.textContent = `Si acepta, quedas reservado: no pierdes tu turno y verás en el mapa cuándo viene por ti.${othersHint}`;
             } else {
                 title.innerHTML = `<i class="fas fa-bell text-emerald-600"></i> ${firstName} está viendo tu mensaje (${dist})`;
-                sub.textContent = 'Tu mensaje ya está en su pantalla. En cuanto acepte, verás su ruta y tiempo estimado de llegada.';
+                sub.textContent = viewedN > 1
+                    ? `${viewedN} conductores ya abrieron tu solicitud. En cuanto acepten, verás su ruta y tiempo estimado.`
+                    : 'Tu mensaje ya está en su pantalla. En cuanto acepte, verás su ruta y tiempo estimado de llegada.';
             }
         }
 
         function getPendingTripViewedCount(viewedBy) {
-            if (!viewedBy || typeof viewedBy !== 'object') return 0;
-            return Object.values(viewedBy).filter((v) => v && v.name).length;
+            return normalizeTripViewedByEntries(viewedBy).length;
         }
 
         function getPendingTripUiSig(data) {
             const offers = getPassengerDriverOffers(data);
             const offerSig = offers.map((b) => `${b.driverId}:${b.price}:${b.distanceKm ?? ''}:${b.passengerCounterPrice ?? ''}`).join('|');
-            const viewedCount = getPendingTripViewedCount(data?.viewedBy);
-            return `${offerSig}:${data?.negotiatedPrice ?? ''}:${data?.negotiatedBy || ''}:${viewedCount}`;
+            // Incluir ids de quienes vieron (no solo el conteo) para re-pintar cuando cambia el set
+            const viewedSig = normalizeTripViewedByEntries(data?.viewedBy)
+                .map((v) => v.driverId || v.name)
+                .sort()
+                .join(',');
+            return `${offerSig}:${data?.negotiatedPrice ?? ''}:${data?.negotiatedBy || ''}:${viewedSig}`;
         }
 
         const NO_DRIVERS_NOTIFY_COUNTDOWN_SEC = 120;

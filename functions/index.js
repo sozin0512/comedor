@@ -2093,6 +2093,16 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
             return;
         }
 
+        // WhatsApp Cloud API: “ya recibimos tu solicitud…”
+        try {
+            const wa = require('./whatsapp-cloud');
+            await wa.notifyTripRequestReceivedWa(trip, tripId).catch((e) => {
+                console.warn('[wa] trip_request_received', e?.message || e);
+            });
+        } catch (e) {
+            console.warn('[wa] module', e?.message || e);
+        }
+
         await assignNextTripOfferServer(appId, tripId);
         await notifyOfflineFreightDrivers(appId, tripId, trip).catch(() => {});
         await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip).catch(() => {});
@@ -2408,6 +2418,20 @@ exports.onTripUpdatePush = onDocumentUpdated(
         const before = event.data.before.data();
         const after = event.data.after.data();
         const { appId, tripId } = event.params;
+
+        // Cliente reclamó viaje armado por staff → mismo aviso WA de “solicitud recibida”
+        if (
+            after.status === 'pending'
+            && after.staffCreatedBy
+            && after.staffCreatedClientClaimed === true
+            && before.staffCreatedClientClaimed !== true
+            && !after.waTripRequestReceivedOk
+        ) {
+            try {
+                const wa = require('./whatsapp-cloud');
+                await wa.notifyTripRequestReceivedWa(after, tripId).catch(() => {});
+            } catch (_) {}
+        }
 
         const beforeChat = before.chat || [];
         const afterChat = after.chat || [];
@@ -4324,3 +4348,9 @@ exports.processScheduledAndRecurringPushes = onSchedule(
         return null;
     }
 );
+
+// ─── WhatsApp Cloud API (Meta oficial) ───────────────────────────────────────
+const whatsappCloud = require('./whatsapp-cloud');
+exports.whatsappWebhook = whatsappCloud.whatsappWebhook;
+exports.sendWhatsAppCloudText = whatsappCloud.sendWhatsAppCloudText;
+exports.testWhatsAppTripTemplate = whatsappCloud.testWhatsAppTripTemplate;
