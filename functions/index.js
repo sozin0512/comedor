@@ -2048,6 +2048,118 @@ async function notifyStaffNewTrip(appId, tripId, trip) {
     }
 }
 
+/**
+ * Avisa a conductores ELEGIBLES del viaje (misma ciudad / spill depto.),
+ * con el mismo estilo fuerte que staff (superVibrate + push).
+ * Marketplace abierto: no solo al offeredToDriverId.
+ */
+async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
+    if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
+    if (trip.eligibleDriverAlertSent) return;
+
+    const serviceType = trip.serviceType || 'auto';
+    const freight = isFreightService(serviceType);
+    const requiredType = freight
+        ? requiredFreightVehicleType(serviceType)
+        : requiredRideVehicleType(serviceType);
+
+    const tripZone = trip.serviceZoneId || null;
+    const tripDept = getDepartmentForZone(tripZone);
+    const spillCtx = await resolveTripOfferSpillContext(appId, trip);
+    const radius = Math.max(
+        getCityCoverageKm(tripZone),
+        parseFloat(trip.searchRadiusKm) || 0,
+        spillCtx.allowSpill ? NEARBY_CITY_SPILL_KM : 0,
+        25
+    );
+    const declined = new Set((trip.declinedDriverIds || []).map(String));
+
+    const price = trip.price || 'Nuevo';
+    const originShort = (trip.origin || '').slice(0, 42);
+    const svcLabel = staffTripNotificationLabel(serviceType);
+    // Mismo formato que staff, orientado al conductor
+    const title = freight
+        ? `🆕 ${svcLabel} en tu zona`
+        : `🆕 ${svcLabel} en tu ciudad`;
+    const body = `${price} · ${originShort || 'Ubicación'} — ¡Entrá a aceptar!`;
+
+    const [driversLocSnap, usersSnap] = await Promise.all([
+        db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
+        db.collection(`artifacts/${appId}/public/data/users`).where('role', '==', 'driver').get()
+    ]);
+    const locByDriver = new Map();
+    driversLocSnap.docs.forEach((d) => locByDriver.set(d.id, d.data() || {}));
+
+    const recipients = new Set();
+    for (const userDoc of usersSnap.docs) {
+        const uid = userDoc.id;
+        if (declined.has(uid)) continue;
+        const u = userDoc.data() || {};
+        if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
+        if (u.accountRestricted) continue;
+        if (requiredType && !driverHasApprovedVehicleType(u, requiredType)) continue;
+
+        const loc = locByDriver.get(uid) || {};
+        const driverZone = u.serviceZoneId || loc.serviceZoneId || null;
+
+        // Respetar ciudades: misma ciudad del viaje; spill solo si no hay flota local
+        if (tripZone) {
+            if (driverZone && String(driverZone) === String(tripZone)) {
+                // ok
+            } else if (
+                driverZone
+                && tripDept
+                && sameDepartment(driverZone, tripZone)
+                && spillCtx.allowSpill
+            ) {
+                // spill departamento (solo si la ciudad del viaje no tiene flota)
+                if (loc.lat != null && loc.lng != null && trip.originLat != null && trip.originLng != null) {
+                    if (!offlineDriverNearTrip(loc, trip, radius)) continue;
+                }
+            } else if (!driverZone) {
+                // sin zona en perfil: solo si GPS cerca del origen
+                if (loc.lat == null || loc.lng == null || trip.originLat == null || trip.originLng == null) continue;
+                if (!offlineDriverNearTrip(loc, trip, radius)) continue;
+            } else {
+                continue; // otra ciudad / otro depto.
+            }
+        }
+
+        recipients.add(uid);
+    }
+
+    // También incluir candidatos del pool de oferta si ya se asignó
+    if (trip.offeredToDriverId) recipients.add(String(trip.offeredToDriverId));
+    (trip.candidateDriverIds || []).forEach((id) => {
+        if (id) recipients.add(String(id));
+    });
+
+    const list = [...recipients].filter(Boolean).slice(0, 80);
+    await Promise.all(list.map((driverId) => sendPushToUser(appId, driverId, {
+        title,
+        body,
+        data: {
+            type: 'trip_offer',
+            tripId,
+            serviceType: serviceType || '',
+            tag: `trip-offer-city-${tripId}-${String(driverId).slice(0, 8)}`,
+            openDriver: 'true',
+            superVibrate: 'true'
+        },
+        highPriority: true
+    }).catch(() => {})));
+
+    if (list.length) {
+        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
+            eligibleDriverAlertSent: true,
+            eligibleDriverAlertCount: list.length,
+            eligibleDriverAlertAt: FieldValue.serverTimestamp(),
+            eligibleDriverAlertZone: tripZone || null
+        }).catch(() => {});
+    }
+}
+
 exports.onTripCreatedAssignOffer = onDocumentCreated(
     'artifacts/{appId}/public/data/trips/{tripId}',
     async (event) => {
@@ -2104,6 +2216,10 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
         }
 
         await assignNextTripOfferServer(appId, tripId);
+        // Conductores de la ciudad (mismo estilo fuerte que staff), respetando zona/vehículo
+        await notifyEligibleDriversNewTrip(appId, tripId, trip).catch((e) => {
+            console.warn('notifyEligibleDriversNewTrip', e?.message || e);
+        });
         await notifyOfflineFreightDrivers(appId, tripId, trip).catch(() => {});
         await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip).catch(() => {});
         await notifyStaffNewTrip(appId, tripId, trip).catch(() => {});
@@ -2419,18 +2535,24 @@ exports.onTripUpdatePush = onDocumentUpdated(
         const after = event.data.after.data();
         const { appId, tripId } = event.params;
 
-        // Cliente reclamó viaje armado por staff → mismo aviso WA de “solicitud recibida”
+        // Cliente reclamó viaje armado por staff → WA + avisar conductores de la ciudad
         if (
             after.status === 'pending'
             && after.staffCreatedBy
             && after.staffCreatedClientClaimed === true
             && before.staffCreatedClientClaimed !== true
-            && !after.waTripRequestReceivedOk
         ) {
-            try {
-                const wa = require('./whatsapp-cloud');
-                await wa.notifyTripRequestReceivedWa(after, tripId).catch(() => {});
-            } catch (_) {}
+            if (!after.waTripRequestReceivedOk) {
+                try {
+                    const wa = require('./whatsapp-cloud');
+                    await wa.notifyTripRequestReceivedWa(after, tripId).catch(() => {});
+                } catch (_) {}
+            }
+            await assignNextTripOfferServer(appId, tripId).catch(() => {});
+            await notifyEligibleDriversNewTrip(appId, tripId, after).catch(() => {});
+            await notifyOfflineFreightDrivers(appId, tripId, after).catch(() => {});
+            await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, after).catch(() => {});
+            await notifyStaffNewTrip(appId, tripId, after).catch(() => {});
         }
 
         const beforeChat = before.chat || [];

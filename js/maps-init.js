@@ -2320,7 +2320,8 @@ window.gMap = null;
             if (label) label.textContent = 'Cerrar';
         };
 
-        window.showControlPanel = () => {
+        window.showControlPanel = (opts = {}) => {
+            const forceExpand = opts === true || opts?.forceExpand === true;
             const panel = document.getElementById('control-panel');
             const isMobile = window.innerWidth < 768
                 || document.body.classList.contains('capacitor-android')
@@ -2329,13 +2330,24 @@ window.gMap = null;
             const isDriver = document.body.classList.contains('driver-mode');
             const isClient = document.body.classList.contains('client-mode');
             const isSearching = document.body.classList.contains('is-searching');
-            const userMinimized = !!panel?.classList.contains('panel-collapsed')
+            let userMinimized = !!panel?.classList.contains('panel-collapsed')
                 || document.body.classList.contains('panel-minimized')
                 || (() => { try { return localStorage.getItem(PANEL_HIDDEN_KEY) === '1'; } catch (_) { return false; } })();
 
+            // Forzar abrir (pedir viaje, APK): ignora minimize previo y limpia localStorage
+            if (forceExpand) {
+                userMinimized = false;
+                try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
+                document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
+                panel?.classList.remove('panel-hidden', 'panel-collapsed', 'driver-offer-peek-hidden');
+            }
+
             if (isDriver) {
-                // Vista previa de oferta en mapa: NO reabrir el panel central (evita caos / “parece aceptado”)
-                if (document.body.classList.contains('driver-offer-map-peek')) {
+                // Oferta Uber / mapa: no reabrir el panel central encima de la ruta
+                if (
+                    document.body.classList.contains('driver-offer-map-peek')
+                    || document.body.classList.contains('driver-offer-popup-open')
+                ) {
                     panel?.classList.add('panel-collapsed', 'driver-offer-peek-hidden');
                     document.body.classList.add('panel-minimized', 'panel-collapsed');
                     document.body.classList.remove('panel-hidden');
@@ -2348,7 +2360,7 @@ window.gMap = null;
                 // La pastilla «Viaje activo» llama expandDriverControlPanel a propósito.
                 document.body.classList.remove('panel-hidden');
                 panel?.classList.remove('panel-hidden', 'driver-offer-peek-hidden');
-                if (hasTrip && userMinimized) {
+                if (hasTrip && userMinimized && !forceExpand) {
                     panel?.classList.add('panel-collapsed');
                     document.body.classList.add('panel-minimized', 'panel-collapsed');
                     window.syncDriverRadarFloatPanel?.();
@@ -2369,20 +2381,34 @@ window.gMap = null;
                 return;
             }
 
-            // Pasajero: en búsqueda o viaje NO forzar expandir (Android re-sincronizaba y reabría el panel)
+            // Pasajero: en búsqueda o viaje NO forzar expandir en cada sync (Android reabría el panel).
+            // forceExpand sí abre (pedido de viaje / entrar a búsqueda).
             if (isClient && (hasTrip || isSearching || (isMobile && userMinimized))) {
-                // Si el usuario ocultó el panel del todo, respetar panel-hidden
-                if (userMinimized) {
-                    document.body.classList.add('panel-hidden', 'panel-minimized', 'panel-collapsed');
-                    panel?.classList.add('panel-hidden', 'panel-collapsed');
+                if (userMinimized && !forceExpand) {
+                    document.body.classList.add('panel-minimized', 'panel-collapsed');
+                    // No usar panel-hidden en búsqueda: en APK dejaba el panel “muerto”
+                    if (!isSearching) {
+                        document.body.classList.add('panel-hidden');
+                        panel?.classList.add('panel-hidden', 'panel-collapsed');
+                    } else {
+                        document.body.classList.remove('panel-hidden');
+                        panel?.classList.remove('panel-hidden');
+                        panel?.classList.add('panel-collapsed');
+                    }
                 } else {
                     document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
                     panel?.classList.remove('panel-hidden', 'panel-collapsed');
+                    try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
+                    if (panel) {
+                        try { panel.scrollTop = 0; } catch (_) {}
+                    }
                 }
                 window.syncPassengerPanelToggleLabel?.();
                 window.updatePassengerPromoStripVisibility?.();
                 window.refreshPassengerCopaUI?.();
                 try { window.syncPanelHideChevron?.(); } catch (_) {}
+                // APK: reflow para aplicar max-height full-screen de is-searching
+                try { void panel?.offsetHeight; } catch (_) {}
                 return;
             }
 
@@ -3681,8 +3707,23 @@ window.gMap = null;
         };
 
         window.getDriverOfferPreviewMapPadding = () => {
+            const popupOpen = document.body.classList.contains('driver-offer-popup-open');
+            const mapPeek = document.body.classList.contains('driver-offer-map-peek');
             const minimized = document.body.classList.contains('panel-minimized')
                 || document.body.classList.contains('panel-hidden');
+            // Oferta Uber: hoja ~38% → padding inferior para que la ruta quepa en el mapa visible
+            if (popupOpen) {
+                // Tarjeta vertical flotante abajo → deja mapa arriba
+                return {
+                    top: 48,
+                    right: 28,
+                    left: 28,
+                    bottom: 280
+                };
+            }
+            if (mapPeek) {
+                return { top: 72, right: 28, left: 28, bottom: 140 };
+            }
             return {
                 top: 88,
                 right: 36,
@@ -3877,9 +3918,52 @@ window.gMap = null;
                     ? window.currentRoutePolyline.some?.((p) => p?.getMap?.())
                     : window.currentRoutePolyline?.getMap?.());
             if (!polyOnMap && window.currentNavRoute) {
-                window.drawRouteOnMap?.(window.currentNavRoute, { driverNav: true });
+                window.drawRouteOnMap?.(window.currentNavRoute, { driverNav: true, fitFullRoute: true });
             }
             window.updateRouteProgress?.(pos, { driverNav: true, force: true });
+            // Primera vez / cada ~20s: encuadrar un tramo de la ruta restante (se ve el camino)
+            const now = Date.now();
+            if (!window._lastDriverRouteFitAt || now - window._lastDriverRouteFitAt > 20000) {
+                window._lastDriverRouteFitAt = now;
+                try { window.fitDriverActiveRouteOverview?.(); } catch (_) {}
+            }
+        };
+
+        /**
+         * Encuadra conductor + tramo restante de ruta (viaje activo).
+         * Así se ve la polilínea, no solo el carrito a zoom 21.
+         */
+        window.fitDriverActiveRouteOverview = () => {
+            if (!window.gMap) return;
+            const path = window.currentRouteFullPath
+                || window.currentNavRoute?.path
+                || [];
+            if (!path.length) return;
+            const bounds = new google.maps.LatLngBounds();
+            // Muestrear puntos de la ruta restante (no todos si es muy larga)
+            const step = Math.max(1, Math.floor(path.length / 40));
+            for (let i = 0; i < path.length; i += step) {
+                bounds.extend(path[i]);
+            }
+            bounds.extend(path[path.length - 1]);
+            if (window.currentDriverPos?.lat != null) {
+                bounds.extend(window.currentDriverPos);
+            }
+            const padding = window.getDriverNavMapPadding?.() || {
+                top: 80,
+                right: 40,
+                bottom: 220,
+                left: 40
+            };
+            try {
+                if (typeof window.withProgrammaticMapCamera === 'function') {
+                    window.withProgrammaticMapCamera(() => {
+                        window.gMap.fitBounds(bounds, padding);
+                    });
+                } else {
+                    window.gMap.fitBounds(bounds, padding);
+                }
+            } catch (_) {}
         };
 
         window._clearRoutePolylinesCore = (options = {}) => {
@@ -5588,21 +5672,21 @@ window.gMap = null;
                 const hasMapId = !!(window.gMap && window.gMap.getMapId && window.gMap.getMapId());
                 const landscape = (window.visualViewport?.width || window.innerWidth || 360)
                     > (window.visualViewport?.height || window.innerHeight || 640);
-                // Estilo Google Maps al centrar: zoom calle, mirás hacia adelante (no el pasado)
-                const tilt = lowPower ? (landscape ? 28 : 38) : (landscape ? 52 : 62);
+                // Zoom para VER la ruta (no tan pegado al carro que se pierda el trazo)
+                const tilt = lowPower ? (landscape ? 22 : 32) : (landscape ? 38 : 48);
                 const speed = Number(window._gpsSpeedMps);
                 const mps = Number.isFinite(speed) && speed >= 0 ? speed : 0;
-                // Zoom alto tipo “centrar” de Maps (~20–21). Solo baja un poco a mucha velocidad.
-                let zoom = lowPower ? 20 : 20.8;
-                if (mps >= 22) zoom = lowPower ? 19.2 : 19.8;      // ~80 km/h
-                else if (mps >= 14) zoom = lowPower ? 19.6 : 20.3;  // ~50 km/h
-                else if (mps < 2) zoom = lowPower ? 20.2 : 21;      // parado / lento: máximo detalle
-                zoom = Math.min(21, Math.max(18.5, zoom));
+                // ~16.5–18.5: se ve tramo de ruta + calles; no 20–21 de “micro calle”
+                let zoom = lowPower ? 17.2 : 17.8;
+                if (mps >= 22) zoom = lowPower ? 16.2 : 16.6;      // ~80 km/h: más contexto
+                else if (mps >= 14) zoom = lowPower ? 16.6 : 17.2;  // ~50 km/h
+                else if (mps < 2) zoom = lowPower ? 17.6 : 18.2;    // lento: un poco más cerca
+                zoom = Math.min(18.5, Math.max(15.5, zoom));
 
-                // Centro un poco ADELANTE del carro → ves calles por donde vas, no por donde venís
+                // Centro un poco ADELANTE del carro → ves por dónde vas
                 const lookAheadM = mps < 2
-                    ? (lowPower ? 18 : 22)
-                    : (mps >= 18 ? (lowPower ? 48 : 62) : (lowPower ? 32 : 45));
+                    ? (lowPower ? 36 : 48)
+                    : (mps >= 18 ? (lowPower ? 90 : 120) : (lowPower ? 60 : 80));
                 const camCenter = window.offsetLatLngByMeters?.(pos.lat, pos.lng, h, lookAheadM) || pos;
 
                 const padding = window.getDriverNavMapPadding?.() || {
@@ -5690,18 +5774,24 @@ window.gMap = null;
             }
             window.enableDriverMapFreeGestures?.();
             try {
-                window.applyDriverNavCamera?.(
-                    window.currentDriverPos,
-                    window.currentDriverHeading
-                        ?? window.getDriverCompassHeading?.()
-                        ?? window.getDriverMotionHeading?.()
-                        ?? 0,
-                    true
-                );
+                // Primero encuadra la ruta completa (se ve el camino), luego cámara de nav
+                window.fitDriverActiveRouteOverview?.();
+                setTimeout(() => {
+                    try {
+                        window.applyDriverNavCamera?.(
+                            window.currentDriverPos,
+                            window.currentDriverHeading
+                                ?? window.getDriverCompassHeading?.()
+                                ?? window.getDriverMotionHeading?.()
+                                ?? 0,
+                            true
+                        );
+                    } catch (_) {}
+                }, 420);
             } catch (_) {
                 try {
                     window.gMap.panTo(window.currentDriverPos);
-                    window.gMap.setZoom(20.8);
+                    window.gMap.setZoom(17.5);
                 } catch (__) {}
             }
             window.syncNavigationMapFabs?.();
@@ -6314,16 +6404,27 @@ window.gMap = null;
             }
 
             const fitPath = path;
-            if (fitPath?.length && !driverNav && !passengerTrack) {
+            // Preview de oferta O viaje activo con fitRoute: encuadrar ruta completa
+            const shouldFitRoute = fitPath?.length
+                && (
+                    (!driverNav && !passengerTrack)
+                    || options.fitRoute === true
+                    || (driverNav && options.fitFullRoute === true)
+                );
+            if (shouldFitRoute) {
                 const bounds = new google.maps.LatLngBounds();
-                fitPath.forEach(p => bounds.extend(p));
-                if (driverOfferPreview && window.currentDriverPos?.lat != null) {
+                fitPath.forEach((p) => bounds.extend(p));
+                if ((driverOfferPreview || driverNav) && window.currentDriverPos?.lat != null) {
                     bounds.extend(window.currentDriverPos);
                 }
                 const padding = driverOfferPreview
                     ? window.getDriverOfferPreviewMapPadding?.()
-                    : undefined;
-                window.gMap.fitBounds(bounds, padding || undefined);
+                    : (driverNav
+                        ? (window.getDriverNavMapPadding?.() || { top: 72, right: 36, bottom: 200, left: 36 })
+                        : undefined);
+                try {
+                    window.gMap.fitBounds(bounds, padding || undefined);
+                } catch (_) {}
             }
 
             if (passengerTrack && window.currentDriverTrackPos) {

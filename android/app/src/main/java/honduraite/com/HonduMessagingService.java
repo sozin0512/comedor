@@ -96,11 +96,39 @@ public class HonduMessagingService extends FirebaseMessagingService {
         }
 
         boolean tripAlert = isTripWakeAlert(data);
+        // Conductor / staff: misma fuerza (pantalla apagada → enciende como llamada)
+        boolean driverOrStaffWake = isDriverOrStaffTripWake(data);
         ensureWhatsAppChannel(this);
-        wakeScreenBriefly(this, tripAlert ? 8000L : 4000L);
+        wakeScreenBriefly(this, (tripAlert || driverOrStaffWake) ? 12000L : 4000L);
         // Sonido explícito: muchos OEMs dejan el canal solo en vibración
         playIconicAlertSound(this);
-        showWhatsAppStyleNotification(this, title, body, data, remoteMessage.getMessageId(), tripAlert);
+        showWhatsAppStyleNotification(
+            this,
+            title,
+            body,
+            data,
+            remoteMessage.getMessageId(),
+            tripAlert || driverOrStaffWake
+        );
+    }
+
+    /** Conductor (viaje en zona) o staff: full-screen + wake como admin/supervisor. */
+    private static boolean isDriverOrStaffTripWake(Map<String, String> data) {
+        if (data == null) return false;
+        String type = firstNonEmpty(data.get("type"), "");
+        String openDriver = firstNonEmpty(data.get("openDriver"), "");
+        String openAdmin = firstNonEmpty(data.get("openAdmin"), "");
+        String tag = firstNonEmpty(data.get("tag"), "");
+        if ("true".equalsIgnoreCase(openDriver) || "true".equalsIgnoreCase(openAdmin)) return true;
+        if ("trip_offer".equals(type) || "new_trip_staff".equals(type)
+            || "ride_demand_alert".equals(type) || "freight_trip_alert".equals(type)) {
+            return true;
+        }
+        return tag.startsWith("trip-offer-")
+            || tag.startsWith("staff-trip-")
+            || tag.startsWith("ride-demand-")
+            || tag.startsWith("freight-alert-")
+            || tag.startsWith("trip-offer-city-");
     }
 
     public static Uri iconicSoundUri(Context context) {
@@ -316,9 +344,18 @@ public class HonduMessagingService extends FirebaseMessagingService {
 
             Uri soundUri = iconicSoundUri(context);
 
+            // Igual que llamada / staff: CATEGORY_CALL + full-screen (enciende pantalla apagada)
             String category = tripAlert
                 ? NotificationCompat.CATEGORY_CALL
                 : NotificationCompat.CATEGORY_MESSAGE;
+
+            // Grupo distinto por viaje para que el SO NO agrupe y mutee el full-screen
+            String groupKey = WA_GROUP;
+            if (tripAlert && data != null && data.get("tripId") != null) {
+                groupKey = "honduraite_trip_" + data.get("tripId");
+            } else if (tripAlert) {
+                groupKey = "honduraite_trip_alert";
+            }
 
             NotificationCompat.Builder builder = new NotificationCompat.Builder(context, WA_CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
@@ -336,9 +373,10 @@ public class HonduMessagingService extends FirebaseMessagingService {
                 .setLights(Color.parseColor("#25D366"), 600, 400)
                 .setContentIntent(contentPi)
                 .setFullScreenIntent(fullScreenPi, true)
-                .setGroup(WA_GROUP)
+                .setGroup(groupKey)
+                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_ALL)
                 .setNumber(1)
-                .setTimeoutAfter(tripAlert ? 120_000L : 60_000L);
+                .setTimeoutAfter(tripAlert ? 180_000L : 60_000L);
 
             if (tripAlert) {
                 builder.setOngoing(false);
@@ -350,16 +388,30 @@ public class HonduMessagingService extends FirebaseMessagingService {
 
             int notifId = reqCode;
             if (data != null && data.get("tripId") != null) {
-                notifId = 700000 + Math.abs(data.get("tripId").hashCode() % 90000);
+                // Id estable por viaje + rol (conductor vs staff no se pisan)
+                int roleBump = "true".equalsIgnoreCase(firstNonEmpty(data.get("openAdmin"), ""))
+                    ? 800000
+                    : 700000;
+                notifId = roleBump + Math.abs(data.get("tripId").hashCode() % 90000);
             }
 
             NotificationManagerCompat.from(context).notify(notifId, builder.build());
 
-            if (tripAlert && Build.VERSION.SDK_INT >= 34) {
+            // Refuerzo: con permiso full-screen, también intentar abrir la activity
+            // (mismo comportamiento que admin al llegar new_trip_staff con pantalla apagada)
+            if (tripAlert) {
                 try {
-                    NotificationManager nm = context.getSystemService(NotificationManager.class);
-                    if (nm != null && !nm.canUseFullScreenIntent()) {
-                        Log.w(TAG, "Full-screen intent NO concedido: el aviso suena pero puede no abrir sobre bloqueo.");
+                    boolean canFsi = true;
+                    if (Build.VERSION.SDK_INT >= 34) {
+                        NotificationManager nm = context.getSystemService(NotificationManager.class);
+                        canFsi = nm != null && nm.canUseFullScreenIntent();
+                        if (!canFsi) {
+                            Log.w(TAG, "Full-screen intent NO concedido: el aviso suena pero puede no abrir sobre bloqueo. Actívalo en Ajustes → HonduRaite → Notificaciones / pantalla completa.");
+                        }
+                    }
+                    if (canFsi) {
+                        // El fullScreenIntent ya debería lanzar; wake extra
+                        wakeScreenBriefly(context, 10000L);
                     }
                 } catch (Exception ignored) {}
             }

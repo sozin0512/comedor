@@ -80,6 +80,13 @@ public class MainActivity extends BridgeActivity {
         if (intent == null || !intent.getBooleanExtra(EXTRA_FROM_PUSH_WAKE, false)) return;
         try {
             boolean tripWake = intent.getBooleanExtra(EXTRA_TRIP_WAKE, false);
+            String openDriver = intent.getStringExtra("openDriver");
+            String type = intent.getStringExtra("type");
+            boolean driverTrip = "true".equalsIgnoreCase(openDriver)
+                || "trip_offer".equals(type)
+                || "ride_demand_alert".equals(type)
+                || "freight_trip_alert".equals(type);
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                 setShowWhenLocked(true);
                 setTurnScreenOn(true);
@@ -95,8 +102,8 @@ public class MainActivity extends BridgeActivity {
                         | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
                 );
             }
-            // Viajes: intentar mostrar sobre el bloqueo un poco más de tiempo
-            if (tripWake) {
+            // Viajes conductor / staff: misma fuerza sobre bloqueo (pantalla apagada)
+            if (tripWake || driverTrip) {
                 final android.view.View decor = getWindow() != null ? getWindow().getDecorView() : null;
                 if (decor != null) {
                     decor.postDelayed(() -> {
@@ -104,10 +111,52 @@ public class MainActivity extends BridgeActivity {
                             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                         } catch (Exception ignored) {}
                     }, 500);
+                    // Mantener pantalla encendida ~15 s (como llamada / staff)
+                    decor.postDelayed(() -> {
+                        try {
+                            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        } catch (Exception ignored) {}
+                    }, 3000);
+                }
+                // Abrir vista conductor y forzar popup de oferta (misma UX al despertar)
+                if (driverTrip) {
+                    injectDriverOfferWakeJs();
                 }
             }
         } catch (Exception e) {
             android.util.Log.w("MainActivity", "applyPushWakeFlags: " + e.getMessage());
+        }
+    }
+
+    /** Tras full-screen intent de viaje: llevar al conductor a su panel y reabrir oferta. */
+    private void injectDriverOfferWakeJs() {
+        try {
+            final WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+            if (webView == null) return;
+            final String js =
+                "(function(){try{"
+                    + "document.body&&document.body.classList.add('driver-mode');"
+                    + "location.hash='driver';"
+                    + "var open=function(){try{"
+                    + "window.HonduTones&&window.HonduTones.unlock&&window.HonduTones.unlock();"
+                    + "window.playDriverTripOfferSound&&window.playDriverTripOfferSound();"
+                    + "window.triggerSuperTripVibration&&window.triggerSuperTripVibration();"
+                    + "var o=window._lastDriverMyOffers;"
+                    + "if(o&&o.length){window.syncDriverTripOfferPopup&&window.syncDriverTripOfferPopup(o,{forceShow:true});}"
+                    + "}catch(e){}};"
+                    + "open();setTimeout(open,600);setTimeout(open,1600);setTimeout(open,3200);"
+                    + "}catch(e){}})();";
+            webView.post(() -> {
+                try { webView.evaluateJavascript(js, null); } catch (Exception ignored) {}
+            });
+            webView.postDelayed(() -> {
+                try { webView.evaluateJavascript(js, null); } catch (Exception ignored) {}
+            }, 800);
+            webView.postDelayed(() -> {
+                try { webView.evaluateJavascript(js, null); } catch (Exception ignored) {}
+            }, 2000);
+        } catch (Exception e) {
+            android.util.Log.w("MainActivity", "injectDriverOfferWakeJs: " + e.getMessage());
         }
     }
 

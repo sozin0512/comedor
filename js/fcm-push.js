@@ -517,12 +517,26 @@ function handleNotificationNavigation(data = {}) {
         return;
     }
     if (isTripOffer || data.openDriver === 'true' || data.openDriver === true) {
-        location.hash = 'driver';
-        if (window.userProfile?.role === 'driver') {
-            document.getElementById('driver-view')?.classList.remove('hidden');
-            document.getElementById('client-view')?.classList.add('hidden');
-            window.showControlPanel?.();
-        }
+        try { location.hash = 'driver'; } catch (_) {}
+        const wakeDriverOffer = () => {
+            try {
+                if (window.userProfile?.role !== 'driver') return;
+                document.body.classList.add('driver-mode');
+                document.getElementById('driver-view')?.classList.remove('hidden');
+                document.getElementById('client-view')?.classList.add('hidden');
+                window.HonduTones?.unlock?.();
+                window.playDriverTripOfferSound?.();
+                window.triggerSuperTripVibration?.();
+                const offers = window._lastDriverMyOffers;
+                if (Array.isArray(offers) && offers.length) {
+                    window.syncDriverTripOfferPopup?.(offers, { forceShow: true });
+                }
+            } catch (_) {}
+        };
+        wakeDriverOffer();
+        setTimeout(wakeDriverOffer, 500);
+        setTimeout(wakeDriverOffer, 1500);
+        setTimeout(wakeDriverOffer, 3000);
         return;
     }
     if (isPassengerTrip) {

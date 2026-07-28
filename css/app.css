@@ -5069,6 +5069,17 @@
             letter-spacing: 0.06em;
         }
 
+        /* Banner "Ruta hacia…" desactivado: no molestar en oferta/mapa */
+        #driver-offer-map-hint,
+        body.driver-offer-popup-open #driver-offer-map-hint,
+        body.driver-offer-preview-active #driver-offer-map-hint,
+        body.driver-offer-map-peek #driver-offer-map-hint {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            opacity: 0 !important;
+        }
+
         .driver-offer-map-hint-card {
             display: flex;
             align-items: flex-start;
@@ -5102,16 +5113,9 @@
             display: none !important;
         }
 
-        body.driver-offer-map-peek #driver-offer-map-hint {
-            z-index: 36000;
-            top: max(0.75rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.5rem));
-            max-width: min(28rem, calc(100% - 1rem));
-        }
-
+        body.driver-offer-map-peek #driver-offer-map-hint,
         body.driver-offer-map-peek #driver-offer-map-hint-back {
-            display: inline-flex !important;
-            align-items: center;
-            justify-content: center;
+            display: none !important;
         }
 
         .driver-offer-map-hint-icon {
@@ -5139,7 +5143,7 @@
 
         body.driver-offer-preview-active.panel-minimized #driver-offer-map-hint,
         body.driver-offer-preview-active.panel-hidden #driver-offer-map-hint {
-            display: block !important;
+            display: none !important;
         }
 
         html[data-theme="dark"] .driver-offer-map-hint-card {
@@ -7723,18 +7727,24 @@
         }
 
         /*
-         * NavegaciÃ³n / viaje conductor: solo mapa (sin saludo, logo, bandera).
-         * Antes solo se ocultaba el header en mÃ³vil + is-navigating.
+         * Navegación / viaje / oferta conductor: SIN panel blanco del header
+         * (saludo "Buenas tardes…", Honduras, Perfil, logo).
          */
         body.is-navigating #app-header,
         body.driver-nav-mode #app-header,
         body.trip-active.driver-mode #app-header,
+        body.driver-offer-popup-open #app-header,
+        body.driver-offer-map-peek #app-header,
+        body.driver-mode.driver-offer-preview-active #app-header,
         body.is-navigating .hn-flag-stripe,
         body.driver-nav-mode .hn-flag-stripe,
         body.trip-active.driver-mode .hn-flag-stripe,
+        body.driver-offer-popup-open .hn-flag-stripe,
+        body.driver-offer-map-peek .hn-flag-stripe,
         body.is-navigating #header-more-menu,
         body.driver-nav-mode #header-more-menu,
-        body.trip-active.driver-mode #header-more-menu {
+        body.trip-active.driver-mode #header-more-menu,
+        body.driver-offer-popup-open #header-more-menu {
             display: none !important;
             visibility: hidden !important;
             height: 0 !important;
@@ -7746,6 +7756,14 @@
             border: 0 !important;
             margin: 0 !important;
             padding: 0 !important;
+        }
+
+        /* Nunca mostrar saludo / Honduras en la barra (queda solo en menú Perfil) */
+        #header-user-text,
+        #user-greeting-display,
+        #user-holiday-badge,
+        #header-balance {
+            display: none !important;
         }
 
         body.is-navigating #app-interface,
@@ -17457,7 +17475,7 @@
             color: #f8fafc;
         }
 
-        /* â€”â€” Conductor: pantalla emergente tipo Uber (oferta de viaje) â€”â€” */
+        /* —— Conductor: tarjeta HORIZONTAL baja estilo Uber (sin scroll) —— */
         .driver-trip-offer-popup {
             position: fixed;
             inset: 0;
@@ -17465,15 +17483,20 @@
             display: flex;
             align-items: flex-end;
             justify-content: center;
-            pointer-events: none;
-            /* Cubre notch / barra de estado en APK y PWA */
-            padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+            pointer-events: none !important;
+            padding:
+                0
+                max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px)))
+                max(0.65rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.4rem))
+                max(0.65rem, var(--safe-right, env(safe-area-inset-right, 0px)));
             overscroll-behavior: none;
-            touch-action: manipulation;
+            touch-action: none;
+            background: transparent !important;
         }
 
         .driver-trip-offer-popup:not(.hidden) {
-            pointer-events: auto;
+            pointer-events: none !important;
+            display: flex !important;
         }
 
         .driver-trip-offer-popup.hidden {
@@ -17481,56 +17504,58 @@
         }
 
         .driver-trip-offer-popup-backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.55);
-            backdrop-filter: blur(3px);
-            -webkit-backdrop-filter: blur(3px);
-            animation: driver-offer-popup-fade 0.22s ease-out;
+            display: none !important;
         }
 
+        /* Rectángulo VERTICAL — ancho celular real (~16.5–17.5rem) */
         .driver-trip-offer-popup-sheet {
             position: relative;
             z-index: 1;
-            width: 100%;
-            max-width: 480px;
-            /* vh + dvh: evita que se corte con la barra del navegador en Android/iOS */
-            max-height: min(92vh, 920px);
-            max-height: min(92dvh, 920px);
+            width: min(17rem, calc(100vw - 1.5rem));
+            max-width: 17rem;
+            max-height: none !important;
+            height: auto !important;
             display: flex;
             flex-direction: column;
             margin: 0 auto;
-            padding:
-                0.35rem
-                max(0.75rem, var(--safe-left, env(safe-area-inset-left, 0px)))
-                max(0.75rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.35rem))
-                max(0.75rem, var(--safe-right, env(safe-area-inset-right, 0px)));
-            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-            border-radius: 1.35rem 1.35rem 0 0;
-            box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.28);
-            animation: driver-offer-popup-slide 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+            padding: 0.65rem 0.75rem 0.7rem;
+            background: #ffffff;
+            border-radius: 1.2rem;
+            border: 1px solid rgba(226, 232, 240, 0.95);
+            box-shadow:
+                0 12px 36px rgba(15, 23, 42, 0.22),
+                0 2px 8px rgba(15, 23, 42, 0.08);
+            animation: driver-offer-popup-slide 0.26s cubic-bezier(0.22, 1, 0.36, 1);
             overflow: hidden;
-            /* Mejor composiciÃ³n en GPUs mÃ³viles */
+            pointer-events: auto !important;
             transform: translateZ(0);
             -webkit-transform: translateZ(0);
         }
 
-        .driver-trip-offer-popup-handle {
-            width: 2.5rem;
-            height: 0.28rem;
-            border-radius: 999px;
-            background: #cbd5e1;
-            margin: 0.15rem auto 0.45rem;
-            flex-shrink: 0;
+        /* Celulares angostos (360–390 px) */
+        @media (max-width: 400px) {
+            .driver-trip-offer-popup {
+                padding-left: max(0.55rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+                padding-right: max(0.55rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+                padding-bottom: max(0.55rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.35rem));
+            }
+            .driver-trip-offer-popup-sheet {
+                width: min(16.5rem, calc(100vw - 1.1rem));
+                max-width: 16.5rem;
+                padding: 0.55rem 0.65rem 0.6rem;
+            }
+            .uber-vert-name { font-size: 0.95rem; }
+            .uber-vert-price { font-size: 1.35rem; }
+            .uber-vert-btn { min-height: 2.6rem; font-size: 0.84rem; }
         }
 
+        .driver-trip-offer-popup-handle {
+            display: none !important;
+        }
+
+        /* Quitar bloque "Nueva solicitud" / timer grande / subtítulo */
         .driver-trip-offer-popup-top {
-            display: flex;
-            align-items: center;
-            gap: 0.55rem;
-            margin-bottom: 0.45rem;
-            flex-shrink: 0;
-            min-width: 0;
+            display: none !important;
         }
 
         .driver-trip-offer-popup-headline {
@@ -17540,8 +17565,8 @@
 
         .driver-trip-offer-popup-timer-wrap {
             position: relative;
-            width: 3.1rem;
-            height: 3.1rem;
+            width: 2.2rem;
+            height: 2.2rem;
             flex-shrink: 0;
         }
 
@@ -17581,7 +17606,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.78rem;
+            font-size: 0.65rem;
             font-weight: 900;
             color: #0f172a;
             letter-spacing: -0.02em;
@@ -17589,10 +17614,10 @@
 
         .driver-trip-offer-popup-title {
             margin: 0;
-            font-size: 0.88rem;
+            font-size: 0.72rem;
             font-weight: 900;
             color: #0f172a;
-            line-height: 1.2;
+            line-height: 1.15;
             text-transform: uppercase;
             letter-spacing: 0.02em;
             overflow: hidden;
@@ -17601,23 +17626,24 @@
         }
 
         .driver-trip-offer-popup-sub {
-            margin: 0.15rem 0 0;
-            font-size: 0.65rem;
+            margin: 0.05rem 0 0;
+            font-size: 0.58rem;
             font-weight: 700;
             color: #64748b;
-            line-height: 1.3;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            line-height: 1.2;
+            white-space: nowrap;
             overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+            -webkit-line-clamp: unset;
         }
 
         .driver-trip-offer-popup-close {
             flex-shrink: 0;
-            width: 2.75rem;
-            height: 2.75rem;
-            min-width: 44px;
-            min-height: 44px;
+            width: 2.15rem;
+            height: 2.15rem;
+            min-width: 2.15rem;
+            min-height: 2.15rem;
             border-radius: 999px;
             border: 1px solid #e2e8f0;
             background: #f8fafc;
@@ -17625,74 +17651,287 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1rem;
+            font-size: 0.85rem;
             -webkit-tap-highlight-color: transparent;
         }
 
         .driver-trip-offer-popup-body {
-            flex: 1 1 auto;
+            flex: 0 0 auto;
             min-height: 0;
-            overflow-x: hidden;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
-            padding-bottom: 0.35rem;
-            /* Espacio extra para el teclado numÃ©rico al ofertar */
-            scroll-padding-bottom: 6rem;
-        }
-
-        .driver-trip-offer-popup-body .driver-offer-card {
-            border: 2px solid #10b981;
-            box-shadow: 0 10px 28px rgba(16, 185, 129, 0.18);
-            background: #fff;
-            margin: 0;
-        }
-
-        /* Botones mÃ¡s grandes y fÃ¡ciles de tocar en el popup del celular */
-        .driver-trip-offer-popup-body .driver-offer-decision-accept,
-        .driver-trip-offer-popup-body .driver-offer-decision-accept--go {
-            min-height: 3.25rem;
-            font-size: 0.95rem;
-            border-radius: 0.95rem;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .driver-trip-offer-popup-body .driver-offer-decision-skip {
-            min-height: 2.75rem;
-            -webkit-tap-highlight-color: transparent;
-        }
-
-        .driver-trip-offer-popup-body .driver-offer-quick-btn {
-            min-height: 2.6rem;
-            -webkit-tap-highlight-color: transparent;
+            overflow: hidden !important; /* SIN scroll vertical */
+            padding: 0;
         }
 
         .driver-trip-offer-popup-queue {
-            flex-shrink: 0;
-            margin: 0.35rem 0 0;
-            text-align: center;
-            font-size: 0.62rem;
-            font-weight: 800;
+            display: none !important;
+        }
+
+        /* —— Tarjeta vertical (rectángulo de pie, solo esto en celular) —— */
+        .driver-offer-card--uber-vert {
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            display: flex;
+            flex-direction: column;
+            gap: 0.42rem;
+        }
+        .uber-vert-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.4rem;
+        }
+        .uber-vert-timer {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.28rem;
+            font-size: 0.68rem;
+            font-weight: 900;
+            color: #047857;
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            border-radius: 999px;
+            padding: 0.18rem 0.5rem;
+            line-height: 1.2;
+        }
+        .uber-vert-timer.is-urgent {
+            color: #c2410c;
+            background: #fff7ed;
+            border-color: #fed7aa;
+        }
+        .uber-vert-timer.is-critical {
+            color: #be123c;
+            background: #fff1f2;
+            border-color: #fecdd3;
+        }
+        .uber-vert-x {
+            width: 2rem;
+            height: 2rem;
+            border: 1px solid #e2e8f0;
+            background: #f8fafc;
             color: #64748b;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .uber-vert-head {
+            display: flex;
+            flex-direction: column;
+            gap: 0.28rem;
+            min-width: 0;
+        }
+        .uber-vert-name {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 900;
+            color: #0f172a;
+            line-height: 1.15;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .uber-vert-chips {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .uber-vert-stars {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            color: #b45309;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            font-weight: 900;
+            font-size: 0.72rem;
+            border-radius: 999px;
+            padding: 0.12rem 0.45rem;
+            line-height: 1.2;
+        }
+        .uber-vert-stars i { color: #f59e0b; font-size: 0.65rem; }
+        .uber-vert-dist {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            font-size: 0.68rem;
+            font-weight: 800;
+            color: #1d4ed8;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            padding: 0.12rem 0.45rem;
+            line-height: 1.2;
+        }
+        .uber-vert-unverif {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            font-size: 0.58rem;
+            font-weight: 900;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
-            line-height: 1.3;
-            padding: 0 0.25rem;
+            letter-spacing: 0.02em;
+            color: #b91c1c;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 999px;
+            padding: 0.12rem 0.45rem;
+            line-height: 1.2;
+        }
+        .uber-vert-route {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            padding: 0.4rem 0.5rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.75rem;
+        }
+        .uber-vert-ab {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #334155;
+            line-height: 1.25;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .uber-vert-ab b {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1rem;
+            height: 1rem;
+            border-radius: 999px;
+            font-size: 0.58rem;
+            color: #fff;
+            margin-right: 0.28rem;
+            background: #059669;
+        }
+        .uber-vert-ab:last-child b { background: #2563eb; }
+        .uber-vert-price-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.4rem;
+        }
+        .uber-vert-price {
+            font-size: 1.45rem;
+            font-weight: 900;
+            color: #047857;
+            line-height: 1;
+            letter-spacing: -0.02em;
+        }
+        .uber-vert-price-row .trip-pay-badge {
+            font-size: 0.58rem !important;
+            padding: 0.12rem 0.4rem !important;
+        }
+        .uber-vert-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        .uber-vert-btn {
+            border: 0;
+            border-radius: 0.8rem;
+            font-weight: 900;
+            font-size: 0.88rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            min-height: 2.75rem;
+            padding: 0.5rem 0.7rem;
+            width: 100%;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        .uber-vert-btn--go {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);
+        }
+        .uber-vert-btn--skip {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            min-height: 2.35rem;
+            font-size: 0.8rem;
+        }
+        html[data-theme="dark"] .uber-vert-name { color: #f8fafc; }
+        html[data-theme="dark"] .uber-vert-route {
+            background: #0f172a;
+            border-color: #1e293b;
+        }
+        html[data-theme="dark"] .uber-vert-ab { color: #cbd5e1; }
+        html[data-theme="dark"] .uber-vert-price { color: #6ee7b7; }
+        html[data-theme="dark"] .uber-vert-btn--skip {
+            background: #1e293b;
+            color: #cbd5e1;
+            border-color: #334155;
+        }
+        html[data-theme="dark"] .uber-vert-stars {
+            background: rgba(245, 158, 11, 0.12);
+            border-color: rgba(245, 158, 11, 0.35);
+            color: #fbbf24;
+        }
+        html[data-theme="dark"] .uber-vert-dist {
+            background: rgba(37, 99, 235, 0.15);
+            border-color: rgba(59, 130, 246, 0.35);
+            color: #93c5fd;
         }
 
         body.driver-offer-popup-open {
+            /* Mapa casi a pantalla completa; hoja solo abajo */
             overflow: hidden;
-            /* Evita scroll del mapa/fondo detrÃ¡s en iOS */
             position: relative;
-            touch-action: none;
+            touch-action: manipulation;
+        }
+
+        body.driver-offer-popup-open #control-panel,
+        body.driver-offer-popup-open #driver-incoming-offer,
+        body.driver-offer-popup-open #app-header,
+        body.driver-offer-popup-open #driver-radar-float,
+        body.driver-offer-popup-open .driver-city-bar {
+            opacity: 0 !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
+
+        body.driver-offer-popup-open #map-container,
+        body.driver-offer-popup-open #map {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            visibility: visible !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            z-index: 1 !important;
         }
 
         body.driver-offer-popup-open .driver-trip-offer-popup {
-            touch-action: manipulation;
+            touch-action: none;
+            z-index: 35000 !important;
         }
 
         body.driver-offer-popup-open .driver-trip-offer-popup-body {
             touch-action: pan-y;
+        }
+
+        body.driver-offer-popup-open .driver-trip-offer-popup-sheet {
+            max-height: none !important;
+        }
+
+        body.driver-offer-popup-open .driver-trip-offer-popup-top {
+            margin-bottom: 0.25rem !important;
+            gap: 0.35rem !important;
         }
 
         body.driver-rating-active .driver-trip-offer-popup:not(.hidden) {
@@ -17716,56 +17955,32 @@
             }
         }
 
-        /* Celulares chicos (SE, A-series, etc.) */
         @media (max-width: 380px) {
             .driver-trip-offer-popup-sheet {
-                max-height: min(94vh, 920px);
-                max-height: min(94dvh, 920px);
-                padding-left: max(0.55rem, var(--safe-left, env(safe-area-inset-left, 0px)));
-                padding-right: max(0.55rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+                width: min(17.25rem, calc(100vw - 1.2rem));
+                max-width: 17.25rem;
             }
-
-            .driver-trip-offer-popup-title {
-                font-size: 0.78rem;
+            .uber-vert-btn {
+                min-height: 2.55rem;
+                font-size: 0.82rem;
             }
-
-            .driver-trip-offer-popup-timer-wrap {
-                width: 2.85rem;
-                height: 2.85rem;
-            }
-
-            .driver-trip-offer-popup-body .driver-offer-card {
-                padding: 0.6rem;
-                gap: 0.45rem;
-            }
-
-            .driver-trip-offer-popup-body .driver-offer-decision-accept,
-            .driver-trip-offer-popup-body .driver-offer-decision-accept--go {
-                min-height: 3rem;
-                font-size: 0.88rem;
+            .uber-vert-price {
+                font-size: 1.3rem;
             }
         }
 
-        /* Pantallas bajas (landscape o altura corta) */
         @media (max-height: 560px) {
             .driver-trip-offer-popup-sheet {
-                max-height: min(96vh, 100%);
-                max-height: min(96dvh, 100%);
+                padding: 0.4rem 0.55rem 0.5rem;
             }
-
-            .driver-trip-offer-popup-handle {
-                margin-bottom: 0.25rem;
-            }
-
-            .driver-trip-offer-popup-top {
-                margin-bottom: 0.3rem;
+            .uber-vert-btn {
+                min-height: 2.4rem;
             }
         }
 
-        /* APK Capacitor: un poco mÃ¡s de aire abajo (gesto home) */
         body.capacitor-native .driver-trip-offer-popup-sheet,
         body.capacitor-android .driver-trip-offer-popup-sheet {
-            padding-bottom: max(1rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.5rem));
+            padding-bottom: max(0.55rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) * 0.35 + 0.45rem));
         }
 
         html[data-theme="dark"] .driver-trip-offer-popup-sheet {
@@ -17807,15 +18022,16 @@
 
         @media (min-width: 768px) {
             .driver-trip-offer-popup {
-                align-items: center;
-                padding: 1rem;
-                padding-top: max(1rem, var(--safe-top, env(safe-area-inset-top, 0px)));
+                align-items: flex-end;
+                justify-content: center;
+                padding-bottom: 1.25rem;
             }
 
             .driver-trip-offer-popup-sheet {
-                border-radius: 1.35rem;
-                max-height: min(88vh, 860px);
-                max-height: min(88dvh, 860px);
+                border-radius: 1.15rem;
+                width: 18.5rem;
+                max-width: 18.5rem;
+                max-height: none !important;
             }
         }
 
@@ -20851,9 +21067,10 @@ body.driver-offer-map-peek #driver-trip-offer-popup {
   display: none !important;
 }
 body.driver-offer-map-peek #driver-offer-map-hint {
-  display: block !important;
-  z-index: 45000 !important;
-  top: max(0.85rem, calc(env(safe-area-inset-top, 0px) + 0.55rem)) !important;
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
 }
 body.driver-offer-map-peek #map-container,
 body.driver-offer-map-peek #map {
