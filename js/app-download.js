@@ -221,7 +221,8 @@ export async function refreshNativeAppInfo() {
 
 /**
  * ¿Hay APK más nuevo que el instalado en el teléfono?
- * Prioridad: versionCode nativo vs publicado → versionName → buildId de subida.
+ * Orden: versionCode nativo → versionName → buildId de cada subida en Admin.
+ * Nunca “traga” un update marcando el remoto como instalado si el APK del teléfono es viejo.
  */
 export function hasApkUpdateAvailable() {
     if (!isInstalledAndroidApp()) return false;
@@ -234,56 +235,60 @@ export function hasApkUpdateAvailable() {
     const nativeVer = String(nativeAppInfo.version || '').trim();
     const client = getClientBuildId();
 
-    // 1) Comparar versionCode del APK instalado vs el publicado (lo correcto)
+    // 1) versionCode del teléfono vs el publicado (fuente de verdad)
     if (nativeCode > 0 && remoteCode > 0) {
-        if (remoteCode > nativeCode) return true;
-        if (remoteCode === nativeCode) {
-            // Ya tiene este código: alinear marca local
-            if (remoteBuildId) setClientBuildId(remoteBuildId);
-            return false;
+        if (remoteCode > nativeCode) {
+            // Había un clientBuildId “falso” alto: no lo usamos para ocultar
+            return true;
         }
-        // native más nuevo que remoto (raro): no pedir bajar
+        // Mismo o más nuevo en el teléfono
+        if (remoteBuildId) setClientBuildId(remoteBuildId);
         return false;
     }
 
-    // 2) Comparar versionName (ej. 2026.07.26.4 vs 2026.07.28.1)
+    // 2) versionName distinta → hay update
     if (nativeVer && remoteVer && nativeVer !== remoteVer) {
-        // Si el remoto es claramente el publicado y el nativo no coincide → hay update
         return true;
     }
+
+    // 3) Mismas versionName conocidas → al día
     if (nativeVer && remoteVer && nativeVer === remoteVer) {
         if (remoteBuildId) setClientBuildId(remoteBuildId);
         return false;
     }
 
-    // 3) Fallback: buildId de cada subida en Admin
-    if (client == null) {
-        // No auto-marcar como “ya instalado” si no sabemos la versión nativa
-        // (antes: setClientBuildId(remote) y return false → NUNCA mostraba update)
-        if (!nativeVer && !nativeCode) {
-            return remoteBuildId > 0;
-        }
-        if (remoteBuildId) setClientBuildId(remoteBuildId);
-        return false;
+    // 4) Fallback buildId (cada vez que Admin publica, Date.now() sube)
+    if (client != null && remoteBuildId > Number(client)) {
+        return true;
     }
-    return remoteBuildId > Number(client);
+
+    // 5) Primera vez sin marca local:
+    //    - si no sabemos nativo, SÍ mostrar (el usuario puede “Ya actualicé”)
+    //    - si nativo parece al día, no mostrar
+    if (client == null) {
+        if (nativeCode > 0 && remoteCode > 0 && nativeCode >= remoteCode) {
+            setClientBuildId(remoteBuildId);
+            return false;
+        }
+        if (nativeVer && remoteVer && nativeVer === remoteVer) {
+            setClientBuildId(remoteBuildId);
+            return false;
+        }
+        // Hay APK en servidor y no podemos afirmar que ya lo tiene → mostrar
+        return remoteBuildId > 0;
+    }
+
+    return false;
 }
 
 async function trySyncBuildFromNativeVersion() {
     if (!isInstalledAndroidApp() || !cachedApkMeta?.buildId) return;
     await refreshNativeAppInfo();
-    const nativeVer = nativeAppInfo.version;
-    const nativeCode = nativeAppInfo.build;
-    const remoteVer = String(cachedApkMeta.version || '').trim();
-    const remoteCode = Number(cachedApkMeta.versionCode) || versionLabelToCode(remoteVer) || 0;
-    // Solo marcar al día si el APK instalado YA es el publicado
-    if (nativeCode > 0 && remoteCode > 0 && nativeCode >= remoteCode) {
-        setClientBuildId(cachedApkMeta.buildId);
-        clearUpdateSnooze();
-        return;
-    }
-    if (nativeVer && remoteVer && nativeVer === remoteVer) {
-        setClientBuildId(cachedApkMeta.buildId);
+    // Solo alinear marcas si NO hay update pendiente
+    if (hasApkUpdateAvailable()) return;
+    const remoteBuildId = Number(cachedApkMeta.buildId) || 0;
+    if (remoteBuildId) {
+        setClientBuildId(remoteBuildId);
         clearUpdateSnooze();
     }
 }
@@ -370,8 +375,9 @@ export async function renderAdminApkPanel(container) {
             </div>
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                    <label class="text-xs text-slate-400 font-bold">Versión visible (recomendada)</label>
-                    <input id="admin-apk-version" class="ops-input mt-1" maxlength="32" placeholder="Ej: 2026.07.09.1">
+                    <label class="text-xs text-slate-400 font-bold">Versión (igual que Android Studio versionName)</label>
+                    <input id="admin-apk-version" class="ops-input mt-1" maxlength="32" placeholder="Ej: 2026.07.28.2" value="">
+                    <p class="text-[10px] text-slate-500 mt-1">Debe coincidir con <code>versionName</code> del APK. Si está vacío se usa la del proyecto.</p>
                 </div>
                 <div>
                     <label class="text-xs text-slate-400 font-bold">Notas (opcional)</label>
@@ -400,9 +406,16 @@ export async function renderAdminApkPanel(container) {
     if (metaEl) metaEl.innerHTML = renderAdminMetaHtml(meta);
     const removeBtn = document.getElementById('admin-apk-remove');
     if (removeBtn) removeBtn.classList.toggle('hidden', !meta?.url);
-    if (meta?.version) {
+    {
         const vIn = document.getElementById('admin-apk-version');
-        if (vIn && !vIn.value) vIn.placeholder = `Última: ${meta.version}`;
+        if (vIn && !vIn.value) {
+            const projectVer = document.querySelector('meta[name="hr-app-version"]')?.content
+                || window.__HR_BUILD_VERSION__
+                || window.APP_CONFIG?.appVersion
+                || '';
+            if (projectVer) vIn.value = projectVer;
+            else if (meta?.version) vIn.placeholder = `Última: ${meta.version}`;
+        }
     }
 
     let selectedFile = null;
@@ -569,7 +582,13 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
     const path = apkStoragePath(file.name.endsWith('.apk') ? file.name : 'honduraite.apk');
     const storageFileRef = ref(storageRef, path);
     const buildId = Date.now();
-    const versionLabel = version || `build-${buildId}`;
+    // Preferir versión escrita por admin; si vacío, la del proyecto (config/meta)
+    const fallbackVer = (typeof window !== 'undefined' && (
+        document.querySelector('meta[name="hr-app-version"]')?.content
+        || window.__HR_BUILD_VERSION__
+        || window.APP_CONFIG?.appVersion
+    )) || '';
+    const versionLabel = (version || fallbackVer || `build-${buildId}`).trim();
 
     try {
         const task = uploadBytesResumable(storageFileRef, file, {
@@ -708,27 +727,29 @@ async function removeAndroidApk() {
 }
 
 function shouldShowDownloadBadge() {
-    // App nativa Android: solo si hay versión nueva
+    // App nativa Android: botón de actualización cuando hay APK más nuevo
     if (isInstalledAndroidApp()) {
         if (document.body.classList.contains('trip-active')) return false;
         if (document.body.classList.contains('map-pick-mode')) return false;
-        return hasApkUpdateAvailable() && !isUpdateSnoozed();
+        if (document.body.classList.contains('is-searching')) return false;
+        // Si hay update, mostrar aunque haya snooze viejo (el login ya limpia snooze)
+        if (!hasApkUpdateAvailable()) return false;
+        if (isUpdateSnoozed()) return false;
+        return true;
     }
     if (isCapacitorNative()) return false;
+    // Web: necesita APK publicado en Admin
     if (!cachedApkMeta?.url) return false;
 
-    // Ya instaló/descargó esta versión → no mostrar hasta que haya otra actualización
+    // Ya descargó/instaló ESTA versión desde web → ocultar hasta un build más nuevo
     if (alreadyHasCurrentApkOnWeb()) return false;
-
-    // Si ya instaló antes y hay build más nuevo → sí mostrar (actualizar)
-    // Si nunca instaló → mostrar (primera descarga)
 
     try {
         if (sessionStorage.getItem(DISMISS_KEY) === '1') return false;
     } catch (_) {}
     const profile = getUserProfile();
     const role = profile?.role || 'client';
-    // Pasajeros y conductores (misma app APK). Staff de ops no necesita el badge.
+    // Pasajeros y conductores. Staff de ops no necesita el badge.
     if (role === 'supervisor') return false;
     if (document.body.classList.contains('trip-active')) return false;
     if (document.body.classList.contains('is-searching')) return false;
@@ -1258,20 +1279,27 @@ function onApkMetaChanged() {
         .then(() => trySyncBuildFromNativeVersion())
         .finally(() => {
             syncAppDownloadBadge();
-            // Si hay update, limpiar snooze de builds viejos solo cuando el remoto es más nuevo
+            // Si hay update real, no dejar snooze eterno ocultando el botón
             try {
                 if (hasApkUpdateAvailable()) {
-                    // no auto-clear snooze forever; but if force needed after fix, still show after delay
+                    // mantener snooze si el usuario tocó “más tarde” en esta sesión;
+                    // al login se limpia en onPassengerAppBadgeSessionStart
                 }
             } catch (_) {}
-            setTimeout(() => maybeShowApkUpdateModal({ force: false }), 1200);
-            // Segundo intento (a veces Capacitor App.getInfo tarda)
+            setTimeout(() => {
+                syncAppDownloadBadge();
+                maybeShowApkUpdateModal({ force: false });
+            }, 800);
             setTimeout(() => {
                 refreshNativeAppInfo().then(() => {
-                    syncAppDownloadBadge();
-                    maybeShowApkUpdateModal({ force: false });
+                    trySyncBuildFromNativeVersion().finally(() => {
+                        syncAppDownloadBadge();
+                        if (hasApkUpdateAvailable() && !isUpdateSnoozed()) {
+                            maybeShowApkUpdateModal({ force: true });
+                        }
+                    });
                 });
-            }, 3500);
+            }, 2500);
         });
 }
 
