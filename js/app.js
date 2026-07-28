@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.27.19";
+} from "./auth-credentials.js?v=2026.07.27.20";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.27.19";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.19";
+import { APP_CONFIG } from "./config.js?v=2026.07.27.20";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.27.20";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.27.19";
+} from "./referrals.js?v=2026.07.27.20";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,12 +31,12 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.27.19";
+} from "./zones.js?v=2026.07.27.20";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.27.19";
+} from "./trip-notifications.js?v=2026.07.27.20";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -57,7 +57,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.27.19";
+} from "./notification-tones.js?v=2026.07.27.20";
 
 installNotificationTonesApi();
 
@@ -66,34 +66,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.27.19";
+} from "./passenger-alerts.js?v=2026.07.27.20";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.27.19";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.19";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.19";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.19";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.19";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.27.19";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.19";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.19";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.19";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.19";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.19";
+} from "./passenger-verification.js?v=2026.07.27.20";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.27.20";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.27.20";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.27.20";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.27.20";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.27.20";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.27.20";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.27.20";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.27.20";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.27.20";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.27.20";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.27.19";
+} from "./feedback.js?v=2026.07.27.20";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.27.19";
+} from "./greetings.js?v=2026.07.27.20";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -106,49 +106,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.27.19";
+} from "./service-types.js?v=2026.07.27.20";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.27.19";
+} from "./driver-vehicles.js?v=2026.07.27.20";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.27.19";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.19";
+} from "./route-conditions.js?v=2026.07.27.20";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.27.20";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.27.19";
+} from "./demand-heatmap.js?v=2026.07.27.20";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.27.19";
+} from "./ops-fleet-map.js?v=2026.07.27.20";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.27.19";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.19";
+} from "./live-trip-keepalive.js?v=2026.07.27.20";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.27.20";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.27.19";
+} from "./session-keepalive.js?v=2026.07.27.20";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.27.19";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.19";
+} from "./passenger-tutorial.js?v=2026.07.27.20";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.27.20";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.27.19";
+} from "./driver-tutorial.js?v=2026.07.27.20";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -193,27 +193,27 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.19";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.27.20";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.27.19";
+} from "./auth-ui.js?v=2026.07.27.20";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.27.19";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.19";
+} from "./age-verification.js?v=2026.07.27.20";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.27.20";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.27.19";
+} from "./trip-experience.js?v=2026.07.27.20";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.27.19";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.19";
-import { initAppDownload } from "./app-download.js?v=2026.07.27.19";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.07.27.19";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.07.27.19";
+} from "./support-tickets.js?v=2026.07.27.20";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.27.20";
+import { initAppDownload } from "./app-download.js?v=2026.07.27.20";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.07.27.20";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.07.27.20";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -5275,8 +5275,27 @@ if (document.readyState === 'loading') {
 
         const REGISTERED_DRIVERS_CACHE_TTL_MS = 120000;
         const NOTIFY_FLY_INTERVAL_MS = 1800;
-        const NOTIFY_DRIVERS_MAX = 12;
+        const NOTIFY_DRIVERS_MAX = 20;
         const NOTIFY_AVATAR_PLACEHOLDER = 'https://placehold.co/80x80/dbeafe/1d4ed8?text=C';
+        /** true mientras el pasajero scrollea el panel de búsqueda (no robar el scroll con la animación) */
+        let _passengerSearchUserScrolling = false;
+        let _passengerSearchScrollTimer = null;
+
+        function bindPassengerSearchScrollGuard() {
+            const el = document.getElementById('searching-state');
+            if (!el || el.dataset.scrollGuardBound === '1') return;
+            el.dataset.scrollGuardBound = '1';
+            const mark = () => {
+                _passengerSearchUserScrolling = true;
+                if (_passengerSearchScrollTimer) clearTimeout(_passengerSearchScrollTimer);
+                _passengerSearchScrollTimer = setTimeout(() => {
+                    _passengerSearchUserScrolling = false;
+                }, 2800);
+            };
+            el.addEventListener('scroll', mark, { passive: true });
+            el.addEventListener('touchstart', mark, { passive: true });
+            el.addEventListener('wheel', mark, { passive: true });
+        }
 
         function driverFirstNameFromProfile(u) {
             const raw = String(u?.name || u?.displayName || u?.fullName || '').trim();
@@ -5321,11 +5340,21 @@ if (document.readyState === 'loading') {
         }
 
         /**
-         * Flota registrada (count + {name, photo}) para UX de mensajes volando.
+         * Flota para UX de mensajes volando:
+         * - misma ciudad
+         * - ciudades cercanas si no hay flota local (spill)
+         * - + conductores online cerca del origen (aunque sean de otra ciudad)
+         * - + quienes ya vieron el viaje (viewedBy)
          */
-        async function getRegisteredDriversForNotify({ zoneId = null } = {}) {
-            const zone = zoneId || window.activeServiceZoneId || window.userProfile?.serviceZoneId || null;
-            const cacheKey = zone || 'all';
+        async function getRegisteredDriversForNotify({ zoneId = null, trip = null } = {}) {
+            const zone = zoneId
+                || trip?.serviceZoneId
+                || window.activeServiceZoneId
+                || window.userProfile?.serviceZoneId
+                || null;
+            const originLat = trip?.originLat ?? activeTrip?.originLat ?? null;
+            const originLng = trip?.originLng ?? activeTrip?.originLng ?? null;
+            const cacheKey = `${zone || 'all'}|${originLat != null ? Number(originLat).toFixed(2) : 'x'}`;
             const cache = window._registeredDriversCountCache || {};
             const hit = cache[cacheKey];
             if (hit && (Date.now() - hit.at) < REGISTERED_DRIVERS_CACHE_TTL_MS && Array.isArray(hit.drivers)) {
@@ -5346,7 +5375,15 @@ if (document.readyState === 'loading') {
                 };
             }
 
+            const byKey = new Map(); // name lower → entry
+            const addEntry = (entry, { prefer = false } = {}) => {
+                if (!entry?.name) return;
+                const key = String(entry.name).toLowerCase();
+                if (!byKey.has(key) || prefer) byKey.set(key, entry);
+            };
+
             const driversInZone = [];
+            const driversNearbyCity = [];
             const driversAll = [];
             let countInZone = 0;
             let countAllDrivers = 0;
@@ -5356,20 +5393,28 @@ if (document.readyState === 'loading') {
                 if (u.role !== 'driver') return;
                 if (u.approvalStatus === 'suspended' || u.approvalStatus === 'rejected') return;
                 if (u.accountRestricted) return;
+                // Solo flota operativa / aprobada (o legacy sin status)
+                if (u.approvalStatus && u.approvalStatus !== 'approved') return;
 
                 countAllDrivers++;
                 const first = driverFirstNameFromProfile(u);
                 const entry = first
-                    ? { name: first, photo: driverPhotoFromProfile(u) || NOTIFY_AVATAR_PLACEHOLDER }
+                    ? {
+                        name: first,
+                        photo: driverPhotoFromProfile(u) || NOTIFY_AVATAR_PLACEHOLDER,
+                        uid: d.id,
+                        zone: u.serviceZoneId || u.cityId || null
+                    }
                     : null;
                 if (entry) driversAll.push(entry);
 
                 if (zone) {
                     const uZone = u.serviceZoneId || u.cityId || null;
-                    // Primero solo misma ciudad; si no hay ninguno, se amplía a cercanas abajo
                     if (!uZone || uZone === zone) {
                         countInZone++;
                         if (entry) driversInZone.push(entry);
+                    } else if (isCityNearZone(uZone, zone)) {
+                        if (entry) driversNearbyCity.push(entry);
                     }
                 } else {
                     countInZone++;
@@ -5377,39 +5422,81 @@ if (document.readyState === 'loading') {
                 }
             });
 
-            // Si la ciudad no tiene conductores registrados, ampliar a ciudades cercanas (solo entonces)
-            if (zone && countInZone === 0) {
-                usersSnap.forEach((d) => {
-                    const u = d.data() || {};
-                    if (u.role !== 'driver') return;
-                    if (u.approvalStatus === 'suspended' || u.approvalStatus === 'rejected') return;
-                    if (u.accountRestricted) return;
-                    const uZone = u.serviceZoneId || u.cityId || null;
-                    if (!uZone || uZone === zone || !isCityNearZone(uZone, zone)) return;
-                    countInZone++;
-                    const first = driverFirstNameFromProfile(u);
-                    if (first) {
-                        driversInZone.push({
-                            name: first,
-                            photo: driverPhotoFromProfile(u) || NOTIFY_AVATAR_PLACEHOLDER
-                        });
-                    }
-                });
-            }
+            // Misma ciudad primero; si no hay locales, spill a cercanas (como el servidor)
+            const spill = zone && countInZone === 0 && driversNearbyCity.length > 0;
+            const baseList = spill
+                ? [...driversNearbyCity]
+                : (countInZone > 0 ? [...driversInZone] : [...driversAll]);
+            baseList.forEach((e) => addEntry(e));
 
-            const useZone = countInZone > 0;
-            const count = useZone ? countInZone : countAllDrivers;
-            const drivers = shuffleArrayCopy(useZone ? driversInZone : driversAll).slice(0, NOTIFY_DRIVERS_MAX);
+            // Conductores ONLINE cerca del origen (los que de verdad “ven” el viaje en el mapa)
+            try {
+                if (originLat != null && originLng != null) {
+                    const locSnap = await getDocs(
+                        collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location')
+                    );
+                    const maxKm = spill
+                        ? Math.max(getNearbyCitySpillKm?.() || 45, getCityCoverageKm?.(zone) || 18)
+                        : Math.max(getCityCoverageKm?.(zone) || 18, 25);
+                    locSnap.forEach((d) => {
+                        const loc = d.data() || {};
+                        if (!isDriverOnline(loc)) return;
+                        if (loc.lat == null || loc.lng == null) return;
+                        const dist = haversineKm(originLat, originLng, loc.lat, loc.lng);
+                        if (dist > maxKm) return;
+                        const name = driverFirstNameFromProfile(loc)
+                            || String(loc.name || '').split(/\s+/)[0]
+                            || null;
+                        if (!name || name.length < 2) return;
+                        addEntry({
+                            name: name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
+                            photo: driverPhotoFromProfile(loc) || NOTIFY_AVATAR_PLACEHOLDER,
+                            uid: d.id,
+                            online: true,
+                            distKm: Math.round(dist * 10) / 10
+                        }, { prefer: true });
+                    });
+                }
+            } catch (_) {}
+
+            // Quienes ya abrieron/vieron el viaje (aunque no estén en la lista base)
+            try {
+                const viewed = (trip?.viewedBy || activeTrip?.viewedBy || {});
+                if (viewed && typeof viewed === 'object') {
+                    Object.values(viewed).forEach((v) => {
+                        if (!v) return;
+                        const first = driverFirstNameFromProfile(v)
+                            || String(v.name || '').split(/\s+/)[0]
+                            || null;
+                        if (!first || first.length < 2) return;
+                        addEntry({
+                            name: first.charAt(0).toUpperCase() + first.slice(1).toLowerCase(),
+                            photo: driverPhotoFromProfile(v) || NOTIFY_AVATAR_PLACEHOLDER,
+                            uid: v.driverId || null,
+                            viewed: true
+                        }, { prefer: true });
+                    });
+                }
+            } catch (_) {}
+
+            const merged = Array.from(byKey.values());
+            // Priorizar online / vistos, luego barajar el resto
+            const priority = merged.filter((d) => d.online || d.viewed);
+            const rest = merged.filter((d) => !d.online && !d.viewed);
+            const drivers = [
+                ...shuffleArrayCopy(priority),
+                ...shuffleArrayCopy(rest)
+            ].slice(0, NOTIFY_DRIVERS_MAX);
+
+            // count: flota “avisable” (locales o spill), no todo el país
+            const count = Math.max(
+                spill ? driversNearbyCity.length : countInZone,
+                drivers.length,
+                priority.length
+            ) || (countInZone > 0 ? countInZone : countAllDrivers);
 
             window._registeredDriversCountCache = cache;
             cache[cacheKey] = { count, drivers, at: Date.now() };
-            if (countAllDrivers > 0) {
-                cache.all = {
-                    count: countAllDrivers,
-                    drivers: shuffleArrayCopy(driversAll).slice(0, NOTIFY_DRIVERS_MAX),
-                    at: Date.now()
-                };
-            }
             if (count > 0) window.lastRegisteredDriversCount = count;
             window.lastRegisteredNotifyDrivers = drivers;
             window.lastRegisteredDriverNames = drivers.map((d) => d.name);
@@ -5549,11 +5636,26 @@ if (document.readyState === 'loading') {
             nodes.forEach((n) => n.classList.remove('is-target'));
             if (avatarEl) {
                 avatarEl.classList.add('is-target');
-                // Scroll suave del avatar al centro si hay overflow
-                try {
-                    avatarEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-                } catch (_) {}
-                flyMessageToAvatar(avatarEl);
+                // SOLO scroll horizontal del carrusel de avatares.
+                // Nunca scrollIntoView: robaba el scroll del panel y no dejaba bajar a ver conductores.
+                if (!_passengerSearchUserScrolling) {
+                    try {
+                        const wrap = document.getElementById('searching-notify-avatars');
+                        if (wrap && typeof avatarEl.offsetLeft === 'number') {
+                            const left = avatarEl.offsetLeft
+                                - (wrap.clientWidth / 2)
+                                + (avatarEl.clientWidth / 2);
+                            wrap.scrollTo({
+                                left: Math.max(0, left),
+                                behavior: 'smooth'
+                            });
+                        }
+                    } catch (_) {}
+                }
+                // Si el usuario está scrolleando el panel, no animar vuelo (evita saltos)
+                if (!_passengerSearchUserScrolling) {
+                    flyMessageToAvatar(avatarEl);
+                }
             }
 
             // Primero “enviando…”, luego (tras el vuelo) “ya recibió”
@@ -5574,25 +5676,31 @@ if (document.readyState === 'loading') {
             if (state.index >= drivers.length) {
                 state.index = 0;
                 state.cycle = (state.cycle || 1) + 1;
-                // En el siguiente ciclo, quitar “recibido” para reanimar
+                // Siguiente ciclo: quitar checks para reanimar, sin reordenar (evita saltos de scroll/DOM)
                 if (state.cycle > 1) {
                     nodes.forEach((n) => n.classList.remove('is-received'));
-                    state.drivers = shuffleArrayCopy(drivers);
                 }
             }
         }
 
         function startDriverNotifyNameAnimation({ tripId, names = [], drivers = [], total = 0 } = {}) {
             if (!tripId) return;
+            bindPassengerSearchScrollGuard();
             const list = normalizeNotifyDriverList(
                 (drivers && drivers.length) ? drivers : names
             );
             const existing = window._driverNotifyNameState;
             if (existing?.tripId === tripId && window._driverNotifyNameTimer) {
-                if (list.length && (!existing.drivers?.length || existing.total !== total)) {
-                    existing.drivers = list;
-                    existing.total = total || list.length;
-                    ensureNotifyAvatarDom(list);
+                // Actualizar lista sin reiniciar el ciclo (evita “reset” que empuja el scroll)
+                if (list.length) {
+                    const prevSig = (existing.drivers || []).map((d) => d.name).join('|');
+                    const nextSig = list.map((d) => d.name).join('|');
+                    if (prevSig !== nextSig || existing.total !== total) {
+                        existing.drivers = list;
+                        existing.total = total || list.length;
+                        // Solo rebuild DOM si cambió el set; no resetear index a 0
+                        ensureNotifyAvatarDom(list);
+                    }
                 }
                 return;
             }
@@ -5615,6 +5723,8 @@ if (document.readyState === 'loading') {
                     stopDriverNotifyNameAnimation();
                     return;
                 }
+                // Pausar frame si el usuario scrollea (no pelear por el panel)
+                if (_passengerSearchUserScrolling) return;
                 paintDriverNotifyNameFrame();
             }, NOTIFY_FLY_INTERVAL_MS);
         }
@@ -5628,7 +5738,7 @@ if (document.readyState === 'loading') {
                 || window.activeServiceZoneId
                 || window.userProfile?.serviceZoneId
                 || null;
-            getRegisteredDriversForNotify({ zoneId }).then(({ count, drivers, names }) => {
+            getRegisteredDriversForNotify({ zoneId, trip: tripLike || activeTrip }).then(({ count, drivers, names }) => {
                 window.pendingTripRegisteredDrivers = count;
                 window.lastRegisteredNotifyDrivers = drivers || [];
                 window.pendingTripRegisteredNotifyDrivers = drivers || [];
@@ -27196,10 +27306,13 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     const onlineNear = await countOnlineDriversNearTrip({ ...t, id: tripId });
                     window.pendingTripOnlineDrivers = onlineNear;
                     const regInfo = await getRegisteredDriversForNotify({
-                        zoneId: t.serviceZoneId || null
+                        zoneId: t.serviceZoneId || null,
+                        trip: { ...t, id: tripId }
                     });
                     window.pendingTripRegisteredDrivers = regInfo.count;
                     window.pendingTripRegisteredDriverNames = regInfo.names || [];
+                    window.pendingTripRegisteredNotifyDrivers = regInfo.drivers || [];
+                    window.lastRegisteredNotifyDrivers = regInfo.drivers || [];
                     window.lastRegisteredDriverNames = regInfo.names || [];
 
                     if (t.offeredToDriverId && isOfferExpired(t)) {
@@ -27221,6 +27334,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                             _onlineDriversNear: onlineNear,
                             _registeredDrivers: regInfo.count,
                             _registeredDriverNames: regInfo.names || [],
+                            _registeredNotifyDrivers: regInfo.drivers || [],
                             _noDriversNearby: !t.offeredToDriverId && !t.driverId
                         };
                         updateSearchingStatusUI(live);
@@ -28041,6 +28155,12 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         _registeredDrivers: window.pendingTripRegisteredDrivers
                             ?? window.lastRegisteredDriversCount
                             ?? 0,
+                        _registeredNotifyDrivers: window.pendingTripRegisteredNotifyDrivers
+                            || window.lastRegisteredNotifyDrivers
+                            || [],
+                        _registeredDriverNames: window.pendingTripRegisteredDriverNames
+                            || window.lastRegisteredDriverNames
+                            || [],
                         _noDriversNearby: !data.offeredToDriverId && !data.driverId
                     });
                 }

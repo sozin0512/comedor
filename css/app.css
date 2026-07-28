@@ -4705,11 +4705,34 @@
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
-            overflow-y: auto;
+            overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            touch-action: pan-y;
             margin-top: 0 !important;
-            /* Hueco para el botÃ³n fijo "Cancelar solicitud" */
+            /* Hueco para el botón fijo "Cancelar solicitud" */
             padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px)) !important;
+            /* scroll-behavior auto: la animación no pelea con scroll-smooth del documento */
+            scroll-behavior: auto;
+        }
+
+        /* La animación de avatares NO debe bloquear el scroll del panel */
+        body.is-searching #searching-state .passenger-notify-fly-stage {
+            flex: 0 0 auto;
+            max-height: none;
+            overflow: visible;
+        }
+        body.is-searching #searching-state .passenger-notify-avatars {
+            flex: 0 0 auto;
+            max-height: 7.5rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            overscroll-behavior-x: contain;
+            /* No capturar gestos verticales del panel */
+            touch-action: pan-x;
+        }
+        body.is-searching #searching-state .passenger-notify-fly-msg {
+            pointer-events: none !important;
         }
 
         /* Subir tarifa mientras busca conductor */
