@@ -333,9 +333,28 @@ export function syncPassengerHomeForRole() {
     try {
         saved = sessionStorage.getItem('hr-passenger-mode') || 'home';
     } catch (_) {}
+    // En app nativa, preferir siempre menú de inicio al abrir (evita quedar en “viaje” viejo)
+    try {
+        const isNative = !!(window.Capacitor?.isNativePlatform?.());
+        if (isNative && (!saved || saved === 'trip')) {
+            // Si no hay búsqueda activa, forzar home en Android para ver el panel nuevo
+            if (!isBusyWithTripUi()) saved = 'home';
+        }
+    } catch (_) {}
     if (!MODE_META[saved]) saved = 'home';
     currentMode = saved;
     applyMode(saved);
+
+    // Asegurar hub visible en home
+    if (saved === 'home') {
+        const hub = document.getElementById('passenger-home-hub');
+        if (hub) {
+            hub.classList.remove('hidden');
+            hub.style.display = '';
+        }
+        document.body.classList.add('passenger-mode-home');
+        document.body.classList.remove('passenger-mode-active');
+    }
 }
 
 export function initPassengerHome(deps = {}) {
@@ -346,6 +365,31 @@ export function initPassengerHome(deps = {}) {
     window.showPassengerHomeMenu = showPassengerHomeMenu;
     window.getPassengerHomeMode = getPassengerHomeMode;
     window.syncPassengerHomeForRole = syncPassengerHomeForRole;
+
+    // Reintentos: en Capacitor/Android a veces client-view aún no está listo
+    const boot = (why) => {
+        try {
+            ensureHomeUi();
+            if (getUserProfile?.() && isClientLike()) {
+                syncPassengerHomeForRole();
+            } else if (isClientLike()) {
+                // Perfil aún null → igual montar hub (rol default client)
+                ensureHomeUi();
+                if (!isBusyWithTripUi()) {
+                    currentMode = 'home';
+                    applyMode('home');
+                }
+            }
+        } catch (e) {
+            console.warn('[passenger-home] boot', why, e);
+        }
+    };
+    setTimeout(() => boot('t300'), 300);
+    setTimeout(() => boot('t1200'), 1200);
+    setTimeout(() => boot('t3000'), 3000);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') boot('visible');
+    });
 
     // Por defecto: menú de inicio (hasta que cargue el perfil y sincronice)
     try {

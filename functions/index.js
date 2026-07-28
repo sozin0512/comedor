@@ -40,6 +40,9 @@ function getScheduledTripMs(trip) {
 const TRIP_OFFER_NEAR_RADIUS_KM = 8;
 // Más de 1: se guardan candidates y se les manda push (web/iOS se enteran aunque no sean el “primero”)
 const TRIP_OFFER_POOL_SIZE = 8;
+/** Si NO hay conductores registrados en la ciudad del viaje, ofertar a online cercanos (km). */
+const ENABLE_NEARBY_CITY_SPILL = true;
+const NEARBY_CITY_SPILL_KM = 45;
 const CITY_COVERAGE_KM = {
     comayagua: 18,
     siguatepeque: 14,
@@ -56,7 +59,13 @@ const CITY_COVERAGE_KM = {
     utila: 10,
     talanga: 12,
     'valle-angeles': 10,
-    'la-paz': 14
+    'la-paz': 14,
+    // Alrededores Comayagua / Francisco Morazán (pueblos sin flota propia)
+    lepaterique: 12,
+    'villa-de-san-antonio': 12,
+    ajuterique: 12,
+    lejamani: 12,
+    'san-sebastian': 12
 };
 const ONLINE_STALE_MS = 90 * 1000;
 
@@ -70,21 +79,79 @@ function getTripOfferNearRadiusKm(zoneId) {
     return Math.min(TRIP_OFFER_NEAR_RADIUS_KM, Math.max(5, Math.round(coverage * 0.5)));
 }
 
-function pickDriversByProximityTier(sortedCandidates, zoneId) {
+/**
+ * @param {Array} sortedCandidates
+ * @param {string|null} zoneId
+ * @param {number|null} maxFarKmOverride — p.ej. spill 45 km cuando no hay flota local
+ */
+function pickDriversByProximityTier(sortedCandidates, zoneId, maxFarKmOverride = null) {
     if (!sortedCandidates?.length) return { candidates: [], tier: null };
     const nearKm = getTripOfferNearRadiusKm(zoneId);
-    const farKm = getCityCoverageKm(zoneId);
+    const baseFar = getCityCoverageKm(zoneId);
+    const farKm = Math.max(
+        baseFar,
+        Number.isFinite(maxFarKmOverride) && maxFarKmOverride > 0 ? maxFarKmOverride : 0
+    );
     let pool = sortedCandidates.filter((c) => c.distanceKm <= nearKm);
     let tier = 'near';
     if (!pool.length) {
         pool = sortedCandidates.filter((c) => c.distanceKm <= farKm);
-        tier = 'far';
+        tier = maxFarKmOverride && farKm > baseFar ? 'spill' : 'far';
+    }
+    // Último recurso: si hay spill y aún vacío, tomar los más cercanos dentro del override
+    if (!pool.length && maxFarKmOverride) {
+        pool = sortedCandidates.filter((c) => c.distanceKm <= maxFarKmOverride);
+        tier = 'spill';
     }
     return { candidates: pool, tier };
 }
 
 function getTripOfferFarRadiusKm(zoneId) {
     return getCityCoverageKm(zoneId);
+}
+
+/** Ciudades con al menos un conductor aprobado registrado (online u offline). */
+async function collectRegisteredDriverZones(appId) {
+    const zones = new Set();
+    try {
+        const snap = await db.collection(`artifacts/${appId}/public/data/users`)
+            .where('role', '==', 'driver')
+            .get();
+        snap.docs.forEach((d) => {
+            const u = d.data() || {};
+            if (u.approvalStatus === 'suspended' || u.approvalStatus === 'rejected') return;
+            if (u.accountRestricted) return;
+            if (u.approvalStatus && u.approvalStatus !== 'approved') return;
+            const zid = u.serviceZoneId || u.cityId || null;
+            if (zid) zones.add(String(zid));
+        });
+    } catch (e) {
+        console.warn('collectRegisteredDriverZones', e?.message || e);
+    }
+    return zones;
+}
+
+/**
+ * ¿Puede este conductor (por zona GPS) atender el viaje?
+ * - Misma ciudad siempre.
+ * - Otra ciudad / sin zona: solo si allowSpill y está a ≤ maxDistKm del origen.
+ */
+function driverLocCanServeTripZone(loc, tripZone, distKm, { allowSpill = false, maxDistKm = null } = {}) {
+    if (!tripZone) return true;
+    const dZone = loc?.serviceZoneId || null;
+    if (dZone && String(dZone) === String(tripZone)) return true;
+
+    const limit = Number.isFinite(maxDistKm) && maxDistKm > 0
+        ? maxDistKm
+        : (allowSpill ? NEARBY_CITY_SPILL_KM : getCityCoverageKm(tripZone));
+
+    if (allowSpill && Number.isFinite(distKm) && distKm <= limit) return true;
+
+    // Sin spill: solo misma ciudad (arriba). Distancia sola no basta si hay flota local en otra zona.
+    if (!allowSpill) return false;
+
+    // allowSpill y sin dist válida: rechazar
+    return false;
 }
 
 function getActiveTripByDriver(tripDocs) {
@@ -1239,7 +1306,11 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     const hasOnlineCoverage = (onlineNear.candidates?.length || 0) > 0;
 
     const tripZone = trip.serviceZoneId || null;
-    const radius = trip.searchRadiusKm || 25;
+    const spillCtx = await resolveTripOfferSpillContext(appId, trip);
+    // Sin flota local (ej. Lepaterique): avisar offline cercanos hasta spill km
+    const radius = spillCtx.allowSpill
+        ? Math.max(NEARBY_CITY_SPILL_KM, parseFloat(trip.searchRadiusKm) || 0, 25)
+        : (trip.searchRadiusKm || 25);
     const price = trip.price || 'Nuevo viaje';
     const originShort = (trip.origin || '').slice(0, 48);
     const bodyCore = [String(price), originShort].filter(Boolean).join(' · ');
@@ -1269,7 +1340,13 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
         if (!driverHasApprovedVehicleType(u, requiredType)) continue;
 
         const driverZone = u.serviceZoneId || loc?.serviceZoneId || null;
-        if (tripZone && driverZone && tripZone !== driverZone) continue;
+        // Misma ciudad siempre; spill a vecinos si no hay flota registrada en el pueblo del viaje
+        if (tripZone && driverZone && String(tripZone) !== String(driverZone)) {
+            if (!spillCtx.allowSpill) continue;
+            // Con spill: se valida por distancia al origen (offlineDriverNearTrip)
+        } else if (tripZone && driverZone && String(tripZone) === String(driverZone)) {
+            // ok same city
+        }
         if (!offlineDriverNearTrip(loc, trip, radius)) continue;
 
         notified.add(uid);
@@ -1407,7 +1484,11 @@ async function fetchTripDocsForOffer(appId) {
     return snap.docs;
 }
 
-async function collectDriversForTripOffer(appId, trip, tripDocs, { busyOnly = false } = {}) {
+async function collectDriversForTripOffer(appId, trip, tripDocs, {
+    busyOnly = false,
+    allowSpill = false,
+    maxDistKm = null
+} = {}) {
     const declined = trip.declinedDriverIds || [];
     const originLat = trip.originLat;
     const originLng = trip.originLng;
@@ -1416,6 +1497,13 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, { busyOnly = fa
     const tripZone = trip.serviceZoneId || null;
     const driversWithOffers = getDriversWithActiveOffers(tripDocs, trip.id);
     const activeByDriver = getActiveTripByDriver(tripDocs);
+    const limitKm = Number.isFinite(maxDistKm) && maxDistKm > 0
+        ? maxDistKm
+        : Math.max(
+            getCityCoverageKm(tripZone),
+            parseFloat(trip.searchRadiusKm) || 0,
+            allowSpill ? NEARBY_CITY_SPILL_KM : 0
+        );
 
     const driversSnap = await db.collection(`artifacts/${appId}/public/data/drivers_location`).get();
     const candidates = [];
@@ -1435,15 +1523,17 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, { busyOnly = fa
         const driverVehicleType = loc.vehicleType || 'auto';
         if (!driverCanServeTrip(driverVehicleType, trip.serviceType || 'auto')) continue;
 
-        const dZone = loc.serviceZoneId;
-        if (!tripZone || !dZone || tripZone !== dZone) continue;
-
         const dist = haversineKm(originLat, originLng, loc.lat, loc.lng);
+        if (!driverLocCanServeTripZone(loc, tripZone, dist, { allowSpill, maxDistKm: limitKm })) {
+            continue;
+        }
+
         candidates.push({
             driverId,
             name: loc.name || 'Conductor',
             distanceKm: Math.round(dist * 10) / 10,
-            busy: busyOnly
+            busy: busyOnly,
+            spill: !!(allowSpill && loc.serviceZoneId && tripZone && loc.serviceZoneId !== tripZone)
         });
     }
 
@@ -1456,19 +1546,74 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, { busyOnly = fa
     return candidates;
 }
 
-async function findDriversForTripOffer(appId, trip, tripDocs) {
+/**
+ * Resuelve si hay flota local registrada y si se debe desbordar a ciudades cercanas.
+ * Ej: Lepaterique sin conductores → ofertar a Comayagua/cercanos en línea.
+ */
+async function resolveTripOfferSpillContext(appId, trip) {
     const tripZone = trip.serviceZoneId || null;
-    const sorted = await collectDriversForTripOffer(appId, trip, tripDocs, { busyOnly: false });
-    const { candidates, tier } = pickDriversByProximityTier(sorted, tripZone);
-    return { candidates: candidates.slice(0, TRIP_OFFER_POOL_SIZE), tier, busy: false };
+    if (!tripZone || !ENABLE_NEARBY_CITY_SPILL) {
+        return {
+            tripZone,
+            hasLocalFleet: tripZone ? null : false,
+            allowSpill: false,
+            spillKm: null,
+            maxFarKm: null
+        };
+    }
+    const registeredZones = await collectRegisteredDriverZones(appId);
+    const hasLocalFleet = registeredZones.has(String(tripZone));
+    const allowSpill = hasLocalFleet === false;
+    const spillKm = allowSpill ? NEARBY_CITY_SPILL_KM : null;
+    const maxFarKm = allowSpill
+        ? Math.max(NEARBY_CITY_SPILL_KM, getCityCoverageKm(tripZone), parseFloat(trip.searchRadiusKm) || 0)
+        : null;
+    return { tripZone, hasLocalFleet, allowSpill, spillKm, maxFarKm, registeredZones };
+}
+
+async function findDriversForTripOffer(appId, trip, tripDocs) {
+    const spillCtx = await resolveTripOfferSpillContext(appId, trip);
+    const sorted = await collectDriversForTripOffer(appId, trip, tripDocs, {
+        busyOnly: false,
+        allowSpill: spillCtx.allowSpill,
+        maxDistKm: spillCtx.maxFarKm
+    });
+    const { candidates, tier } = pickDriversByProximityTier(
+        sorted,
+        spillCtx.tripZone,
+        spillCtx.maxFarKm
+    );
+    return {
+        candidates: candidates.slice(0, TRIP_OFFER_POOL_SIZE),
+        tier,
+        busy: false,
+        allowSpill: spillCtx.allowSpill,
+        hasLocalFleet: spillCtx.hasLocalFleet
+    };
 }
 
 async function findBusyDriversForTripOffer(appId, trip, tripDocs) {
-    const tripZone = trip.serviceZoneId || null;
-    const sorted = await collectDriversForTripOffer(appId, trip, tripDocs, { busyOnly: true });
-    const { candidates, tier } = pickDriversByProximityTier(sorted, tripZone);
-    const busyTier = tier === 'near' ? 'busy_near' : (tier === 'far' ? 'busy_far' : null);
-    return { candidates: candidates.slice(0, TRIP_OFFER_POOL_SIZE), tier: busyTier, busy: true };
+    const spillCtx = await resolveTripOfferSpillContext(appId, trip);
+    const sorted = await collectDriversForTripOffer(appId, trip, tripDocs, {
+        busyOnly: true,
+        allowSpill: spillCtx.allowSpill,
+        maxDistKm: spillCtx.maxFarKm
+    });
+    const { candidates, tier } = pickDriversByProximityTier(
+        sorted,
+        spillCtx.tripZone,
+        spillCtx.maxFarKm
+    );
+    const busyTier = tier === 'near'
+        ? 'busy_near'
+        : (tier === 'spill' ? 'busy_spill' : (tier === 'far' ? 'busy_far' : null));
+    return {
+        candidates: candidates.slice(0, TRIP_OFFER_POOL_SIZE),
+        tier: busyTier,
+        busy: true,
+        allowSpill: spillCtx.allowSpill,
+        hasLocalFleet: spillCtx.hasLocalFleet
+    };
 }
 
 async function assignNextTripOfferServer(appId, tripId) {
@@ -1493,16 +1638,32 @@ async function assignNextTripOfferServer(appId, tripId) {
     let candidates = offerResult.candidates;
     let offerTier = offerResult.tier;
     let offerToBusyDriver = false;
+    let spillMeta = {
+        allowSpill: !!offerResult.allowSpill,
+        hasLocalFleet: offerResult.hasLocalFleet
+    };
 
     if (!candidates.length) {
-        offerResult = await findBusyDriversForTripOffer(appId, trip, tripDocs);
-        candidates = offerResult.candidates;
-        offerTier = offerResult.tier;
-        offerToBusyDriver = offerResult.busy && candidates.length > 0;
+        const busyResult = await findBusyDriversForTripOffer(appId, trip, tripDocs);
+        candidates = busyResult.candidates;
+        offerTier = busyResult.tier;
+        offerToBusyDriver = busyResult.busy && candidates.length > 0;
+        offerResult = { ...busyResult, allowSpill: spillMeta.allowSpill || busyResult.allowSpill, hasLocalFleet: spillMeta.hasLocalFleet };
+        spillMeta.allowSpill = !!offerResult.allowSpill;
     }
 
     if (!candidates.length) {
-        console.warn(`[assignNextTripOfferServer] No candidates for trip ${tripId}. zone ${trip.serviceZoneId || 'N/A'}`);
+        console.warn(
+            `[assignNextTripOfferServer] No candidates for trip ${tripId}. zone ${trip.serviceZoneId || 'N/A'} ` +
+            `spill=${!!offerResult.allowSpill} localFleet=${offerResult.hasLocalFleet}`
+        );
+        // Marcar para diagnóstico en consola staff / cliente
+        await tripRef.update({
+            offerNoCandidatesAt: FieldValue.serverTimestamp(),
+            offerNoCandidatesZone: trip.serviceZoneId || null,
+            offerTriedSpill: !!offerResult.allowSpill,
+            offerLocalFleet: offerResult.hasLocalFleet === true
+        }).catch(() => {});
         return;
     }
 
@@ -1529,6 +1690,8 @@ async function assignNextTripOfferServer(appId, tripId) {
             offerDistanceKm: next.distanceKm,
             offerToBusyDriver: offerToBusyDriver || !!next.busy,
             offerSearchTier: offerTier || null,
+            offerUsedNearbySpill: !!offerResult.allowSpill || !!next.spill,
+            offerLocalFleet: offerResult.hasLocalFleet === true,
             declinedDriverIds: d.declinedDriverIds || [],
             candidateDriverIds: topN.map((c) => c.driverId)
         });
