@@ -37,12 +37,36 @@ function getScheduledTripMs(trip) {
     const ms = new Date(trip.scheduledFor).getTime();
     return Number.isFinite(ms) ? ms : 0;
 }
+const ZONE_DEPARTMENT = require('./zone-departments');
+
 const TRIP_OFFER_NEAR_RADIUS_KM = 8;
 // Más de 1: se guardan candidates y se les manda push (web/iOS se enteran aunque no sean el “primero”)
 const TRIP_OFFER_POOL_SIZE = 8;
-/** Si NO hay conductores registrados en la ciudad del viaje, ofertar a online cercanos (km). */
+/** Si NO hay conductores registrados en la ciudad del viaje, ofertar a online del MISMO departamento. */
 const ENABLE_NEARBY_CITY_SPILL = true;
-const NEARBY_CITY_SPILL_KM = 45;
+/** Radio km dentro del mismo departamento (no se usa para cruzar depto.). */
+const NEARBY_CITY_SPILL_KM = 80;
+/** Offline: siempre avisar (aunque haya online), solo mismo departamento. */
+const ALWAYS_NOTIFY_OFFLINE_SAME_DEPARTMENT = true;
+
+function getDepartmentForZone(zoneId) {
+    if (!zoneId) return null;
+    return ZONE_DEPARTMENT[String(zoneId)] || null;
+}
+
+function sameDepartment(zoneA, zoneB) {
+    const a = getDepartmentForZone(zoneA);
+    const b = getDepartmentForZone(zoneB);
+    if (!a || !b) return false;
+    return a === b;
+}
+
+/** true si el conductor puede recibir notificaciones de este viaje (mismo depto.). */
+function driverZoneInTripDepartment(driverZoneId, tripZoneId) {
+    if (!tripZoneId) return true;
+    if (!driverZoneId) return true; // sin zona en perfil: se valida por distancia si hay
+    return sameDepartment(driverZoneId, tripZoneId);
+}
 const CITY_COVERAGE_KM = {
     comayagua: 18,
     siguatepeque: 14,
@@ -134,23 +158,31 @@ async function collectRegisteredDriverZones(appId) {
 /**
  * ¿Puede este conductor (por zona GPS) atender el viaje?
  * - Misma ciudad siempre.
- * - Otra ciudad / sin zona: solo si allowSpill y está a ≤ maxDistKm del origen.
+ * - NUNCA otro departamento (Comayagua ↮ Francisco Morazán).
+ * - Otra ciudad del MISMO depto.: solo si allowSpill y distancia ≤ maxDistKm.
  */
 function driverLocCanServeTripZone(loc, tripZone, distKm, { allowSpill = false, maxDistKm = null } = {}) {
     if (!tripZone) return true;
     const dZone = loc?.serviceZoneId || null;
     if (dZone && String(dZone) === String(tripZone)) return true;
 
+    // Bloqueo duro entre departamentos
+    if (dZone && !sameDepartment(dZone, tripZone)) return false;
+
     const limit = Number.isFinite(maxDistKm) && maxDistKm > 0
         ? maxDistKm
         : (allowSpill ? NEARBY_CITY_SPILL_KM : getCityCoverageKm(tripZone));
 
-    if (allowSpill && Number.isFinite(distKm) && distKm <= limit) return true;
+    // Spill solo dentro del mismo departamento
+    if (allowSpill && dZone && sameDepartment(dZone, tripZone)
+        && Number.isFinite(distKm) && distKm <= limit) {
+        return true;
+    }
+    // Sin zona en loc pero mismo depto desconocido: solo por distancia si spill
+    if (allowSpill && !dZone && Number.isFinite(distKm) && distKm <= limit) {
+        return true;
+    }
 
-    // Sin spill: solo misma ciudad (arriba). Distancia sola no basta si hay flota local en otra zona.
-    if (!allowSpill) return false;
-
-    // allowSpill y sin dist válida: rechazar
     return false;
 }
 
@@ -1282,9 +1314,10 @@ function offlineDriverNearTrip(loc, trip, radiusKm) {
 }
 
 /**
- * Avisa a conductores OFFLINE / fuera de sesión (VIP, taxi, moto, envío)
- * cuando un cliente pide viaje — aunque no tengan la app abierta —
- * para que se pongan en línea. Una vez por viaje.
+ * Avisa a conductores OFFLINE del MISMO DEPARTAMENTO.
+ * Siempre (aunque haya online), para que se pongan en línea y refuercen flota.
+ * Nunca cruza departamentos (Comayagua ↮ Francisco Morazán).
+ * Una vez por viaje.
  */
 async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     const serviceType = trip.serviceType || 'auto';
@@ -1293,30 +1326,36 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     if (trip.status !== 'pending') return;
     // No avisar conductores si el cliente aún no reclamó el viaje de staff
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
-    if (trip.originLat == null || trip.originLng == null) return;
 
     const requiredType = requiredRideVehicleType(serviceType);
     if (!requiredType) return;
 
-    // Si ya hay libres online cerca, priorizamos la oferta a ellos;
-    // igual avisamos a offline de la zona para que se activen (más flota).
-    // Si no hay nadie online, el mensaje es más urgente.
     const tripDocs = await fetchTripDocsForOffer(appId);
     const onlineNear = await findDriversForTripOffer(appId, trip, tripDocs);
     const hasOnlineCoverage = (onlineNear.candidates?.length || 0) > 0;
 
+    // Si no queremos avisar offline cuando ya hay online, se puede apagar con flag
+    if (!ALWAYS_NOTIFY_OFFLINE_SAME_DEPARTMENT && hasOnlineCoverage) {
+        // Aun así avisar offline del depto. (comportamiento pedido: SIEMPRE)
+    }
+
     const tripZone = trip.serviceZoneId || null;
+    const tripDept = getDepartmentForZone(tripZone);
     const spillCtx = await resolveTripOfferSpillContext(appId, trip);
-    // Sin flota local (ej. Lepaterique): avisar offline cercanos hasta spill km
-    const radius = spillCtx.allowSpill
-        ? Math.max(NEARBY_CITY_SPILL_KM, parseFloat(trip.searchRadiusKm) || 0, 25)
-        : (trip.searchRadiusKm || 25);
+    // Radio amplio dentro del departamento (sin cruzar depto.)
+    const radius = Math.max(
+        NEARBY_CITY_SPILL_KM,
+        parseFloat(trip.searchRadiusKm) || 0,
+        getCityCoverageKm(tripZone),
+        40
+    );
     const price = trip.price || 'Nuevo viaje';
     const originShort = (trip.origin || '').slice(0, 48);
+    const deptLabel = tripDept ? ` · ${tripDept}` : '';
     const bodyCore = [String(price), originShort].filter(Boolean).join(' · ');
     const body = hasOnlineCoverage
-        ? `${bodyCore} — Hay pedidos cerca. Abrí HonduRaite y ponete en línea.`
-        : `${bodyCore} — ¡Nadie en línea cerca! Abrí la app y ponete en línea YA.`;
+        ? `${bodyCore}${deptLabel} — Hay pedidos en tu departamento. Abrí HonduRaite y ponete en línea.`
+        : `${bodyCore}${deptLabel} — ¡Nadie en línea cerca! Abrí la app y ponete en línea YA.`;
 
     const [driversLocSnap, usersSnap] = await Promise.all([
         db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
@@ -1332,7 +1371,7 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     for (const userDoc of usersSnap.docs) {
         const uid = userDoc.id;
         const loc = locByDriver.get(uid);
-        // Solo fuera de sesión / offline (no molestar a quien ya está en línea)
+        // Solo fuera de sesión / offline (no molestar a quien ya está en línea con oferta)
         if (loc && isDriverOnline(loc)) continue;
 
         const u = userDoc.data() || {};
@@ -1340,14 +1379,28 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
         if (!driverHasApprovedVehicleType(u, requiredType)) continue;
 
         const driverZone = u.serviceZoneId || loc?.serviceZoneId || null;
-        // Misma ciudad siempre; spill a vecinos si no hay flota registrada en el pueblo del viaje
-        if (tripZone && driverZone && String(tripZone) !== String(driverZone)) {
-            if (!spillCtx.allowSpill) continue;
-            // Con spill: se valida por distancia al origen (offlineDriverNearTrip)
-        } else if (tripZone && driverZone && String(tripZone) === String(driverZone)) {
-            // ok same city
+
+        // BLOQUEO: solo mismo departamento
+        if (tripZone && driverZone && !sameDepartment(driverZone, tripZone)) continue;
+        // Si el viaje tiene depto. y el conductor no tiene zona, no notificar a ciegas a todo el país
+        if (tripDept && !driverZone) {
+            // Permitir solo si su última ubicación está cerca del origen
+            if (!offlineDriverNearTrip(loc, trip, radius)) continue;
+        } else if (tripZone && driverZone && String(tripZone) !== String(driverZone)) {
+            // Otra ciudad del mismo depto.: avisar siempre (ALWAYS) o solo spill
+            if (!ALWAYS_NOTIFY_OFFLINE_SAME_DEPARTMENT && !spillCtx.allowSpill) {
+                // misma depto. pero no spill: aún así notificar offline del depto. (pedido del producto)
+            }
+            // Distancia opcional: si hay GPS, limitar radio; si no hay GPS, igual avisar (mismo depto.)
+            if (loc?.lat && loc?.lng && trip.originLat != null && trip.originLng != null) {
+                if (!offlineDriverNearTrip(loc, trip, radius)) continue;
+            }
+        } else {
+            // misma ciudad
+            if (loc?.lat && loc?.lng && trip.originLat != null && trip.originLng != null) {
+                if (!offlineDriverNearTrip(loc, trip, radius)) continue;
+            }
         }
-        if (!offlineDriverNearTrip(loc, trip, radius)) continue;
 
         notified.add(uid);
         await sendPushToUser(appId, uid, {
@@ -1358,6 +1411,7 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
                 tripId,
                 serviceType,
                 rideMode: requiredType,
+                department: tripDept || '',
                 tag: `ride-demand-${tripId}`,
                 openDriver: 'true',
                 superVibrate: 'true'
@@ -1371,7 +1425,8 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
             rideOfflineAlertSent: true,
             rideOfflineAlertCount: notified.size,
             rideOfflineAlertAt: FieldValue.serverTimestamp(),
-            rideOfflineAlertHadCoverage: hasOnlineCoverage
+            rideOfflineAlertHadCoverage: hasOnlineCoverage,
+            rideOfflineAlertDepartment: tripDept || null
         }).catch(() => {});
     }
 }
@@ -1401,8 +1456,11 @@ async function notifyOfflineFreightDrivers(appId, tripId, trip) {
     ]);
 
     const onlineDriverIds = new Set();
+    const locByDriver = new Map();
     driversLocSnap.docs.forEach((d) => {
-        if (isDriverOnline(d.data())) onlineDriverIds.add(d.id);
+        const data = d.data();
+        locByDriver.set(d.id, data);
+        if (isDriverOnline(data)) onlineDriverIds.add(d.id);
     });
 
     const notified = new Set();
@@ -1414,8 +1472,10 @@ async function notifyOfflineFreightDrivers(appId, tripId, trip) {
         if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
         if (!driverHasApprovedVehicleType(u, requiredType)) continue;
 
-        const driverZone = u.serviceZoneId || null;
-        if (tripZone && driverZone && tripZone !== driverZone) continue;
+        const driverZone = u.serviceZoneId || locByDriver.get(uid)?.serviceZoneId || null;
+        // Solo mismo departamento (no cruzar Comayagua ↔ Francisco Morazán)
+        if (tripZone && driverZone && !sameDepartment(driverZone, tripZone)) continue;
+        if (tripZone && !driverZone) continue;
 
         notified.add(uid);
         await sendPushToUser(appId, uid, {
@@ -1426,6 +1486,7 @@ async function notifyOfflineFreightDrivers(appId, tripId, trip) {
                 tripId,
                 serviceType,
                 freightMode: requiredType,
+                department: getDepartmentForZone(tripZone) || '',
                 tag: `freight-alert-${tripId}`,
                 openDriver: 'true',
                 superVibrate: 'true'

@@ -322,6 +322,9 @@ export function driverZoneCanServeTrip(driverZoneId, trip, options = {}) {
     if (driverZoneId === tripZoneId) return true;
     if (tripSameCity(trip, driverZoneId)) return true;
 
+    // Nunca cruzar departamentos (Comayagua ↮ Francisco Morazán)
+    if (!sameDepartment(driverZoneId, tripZoneId)) return false;
+
     if (!canSpillTripToNearbyCities(trip, opts)) return false;
 
     const limit = opts.maxKm ?? getNearbyCitySpillKm();
@@ -402,17 +405,24 @@ export function driverLocationMatchesTripCity(loc, tripZoneId, fallbackDriverZon
     const allowSpill = opts.tripCityHasLocalDrivers === false && isNearbyCitySpillEnabled();
     if (!allowSpill) return false;
 
-    if (loc?.serviceZoneId && isCityNearZone(loc.serviceZoneId, tripZoneId)) return true;
-    if (fallbackDriverZoneId && isCityNearZone(fallbackDriverZoneId, tripZoneId)) return true;
+    // Spill solo dentro del mismo departamento
+    if (loc?.serviceZoneId && sameDepartment(loc.serviceZoneId, tripZoneId)
+        && isCityNearZone(loc.serviceZoneId, tripZoneId)) return true;
+    if (fallbackDriverZoneId && sameDepartment(fallbackDriverZoneId, tripZoneId)
+        && isCityNearZone(fallbackDriverZoneId, tripZoneId)) return true;
 
     if (loc?.lat != null && loc?.lng != null) {
         const detected = findZoneForCoords(loc.lat, loc.lng, getCityCoverageKm(tripZoneId));
-        if (detected?.id && isCityNearZone(detected.id, tripZoneId)) return true;
+        if (detected?.id && sameDepartment(detected.id, tripZoneId)
+            && isCityNearZone(detected.id, tripZoneId)) return true;
 
-        const tripZone = getZoneById(tripZoneId);
-        if (tripZone?.center) {
-            const d = haversineKm(loc.lat, loc.lng, tripZone.center.lat, tripZone.center.lng);
-            if (d <= getNearbyCitySpillKm()) return true;
+        // Sin depto. detectado: solo distancia si el conductor no declara otra depto.
+        if (!loc.serviceZoneId || sameDepartment(loc.serviceZoneId, tripZoneId)) {
+            const tripZone = getZoneById(tripZoneId);
+            if (tripZone?.center) {
+                const d = haversineKm(loc.lat, loc.lng, tripZone.center.lat, tripZone.center.lng);
+                if (d <= getNearbyCitySpillKm()) return true;
+            }
         }
     }
     return false;
@@ -1082,6 +1092,20 @@ export function isDriverVisibleToClient(driverData, zoneId, radiusOrOpts = null)
     if (hasLocal !== false || !isNearbyCitySpillEnabled()) return false;
     if (!isCityNearZone(dZone, zoneId)) return false;
     return dist <= getNearbyCitySpillKm();
+}
+
+/** Departamento de una ciudad/zona (ej. "Comayagua", "Francisco Morazán"). */
+export function getDepartmentForZone(zoneId) {
+    if (!zoneId) return null;
+    return getZoneById(zoneId)?.department || null;
+}
+
+/** true si dos ciudades están en el mismo departamento. */
+export function sameDepartment(zoneIdA, zoneIdB) {
+    const a = getDepartmentForZone(zoneIdA);
+    const b = getDepartmentForZone(zoneIdB);
+    if (!a || !b) return false;
+    return a === b;
 }
 
 /** Municipios que comparten área operativa con la ciudad hub (mismo departamento). */
