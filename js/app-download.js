@@ -262,15 +262,14 @@ export async function refreshNativeAppInfo() {
 
 /**
  * ¿Hay APK más nuevo que el instalado en el teléfono?
- * Orden: versionCode (bien parseado) → versionName → buildId de cada subida en Admin.
- * Nunca “traga” un update marcando el remoto como instalado si el APK del teléfono es viejo.
+ * SOLO confía en App.getInfo() (nativo) vs lo publicado en Admin.
+ * NO usa “Ya actualicé” / clientBuildId para ocultar si el versionCode del
+ * teléfono es más viejo (eso es lo que rompía el aviso).
  */
 export function hasApkUpdateAvailable() {
     if (!isInstalledAndroidApp()) return false;
-    if (!cachedApkMeta?.url || !cachedApkMeta.buildId) return false;
+    if (!cachedApkMeta?.url) return false;
 
-    const remoteBuildId = Number(cachedApkMeta.buildId) || 0;
-    // Recalcular siempre desde el label (corrige versionCode viejo mal guardado en Firestore)
     const remoteCode = resolveRemoteVersionCode(cachedApkMeta)
         || Number(cachedApkMeta.versionCode)
         || versionLabelToCode(cachedApkMeta.version)
@@ -278,94 +277,105 @@ export function hasApkUpdateAvailable() {
     const remoteVer = String(cachedApkMeta.version || '').trim();
     const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
     const nativeVer = String(nativeAppInfo.version || '').trim();
-    const client = getClientBuildId();
+    const rFromLabel = versionLabelToCode(remoteVer);
+    const nFromLabel = versionLabelToCode(nativeVer);
 
-    // 0) versionName distinta (fechas HonduRaite) → update seguro
-    //    Debe ir ANTES de un versionCode mal parseado que “oculte” el aviso.
-    if (nativeVer && remoteVer && nativeVer !== remoteVer) {
-        const nCode = versionLabelToCode(nativeVer);
-        const rCode = versionLabelToCode(remoteVer) || remoteCode;
-        // Si ambos son YYYY.MM.DD.N, solo update si el remoto es mayor
-        if (nCode > 0 && rCode > 0) {
-            if (rCode > nCode) return true;
-            // remoto igual o menor por nombre → seguir con otros checks
-        } else {
-            // No parseables: cualquier diferencia de etiqueta = hay publicación nueva
-            return true;
-        }
-    }
-
-    // 1) versionCode del teléfono vs el publicado (fuente de verdad)
-    if (nativeCode > 0 && remoteCode > 0) {
-        if (remoteCode > nativeCode) {
-            return true;
-        }
-        // Teléfono al día o más nuevo
-        if (nativeVer && remoteVer && nativeVer === remoteVer && remoteBuildId) {
-            setClientBuildId(remoteBuildId);
-            return false;
-        }
-        if (remoteCode === nativeCode && remoteBuildId) {
-            setClientBuildId(remoteBuildId);
-            return false;
-        }
-        // remoteCode < nativeCode con nombres distintos ya se manejó arriba;
-        // si remoteCode parece “corto” (bug viejo) y el buildId es más nuevo → sí update
-        if (client != null && remoteBuildId > Number(client)) {
-            return true;
-        }
-        if (client == null && remoteBuildId > 0 && remoteCode < nativeCode
-            && String(remoteCode).length < String(nativeCode).length) {
-            // Code remoto mal parseado (más corto): no confiar en “teléfono más nuevo”
-            if (nativeVer && remoteVer && nativeVer !== remoteVer) return true;
-        }
-        if (remoteCode < nativeCode) {
-            // Realmente el teléfono es más nuevo
-            if (remoteBuildId) setClientBuildId(remoteBuildId);
-            return false;
-        }
-    }
-
-    // 2) Mismas versionName conocidas → al día
-    if (nativeVer && remoteVer && nativeVer === remoteVer) {
-        if (remoteBuildId) setClientBuildId(remoteBuildId);
-        return false;
-    }
-
-    // 3) Fallback buildId (cada vez que Admin publica, Date.now() sube)
-    if (client != null && remoteBuildId > Number(client)) {
+    // 1) versionCode nativo vs remoto (fuente de verdad)
+    if (remoteCode > 0 && nativeCode > 0 && remoteCode > nativeCode) {
         return true;
     }
 
-    // 4) Primera vez sin marca local
-    if (client == null) {
-        if (nativeCode > 0 && remoteCode > 0 && nativeCode >= remoteCode) {
-            // Solo si los codes son de longitud comparable (no bug de parseo)
-            if (String(remoteCode).length >= String(nativeCode).length - 1) {
-                setClientBuildId(remoteBuildId);
-                return false;
-            }
-        }
-        if (nativeVer && remoteVer && nativeVer === remoteVer) {
-            setClientBuildId(remoteBuildId);
+    // 2) Labels YYYY.MM.DD.N parseados
+    if (rFromLabel > 0 && nFromLabel > 0 && rFromLabel > nFromLabel) {
+        return true;
+    }
+    // Mezcla: label remoto vs code nativo (o al revés)
+    if (rFromLabel > 0 && nativeCode > 0 && rFromLabel > nativeCode) {
+        return true;
+    }
+    if (remoteCode > 0 && nFromLabel > 0 && remoteCode > nFromLabel) {
+        return true;
+    }
+
+    // 3) Nombres de versión distintos → hay publicación distinta
+    //    (cubre subidas con versionName nuevo aunque falle el code)
+    if (nativeVer && remoteVer && nativeVer !== remoteVer) {
+        // Si el remoto se puede parsear y es menor/igual, no spamear
+        if (rFromLabel > 0 && nFromLabel > 0 && rFromLabel <= nFromLabel) {
             return false;
         }
-        // Hay APK en servidor y no podemos afirmar que ya lo tiene → mostrar
-        return remoteBuildId > 0;
+        return true;
+    }
+
+    // 4) Mismo versionName / codes iguales → al día
+    if (remoteCode > 0 && nativeCode > 0 && remoteCode <= nativeCode) {
+        return false;
+    }
+    if (nativeVer && remoteVer && nativeVer === remoteVer) {
+        return false;
+    }
+
+    // 5) Nativo aún no listo, pero hay APK publicado con versión
+    //    → mostrar (el usuario puede decir “Ya actualicé”)
+    if (!nativeAppInfo.ready) return false;
+    if ((!nativeCode && !nativeVer) && (remoteCode > 0 || remoteVer)) {
+        return true;
     }
 
     return false;
 }
 
+/**
+ * Si Admin publicó un buildId nuevo y el teléfono es más viejo,
+ * limpia snooze y marcas locales falsas de “ya actualicé”.
+ */
+function reactToNewRemotePublication() {
+    if (!cachedApkMeta?.buildId) return;
+    const remoteBuildId = Number(cachedApkMeta.buildId) || 0;
+    if (!remoteBuildId) return;
+
+    let prev = 0;
+    try {
+        prev = Number(localStorage.getItem('honduber_apk_last_remote_build_id') || 0) || 0;
+    } catch (_) {}
+
+    if (remoteBuildId === prev) return;
+
+    try {
+        localStorage.setItem('honduber_apk_last_remote_build_id', String(remoteBuildId));
+    } catch (_) {}
+
+    // Nueva publicación en Admin
+    if (remoteBuildId > prev) {
+        clearUpdateSnooze();
+        const remoteCode = resolveRemoteVersionCode(cachedApkMeta) || 0;
+        const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
+        const remoteVer = String(cachedApkMeta.version || '').trim();
+        const nativeVer = String(nativeAppInfo.version || '').trim();
+        const needsUpdate = (remoteCode > 0 && nativeCode > 0 && remoteCode > nativeCode)
+            || (remoteVer && nativeVer && remoteVer !== nativeVer
+                && versionLabelToCode(remoteVer) >= versionLabelToCode(nativeVer));
+        if (needsUpdate || (!nativeCode && remoteCode)) {
+            // No confiar en “Ya actualicé” de una versión anterior
+            setClientBuildId(null);
+            try { localStorage.removeItem(WEB_INSTALLED_BUILD_KEY); } catch (_) {}
+            try { sessionStorage.removeItem(DISMISS_KEY); } catch (_) {}
+        }
+    }
+}
+
 async function trySyncBuildFromNativeVersion() {
     if (!isInstalledAndroidApp() || !cachedApkMeta?.buildId) return;
     await refreshNativeAppInfo();
-    // Solo alinear marcas si NO hay update pendiente
+    reactToNewRemotePublication();
+    // Solo marcar “al día” si de verdad no hay update
     if (hasApkUpdateAvailable()) return;
     const remoteBuildId = Number(cachedApkMeta.buildId) || 0;
-    if (remoteBuildId) {
+    const remoteCode = resolveRemoteVersionCode(cachedApkMeta) || 0;
+    const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
+    // Alinear marca local SOLO si el teléfono ya tiene code >= remoto
+    if (remoteBuildId && remoteCode > 0 && nativeCode > 0 && nativeCode >= remoteCode) {
         setClientBuildId(remoteBuildId);
-        clearUpdateSnooze();
     }
 }
 
@@ -461,10 +471,17 @@ export async function renderAdminApkPanel(container) {
         U.formPanel('APK actual', 'Enlace público de descarga', `
             <div id="admin-apk-meta"><p class="text-slate-400 text-sm">Cargando…</p></div>
             <div class="flex flex-wrap gap-2 mt-3">
+                <button type="button" id="admin-apk-repair-code" class="ops-btn ops-btn--ghost text-xs">
+                    <i class="fas fa-wrench"></i> Reparar detección de updates
+                </button>
                 <button type="button" id="admin-apk-remove" class="ops-btn ops-btn--danger text-xs hidden">
                     <i class="fas fa-trash"></i> Quitar APK
                 </button>
             </div>
+            <p class="text-[10px] text-slate-500 mt-2">
+                Si la gente no ve “Nueva versión”, pulsa <b>Reparar detección</b>.
+                El VersionCode debe ser 10 dígitos (ej. 2026.07.30.2 → <b>2026073002</b>).
+            </p>
         `) +
         U.formPanel('Subir nuevo APK', '1) Elige archivo · 2) Pulsa Publicar · 3) Espera la barra al 100%', `
             <p id="admin-apk-step-hint" class="admin-apk-step-hint">Paso 1 de 3: elige o arrastra el archivo .apk</p>
@@ -523,6 +540,53 @@ export async function renderAdminApkPanel(container) {
     if (metaEl) metaEl.innerHTML = renderAdminMetaHtml(meta);
     const removeBtn = document.getElementById('admin-apk-remove');
     if (removeBtn) removeBtn.classList.toggle('hidden', !meta?.url);
+    const repairBtn = document.getElementById('admin-apk-repair-code');
+    repairBtn?.addEventListener('click', async () => {
+        repairBtn.disabled = true;
+        try {
+            const snap = await getDoc(settingsDocRef());
+            if (!snap.exists() || !snap.data()?.androidApkUrl) {
+                window.showToast?.('No hay APK publicado para reparar.', 'warning');
+                return;
+            }
+            const d = snap.data() || {};
+            const ver = String(d.androidApkVersion || '').trim();
+            let code = versionLabelToCode(ver);
+            // Si la etiqueta no parsea, pedir al admin la del proyecto
+            if (!code) {
+                const projectVer = document.getElementById('admin-apk-version')?.value?.trim()
+                    || document.querySelector('meta[name="hr-app-version"]')?.content
+                    || window.__HR_BUILD_VERSION__
+                    || '';
+                code = versionLabelToCode(projectVer);
+                if (code && projectVer) {
+                    await setDoc(settingsDocRef(), {
+                        androidApkVersion: projectVer,
+                        androidApkVersionCode: code,
+                        updatedAt: serverTimestamp(),
+                    }, { merge: true });
+                }
+            } else {
+                await setDoc(settingsDocRef(), {
+                    androidApkVersionCode: code,
+                    updatedAt: serverTimestamp(),
+                }, { merge: true });
+            }
+            const next = await loadApkMeta();
+            if (metaEl) metaEl.innerHTML = renderAdminMetaHtml(next);
+            window.showToast?.(
+                next?.versionCode
+                    ? `Listo. VersionCode = ${next.versionCode} (v${next.version}). Los teléfonos deberían ver el update al reabrir la app.`
+                    : 'No se pudo calcular VersionCode. Escribe la versión tipo 2026.07.30.2 y reintenta.',
+                next?.versionCode ? 'success' : 'warning'
+            );
+        } catch (e) {
+            console.error(e);
+            window.showToast?.('No se pudo reparar. Revisa permisos de admin.', 'error');
+        } finally {
+            repairBtn.disabled = false;
+        }
+    });
     {
         const vIn = document.getElementById('admin-apk-version');
         if (vIn && !vIn.value) {
@@ -1231,10 +1295,10 @@ export function maybeShowApkUpdateModal({ force = false } = {}) {
     if (!isInstalledAndroidApp()) return;
     if (!hasApkUpdateAvailable()) return;
     if (!force && isUpdateSnoozed()) return;
-    // No interrumpir viaje activo
-    if (document.body.classList.contains('trip-active')) return;
-    if (document.body.classList.contains('map-pick-mode')) return;
-    showApkUpdateModal({ force });
+    // No interrumpir viaje activo (salvo force)
+    if (!force && document.body.classList.contains('trip-active')) return;
+    if (!force && document.body.classList.contains('map-pick-mode')) return;
+    showApkUpdateModal({ force: true });
 }
 
 function bindBadgeDraggable(el) {
@@ -1396,30 +1460,45 @@ export function syncAppDownloadBadge() {
 function onApkMetaChanged() {
     // Primero leer versionCode del APK instalado, luego decidir si hay update
     Promise.resolve(refreshNativeAppInfo())
-        .then(() => trySyncBuildFromNativeVersion())
+        .then(() => {
+            reactToNewRemotePublication();
+            return trySyncBuildFromNativeVersion();
+        })
         .finally(() => {
             syncAppDownloadBadge();
-            // Si hay update real, no dejar snooze eterno ocultando el botón
-            try {
-                if (hasApkUpdateAvailable()) {
-                    // mantener snooze si el usuario tocó “más tarde” en esta sesión;
-                    // al login se limpia en onPassengerAppBadgeSessionStart
-                }
-            } catch (_) {}
             setTimeout(() => {
                 syncAppDownloadBadge();
                 maybeShowApkUpdateModal({ force: false });
-            }, 800);
+            }, 600);
+            // Reintento: a veces App.getInfo llega tarde en WebView
             setTimeout(() => {
                 refreshNativeAppInfo().then(() => {
+                    reactToNewRemotePublication();
                     trySyncBuildFromNativeVersion().finally(() => {
                         syncAppDownloadBadge();
-                        if (hasApkUpdateAvailable() && !isUpdateSnoozed()) {
-                            maybeShowApkUpdateModal({ force: true });
+                        if (hasApkUpdateAvailable()) {
+                            // Si hay update real, forzar modal (limpia snooze viejo de otra versión)
+                            if (isUpdateSnoozed()) {
+                                // solo respetar snooze si es la misma remote build
+                                // (reactToNewRemotePublication ya limpia snooze en build nuevo)
+                            }
+                            maybeShowApkUpdateModal({ force: !isUpdateSnoozed() });
+                            if (hasApkUpdateAvailable() && !isUpdateSnoozed()) {
+                                maybeShowApkUpdateModal({ force: true });
+                            }
                         }
                     });
                 });
-            }, 2500);
+            }, 1800);
+            setTimeout(() => {
+                refreshNativeAppInfo().then(() => {
+                    syncAppDownloadBadge();
+                    if (hasApkUpdateAvailable() && !isUpdateSnoozed()
+                        && !document.body.classList.contains('trip-active')) {
+                        maybeShowApkUpdateModal({ force: true });
+                    }
+                });
+            }, 5000);
         });
 }
 
@@ -1489,9 +1568,13 @@ export function initAppDownload(opts = {}) {
     window.__apkUpdateDebug = async () => {
         await refreshNativeAppInfo();
         await loadApkMeta();
+        reactToNewRemotePublication();
+        const remoteCode = resolveRemoteVersionCode(cachedApkMeta || {}) || 0;
         const info = {
+            isNative: isInstalledAndroidApp(),
             native: { ...nativeAppInfo },
             remote: cachedApkMeta,
+            remoteCodeResolved: remoteCode,
             clientBuildId: getClientBuildId(),
             snoozed: isUpdateSnoozed(),
             hasUpdate: hasApkUpdateAvailable(),
@@ -1499,12 +1582,28 @@ export function initAppDownload(opts = {}) {
         console.log('[apk-update-debug]', info);
         try {
             window.showToast?.(
-                hasApkUpdateAvailable()
-                    ? `Update SÍ · nativo ${nativeAppInfo.version}(${nativeAppInfo.build}) vs remoto ${cachedApkMeta?.version}(${cachedApkMeta?.versionCode || cachedApkMeta?.buildId})`
-                    : `Update NO · nativo ${nativeAppInfo.version}(${nativeAppInfo.build}) · remoto ${cachedApkMeta?.version || '—'} · clientId ${getClientBuildId()}`,
+                !isInstalledAndroidApp()
+                    ? 'No es APK nativo (navegador web)'
+                    : hasApkUpdateAvailable()
+                        ? `Update SÍ · app ${nativeAppInfo.version}(${nativeAppInfo.build}) < remoto ${cachedApkMeta?.version}(${remoteCode})`
+                        : `Update NO · app ${nativeAppInfo.version || '?'}(${nativeAppInfo.build || 0}) · remoto ${cachedApkMeta?.version || '—'}(${remoteCode}) · snooze ${isUpdateSnoozed()}`,
                 hasApkUpdateAvailable() ? 'warning' : 'info'
             );
         } catch (_) {}
         return info;
+    };
+
+    /** Fuerza mostrar update (admin/pruebas): limpia snooze y reevalúa */
+    window.__apkForceUpdateCheck = async () => {
+        clearUpdateSnooze();
+        setClientBuildId(null);
+        try { localStorage.removeItem(WEB_INSTALLED_BUILD_KEY); } catch (_) {}
+        try { localStorage.removeItem('honduber_apk_last_remote_build_id'); } catch (_) {}
+        await refreshNativeAppInfo();
+        await loadApkMeta();
+        reactToNewRemotePublication();
+        syncAppDownloadBadge();
+        maybeShowApkUpdateModal({ force: true });
+        return window.__apkUpdateDebug?.();
     };
 }
