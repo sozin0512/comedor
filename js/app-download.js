@@ -81,20 +81,61 @@ function isApkFile(file) {
         || type === 'application/octet-stream';
 }
 
-/** "2026.07.28.1" → 2026072801 (versionCode de Android) */
+/**
+ * "2026.07.30.1" → 2026073001 (mismo esquema que android/app/build.gradle versionCode).
+ * Formato: YYYY * 1_000_000 + MM * 10_000 + DD * 100 + N
+ *
+ * BUG anterior: solo quitaba puntos (2026.07.30.1 → 202607301) y el teléfono
+ * con versionCode real 2026072802 parecía "más nuevo" → NO mostraba update.
+ */
 function versionLabelToCode(label) {
-    const digits = String(label || '').replace(/\D/g, '');
+    const s = String(label || '').trim();
+    if (!s) return 0;
+    const m = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})\.(\d{1,3})$/);
+    if (m) {
+        const y = Number(m[1]);
+        const mo = Number(m[2]);
+        const d = Number(m[3]);
+        const n = Number(m[4]);
+        if ([y, mo, d, n].every((x) => Number.isFinite(x))) {
+            return (y * 1000000) + (mo * 10000) + (d * 100) + n;
+        }
+    }
+    // Fallback: solo dígitos (builds viejos / etiquetas raras)
+    const digits = s.replace(/\D/g, '');
     if (!digits) return 0;
-    const n = Number(digits.length > 12 ? digits.slice(0, 12) : digits);
-    return Number.isFinite(n) ? n : 0;
+    const num = Number(digits.length > 12 ? digits.slice(0, 12) : digits);
+    return Number.isFinite(num) ? num : 0;
+}
+
+/** Mejor versionCode: el de Firestore si es coherente, si no el recalculado del label. */
+function resolveRemoteVersionCode(metaOrDoc) {
+    const version = String(metaOrDoc?.version || metaOrDoc?.androidApkVersion || '').trim();
+    const fromLabel = versionLabelToCode(version);
+    const stored = Number(metaOrDoc?.versionCode ?? metaOrDoc?.androidApkVersionCode) || 0;
+    // Si el label es YYYY.MM.DD.N y el guardado no coincide (bug viejo), usar el del label
+    if (fromLabel > 0) {
+        if (!stored || stored !== fromLabel) {
+            // stored “corto” tipo 202607301 vs correcto 2026073001
+            if (!stored || String(stored).length < String(fromLabel).length || stored < fromLabel) {
+                return fromLabel;
+            }
+        }
+        // Si stored es mayor y plausible (admin forzó code), respetarlo
+        return Math.max(stored, fromLabel);
+    }
+    return stored || 0;
 }
 
 function metaFromDoc(d) {
     if (!d?.androidApkUrl) return null;
     const version = d.androidApkVersion || '';
-    const versionCode = Number(d.androidApkVersionCode)
-        || versionLabelToCode(version)
-        || 0;
+    const versionCode = resolveRemoteVersionCode({
+        version,
+        versionCode: d.androidApkVersionCode,
+        androidApkVersion: version,
+        androidApkVersionCode: d.androidApkVersionCode,
+    });
     return {
         url: d.androidApkUrl,
         fileName: d.androidApkFileName || 'HonduRaite.apk',
@@ -221,7 +262,7 @@ export async function refreshNativeAppInfo() {
 
 /**
  * ¿Hay APK más nuevo que el instalado en el teléfono?
- * Orden: versionCode nativo → versionName → buildId de cada subida en Admin.
+ * Orden: versionCode (bien parseado) → versionName → buildId de cada subida en Admin.
  * Nunca “traga” un update marcando el remoto como instalado si el APK del teléfono es viejo.
  */
 export function hasApkUpdateAvailable() {
@@ -229,46 +270,81 @@ export function hasApkUpdateAvailable() {
     if (!cachedApkMeta?.url || !cachedApkMeta.buildId) return false;
 
     const remoteBuildId = Number(cachedApkMeta.buildId) || 0;
-    const remoteCode = Number(cachedApkMeta.versionCode) || versionLabelToCode(cachedApkMeta.version) || 0;
+    // Recalcular siempre desde el label (corrige versionCode viejo mal guardado en Firestore)
+    const remoteCode = resolveRemoteVersionCode(cachedApkMeta)
+        || Number(cachedApkMeta.versionCode)
+        || versionLabelToCode(cachedApkMeta.version)
+        || 0;
     const remoteVer = String(cachedApkMeta.version || '').trim();
-    const nativeCode = Number(nativeAppInfo.build) || 0;
+    const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
     const nativeVer = String(nativeAppInfo.version || '').trim();
     const client = getClientBuildId();
+
+    // 0) versionName distinta (fechas HonduRaite) → update seguro
+    //    Debe ir ANTES de un versionCode mal parseado que “oculte” el aviso.
+    if (nativeVer && remoteVer && nativeVer !== remoteVer) {
+        const nCode = versionLabelToCode(nativeVer);
+        const rCode = versionLabelToCode(remoteVer) || remoteCode;
+        // Si ambos son YYYY.MM.DD.N, solo update si el remoto es mayor
+        if (nCode > 0 && rCode > 0) {
+            if (rCode > nCode) return true;
+            // remoto igual o menor por nombre → seguir con otros checks
+        } else {
+            // No parseables: cualquier diferencia de etiqueta = hay publicación nueva
+            return true;
+        }
+    }
 
     // 1) versionCode del teléfono vs el publicado (fuente de verdad)
     if (nativeCode > 0 && remoteCode > 0) {
         if (remoteCode > nativeCode) {
-            // Había un clientBuildId “falso” alto: no lo usamos para ocultar
             return true;
         }
-        // Mismo o más nuevo en el teléfono
-        if (remoteBuildId) setClientBuildId(remoteBuildId);
-        return false;
+        // Teléfono al día o más nuevo
+        if (nativeVer && remoteVer && nativeVer === remoteVer && remoteBuildId) {
+            setClientBuildId(remoteBuildId);
+            return false;
+        }
+        if (remoteCode === nativeCode && remoteBuildId) {
+            setClientBuildId(remoteBuildId);
+            return false;
+        }
+        // remoteCode < nativeCode con nombres distintos ya se manejó arriba;
+        // si remoteCode parece “corto” (bug viejo) y el buildId es más nuevo → sí update
+        if (client != null && remoteBuildId > Number(client)) {
+            return true;
+        }
+        if (client == null && remoteBuildId > 0 && remoteCode < nativeCode
+            && String(remoteCode).length < String(nativeCode).length) {
+            // Code remoto mal parseado (más corto): no confiar en “teléfono más nuevo”
+            if (nativeVer && remoteVer && nativeVer !== remoteVer) return true;
+        }
+        if (remoteCode < nativeCode) {
+            // Realmente el teléfono es más nuevo
+            if (remoteBuildId) setClientBuildId(remoteBuildId);
+            return false;
+        }
     }
 
-    // 2) versionName distinta → hay update
-    if (nativeVer && remoteVer && nativeVer !== remoteVer) {
-        return true;
-    }
-
-    // 3) Mismas versionName conocidas → al día
+    // 2) Mismas versionName conocidas → al día
     if (nativeVer && remoteVer && nativeVer === remoteVer) {
         if (remoteBuildId) setClientBuildId(remoteBuildId);
         return false;
     }
 
-    // 4) Fallback buildId (cada vez que Admin publica, Date.now() sube)
+    // 3) Fallback buildId (cada vez que Admin publica, Date.now() sube)
     if (client != null && remoteBuildId > Number(client)) {
         return true;
     }
 
-    // 5) Primera vez sin marca local:
-    //    - si no sabemos nativo, SÍ mostrar (el usuario puede “Ya actualicé”)
-    //    - si nativo parece al día, no mostrar
+    // 4) Primera vez sin marca local
     if (client == null) {
         if (nativeCode > 0 && remoteCode > 0 && nativeCode >= remoteCode) {
-            setClientBuildId(remoteBuildId);
-            return false;
+            // Solo si los codes son de longitud comparable (no bug de parseo)
+            if (String(remoteCode).length >= String(nativeCode).length - 1) {
+                setClientBuildId(remoteBuildId);
+                return false;
+            }
         }
         if (nativeVer && remoteVer && nativeVer === remoteVer) {
             setClientBuildId(remoteBuildId);
@@ -306,6 +382,34 @@ export async function loadApkMeta() {
     } catch (e) {
         console.warn('[app-download] load meta:', e);
         return cachedApkMeta;
+    }
+}
+
+/**
+ * Corrige androidApkVersionCode en Firestore si se guardó con el bug viejo
+ * (2026.07.30.1 → 202607301 en vez de 2026073001). Así los APK ya instalados
+ * con lógica anterior vuelven a ver “hay actualización”.
+ */
+async function repairRemoteVersionCodeIfNeeded() {
+    if (!dbRef || !isAdminFn(getCurrentUser(), getUserProfile())) return false;
+    try {
+        const snap = await getDoc(settingsDocRef());
+        if (!snap.exists()) return false;
+        const d = snap.data() || {};
+        if (!d.androidApkUrl || !d.androidApkVersion) return false;
+        const correct = versionLabelToCode(d.androidApkVersion);
+        const stored = Number(d.androidApkVersionCode) || 0;
+        if (!(correct > 0) || stored === correct) return false;
+        await setDoc(settingsDocRef(), {
+            androidApkVersionCode: correct,
+            updatedAt: serverTimestamp(),
+        }, { merge: true });
+        if (cachedApkMeta) cachedApkMeta.versionCode = correct;
+        console.info('[app-download] versionCode reparado:', stored, '→', correct);
+        return true;
+    } catch (e) {
+        console.warn('[app-download] repair versionCode:', e);
+        return false;
     }
 }
 
@@ -376,8 +480,11 @@ export async function renderAdminApkPanel(container) {
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label class="text-xs text-slate-400 font-bold">Versión (igual que Android Studio versionName)</label>
-                    <input id="admin-apk-version" class="ops-input mt-1" maxlength="32" placeholder="Ej: 2026.07.28.2" value="">
-                    <p class="text-[10px] text-slate-500 mt-1">Debe coincidir con <code>versionName</code> del APK. Si está vacío se usa la del proyecto.</p>
+                    <input id="admin-apk-version" class="ops-input mt-1" maxlength="32" placeholder="Ej: 2026.07.30.1" value="">
+                    <p class="text-[10px] text-slate-500 mt-1">
+                        Debe ser exactamente el <code>versionName</code> del APK (ej. <strong>2026.07.30.1</strong>).
+                        Genera versionCode <code>2026073001</code>. Si está vacío se usa la del proyecto.
+                    </p>
                 </div>
                 <div>
                     <label class="text-xs text-slate-400 font-bold">Notas (opcional)</label>
@@ -401,7 +508,17 @@ export async function renderAdminApkPanel(container) {
         `</div>`
     );
 
-    const meta = await loadApkMeta();
+    let meta = await loadApkMeta();
+    // Repara versionCode mal guardado (bug 202607301 vs 2026073001) para que
+    // los teléfonos con APK viejo vuelvan a ver “hay actualización”.
+    const repaired = await repairRemoteVersionCodeIfNeeded();
+    if (repaired) {
+        meta = await loadApkMeta();
+        window.showToast?.(
+            `VersionCode corregido a ${meta?.versionCode}. Los usuarios deberían ver la actualización al reabrir la app.`,
+            'success'
+        );
+    }
     const metaEl = document.getElementById('admin-apk-meta');
     if (metaEl) metaEl.innerHTML = renderAdminMetaHtml(meta);
     const removeBtn = document.getElementById('admin-apk-remove');
@@ -626,7 +743,11 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
             labelEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando en la base de datos…';
         }
         const url = await getDownloadURL(storageFileRef);
+        // Siempre el mismo esquema que build.gradle (2026.07.30.1 → 2026073001)
         const versionCode = versionLabelToCode(versionLabel) || 0;
+        if (!versionCode && versionLabel) {
+            console.warn('[app-download] versionCode=0 para etiqueta:', versionLabel);
+        }
         await setDoc(settingsDocRef(), {
             androidApkUrl: url,
             androidApkFileName: file.name,
@@ -641,12 +762,10 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
             updatedAt: serverTimestamp(),
         }, { merge: true });
 
-        // Solo en el navegador del admin que sube (no en teléfonos de usuarios)
-        if (!isInstalledAndroidApp()) {
-            setClientBuildId(buildId);
-            markApkDownloadedOrInstalled(buildId);
-        }
-        // Nueva publicación: limpiar snooze para que los clientes vean el aviso
+        // NUNCA marcar “ya instalado” en el admin: eso no afecta teléfonos,
+        // pero confunde pruebas en el mismo Chrome si el admin abre la web.
+        // Los clientes comparan versionCode nativo vs remoto.
+        // Nueva publicación: limpiar snooze local del admin
         clearUpdateSnooze();
 
         if (labelEl) {
@@ -710,6 +829,7 @@ async function removeAndroidApk() {
             androidApkUrl: null,
             androidApkFileName: null,
             androidApkVersion: null,
+            androidApkVersionCode: null,
             androidApkBuildId: null,
             androidApkNotes: null,
             androidApkSize: null,
