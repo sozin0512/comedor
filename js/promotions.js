@@ -319,7 +319,7 @@ function setPromoStripHidden(strip, hidden) {
         strip.style.zIndex = '70';
         // Si nunca se arrastró, anclar arriba-izquierda sobre el mapa (visible con panel abierto)
         if (!strip.classList.contains('is-drag-positioned')) {
-            const safeTop = 'max(0.75rem, env(safe-area-inset-top, 0px))';
+            const safeTop = 'max(0.75rem, var(--safe-top, env(safe-area-inset-top, 0px)))';
             strip.style.left = '0.55rem';
             strip.style.right = 'auto';
             strip.style.bottom = 'auto';

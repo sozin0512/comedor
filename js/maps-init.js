@@ -2330,9 +2330,12 @@ window.gMap = null;
             const isDriver = document.body.classList.contains('driver-mode');
             const isClient = document.body.classList.contains('client-mode');
             const isSearching = document.body.classList.contains('is-searching');
-            let userMinimized = !!panel?.classList.contains('panel-collapsed')
+            const readUserMinimized = () => !!panel?.classList.contains('panel-collapsed')
                 || document.body.classList.contains('panel-minimized')
+                || document.body.classList.contains('panel-hidden')
+                || !!panel?.classList.contains('panel-hidden')
                 || (() => { try { return localStorage.getItem(PANEL_HIDDEN_KEY) === '1'; } catch (_) { return false; } })();
+            let userMinimized = readUserMinimized();
 
             // Forzar abrir (pedir viaje, APK): ignora minimize previo y limpia localStorage
             if (forceExpand) {
@@ -2360,6 +2363,17 @@ window.gMap = null;
                 // La pastilla «Viaje activo» llama expandDriverControlPanel a propósito.
                 document.body.classList.remove('panel-hidden');
                 panel?.classList.remove('panel-hidden', 'driver-offer-peek-hidden');
+                // Releer al final: el usuario puede haber minimizado mientras corría un snapshot
+                if (hasTrip && !forceExpand && readUserMinimized()) {
+                    panel?.classList.add('panel-collapsed');
+                    document.body.classList.add('panel-minimized', 'panel-collapsed');
+                    window.syncDriverRadarFloatPanel?.();
+                    window.syncPassengerPanelToggleLabel?.();
+                    window.updatePassengerPromoStripVisibility?.();
+                    window.refreshPassengerCopaUI?.();
+                    try { window.syncPanelHideChevron?.(); } catch (_) {}
+                    return;
+                }
                 if (hasTrip && userMinimized && !forceExpand) {
                     panel?.classList.add('panel-collapsed');
                     document.body.classList.add('panel-minimized', 'panel-collapsed');
@@ -2384,10 +2398,17 @@ window.gMap = null;
             // Pasajero: en búsqueda o viaje NO forzar expandir en cada sync (Android reabría el panel).
             // forceExpand sí abre (pedido de viaje / entrar a búsqueda).
             if (isClient && (hasTrip || isSearching || (isMobile && userMinimized))) {
-                if (userMinimized && !forceExpand) {
+                // Releer: en viaje el minimizado no debe reabrirse por un snapshot viejo
+                const stillMin = !forceExpand && readUserMinimized();
+                if (stillMin) {
                     document.body.classList.add('panel-minimized', 'panel-collapsed');
-                    // No usar panel-hidden en búsqueda: en APK dejaba el panel “muerto”
-                    if (!isSearching) {
+                    // En viaje activo: colapsado (mini-barra), NO panel-hidden total
+                    // (panel-hidden en APK a veces dejaba sin forma de reabrir / “trabado”)
+                    if (hasTrip && !isSearching) {
+                        document.body.classList.remove('panel-hidden');
+                        panel?.classList.remove('panel-hidden');
+                        panel?.classList.add('panel-collapsed');
+                    } else if (!isSearching) {
                         document.body.classList.add('panel-hidden');
                         panel?.classList.add('panel-hidden', 'panel-collapsed');
                     } else {
@@ -2407,6 +2428,7 @@ window.gMap = null;
                 window.updatePassengerPromoStripVisibility?.();
                 window.refreshPassengerCopaUI?.();
                 try { window.syncPanelHideChevron?.(); } catch (_) {}
+                try { window.bindPassengerPanelMinBtn?.(); } catch (_) {}
                 // APK: reflow para aplicar max-height full-screen de is-searching
                 try { void panel?.offsetHeight; } catch (_) {}
                 return;
@@ -2780,9 +2802,10 @@ window.gMap = null;
             if (!panel) return;
             const isClient = document.body.classList.contains('client-mode');
             const isDriver = document.body.classList.contains('driver-mode');
+            const onActiveTrip = document.body.classList.contains('trip-active');
 
-            // PASAJERO: Minimizar = ocultar del TODO el panel central (mapa limpio).
-            // Abrir de nuevo con FAB «Abrir panel» o toggle.
+            // PASAJERO: en viaje → colapsar a mini-barra (sigue tocable).
+            // Fuera de viaje → puede ocultar del todo. Abrir de nuevo con FAB / toggle.
             if (isClient && !isDriver) {
                 const currentlyHidden = document.body.classList.contains('panel-hidden')
                     || panel.classList.contains('panel-hidden')
@@ -2792,18 +2815,27 @@ window.gMap = null;
                     document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
                     panel.classList.remove('panel-hidden', 'panel-collapsed');
                     try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
+                } else if (onActiveTrip) {
+                    // Viaje activo: NO panel-hidden (en APK se “trababa” y no se veía el mapa bien)
+                    document.body.classList.add('panel-minimized', 'panel-collapsed');
+                    document.body.classList.remove('panel-hidden');
+                    panel.classList.add('panel-collapsed');
+                    panel.classList.remove('panel-hidden');
+                    try { localStorage.setItem(PANEL_HIDDEN_KEY, '1'); } catch (_) {}
                 } else {
                     document.body.classList.add('panel-hidden', 'panel-minimized', 'panel-collapsed');
                     panel.classList.add('panel-hidden', 'panel-collapsed');
                     try { localStorage.setItem(PANEL_HIDDEN_KEY, '1'); } catch (_) {}
                 }
-                const hidden = document.body.classList.contains('panel-hidden');
+                const collapsed = document.body.classList.contains('panel-minimized')
+                    || panel.classList.contains('panel-collapsed')
+                    || document.body.classList.contains('panel-hidden');
                 const paxMinLabel = document.querySelector('#passenger-panel-min-btn .passenger-panel-min-label');
-                if (paxMinLabel) paxMinLabel.textContent = hidden ? 'Abrir panel' : 'Minimizar';
+                if (paxMinLabel) paxMinLabel.textContent = collapsed ? 'Maximizar' : 'Minimizar';
                 const paxMinBtn = document.getElementById('passenger-panel-min-btn');
                 if (paxMinBtn) {
-                    paxMinBtn.setAttribute('aria-label', hidden ? 'Abrir panel' : 'Ocultar panel del mapa');
-                    paxMinBtn.setAttribute('title', hidden ? 'Abrir panel' : 'Ocultar panel');
+                    paxMinBtn.setAttribute('aria-label', collapsed ? 'Maximizar panel' : 'Minimizar panel');
+                    paxMinBtn.setAttribute('title', collapsed ? 'Maximizar' : 'Minimizar');
                 }
                 window.syncPassengerPanelToggleLabel?.();
                 try { window.syncPanelHideChevron?.(); } catch (_) {}
@@ -3024,36 +3056,104 @@ window.gMap = null;
             if (target) window.updateNavigation?.(target, true);
         };
 
+        /** Lat/lng válidos para Google Maps (rechaza null/NaN/0,0 basura). */
+        window.toGoogleMapsLatLng = (lat, lng) => {
+            const la = Number(lat);
+            const ln = Number(lng);
+            if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
+            if (Math.abs(la) < 0.00001 && Math.abs(ln) < 0.00001) return null;
+            if (la < -90 || la > 90 || ln < -180 || ln > 180) return null;
+            return { lat: la, lng: ln };
+        };
+
         window.formatGoogleMapsLocationParam = (point) => {
             if (!point) return '';
-            const latLng = point.latLng
-                || (point.lat != null && point.lng != null ? { lat: point.lat, lng: point.lng } : null);
-            if (latLng?.lat != null && latLng?.lng != null) {
+            // String puro = dirección
+            if (typeof point === 'string') {
+                const s = point.trim();
+                return s ? encodeURIComponent(s) : '';
+            }
+            const latLng = window.toGoogleMapsLatLng(
+                point.latLng?.lat ?? point.lat,
+                point.latLng?.lng ?? point.lng
+            ) || window.toGoogleMapsLatLng(point.lat, point.lng);
+            if (latLng) {
                 return `${latLng.lat},${latLng.lng}`;
             }
-            const addr = point.address || (typeof point === 'string' ? point : '');
+            const addr = (point.address || point.placeName || point.name || '').toString().trim();
             return addr ? encodeURIComponent(addr) : '';
+        };
+
+        /**
+         * Cadena de puntos para Google Maps (coords O dirección).
+         * No depende de buildOrderedRoutePoints (ese exige lat/lng y fallaba al abrir Maps).
+         */
+        window.buildGoogleMapsRouteChain = (trip) => {
+            if (!trip) return [];
+            const chain = [];
+            const push = (address, lat, lng, role) => {
+                const ll = window.toGoogleMapsLatLng(lat, lng);
+                const addr = (address || '').toString().trim();
+                if (!ll && !addr) return;
+                chain.push({
+                    address: addr,
+                    lat: ll?.lat,
+                    lng: ll?.lng,
+                    latLng: ll || null,
+                    role,
+                });
+            };
+
+            push(trip.origin || trip.originPlaceName, trip.originLat, trip.originLng, 'origin');
+            (trip.additionalStops || []).forEach((s, i) => {
+                if (!s) return;
+                const ll = window.pointToLatLng?.(s) || window.toGoogleMapsLatLng(s.lat, s.lng) || s.latLng || null;
+                push(
+                    s.address || s.placeName || s.name || `Parada ${i + 1}`,
+                    ll?.lat ?? s.lat,
+                    ll?.lng ?? s.lng,
+                    'stop'
+                );
+            });
+            // Por horas sin destino: no forzar punto vacío
+            if (trip.destination || (trip.destinationLat != null && trip.destinationLng != null)) {
+                push(
+                    trip.destination || trip.destinationPlaceName,
+                    trip.destinationLat,
+                    trip.destinationLng,
+                    'destination'
+                );
+            }
+            return chain;
         };
 
         window.buildGoogleMapsDirectionsUrl = (trip, options = {}) => {
             if (!trip) return null;
 
             const navMode = options.navMode || 'full';
-            const originPoint = {
-                address: trip.origin,
-                latLng: trip.originLat != null ? { lat: trip.originLat, lng: trip.originLng } : null,
-            };
-            const destinationPoint = {
-                address: trip.destination,
-                latLng: trip.destinationLat != null ? { lat: trip.destinationLat, lng: trip.destinationLng } : null,
-            };
-            const chain = window.buildOrderedRoutePoints?.(
-                originPoint,
-                destinationPoint,
-                trip.additionalStops || []
-            ) || [];
+            const chain = window.buildGoogleMapsRouteChain(trip);
+
+            // Fallback si el viaje solo trae texto y no coords
+            if (!chain.length) {
+                const o = (trip.origin || trip.originPlaceName || '').toString().trim();
+                const d = (trip.destination || trip.destinationPlaceName || o).toString().trim();
+                if (o && d) {
+                    chain.push({ address: o, role: 'origin' });
+                    if (d !== o) chain.push({ address: d, role: 'destination' });
+                    else chain.push({ address: d, role: 'destination' });
+                }
+            }
 
             if (!chain.length) return null;
+
+            const driverPosParam = () => {
+                if (!options.useDriverPosition || !window.currentDriverPos) return '';
+                const ll = window.toGoogleMapsLatLng(
+                    window.currentDriverPos.lat,
+                    window.currentDriverPos.lng
+                );
+                return ll ? `${ll.lat},${ll.lng}` : '';
+            };
 
             let originParam = '';
             let destinationParam = '';
@@ -3061,25 +3161,26 @@ window.gMap = null;
 
             if (navMode === 'pickup') {
                 const pickup = chain[0];
-                originParam = options.useDriverPosition && window.currentDriverPos
-                    ? `${window.currentDriverPos.lat},${window.currentDriverPos.lng}`
-                    : window.formatGoogleMapsLocationParam(pickup);
+                originParam = driverPosParam() || window.formatGoogleMapsLocationParam(pickup);
                 destinationParam = window.formatGoogleMapsLocationParam(pickup);
             } else if (navMode === 'leg') {
                 const legTarget = window.getTripCurrentLegNavTarget?.(trip);
-                const legPoint = legTarget || chain[chain.length - 1];
-                originParam = options.useDriverPosition && window.currentDriverPos
-                    ? `${window.currentDriverPos.lat},${window.currentDriverPos.lng}`
-                    : window.formatGoogleMapsLocationParam(chain[0]);
-                destinationParam = window.formatGoogleMapsLocationParam(
-                    legPoint?.lat != null
-                        ? { address: legPoint.address, latLng: { lat: legPoint.lat, lng: legPoint.lng } }
-                        : legPoint
-                );
+                const legPoint = legTarget
+                    ? {
+                        address: legTarget.address || legTarget.placeName || '',
+                        lat: legTarget.lat,
+                        lng: legTarget.lng,
+                        latLng: (legTarget.lat != null && legTarget.lng != null)
+                            ? { lat: legTarget.lat, lng: legTarget.lng }
+                            : null,
+                    }
+                    : chain[chain.length - 1];
+                originParam = driverPosParam()
+                    || window.formatGoogleMapsLocationParam(chain[0]);
+                destinationParam = window.formatGoogleMapsLocationParam(legPoint);
             } else {
-                originParam = options.useDriverPosition && window.currentDriverPos
-                    ? `${window.currentDriverPos.lat},${window.currentDriverPos.lng}`
-                    : window.formatGoogleMapsLocationParam(chain[0]);
+                originParam = driverPosParam()
+                    || window.formatGoogleMapsLocationParam(chain[0]);
                 destinationParam = window.formatGoogleMapsLocationParam(chain[chain.length - 1]);
                 if (chain.length > 2) {
                     waypointParams = chain
@@ -3089,45 +3190,99 @@ window.gMap = null;
                 }
             }
 
+            // Si solo hay un punto (p.ej. por horas sin destino), usar ese como destino
+            if (originParam && !destinationParam) destinationParam = originParam;
+            if (!originParam && destinationParam) {
+                originParam = driverPosParam() || destinationParam;
+            }
             if (!originParam || !destinationParam) return null;
 
             let url = `https://www.google.com/maps/dir/?api=1&origin=${originParam}&destination=${destinationParam}&travelmode=driving`;
             if (waypointParams.length) {
-                url += `&waypoints=${waypointParams.join('|')}`;
+                // Google acepta | codificado como %7C
+                url += `&waypoints=${waypointParams.join('%7C')}`;
             }
             return url;
         };
 
+        /**
+         * Abre URL de direcciones en la app de Google Maps (o navegador).
+         * En Android WebView window.open suele fallar; se usan varios fallbacks.
+         */
         window.openGoogleMapsDirectionsUrl = async (url) => {
             if (!url) {
                 window.showToast?.('No se pudo armar la ruta para Google Maps.');
                 return false;
             }
-            // Nativo: App.openUrl saca a Maps sin quedarse atrapado en la WebView
+
+            const isNative = !!window.Capacitor?.isNativePlatform?.();
+            const isAndroid = !!window.Capacitor?.getPlatform?.()
+                ? window.Capacitor.getPlatform() === 'android'
+                : /Android/i.test(navigator.userAgent || '');
+
+            // 1) Helper nativo robusto (intent / App.openUrl / Browser)
             try {
-                if (window.Capacitor?.isNativePlatform?.()) {
-                    const CapApp = window.Capacitor.Plugins?.App;
+                if (typeof window.openExternalUrl === 'function') {
+                    const ok = await window.openExternalUrl(url);
+                    if (ok) return true;
+                }
+            } catch (e) {
+                console.warn('openGoogleMapsDirectionsUrl openExternalUrl:', e);
+            }
+
+            // 2) Intent nativo de Google Maps (app instalada)
+            if (isNative || isAndroid) {
+                try {
+                    const CapApp = window.Capacitor?.Plugins?.App;
                     if (CapApp?.openUrl) {
                         await CapApp.openUrl({ url });
                         return true;
                     }
-                    const CapBrowser = window.Capacitor.Plugins?.Browser;
+                } catch (e) {
+                    console.warn('openGoogleMapsDirectionsUrl App.openUrl:', e);
+                }
+
+                // Intent scheme: abre la app de Maps si existe
+                try {
+                    const bare = url.replace(/^https?:\/\//i, '');
+                    const intentUrl =
+                        `intent://${bare}#Intent;scheme=https;package=com.google.android.apps.maps;` +
+                        `action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end`;
+                    window.location.href = intentUrl;
+                    return true;
+                } catch (e) {
+                    console.warn('openGoogleMapsDirectionsUrl intent:', e);
+                }
+
+                try {
+                    const CapBrowser = window.Capacitor?.Plugins?.Browser;
                     if (CapBrowser?.open) {
-                        await CapBrowser.open({ url, presentationStyle: 'popover' });
+                        await CapBrowser.open({ url, windowName: '_system' });
                         return true;
                     }
-                    window.open(url, '_system');
-                    return true;
+                } catch (e) {
+                    console.warn('openGoogleMapsDirectionsUrl Browser:', e);
                 }
-            } catch (e) {
-                console.warn('openGoogleMapsDirectionsUrl native:', e);
+
+                try {
+                    const w = window.open(url, '_system');
+                    if (w) return true;
+                } catch (_) {}
             }
+
+            // 3) Web
             let opened = null;
             try {
                 opened = window.open(url, '_blank', 'noopener,noreferrer');
             } catch (_) {}
             if (!opened) {
-                try { window.location.href = url; } catch (_) {}
+                try {
+                    window.location.assign(url);
+                    return true;
+                } catch (_) {
+                    window.showToast?.('No se pudo abrir Google Maps. Probá de nuevo.', 'warning');
+                    return false;
+                }
             }
             return true;
         };
@@ -3135,13 +3290,26 @@ window.gMap = null;
         window.openTripRouteInGoogleMaps = async (trip, options = {}) => {
             if (!trip) {
                 window.showToast?.('No hay ruta disponible.');
-                return;
+                return false;
             }
-            if (options.useDriverPosition) {
-                await window.ensureDriverPosition?.();
+            try {
+                if (options.useDriverPosition) {
+                    await window.ensureDriverPosition?.();
+                }
+                const url = window.buildGoogleMapsDirectionsUrl(trip, options);
+                if (!url) {
+                    window.showToast?.(
+                        'Faltan origen o destino del viaje para abrir Google Maps.',
+                        'warning'
+                    );
+                    return false;
+                }
+                return await window.openGoogleMapsDirectionsUrl(url);
+            } catch (e) {
+                console.error('openTripRouteInGoogleMaps:', e);
+                window.showToast?.('Error al abrir Google Maps. Intentá de nuevo.', 'error');
+                return false;
             }
-            const url = window.buildGoogleMapsDirectionsUrl(trip, options);
-            await window.openGoogleMapsDirectionsUrl(url);
         };
 
         window.openPassengerTripRouteInGoogleMaps = async () => {
@@ -3274,49 +3442,79 @@ window.gMap = null;
         };
 
         window.openDriverRouteInGoogleMaps = async () => {
-            const trip = window.currentActiveTripData;
-            if (!trip) {
-                window.showToast?.('No hay un viaje activo.');
-                return;
-            }
+            try {
+                // currentActiveTripData o activeTrip (a veces solo uno está set)
+                const trip = window.currentActiveTripData || window.activeTrip || null;
+                if (!trip || (!trip.id && !trip.origin && !trip.originLat)) {
+                    window.showToast?.('No hay un viaje activo para abrir en Google Maps.');
+                    return false;
+                }
 
-            await window.ensureDriverPosition?.();
+                // Alinear ambos para el resto del flujo
+                window.currentActiveTripData = trip;
+                window.activeTrip = trip;
 
-            const isDestPhase = trip.status === 'in_progress'
-                || (trip.status === 'accepted' && trip.driverArrived);
-            const hasStops = (trip.additionalStops || []).length > 0;
+                await window.ensureDriverPosition?.().catch?.(() => null);
 
-            if (isDestPhase) {
-                await window.openTripRouteInGoogleMaps(trip, {
-                    navMode: hasStops ? 'leg' : 'full',
-                    useDriverPosition: true,
-                });
-                return;
-            }
+                const isDestPhase = trip.status === 'in_progress'
+                    || (trip.status === 'accepted' && trip.driverArrived);
+                const hasStops = (trip.additionalStops || []).length > 0;
 
-            if (!isDestPhase) {
-                const target = await window.resolveTripPickupNavTarget?.(trip);
+                if (isDestPhase) {
+                    return await window.openTripRouteInGoogleMaps(trip, {
+                        navMode: hasStops ? 'leg' : 'full',
+                        useDriverPosition: true,
+                    });
+                }
+
+                // Fase recogida: conductor → punto de origen del pasajero
+                let target = null;
+                try {
+                    target = await window.resolveTripPickupNavTarget?.(trip);
+                } catch (e) {
+                    console.warn('openDriverRouteInGoogleMaps pickup target:', e);
+                }
+
+                const pickupLat = (typeof target === 'object' && target)
+                    ? (target.lat ?? target.latLng?.lat)
+                    : null;
+                const pickupLng = (typeof target === 'object' && target)
+                    ? (target.lng ?? target.latLng?.lng)
+                    : null;
+                const pickupAddr = typeof target === 'string'
+                    ? target
+                    : (target?.address || trip.origin || trip.originPlaceName || '');
+
                 const pickupTrip = {
                     ...trip,
-                    origin: typeof target === 'string' ? target : (trip.origin || ''),
-                    originLat: target?.lat ?? trip.originLat,
-                    originLng: target?.lng ?? trip.originLng,
-                    destination: typeof target === 'string' ? target : (trip.origin || ''),
-                    destinationLat: target?.lat ?? trip.originLat,
-                    destinationLng: target?.lng ?? trip.originLng,
+                    origin: pickupAddr || trip.origin || '',
+                    originLat: pickupLat ?? trip.originLat,
+                    originLng: pickupLng ?? trip.originLng,
+                    destination: pickupAddr || trip.origin || '',
+                    destinationLat: pickupLat ?? trip.originLat,
+                    destinationLng: pickupLng ?? trip.originLng,
                     additionalStops: [],
                 };
-                await window.openTripRouteInGoogleMaps(pickupTrip, {
+
+                const ok = await window.openTripRouteInGoogleMaps(pickupTrip, {
                     navMode: 'pickup',
                     useDriverPosition: true,
                 });
-                return;
-            }
+                if (ok) return true;
 
-            await window.openTripRouteInGoogleMaps(trip, {
-                navMode: 'full',
-                useDriverPosition: true,
-            });
+                // Último recurso: URL con lo que haya en el viaje original
+                return await window.openTripRouteInGoogleMaps(trip, {
+                    navMode: 'pickup',
+                    useDriverPosition: true,
+                });
+            } catch (e) {
+                console.error('openDriverRouteInGoogleMaps:', e);
+                window.showToast?.(
+                    e?.message || 'No se pudo abrir la ruta en Google Maps.',
+                    'error'
+                );
+                return false;
+            }
         };
 
         window.hideDriverTripExtraPanels = () => {
@@ -5804,6 +6002,7 @@ window.gMap = null;
         window.minimizeDriverPanelForNav = (opts = {}) => {
             const force = opts.force === true;
             // Preferencia del usuario: panel abierto hasta que lo cierre él
+            // (salvo force: true — p.ej. tras ingresar PIN / arrancar al destino)
             if (!force && window._driverNavUserKeptOpen) return;
 
             const panel = document.getElementById('control-panel');
@@ -5814,6 +6013,16 @@ window.gMap = null;
                 && document.body.classList.contains('panel-minimized')) {
                 return;
             }
+            // Cerrar teclado si quedó del PIN
+            try {
+                document.getElementById('driver-pin-input')?.blur?.();
+                document.getElementById('driver-panel-pin-input')?.blur?.();
+                if (document.activeElement
+                    && (document.activeElement.tagName === 'INPUT'
+                        || document.activeElement.tagName === 'TEXTAREA')) {
+                    document.activeElement.blur();
+                }
+            } catch (_) {}
             panel.classList.add('panel-collapsed');
             panel.classList.remove('panel-hidden');
             document.body.classList.add('panel-minimized', 'panel-collapsed');
@@ -5824,10 +6033,13 @@ window.gMap = null;
             if (label) label.textContent = 'Abrir';
             const tpLabel = document.getElementById('tp-panel-toggle-label');
             if (tpLabel) tpLabel.textContent = 'Ver más';
+            const minHint = document.querySelector('#control-panel .driver-panel-min-hint');
+            if (minHint) minHint.textContent = 'Maximizar';
             try { window.syncPanelHideChevron?.(); } catch (_) {}
             try { window.syncDriverRadarFloatPanel?.(); } catch (_) {}
             try { window.syncDriverPanelNavVisibility?.(); } catch (_) {}
             try { window.syncPassengerPanelToggleLabel?.(); } catch (_) {}
+            try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
             try {
                 // eslint-disable-next-line no-unused-expressions
                 panel.offsetHeight;

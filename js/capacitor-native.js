@@ -61,8 +61,9 @@ export function ensureNativeSafeAreaFallback() {
             probe.remove();
         } catch (_) {}
 
-        const minTop = isCapacitorAndroid() ? 52 : 44;
-        const minBottom = isCapacitorAndroid() ? 16 : 12;
+        // Como WhatsApp: si hay env() real, úsalo; si no, status bar típico (no huecos fijos)
+        const minTop = isCapacitorAndroid() ? 28 : 20;
+        const minBottom = isCapacitorAndroid() ? 12 : 8;
         const safeTop = Math.max(topPx, minTop);
         root.style.setProperty('--native-safe-top', `${safeTop}px`);
         if (!getComputedStyle(root).getPropertyValue('--native-safe-bottom').trim()) {

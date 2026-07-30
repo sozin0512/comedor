@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.28.2">
+    <meta name="hr-app-version" content="2026.07.30.1">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.28.2">
+    <link rel="manifest" href="manifest.json?v=2026.07.30.1">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,13 +31,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.28.2">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.30.1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.28.2">
-    <script src="js/maps-init.js?v=2026.07.28.2"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.30.1">
+    <script src="js/maps-init.js?v=2026.07.30.1"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.28.2';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.30.1';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -97,10 +97,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.28.2';
+        window.__HR_BUILD_VERSION__ = '2026.07.30.1';
         (function () {
             try {
-                var build = '2026.07.28.2';
+                var build = '2026.07.30.1';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -1674,7 +1674,7 @@
                 <span class="trip-step-badge trip-step-badge--muted">2</span>
                 <span>Más opciones</span>
             </span>
-            <span class="trip-advanced-toggle-hint">Programar · por horas · envío</span>
+            <span class="trip-advanced-toggle-hint">Por horas · otra persona · flete/envío</span>
             <i class="fas fa-chevron-down trip-advanced-chevron"></i>
         </button>
         <div id="trip-advanced-body" class="trip-advanced-body hidden">
@@ -1770,15 +1770,13 @@
     </div>
 
     <div id="trip-options-panel" class="trip-advanced-block space-y-2.5">
-        <label class="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" id="trip-schedule-toggle" class="rounded border-slate-300 text-blue-600" onchange="window.toggleTripScheduleFields()">
-            <span class="text-[10px] font-black text-slate-700 uppercase"><i class="fas fa-calendar-alt"></i> Programar viaje (aeropuerto, cita...)</span>
-        </label>
-        <input type="datetime-local" id="trip-schedule-datetime" class="hidden w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
+        <!-- Compat: programación vive arriba (trip-when-panel). Campos ocultos que lee el JS. -->
+        <input type="checkbox" id="trip-schedule-toggle" class="sr-only" tabindex="-1" aria-hidden="true" onchange="window.toggleTripScheduleFields?.()">
+        <input type="hidden" id="trip-schedule-datetime" value="">
 
         <label class="flex items-center gap-2 cursor-pointer">
             <input type="checkbox" id="trip-third-party-toggle" class="rounded border-slate-300 text-violet-600" onchange="window.toggleThirdPartyFields()">
-            <span class="text-[10px] font-black text-slate-700 uppercase"><i class="fas fa-user-friends"></i> Viaje para otra persona (mamá, hijo...)</span>
+            <span class="text-[10px] font-black text-slate-700 uppercase"><i class="fas fa-user-friends"></i> Viaje / envío para otra persona</span>
         </label>
         <div id="trip-third-party-fields" class="hidden space-y-2">
             <select id="trip-rider-relation" class="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm bg-white">
@@ -1803,10 +1801,9 @@
                 <!-- populated by JS: chips hasta 24h -->
             </div>
 
-            <p class="text-[9px] font-black text-emerald-700 uppercase tracking-widest mb-1 mt-2.5">Cuántas personas viajan (máx. 4 · auto/taxi)</p>
-            <div id="hourly-passenger-chips" class="flex flex-wrap gap-1.5">
-                <!-- populated by JS: 1–4 -->
-            </div>
+            <p class="text-[9px] text-emerald-700 font-bold mt-2.5 leading-snug">
+                <i class="fas fa-users"></i> Las personas se eligen arriba (obligatorio · máx. 4). El conductor lo verá.
+            </p>
 
             <!-- Hora de inicio -->
             <div class="mt-2.5">
@@ -1867,22 +1864,68 @@
             </div>
         </div>
 
-        <div id="trip-passengers-wrap" class="mt-2 mb-2 p-3 rounded-2xl border-2 border-blue-200 bg-blue-50/90 shadow-sm">
+        <div id="trip-passengers-wrap" class="trip-passengers-wrap mt-2 mb-2 p-3 rounded-2xl border-2 border-blue-300 bg-blue-50/95 shadow-sm" data-pax-required="1">
             <div class="flex items-center justify-between gap-2 mb-1.5">
-                <p class="text-[10px] font-black text-blue-800 uppercase tracking-widest m-0">
-                    <i class="fas fa-users text-blue-500"></i> ¿Cuántas personas van?
+                <p class="text-[10px] font-black text-blue-900 uppercase tracking-widest m-0">
+                    <i class="fas fa-users text-blue-600"></i> ¿Cuántas personas van? <span class="text-red-600 normal-case">*</span>
                 </p>
-                <span class="text-[9px] font-black uppercase tracking-wide text-blue-600 bg-white/80 border border-blue-200 px-2 py-0.5 rounded-full">Máx. 4</span>
+                <span class="text-[9px] font-black uppercase tracking-wide text-white bg-blue-600 px-2 py-0.5 rounded-full">Obligatorio · máx 4</span>
             </div>
-            <div id="trip-passenger-chips" class="flex flex-wrap gap-1.5" role="group" aria-label="Número de personas">
-                <button type="button" data-trip-pax="1" class="trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border border-blue-600 bg-blue-600 text-white shadow-sm">1</button>
-                <button type="button" data-trip-pax="2" class="trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700">2</button>
-                <button type="button" data-trip-pax="3" class="trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700">3</button>
-                <button type="button" data-trip-pax="4" class="trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700">4</button>
+            <div id="trip-passenger-chips" class="flex flex-wrap gap-1.5" role="group" aria-label="Número de personas (obligatorio)" aria-required="true">
+                <button type="button" data-trip-pax="1" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">1</button>
+                <button type="button" data-trip-pax="2" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">2</button>
+                <button type="button" data-trip-pax="3" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">3</button>
+                <button type="button" data-trip-pax="4" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">4</button>
             </div>
-            <p id="trip-passenger-hint" class="text-[10px] font-bold text-blue-900/70 mt-2 leading-snug m-0">
-                1 persona incluida. Cada persona extra tiene cobro adicional. Límite 4 (auto/taxi). El conductor verá cuántos van.
+            <p id="trip-passenger-hint" class="text-[10px] font-bold text-blue-900/80 mt-2 leading-snug m-0">
+                Toca un número (1–4). Obligatorio para pedir el viaje. El conductor verá cuántas personas van.
             </p>
+        </div>
+
+        <!-- Programar: visible para carro, moto, flete y entregas (estilo fácil, atajos) -->
+        <div id="trip-when-panel" class="trip-when-panel" aria-label="Cuándo necesitas el servicio">
+            <div class="trip-when-head">
+                <p id="trip-when-title" class="trip-when-title">
+                    <i class="fas fa-clock"></i> ¿Cuándo lo necesitas?
+                </p>
+                <p id="trip-when-sub" class="trip-when-sub">Carro, moto, flete o envío · hora de Honduras</p>
+            </div>
+            <div class="trip-when-modes" role="tablist" aria-label="Ahora o programar">
+                <button type="button" id="trip-when-now" class="trip-when-mode-btn is-active" data-when-mode="now" role="tab" aria-selected="true">
+                    <i class="fas fa-bolt"></i>
+                    <span>Ahora</span>
+                </button>
+                <button type="button" id="trip-when-later" class="trip-when-mode-btn" data-when-mode="later" role="tab" aria-selected="false">
+                    <i class="fas fa-calendar-check"></i>
+                    <span id="trip-when-later-label">Programar</span>
+                </button>
+            </div>
+            <div id="trip-when-schedule" class="trip-when-schedule hidden">
+                <p class="trip-when-presets-label">Elige en un toque</p>
+                <div id="trip-when-presets" class="trip-when-presets" role="group" aria-label="Atajos de horario">
+                    <!-- chips por JS -->
+                </div>
+                <div id="trip-when-custom" class="trip-when-custom hidden">
+                    <div class="trip-when-custom-grid">
+                        <label class="trip-when-field">
+                            <span>Fecha</span>
+                            <input type="date" id="trip-schedule-date" class="trip-when-input">
+                        </label>
+                        <label class="trip-when-field">
+                            <span>Hora</span>
+                            <input type="time" id="trip-schedule-time" class="trip-when-input" step="300">
+                        </label>
+                    </div>
+                    <p class="trip-when-hint">Mínimo 15 min desde ahora · zona America/Tegucigalpa</p>
+                </div>
+                <div id="trip-when-summary" class="trip-when-summary hidden" aria-live="polite">
+                    <i class="fas fa-calendar-day"></i>
+                    <div>
+                        <p id="trip-when-summary-text" class="trip-when-summary-text">—</p>
+                        <p id="trip-when-summary-note" class="trip-when-summary-note">Buscamos conductor ya; el servicio queda para esa hora.</p>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div id="fare-card" class="trip-fare-card hidden">
@@ -2329,6 +2372,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.07.28.2"></script>
+    <script type="module" src="js/app.js?v=2026.07.30.1"></script>
 </body>
 </html>

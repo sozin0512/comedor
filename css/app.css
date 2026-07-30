@@ -1,10 +1,11 @@
-﻿:root {
+:root {
             --app-height: 100%;
             --hn-blue: #0c4a8e;
             --hn-blue-light: #1a6bb5;
             --hn-sky: #38bdf8;
             --hn-white: #ffffff;
-            /* Safe areas: notch / status bar / home indicator */
+            /* Safe areas: notch / status bar / home indicator (web).
+             * En APK, body.capacitor-* sobrescribe con --native-safe-* de MainActivity. */
             --safe-top: env(safe-area-inset-top, 0px);
             --safe-bottom: env(safe-area-inset-bottom, 0px);
             --safe-left: env(safe-area-inset-left, 0px);
@@ -48,21 +49,22 @@
         }
 
         /*
-         * App nativa (Capacitor): respetar reloj, notificaciones y notch.
-         * En WebView Android env(safe-area-*) a veces es 0; usamos mÃ­nimo + valor
-         * inyectado por MainActivity (--native-safe-top / --native-safe-bottom).
+         * App nativa (Capacitor): estilo WhatsApp — se adapta a CADA pantalla.
+         * Usa el inset real del sistema (reloj / notch / punch-hole / home indicator)
+         * inyectado por MainActivity (--native-safe-*). Sin huecos fijos enormes:
+         * en un teléfono sin notch baja poco; con notch/Dynamic Island sube lo justo.
          */
         body.capacitor-native {
-            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 44px));
-            --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 12px));
+            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 24px));
+            --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 8px));
             --safe-left: var(--native-safe-left, env(safe-area-inset-left, 0px));
             --safe-right: var(--native-safe-right, env(safe-area-inset-right, 0px));
         }
 
         body.capacitor-android {
-            /* Status bar + aire extra: reloj/notificaciones no deben tapar atrÃ¡s / cerrar */
-            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 56px));
-            --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 18px));
+            /* Fallback solo si el nativo aún no inyectó: status bar típico ~24–28dp */
+            --safe-top: var(--native-safe-top, max(env(safe-area-inset-top, 0px), 28px));
+            --safe-bottom: var(--native-safe-bottom, max(env(safe-area-inset-bottom, 0px), 12px));
         }
 
         body.capacitor-android #app-interface,
@@ -75,14 +77,14 @@
 
         body.capacitor-android #app-header,
         body.capacitor-ios #app-header {
-            /* Respiro extra bajo el safe-area: botones lejos del reloj/notificaciones */
-            padding-top: 0.55rem;
+            /* Respiro visual bajo el safe-area (el reloj ya lo cubre --safe-top del shell) */
+            padding-top: 0.4rem;
         }
 
         body.capacitor-android .header-toolbar {
-            min-height: 3.85rem;
-            padding-top: 0.25rem;
-            padding-bottom: 0.4rem;
+            min-height: 3.5rem;
+            padding-top: 0.2rem;
+            padding-bottom: 0.35rem;
         }
 
         body.capacitor-android .header-icon-btn {
@@ -91,16 +93,19 @@
         }
 
         body.capacitor-android .hn-flag-stripe {
-            /* La franja de bandera tambiÃ©n queda bajo el safe-area del shell */
+            /* La franja de bandera también queda bajo el safe-area del shell */
             flex-shrink: 0;
         }
 
         /*
-         * Paneles fixed a pantalla completa (admin / supervisor / perfil / setup).
-         * inset:0 ignora el padding de #app-interface â†’ hay que aplicar safe-area aquÃ­.
+         * TODO full-screen fixed (admin / supervisor / perfil / setup / auth / modales).
+         * inset:0 ignora el padding de #app-interface → hay que aplicar safe-area aquí.
+         * Estilo WhatsApp: solo el inset real del sistema + respiro mínimo.
          */
         body.capacitor-native .ops-panel,
-        body.capacitor-android .ops-panel {
+        body.capacitor-android .ops-panel,
+        body.capacitor-native #profile-manage-panel,
+        body.capacitor-android #profile-manage-panel {
             padding-top: var(--safe-top) !important;
             padding-bottom: var(--safe-bottom) !important;
             padding-left: var(--safe-left);
@@ -108,31 +113,36 @@
             box-sizing: border-box;
         }
 
-        body.capacitor-android .ops-topbar {
-            /* Barra admin/supervisor: no chocar con reloj */
-            padding-top: max(0.55rem, 0.35rem) !important;
-            min-height: 3.4rem;
-        }
-
-        body.capacitor-native #profile-manage-panel,
-        body.capacitor-android #profile-manage-panel {
-            padding-top: max(var(--safe-top), 48px) !important;
-            padding-bottom: var(--safe-bottom) !important;
-            box-sizing: border-box;
+        body.capacitor-android .ops-topbar,
+        body.capacitor-native .ops-topbar {
+            /* Barra admin/supervisor: contenido bajo el reloj (padding del panel ya lo da) */
+            padding-top: 0.45rem !important;
+            min-height: 3.25rem;
         }
 
         body.capacitor-native .driver-setup-screen,
         body.capacitor-android .driver-setup-screen {
             padding-top: 0; /* la barra interna ya usa safe-top */
-            padding-bottom: var(--safe-bottom, 16px);
+            padding-bottom: var(--safe-bottom, 8px);
         }
 
-        /* Modales fijos genÃ©ricos: respetar safe-area en APK */
+        /* Modales fijos genéricos: respetar reloj / home indicator en APK */
         body.capacitor-android .fixed.inset-0,
         body.capacitor-native .fixed.inset-0 {
-            padding-top: max(0.75rem, var(--safe-top, 0px));
-            padding-bottom: max(0.75rem, var(--safe-bottom, 0px));
+            padding-top: max(0.5rem, var(--safe-top, 0px));
+            padding-bottom: max(0.5rem, var(--safe-bottom, 0px));
+            padding-left: max(0.5rem, var(--safe-left, 0px));
+            padding-right: max(0.5rem, var(--safe-right, 0px));
             box-sizing: border-box;
+        }
+
+        /* Cámara full-screen: botones fuera de la status bar y de la nav bar */
+        body.capacitor-native .camera-capture-overlay,
+        body.capacitor-android .camera-capture-overlay {
+            padding-top: var(--safe-top, 0px);
+            padding-bottom: 0;
+            padding-left: var(--safe-left, 0px);
+            padding-right: var(--safe-right, 0px);
         }
 
         /* Conductor sin viaje: panel a pantalla completa (lista de ofertas, etc.) */
@@ -141,11 +151,11 @@
             top: var(--safe-top) !important;
             height: calc(100% - var(--safe-top) - var(--safe-bottom)) !important;
             max-height: none !important;
-            padding-top: 0.55rem !important;
+            padding-top: 0.45rem !important;
             padding-bottom: max(0.45rem, var(--safe-bottom)) !important;
         }
 
-        /* Viaje activo en APK: faja inferior, no full-screen (mapa + navegaciÃ³n visibles) */
+        /* Viaje activo en APK: faja inferior, no full-screen (mapa + navegación visibles) */
         body.capacitor-native.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel,
         body.capacitor-android.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
             top: auto !important;
@@ -161,7 +171,7 @@
             top: var(--safe-top) !important;
             height: calc(100% - var(--safe-top) - var(--safe-bottom)) !important;
             max-height: none !important;
-            padding-top: 0.55rem !important;
+            padding-top: 0.45rem !important;
             padding-bottom: max(0.45rem, var(--safe-bottom)) !important;
         }
 
@@ -1861,7 +1871,7 @@
             z-index: 20;
             isolation: isolate;
             flex-shrink: 0;
-            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
         }
 
         #searching-state [data-trip-action],
@@ -2138,6 +2148,24 @@
             background: linear-gradient(135deg, #9f1239 0%, #e11d48 55%, #fb7185 100%);
         }
 
+        /* Selector de personas al pedir viaje (obligatorio 1–4) */
+        .trip-passengers-wrap {
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+        .trip-passengers-wrap--missing {
+            border-color: #f59e0b !important;
+            background: #fffbeb !important;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
+            animation: trip-pax-pulse 1.4s ease-in-out infinite;
+        }
+        @keyframes trip-pax-pulse {
+            0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22); }
+            50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.12); }
+        }
+        .trip-pax-chip[aria-pressed="true"] {
+            transform: scale(1.04);
+        }
+
         .login-screen, .setup-screen, .rating-screen, .cancellation-survey-screen { 
             background: linear-gradient(165deg, #041e42 0%, var(--hn-blue) 38%, #0f4c8a 68%, #1e5f9e 100%);
             z-index: 10000; 
@@ -2146,20 +2174,24 @@
             overflow-y: auto;
             padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
             padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
+            padding-left: var(--safe-left, env(safe-area-inset-left, 0px));
+            padding-right: var(--safe-right, env(safe-area-inset-right, 0px));
             box-sizing: border-box;
         }
 
+        /* Auth / rating: inset real del sistema (como WhatsApp), sin forzar cm fijos */
         body.capacitor-native .login-screen,
         body.capacitor-native .setup-screen,
         body.capacitor-native .rating-screen,
-        body.capacitor-native .cancellation-survey-screen {
-            padding-top: max(var(--safe-top, 48px), 52px) !important;
-            padding-bottom: max(var(--safe-bottom, 16px), 16px) !important;
-        }
-
-        body.capacitor-android .login-screen {
-            /* Login/registro: aire bajo el reloj del sistema */
-            padding-top: max(var(--safe-top, 56px), 56px) !important;
+        body.capacitor-native .cancellation-survey-screen,
+        body.capacitor-android .login-screen,
+        body.capacitor-android .setup-screen,
+        body.capacitor-android .rating-screen,
+        body.capacitor-android .cancellation-survey-screen {
+            padding-top: calc(var(--safe-top, 0px) + 0.35rem) !important;
+            padding-bottom: calc(var(--safe-bottom, 0px) + 0.35rem) !important;
+            padding-left: var(--safe-left, 0px) !important;
+            padding-right: var(--safe-right, 0px) !important;
         }
 
         .rating-screen.rating-screen-driver-overlay {
@@ -2186,14 +2218,14 @@
             margin: 0;
         }
 
-        /* --- LOGIN MÃ“VIL: logo hero grande --- */
-        /* El safe-area ya lo aplica .login-screen; aquÃ­ solo respiro visual */
+        /* --- LOGIN MÓVIL: logo hero grande --- */
+        /* El safe-area ya lo aplica .login-screen; aquí solo respiro visual */
         .login-hero {
             padding-top: 2rem;
         }
 
         body.capacitor-native .login-hero {
-            padding-top: 1rem;
+            padding-top: 0.75rem;
         }
 
         .login-logo-wrap {
@@ -2435,7 +2467,7 @@
             align-items: center;
             justify-content: space-between;
             gap: 0.5rem;
-            /* Pantalla full-screen fixed: sÃ­ necesita safe-top propio */
+            /* Pantalla full-screen fixed: sí necesita safe-top propio */
             padding: max(0.5rem, var(--safe-top, env(safe-area-inset-top, 0px))) 0.75rem 0.5rem;
             background: rgba(4, 30, 66, 0.92);
             border-bottom: 1px solid rgba(255, 255, 255, 0.12);
@@ -2445,10 +2477,10 @@
 
         body.capacitor-native .driver-setup-bar,
         body.capacitor-android .driver-setup-bar {
-            /* AtrÃ¡s/cerrar debajo del reloj (no colisionar con status bar) */
-            padding-top: max(0.85rem, calc(var(--safe-top, 52px) + 0.55rem)) !important;
-            padding-bottom: 0.65rem;
-            min-height: calc(3.1rem + var(--safe-top, 52px));
+            /* Atrás/cerrar debajo del reloj (inset real + respiro táctil) */
+            padding-top: calc(var(--safe-top, 0px) + 0.45rem) !important;
+            padding-bottom: 0.55rem;
+            min-height: calc(2.85rem + var(--safe-top, 0px));
         }
 
         .driver-setup-bar button,
@@ -3944,6 +3976,241 @@
             margin-bottom: 0.45rem;
         }
 
+        /* —— Programar viaje / envío / flete (fácil, multi-servicio) —— */
+        .trip-when-panel {
+            margin-top: 0.65rem;
+            margin-bottom: 0.35rem;
+            padding: 0.85rem 0.85rem 0.9rem;
+            border-radius: 1.15rem;
+            border: 1.5px solid #dbeafe;
+            background: linear-gradient(160deg, #f8fafc 0%, #eff6ff 55%, #f0f9ff 100%);
+            box-shadow: 0 4px 16px rgba(37, 99, 235, 0.07);
+        }
+        .trip-when-head {
+            margin-bottom: 0.55rem;
+        }
+        .trip-when-title {
+            margin: 0;
+            font-size: 0.78rem;
+            font-weight: 900;
+            color: #1e3a8a;
+            letter-spacing: -0.01em;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .trip-when-title i { color: #2563eb; }
+        .trip-when-sub {
+            margin: 0.2rem 0 0;
+            font-size: 0.62rem;
+            font-weight: 600;
+            color: #64748b;
+            line-height: 1.3;
+        }
+        .trip-when-modes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.45rem;
+        }
+        .trip-when-mode-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            min-height: 2.75rem;
+            padding: 0.55rem 0.65rem;
+            border-radius: 0.9rem;
+            border: 1.5px solid #cbd5e1;
+            background: #fff;
+            color: #334155;
+            font-size: 0.72rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .trip-when-mode-btn.is-active {
+            border-color: #2563eb;
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
+            color: #fff;
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+        }
+        .trip-when-mode-btn:not(.is-active):active {
+            background: #f1f5f9;
+        }
+        .trip-when-schedule {
+            margin-top: 0.7rem;
+            padding-top: 0.65rem;
+            border-top: 1px dashed #bfdbfe;
+        }
+        .trip-when-presets-label {
+            margin: 0 0 0.4rem;
+            font-size: 0.58rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #64748b;
+        }
+        .trip-when-presets {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+        .trip-when-preset {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.45rem 0.65rem;
+            border-radius: 999px;
+            border: 1.5px solid #e2e8f0;
+            background: #fff;
+            color: #1e40af;
+            font-size: 0.65rem;
+            font-weight: 800;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+        }
+        .trip-when-preset i {
+            font-size: 0.62rem;
+            opacity: 0.85;
+        }
+        .trip-when-preset.is-active {
+            border-color: #1d4ed8;
+            background: #dbeafe;
+            color: #1e3a8a;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
+        }
+        .trip-when-preset:active {
+            transform: scale(0.98);
+        }
+        .trip-when-custom {
+            margin-top: 0.65rem;
+            padding: 0.65rem;
+            border-radius: 0.9rem;
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #e2e8f0;
+        }
+        .trip-when-custom-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 0.5rem;
+        }
+        .trip-when-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            min-width: 0;
+        }
+        .trip-when-field span {
+            font-size: 0.58rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #64748b;
+        }
+        .trip-when-input {
+            width: 100%;
+            min-height: 2.6rem;
+            padding: 0.5rem 0.65rem;
+            border-radius: 0.75rem;
+            border: 1.5px solid #cbd5e1;
+            background: #fff;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #0f172a;
+            outline: none;
+        }
+        .trip-when-input:focus {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .trip-when-hint {
+            margin: 0.4rem 0 0;
+            font-size: 0.58rem;
+            font-weight: 600;
+            color: #94a3b8;
+            line-height: 1.3;
+        }
+        .trip-when-summary {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.55rem;
+            margin-top: 0.65rem;
+            padding: 0.65rem 0.75rem;
+            border-radius: 0.9rem;
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+            border: 1px solid #6ee7b7;
+            color: #065f46;
+        }
+        .trip-when-summary > i {
+            margin-top: 0.15rem;
+            color: #059669;
+            font-size: 0.95rem;
+            flex-shrink: 0;
+        }
+        .trip-when-summary-text {
+            margin: 0;
+            font-size: 0.82rem;
+            font-weight: 900;
+            color: #064e3b;
+            line-height: 1.25;
+            text-transform: capitalize;
+        }
+        .trip-when-summary-note {
+            margin: 0.15rem 0 0;
+            font-size: 0.6rem;
+            font-weight: 600;
+            color: #047857;
+            line-height: 1.3;
+        }
+        html[data-theme="dark"] .trip-when-panel {
+            border-color: #1e3a5f;
+            background: linear-gradient(160deg, #0f172a 0%, #172554 100%);
+        }
+        html[data-theme="dark"] .trip-when-title { color: #bfdbfe; }
+        html[data-theme="dark"] .trip-when-sub { color: #94a3b8; }
+        html[data-theme="dark"] .trip-when-mode-btn {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        html[data-theme="dark"] .trip-when-mode-btn.is-active {
+            background: linear-gradient(145deg, #2563eb, #1d4ed8);
+            border-color: #3b82f6;
+            color: #fff;
+        }
+        html[data-theme="dark"] .trip-when-preset {
+            background: #1e293b;
+            border-color: #334155;
+            color: #93c5fd;
+        }
+        html[data-theme="dark"] .trip-when-preset.is-active {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+            color: #dbeafe;
+        }
+        html[data-theme="dark"] .trip-when-input {
+            background: #0f172a;
+            border-color: #334155;
+            color: #f1f5f9;
+        }
+        html[data-theme="dark"] .trip-when-custom {
+            background: rgba(15, 23, 42, 0.7);
+            border-color: #334155;
+        }
+        html[data-theme="dark"] .trip-when-summary {
+            background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
+            border-color: #059669;
+            color: #a7f3d0;
+        }
+        html[data-theme="dark"] .trip-when-summary-text { color: #ecfdf5; }
+        html[data-theme="dark"] .trip-when-summary-note { color: #6ee7b7; }
+
         .trip-fare-card {
             border-radius: 1.25rem !important;
             margin-top: 0.65rem !important;
@@ -4036,7 +4303,7 @@
         .camera-capture-actions {
             display: flex;
             gap: 0.75rem;
-            padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
+            padding: 1rem 1rem calc(1rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
             background: linear-gradient(transparent, rgba(0, 0, 0, 0.85));
         }
 
@@ -4091,10 +4358,10 @@
         .map-pick-sheet {
             pointer-events: none;
             position: fixed;
-            top: max(0.85rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.65rem));
+            top: max(0.75rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.55rem));
             left: 50%;
             transform: translateX(-50%) translateY(-8px);
-            width: min(22.5rem, calc(100% - 1.25rem));
+            width: min(22.5rem, calc(100% - 1.25rem - var(--safe-left, 0px) - var(--safe-right, 0px)));
             padding: 0.85rem 1rem 0.8rem;
             border-radius: 1.15rem;
             background: rgba(255, 255, 255, 0.97);
@@ -4223,9 +4490,9 @@
         .map-pick-actions {
             pointer-events: none;
             position: fixed;
-            left: 0.75rem;
-            right: 0.75rem;
-            bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+            left: max(0.75rem, var(--safe-left, 0px));
+            right: max(0.75rem, var(--safe-right, 0px));
+            bottom: max(1rem, var(--safe-bottom, env(safe-area-inset-bottom, 1rem)));
             display: flex;
             gap: 0.55rem;
             z-index: 252;
@@ -4314,7 +4581,7 @@
         }
 
         body.map-pick-mode.map-pick-mobile .map-pick-actions {
-            bottom: max(1.25rem, calc(env(safe-area-inset-bottom, 0px) + 1rem));
+            bottom: max(1.25rem, calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 1rem));
         }
 
         /* Bigger hit targets + safe areas on phones */
@@ -4654,7 +4921,7 @@
             overflow: hidden !important;
             box-shadow: 0 -8px 28px rgba(15, 23, 42, 0.18) !important;
             padding-top: 0.35rem !important;
-            padding-bottom: max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
         }
 
         body.client-mode.is-searching.panel-minimized #map-container,
@@ -4711,7 +4978,7 @@
             touch-action: pan-y;
             margin-top: 0 !important;
             /* Hueco para el botón fijo "Cancelar solicitud" */
-            padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: calc(4.25rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
             /* scroll-behavior auto: la animación no pelea con scroll-smooth del documento */
             scroll-behavior: auto;
         }
@@ -4842,7 +5109,7 @@
             width: 100% !important;
             max-width: none !important;
             min-height: 3.25rem !important;
-            padding: 0.85rem 1rem max(1rem, env(safe-area-inset-bottom, 0px)) !important;
+            padding: 0.85rem 1rem max(1rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
             background: #ffffff !important;
             border: none !important;
             border-top: 1px solid #fecaca !important;
@@ -4957,7 +5224,7 @@
         body.is-searching.passenger-search-multi-offers .passenger-pending-cancel {
             flex-shrink: 0;
             margin-top: 0.35rem;
-            padding-bottom: max(0.25rem, env(safe-area-inset-bottom, 0px));
+            padding-bottom: max(0.25rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.is-searching.passenger-search-single-offer #searching-state {
@@ -6221,7 +6488,7 @@
             height: auto !important;
             overflow: hidden !important;
             -webkit-overflow-scrolling: auto;
-            padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px));
+            padding-bottom: max(0.35rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.trip-active #control-panel.panel-collapsed #trip-expanded-content,
@@ -6280,7 +6547,7 @@
 
         body.trip-active.panel-minimized #fab-center,
         body.trip-active.panel-minimized #fab-traffic {
-            bottom: calc(min(22dvh, 156px) + 0.75rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(min(22dvh, 156px) + 0.75rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.trip-active #control-panel {
@@ -6466,10 +6733,10 @@
         /* Chip ETA inferior izquierdo â€” compacto, anclado al sheet Uber (~18rem), NO a 70dvh */
         body.driver-nav-mode #nav-hud-bottom {
             position: absolute;
-            left: max(8px, env(safe-area-inset-left, 0px));
+            left: max(8px, var(--safe-left, env(safe-area-inset-left, 0px)));
             right: auto;
             top: auto;
-            bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(5.5rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
             width: auto !important;
             min-width: 0;
             max-width: min(158px, 44vw) !important;
@@ -6491,16 +6758,16 @@
 
         /* Sheet Uber expandido (~38% / 18rem) */
         body.driver-nav-mode.trip-active:not(.panel-minimized):not(.panel-hidden) #nav-hud-bottom {
-            bottom: calc(min(46%, 22rem) + 0.45rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(min(46%, 22rem) + 0.45rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         /* Sheet minimizado: chip mÃ¡s abajo */
         body.driver-nav-mode.trip-active.panel-minimized #nav-hud-bottom {
-            bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(5.75rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.driver-nav-mode.panel-hidden #nav-hud-bottom {
-            bottom: max(12px, env(safe-area-inset-bottom, 12px));
+            bottom: max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 12px)));
         }
 
         body.driver-nav-mode #nav-hud-bottom #nav-total-time {
@@ -6630,10 +6897,10 @@
         /* BotÃ³n flotante ETA cuando el chip estÃ¡ minimizado */
         body.driver-nav-mode.nav-hud-minimized #nav-hud-bottom .nav-hud-toggle-btn {
             position: absolute;
-            left: max(8px, env(safe-area-inset-left, 0px));
+            left: max(8px, var(--safe-left, env(safe-area-inset-left, 0px)));
             top: auto;
             right: auto;
-            bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(5.5rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
             background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
             color: white;
             font-size: 9px;
@@ -6656,15 +6923,15 @@
         }
 
         body.driver-nav-mode.trip-active:not(.panel-minimized):not(.panel-hidden).nav-hud-minimized #nav-hud-bottom .nav-hud-toggle-btn {
-            bottom: calc(min(38%, 18rem) + 0.45rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(min(38%, 18rem) + 0.45rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.driver-nav-mode.trip-active.panel-minimized.nav-hud-minimized #nav-hud-bottom .nav-hud-toggle-btn {
-            bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(5.75rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.driver-nav-mode.panel-hidden.nav-hud-minimized #nav-hud-bottom .nav-hud-toggle-btn {
-            bottom: max(12px, env(safe-area-inset-bottom, 12px));
+            bottom: max(12px, var(--safe-bottom, env(safe-area-inset-bottom, 12px)));
         }
 
         body.driver-nav-mode .driver-nav-recenter-btn {
@@ -6739,20 +7006,20 @@
         }
 
         body.driver-nav-mode #fab-traffic {
-            bottom: calc(7.25rem + env(safe-area-inset-bottom, 0px));
-            right: max(12px, env(safe-area-inset-right, 12px));
+            bottom: calc(7.25rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+            right: max(12px, var(--safe-right, env(safe-area-inset-right, 12px)));
         }
 
         body.driver-nav-mode.trip-active:not(.panel-minimized):not(.panel-hidden) #fab-traffic {
-            bottom: calc(min(46%, 22rem) + 3.5rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(min(46%, 22rem) + 3.5rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.driver-nav-mode.panel-hidden #fab-traffic {
-            bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(5rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.driver-nav-mode.nav-hud-minimized #fab-traffic {
-            bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+            bottom: calc(5.5rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         body.driver-nav-mode #map {
@@ -6762,20 +7029,20 @@
         @media (min-width: 768px) {
             body.driver-nav-mode #nav-hud-bottom,
             body.driver-nav-mode.nav-hud-minimized #nav-hud-bottom .nav-hud-toggle-btn {
-                bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
-                left: max(1.25rem, env(safe-area-inset-left, 1.25rem));
+                bottom: max(1.25rem, var(--safe-bottom, env(safe-area-inset-bottom, 1.25rem)));
+                left: max(1.25rem, var(--safe-left, env(safe-area-inset-left, 1.25rem)));
             }
 
             body.driver-nav-mode.trip-active:not(.panel-minimized):not(.panel-hidden) #nav-hud-bottom,
             body.driver-nav-mode.trip-active:not(.panel-minimized):not(.panel-hidden).nav-hud-minimized #nav-hud-bottom .nav-hud-toggle-btn {
-                bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
+                bottom: max(1.25rem, var(--safe-bottom, env(safe-area-inset-bottom, 1.25rem)));
             }
 
             body.driver-nav-mode #fab-center,
             body.driver-nav-mode #fab-traffic,
             body.driver-nav-mode.trip-active:not(.panel-minimized):not(.panel-hidden) #fab-center,
             body.driver-nav-mode.trip-active:not(.panel-minimized):not(.panel-hidden) #fab-traffic {
-                bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
+                bottom: max(1.25rem, var(--safe-bottom, env(safe-area-inset-bottom, 1.25rem)));
             }
 
             body.driver-nav-mode #fab-traffic {
@@ -6955,8 +7222,8 @@
         }
 
         body.passenger-nav-mode #fab-center:not(.hidden) {
-            bottom: max(1.25rem, env(safe-area-inset-bottom, 1.25rem));
-            left: max(12px, env(safe-area-inset-left, 12px));
+            bottom: max(1.25rem, var(--safe-bottom, env(safe-area-inset-bottom, 1.25rem)));
+            left: max(12px, var(--safe-left, env(safe-area-inset-left, 12px)));
         }
 
         body.passenger-nav-mode #fab-traffic {
@@ -8942,8 +9209,8 @@
             background: #0b1220;
             color: #e2e8f0;
             /* Fallback web: notch iOS / Android browser */
-            padding-top: env(safe-area-inset-top, 0px);
-            padding-bottom: env(safe-area-inset-bottom, 0px);
+            padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+            padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
             box-sizing: border-box;
         }
 
@@ -10580,7 +10847,7 @@
             position: fixed;
             left: 0.65rem;
             right: 0.65rem;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 0.65rem);
+            bottom: calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.65rem);
             z-index: 45550;
             max-width: 26rem;
             margin: 0 auto;
@@ -11235,7 +11502,7 @@
             position: fixed;
             left: 0.75rem;
             right: 0.75rem;
-            bottom: calc(env(safe-area-inset-bottom, 0px) + 0.75rem);
+            bottom: calc(var(--safe-bottom, env(safe-area-inset-bottom, 0px)) + 0.75rem);
             z-index: 45560;
             max-width: 28rem;
             margin: 0 auto;
@@ -14516,7 +14783,7 @@
             max-height: min(46dvh, 21rem) !important;
             min-height: 0;
             /* top padding para el asa del sheet dentro del radio */
-            padding: 0.15rem 0.65rem max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+            padding: 0.15rem 0.65rem max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
             cursor: default !important;
             touch-action: pan-y;
             border-radius: 1.35rem 1.35rem 0 0 !important;
@@ -14848,7 +15115,7 @@
             top: auto !important;
             bottom: 0 !important;
             padding-top: 0.1rem !important;
-            padding-bottom: max(0.35rem, env(safe-area-inset-bottom, 0px)) !important;
+            padding-bottom: max(0.35rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
             z-index: 320 !important;
             pointer-events: auto !important;
         }
@@ -14940,7 +15207,7 @@
 
         /* Pastilla de chat: compacta, arriba del sheet (no gigante) */
         body.trip-active.driver-mode #trip-chat-float-pill:not(.hidden) {
-            bottom: calc(6.25rem + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: calc(6.25rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
             right: 0.65rem !important;
             left: auto !important;
             width: auto !important;
@@ -14950,12 +15217,12 @@
 
         body.trip-active.driver-mode.panel-minimized #trip-chat-float-pill:not(.hidden),
         body.trip-active.driver-mode #control-panel.panel-collapsed ~ * #trip-chat-float-pill:not(.hidden) {
-            bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: calc(5.75rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
         }
 
         body.trip-active.driver-mode.driver-trip-dest-phase #trip-chat-float-pill:not(.hidden),
         body.trip-active.driver-mode.driver-pin-phase #trip-chat-float-pill:not(.hidden) {
-            bottom: calc(7.5rem + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: calc(7.5rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
         }
 
         @media (max-width: 480px) {
@@ -15936,7 +16203,7 @@
             }
 
             .passenger-tutorial-card--docked-bottom {
-                bottom: max(0.45rem, env(safe-area-inset-bottom, 0px)) !important;
+                bottom: max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
                 left: 0.5rem !important;
                 right: 0.5rem !important;
                 top: auto !important;
@@ -16380,7 +16647,7 @@
             max-width: 28rem;
             background: #fff;
             border-radius: 1.35rem 1.35rem 0 0;
-            padding: 0.85rem 1.15rem calc(1.15rem + env(safe-area-inset-bottom, 0px));
+            padding: 0.85rem 1.15rem calc(1.15rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
             box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.18);
         }
 
@@ -17756,6 +18023,20 @@
             line-height: 1.2;
         }
         .uber-vert-stars i { color: #f59e0b; font-size: 0.65rem; }
+        .uber-vert-pax {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.2rem;
+            font-size: 0.68rem;
+            font-weight: 900;
+            color: #92400e;
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            border-radius: 999px;
+            padding: 0.12rem 0.45rem;
+            line-height: 1.2;
+        }
+        .uber-vert-pax i { font-size: 0.62rem; }
         .uber-vert-dist {
             display: inline-flex;
             align-items: center;
@@ -17882,6 +18163,11 @@
             background: rgba(245, 158, 11, 0.12);
             border-color: rgba(245, 158, 11, 0.35);
             color: #fbbf24;
+        }
+        html[data-theme="dark"] .uber-vert-pax {
+            background: rgba(245, 158, 11, 0.14);
+            border-color: rgba(252, 211, 77, 0.4);
+            color: #fcd34d;
         }
         html[data-theme="dark"] .uber-vert-dist {
             background: rgba(37, 99, 235, 0.15);
@@ -18682,7 +18968,7 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
     align-items: flex-end;
     justify-content: center;
     padding: 0.75rem;
-    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+    padding-bottom: max(0.75rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
 }
 
 .copa-modal-overlay.hidden { display: none !important; }
@@ -19065,7 +19351,7 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
     position: absolute;
     left: 0.55rem;
     right: auto;
-    top: max(4.35rem, calc(env(safe-area-inset-top, 0px) + 3.55rem));
+    top: max(4.35rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 3.55rem));
     z-index: 36;
     pointer-events: none;
     width: auto;
@@ -19074,7 +19360,7 @@ body.client-mode:not(.panel-minimized):not(.panel-hidden) #passenger-copa-strip 
 }
 
 #public-pcopa-strip {
-    top: max(6.1rem, calc(env(safe-area-inset-top, 0px) + 5.3rem));
+    top: max(6.1rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 5.3rem));
 }
 
 #public-copa-strip:not(.hidden),
@@ -19201,7 +19487,7 @@ body.stores-panel-open { overflow: hidden; }
   background: #fff; border-radius: 1.5rem 1.5rem 0 0;
   display: flex; flex-direction: column;
   box-shadow: 0 -12px 40px rgba(15,23,42,.2);
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(0.5rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
 }
 .stores-panel-head {
   display: flex; align-items: center; gap: 0.5rem;
@@ -19891,13 +20177,13 @@ body.is-active-trip #passenger-mode-bar {
   background: #f8fafc;
   border-radius: 0 !important;
   box-shadow: none !important;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px));
 }
 .stores-world-head {
   flex-shrink: 0;
   background: linear-gradient(180deg, #fffbeb 0%, #fff 100%);
   border-bottom: 1px solid #fde68a;
-  padding: max(0.55rem, env(safe-area-inset-top, 0px)) 0.75rem 0.55rem;
+  padding: max(0.55rem, var(--safe-top, env(safe-area-inset-top, 0px))) 0.75rem 0.55rem;
 }
 .stores-world-head--merchant {
   background: linear-gradient(180deg, #ecfdf5 0%, #fff 100%);
@@ -20206,12 +20492,12 @@ body.stores-world-open .stores-world {
   border-right: none !important;
 }
 .stores-world-head {
-  padding-left: max(0.65rem, env(safe-area-inset-left, 0px)) !important;
-  padding-right: max(0.65rem, env(safe-area-inset-right, 0px)) !important;
+  padding-left: max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px))) !important;
+  padding-right: max(0.65rem, var(--safe-right, env(safe-area-inset-right, 0px))) !important;
 }
 .stores-world-body {
-  padding-left: max(0.55rem, env(safe-area-inset-left, 0px)) !important;
-  padding-right: max(0.55rem, env(safe-area-inset-right, 0px)) !important;
+  padding-left: max(0.55rem, var(--safe-left, env(safe-area-inset-left, 0px))) !important;
+  padding-right: max(0.55rem, var(--safe-right, env(safe-area-inset-right, 0px))) !important;
 }
 /* Toolbar: bï¿½squeda ancha + chips en fila cuando hay espacio */
 @media (min-width: 560px) {
@@ -20326,8 +20612,8 @@ body.stores-world-open .stores-world {
 /* Cart bar full width */
 .stores-world .stores-cart-bar {
  width: 100%;
- padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
- padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+ padding-left: max(0.75rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+ padding-right: max(0.75rem, var(--safe-right, env(safe-area-inset-right, 0px)));
 }
 
 /* Buscador de tiendas: siempre a todo el ancho (tambiï¿½n en pantallas grandes) */
@@ -21084,7 +21370,7 @@ body.driver-offer-map-peek #map {
   right: 0;
   bottom: 0;
   z-index: 46000;
-  padding: 0.55rem 0.75rem calc(0.65rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.55rem 0.75rem calc(0.65rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
   pointer-events: none;
 }
 .driver-offer-peek-bar.hidden { display: none !important; }

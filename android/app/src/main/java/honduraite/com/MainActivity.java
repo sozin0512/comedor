@@ -27,9 +27,15 @@ import com.getcapacitor.BridgeActivity;
  * 3) Inyectar --native-safe-top/bottom al CSS con el inset real + un respiro.
  */
 public class MainActivity extends BridgeActivity {
-    /** Aire extra bajo status bar: reloj/notificaciones no tapan atrás ni botones de registro. */
-    private static final float EXTRA_TOP_DP = 28f;
-    private static final float EXTRA_BOTTOM_DP = 10f;
+    /**
+     * Estilo WhatsApp: el espacio superior = inset REAL del sistema
+     * (status bar + notch/cutout) + un respiro mínimo para botones táctiles.
+     * No forzamos cm fijos: en cada celular se adapta solo.
+     */
+    private static final float EXTRA_TOP_DP = 6f;
+    /** Fallback si el sistema no reporta insets (status bar típico). */
+    private static final int MIN_SAFE_TOP_CSS_PX = 24;
+    private static final float EXTRA_BOTTOM_DP = 8f;
 
     /** Lanzada desde full-screen intent del push (enciende pantalla bloqueada). */
     public static final String EXTRA_FROM_PUSH_WAKE = "honduraite_from_push_wake";
@@ -178,9 +184,9 @@ public class MainActivity extends BridgeActivity {
         int cssBottom = Math.round(bottom / density);
         int cssLeft = Math.round(left / density);
         int cssRight = Math.round(right / density);
-        // Mínimos de seguridad (status bar típico ~24–28dp + gesto notificaciones)
-        if (cssTop < 48) cssTop = 48;
-        if (cssBottom < 10) cssBottom = 10;
+        // Solo piso mínimo de status bar si el OEM reporta 0 (no forzar huecos grandes)
+        if (cssTop < MIN_SAFE_TOP_CSS_PX) cssTop = MIN_SAFE_TOP_CSS_PX;
+        if (cssBottom < 8) cssBottom = 8;
 
         final String js =
             "(function(){try{"
@@ -277,8 +283,8 @@ public class MainActivity extends BridgeActivity {
                     );
                     injectSafeAreaCss(webView, bars.top + extraTop, bars.bottom + extraBottom, bars.left, bars.right);
                 } else {
-                    // Sin insets: mínimo razonable (~status bar + aire)
-                    injectSafeAreaCss(webView, dp(40), dp(16), 0, 0);
+                    // Sin insets: status bar típico (se adapta cuando el sistema responda)
+                    injectSafeAreaCss(webView, dp(MIN_SAFE_TOP_CSS_PX), dp(12), 0, 0);
                 }
             });
         } catch (Exception e) {

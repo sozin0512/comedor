@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.28.1";
+} from "./auth-credentials.js?v=2026.07.30.1";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.28.1";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.28.1";
+import { APP_CONFIG } from "./config.js?v=2026.07.30.1";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.30.1";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.28.1";
+} from "./referrals.js?v=2026.07.30.1";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -32,12 +32,12 @@ import {
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.28.1";
+} from "./zones.js?v=2026.07.30.1";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.28.1";
+} from "./trip-notifications.js?v=2026.07.30.1";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -58,7 +58,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.28.1";
+} from "./notification-tones.js?v=2026.07.30.1";
 
 installNotificationTonesApi();
 
@@ -67,34 +67,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.28.1";
+} from "./passenger-alerts.js?v=2026.07.30.1";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.28.1";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.28.1";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.28.1";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.28.1";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.28.1";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.28.1";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.28.1";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.28.1";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.28.1";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.28.1";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.28.1";
+} from "./passenger-verification.js?v=2026.07.30.1";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.30.1";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.30.1";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.30.1";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.30.1";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.30.1";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.30.1";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.30.1";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.30.1";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.30.1";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.30.1";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.28.1";
+} from "./feedback.js?v=2026.07.30.1";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.28.1";
+} from "./greetings.js?v=2026.07.30.1";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -107,49 +107,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.28.1";
+} from "./service-types.js?v=2026.07.30.1";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.28.1";
+} from "./driver-vehicles.js?v=2026.07.30.1";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.28.1";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.28.1";
+} from "./route-conditions.js?v=2026.07.30.1";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.30.1";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.28.1";
+} from "./demand-heatmap.js?v=2026.07.30.1";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.28.1";
+} from "./ops-fleet-map.js?v=2026.07.30.1";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.28.1";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.28.1";
+} from "./live-trip-keepalive.js?v=2026.07.30.1";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.30.1";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.28.1";
+} from "./session-keepalive.js?v=2026.07.30.1";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.28.1";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.28.1";
+} from "./passenger-tutorial.js?v=2026.07.30.1";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.30.1";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.28.1";
+} from "./driver-tutorial.js?v=2026.07.30.1";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -194,27 +194,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.28.1";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.30.1";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.28.1";
+} from "./auth-ui.js?v=2026.07.30.1";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.28.1";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.28.1";
+} from "./age-verification.js?v=2026.07.30.1";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.30.1";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
-} from "./trip-experience.js?v=2026.07.28.1";
+    initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
+    getScheduleServiceCopy,
+} from "./trip-experience.js?v=2026.07.30.1";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.28.1";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.28.1";
-import { initAppDownload } from "./app-download.js?v=2026.07.28.1";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.07.28.1";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.07.28.1";
+} from "./support-tickets.js?v=2026.07.30.1";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.30.1";
+import { initAppDownload } from "./app-download.js?v=2026.07.30.1";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.07.30.1";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.07.30.1";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -2393,6 +2395,9 @@ if (document.readyState === 'loading') {
             // Wall HN (UTC-6) → UTC = wall + 6h
             return new Date(Date.UTC(y, mo - 1, day, hh + 6, mm, 0, 0)).toISOString();
         }
+        // Usado por trip-experience (programar viaje/envío/flete con hora HN)
+        window.hondurasWallTimeToIso = hondurasWallTimeToIso;
+        window.isoToHondurasDateTimeParts = isoToHondurasDateTimeParts;
 
         /** Modal: cliente acepta adueñarse del viaje armado por staff (puede ajustar personas y hora). */
         window.showStaffCreatedTripClaimModal = (trip, { force = false } = {}) => {
@@ -3561,29 +3566,38 @@ if (document.readyState === 'loading') {
                 window.currentTripQuote = null;
             }
 
-            // Cap passengers (moto máx 2, auto/taxi máx 4)
+            // Cap passengers (moto máx 2, auto/taxi máx 4). No forzar 1 si aún no eligió.
             {
-                const maxP = getMaxPassengers(window.currentServiceType);
-                if ((window.currentPassengers || 1) > maxP) {
-                    window.currentPassengers = maxP;
+                const maxP = Math.min(4, getMaxPassengers(window.currentServiceType));
+                if (window.passengersChosen && window.currentPassengers != null) {
+                    if ((window.currentPassengers || 1) > maxP) {
+                        window.currentPassengers = maxP;
+                    }
+                    window.currentPassengers = normalizePassengerCount(
+                        window.currentServiceType,
+                        window.currentPassengers
+                    );
                 }
-                window.currentPassengers = normalizePassengerCount(
-                    window.currentServiceType,
-                    window.currentPassengers || 1
-                );
                 if (typeof renderHourlyPassengerChips === 'function') renderHourlyPassengerChips();
                 window.renderTripPassengerChips?.();
             }
 
-            const fareBtn = document.getElementById('fare-request-btn');
-            if (fareBtn) {
-                const scheduling = document.getElementById('trip-schedule-toggle')?.checked;
-                const hourly = window.currentBookingMode === 'hourly';
-                if (scheduling) fareBtn.innerText = 'PROGRAMAR VIAJE';
-                else if (window.currentServiceType === 'delivery') fareBtn.innerText = 'SOLICITAR ENVÍO / COMIDA';
-                else if (isFreightService(window.currentServiceType)) fareBtn.innerText = 'SOLICITAR FLETE';
-                else if (hourly) fareBtn.innerText = 'RESERVAR POR HORAS';
-                else fareBtn.innerText = 'SOLICITAR AHORA';
+            // Etiquetas de programar (carro / moto / flete / entregas)
+            try { updateTripScheduleLabels?.(window.currentServiceType); } catch (_) {}
+            {
+                const fareBtn = document.getElementById('fare-request-btn');
+                if (fareBtn) {
+                    const scheduling = document.getElementById('trip-schedule-toggle')?.checked;
+                    const hourly = window.currentBookingMode === 'hourly';
+                    const copy = getScheduleServiceCopy?.(window.currentServiceType) || {};
+                    let label;
+                    if (scheduling) label = copy.requestLater || 'PROGRAMAR VIAJE';
+                    else if (hourly) label = 'RESERVAR POR HORAS';
+                    else label = copy.requestNow || 'SOLICITAR AHORA';
+                    const span = fareBtn.querySelector('.pointer-events-none');
+                    if (span) span.textContent = label;
+                    else fareBtn.innerText = label;
+                }
             }
 
             window.updateClientTripGreeting?.();
@@ -3833,9 +3847,9 @@ if (document.readyState === 'loading') {
                         }
                     }, 1800);
                 }
-                else if (action === 'driver-route') window.openDriverRouteInGoogleMaps?.();
-                else if (action === 'client-nav-inapp') window.navigatePassengerRouteInApp?.();
-                else if (action === 'client-route-gmaps') window.openPassengerTripRouteInGoogleMaps?.();
+                else if (action === 'driver-route') await window.openDriverRouteInGoogleMaps?.();
+                else if (action === 'client-nav-inapp') await window.navigatePassengerRouteInApp?.();
+                else if (action === 'client-route-gmaps') await window.openPassengerTripRouteInGoogleMaps?.();
                 else if (action === 'copy-pin') window.copyClientTripPin?.();
                 else if (action === 'share') window.shareTripWhatsApp?.();
                 else if (action === 'sos') window.sendSOSWhatsApp?.();
@@ -6871,6 +6885,10 @@ if (document.readyState === 'loading') {
             const distBadge = dist != null
                 ? `<span class="driver-offer-direct-badge"><i class="fas fa-location-arrow"></i> ${parseFloat(dist).toFixed(1)} km</span>`
                 : '';
+            const paxNBadge = Math.max(1, parseInt(t.passengers, 10) || 1);
+            const paxBadge = (t.serviceType !== 'delivery' && !isFreightService(t.serviceType) && t.serviceType !== 'grua')
+                ? `<span class="driver-offer-direct-badge" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;" title="Personas en el viaje"><i class="fas fa-users"></i> ${paxNBadge === 1 ? '1 persona' : `${paxNBadge} personas`}</span>`
+                : '';
             const myBid = getMyDriverBid(t);
             const listedPriceNum = parseTripPrice(t);
             const priceFair = isDriverListedPriceFair(t, distSummary);
@@ -6955,21 +6973,18 @@ if (document.readyState === 'loading') {
             if (t.riderInfo?.name) {
                 detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-user-friends"></i> Viaja ${t.riderInfo.name} (${t.riderInfo.relation || 'tercero'}) · ${formatHondurasPhone(t.riderInfo.phone) || 'N/D'}</p>`);
             }
-            // Personas en el viaje (pasajero eligió)
+            // Personas en el viaje (el pasajero eligió al pedir; el conductor siempre lo ve)
             {
                 const paxN = Math.max(1, parseInt(t.passengers, 10) || 1);
                 const tripKm = Number(t.distanceKmForCharge ?? t.tripDistanceKm ?? t.km ?? 0);
                 const surcharge = getPassengerSurcharge(t.serviceType, paxN, tripKm);
-                if (paxN > 1) {
-                    const surchargeText = surcharge > 0
-                        ? ` · +L. ${surcharge.toFixed(0)} extra`
-                        : '';
+                if (t.serviceType !== 'delivery' && !isFreightService(t.serviceType) && t.serviceType !== 'grua') {
+                    const surchargeText = surcharge > 0 ? ` · +L. ${surcharge.toFixed(0)} extra` : '';
+                    const label = paxN === 1 ? '1 PERSONA' : `${paxN} PERSONAS`;
                     detailParts.push(
-                        `<p class="driver-offer-detail-line driver-offer-detail-line--pax" style="color:#b45309;font-weight:900;">`
-                        + `<i class="fas fa-users"></i> <b>${paxN} PERSONAS</b> en este viaje${surchargeText}</p>`
+                        `<p class="driver-offer-detail-line driver-offer-detail-line--pax" style="color:#b45309;font-weight:900;background:rgba(251,191,36,0.15);padding:0.35rem 0.5rem;border-radius:0.5rem;">`
+                        + `<i class="fas fa-users"></i> <b>${label}</b> van en este viaje${surchargeText}</p>`
                     );
-                } else if (t.bookingType !== 'hourly' && t.serviceType !== 'delivery' && !isFreightService(t.serviceType)) {
-                    detailParts.push(`<p class="driver-offer-detail-line"><i class="fas fa-user"></i> 1 persona</p>`);
                 }
             }
             if (t.additionalStops?.length > 0) {
@@ -7049,6 +7064,14 @@ if (document.readyState === 'loading') {
                 const unverifiedHtml = isUnverified
                     ? `<span class="uber-vert-unverif" title="Cuenta sin verificar"><i class="fas fa-exclamation-triangle"></i> Sin verificar</span>`
                     : '';
+                // Personas elegidas al pedir (visible de inmediato en popup compacto)
+                const paxNCompact = Math.max(1, parseInt(t.passengers, 10) || 1);
+                const showPaxCompact = t.serviceType !== 'delivery'
+                    && !isFreightService(t.serviceType)
+                    && t.serviceType !== 'grua';
+                const paxChipHtml = showPaxCompact
+                    ? `<span class="uber-vert-pax" title="Personas en el viaje"><i class="fas fa-users"></i> ${paxNCompact === 1 ? '1 pers.' : `${paxNCompact} pers.`}</span>`
+                    : '';
                 const negotiationEnabled = isTripNegotiationEnabled(t);
                 const acceptDisplay = `L. ${Math.round(acceptPriceNum)}`;
                 const offerDisplay = t.price || `L. ${Math.round(listedPriceNum)}`;
@@ -7076,6 +7099,7 @@ if (document.readyState === 'loading') {
                         <p class="uber-vert-name client-name-${tripId}">${clientShort}</p>
                         <div class="uber-vert-chips">
                             ${starsHtml}
+                            ${paxChipHtml}
                             <span class="uber-vert-dist" data-pickup-km-for="${tripId}" title="Distancia de ti al pasajero (recogida)">
                                 <i class="fas fa-location-arrow"></i> ${distTxt || '… km a ti'}
                             </span>
@@ -7102,7 +7126,7 @@ if (document.readyState === 'loading') {
                 <div class="trip-request-card driver-offer-card${getScheduledTripMs(t) ? ' driver-offer-card--scheduled' : ''}" data-preview-offer="${tripId}" data-offer-id-prefix="${pfx}">
                     <div class="driver-offer-top">
                         <p class="driver-offer-name client-name-${tripId}">${t.clientName || 'Pasajero'}</p>
-                        <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${serviceBadge}${distBadge}</div>
+                        <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${serviceBadge}${paxBadge}${distBadge}</div>
                     </div>
                     ${schedBanner}
                     <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Dibuja la ruta en el mapa (solo orientación)">
@@ -8085,11 +8109,13 @@ if (document.readyState === 'loading') {
                 let vTypeForTrip = operatingVehicleType || 'auto';
                 let plateForTrip = operatingVehicle?.vehicle?.plate || null;
 
-                const currentMatches = !testAccept && driverCanServeTrip(vTypeForTrip, tripService, plateForTrip, trip);
+                // Importante: los datos del viaje están en `t` (no existe variable `trip` aquí).
+                // Usar `trip` provocaba "Can't find variable: trip" en WebView y bloqueaba aceptar.
+                const currentMatches = !testAccept && driverCanServeTrip(vTypeForTrip, tripService, plateForTrip, t);
 
                 if (!currentMatches) {
                     const match = approvedVehicles.find((v) =>
-                        driverCanServeTrip(v.type, tripService, v.vehicle?.plate || null, trip)
+                        driverCanServeTrip(v.type, tripService, v.vehicle?.plate || null, t)
                     );
                     if (match) {
                         vehicleForTrip = match;
@@ -8102,8 +8128,8 @@ if (document.readyState === 'loading') {
                     }
                 }
 
-                if (!testAccept && !driverCanServeTrip(vTypeForTrip, tripService, plateForTrip, trip)) {
-                    throw new Error(driverTripMismatchMessage(tripService, operatingVehicleType, trip));
+                if (!testAccept && !driverCanServeTrip(vTypeForTrip, tripService, plateForTrip, t)) {
+                    throw new Error(driverTripMismatchMessage(tripService, operatingVehicleType, t));
                 }
 
                 const driverSync = {
@@ -23511,20 +23537,28 @@ window.saveProfileChanges = async () => {
 
             window.driverNavMode = true;
             document.body.classList.add('is-navigating', 'driver-nav-mode', 'trip-active', 'driver-trip-dest-phase');
+            document.body.classList.remove('driver-pin-phase');
             // Salir de free-look y forzar centrado (como al tocar «Centrar»)
             try { window.resumeDriverNavCameraFollow?.(); } catch (_) {}
             window.autoCenter = true;
             window._driverMapFreeLook = false;
             document.body.classList.remove('map-free-look');
 
-            window.enterDriverNavMode?.();
-            // Al iniciar tramo al destino: mapa grande (si el usuario no tenía el panel abierto a propósito)
+            // Tras PIN el panel suele estar abierto por el teclado: forzar mapa grande una vez por tramo
             const destMinKey = `${trip.id}:dest-min`;
-            if (window._driverDestNavMinKey !== destMinKey) {
+            const firstDestLeg = window._driverDestNavMinKey !== destMinKey;
+            if (firstDestLeg) {
                 window._driverDestNavMinKey = destMinKey;
-                if (!window._driverNavUserKeptOpen) {
-                    window.minimizeDriverPanelForNav?.();
-                }
+                // Abrir panel para escribir PIN no cuenta como “quiero panel abierto en ruta”
+                window._driverNavUserKeptOpen = false;
+                window._driverNavPanelAutoMinDone = false;
+            }
+
+            window.enterDriverNavMode?.();
+            if (firstDestLeg) {
+                window.minimizeDriverPanelForNav?.({ force: true });
+            } else if (!window._driverNavUserKeptOpen) {
+                window.minimizeDriverPanelForNav?.();
             }
 
             window.enableDriverMapFreeGestures?.();
@@ -25688,18 +25722,21 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 document.getElementById('passenger-city-bar')?.classList.add('hidden');
                 document.getElementById('favorites-bar')?.classList.remove('hidden');
                 document.getElementById('trip-options-panel')?.classList.remove('hidden');
+                document.getElementById('trip-when-panel')?.classList.remove('hidden');
                 document.getElementById('hourly-options')?.classList.remove('hidden');
                 document.getElementById('main-client-saldo')?.classList.remove('hidden');
                 document.querySelector('.trip-route-fields')?.classList.remove('hidden');
                 // delivery-details-panel is toggled by service type as needed
-                // reset hourly
+                // reset hourly + programación a «Ahora»
                 window.currentBookingMode = 'standard';
                 window.currentReservedHours = 1;
-                window.currentPassengers = 1; // máx 4 personas (auto/taxi)
+                window.currentPassengers = null; // debe elegir de nuevo (obligatorio 1–4)
+                window.passengersChosen = false;
                 window.currentHourlyStopType = 'standard';
                 const hToggle = document.getElementById('trip-hourly-toggle');
                 if (hToggle) hToggle.checked = false;
                 document.getElementById('hourly-options')?.classList.add('hidden');
+                try { setTripScheduleMode?.('now'); updateTripScheduleLabels?.(window.currentServiceType); } catch (_) {}
                 window.renderTripPassengerChips?.();
             }
 
@@ -28107,7 +28144,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     'client-trip-headline',
                     'client-trip-subline',
                     'favorites-bar',
-                    'trip-options-panel'
+                    'trip-options-panel',
+                    'trip-when-panel'
                 ].forEach((id) => document.getElementById(id)?.classList.add('hidden'));
                 document.querySelector('.trip-route-fields')?.classList.add('hidden');
                 if (detailEl) {
@@ -28181,16 +28219,14 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             document.getElementById('driver-view')?.classList.add('hidden');
             document.getElementById('fare-card')?.classList.add('hidden');
             const activeP = document.getElementById('active-trip-panel');
-            activeP?.classList.remove('hidden', 'panel-minimized');
-            // Solo la primera vez que entra a viaje activo: no reabrir en cada snapshot de Firestore
+            activeP?.classList.remove('hidden');
+            // Solo la primera vez: mostrar panel. En re-sync NO reabrir (rompía Minimizar tras PIN).
             if (!wasTripActive) {
-                // Mapa primero: pasajero empieza con panel usable (sin forzar maximizado en cada sync)
-                // Si venía minimizado en búsqueda, respeta; si no, deja expandido
+                window.showControlPanel?.();
             }
-            // NO quitar panel-minimized aquí en cada update (rompía minimizar en web/Android)
-            window.showControlPanel?.();
             try { window.syncPanelHideChevron?.(); } catch (_) {}
             try { window.bindPassengerPanelMinBtn?.(); } catch (_) {}
+            try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
             window.syncDriverChromeForActiveTrip?.();
 
             if (role === 'driver' && data.driverId === currentUser?.uid) {
@@ -28399,6 +28435,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             document.getElementById('delivery-details-panel')?.classList.add('hidden');
             document.getElementById('freight-details-panel')?.classList.add('hidden');
             document.getElementById('trip-options-panel')?.classList.add('hidden');
+            document.getElementById('trip-when-panel')?.classList.add('hidden');
             document.querySelector('.trip-route-fields')?.classList.add('hidden');
             document.getElementById('driver-view')?.classList.add('hidden');
             const atp = document.getElementById('active-trip-panel');
@@ -28714,6 +28751,21 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
                 if (prevStatus === 'accepted' && data.status === 'in_progress') {
                     window.showToast?.('Viaje iniciado. Sigue la ruta hacia tu destino en el mapa.', 'success');
+                    // Mapa primero: bajar el panel (antes se quedaba a pantalla completa y no se podía ver la ruta)
+                    try {
+                        const pMinKey = `${data.id}:pax-dest-min`;
+                        if (window._passengerDestMinKey !== pMinKey) {
+                            window._passengerDestMinKey = pMinKey;
+                            const panel = document.getElementById('control-panel');
+                            document.body.classList.add('panel-minimized', 'panel-collapsed');
+                            document.body.classList.remove('panel-hidden');
+                            panel?.classList.add('panel-collapsed');
+                            panel?.classList.remove('panel-hidden');
+                            try { localStorage.setItem('honduber_control_panel_hidden', '1'); } catch (_) {}
+                            window.syncPassengerPanelToggleLabel?.();
+                            window.bindPassengerPanelMinBtn?.();
+                        }
+                    } catch (_) {}
                     ensureTripOriginAtPinStart(data).then((corrected) => {
                         ensureInProgressLiveTracking(corrected || data);
                     });
@@ -28816,17 +28868,36 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
                 setStoredClientTripId(data.id);
                 window.stopNearbyDriversListener?.();
+                const wasAlreadyTripActive = document.body.classList.contains('trip-active');
                 document.body.classList.add('trip-active');
                 document.body.classList.remove('is-searching');
                 syncPromoUi();
                 clearPassengerSearchPanelLayout();
                 window.refreshIOSInstallBanner?.();
-                window.showControlPanel?.();
+                // NO reabrir el panel en cada snapshot de Firestore (rompía Minimizar tras el PIN / en ruta).
+                // Solo la primera vez que entra a viaje activo.
+                if (!wasAlreadyTripActive) {
+                    window.showControlPanel?.();
+                } else {
+                    // Respetar minimizado actual; solo asegurar que el panel exista en el DOM
+                    try {
+                        const panel = document.getElementById('control-panel');
+                        const userMin = panel?.classList.contains('panel-collapsed')
+                            || document.body.classList.contains('panel-minimized')
+                            || (() => { try { return localStorage.getItem('honduber_control_panel_hidden') === '1'; } catch (_) { return false; } })();
+                        if (userMin) {
+                            panel?.classList.add('panel-collapsed');
+                            document.body.classList.add('panel-minimized', 'panel-collapsed');
+                            document.body.classList.remove('panel-hidden');
+                            panel?.classList.remove('panel-hidden');
+                        }
+                    } catch (_) {}
+                }
                 window.syncDriverChromeForActiveTrip?.();
                 const activeP = document.getElementById('active-trip-panel');
                 if (activeP) {
                     activeP.classList.remove('hidden');
-                    activeP.classList.remove('panel-minimized');
+                    // No quitar panel-minimized del sheet en cada update (impedía bajar el panel)
                     // tap superior para minimizar durante ruta (conductor)
                     if (!activeP.dataset.minBound) {
                         activeP.dataset.minBound = '1';
@@ -28854,23 +28925,38 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 setElementText('active-dest-text', (typeof getDriverTripPointLabel === 'function')
                     ? getDriverTripPointLabel(data, 'destination')
                     : (data.destinationPlaceName || window.shortenMapPlaceLabel?.(data.destination) || data.destination || ''));
-                // Hourly note + personas (también en viaje normal)
+                // Nota de horas + personas (solo lectura; no se edita en el panel de viaje)
                 const hourlyNote = document.getElementById('active-hourly-note');
                 if (hourlyNote) {
                     const paxN = Math.max(1, parseInt(data.passengers, 10) || 1);
+                    const showPax = data.serviceType !== 'delivery'
+                        && !isFreightService(data.serviceType)
+                        && data.serviceType !== 'grua';
+                    const paxLabel = paxN === 1 ? '1 persona' : `${paxN} personas`;
                     if (data.bookingType === 'hourly' && data.reservedHours) {
                         let note = `<span class="inline-block mt-1 text-emerald-700 font-black text-[9px]"><i class="fas fa-clock"></i> ${data.reservedHours} HORA(S)`;
                         if (data.hourlyStartTime) note += ` · inicia ${data.hourlyStartTime}`;
                         if (data.isNightSurcharge) note += ` · +25% noche`;
                         note += `</span>`;
-                        note += ` <span class="inline-block mt-1 ml-1 text-amber-700 font-black text-[9px]"><i class="fas fa-users"></i> ${paxN} pers. · ${data.multipleStops ? 'múltiples' : '2'} paradas</span>`;
+                        if (showPax) {
+                            note += ` <span class="inline-block mt-1 ml-1 text-amber-800 font-black text-[10px] bg-amber-100 px-1.5 py-0.5 rounded-lg"><i class="fas fa-users"></i> ${paxLabel} · ${data.multipleStops ? 'múltiples' : '2'} paradas</span>`;
+                        }
                         if (data.distanceKmForCharge > 25) {
                             note += ` <span class="inline-block mt-1 ml-1 text-emerald-700 font-black text-[9px]"><i class="fas fa-road"></i> +km</span>`;
                         }
                         setElementHTML('active-hourly-note', note);
                         hourlyNote.classList.remove('hidden');
-                    } else if (paxN > 1 && data.serviceType !== 'delivery' && !isFreightService(data.serviceType)) {
-                        setElementHTML('active-hourly-note', `<span class="inline-block mt-1 text-amber-700 font-black text-[10px]"><i class="fas fa-users"></i> ${paxN} PERSONAS en este viaje${Number(data.passengerSurcharge) > 0 ? ` · +L. ${Number(data.passengerSurcharge).toFixed(0)}` : ''}</span>`);
+                    } else if (showPax) {
+                        // Conductor y pasajero ven cuántas van (solo info, sin selector)
+                        const sur = Number(data.passengerSurcharge) > 0
+                            ? ` · +L. ${Number(data.passengerSurcharge).toFixed(0)}`
+                            : '';
+                        const isDriver = window.userProfile?.role === 'driver';
+                        setElementHTML(
+                            'active-hourly-note',
+                            `<span class="inline-flex items-center gap-1 mt-1 text-amber-900 font-black text-[11px] bg-amber-100 border border-amber-300 px-2 py-1 rounded-lg">`
+                            + `<i class="fas fa-users"></i> ${isDriver ? 'Van' : 'Van'} <b>${paxLabel}</b> en este viaje${sur}</span>`
+                        );
                         hourlyNote.classList.remove('hidden');
                     } else {
                         hourlyNote.classList.add('hidden');
@@ -30123,7 +30209,7 @@ window.saveSimplePassengerProfile = async () => {
             const banner = document.createElement('div');
             banner.id = 'driver-staff-route-banner';
             banner.className = 'fixed left-3 right-3 z-[46000] rounded-2xl shadow-2xl border-2 border-amber-300 bg-amber-50 p-3';
-            banner.style.top = 'calc(env(safe-area-inset-top, 0px) + 0.75rem)';
+            banner.style.top = 'calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.75rem)';
             banner.innerHTML = `
                 <div class="flex items-start gap-2">
                     <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
@@ -31092,14 +31178,31 @@ window.cancelSetupAndLogout = () => {
         };
 
         window.toggleTripScheduleFields = () => {
+            // Compat: el checkbox oculto refleja el modo Ahora / Programar del nuevo panel
             const on = document.getElementById('trip-schedule-toggle')?.checked;
-            document.getElementById('trip-schedule-datetime')?.classList.toggle('hidden', !on);
+            try {
+                setTripScheduleMode?.(on ? 'later' : 'now', { expandCustom: !!on });
+            } catch (_) {
+                document.getElementById('trip-when-schedule')?.classList.toggle('hidden', !on);
+            }
+            try { updateTripScheduleLabels?.(window.currentServiceType); } catch (_) {}
             const fareBtn = document.getElementById('fare-request-btn');
             if (fareBtn) {
-                fareBtn.innerText = on ? 'PROGRAMAR VIAJE'
-                    : (window.currentServiceType === 'delivery' ? 'SOLICITAR ENVÍO' : 'SOLICITAR AHORA');
+                const copy = getScheduleServiceCopy?.(window.currentServiceType) || {};
+                const hourly = window.currentBookingMode === 'hourly';
+                let label;
+                if (on) label = copy.requestLater || 'PROGRAMAR VIAJE';
+                else if (hourly) label = 'RESERVAR POR HORAS';
+                else label = copy.requestNow || 'SOLICITAR AHORA';
+                const span = fareBtn.querySelector('.pointer-events-none');
+                if (span) span.textContent = label;
+                else fareBtn.innerText = label;
             }
         };
+        // Atajos públicos para el panel de programación
+        window.setTripScheduleMode = setTripScheduleMode;
+        window.updateTripScheduleLabels = updateTripScheduleLabels;
+        try { initTripScheduleUI?.(); } catch (_) {}
 
         window.toggleThirdPartyFields = () => {
             const on = document.getElementById('trip-third-party-toggle')?.checked;
@@ -31109,11 +31212,13 @@ window.cancelSetupAndLogout = () => {
         // ===== HOURLY BOOKING (por horas) =====
         window.currentBookingMode = 'standard';
         window.currentReservedHours = 1; // máximo 24 horas
-        window.currentPassengers = 1;    // cuántas personas viajan (máx 4; moto 2)
+        /** null hasta que el pasajero toque 1–4 (obligatorio al pedir). */
+        window.currentPassengers = null;
+        window.passengersChosen = false;
         window.currentHourlyStopType = 'standard'; // 'standard' (2 paradas) o 'multi'
         window.currentHourlyAdditionalStops = []; // for multi: additional stops to sum in route
         window.tripAdditionalStops = []; // for standard trips: extra charged stops
-        // Chips de personas (viaje normal)
+        // Chips de personas (viaje normal · obligatorio)
         setTimeout(() => window.renderTripPassengerChips?.(), 200);
 
         window.toggleHourlyBooking = () => {
@@ -31121,7 +31226,12 @@ window.cancelSetupAndLogout = () => {
             window.currentBookingMode = on ? 'hourly' : 'standard';
             const opts = document.getElementById('hourly-options');
             if (opts) opts.classList.toggle('hidden', !on);
-            if (on) window.expandTripAdvancedPanel?.(true);
+            if (on) {
+                // Por horas ya trae hora de inicio; reseteamos programación rápida a «Ahora»
+                try { setTripScheduleMode?.('now'); } catch (_) {}
+                window.expandTripAdvancedPanel?.(true);
+            }
+            try { updateTripScheduleLabels?.(window.currentServiceType); } catch (_) {}
 
             // Clear standard stops when switching to hourly
             if (on && window.tripAdditionalStops) {
@@ -31249,37 +31359,21 @@ window.cancelSetupAndLogout = () => {
             };
         }
 
+        /** Por horas: ya no hay chips propios; se usa el selector obligatorio de arriba. */
         function renderHourlyPassengerChips() {
-            const container = document.getElementById('hourly-passenger-chips');
-            if (!container) return;
-            container.innerHTML = '';
-            const svc = normalizeServiceType(window.currentServiceType || 'auto');
-            // Por horas: auto/taxi máx 4 (igual que clientes comunes)
-            const maxP = Math.min(4, getMaxPassengers(svc));
-            const current = normalizePassengerCount(svc, window.currentPassengers || 1);
-            window.currentPassengers = current;
+            window.renderTripPassengerChips?.();
+        }
 
-            for (let p = 1; p <= maxP; p++) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = `px-3 py-1 rounded-xl text-xs font-black border transition-all ${p === current ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-100'}`;
-                btn.innerHTML = `<span class="pointer-events-none">${p} pers.</span>`;
-                btn.onclick = () => {
-                    window.currentPassengers = p;
-                    renderHourlyPassengerChips();
-                    window.renderTripPassengerChips?.();
-                    const fareCard = document.getElementById('fare-card');
-                    if (fareCard && !fareCard.classList.contains('hidden')) {
-                        window.calculateTripRoute?.({ silent: true });
-                    } else {
-                        const o = document.getElementById('origin-autocomplete');
-                        if (o && (window.readAutocompleteText?.(o) || o._routeEndpoint?.address)) {
-                            window.calculateTripRoute?.({ silent: true });
-                        }
-                    }
-                };
-                container.appendChild(btn);
-            }
+        function requiresPassengerCountChoice(serviceType) {
+            const svc = normalizeServiceType(serviceType || window.currentServiceType || 'auto');
+            if (svc === 'delivery' || isFreightService(svc) || isTowService?.(svc) || svc === 'grua') return false;
+            return getMaxPassengers(svc) > 1 || svc === 'auto' || svc === 'taxi' || svc === 'moto';
+        }
+
+        function hasChosenPassengerCount() {
+            if (!requiresPassengerCountChoice(window.currentServiceType)) return true;
+            const n = parseInt(window.currentPassengers, 10);
+            return window.passengersChosen === true && Number.isFinite(n) && n >= 1;
         }
 
         /** Recalcula tarifa al cambiar # de personas (clientes comunes + por horas). */
@@ -31301,8 +31395,9 @@ window.cancelSetupAndLogout = () => {
         }
 
         /**
-         * Selector de personas para CLIENTES COMUNES al pedir viaje.
-         * Auto/taxi: máx 4. Moto: máx 2. Delivery/flete: oculto.
+         * Selector de personas al PEDIR viaje (obligatorio).
+         * Auto/taxi: 1–4. Moto: 1–2. Delivery/flete/grúa: oculto.
+         * No va en el panel de viaje activo: solo al solicitar.
          */
         window.renderTripPassengerChips = () => {
             const wrap = document.getElementById('trip-passengers-wrap');
@@ -31311,23 +31406,37 @@ window.cancelSetupAndLogout = () => {
             if (!container) return;
 
             const svc = normalizeServiceType(window.currentServiceType || 'auto');
-            const isSpecial = svc === 'delivery' || isFreightService(svc);
-            const isHourly = window.currentBookingMode === 'hourly';
+            const isSpecial = svc === 'delivery' || isFreightService(svc) || svc === 'grua';
 
-            // Por-horas: selector en hourly-options. Delivery/flete: no aplica.
+            // Solo al solicitar (formulario). Oculto en envío/flete/grúa.
             if (wrap) {
-                wrap.classList.toggle('hidden', isSpecial || isHourly);
+                wrap.classList.toggle('hidden', isSpecial);
+                wrap.classList.toggle('trip-passengers-wrap--missing', !isSpecial && !hasChosenPassengerCount());
             }
-            if (isSpecial || isHourly) return;
+            if (isSpecial) {
+                window.currentPassengers = 1;
+                window.passengersChosen = true;
+                return;
+            }
 
             // Límite: 4 en auto/taxi; moto 2
-            const maxP = getMaxPassengers(svc);
-            let current = normalizePassengerCount(svc, window.currentPassengers || 1);
-            window.currentPassengers = current;
-            const fee = getExtraPassengerFee(svc);
-            const surcharge = getPassengerSurcharge(svc, current, window.currentTripQuote?.km || window.currentRouteData?.distanceKm || 0);
+            const maxP = Math.min(4, getMaxPassengers(svc));
+            const chosen = window.passengersChosen === true
+                && Number.isFinite(parseInt(window.currentPassengers, 10))
+                && parseInt(window.currentPassengers, 10) >= 1;
+            let current = chosen
+                ? normalizePassengerCount(svc, window.currentPassengers)
+                : null;
+            if (chosen) {
+                window.currentPassengers = current;
+            }
 
-            // Chips fijos 1–4 en HTML (clientes comunes); habilitar según servicio
+            const fee = getExtraPassengerFee(svc);
+            const surcharge = current
+                ? getPassengerSurcharge(svc, current, window.currentTripQuote?.km || window.currentRouteData?.distanceKm || 0)
+                : 0;
+
+            // Chips fijos 1–4; sin selección por defecto (obligatorio tocar)
             let chips = container.querySelectorAll('[data-trip-pax]');
             if (!chips.length) {
                 container.innerHTML = '';
@@ -31335,7 +31444,7 @@ window.cancelSetupAndLogout = () => {
                     const btn = document.createElement('button');
                     btn.type = 'button';
                     btn.dataset.tripPax = String(p);
-                    btn.className = 'trip-pax-chip px-3 py-2 rounded-xl text-xs font-black border';
+                    btn.className = 'trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2';
                     btn.textContent = String(p);
                     container.appendChild(btn);
                 }
@@ -31345,15 +31454,15 @@ window.cancelSetupAndLogout = () => {
             chips.forEach((btn) => {
                 const p = parseInt(btn.dataset.tripPax || '1', 10);
                 const allowed = p <= maxP;
-                const active = allowed && p === current;
+                const active = chosen && allowed && p === current;
                 btn.disabled = !allowed;
                 btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-                btn.className = `trip-pax-chip px-3 py-2 min-w-[2.75rem] rounded-xl text-xs font-black border transition-all ${
+                btn.className = `trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 transition-all ${
                     !allowed
                         ? 'border-slate-100 bg-slate-100 text-slate-300 cursor-not-allowed opacity-50'
                         : active
-                            ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
-                            : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:bg-blue-50'
+                            ? 'border-blue-600 bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
+                            : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400 hover:bg-blue-50'
                 }`;
                 btn.title = !allowed
                     ? (svc === 'moto' ? 'En moto máximo 2 personas' : 'No disponible')
@@ -31367,28 +31476,29 @@ window.cancelSetupAndLogout = () => {
                     if (!btn || btn.disabled) return;
                     const p = parseInt(btn.dataset.tripPax || '1', 10);
                     const svcNow = normalizeServiceType(window.currentServiceType || 'auto');
-                    const maxNow = getMaxPassengers(svcNow);
+                    const maxNow = Math.min(4, getMaxPassengers(svcNow));
                     if (p < 1 || p > maxNow) {
                         if (svcNow === 'moto' && p > 2) {
-                            window.showToast?.('En moto el máximo es 2 personas (conductor + 1 pasajero). Usa Taxi VIP o taxi para más.', 'warning');
+                            window.showToast?.('En moto el máximo es 2 personas. Usa Taxi VIP o taxi para más.', 'warning');
                         }
                         return;
                     }
                     window.currentPassengers = p;
+                    window.passengersChosen = true;
                     window.renderTripPassengerChips();
                     recalcFareAfterPassengerChange();
                 });
             }
 
             if (hint) {
-                if (maxP <= 1) {
-                    hint.textContent = 'Este servicio no admite pasajeros extra.';
+                if (!chosen) {
+                    hint.innerHTML = '<span class="text-red-600 font-black">Obligatorio:</span> toca cuántas personas van (1–4). Sin esto no se puede pedir el viaje. El conductor lo verá.';
                 } else if (surcharge > 0) {
-                    hint.innerHTML = `<span class="text-amber-800 font-black">Van ${current} · +L. ${surcharge.toFixed(0)} extra</span> (L. ${fee} c/u). El conductor verá que son ${current} personas.`;
+                    hint.innerHTML = `<span class="text-amber-800 font-black">Van ${current} · +L. ${surcharge.toFixed(0)} extra</span> (L. ${fee} c/u). El conductor verá <b>${current} personas</b>.`;
                 } else {
-                    hint.textContent = svc === 'moto'
-                        ? 'Moto: máximo 2 personas.'
-                        : `1 persona incluida. Límite ${maxP} personas. El conductor lo verá.`;
+                    hint.innerHTML = svc === 'moto'
+                        ? `<span class="text-emerald-800 font-black">✓ ${current} persona${current > 1 ? 's' : ''}</span> (moto máx. 2). El conductor lo verá.`
+                        : `<span class="text-emerald-800 font-black">✓ ${current} persona${current > 1 ? 's' : ''}</span> en el viaje. El conductor lo verá al aceptar.`;
                 }
             }
         };
@@ -32460,10 +32570,20 @@ window.cancelSetupAndLogout = () => {
             const optCheck = validateTripOptions(tripOptions);
             if (!optCheck.ok) return window.showToast(optCheck.message);
 
-            const tripPassengers = (serviceType === 'delivery' || isFreightService(serviceType))
+            // Personas: obligatorio 1–4 (auto/taxi) o 1–2 (moto). No se pide en envío/flete/grúa.
+            if (requiresPassengerCountChoice(serviceType) && !hasChosenPassengerCount()) {
+                document.getElementById('trip-passengers-wrap')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+                window.renderTripPassengerChips?.();
+                return window.showToast('Elige cuántas personas van (1 a 4). Es obligatorio y el conductor lo verá.', 'warning');
+            }
+            const tripPassengers = (serviceType === 'delivery' || isFreightService(serviceType) || serviceType === 'grua')
                 ? 1
-                : normalizePassengerCount(serviceType, window.currentPassengers || window.currentTripQuote?.passengers || 1);
+                : normalizePassengerCount(
+                    serviceType,
+                    window.currentPassengers || window.currentTripQuote?.passengers || 1
+                );
             window.currentPassengers = tripPassengers;
+            window.passengersChosen = true;
             // Distancia del quote actual (km no existe en este scope; ver currentTripQuote tras calculateTripRoute)
             const tripKmForPax = Number(
                 window.currentTripQuote?.km
@@ -32557,6 +32677,7 @@ window.cancelSetupAndLogout = () => {
             document.getElementById('delivery-details-panel')?.classList.add('hidden');
             document.getElementById('freight-details-panel')?.classList.add('hidden');
             document.getElementById('trip-options-panel')?.classList.add('hidden');
+            document.getElementById('trip-when-panel')?.classList.add('hidden');
             document.getElementById('hourly-options')?.classList.add('hidden');
             document.querySelector('.trip-route-fields')?.classList.add('hidden');
             if (window.userProfile?.role === 'client') document.getElementById('client-view')?.classList.remove('hidden');
@@ -32901,6 +33022,13 @@ window.cancelSetupAndLogout = () => {
                 activeTrip = { ...activeTrip, ...correctedTrip };
                 window.currentActiveTripData = { ...activeTrip };
             }
+            // Antes de nav: soltar teclado y bajar panel (evita “viaje trabado” con panel a pantalla completa)
+            try {
+                document.getElementById('driver-pin-input')?.blur?.();
+                document.getElementById('driver-panel-pin-input')?.blur?.();
+            } catch (_) {}
+            window._driverNavUserKeptOpen = false;
+            try { window.minimizeDriverPanelForNav?.({ force: true }); } catch (_) {}
             ensureInProgressLiveTracking(activeTrip);
             ensureDriverTripNavRoute(activeTrip);
             syncDriverTripControls?.(activeTrip);
@@ -32936,7 +33064,22 @@ window.cancelSetupAndLogout = () => {
 
             try {
                 await startActiveTripAfterPin({ skipped: false });
+                // Cerrar teclado / fase PIN y mapa grande (si no, el panel se queda “trabado” abierto)
+                try {
+                    document.getElementById('driver-pin-input')?.blur?.();
+                    document.getElementById('driver-panel-pin-input')?.blur?.();
+                    document.activeElement?.blur?.();
+                } catch (_) {}
                 document.getElementById('driver-panel-pin')?.classList.add('hidden');
+                document.getElementById('pin-input-group')?.classList.add('hidden');
+                document.getElementById('driver-pin-float')?.classList.add('hidden');
+                document.body.classList.remove('driver-pin-phase');
+                // El panel se abrió para el PIN: no tratarlo como “usuario quiere panel abierto”
+                window._driverNavUserKeptOpen = false;
+                window._driverNavPanelAutoMinDone = false;
+                try {
+                    window.minimizeDriverPanelForNav?.({ force: true });
+                } catch (_) {}
                 // Navegación al destino: misma experiencia que al ir por el pasajero
                 startDriverDestinationNavigation(activeTrip);
                 window.showToast("¡Viaje iniciado! Sigue la ruta al destino.", "success");
@@ -32971,7 +33114,20 @@ window.cancelSetupAndLogout = () => {
             }
             try {
                 await startActiveTripAfterPin({ skipped: true, skipBy: 'driver' });
+                try {
+                    document.getElementById('driver-pin-input')?.blur?.();
+                    document.getElementById('driver-panel-pin-input')?.blur?.();
+                    document.activeElement?.blur?.();
+                } catch (_) {}
                 document.getElementById('driver-panel-pin')?.classList.add('hidden');
+                document.getElementById('pin-input-group')?.classList.add('hidden');
+                document.getElementById('driver-pin-float')?.classList.add('hidden');
+                document.body.classList.remove('driver-pin-phase');
+                window._driverNavUserKeptOpen = false;
+                window._driverNavPanelAutoMinDone = false;
+                try {
+                    window.minimizeDriverPanelForNav?.({ force: true });
+                } catch (_) {}
                 startDriverDestinationNavigation(activeTrip);
                 window.showToast('Viaje iniciado sin PIN. Sigue al destino.', 'success');
             } catch (e) {
@@ -35866,10 +36022,22 @@ window.calculateTripRoute = async (options = {}) => {
             durationMs: route?.durationMillis || route?.legs?.[0]?.durationMillis || 0,
         };
 
-        const calcPassengers = (serviceType === 'delivery' || isFreightService(serviceType))
+        // Tarifa: si aún no eligió personas, usar 1 solo para vista previa (no marcar como elegido).
+        const paxNeedsChoice = typeof requiresPassengerCountChoice === 'function'
+            ? requiresPassengerCountChoice(serviceType)
+            : (serviceType !== 'delivery' && !isFreightService(serviceType) && serviceType !== 'grua');
+        const paxAlreadyChosen = typeof hasChosenPassengerCount === 'function'
+            ? hasChosenPassengerCount()
+            : (window.passengersChosen === true && Number.isFinite(parseInt(window.currentPassengers, 10)));
+        const calcPassengers = (serviceType === 'delivery' || isFreightService(serviceType) || serviceType === 'grua')
             ? 1
-            : normalizePassengerCount(serviceType, window.currentPassengers || 1);
-        window.currentPassengers = calcPassengers;
+            : (paxAlreadyChosen
+                ? normalizePassengerCount(serviceType, window.currentPassengers)
+                : 1);
+        if (!paxNeedsChoice || paxAlreadyChosen) {
+            window.currentPassengers = calcPassengers;
+            if (!paxNeedsChoice) window.passengersChosen = true;
+        }
         if (isHourlyCalc) hourlyOpts.passengers = calcPassengers;
         const calcPaxSurcharge = getPassengerSurcharge(serviceType, calcPassengers, km);
 

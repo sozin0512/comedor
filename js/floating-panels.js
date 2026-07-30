@@ -9,6 +9,36 @@ function clamp(n, min, max) {
     return Math.max(min, Math.min(max, n));
 }
 
+/** Insets del sistema (MainActivity → --safe-* / --native-safe-*). Estilo WhatsApp. */
+function readSafeInsets() {
+    try {
+        const s = getComputedStyle(document.documentElement);
+        const px = (name, fallback = 0) => {
+            const n = parseFloat(s.getPropertyValue(name));
+            return Number.isFinite(n) ? n : fallback;
+        };
+        const top = px('--safe-top', px('--native-safe-top', 0));
+        const bottom = px('--safe-bottom', px('--native-safe-bottom', 0));
+        const left = px('--safe-left', px('--native-safe-left', 0));
+        const right = px('--safe-right', px('--native-safe-right', 0));
+        return {
+            top: Math.max(0, top),
+            bottom: Math.max(0, bottom),
+            left: Math.max(0, left),
+            right: Math.max(0, right)
+        };
+    } catch (_) {
+        return { top: 0, bottom: 0, left: 0, right: 0 };
+    }
+}
+
+function cssSafeBottom(extraRem) {
+    if (extraRem) {
+        return `calc(${extraRem} + var(--safe-bottom, env(safe-area-inset-bottom, 0px)))`;
+    }
+    return `var(--safe-bottom, env(safe-area-inset-bottom, 0px))`;
+}
+
 function loadPosition(key) {
     try {
         const raw = localStorage.getItem(STORAGE_PREFIX + key);
@@ -89,12 +119,13 @@ export function makeDraggable(element, options = {}) {
     const applyPos = (x, y, persist = true) => {
         const w = element.offsetWidth || 280;
         const h = element.offsetHeight || 120;
-        // Margen mínimo con el borde (safe-area + 8px) y al menos minVisible del control a la vista
+        // No entrar bajo el reloj / notch / barra de gestos (como WhatsApp)
+        const insets = readSafeInsets();
         const edge = 8;
-        const safeL = edge;
-        const safeT = edge;
-        const safeR = window.innerWidth - edge;
-        const safeB = window.innerHeight - edge;
+        const safeL = edge + insets.left;
+        const safeT = edge + insets.top;
+        const safeR = window.innerWidth - edge - insets.right;
+        const safeB = window.innerHeight - edge - insets.bottom;
         const cx = clamp(x, safeL - w + minVisible, safeR - minVisible);
         const cy = clamp(y, safeT, Math.max(safeT, safeB - minVisible));
         element.style.position = 'fixed';
@@ -220,8 +251,10 @@ function activateControlPanelFloating(panel) {
 function applyPosToControlPanel(panel, x, y) {
     const w = panel.offsetWidth || 320;
     const h = panel.offsetHeight || 200;
-    const cx = clamp(x, 8, window.innerWidth - w - 8);
-    const cy = clamp(y, 8, window.innerHeight - h - 8);
+    const insets = readSafeInsets();
+    const edge = 8;
+    const cx = clamp(x, edge + insets.left, window.innerWidth - w - edge - insets.right);
+    const cy = clamp(y, edge + insets.top, window.innerHeight - h - edge - insets.bottom);
     panel.style.position = 'fixed';
     panel.style.left = `${cx}px`;
     panel.style.top = `${cy}px`;
@@ -350,7 +383,7 @@ export function bindFloatingRadarPanel() {
         if (!loadPosition(storageKey)) {
             el.style.position = 'fixed';
             el.style.left = '0.65rem';
-            el.style.bottom = 'calc(8.25rem + env(safe-area-inset-bottom, 0px))';
+            el.style.bottom = cssSafeBottom('8.25rem');
             el.style.right = 'auto';
             el.style.top = 'auto';
         }
@@ -441,7 +474,7 @@ export function bindFloatingEarningsPanel() {
     if (!loadPosition(storageKey)) {
         el.style.position = 'fixed';
         el.style.left = '0.65rem';
-        el.style.bottom = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
+        el.style.bottom = cssSafeBottom('5.5rem');
         el.style.right = 'auto';
         el.style.top = 'auto';
     }
@@ -498,18 +531,22 @@ function isNarrowTripFloatViewport() {
 
 function defaultTripFloatPosition(el, key) {
     const narrow = isNarrowTripFloatViewport();
-    const bottomSafe = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
+    // APK: --safe-* inyectado por MainActivity (env() en WebView Android suele ser 0)
+    const bottomSafe = cssSafeBottom('5.5rem');
     const positions = {
-        // Pasajero: una sola tarjeta flotante (conductor + PIN)
-        'client-trip': { left: '0.65rem', top: 'max(4.75rem, calc(env(safe-area-inset-top, 0px) + 3.75rem))' },
+        // Pasajero: una sola tarjeta flotante (conductor + PIN), bajo el reloj
+        'client-trip': {
+            left: '0.65rem',
+            top: 'max(4.75rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 3.75rem))'
+        },
         'client-pin': { left: '0.65rem', bottom: bottomSafe },
-        'driver-arrived': { right: '0.65rem', bottom: 'calc(6.5rem + env(safe-area-inset-bottom, 0px))' },
+        'driver-arrived': { right: '0.65rem', bottom: cssSafeBottom('6.5rem') },
         // Destino: un poco más arriba que el chat / mini-bar para no tapar el mapa
-        'driver-arrived-dest': { right: '0.65rem', bottom: 'calc(7.25rem + env(safe-area-inset-bottom, 0px))' },
+        'driver-arrived-dest': { right: '0.65rem', bottom: cssSafeBottom('7.25rem') },
         'driver-pin': narrow
             ? { left: '0.65rem', right: '0.65rem', bottom: bottomSafe }
             : { right: '0.65rem', bottom: bottomSafe },
-        chat: { left: '0.65rem', bottom: 'calc(8.5rem + env(safe-area-inset-bottom, 0px))' },
+        chat: { left: '0.65rem', bottom: cssSafeBottom('8.5rem') },
         'chat-pill': { right: '0.65rem', bottom: bottomSafe }
     };
     const pos = positions[key];
@@ -720,7 +757,7 @@ export function toggleTripFloatMinimized(key, minimized) {
                 // Mantener esquina inferior derecha en web/móvil
                 floatEl.style.left = 'auto';
                 floatEl.style.right = '0.65rem';
-                floatEl.style.bottom = 'calc(5.5rem + env(safe-area-inset-bottom, 0px))';
+                floatEl.style.bottom = cssSafeBottom('5.5rem');
                 floatEl.style.top = 'auto';
             } else {
                 floatEl.style.right = 'auto';
@@ -928,7 +965,7 @@ export function bindFloatingObjectivePanels() {
             const stackOffset = idx * 8;
             el.style.position = 'fixed';
             el.style.right = '0.65rem';
-            el.style.bottom = `calc(${5.5 + stackOffset}rem + env(safe-area-inset-bottom, 0px))`;
+            el.style.bottom = cssSafeBottom(`${5.5 + stackOffset}rem`);
             el.style.left = 'auto';
             el.style.top = 'auto';
         }
@@ -971,7 +1008,7 @@ function defaultCopaFloatPosition(el, idx, side = 'left') {
     }
     // Fila 0 cerca del bottom; fila 1 más arriba para no taparse
     const bottomRem = 5.5 + row * 12.5;
-    el.style.bottom = `calc(${bottomRem}rem + env(safe-area-inset-bottom, 0px))`;
+    el.style.bottom = cssSafeBottom(`${bottomRem}rem`);
     el.style.zIndex = String(27980 + idx);
 }
 
