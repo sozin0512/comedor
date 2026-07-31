@@ -4236,36 +4236,19 @@ exports.onApkSettingsPublished = onDocumentUpdated(
             }, { merge: true });
         }
 
-        const publishedChanged =
-            String(before.androidApkBuildId || '') !== String(after.androidApkBuildId || '')
-            || String(before.androidApkUrl || '') !== String(after.androidApkUrl || '')
-            || String(before.androidApkVersion || '') !== String(after.androidApkVersion || '')
-            || (Number(before.androidApkVersionCode) || 0) !== (correctCode || storedCode);
-
-        // Evitar spam: solo notificar si el admin acaba de publicar (buildId/url/version)
-        // y no es solo un repair del code
-        const onlyCodeRepair =
-            String(before.androidApkBuildId || '') === String(after.androidApkBuildId || '')
-            && String(before.androidApkUrl || '') === String(after.androidApkUrl || '')
-            && String(before.androidApkVersion || '') === String(after.androidApkVersion || '')
-            && (Number(before.androidApkVersionCode) || 0) !== storedCode;
-
-        if (!publishedChanged || onlyCodeRepair) {
-            // Si solo reparamos code, no re-broadcast
-            if (correctCode > 0 && storedCode !== correctCode) return { repaired: true, notified: false };
-            return null;
-        }
-
-        // Señales de “publicación nueva”
+        // REGLA SIMPLE: cualquier cambio de buildId o de URL del APK = nueva publicación → avisar a todos
         const isNewPublish =
             String(before.androidApkBuildId || '') !== String(after.androidApkBuildId || '')
             || String(before.androidApkUrl || '') !== String(after.androidApkUrl || '');
 
-        if (!isNewPublish) return { repaired: correctCode !== storedCode, notified: false };
+        // Solo repair de versionCode (sin nueva subida) → no spamear push
+        if (!isNewPublish) {
+            return { repaired: correctCode > 0 && storedCode !== correctCode, notified: false };
+        }
 
         const verLabel = version || String(correctCode || storedCode || '');
         const codeLabel = correctCode || storedCode || '';
-        console.log('[onApkSettingsPublished] broadcasting app_update', verLabel, codeLabel);
+        console.log('[onApkSettingsPublished] APK subido → broadcast app_update', verLabel, codeLabel, after.androidApkBuildId);
         try {
             const result = await broadcastPushToUsers({
                 title: 'HonduRaite · Actualiza la app',

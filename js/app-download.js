@@ -193,11 +193,11 @@ function markApkDownloadedOrInstalled(buildId = cachedApkMeta?.buildId) {
     try { sessionStorage.removeItem(DISMISS_KEY); } catch (_) {}
 }
 
-/** En web: hay APK nuevo respecto al que ya descargó/instaló. */
+/** En web: hay APK nuevo respecto al que ya descargó/instaló (misma regla: buildId de cada subida). */
 function hasWebApkUpdateAvailable() {
     if (!cachedApkMeta?.url || !cachedApkMeta.buildId) return false;
     const installed = getWebInstalledBuildId();
-    if (installed == null) return false; // nunca instaló → no es "update", es primera descarga
+    if (installed == null) return false; // nunca instaló → badge de “descarga”, no “update”
     return Number(cachedApkMeta.buildId) > Number(installed);
 }
 
@@ -211,18 +211,11 @@ function alreadyHasCurrentApkOnWeb() {
 
 function isUpdateSnoozed() {
     try {
-        // Nunca silenciar si el teléfono es claramente más viejo que el APK publicado
-        const remoteCode = resolveRemoteVersionCode(cachedApkMeta || {}) || 0;
-        const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
-        if (remoteCode > 0 && nativeCode > 0 && remoteCode > nativeCode) {
+        // Regla simple: si hay una subida nueva (buildId) no silenciar nunca
+        const remoteBuildId = Number(cachedApkMeta?.buildId) || 0;
+        const ack = getClientBuildId();
+        if (remoteBuildId > 0 && (ack == null || remoteBuildId > Number(ack))) {
             return false;
-        }
-        const remoteVer = String(cachedApkMeta?.version || '').trim();
-        const nativeVer = String(nativeAppInfo.version || '').trim();
-        if (remoteVer && nativeVer && remoteVer !== nativeVer) {
-            const r = versionLabelToCode(remoteVer);
-            const n = versionLabelToCode(nativeVer);
-            if (r > 0 && n > 0 && r > n) return false;
         }
         const until = Number(localStorage.getItem(UPDATE_SNOOZE_KEY) || 0);
         return until > Date.now();
@@ -291,73 +284,42 @@ export async function refreshNativeAppInfo() {
 }
 
 /**
- * ¿Hay APK más nuevo que el instalado en el teléfono?
- * SOLO confía en App.getInfo() (nativo) vs lo publicado en Admin.
- * NO usa “Ya actualicé” / clientBuildId para ocultar si el versionCode del
- * teléfono es más viejo (eso es lo que rompía el aviso).
+ * REGLA SIMPLE (como pediste):
+ *   Subir APK en Admin = nueva versión automática (nuevo buildId).
+ *   Avisar a todos los que no hayan tomado ESA subida (descarga o “Ya actualicé”).
+ * No hace falta que el número de versión sea “mayor”.
  */
 export function hasApkUpdateAvailable() {
     if (!isInstalledAndroidApp()) return false;
     if (!cachedApkMeta?.url) return false;
 
+    const remoteBuildId = Number(cachedApkMeta.buildId) || 0;
     const remoteCode = resolveRemoteVersionCode(cachedApkMeta)
         || Number(cachedApkMeta.versionCode)
         || versionLabelToCode(cachedApkMeta.version)
         || 0;
-    const remoteVer = String(cachedApkMeta.version || '').trim();
     const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
-    const nativeVer = String(nativeAppInfo.version || '').trim();
-    const rFromLabel = versionLabelToCode(remoteVer);
-    const nFromLabel = versionLabelToCode(nativeVer);
+    const ack = getClientBuildId();
 
-    // 1) versionCode nativo vs remoto (fuente de verdad)
-    if (remoteCode > 0 && nativeCode > 0 && remoteCode > nativeCode) {
-        return true;
-    }
-
-    // 2) Labels YYYY.MM.DD.N parseados
-    if (rFromLabel > 0 && nFromLabel > 0 && rFromLabel > nFromLabel) {
-        return true;
-    }
-    // Mezcla: label remoto vs code nativo (o al revés)
-    if (rFromLabel > 0 && nativeCode > 0 && rFromLabel > nativeCode) {
-        return true;
-    }
-    if (remoteCode > 0 && nFromLabel > 0 && remoteCode > nFromLabel) {
-        return true;
-    }
-
-    // 3) Nombres de versión distintos → hay publicación distinta
-    //    (cubre subidas con versionName nuevo aunque falle el code)
-    if (nativeVer && remoteVer && nativeVer !== remoteVer) {
-        // Si el remoto se puede parsear y es menor/igual, no spamear
-        if (rFromLabel > 0 && nFromLabel > 0 && rFromLabel <= nFromLabel) {
+    // 1) Nueva subida (buildId) que el usuario aún no aceptó → SIEMPRE update
+    if (remoteBuildId > 0 && (ack == null || remoteBuildId > Number(ack))) {
+        // Primera vez en el dispositivo: si el APK instalado ya es el mismo code, no spamear
+        if (ack == null && remoteCode > 0 && nativeCode > 0 && nativeCode >= remoteCode) {
             return false;
         }
         return true;
     }
 
-    // 4) Mismo versionName / codes iguales → al día
-    if (remoteCode > 0 && nativeCode > 0 && remoteCode <= nativeCode) {
-        return false;
-    }
-    if (nativeVer && remoteVer && nativeVer === remoteVer) {
-        return false;
-    }
-
-    // 5) Nativo aún no listo, pero hay APK publicado con versión
-    //    → mostrar (el usuario puede decir “Ya actualicé”)
-    if (!nativeAppInfo.ready) return false;
-    if ((!nativeCode && !nativeVer) && (remoteCode > 0 || remoteVer)) {
-        return true;
+    // 2) Sin buildId (datos viejos): versionCode
+    if (!remoteBuildId && remoteCode > 0 && nativeCode > 0) {
+        return remoteCode > nativeCode;
     }
 
     return false;
 }
 
 /**
- * Si Admin publicó un buildId nuevo y el teléfono es más viejo,
- * limpia snooze y marcas locales falsas de “ya actualicé”.
+ * Cada publicación nueva en Admin: limpia snooze para que salga el aviso.
  */
 function reactToNewRemotePublication() {
     if (!cachedApkMeta?.buildId) return;
@@ -369,28 +331,15 @@ function reactToNewRemotePublication() {
         prev = Number(localStorage.getItem('honduber_apk_last_remote_build_id') || 0) || 0;
     } catch (_) {}
 
-    if (remoteBuildId === prev) return;
-
     try {
         localStorage.setItem('honduber_apk_last_remote_build_id', String(remoteBuildId));
     } catch (_) {}
 
-    // Nueva publicación en Admin
     if (remoteBuildId > prev) {
         clearUpdateSnooze();
-        const remoteCode = resolveRemoteVersionCode(cachedApkMeta) || 0;
-        const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
-        const remoteVer = String(cachedApkMeta.version || '').trim();
-        const nativeVer = String(nativeAppInfo.version || '').trim();
-        const needsUpdate = (remoteCode > 0 && nativeCode > 0 && remoteCode > nativeCode)
-            || (remoteVer && nativeVer && remoteVer !== nativeVer
-                && versionLabelToCode(remoteVer) >= versionLabelToCode(nativeVer));
-        if (needsUpdate || (!nativeCode && remoteCode)) {
-            // No confiar en “Ya actualicé” de una versión anterior
-            setClientBuildId(null);
-            try { localStorage.removeItem(WEB_INSTALLED_BUILD_KEY); } catch (_) {}
-            try { sessionStorage.removeItem(DISMISS_KEY); } catch (_) {}
-        }
+        try { sessionStorage.removeItem(DISMISS_KEY); } catch (_) {}
+        // Nueva subida: el aviso se basa en buildId > ack (no borramos ack a propósito;
+        // si ack es de una subida anterior, ya es menor y se muestra el update)
     }
 }
 
@@ -398,13 +347,19 @@ async function trySyncBuildFromNativeVersion() {
     if (!isInstalledAndroidApp() || !cachedApkMeta?.buildId) return;
     await refreshNativeAppInfo();
     reactToNewRemotePublication();
-    // Solo marcar “al día” si de verdad no hay update
-    if (hasApkUpdateAvailable()) return;
+    // Baseline solo la 1ª vez: si el APK del teléfono ya es el publicado, marcar
+    // este buildId como “tomado” para no spamear. Una subida NUEVA (buildId mayor) avisará.
     const remoteBuildId = Number(cachedApkMeta.buildId) || 0;
     const remoteCode = resolveRemoteVersionCode(cachedApkMeta) || 0;
     const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
-    // Alinear marca local SOLO si el teléfono ya tiene code >= remoto
-    if (remoteBuildId && remoteCode > 0 && nativeCode > 0 && nativeCode >= remoteCode) {
+    const ack = getClientBuildId();
+    if (
+        remoteBuildId
+        && ack == null
+        && remoteCode > 0
+        && nativeCode > 0
+        && nativeCode >= remoteCode
+    ) {
         setClientBuildId(remoteBuildId);
     }
 }
@@ -509,8 +464,9 @@ export async function renderAdminApkPanel(container) {
                 </button>
             </div>
             <p class="text-[10px] text-slate-500 mt-2">
-                Si la gente no ve “Nueva versión”, pulsa <b>Reparar detección</b>.
-                El VersionCode debe ser 10 dígitos (ej. 2026.07.30.2 → <b>2026073002</b>).
+                <b>Regla simple:</b> cada vez que publicas un APK se genera un build nuevo y se avisa a todos
+                (push + botón en la app). No hace falta que la versión sea “mayor”: <b>subir = actualizar</b>.
+                Si algo falla, pulsa <b>Reparar detección</b>.
             </p>
         `) +
         U.formPanel('Subir nuevo APK', '1) Elige archivo · 2) Pulsa Publicar · 3) Espera la barra al 100%', `
