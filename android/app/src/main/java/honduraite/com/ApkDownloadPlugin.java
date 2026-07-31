@@ -2,8 +2,11 @@ package honduraite.com;
 
 import android.app.DownloadManager;
 import android.content.Context;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -90,6 +93,38 @@ public class ApkDownloadPlugin extends Plugin {
             call.resolve(ret);
         } catch (Exception e) {
             call.reject("No se pudo abrir el navegador: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * versionName + versionCode reales del APK instalado (PackageManager).
+     * Más fiable que Capacitor App.getInfo() en algunos WebViews.
+     */
+    @PluginMethod
+    public void getInstalledVersion(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            PackageManager pm = ctx.getPackageManager();
+            String pkg = ctx.getPackageName();
+            PackageInfo info;
+            if (Build.VERSION.SDK_INT >= 33) {
+                info = pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(0));
+            } else {
+                info = pm.getPackageInfo(pkg, 0);
+            }
+            long versionCode;
+            if (Build.VERSION.SDK_INT >= 28) {
+                versionCode = info.getLongVersionCode();
+            } else {
+                versionCode = info.versionCode;
+            }
+            JSObject ret = new JSObject();
+            ret.put("versionName", info.versionName != null ? info.versionName : "");
+            ret.put("versionCode", versionCode);
+            ret.put("packageName", pkg);
+            call.resolve(ret);
+        } catch (Exception e) {
+            call.reject("No se pudo leer la versión instalada: " + e.getMessage(), e);
         }
     }
 

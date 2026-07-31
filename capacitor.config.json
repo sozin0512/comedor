@@ -3,7 +3,21 @@
   "appName": "HonduRaite",
   "webDir": "www",
   "server": {
-    "androidScheme": "https"
+    "androidScheme": "https",
+    "url": "https://comedor-86278.web.app",
+    "cleartext": false,
+    "allowNavigation": [
+      "comedor-86278.web.app",
+      "comedor-86278.firebaseapp.com",
+      "*.web.app",
+      "*.firebaseapp.com",
+      "*.googleapis.com",
+      "*.gstatic.com",
+      "*.google.com",
+      "*.firebaseio.com",
+      "*.firebasestorage.app",
+      "*.cloudfunctions.net"
+    ]
   },
   "plugins": {
     "SplashScreen": {

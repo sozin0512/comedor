@@ -118,6 +118,32 @@ export async function downloadApkNative(url, fileName = 'HonduRaite.apk') {
 }
 
 /**
+ * Lee versionName + versionCode del APK instalado (PackageManager nativo).
+ * @returns {Promise<{versionName:string, versionCode:number, packageName?:string}|null>}
+ */
+export async function getInstalledApkVersion() {
+    if (!isCapacitorAndroid()) return null;
+    try {
+        const plugin = window.Capacitor?.Plugins?.ApkDownload;
+        if (!plugin?.getInstalledVersion) return null;
+        const res = await plugin.getInstalledVersion();
+        if (!res) return null;
+        return {
+            versionName: String(res.versionName || '').trim(),
+            versionCode: Number(res.versionCode) || 0,
+            packageName: res.packageName || '',
+        };
+    } catch (e) {
+        console.warn('[getInstalledApkVersion]', e);
+        return null;
+    }
+}
+
+if (typeof window !== 'undefined') {
+    window.getInstalledApkVersion = getInstalledApkVersion;
+}
+
+/**
  * Abre URL en el navegador real del sistema (no Custom Tab).
  * Mejor para APK grandes de Firebase Storage.
  */

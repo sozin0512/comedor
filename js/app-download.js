@@ -12,7 +12,8 @@ import {
     isCapacitorAndroid,
     openExternalUrl,
     downloadApkNative,
-    openInSystemBrowser
+    openInSystemBrowser,
+    getInstalledApkVersion
 } from './capacitor-native.js';
 
 const SETTINGS_DOC = 'main';
@@ -210,6 +211,19 @@ function alreadyHasCurrentApkOnWeb() {
 
 function isUpdateSnoozed() {
     try {
+        // Nunca silenciar si el teléfono es claramente más viejo que el APK publicado
+        const remoteCode = resolveRemoteVersionCode(cachedApkMeta || {}) || 0;
+        const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
+        if (remoteCode > 0 && nativeCode > 0 && remoteCode > nativeCode) {
+            return false;
+        }
+        const remoteVer = String(cachedApkMeta?.version || '').trim();
+        const nativeVer = String(nativeAppInfo.version || '').trim();
+        if (remoteVer && nativeVer && remoteVer !== nativeVer) {
+            const r = versionLabelToCode(remoteVer);
+            const n = versionLabelToCode(nativeVer);
+            if (r > 0 && n > 0 && r > n) return false;
+        }
         const until = Number(localStorage.getItem(UPDATE_SNOOZE_KEY) || 0);
         return until > Date.now();
     } catch (_) {
@@ -233,13 +247,29 @@ function isInstalledAndroidApp() {
 }
 
 /**
- * Lee versionName + versionCode del APK instalado (Capacitor).
+ * Lee versionName + versionCode del APK instalado.
+ * Preferir PackageManager nativo; fallback Capacitor App.getInfo.
  */
 export async function refreshNativeAppInfo() {
     if (!isInstalledAndroidApp()) {
         nativeAppInfo = { version: '', build: 0, ready: true };
         return nativeAppInfo;
     }
+    // 1) Plugin nativo (PackageManager) — versionCode real del APK shell
+    try {
+        const pkg = await getInstalledApkVersion?.();
+        if (pkg && (pkg.versionCode > 0 || pkg.versionName)) {
+            nativeAppInfo = {
+                version: String(pkg.versionName || '').trim(),
+                build: Number(pkg.versionCode) || versionLabelToCode(pkg.versionName) || 0,
+                ready: true,
+            };
+            return nativeAppInfo;
+        }
+    } catch (e) {
+        console.warn('[app-download] getInstalledApkVersion:', e);
+    }
+    // 2) Capacitor App.getInfo
     try {
         const App = window.Capacitor?.Plugins?.App;
         if (!App?.getInfo) {
@@ -249,7 +279,7 @@ export async function refreshNativeAppInfo() {
         const info = await App.getInfo();
         nativeAppInfo = {
             version: String(info?.version || '').trim(),
-            // Android: info.build = versionCode
+            // Android: info.build = versionCode (a veces string)
             build: Number(info?.build) || versionLabelToCode(info?.version) || 0,
             ready: true
         };
@@ -913,10 +943,8 @@ async function removeAndroidApk() {
 function shouldShowDownloadBadge() {
     // App nativa Android: botón de actualización cuando hay APK más nuevo
     if (isInstalledAndroidApp()) {
-        if (document.body.classList.contains('trip-active')) return false;
+        // Update siempre visible (también en búsqueda); solo ocultar en map-pick
         if (document.body.classList.contains('map-pick-mode')) return false;
-        if (document.body.classList.contains('is-searching')) return false;
-        // Si hay update, mostrar aunque haya snooze viejo (el login ya limpia snooze)
         if (!hasApkUpdateAvailable()) return false;
         if (isUpdateSnoozed()) return false;
         return true;
@@ -1411,6 +1439,15 @@ export function onPassengerAppBadgeSessionStart(uid) {
     // Misma sesión de login: no tocar el estado de la X
     if (badgeSessionUid === id) {
         syncAppDownloadBadge();
+        // Reintentar update en cada llamada (meta puede llegar tarde)
+        Promise.resolve(refreshNativeAppInfo())
+            .then(() => loadApkMeta())
+            .then(() => {
+                reactToNewRemotePublication();
+                syncAppDownloadBadge();
+                if (hasApkUpdateAvailable()) maybeShowApkUpdateModal({ force: true });
+            })
+            .catch(() => {});
         return;
     }
     badgeSessionUid = id;
@@ -1418,11 +1455,28 @@ export function onPassengerAppBadgeSessionStart(uid) {
     try {
         sessionStorage.removeItem(DISMISS_KEY);
     } catch (_) {}
-    // Nativo: al re-entrar, si hay update pendiente y no está snoozed… (snooze se limpia para ver updates)
+    // Nativo: al re-entrar, limpia snooze para ver updates
     try {
         localStorage.removeItem(UPDATE_SNOOZE_KEY);
     } catch (_) {}
     syncAppDownloadBadge();
+    // Tras login: forzar chequeo de update (App.getInfo a veces llega tarde)
+    Promise.resolve(refreshNativeAppInfo())
+        .then(() => loadApkMeta())
+        .then(() => {
+            reactToNewRemotePublication();
+            syncAppDownloadBadge();
+            setTimeout(() => {
+                if (hasApkUpdateAvailable()) maybeShowApkUpdateModal({ force: true });
+            }, 1200);
+            setTimeout(() => {
+                refreshNativeAppInfo().then(() => {
+                    syncAppDownloadBadge();
+                    if (hasApkUpdateAvailable()) maybeShowApkUpdateModal({ force: true });
+                });
+            }, 4000);
+        })
+        .catch(() => {});
 }
 
 export function onPassengerAppBadgeSessionEnd() {
@@ -1432,10 +1486,56 @@ export function onPassengerAppBadgeSessionEnd() {
     } catch (_) {}
 }
 
+/** Barra fija inferior: no depende del badge (CSS a veces lo oculta en driver-mode). */
+function syncApkUpdateBanner() {
+    const need = isInstalledAndroidApp()
+        && hasApkUpdateAvailable()
+        && !isUpdateSnoozed()
+        && !document.body.classList.contains('map-pick-mode');
+    let bar = document.getElementById('apk-update-force-bar');
+    if (!need) {
+        bar?.classList.add('hidden');
+        document.body.classList.remove('apk-update-bar-visible');
+        return;
+    }
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'apk-update-force-bar';
+        bar.className = 'apk-update-force-bar';
+        bar.innerHTML = `
+            <div class="apk-update-force-bar-inner">
+                <div class="apk-update-force-bar-text">
+                    <strong>Nueva versión de HonduRaite</strong>
+                    <span id="apk-update-force-bar-ver"></span>
+                </div>
+                <button type="button" class="apk-update-force-bar-btn" data-apk-force-go>
+                    Actualizar
+                </button>
+            </div>`;
+        document.body.appendChild(bar);
+        bar.querySelector('[data-apk-force-go]')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            showApkUpdateModal({ force: true });
+        });
+    }
+    const verEl = bar.querySelector('#apk-update-force-bar-ver');
+    if (verEl) {
+        const v = cachedApkMeta?.version || '';
+        const rc = resolveRemoteVersionCode(cachedApkMeta || {}) || cachedApkMeta?.versionCode || '';
+        verEl.textContent = v
+            ? ` · v${v}${rc ? ` (${rc})` : ''} disponible`
+            : ' · hay una actualización lista';
+    }
+    bar.classList.remove('hidden');
+    document.body.classList.add('apk-update-bar-visible');
+}
+
 export function syncAppDownloadBadge() {
     const el = ensureBadgeEl();
     const show = shouldShowDownloadBadge();
     el.classList.toggle('hidden', !show);
+    try { syncApkUpdateBanner(); } catch (_) {}
     if (!show) return;
 
     const update = (isInstalledAndroidApp() && hasApkUpdateAvailable())

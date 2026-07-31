@@ -17050,15 +17050,80 @@
         }
 
         /* Ocultar promo de descarga en web; el badge de UPDATE nativo usa .is-update */
-        body.trip-active .app-download-badge:not(.driver-copa-badge),
+        body.trip-active .app-download-badge:not(.is-update):not(.driver-copa-badge),
         body.is-searching .app-download-badge:not(.is-update):not(.driver-copa-badge),
         body.driver-mode .app-download-badge:not(.is-update),
         body.map-pick-mode .app-download-badge {
             display: none !important;
         }
 
-        body:not(.trip-active):not(.map-pick-mode) .app-download-badge.is-update:not(.hidden) {
+        /* Update SIEMPRE visible (conductor/pasajero), encima de todo el UI */
+        body .app-download-badge.is-update:not(.hidden) {
             display: flex !important;
+            z-index: 99950 !important;
+            pointer-events: auto !important;
+        }
+
+        body:not(.map-pick-mode) .app-download-badge.is-update:not(.hidden) {
+            display: flex !important;
+        }
+
+        /* Barra fija inferior de actualización (no depende del badge) */
+        .apk-update-force-bar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 99980;
+            padding: 0.55rem 0.75rem calc(0.55rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+            background: linear-gradient(180deg, rgba(120, 53, 15, 0.97), rgba(180, 83, 9, 0.98));
+            border-top: 2px solid #fbbf24;
+            box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.28);
+            pointer-events: auto;
+        }
+        .apk-update-force-bar.hidden { display: none !important; }
+        .apk-update-force-bar-inner {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            max-width: 32rem;
+            margin: 0 auto;
+        }
+        .apk-update-force-bar-text {
+            flex: 1 1 auto;
+            min-width: 0;
+            color: #fffbeb;
+            font-size: 0.78rem;
+            line-height: 1.25;
+        }
+        .apk-update-force-bar-text strong {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 900;
+            color: #fff;
+        }
+        .apk-update-force-bar-text span {
+            opacity: 0.92;
+            font-size: 0.72rem;
+        }
+        .apk-update-force-bar-btn {
+            flex: 0 0 auto;
+            border: 0;
+            border-radius: 999px;
+            background: #fbbf24;
+            color: #78350f;
+            font-weight: 900;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 0.65rem 1rem;
+            min-height: 2.6rem;
+            cursor: pointer;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+        .apk-update-force-bar-btn:active { transform: scale(0.97); }
+        body.apk-update-bar-visible #control-panel {
+            padding-bottom: calc(4.2rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
         }
 
         @media (max-width: 768px) {
