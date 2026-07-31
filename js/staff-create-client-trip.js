@@ -10,12 +10,16 @@ import { normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink } from './
 import {
     normalizeServiceType,
     calculateServiceFare,
+    calculateFreightFare,
     getMaxPassengers,
     getExtraPassengerFee,
     getPassengerSurcharge,
     normalizePassengerCount,
     formatPassengersLabel,
-    applyPassengerSurcharge
+    applyPassengerSurcharge,
+    isFreightService,
+    validateFreightDetails,
+    getServiceLabel
 } from './service-types.js';
 import { getDefaultZoneId, getZoneById, getZoneConfig, getCityCoverageKm } from './zones.js';
 
@@ -130,14 +134,18 @@ function clearPendingStaffTripId() {
 
 function buildStaffTripWhatsAppMessage({
     tripId, clientName, origin, destination, priceLabel,
-    clientChoosesSchedule, passengers, clientChoosesPassengers, scheduledFor
+    clientChoosesSchedule, passengers, clientChoosesPassengers, scheduledFor,
+    clientChoosesRoute, serviceType, freightLabel
 }) {
     const link = buildStaffTripShareLink(tripId);
     const name = (clientName || 'Cliente').split(' ')[0];
     const pax = Math.max(1, parseInt(passengers, 10) || 1);
+    const isFlete = isFreightService?.(serviceType);
     let whenLine = null;
-    if (clientChoosesSchedule) {
-        whenLine = 'Programado: al abrir eliges fecha y hora.';
+    if (clientChoosesSchedule || clientChoosesRoute) {
+        whenLine = clientChoosesRoute
+            ? 'Al abrir pones: ubicaciones, hora y datos del flete.'
+            : 'Programado: al abrir eliges fecha y hora.';
     } else if (scheduledFor) {
         try {
             const when = new Date(scheduledFor).toLocaleString('es-HN', {
@@ -152,17 +160,23 @@ function buildStaffTripWhatsAppMessage({
     }
     // Formato pensado para WhatsApp: el link en su propia línea, con https://
     const lines = [
-        `HonduRaite — viaje listo para ti, ${name}`,
+        isFlete
+            ? `HonduRaite — flete listo para ti, ${name}`
+            : `HonduRaite — viaje listo para ti, ${name}`,
         '',
-        `Origen: ${origin || '—'}`,
-        `Destino: ${destination || '—'}`,
+        freightLabel ? `Servicio: ${freightLabel}` : null,
+        clientChoosesRoute
+            ? 'Ubicaciones: las pones tú al abrir el link.'
+            : `Origen: ${origin || '—'}`,
+        clientChoosesRoute ? null : `Destino: ${destination || '—'}`,
         priceLabel ? `Tarifa: ${priceLabel}` : null,
-        clientChoosesPassengers
+        !isFlete && clientChoosesPassengers
             ? 'Personas: al abrir eliges cuántas van (máx. 4).'
-            : (pax > 1 ? `Personas: ${pax}` : null),
+            : (!isFlete && pax > 1 ? `Personas: ${pax}` : null),
         whenLine,
+        isFlete ? 'Al confirmar, te asignamos el conductor de flete elegido por soporte.' : null,
         '',
-        'Abre tu viaje aquí (toca el enlace):',
+        'Abre aquí (toca el enlace):',
         '',
         link,
         '',
@@ -183,6 +197,9 @@ function showStaffTripSharePanel({
     passengers,
     clientChoosesPassengers,
     scheduledFor,
+    clientChoosesRoute = false,
+    serviceType = 'auto',
+    freightLabel = '',
     showToast,
     resend = false
 }) {
@@ -191,7 +208,8 @@ function showStaffTripSharePanel({
     const phone = normalizeHondurasPhone(clientPhone) || clientPhone || '';
     const msg = buildStaffTripWhatsAppMessage({
         tripId, clientName, origin, destination, priceLabel,
-        clientChoosesSchedule, passengers, clientChoosesPassengers, scheduledFor
+        clientChoosesSchedule, passengers, clientChoosesPassengers, scheduledFor,
+        clientChoosesRoute, serviceType, freightLabel
     });
     // wa.me suele prellenar mejor el texto con URLs; api.whatsapp.com a veces trunca
     const waUrl = phone ? getWhatsAppLink(phone, msg) : '';
@@ -427,6 +445,8 @@ export function installStaffCreateClientTrip({
                                 <option value="taxi">Taxi tradicional</option>
                                 <option value="moto">Moto</option>
                                 <option value="delivery">Envío</option>
+                                <option value="flete_paila">Flete · Paila</option>
+                                <option value="flete_camion">Flete · Camión</option>
                             </select>
                         </div>
                         <div>
@@ -435,6 +455,47 @@ export function installStaffCreateClientTrip({
                                 ${zoneOptionsHtml || `<option value="${escapeHtml(defaultZone)}">${escapeHtml(defaultZone || 'Zona')}</option>`}
                             </select>
                         </div>
+                    </div>
+
+                    <label style="display:flex;align-items:flex-start;gap:0.5rem;margin-bottom:0.65rem;padding:0.65rem;border-radius:0.85rem;border:1px solid #0369a1;background:rgba(12,74,110,0.4);font-size:12px;font-weight:800;color:#bae6fd;cursor:pointer;">
+                        <input type="checkbox" id="staff-cct-client-route" style="margin-top:0.15rem;">
+                        <span>
+                            Cliente pone ubicaciones y hora (link WhatsApp)
+                            <span style="display:block;font-size:10px;font-weight:700;color:#7dd3fc;margin-top:0.2rem;line-height:1.35;">
+                                Ideal para fletes: eliges conductores aquí; el cliente solo marca origen, destino y cuándo.
+                            </span>
+                        </span>
+                    </label>
+
+                    <div id="staff-cct-freight-wrap" style="display:none;margin-bottom:0.65rem;padding:0.65rem;border-radius:0.85rem;border:1px solid #047857;background:rgba(6,78,59,0.4);">
+                        <p style="margin:0 0 0.45rem;font-size:10px;font-weight:900;text-transform:uppercase;color:#6ee7b7;">Datos del flete (opcional si el cliente completa)</p>
+                        <input type="text" id="staff-cct-cargo" class="ops-input" style="width:100%;margin-bottom:0.4rem;" placeholder="¿Qué se mueve? (muebles, material…)" maxlength="120">
+                        <input type="text" id="staff-cct-weight" class="ops-input" style="width:100%;margin-bottom:0.4rem;" placeholder="Peso/volumen (ej. 800 kg, 2 ton)" maxlength="40">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.4rem;">
+                            <input type="text" id="staff-cct-freight-contact" class="ops-input" placeholder="Contacto destino" maxlength="60">
+                            <input type="tel" id="staff-cct-freight-phone" class="ops-input" placeholder="WhatsApp destino" maxlength="20">
+                        </div>
+                        <label style="display:block;font-size:10px;font-weight:800;color:#a7f3d0;margin-bottom:0.25rem;">Ayudantes</label>
+                        <select id="staff-cct-helpers" class="ops-input" style="width:100%;">
+                            <option value="0">Sin ayudantes</option>
+                            <option value="1">1 ayudante</option>
+                            <option value="2">2 ayudantes</option>
+                            <option value="3">3 ayudantes</option>
+                        </select>
+                    </div>
+
+                    <div id="staff-cct-drivers-wrap" style="display:none;margin-bottom:0.65rem;padding:0.65rem;border-radius:0.85rem;border:1px solid #7c3aed;background:rgba(76,29,149,0.35);">
+                        <p style="margin:0 0 0.35rem;font-size:10px;font-weight:900;text-transform:uppercase;color:#ddd6fe;">
+                            Conductores del flete (elige 1 o más)
+                        </p>
+                        <p style="margin:0 0 0.45rem;font-size:10px;font-weight:700;color:#c4b5fd;line-height:1.35;">
+                            Solo paila o camión según el servicio. Al confirmar el cliente, se les ofrece el flete.
+                        </p>
+                        <input type="search" id="staff-cct-driver-search" class="ops-input" style="width:100%;margin-bottom:0.4rem;" placeholder="Buscar conductor…" autocomplete="off">
+                        <div id="staff-cct-driver-list" style="max-height:11rem;overflow:auto;border:1px solid #5b21b6;border-radius:0.65rem;padding:0.35rem;background:#020617;">
+                            <p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">Cargando conductores…</p>
+                        </div>
+                        <p id="staff-cct-drivers-picked" style="margin:0.4rem 0 0;font-size:10px;font-weight:800;color:#c4b5fd;"></p>
                     </div>
 
                     <div id="staff-cct-pax-wrap" style="margin-bottom:0.55rem;padding:0.6rem 0.7rem;border-radius:0.85rem;border:1px solid #334155;background:#020617;">
@@ -555,6 +616,157 @@ export function installStaffCreateClientTrip({
             schedClientRadio?.addEventListener('change', syncSchedUi);
             schedStaffRadio?.addEventListener('change', syncSchedUi);
             syncSchedUi();
+
+            // —— Flete / cliente elige ruta / conductores ——
+            const clientRouteCb = modal.querySelector('#staff-cct-client-route');
+            const freightWrap = modal.querySelector('#staff-cct-freight-wrap');
+            const driversWrap = modal.querySelector('#staff-cct-drivers-wrap');
+            const paxWrap = modal.querySelector('#staff-cct-pax-wrap');
+            const routeFields = modal.querySelector('#staff-cct-origin')?.closest?.('div')?.parentElement;
+            // Contenedor de origen/destino (grid con 2 campos)
+            const originDestGrid = modal.querySelector('#staff-cct-origin')?.parentElement?.parentElement?.parentElement;
+            const selectedDriverIds = new Set();
+            let fleteDriverCache = [];
+
+            const isFleteSvc = () => isFreightService(serviceSelect?.value || 'auto');
+
+            const syncFleteUi = () => {
+                const flete = isFleteSvc();
+                const clientRoute = !!clientRouteCb?.checked;
+                if (freightWrap) freightWrap.style.display = flete ? 'block' : 'none';
+                if (driversWrap) driversWrap.style.display = flete ? 'block' : 'none';
+                if (paxWrap) paxWrap.style.display = flete ? 'none' : 'block';
+                // Si el cliente pone la ruta, ocultar campos de dirección del staff
+                const hideRoute = clientRoute;
+                const oWrap = modal.querySelector('#staff-cct-origin')?.closest('div[style*="position:relative"]');
+                const dWrap = modal.querySelector('#staff-cct-dest')?.closest('div[style*="position:relative"]');
+                if (oWrap) oWrap.style.display = hideRoute ? 'none' : 'block';
+                if (dWrap) dWrap.style.display = hideRoute ? 'none' : 'block';
+                if (routeBox && hideRoute) routeBox.style.display = 'none';
+                if (flete) loadFleteDrivers();
+            };
+
+            const renderDriverList = (filter = '') => {
+                const listEl = modal.querySelector('#staff-cct-driver-list');
+                const pickedEl = modal.querySelector('#staff-cct-drivers-picked');
+                if (!listEl) return;
+                const svc = normalizeServiceType(serviceSelect?.value || 'flete_paila');
+                const needType = svc === 'flete_camion' ? 'camion' : 'paila';
+                const q = String(filter || '').trim().toLowerCase();
+                const filtered = fleteDriverCache.filter((d) => {
+                    if (!d.types.includes(needType) && !d.types.includes(svc === 'flete_camion' ? 'camion' : 'paila')) {
+                        // accept vehicleType aliases
+                        const ok = needType === 'camion'
+                            ? d.types.some((t) => /camion|camión/i.test(t))
+                            : d.types.some((t) => /paila|pickup/i.test(t));
+                        if (!ok) return false;
+                    }
+                    if (!q) return true;
+                    return `${d.name} ${d.phone} ${d.plate}`.toLowerCase().includes(q);
+                });
+                if (!filtered.length) {
+                    listEl.innerHTML = `<p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">
+                        No hay conductores de ${needType === 'camion' ? 'camión' : 'paila'} ${q ? 'con ese filtro' : 'registrados'}.</p>`;
+                } else {
+                    listEl.innerHTML = filtered.map((d) => {
+                        const on = selectedDriverIds.has(d.uid);
+                        return `<label style="display:flex;align-items:center;gap:0.45rem;padding:0.4rem 0.45rem;border-radius:0.5rem;
+                            background:${on ? '#4c1d95' : 'transparent'};cursor:pointer;margin:0 0 0.15rem;">
+                            <input type="checkbox" data-driver-uid="${escapeHtml(d.uid)}" ${on ? 'checked' : ''} style="flex-shrink:0;">
+                            <span style="min-width:0;flex:1;">
+                                <span style="display:block;font-size:12px;font-weight:900;color:#fff;">${escapeHtml(d.name)}</span>
+                                <span style="display:block;font-size:10px;font-weight:700;color:#c4b5fd;">${escapeHtml(d.phone || '')}${d.plate ? ` · ${escapeHtml(d.plate)}` : ''} · ${escapeHtml(d.types.join('/'))}${d.freightEnabled ? ' · FLETES ON' : ''}</span>
+                            </span>
+                        </label>`;
+                    }).join('');
+                }
+                if (pickedEl) {
+                    pickedEl.textContent = selectedDriverIds.size
+                        ? `${selectedDriverIds.size} conductor(es) seleccionado(s)`
+                        : 'Ninguno seleccionado (recomendado elegir al menos 1)';
+                }
+            };
+
+            const loadFleteDrivers = async () => {
+                const listEl = modal.querySelector('#staff-cct-driver-list');
+                if (listEl) listEl.innerHTML = '<p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">Cargando…</p>';
+                try {
+                    const snap = await getDocs(query(
+                        collection(db, 'artifacts', appId, 'public', 'data', 'users'),
+                        where('role', '==', 'driver'),
+                        limit(200)
+                    ));
+                    fleteDriverCache = snap.docs.map((d) => {
+                        const u = d.data() || {};
+                        const vehicles = Array.isArray(u.vehicles) ? u.vehicles : [];
+                        const types = [];
+                        if (u.vehicleType) types.push(String(u.vehicleType).toLowerCase());
+                        vehicles.forEach((v) => {
+                            if (v?.type) types.push(String(v.type).toLowerCase());
+                            if (v?.vehicleType) types.push(String(v.vehicleType).toLowerCase());
+                        });
+                        // Staff habilitó fletes: mostrar aunque aún no tenga paila/camión en perfil
+                        if (u.freightEnabled || u.canDoFreight) {
+                            const pref = Array.isArray(u.freightPreferredTypes) ? u.freightPreferredTypes : [];
+                            pref.forEach((t) => types.push(String(t).toLowerCase()));
+                            if (!types.some((t) => /paila|camion|camión/.test(t))) {
+                                types.push('paila', 'camion');
+                            }
+                        }
+                        const plate = u.vehicle?.plate
+                            || vehicles.find((v) => v?.vehicle?.plate)?.vehicle?.plate
+                            || vehicles.find((v) => v?.plate)?.plate
+                            || '';
+                        return {
+                            uid: d.id,
+                            name: u.name || 'Conductor',
+                            phone: formatHondurasPhone(u.phone) || u.phone || '',
+                            plate: String(plate || ''),
+                            types: [...new Set(types.filter(Boolean))],
+                            online: u.isOnline === true || u.online === true,
+                            freightEnabled: !!(u.freightEnabled || u.canDoFreight)
+                        };
+                    }).filter((d) =>
+                        d.freightEnabled
+                        || d.types.some((t) => /paila|pickup|camion|camión/.test(t))
+                    );
+                    renderDriverList(modal.querySelector('#staff-cct-driver-search')?.value || '');
+                } catch (e) {
+                    console.warn('[staff] load flete drivers', e);
+                    if (listEl) {
+                        listEl.innerHTML = `<p style="font-size:11px;color:#fca5a5;font-weight:700;padding:0.4rem;margin:0;">
+                            No se pudieron cargar conductores. ${escapeHtml(e?.message || '')}</p>`;
+                    }
+                }
+            };
+
+            modal.querySelector('#staff-cct-driver-list')?.addEventListener('change', (e) => {
+                const cb = e.target?.closest?.('input[data-driver-uid]');
+                if (!cb) return;
+                const uid = cb.getAttribute('data-driver-uid');
+                if (!uid) return;
+                if (cb.checked) selectedDriverIds.add(uid);
+                else selectedDriverIds.delete(uid);
+                renderDriverList(modal.querySelector('#staff-cct-driver-search')?.value || '');
+            });
+            let driverSearchT = null;
+            modal.querySelector('#staff-cct-driver-search')?.addEventListener('input', () => {
+                clearTimeout(driverSearchT);
+                driverSearchT = setTimeout(() => {
+                    renderDriverList(modal.querySelector('#staff-cct-driver-search')?.value || '');
+                }, 150);
+            });
+
+            serviceSelect?.addEventListener('change', () => {
+                syncFleteUi();
+                // recalc fare if route known
+                try { window._staffCctRecalcRoute?.(); } catch (_) {}
+            });
+            clientRouteCb?.addEventListener('change', syncFleteUi);
+            // Expose selected drivers for submit
+            modal._staffSelectedDriverIds = selectedDriverIds;
+            modal._loadFleteDrivers = loadFleteDrivers;
+            syncFleteUi();
 
             // Estado de coords elegidas (búsqueda o pin) + última ruta calculada
             const placeState = {
@@ -1192,22 +1404,34 @@ export function installStaffCreateClientTrip({
         if (!modal) return;
 
         const clientId = modal.querySelector('#staff-cct-client-id')?.value?.trim();
-        const origin = modal.querySelector('#staff-cct-origin')?.value?.trim();
-        const destination = modal.querySelector('#staff-cct-dest')?.value?.trim();
+        let origin = modal.querySelector('#staff-cct-origin')?.value?.trim();
+        let destination = modal.querySelector('#staff-cct-dest')?.value?.trim();
         const serviceType = normalizeServiceType(modal.querySelector('#staff-cct-service')?.value || 'auto');
+        const isFlete = isFreightService(serviceType);
+        const clientChoosesRoute = !!modal.querySelector('#staff-cct-client-route')?.checked;
         const zoneId = modal.querySelector('#staff-cct-zone')?.value?.trim()
             || window.activeServiceZoneId
             || getDefaultZoneId?.()
             || null;
         const priceOverride = parseFloat(modal.querySelector('#staff-cct-price')?.value || '');
         // Programado: staff fija fecha/hora O el cliente la elige al reclamar
-        const isScheduled = !!modal.querySelector('#staff-cct-scheduled')?.checked;
+        const isScheduled = !!modal.querySelector('#staff-cct-scheduled')?.checked
+            || clientChoosesRoute; // si el cliente pone ubicaciones, también elige hora
         const staffPicksSchedule = isScheduled
-            && !!modal.querySelector('#staff-cct-sched-staff')?.checked;
-        const clientChoosesSchedule = isScheduled && !staffPicksSchedule;
+            && !!modal.querySelector('#staff-cct-sched-staff')?.checked
+            && !clientChoosesRoute;
+        const clientChoosesSchedule = (isScheduled && !staffPicksSchedule) || clientChoosesRoute;
         const dateStr = modal.querySelector('#staff-cct-date')?.value || '';
         const timeStr = modal.querySelector('#staff-cct-time')?.value || '';
         const hint = modal.querySelector('#staff-cct-hint');
+
+        // Conductores elegidos (flete)
+        const selectedDriverIds = modal._staffSelectedDriverIds instanceof Set
+            ? [...modal._staffSelectedDriverIds]
+            : [];
+        if (isFlete && !selectedDriverIds.length) {
+            return toast(showToast, 'Elige al menos un conductor de paila/camión para el flete.', 'warning');
+        }
 
         // Coords del pin / sugerencia (si las hay)
         let originLat = parseFloat(modal.querySelector('#staff-cct-origin-lat')?.value || '');
@@ -1220,8 +1444,13 @@ export function installStaffCreateClientTrip({
         if (!Number.isFinite(destinationLng)) destinationLng = null;
 
         if (!clientId) return toast(showToast, 'Selecciona un cliente (o ábrelo desde su tarjeta).');
-        if (!origin || origin.length < 3) return toast(showToast, 'Escribe o marca el origen (búsqueda o pin).');
-        if (!destination || destination.length < 3) return toast(showToast, 'Escribe o marca el destino.');
+        if (!clientChoosesRoute) {
+            if (!origin || origin.length < 3) return toast(showToast, 'Escribe o marca el origen (búsqueda o pin).');
+            if (!destination || destination.length < 3) return toast(showToast, 'Escribe o marca el destino.');
+        } else {
+            origin = origin || 'Por definir (cliente)';
+            destination = destination || 'Por definir (cliente)';
+        }
 
         let scheduledFor = null;
         if (isScheduled && staffPicksSchedule) {
@@ -1259,80 +1488,130 @@ export function installStaffCreateClientTrip({
             let tripDistanceKm = 0;
             let tripDurationMs = 0;
 
-            // Siempre geocodificar si faltan coords (precio opcional NO salta la ruta)
-            if ((originLat == null || originLng == null) && typeof window.geocodeAddressString === 'function') {
-                try {
-                    const o = await window.geocodeAddressString(origin);
-                    if (o?.latLng) {
-                        originLat = o.latLng.lat;
-                        originLng = o.latLng.lng;
-                    }
-                } catch (_) {}
-            }
-            if ((destinationLat == null || destinationLng == null) && typeof window.geocodeAddressString === 'function') {
-                try {
-                    const d = await window.geocodeAddressString(destination);
-                    if (d?.latLng) {
-                        destinationLat = d.latLng.lat;
-                        destinationLng = d.latLng.lng;
-                    }
-                } catch (_) {}
-            }
+            if (!clientChoosesRoute) {
+                // Siempre geocodificar si faltan coords (precio opcional NO salta la ruta)
+                if ((originLat == null || originLng == null) && typeof window.geocodeAddressString === 'function') {
+                    try {
+                        const o = await window.geocodeAddressString(origin);
+                        if (o?.latLng) {
+                            originLat = o.latLng.lat;
+                            originLng = o.latLng.lng;
+                        }
+                    } catch (_) {}
+                }
+                if ((destinationLat == null || destinationLng == null) && typeof window.geocodeAddressString === 'function') {
+                    try {
+                        const d = await window.geocodeAddressString(destination);
+                        if (d?.latLng) {
+                            destinationLat = d.latLng.lat;
+                            destinationLng = d.latLng.lng;
+                        }
+                    } catch (_) {}
+                }
 
-            if (originLat == null || originLng == null || destinationLat == null || destinationLng == null) {
-                throw new Error('No se pudo ubicar origen o destino. Usa la búsqueda o el pin del mapa.');
-            }
+                if (originLat == null || originLng == null || destinationLat == null || destinationLng == null) {
+                    throw new Error('No se pudo ubicar origen o destino. Usa la búsqueda o el pin del mapa.');
+                }
 
-            // Cálculo de ruta SIEMPRE (aunque el precio sea manual)
-            if (typeof window.computeDrivingRoute === 'function') {
-                try {
-                    const seg = await window.computeDrivingRoute(
-                        { latLng: { lat: originLat, lng: originLng }, address: origin },
-                        { latLng: { lat: destinationLat, lng: destinationLng }, address: destination }
-                    );
-                    if (seg?.distanceMeters) tripDistanceKm = Math.round((seg.distanceMeters / 1000) * 10) / 10;
-                    if (seg?.durationMillis) tripDurationMs = seg.durationMillis;
-                } catch (routeErr) {
-                    console.warn('[staff] computeDrivingRoute on submit', routeErr);
+                // Cálculo de ruta SIEMPRE (aunque el precio sea manual)
+                if (typeof window.computeDrivingRoute === 'function') {
+                    try {
+                        const seg = await window.computeDrivingRoute(
+                            { latLng: { lat: originLat, lng: originLng }, address: origin },
+                            { latLng: { lat: destinationLat, lng: destinationLng }, address: destination }
+                        );
+                        if (seg?.distanceMeters) tripDistanceKm = Math.round((seg.distanceMeters / 1000) * 10) / 10;
+                        if (seg?.durationMillis) tripDurationMs = seg.durationMillis;
+                    } catch (routeErr) {
+                        console.warn('[staff] computeDrivingRoute on submit', routeErr);
+                    }
+                }
+
+                // Fallback distancia en línea recta × 1.3 si Directions falla
+                if (!(tripDistanceKm > 0) && originLat != null && destinationLat != null) {
+                    const R = 6371;
+                    const toRad = (x) => (x * Math.PI) / 180;
+                    const dLat = toRad(destinationLat - originLat);
+                    const dLng = toRad(destinationLng - originLng);
+                    const a = Math.sin(dLat / 2) ** 2
+                        + Math.cos(toRad(originLat)) * Math.cos(toRad(destinationLat)) * Math.sin(dLng / 2) ** 2;
+                    const straight = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    tripDistanceKm = Math.round(straight * 1.3 * 10) / 10;
+                    tripDurationMs = Math.round((tripDistanceKm / 25) * 3600000);
                 }
             }
 
-            // Fallback distancia en línea recta × 1.3 si Directions falla
-            if (!(tripDistanceKm > 0) && originLat != null && destinationLat != null) {
-                const R = 6371;
-                const toRad = (x) => (x * Math.PI) / 180;
-                const dLat = toRad(destinationLat - originLat);
-                const dLng = toRad(destinationLng - originLng);
-                const a = Math.sin(dLat / 2) ** 2
-                    + Math.cos(toRad(originLat)) * Math.cos(toRad(destinationLat)) * Math.sin(dLng / 2) ** 2;
-                const straight = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                tripDistanceKm = Math.round(straight * 1.3 * 10) / 10;
-                tripDurationMs = Math.round((tripDistanceKm / 25) * 3600000);
+            // Datos de flete (staff puede prellenar; cliente puede completar)
+            let freightDetails = null;
+            if (isFlete) {
+                freightDetails = {
+                    cargoDescription: modal.querySelector('#staff-cct-cargo')?.value?.trim() || '',
+                    estimatedWeight: modal.querySelector('#staff-cct-weight')?.value?.trim() || '',
+                    contactName: modal.querySelector('#staff-cct-freight-contact')?.value?.trim()
+                        || client.name
+                        || 'Contacto',
+                    contactPhone: normalizeHondurasPhone(
+                        modal.querySelector('#staff-cct-freight-phone')?.value?.trim() || client.phone || ''
+                    ) || client.phone || '',
+                    helperCount: parseInt(modal.querySelector('#staff-cct-helpers')?.value || '0', 10) || 0,
+                    needsHelpers: (parseInt(modal.querySelector('#staff-cct-helpers')?.value || '0', 10) || 0) > 0,
+                    notes: '',
+                };
+                // Si el cliente no completa la ruta, exigir datos mínimos de carga
+                if (!clientChoosesRoute) {
+                    const freightCheck = validateFreightDetails(freightDetails, serviceType);
+                    if (!freightCheck.ok) throw new Error(freightCheck.message);
+                }
             }
 
             const rawPaxVal = modal.querySelector('#staff-cct-passengers')?.value;
-            const clientChoosesPassengers = serviceType !== 'delivery'
+            const clientChoosesPassengers = !isFlete
+                && serviceType !== 'delivery'
                 && (
                     modal.querySelector('#staff-cct-client-chooses-pax')?.value === '1'
                     || rawPaxVal === ''
                     || rawPaxVal == null
                 );
             // Si el cliente elige: guardamos 1 como base; al reclamar actualiza
-            const passengers = (serviceType === 'delivery')
+            const passengers = (serviceType === 'delivery' || isFlete)
                 ? 1
                 : clientChoosesPassengers
                     ? 1
                     : normalizePassengerCount(serviceType, parseInt(rawPaxVal, 10) || 1);
-            const passengerSurcharge = getPassengerSurcharge(serviceType, passengers, tripDistanceKm);
+            const passengerSurcharge = isFlete
+                ? 0
+                : getPassengerSurcharge(serviceType, passengers, tripDistanceKm);
 
-            const routeFare = tripDistanceKm > 0
-                ? calculateServiceFare(serviceType, tripDistanceKm, null, passengers)
-                : applyPassengerSurcharge(50, serviceType, passengers, tripDistanceKm);
+            let routeFare = 0;
+            if (isFlete) {
+                if (tripDistanceKm > 0 && typeof calculateFreightFare === 'function') {
+                    routeFare = calculateFreightFare(
+                        serviceType,
+                        tripDistanceKm,
+                        freightDetails || {},
+                        null,
+                        { durationMs: tripDurationMs }
+                    ).total;
+                } else {
+                    routeFare = priceOverride > 0 ? priceOverride : 0;
+                }
+            } else {
+                routeFare = tripDistanceKm > 0
+                    ? calculateServiceFare(serviceType, tripDistanceKm, null, passengers)
+                    : applyPassengerSurcharge(50, serviceType, passengers, tripDistanceKm);
+            }
 
-            // Precio: override manual si hay; si no, tarifa de la ruta (base 1 pers. si cliente elige)
+            // Precio: override manual si hay; si no, tarifa de la ruta
+            // Si cliente elige ruta y no hay precio, precio se ajusta al reclamar o staff debe poner manual
             const staffManualPrice = priceOverride > 0;
-            let priceNum = staffManualPrice ? priceOverride : routeFare;
+            let priceNum = staffManualPrice
+                ? priceOverride
+                : (routeFare > 0 ? routeFare : 0);
             priceNum = Math.round(priceNum * 100) / 100;
+            if (clientChoosesRoute && !(priceNum > 0)) {
+                // Precio se calculará cuando el cliente ponga ubicaciones (o staff puede poner manual)
+                priceNum = 0;
+            }
 
             if (hint) {
                 hint.textContent = tripDistanceKm > 0
@@ -1352,21 +1631,22 @@ export function installStaffCreateClientTrip({
                 // Staff fijó fecha/hora O null si el cliente elige al reclamar
                 scheduledFor: scheduledFor || null,
                 clientChoosesSchedule: clientChoosesSchedule === true,
+                clientChoosesRoute: clientChoosesRoute === true,
                 staffSetSchedule: !!(isScheduled && staffPicksSchedule && scheduledFor),
                 serviceType,
                 bookingType: 'standard',
                 origin,
                 destination,
-                originLat,
-                originLng,
-                destinationLat,
-                destinationLng,
+                originLat: clientChoosesRoute ? null : originLat,
+                originLng: clientChoosesRoute ? null : originLng,
+                destinationLat: clientChoosesRoute ? null : destinationLat,
+                destinationLng: clientChoosesRoute ? null : destinationLng,
                 originFormattedAddress: origin,
                 destinationFormattedAddress: destination,
                 serviceZoneId: zoneId,
                 serviceZoneName: zoneName,
                 searchRadiusKm: typeof getCityCoverageKm === 'function' ? getCityCoverageKm(zoneId) : 25,
-                price: `L. ${priceNum.toFixed(2)}`,
+                price: priceNum > 0 ? `L. ${priceNum.toFixed(2)}` : 'Por confirmar',
                 priceNum,
                 // Si staff escribió un monto a mano, el cliente debe ver ESE precio (no la tarifa de ruta)
                 staffManualPrice,
@@ -1381,20 +1661,24 @@ export function installStaffCreateClientTrip({
                 clientVerified: client.approvalStatus === 'approved' || client.verified === true || !client.approvalStatus,
                 clientIsFirstTrip: !(Number(client.totalTrips) > 0),
                 clientTotalTrips: Number(client.totalTrips) || 0,
-                tripDistanceKm,
-                tripDurationMs,
+                tripDistanceKm: clientChoosesRoute ? 0 : tripDistanceKm,
+                tripDurationMs: clientChoosesRoute ? 0 : tripDurationMs,
                 passengers,
                 passengerSurcharge,
                 extraPassengers: Math.max(0, passengers - 1),
                 // Si staff no fijó número → el cliente DEBE elegir al reclamar
                 clientChoosesPassengers: clientChoosesPassengers === true,
                 staffSetPassengers: clientChoosesPassengers !== true,
+                freightDetails: freightDetails || null,
+                // Conductores elegidos por staff (flete): se ofrecen al reclamar
+                staffSelectedDriverIds: selectedDriverIds,
+                preferredDriverId: selectedDriverIds[0] || null,
+                candidateDriverIds: selectedDriverIds.length ? selectedDriverIds : [],
                 createdAt: serverTimestamp(),
                 chat: [],
                 viewedBy: {},
                 declinedDriverIds: [],
                 offeredToDriverId: null,
-                preferredDriverId: null,
                 staffCreatedBy: currentUser.uid,
                 staffCreatedByName: staffName,
                 staffCreatedAt: serverTimestamp(),
@@ -1423,11 +1707,13 @@ export function installStaffCreateClientTrip({
             modal.remove();
             toast(
                 showToast,
-                clientChoosesSchedule
-                    ? `Viaje programado armado (cliente elige fecha/hora). Compártelo por WhatsApp.`
-                    : (scheduledFor
-                        ? `Viaje programado con fecha/hora fija. Compártelo por WhatsApp.`
-                        : `Viaje armado. Compártelo por WhatsApp o el cliente usa la notificación.`),
+                clientChoosesRoute
+                    ? `Flete/viaje armado. Manda el link: el cliente pone ubicaciones y hora; se ofrece a ${selectedDriverIds.length} conductor(es).`
+                    : (clientChoosesSchedule
+                        ? `Viaje programado armado (cliente elige fecha/hora). Compártelo por WhatsApp.`
+                        : (scheduledFor
+                            ? `Viaje programado con fecha/hora fija. Compártelo por WhatsApp.`
+                            : `Viaje armado. Compártelo por WhatsApp o el cliente usa la notificación.`)),
                 'success'
             );
 
@@ -1435,13 +1721,18 @@ export function installStaffCreateClientTrip({
                 tripId,
                 clientName: client.name || 'Cliente',
                 clientPhone: client.phone || tripPayload.clientPhone,
-                origin,
-                destination,
+                origin: clientChoosesRoute ? 'Cliente define en el link' : origin,
+                destination: clientChoosesRoute ? 'Cliente define en el link' : destination,
                 priceLabel: tripPayload.price,
                 clientChoosesSchedule,
                 passengers: tripPayload.passengers,
                 clientChoosesPassengers: tripPayload.clientChoosesPassengers,
                 scheduledFor: tripPayload.scheduledFor,
+                clientChoosesRoute,
+                serviceType,
+                freightLabel: isFlete
+                    ? (typeof getServiceLabel === 'function' ? getServiceLabel(serviceType) : serviceType)
+                    : '',
                 showToast
             });
         } catch (e) {

@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.30.4";
+} from "./auth-credentials.js?v=2026.07.30.5";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.30.4";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.30.4";
+import { APP_CONFIG } from "./config.js?v=2026.07.30.5";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.30.5";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.30.4";
+} from "./referrals.js?v=2026.07.30.5";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -32,12 +32,12 @@ import {
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.30.4";
+} from "./zones.js?v=2026.07.30.5";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.30.4";
+} from "./trip-notifications.js?v=2026.07.30.5";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -58,7 +58,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.30.4";
+} from "./notification-tones.js?v=2026.07.30.5";
 
 installNotificationTonesApi();
 
@@ -67,34 +67,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.30.4";
+} from "./passenger-alerts.js?v=2026.07.30.5";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.30.4";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.30.4";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.30.4";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.30.4";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.30.4";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.30.4";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.30.4";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.30.4";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.30.4";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.30.4";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.30.4";
+} from "./passenger-verification.js?v=2026.07.30.5";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.30.5";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.30.5";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.30.5";
+import { initOpsPanels } from "./ops-panels.js?v=2026.07.30.5";
+import { initOpsUi } from "./ops-ui.js?v=2026.07.30.5";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.30.5";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.30.5";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.30.5";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.07.30.5";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.30.5";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.30.4";
+} from "./feedback.js?v=2026.07.30.5";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.30.4";
+} from "./greetings.js?v=2026.07.30.5";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -107,49 +107,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.30.4";
+} from "./service-types.js?v=2026.07.30.5";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.30.4";
+} from "./driver-vehicles.js?v=2026.07.30.5";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.30.4";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.30.4";
+} from "./route-conditions.js?v=2026.07.30.5";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.07.30.5";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.30.4";
+} from "./demand-heatmap.js?v=2026.07.30.5";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.30.4";
+} from "./ops-fleet-map.js?v=2026.07.30.5";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.30.4";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.30.4";
+} from "./live-trip-keepalive.js?v=2026.07.30.5";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.30.5";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.30.4";
+} from "./session-keepalive.js?v=2026.07.30.5";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.30.4";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.30.4";
+} from "./passenger-tutorial.js?v=2026.07.30.5";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.30.5";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.30.4";
+} from "./driver-tutorial.js?v=2026.07.30.5";
 
 // Solo después de todos los imports (evita romper el grafo de módulos ESM)
 markCapacitorBodyClasses();
@@ -194,29 +194,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.30.4";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.30.5";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.30.4";
+} from "./auth-ui.js?v=2026.07.30.5";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.30.4";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.30.4";
+} from "./age-verification.js?v=2026.07.30.5";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.30.5";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.07.30.4";
+} from "./trip-experience.js?v=2026.07.30.5";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.30.4";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.30.4";
-import { initAppDownload } from "./app-download.js?v=2026.07.30.4";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.07.30.4";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.07.30.4";
+} from "./support-tickets.js?v=2026.07.30.5";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.30.5";
+import { initAppDownload } from "./app-download.js?v=2026.07.30.5";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.07.30.5";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.07.30.5";
 
 
 const app = initializeApp(APP_CONFIG.firebase);
@@ -877,10 +877,17 @@ window.configureDriverVehicleSetupUI = (mode = 'register') => {
     }
 };
 
-window.openAddDriverVehicle = () => {
+/**
+ * Agregar un vehículo al conductor ya registrado.
+ * @param {string} [preferredType] - 'paila' | 'camion' | 'auto' | 'moto' | 'taxi' | 'grua'
+ */
+window.openAddDriverVehicle = (preferredType = 'auto') => {
     if (window.userProfile?.role !== 'driver') {
         return window.showToast('Solo conductores pueden agregar vehículos.');
     }
+    const type = ['paila', 'camion', 'auto', 'moto', 'taxi', 'grua'].includes(preferredType)
+        ? preferredType
+        : 'auto';
     resetDriverVehiclePhotoGlobals();
     ['car-model', 'car-plate', 'driver-license', 'vehicle-inspection', 'vehicle-cargo-capacity'].forEach((id) => {
         const el = document.getElementById(id);
@@ -894,7 +901,7 @@ window.openAddDriverVehicle = () => {
     if (helmetPreview) {
         helmetPreview.innerHTML = '<i class="fas fa-hard-hat text-2xl text-violet-500"></i><span class="text-[8px] font-black text-violet-700 mt-0.5">FOTO CON CASCO PUESTO</span>';
     }
-    window.selectDriverVehicleType?.('auto');
+    window.selectDriverVehicleType?.(type);
     window.hideAuthSetupScreen?.();
     const loginScreen = document.getElementById('login-screen');
     const appInterface = document.getElementById('app-interface');
@@ -904,7 +911,10 @@ window.openAddDriverVehicle = () => {
     userRole = 'driver';
     window.showDriverSetupScreen();
     window.configureDriverVehicleSetupUI('add');
-    window.showToast('Completa los datos del nuevo vehículo. Un supervisor lo aprobará.', 'warning');
+    const fleteMsg = (type === 'paila' || type === 'camion')
+        ? `Registro de ${type === 'paila' ? 'paila' : 'camión'} para fletes. Sube fotos y documentos; un supervisor lo aprueba.`
+        : 'Completa los datos del nuevo vehículo. Un supervisor lo aprobará.';
+    window.showToast(fleteMsg, 'warning');
 };
 
 window.renderDriverVehicleSelector = () => {
@@ -913,28 +923,37 @@ window.renderDriverVehicleSelector = () => {
     const profile = normalizeDriverProfileVehicles({ ...window.userProfile });
     const approved = getApprovedVehicles(profile);
     const pending = getPendingVehicles(profile);
-    if (!approved.length && !pending.length) {
-        el.classList.add('hidden');
-        el.innerHTML = '';
-        return;
-    }
+    // Siempre visible para conductores (pueden sumar paila/camión)
     el.classList.remove('hidden');
     const activeId = profile.activeVehicleId;
     let html = `<p class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2"><i class="fas fa-route"></i> Vehículo de hoy</p>
         <div class="flex flex-wrap gap-2">`;
+    if (!approved.length) {
+        html += `<span class="text-[10px] font-bold text-slate-500 py-2">Sin vehículo aprobado aún.</span>`;
+    }
     approved.forEach((v) => {
         const isActive = v.id === activeId;
         const safeId = v.id.replace(/'/g, "\\'");
+        const flete = v.type === 'paila' || v.type === 'camion';
         html += `<button type="button" onclick="window.setActiveDriverVehicle('${safeId}')"
             class="text-[10px] font-black px-3 py-2 rounded-xl border-2 transition-all ${isActive
-                ? 'border-blue-600 bg-blue-50 text-blue-800'
+                ? (flete ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'border-blue-600 bg-blue-50 text-blue-800')
                 : 'border-slate-200 bg-slate-50 text-slate-600'}">
             ${isActive ? '<i class="fas fa-check-circle"></i> ' : ''}${buildVehicleLabel(v.type, v.vehicle)}
+            ${flete ? ' · fletes' : ''}
         </button>`;
     });
+    html += `<button type="button" onclick="window.openAddDriverVehicle('paila')"
+        class="text-[10px] font-black px-3 py-2 rounded-xl border-2 border-emerald-300 text-emerald-800 bg-emerald-50">
+        <i class="fas fa-truck-pickup"></i> + Paila
+    </button>`;
+    html += `<button type="button" onclick="window.openAddDriverVehicle('camion')"
+        class="text-[10px] font-black px-3 py-2 rounded-xl border-2 border-slate-300 text-slate-800 bg-slate-100">
+        <i class="fas fa-truck"></i> + Camión
+    </button>`;
     html += `<button type="button" onclick="window.openAddDriverVehicle()"
         class="text-[10px] font-black px-3 py-2 rounded-xl border-2 border-dashed border-blue-300 text-blue-600 bg-blue-50/50">
-        <i class="fas fa-plus"></i> Agregar
+        <i class="fas fa-plus"></i> Otro
     </button></div>`;
     if (pending.length) {
         html += `<p class="text-[9px] text-amber-600 font-bold mt-2"><i class="fas fa-hourglass-half"></i> ${pending.length} vehículo(s) en revisión del supervisor</p>`;
@@ -945,24 +964,42 @@ window.renderDriverVehicleSelector = () => {
 window.renderProfileVehiclesList = () => {
     const section = document.getElementById('profile-vehicles-section');
     const list = document.getElementById('profile-vehicles-list');
-    if (!section || !list || window.userProfile?.role !== 'driver') return;
-    const profile = normalizeDriverProfileVehicles({ ...window.userProfile });
-    const vehicles = profile.vehicles || [];
-    if (!vehicles.length) {
+    if (!section || !list) return;
+    if (window.userProfile?.role !== 'driver') {
         section.classList.add('hidden');
         return;
     }
+    // Conductor: siempre se muestra (puede agregar flete en cualquier momento)
     section.classList.remove('hidden');
-    list.innerHTML = vehicles.map((v) => {
-        const status = v.approvalStatus === 'approved'
-            ? '<span class="text-emerald-600 font-bold">Aprobado</span>'
-            : '<span class="text-amber-600 font-bold">Pendiente</span>';
-        const active = v.id === profile.activeVehicleId ? ' · <b>En uso hoy</b>' : '';
-        return `<div class="flex justify-between items-center bg-white rounded-xl px-3 py-2 border border-slate-100">
-            <span class="text-xs font-bold text-slate-800">${buildVehicleLabel(v.type, v.vehicle)}${active}</span>
-            <span class="text-[10px]">${status}</span>
-        </div>`;
-    }).join('');
+    const profile = normalizeDriverProfileVehicles({ ...window.userProfile });
+    const vehicles = profile.vehicles || [];
+    if (!vehicles.length) {
+        list.innerHTML = `<p class="text-[11px] font-bold text-slate-500 m-0">Aún no tienes vehículos. Agrega tu paila o camión para fletes, o tu auto/moto.</p>`;
+    } else {
+        list.innerHTML = vehicles.map((v) => {
+            const status = v.approvalStatus === 'approved'
+                ? '<span class="text-emerald-600 font-bold">Aprobado</span>'
+                : v.approvalStatus === 'rejected'
+                    ? '<span class="text-red-600 font-bold">Rechazado</span>'
+                    : '<span class="text-amber-600 font-bold">Pendiente</span>';
+            const active = v.id === profile.activeVehicleId ? ' · <b>En uso hoy</b>' : '';
+            const flete = (v.type === 'paila' || v.type === 'camion')
+                ? ' <span class="text-emerald-700 font-black">FLETE</span>'
+                : '';
+            return `<div class="flex justify-between items-center bg-white rounded-xl px-3 py-2 border border-slate-100">
+                <span class="text-xs font-bold text-slate-800">${buildVehicleLabel(v.type, v.vehicle)}${flete}${active}</span>
+                <span class="text-[10px]">${status}</span>
+            </div>`;
+        }).join('');
+    }
+    // Marca si staff habilitó fletes
+    if (profile.freightEnabled) {
+        const tip = document.createElement('p');
+        tip.className = 'text-[10px] font-bold text-emerald-700 m-0';
+        tip.innerHTML = '<i class="fas fa-check-circle"></i> Soporte te habilitó para fletes. Agrega o activa tu paila/camión y elige “Vehículo de hoy”.';
+        list.appendChild(tip);
+    }
+    window.renderDriverVehicleSelector?.();
 };
 
 window.setActiveDriverVehicle = async (vehicleId) => {
@@ -2488,24 +2525,52 @@ if (document.readyState === 'loading') {
             modal.id = 'staff-claim-trip-modal';
             modal.dataset.tripId = trip.id;
             modal.className = 'fixed inset-0 z-[47000] flex items-center justify-center p-4 bg-black/75';
+            const needsRoute = trip.clientChoosesRoute === true
+                || !trip.originLat
+                || !trip.destinationLat
+                || String(trip.origin || '').includes('Por definir')
+                || String(trip.destination || '').includes('Por definir');
+            const isFleteClaim = isFreightService(svcType);
+            const fd = trip.freightDetails || {};
+
             modal.innerHTML = `
                 <div class="bg-white rounded-3xl w-full max-w-md p-5 shadow-2xl max-h-[92dvh] overflow-y-auto">
                     <div class="text-center mb-3">
-                        <div class="w-14 h-14 mx-auto mb-2 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">${wantScheduled ? '📅' : '🚕'}</div>
-                        <h3 class="text-lg font-black text-gray-900">Te armamos un viaje</h3>
+                        <div class="w-14 h-14 mx-auto mb-2 rounded-2xl bg-emerald-50 flex items-center justify-center text-2xl">${isFleteClaim ? '🚛' : (wantScheduled ? '📅' : '🚕')}</div>
+                        <h3 class="text-lg font-black text-gray-900">${isFleteClaim ? 'Te armamos un flete' : 'Te armamos un viaje'}</h3>
                         <p class="text-xs text-gray-500 font-bold mt-1 leading-snug">
                             <b>${staffName}</b> (admin/supervisor) creó esta solicitud por ti.
-                            Puedes <b>ajustar personas y hora</b> si no te convienen, y luego confirmar.
+                            ${needsRoute
+                                ? 'Pon <b>origen, destino y hora</b>; al confirmar te asignamos el conductor.'
+                                : 'Puedes <b>ajustar personas y hora</b> si no te convienen, y luego confirmar.'}
                         </p>
                     </div>
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left space-y-1.5 mb-4">
+                        ${!needsRoute ? `
                         <p class="text-[10px] font-black uppercase text-slate-400">Origen</p>
                         <p class="text-sm font-bold text-gray-900">${String(trip.origin || '—')}</p>
                         <p class="text-[10px] font-black uppercase text-slate-400 mt-2">Destino</p>
                         <p class="text-sm font-bold text-gray-900">${String(trip.destination || '—')}</p>
+                        ` : `
+                        <p class="text-[10px] font-black uppercase text-emerald-600">Completa tu ruta abajo</p>
+                        <p class="text-xs font-bold text-slate-600">Soporte ya eligió conductor(es) de flete. Solo falta dónde y cuándo.</p>
+                        `}
                         <p class="text-[10px] font-black uppercase text-slate-400 mt-2">Tarifa</p>
                         <p id="staff-claim-price" class="text-base font-black text-emerald-700">${priceLabel()}</p>
                     </div>
+                    ${needsRoute ? `
+                    <div class="rounded-2xl border border-emerald-300 bg-emerald-50 p-3 mb-4 space-y-2">
+                        <p class="text-[10px] font-black uppercase text-emerald-800 m-0"><i class="fas fa-map-marker-alt"></i> Ubicaciones</p>
+                        <input type="text" id="staff-claim-origin" class="w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-bold" placeholder="Origen / carga" value="${String(trip.origin || '').includes('Por definir') ? '' : String(trip.origin || '').replace(/"/g, '&quot;')}">
+                        <input type="text" id="staff-claim-dest" class="w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-bold" placeholder="Destino / descarga" value="${String(trip.destination || '').includes('Por definir') ? '' : String(trip.destination || '').replace(/"/g, '&quot;')}">
+                        ${isFleteClaim ? `
+                        <input type="text" id="staff-claim-cargo" class="w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-bold" placeholder="¿Qué se transporta?" value="${String(fd.cargoDescription || '').replace(/"/g, '&quot;')}">
+                        <input type="text" id="staff-claim-weight" class="w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-bold" placeholder="Peso/volumen (ej. 800 kg)" value="${String(fd.estimatedWeight || '').replace(/"/g, '&quot;')}">
+                        <input type="text" id="staff-claim-fcontact" class="w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-bold" placeholder="Contacto en destino" value="${String(fd.contactName || '').replace(/"/g, '&quot;')}">
+                        <input type="tel" id="staff-claim-fphone" class="w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-bold" placeholder="WhatsApp destino" value="${String(fd.contactPhone || '').replace(/"/g, '&quot;')}">
+                        ` : ''}
+                    </div>
+                    ` : ''}
                     ${canChoosePax ? `
                     <div id="staff-claim-pax-box" class="rounded-2xl border border-blue-300 bg-blue-50 p-3 mb-4">
                         <p class="text-[10px] font-black uppercase text-blue-700 mb-2">
@@ -2626,7 +2691,7 @@ if (document.readyState === 'loading') {
 
             yesBtn?.addEventListener('click', async () => {
                 const missing = [];
-                wantScheduled = !!whenLater?.checked;
+                wantScheduled = !!whenLater?.checked || needsRoute;
 
                 if (canChoosePax && (!clientDidPickPax || !(claimPassengers >= 1))) {
                     missing.push('cuántas personas van');
@@ -2636,21 +2701,53 @@ if (document.readyState === 'loading') {
                     modal.querySelector('#staff-claim-pax-box')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
                 }
 
+                let originText = trip.origin || '';
+                let destText = trip.destination || '';
+                let freightPatch = null;
+                if (needsRoute) {
+                    originText = modal.querySelector('#staff-claim-origin')?.value?.trim() || '';
+                    destText = modal.querySelector('#staff-claim-dest')?.value?.trim() || '';
+                    if (originText.length < 3) missing.push('origen');
+                    if (destText.length < 3) missing.push('destino');
+                    if (isFleteClaim) {
+                        const cargo = modal.querySelector('#staff-claim-cargo')?.value?.trim() || '';
+                        const weight = modal.querySelector('#staff-claim-weight')?.value?.trim() || '';
+                        const cName = modal.querySelector('#staff-claim-fcontact')?.value?.trim() || '';
+                        const cPhone = modal.querySelector('#staff-claim-fphone')?.value?.trim() || '';
+                        freightPatch = {
+                            cargoDescription: cargo,
+                            estimatedWeight: weight,
+                            contactName: cName || (window.userProfile?.name || 'Contacto'),
+                            contactPhone: normalizeHondurasPhone(cPhone || window.userProfile?.phone || '') || cPhone,
+                            helperCount: Number(trip.freightDetails?.helperCount) || 0,
+                            needsHelpers: !!(trip.freightDetails?.needsHelpers),
+                            notes: trip.freightDetails?.notes || '',
+                        };
+                        if (!cargo) missing.push('descripción de la carga');
+                        if (!weight) missing.push('peso/volumen');
+                    }
+                }
+
                 let scheduledFor = null;
-                if (wantScheduled || mustSetSchedule) {
+                if (wantScheduled || mustSetSchedule || needsRoute) {
                     const dateStr = dateEl?.value || '';
                     const timeStr = timeEl?.value || '';
-                    if (!dateStr || !timeStr) {
-                        missing.push('fecha y hora');
-                        if (schedHint) {
-                            schedHint.innerHTML = '<span class="text-red-600 font-black">Elige fecha y hora, o marca «Ahora».</span>';
-                        }
-                        if (!wantScheduled && mustSetSchedule) {
-                            whenLater.checked = true;
-                            syncWhenUi();
+                    // Flete con ruta del cliente: si no marca programado, puede ser "ahora"
+                    if (needsRoute && whenNow?.checked && !whenLater?.checked) {
+                        scheduledFor = null;
+                        wantScheduled = false;
+                    } else if (!dateStr || !timeStr) {
+                        if (wantScheduled || mustSetSchedule) {
+                            missing.push('fecha y hora');
+                            if (schedHint) {
+                                schedHint.innerHTML = '<span class="text-red-600 font-black">Elige fecha y hora, o marca «Ahora».</span>';
+                            }
+                            if (!wantScheduled && mustSetSchedule) {
+                                whenLater.checked = true;
+                                syncWhenUi();
+                            }
                         }
                     } else {
-                        // Guardar como hora de pared en Honduras (no zona del dispositivo)
                         scheduledFor = hondurasWallTimeToIso(dateStr, timeStr);
                         if (!scheduledFor || new Date(scheduledFor).getTime() < Date.now() + 10 * 60 * 1000) {
                             missing.push('una hora más adelante');
@@ -2663,7 +2760,7 @@ if (document.readyState === 'loading') {
                 }
 
                 if (missing.length) {
-                    const msg = `Completa: ${missing.join(' y ')}.`;
+                    const msg = `Completa: ${missing.join(', ')}.`;
                     if (blockHint) {
                         blockHint.textContent = msg;
                         blockHint.classList.remove('hidden');
@@ -2679,13 +2776,15 @@ if (document.readyState === 'loading') {
                         ? normalizePassengerCount(svcType, claimPassengers || 1)
                         : 1;
                     await window.claimStaffCreatedTrip?.(trip.id, {
-                        // null = inmediato; ISO = programado (siempre se envía para poder ajustar)
                         scheduledFor: wantScheduled ? scheduledFor : null,
                         clearSchedule: !wantScheduled,
                         passengers: paxFinal,
-                        // Respetar precio staff (priceForPax ya no pisa con tarifa de ruta)
                         priceNum: priceForPax(paxFinal),
-                        staffManualPrice: staffManualPrice || listedPrice > 0
+                        staffManualPrice: staffManualPrice || listedPrice > 0,
+                        origin: needsRoute ? originText : undefined,
+                        destination: needsRoute ? destText : undefined,
+                        freightDetails: freightPatch,
+                        clientChoosesRoute: needsRoute
                     });
                     modal.remove();
                 } catch (e) {
@@ -2770,6 +2869,80 @@ if (document.readyState === 'loading') {
             }
             priceNum = Math.round((priceNum || 0) * 100) / 100;
 
+            // Ruta definida por el cliente (flete/staff)
+            let origin = t.origin;
+            let destination = t.destination;
+            let originLat = t.originLat ?? null;
+            let originLng = t.originLng ?? null;
+            let destinationLat = t.destinationLat ?? null;
+            let destinationLng = t.destinationLng ?? null;
+            let tripDistanceKm = Number(t.tripDistanceKm) || 0;
+            let tripDurationMs = Number(t.tripDurationMs) || 0;
+            let freightDetails = t.freightDetails || null;
+
+            if (opts?.clientChoosesRoute || opts?.origin || opts?.destination) {
+                origin = String(opts.origin || origin || '').trim();
+                destination = String(opts.destination || destination || '').trim();
+                if (origin.length < 3 || destination.length < 3) {
+                    throw new Error('Indica origen y destino válidos.');
+                }
+                if (typeof window.geocodeAddressString === 'function') {
+                    try {
+                        const o = await window.geocodeAddressString(origin);
+                        if (o?.latLng) {
+                            originLat = o.latLng.lat;
+                            originLng = o.latLng.lng;
+                        }
+                    } catch (_) {}
+                    try {
+                        const d = await window.geocodeAddressString(destination);
+                        if (d?.latLng) {
+                            destinationLat = d.latLng.lat;
+                            destinationLng = d.latLng.lng;
+                        }
+                    } catch (_) {}
+                }
+                if (originLat == null || destinationLat == null) {
+                    throw new Error('No se pudieron ubicar las direcciones. Sé más específico o usa un lugar conocido.');
+                }
+                if (typeof window.computeDrivingRoute === 'function') {
+                    try {
+                        const seg = await window.computeDrivingRoute(
+                            { latLng: { lat: originLat, lng: originLng }, address: origin },
+                            { latLng: { lat: destinationLat, lng: destinationLng }, address: destination }
+                        );
+                        if (seg?.distanceMeters) tripDistanceKm = Math.round((seg.distanceMeters / 1000) * 10) / 10;
+                        if (seg?.durationMillis) tripDurationMs = seg.durationMillis;
+                    } catch (_) {}
+                }
+                if (opts?.freightDetails) {
+                    freightDetails = { ...(freightDetails || {}), ...opts.freightDetails };
+                    const check = validateFreightDetails?.(freightDetails, svc);
+                    if (check && !check.ok) throw new Error(check.message);
+                }
+                // Recalcular tarifa flete si no hay precio staff fijo
+                if (isFreightService(svc) && !(t.staffManualPrice === true && listed > 0) && tripDistanceKm > 0) {
+                    try {
+                        const fr = calculateFreightFare(
+                            svc,
+                            tripDistanceKm,
+                            freightDetails || {},
+                            null,
+                            { durationMs: tripDurationMs }
+                        );
+                        if (fr?.total > 0) priceNum = Math.round(fr.total * 100) / 100;
+                    } catch (_) {}
+                } else if (!(t.staffManualPrice === true && listed > 0) && tripDistanceKm > 0 && !isFreightService(svc)) {
+                    priceNum = calculateServiceFare(svc, tripDistanceKm, null, pax);
+                    priceNum = Math.round(priceNum * 100) / 100;
+                }
+            }
+
+            const staffDrivers = Array.isArray(t.staffSelectedDriverIds)
+                ? t.staffSelectedDriverIds.filter(Boolean)
+                : (Array.isArray(t.candidateDriverIds) ? t.candidateDriverIds.filter(Boolean) : []);
+            const preferredId = t.preferredDriverId || staffDrivers[0] || null;
+
             const patch = {
                 staffCreatedClientClaimed: true,
                 staffCreatedClaimedAt: serverTimestamp(),
@@ -2780,15 +2953,45 @@ if (document.readyState === 'loading') {
                 clientChoosesPassengers: false,
                 clientChosePassengersAt: serverTimestamp(),
                 clientChoosesSchedule: false,
+                clientChoosesRoute: false,
                 staffSetPassengers: true,
                 // Conservar si el staff fijó precio a mano
                 staffManualPrice: t.staffManualPrice === true || opts?.staffManualPrice === true,
                 priceNum,
-                price: `L. ${priceNum.toFixed(2)}`,
+                price: priceNum > 0 ? `L. ${priceNum.toFixed(2)}` : (t.price || 'Por confirmar'),
                 scheduledFor: scheduledFor || null,
-                clientChoseScheduleAt: serverTimestamp()
+                clientChoseScheduleAt: serverTimestamp(),
+                origin,
+                destination,
+                originLat,
+                originLng,
+                destinationLat,
+                destinationLng,
+                originFormattedAddress: origin,
+                destinationFormattedAddress: destination,
+                tripDistanceKm,
+                tripDurationMs,
+                freightDetails: freightDetails || null,
+                // Oferta a conductores elegidos por staff
+                preferredDriverId: preferredId,
+                candidateDriverIds: staffDrivers.length ? staffDrivers : (preferredId ? [preferredId] : []),
+                offeredToDriverId: preferredId || null,
+                offeredToDriverName: null,
+                offerSentAt: preferredId ? serverTimestamp() : null,
+                staffOfferBy: t.staffCreatedBy || null,
+                staffOfferByName: t.staffCreatedByName || 'Staff',
             };
             if (scheduledFor) patch.staffSetSchedule = true;
+
+            // Resolver nombre del conductor preferido
+            if (preferredId) {
+                try {
+                    const dSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', preferredId));
+                    if (dSnap.exists()) {
+                        patch.offeredToDriverName = dSnap.data()?.name || 'Conductor';
+                    }
+                } catch (_) {}
+            }
 
             await updateDoc(tripRef, patch);
             setStoredClientTripId?.(tripId);
@@ -2807,6 +3010,20 @@ if (document.readyState === 'loading') {
             window.currentActiveTripData = claimed;
             restorePendingTripUI?.(claimed);
             try { startPassengerWaitingLoop?.(); } catch (_) {}
+            // Ofertar a la pool de conductores de staff (el primero como offered)
+            try {
+                if (preferredId) {
+                    window.assignNextTripOffer?.(tripId)?.catch?.(() => {});
+                } else {
+                    window.assignNextTripOffer?.(tripId)?.catch?.(() => {});
+                }
+            } catch (_) {}
+            if (preferredId && patch.offeredToDriverName) {
+                window.showToast?.(
+                    `Listo. Oferta enviada a ${patch.offeredToDriverName}. Cuando acepte, lo ves en el mapa.`,
+                    'success'
+                );
+            }
             window.assignNextTripOffer?.(tripId)?.catch?.(() => {});
             if (scheduledFor) {
                 const whenLabel = typeof formatScheduledTripWhen === 'function'
@@ -10362,6 +10579,10 @@ if (document.readyState === 'loading') {
                             <button onclick="((window.downloadDriverPaymentReport)||(function(){}))('${u.uid}', '${u.name.replace(/'/g, "\\'")}')" class="text-[10px] bg-violet-600 text-white px-2 py-1 rounded">⬇ Reporte Pagos</button>
                             ${canManageUsers() ? `<button type="button" onclick="event.stopPropagation(); window.adminEditUserPhone('${u.uid}', '${(formatHondurasPhone(u.phone) || u.phone || '').replace(/'/g, "\\'")}', '${(u.name || 'Conductor').replace(/'/g, "\\'")}', 'driver')" class="flex-1 min-w-[110px] bg-sky-700 hover:bg-sky-600 text-white text-[10px] py-2.5 rounded-xl font-bold"><i class="fas fa-phone"></i> EDITAR TELÉFONO</button>` : ''}
                             ${renderStaffDriverMgmtButtons(u.uid, u.name, u.referralCode || '')}
+                            <button type="button" onclick="event.stopPropagation(); window.staffEnableDriverFreight('${u.uid}', '${(u.name || 'Conductor').replace(/'/g, "\\'")}')"
+                                    class="flex-1 min-w-[120px] bg-emerald-700 hover:bg-emerald-600 text-white text-[10px] py-2.5 rounded-xl font-bold">
+                                <i class="fas fa-truck-pickup"></i> HABILITAR FLETES
+                            </button>
                             <button onclick="window.changeUserRole('${u.uid}', 'client')" class="flex-1 bg-red-600 text-white text-[10px] py-2.5 rounded-xl font-bold">DEGRADAR</button>
                             ${status !== 'approved' ? `<button onclick="window.forceApproveDriver('${u.uid}')" class="flex-1 bg-emerald-600 text-white text-[10px] py-2.5 rounded-xl font-bold">${status === 'suspended' ? 'REACTIVAR' : 'APROBAR'}</button>` : ''}
                             ${status === 'rejected' ? `<button onclick="window.deleteRejectedUser('${u.uid}', '${(u.name || '').replace(/'/g, "\\'")}')" class="flex-1 bg-red-700 text-white text-[10px] py-2.5 rounded-xl font-bold">🗑 Borrar de papelera</button>` : ''}
@@ -15331,6 +15552,142 @@ if (document.readyState === 'loading') {
             } catch (e) {
                 showModerationError(e, 'reactivar conductor');
             }
+        };
+
+        /**
+         * Staff: habilitar fletes a un conductor ya registrado.
+         * - Marca freightEnabled en su perfil
+         * - Si ya tiene paila/camión pendiente, se puede aprobar aparte en Verificaciones
+         * - Notifica al conductor para que agregue paila/camión en Perfil si no tiene
+         */
+        window.staffEnableDriverFreight = async (uid, driverName = 'Conductor') => {
+            const staffOk = typeof isStaffUser === 'function'
+                ? isStaffUser(currentUser, window.userProfile)
+                : canManageUsers();
+            if (!canManageUsers() && !staffOk) {
+                return window.showToast?.('Solo admin o supervisor puede habilitar fletes.', 'warning');
+            }
+            if (!uid) return;
+
+            document.getElementById('staff-enable-freight-modal')?.remove();
+            const modal = document.createElement('div');
+            modal.id = 'staff-enable-freight-modal';
+            modal.className = 'fixed inset-0 z-[48000] flex items-center justify-center p-4 bg-black/70';
+            modal.innerHTML = `
+                <div class="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl">
+                    <h3 class="text-base font-black text-gray-900 m-0">Habilitar fletes</h3>
+                    <p class="text-xs text-slate-600 font-bold mt-2 leading-snug m-0">
+                        Para <b>${String(driverName || 'conductor').replace(/</g, '')}</b>.
+                        Podrá agregar paila o camión en su perfil y recibir fletes cuando estén aprobados.
+                    </p>
+                    <div class="grid grid-cols-2 gap-2 mt-4">
+                        <button type="button" data-freight-type="paila" class="py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black">
+                            <i class="fas fa-truck-pickup"></i> Paila
+                        </button>
+                        <button type="button" data-freight-type="camion" class="py-3 rounded-2xl bg-slate-700 text-white text-xs font-black">
+                            <i class="fas fa-truck"></i> Camión
+                        </button>
+                    </div>
+                    <button type="button" data-freight-type="both" class="w-full mt-2 py-3 rounded-2xl bg-emerald-800 text-white text-xs font-black">
+                        Habilitar fletes (paila + camión)
+                    </button>
+                    <button type="button" id="staff-freight-cancel" class="w-full mt-3 py-2.5 text-xs font-black text-slate-500">Cancelar</button>
+                </div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('#staff-freight-cancel')?.addEventListener('click', () => modal.remove());
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+            modal.querySelectorAll('[data-freight-type]').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const kind = btn.getAttribute('data-freight-type') || 'both';
+                    btn.disabled = true;
+                    try {
+                        const pubRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
+                        const privRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
+                        const snap = await getDoc(pubRef);
+                        if (!snap.exists()) throw new Error('Conductor no encontrado.');
+                        const u = snap.data() || {};
+                        if (u.role !== 'driver') throw new Error('El usuario no es conductor.');
+
+                        const profile = normalizeDriverProfileVehicles({ ...u, uid });
+                        const vehicles = profile.vehicles || [];
+                        const hasPaila = vehicles.some((v) => v.type === 'paila' && v.approvalStatus === 'approved');
+                        const hasCamion = vehicles.some((v) => v.type === 'camion' && v.approvalStatus === 'approved');
+                        const pendingFlete = vehicles.filter((v) =>
+                            (v.type === 'paila' || v.type === 'camion') && v.approvalStatus === 'pending'
+                        );
+
+                        const fields = {
+                            freightEnabled: true,
+                            freightEnabledAt: new Date().toISOString(),
+                            freightEnabledBy: currentUser.uid,
+                            freightEnabledByName: window.userProfile?.name || 'Staff',
+                            freightPreferredTypes: kind === 'both'
+                                ? ['paila', 'camion']
+                                : [kind],
+                            // Ayuda al listado staff de fletes
+                            canDoFreight: true,
+                            updatedAt: Date.now()
+                        };
+                        // Admin/supervisor: cloud moderate si se puede; si no, write directo (staff)
+                        try {
+                            if (canManageUsers()) {
+                                await moderationWriteUser(uid, fields);
+                            } else {
+                                await prepareStaffModeration?.();
+                                await setDoc(pubRef, fields, { merge: true });
+                                await setDoc(privRef, { uid, ...fields }, { merge: true });
+                            }
+                        } catch (writeErr) {
+                            // Fallback directo si cloud falla por red
+                            console.warn('freight enable write fallback', writeErr);
+                            await setDoc(pubRef, { ...fields, updatedAt: Date.now() }, { merge: true });
+                            await setDoc(privRef, { uid, ...fields, updatedAt: Date.now() }, { merge: true });
+                        }
+
+                        // Notificación al conductor (campana)
+                        try {
+                            const msg = hasPaila || hasCamion
+                                ? 'Ya puedes recibir fletes. Elige paila/camión en “Vehículo de hoy”.'
+                                : 'Soporte te habilitó para fletes. En Perfil → Mis vehículos agrega tu paila o camión (con fotos) y espera aprobación.';
+                            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
+                                targetUid: uid,
+                                targetRole: 'driver',
+                                title: 'Fletes habilitados',
+                                body: msg,
+                                message: msg,
+                                type: 'admin_notify',
+                                tag: `freight-enabled-${uid}-${Date.now()}`,
+                                createdAt: serverTimestamp(),
+                                createdAtMs: Date.now(),
+                                sentBy: currentUser.uid,
+                                sentByName: window.userProfile?.name || 'Staff',
+                                sendPush: true,
+                                broadcastPush: false,
+                            });
+                        } catch (nErr) {
+                            console.warn('freight notify', nErr);
+                        }
+
+                        let tip = 'Fletes habilitados.';
+                        if (pendingFlete.length) {
+                            tip += ` Tiene ${pendingFlete.length} vehículo(s) de flete pendiente: apruébalo en Verificaciones.`;
+                        } else if (!hasPaila && !hasCamion) {
+                            tip += ' El conductor debe agregar paila/camión en su perfil.';
+                        } else {
+                            tip += ' Ya tiene vehículo de flete aprobado.';
+                        }
+                        window.showToast?.(tip, 'success');
+                        modal.remove();
+                        try { window.loadAdminUsers?.(); } catch (_) {}
+                        try { window.loadActiveDrivers?.(true); } catch (_) {}
+                    } catch (e) {
+                        console.error('staffEnableDriverFreight', e);
+                        window.showToast?.(e?.message || 'No se pudo habilitar fletes.', 'error');
+                        btn.disabled = false;
+                    }
+                });
+            });
         };
 
         window.liftClientRestriction = async (uid) => {
@@ -37943,10 +38300,21 @@ window.addEventListener('map-route-trigger', () => {
                 const isSuspended = u.approvalStatus === 'suspended';
                 const waLink = u.phone ? getWhatsAppLink(u.phone) : '';
 
+                const hasFleteVeh = (() => {
+                    const vs = Array.isArray(u.vehicles) ? u.vehicles : [];
+                    return vs.some((v) =>
+                        (v?.type === 'paila' || v?.type === 'camion')
+                        && (v?.approvalStatus === 'approved' || v?.approvalStatus === 'pending')
+                    ) || u.vehicleType === 'paila' || u.vehicleType === 'camion';
+                })();
                 const badgeHtml = [
                     isSuspended ? '<span class="ops-badge ops-badge--red">SUSPENDIDO</span>' : '',
                     onBreak ? '<span class="ops-badge ops-badge--amber">DESCANSANDO</span>' : '',
-                    pendingDeposit > 0 ? `<span class="ops-badge ops-badge--red">Pend. L. ${pendingDeposit.toFixed(2)}</span>` : ''
+                    pendingDeposit > 0 ? `<span class="ops-badge ops-badge--red">Pend. L. ${pendingDeposit.toFixed(2)}</span>` : '',
+                    u.freightEnabled || u.canDoFreight
+                        ? '<span class="ops-badge ops-badge--emerald">FLETES ON</span>'
+                        : '',
+                    hasFleteVeh ? '<span class="ops-badge ops-badge--emerald">PAILA/CAMIÓN</span>' : ''
                 ].filter(Boolean).join(' ');
 
                 cardsHtml += U.card(`
@@ -37969,6 +38337,7 @@ window.addEventListener('map-route-trigger', () => {
                     <div class="ops-trip-actions ops-trip-actions--grid">
                     ${waLink ? `<a href="${waLink}" target="_blank" class="ops-btn ops-btn--emerald"><i class="fab fa-whatsapp"></i><span>Contactar</span></a>` : ''}
                     ${U.btn('Notificar', `window.sendIndividualNotification('${u.uid}', '${u.name.replace(/'/g, "\\'")}', 'driver')`, { variant: 'emerald', icon: 'fa-bell' })}
+                    ${U.btn('Fletes', `window.staffEnableDriverFreight('${u.uid}', '${u.name.replace(/'/g, "\\'")}')`, { variant: 'emerald', icon: 'fa-truck-pickup' })}
                     ${U.btn('Extender', `window.extendDriverValidity('${u.uid}', this)`, { variant: 'emerald', icon: 'fa-clock' })}
                         ${U.btn('Renovación', `window.requestDriverRenewal('${u.uid}', this)`, { variant: 'primary', icon: 'fa-upload' })}
                         ${U.btn('Reporte PDF', `((window.downloadDriverRegistrationReport)||(function(){}))('${u.uid}', '${u.name.replace(/'/g, "\\'")}')`, { variant: 'ghost', icon: 'fa-file-pdf' })}
