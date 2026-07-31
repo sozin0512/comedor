@@ -618,6 +618,9 @@ export function installStaffCreateClientTrip({
             syncSchedUi();
 
             // —— Flete / cliente elige ruta / conductores ——
+            // Declarar refs del modal ANTES de syncFleteUi() (evita TDZ: "before initialization")
+            const serviceSelect = modal.querySelector('#staff-cct-service');
+            const routeBox = modal.querySelector('#staff-cct-route-box');
             const clientRouteCb = modal.querySelector('#staff-cct-client-route');
             const freightWrap = modal.querySelector('#staff-cct-freight-wrap');
             const driversWrap = modal.querySelector('#staff-cct-drivers-wrap');
@@ -792,13 +795,12 @@ export function installStaffCreateClientTrip({
                 if (zsel) zsel.value = defaultZone;
             }
 
-            const routeBox = modal.querySelector('#staff-cct-route-box');
+            // routeBox / serviceSelect ya declarados arriba (bloque flete)
             const routeKmEl = modal.querySelector('#staff-cct-route-km');
             const routeTimeEl = modal.querySelector('#staff-cct-route-time');
             const routeFareEl = modal.querySelector('#staff-cct-route-fare');
             const routeStatusEl = modal.querySelector('#staff-cct-route-status');
             const priceInput = modal.querySelector('#staff-cct-price');
-            const serviceSelect = modal.querySelector('#staff-cct-service');
 
             const formatDuration = (ms) => {
                 const mins = Math.max(1, Math.round((Number(ms) || 0) / 60000));
