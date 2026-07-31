@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.07.30.8">
+    <meta name="hr-app-version" content="2026.07.30.10">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.07.30.8">
+    <link rel="manifest" href="manifest.json?v=2026.07.30.10">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,13 +31,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.30.8">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.07.30.10">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.07.30.8">
-    <script src="js/maps-init.js?v=2026.07.30.8"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.07.30.10">
+    <script src="js/maps-init.js?v=2026.07.30.10"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.07.30.8';
+        import { APP_CONFIG } from './js/config.js?v=2026.07.30.10';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -97,10 +97,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.07.30.8';
+        window.__HR_BUILD_VERSION__ = '2026.07.30.10';
         (function () {
             try {
-                var build = '2026.07.30.8';
+                var build = '2026.07.30.10';
                 var doneKey = 'hr_boot_updated_' + build;
                 if (sessionStorage.getItem(doneKey)) return;
                 fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
@@ -126,20 +126,42 @@
     </div>
     <script>
         window.__hrAppReady = false;
-        window.addEventListener('error', function (e) {
-            if (window.__hrAppReady) return;
+        window.__hrBootDismissed = false;
+        function hrShowBootProblem(title, detail) {
+            if (window.__hrAppReady || window.__hrBootDismissed) return;
             var el = document.getElementById('hr-boot-loading');
             if (!el) return;
-            el.innerHTML = '<p style="font-weight:700">No se pudo iniciar</p><p style="font-size:0.8rem;opacity:0.9;margin-top:0.75rem">'
-                + (e.message || 'Error de carga') + '</p><p style="font-size:0.75rem;opacity:0.75;margin-top:1rem">Comprueba tu conexión a internet y vuelve a abrir la app.</p>';
+            var msg = String(detail || 'Error de carga').slice(0, 280);
+            el.innerHTML = '<p style="font-weight:800;font-size:1.05rem;color:#0f172a">' + title + '</p>'
+                + '<p style="font-size:0.8rem;opacity:0.9;margin-top:0.75rem;max-width:22rem;line-height:1.45;color:#334155">' + msg + '</p>'
+                + '<p style="font-size:0.75rem;opacity:0.8;margin-top:0.85rem;max-width:22rem;color:#64748b">En local usa Live Server (http://127.0.0.1:5500), internet activo y Ctrl+Shift+R.</p>'
+                + '<button type="button" id="hr-boot-reload" style="margin-top:1.1rem;padding:0.55rem 1.1rem;border-radius:0.75rem;border:0;background:#2563eb;color:#fff;font-weight:800;cursor:pointer">Recargar</button>';
+            var btn = document.getElementById('hr-boot-reload');
+            if (btn) btn.onclick = function () {
+                try {
+                    var u = new URL(location.href);
+                    u.searchParams.set('hr_refresh', String(Date.now()));
+                    location.replace(u.toString());
+                } catch (_) { location.reload(); }
+            };
+        }
+        window.addEventListener('error', function (e) {
+            var msg = (e && (e.message || (e.error && e.error.message))) || 'Error de carga';
+            var src = (e && e.filename) ? (' @ ' + String(e.filename).split('/').pop()) : '';
+            hrShowBootProblem('No se pudo iniciar', msg + src);
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+            var reason = e && e.reason;
+            var msg = (reason && (reason.message || reason)) || 'Promesa rechazada al iniciar';
+            hrShowBootProblem('No se pudo iniciar', String(msg));
         });
         setTimeout(function () {
-            if (window.__hrAppReady) return;
-            var el = document.getElementById('hr-boot-loading');
-            if (!el || el.querySelector('.hr-boot-spinner')) {
-                if (el) el.innerHTML = '<p style="font-weight:700">Tarda más de lo normal</p><p style="font-size:0.8rem;opacity:0.9;margin-top:0.75rem">Verifica que tengas internet activo (Firebase y mapas lo necesitan).</p>';
-            }
-        }, 15000);
+            if (window.__hrAppReady || window.__hrBootDismissed) return;
+            hrShowBootProblem(
+                'Tarda más de lo normal',
+                'Firebase/Maps necesitan internet. Si estás en local, recarga forzada (Ctrl+Shift+R) o abre http://127.0.0.1:5500'
+            );
+        }, 10000);
     </script>
 
     <!-- PANEL DE ADMINISTRACIÓN -->
@@ -2392,6 +2414,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.07.30.8"></script>
+    <script type="module" src="js/app.js?v=2026.07.30.10"></script>
 </body>
 </html>

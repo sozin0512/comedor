@@ -1,5 +1,5 @@
 /**
- * Admin: subir APK · Usuario web: badge dorado · App instalada: aviso de nueva versión + tutorial
+ * Admin: subir APK Â· Usuario web: badge dorado Â· App instalada: aviso de nueva versiÃ³n + tutorial
  */
 import {
     ref, uploadBytesResumable, getDownloadURL, deleteObject
@@ -17,9 +17,9 @@ import {
 } from './capacitor-native.js';
 
 const SETTINGS_DOC = 'main';
-/** Solo oculta el badge en la sesión actual (X) — se limpia en cada login */
+/** Solo oculta el badge en la sesiÃ³n actual (X) â€” se limpia en cada login */
 const DISMISS_KEY = 'honduber_apk_badge_dismissed';
-/** Build del APK que el usuario ya descargó/instaló — no mostrar de nuevo hasta una versión más nueva */
+/** Build del APK que el usuario ya descargÃ³/instalÃ³ â€” no mostrar de nuevo hasta una versiÃ³n mÃ¡s nueva */
 const WEB_INSTALLED_BUILD_KEY = 'honduber_apk_web_installed_build_id';
 const POS_KEY = 'honduber_panel_pos_app-download-badge';
 const CLIENT_BUILD_KEY = 'honduber_apk_client_build_id';
@@ -36,7 +36,7 @@ let settingsUnsub = null;
 let cachedApkMeta = null;
 let updateModalOpen = false;
 let installTutorialOpen = false;
-/** Evita re-mostrar el badge en cada snapshot de perfil dentro de la misma sesión de login */
+/** Evita re-mostrar el badge en cada snapshot de perfil dentro de la misma sesiÃ³n de login */
 let badgeSessionUid = null;
 
 function settingsDocRef() {
@@ -58,10 +58,10 @@ function formatBytes(n) {
 function formatWhen(ts) {
     try {
         const d = ts?.toDate ? ts.toDate() : (ts ? new Date(ts) : null);
-        if (!d || Number.isNaN(d.getTime())) return '—';
+        if (!d || Number.isNaN(d.getTime())) return 'â€”';
         return d.toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' });
     } catch (_) {
-        return '—';
+        return 'â€”';
     }
 }
 
@@ -83,11 +83,11 @@ function isApkFile(file) {
 }
 
 /**
- * "2026.07.30.1" → 2026073001 (mismo esquema que android/app/build.gradle versionCode).
+ * "2026.07.30.1" â†’ 2026073001 (mismo esquema que android/app/build.gradle versionCode).
  * Formato: YYYY * 1_000_000 + MM * 10_000 + DD * 100 + N
  *
- * BUG anterior: solo quitaba puntos (2026.07.30.1 → 202607301) y el teléfono
- * con versionCode real 2026072802 parecía "más nuevo" → NO mostraba update.
+ * BUG anterior: solo quitaba puntos (2026.07.30.1 â†’ 202607301) y el telÃ©fono
+ * con versionCode real 2026072802 parecÃ­a "mÃ¡s nuevo" â†’ NO mostraba update.
  */
 function versionLabelToCode(label) {
     const s = String(label || '').trim();
@@ -102,7 +102,7 @@ function versionLabelToCode(label) {
             return (y * 1000000) + (mo * 10000) + (d * 100) + n;
         }
     }
-    // Fallback: solo dígitos (builds viejos / etiquetas raras)
+    // Fallback: solo dÃ­gitos (builds viejos / etiquetas raras)
     const digits = s.replace(/\D/g, '');
     if (!digits) return 0;
     const num = Number(digits.length > 12 ? digits.slice(0, 12) : digits);
@@ -117,12 +117,12 @@ function resolveRemoteVersionCode(metaOrDoc) {
     // Si el label es YYYY.MM.DD.N y el guardado no coincide (bug viejo), usar el del label
     if (fromLabel > 0) {
         if (!stored || stored !== fromLabel) {
-            // stored “corto” tipo 202607301 vs correcto 2026073001
+            // stored â€œcortoâ€ tipo 202607301 vs correcto 2026073001
             if (!stored || String(stored).length < String(fromLabel).length || stored < fromLabel) {
                 return fromLabel;
             }
         }
-        // Si stored es mayor y plausible (admin forzó code), respetarlo
+        // Si stored es mayor y plausible (admin forzÃ³ code), respetarlo
         return Math.max(stored, fromLabel);
     }
     return stored || 0;
@@ -182,7 +182,7 @@ function getWebInstalledBuildId() {
     }
 }
 
-/** Marca que el usuario ya descargó/instaló este APK (no mostrar hasta update). */
+/** Marca que el usuario ya descargÃ³/instalÃ³ este APK (no mostrar hasta update). */
 function markApkDownloadedOrInstalled(buildId = cachedApkMeta?.buildId) {
     const id = Number(buildId) || Number(cachedApkMeta?.buildId) || 0;
     if (!id) return;
@@ -193,15 +193,15 @@ function markApkDownloadedOrInstalled(buildId = cachedApkMeta?.buildId) {
     try { sessionStorage.removeItem(DISMISS_KEY); } catch (_) {}
 }
 
-/** En web: hay APK nuevo respecto al que ya descargó/instaló (misma regla: buildId de cada subida). */
+/** En web: hay APK nuevo respecto al que ya descargÃ³/instalÃ³ (misma regla: buildId de cada subida). */
 function hasWebApkUpdateAvailable() {
     if (!cachedApkMeta?.url || !cachedApkMeta.buildId) return false;
     const installed = getWebInstalledBuildId();
-    if (installed == null) return false; // nunca instaló → badge de “descarga”, no “update”
+    if (installed == null) return false; // nunca instalÃ³ â†’ badge de â€œdescargaâ€, no â€œupdateâ€
     return Number(cachedApkMeta.buildId) > Number(installed);
 }
 
-/** Ya tiene esta versión (o superior) marcada como instalada. */
+/** Ya tiene esta versiÃ³n (o superior) marcada como instalada. */
 function alreadyHasCurrentApkOnWeb() {
     if (!cachedApkMeta?.buildId) return false;
     const installed = getWebInstalledBuildId();
@@ -248,7 +248,7 @@ export async function refreshNativeAppInfo() {
         nativeAppInfo = { version: '', build: 0, ready: true };
         return nativeAppInfo;
     }
-    // 1) Plugin nativo (PackageManager) — versionCode real del APK shell
+    // 1) Plugin nativo (PackageManager) â€” versionCode real del APK shell
     try {
         const pkg = await getInstalledApkVersion?.();
         if (pkg && (pkg.versionCode > 0 || pkg.versionName)) {
@@ -285,9 +285,9 @@ export async function refreshNativeAppInfo() {
 
 /**
  * REGLA SIMPLE (como pediste):
- *   Subir APK en Admin = nueva versión automática (nuevo buildId).
- *   Avisar a todos los que no hayan tomado ESA subida (descarga o “Ya actualicé”).
- * No hace falta que el número de versión sea “mayor”.
+ *   Subir APK en Admin = nueva versiÃ³n automÃ¡tica (nuevo buildId).
+ *   Avisar a todos los que no hayan tomado ESA subida (descarga o â€œYa actualicÃ©â€).
+ * No hace falta que el nÃºmero de versiÃ³n sea â€œmayorâ€.
  */
 export function hasApkUpdateAvailable() {
     if (!isInstalledAndroidApp()) return false;
@@ -301,7 +301,7 @@ export function hasApkUpdateAvailable() {
     const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
     const ack = getClientBuildId();
 
-    // 1) Nueva subida (buildId) que el usuario aún no aceptó → SIEMPRE update
+    // 1) Nueva subida (buildId) que el usuario aÃºn no aceptÃ³ â†’ SIEMPRE update
     if (remoteBuildId > 0 && (ack == null || remoteBuildId > Number(ack))) {
         // Primera vez en el dispositivo: si el APK instalado ya es el mismo code, no spamear
         if (ack == null && remoteCode > 0 && nativeCode > 0 && nativeCode >= remoteCode) {
@@ -319,7 +319,7 @@ export function hasApkUpdateAvailable() {
 }
 
 /**
- * Cada publicación nueva en Admin: limpia snooze para que salga el aviso.
+ * Cada publicaciÃ³n nueva en Admin: limpia snooze para que salga el aviso.
  */
 function reactToNewRemotePublication() {
     if (!cachedApkMeta?.buildId) return;
@@ -338,7 +338,7 @@ function reactToNewRemotePublication() {
     if (remoteBuildId > prev) {
         clearUpdateSnooze();
         try { sessionStorage.removeItem(DISMISS_KEY); } catch (_) {}
-        // Nueva subida: el aviso se basa en buildId > ack (no borramos ack a propósito;
+        // Nueva subida: el aviso se basa en buildId > ack (no borramos ack a propÃ³sito;
         // si ack es de una subida anterior, ya es menor y se muestra el update)
     }
 }
@@ -347,8 +347,8 @@ async function trySyncBuildFromNativeVersion() {
     if (!isInstalledAndroidApp() || !cachedApkMeta?.buildId) return;
     await refreshNativeAppInfo();
     reactToNewRemotePublication();
-    // Baseline solo la 1ª vez: si el APK del teléfono ya es el publicado, marcar
-    // este buildId como “tomado” para no spamear. Una subida NUEVA (buildId mayor) avisará.
+    // Baseline solo la 1Âª vez: si el APK del telÃ©fono ya es el publicado, marcar
+    // este buildId como â€œtomadoâ€ para no spamear. Una subida NUEVA (buildId mayor) avisarÃ¡.
     const remoteBuildId = Number(cachedApkMeta.buildId) || 0;
     const remoteCode = resolveRemoteVersionCode(cachedApkMeta) || 0;
     const nativeCode = Number(nativeAppInfo.build) || versionLabelToCode(nativeAppInfo.version) || 0;
@@ -381,9 +381,9 @@ export async function loadApkMeta() {
 }
 
 /**
- * Corrige androidApkVersionCode en Firestore si se guardó con el bug viejo
- * (2026.07.30.1 → 202607301 en vez de 2026073001). Así los APK ya instalados
- * con lógica anterior vuelven a ver “hay actualización”.
+ * Corrige androidApkVersionCode en Firestore si se guardÃ³ con el bug viejo
+ * (2026.07.30.1 â†’ 202607301 en vez de 2026073001). AsÃ­ los APK ya instalados
+ * con lÃ³gica anterior vuelven a ver â€œhay actualizaciÃ³nâ€.
  */
 async function repairRemoteVersionCodeIfNeeded() {
     if (!dbRef || !isAdminFn(getCurrentUser(), getUserProfile())) return false;
@@ -400,7 +400,7 @@ async function repairRemoteVersionCodeIfNeeded() {
             updatedAt: serverTimestamp(),
         }, { merge: true });
         if (cachedApkMeta) cachedApkMeta.versionCode = correct;
-        console.info('[app-download] versionCode reparado:', stored, '→', correct);
+        console.info('[app-download] versionCode reparado:', stored, 'â†’', correct);
         return true;
     } catch (e) {
         console.warn('[app-download] repair versionCode:', e);
@@ -413,20 +413,20 @@ function renderAdminMetaHtml(meta) {
         return `
             <div class="admin-apk-status admin-apk-status--empty">
                 <p class="admin-apk-status-badge"><i class="fas fa-cloud"></i> Sin APK en el servidor</p>
-                <p class="text-sm text-slate-400 mt-2">Aún no hay archivo publicado. Abajo elige o arrastra un <strong class="text-amber-300">.apk</strong> y pulsa <strong class="text-white">Publicar</strong>.</p>
+                <p class="text-sm text-slate-400 mt-2">AÃºn no hay archivo publicado. Abajo elige o arrastra un <strong class="text-amber-300">.apk</strong> y pulsa <strong class="text-white">Publicar</strong>.</p>
             </div>`;
     }
     return `
         <div class="admin-apk-status admin-apk-status--live">
             <p class="admin-apk-status-badge admin-apk-status-badge--ok">
-                <i class="fas fa-check-circle"></i> APK ya está en el servidor · LISTO
+                <i class="fas fa-check-circle"></i> APK ya estÃ¡ en el servidor Â· LISTO
             </p>
             <div class="admin-apk-status-grid mt-3 space-y-1.5 text-sm">
                 <p class="text-slate-300"><span class="text-slate-500">Archivo:</span> <strong>${esc(meta.fileName)}</strong></p>
-                <p class="text-slate-300"><span class="text-slate-500">Versión:</span> <strong class="text-amber-200">${esc(meta.version || '—')}</strong></p>
-                <p class="text-slate-300"><span class="text-slate-500">VersionCode:</span> <strong class="text-sky-200">${esc(meta.versionCode || versionLabelToCode(meta.version) || '—')}</strong></p>
-                <p class="text-slate-300"><span class="text-slate-500">Build ID (subida):</span> ${esc(meta.buildId || '—')}</p>
-                <p class="text-slate-300"><span class="text-slate-500">Tamaño:</span> ${esc(formatBytes(meta.size))}</p>
+                <p class="text-slate-300"><span class="text-slate-500">VersiÃ³n:</span> <strong class="text-amber-200">${esc(meta.version || 'â€”')}</strong></p>
+                <p class="text-slate-300"><span class="text-slate-500">VersionCode:</span> <strong class="text-sky-200">${esc(meta.versionCode || versionLabelToCode(meta.version) || 'â€”')}</strong></p>
+                <p class="text-slate-300"><span class="text-slate-500">Build ID (subida):</span> ${esc(meta.buildId || 'â€”')}</p>
+                <p class="text-slate-300"><span class="text-slate-500">TamaÃ±o:</span> ${esc(formatBytes(meta.size))}</p>
                 <p class="text-slate-300"><span class="text-slate-500">Subido:</span> ${esc(formatWhen(meta.uploadedAt))}</p>
                 ${meta.notes ? `<p class="text-slate-400 text-xs">${esc(meta.notes)}</p>` : ''}
             </div>
@@ -451,13 +451,13 @@ export async function renderAdminApkPanel(container) {
     }
 
     container.innerHTML = U.page(
-        U.hero('App Android (APK)', 'Publica versiones · avisa a quienes ya la tienen instalada') +
+        U.hero('App Android (APK)', 'Publica versiones Â· avisa a quienes ya la tienen instalada') +
         `<div class="ops-stack">` +
-        U.formPanel('APK actual', 'Enlace público de descarga', `
-            <div id="admin-apk-meta"><p class="text-slate-400 text-sm">Cargando…</p></div>
+        U.formPanel('APK actual', 'Enlace pÃºblico de descarga', `
+            <div id="admin-apk-meta"><p class="text-slate-400 text-sm">Cargandoâ€¦</p></div>
             <div class="flex flex-wrap gap-2 mt-3">
                 <button type="button" id="admin-apk-repair-code" class="ops-btn ops-btn--ghost text-xs">
-                    <i class="fas fa-wrench"></i> Reparar detección de updates
+                    <i class="fas fa-wrench"></i> Reparar detecciÃ³n de updates
                 </button>
                 <button type="button" id="admin-apk-remove" class="ops-btn ops-btn--danger text-xs hidden">
                     <i class="fas fa-trash"></i> Quitar APK
@@ -465,28 +465,28 @@ export async function renderAdminApkPanel(container) {
             </div>
             <p class="text-[10px] text-slate-500 mt-2">
                 <b>Regla simple:</b> cada vez que publicas un APK se genera un build nuevo y se avisa a todos
-                (push + botón en la app). No hace falta que la versión sea “mayor”: <b>subir = actualizar</b>.
-                Si algo falla, pulsa <b>Reparar detección</b>.
+                (push + botÃ³n en la app). No hace falta que la versiÃ³n sea â€œmayorâ€: <b>subir = actualizar</b>.
+                Si algo falla, pulsa <b>Reparar detecciÃ³n</b>.
             </p>
         `) +
-        U.formPanel('Subir nuevo APK', '1) Elige archivo · 2) Pulsa Publicar · 3) Espera la barra al 100%', `
+        U.formPanel('Subir nuevo APK', '1) Elige archivo Â· 2) Pulsa Publicar Â· 3) Espera la barra al 100%', `
             <p id="admin-apk-step-hint" class="admin-apk-step-hint">Paso 1 de 3: elige o arrastra el archivo .apk</p>
             <div id="admin-apk-drop" class="admin-apk-drop" tabindex="0" role="button" aria-label="Zona para soltar APK">
                 <input type="file" id="admin-apk-file" accept=".apk,application/vnd.android.package-archive" class="hidden">
                 <div class="admin-apk-drop-inner" id="admin-apk-drop-inner">
                     <i class="fab fa-android text-4xl text-emerald-400 mb-2" id="admin-apk-drop-icon"></i>
-                    <p class="font-black text-white text-sm" id="admin-apk-drop-title">Arrastra tu APK aquí</p>
+                    <p class="font-black text-white text-sm" id="admin-apk-drop-title">Arrastra tu APK aquÃ­</p>
                     <p class="text-xs text-slate-400 mt-1" id="admin-apk-drop-sub">o toca para elegir archivo</p>
-                    <p class="text-[10px] text-slate-500 mt-2">Elegir archivo <strong>no lo sube</strong> todavía · luego pulsa Publicar</p>
+                    <p class="text-[10px] text-slate-500 mt-2">Elegir archivo <strong>no lo sube</strong> todavÃ­a Â· luego pulsa Publicar</p>
                 </div>
             </div>
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                    <label class="text-xs text-slate-400 font-bold">Versión (igual que Android Studio versionName)</label>
+                    <label class="text-xs text-slate-400 font-bold">VersiÃ³n (igual que Android Studio versionName)</label>
                     <input id="admin-apk-version" class="ops-input mt-1" maxlength="32" placeholder="Ej: 2026.07.30.1" value="">
                     <p class="text-[10px] text-slate-500 mt-1">
                         Debe ser exactamente el <code>versionName</code> del APK (ej. <strong>2026.07.30.1</strong>).
-                        Genera versionCode <code>2026073001</code>. Si está vacío se usa la del proyecto.
+                        Genera versionCode <code>2026073001</code>. Si estÃ¡ vacÃ­o se usa la del proyecto.
                     </p>
                 </div>
                 <div>
@@ -495,11 +495,11 @@ export async function renderAdminApkPanel(container) {
                 </div>
             </div>
             <button type="button" id="admin-apk-upload-btn" class="ops-btn ops-btn--emerald ops-btn--full mt-3" disabled>
-                <i class="fas fa-cloud-upload-alt"></i> Publicar y notificar actualización
+                <i class="fas fa-cloud-upload-alt"></i> Publicar y notificar actualizaciÃ³n
             </button>
             <div id="admin-apk-progress-wrap" class="admin-apk-progress-wrap hidden mt-3" aria-live="polite">
                 <div class="flex justify-between text-xs text-slate-300 mb-1.5 font-bold">
-                    <span id="admin-apk-progress-label"><i class="fas fa-spinner fa-spin"></i> Subiendo al servidor…</span>
+                    <span id="admin-apk-progress-label"><i class="fas fa-spinner fa-spin"></i> Subiendo al servidorâ€¦</span>
                     <span id="admin-apk-progress-pct">0%</span>
                 </div>
                 <div class="admin-apk-progress-bar"><div id="admin-apk-progress-fill" class="admin-apk-progress-fill"></div></div>
@@ -513,12 +513,12 @@ export async function renderAdminApkPanel(container) {
 
     let meta = await loadApkMeta();
     // Repara versionCode mal guardado (bug 202607301 vs 2026073001) para que
-    // los teléfonos con APK viejo vuelvan a ver “hay actualización”.
+    // los telÃ©fonos con APK viejo vuelvan a ver â€œhay actualizaciÃ³nâ€.
     const repaired = await repairRemoteVersionCodeIfNeeded();
     if (repaired) {
         meta = await loadApkMeta();
         window.showToast?.(
-            `VersionCode corregido a ${meta?.versionCode}. Los usuarios deberían ver la actualización al reabrir la app.`,
+            `VersionCode corregido a ${meta?.versionCode}. Los usuarios deberÃ­an ver la actualizaciÃ³n al reabrir la app.`,
             'success'
         );
     }
@@ -543,10 +543,10 @@ export async function renderAdminApkPanel(container) {
             const ver = String(d.androidApkVersion || projectVer || '').trim();
             const code = versionLabelToCode(ver) || versionLabelToCode(projectVer);
             if (!code) {
-                window.showToast?.('Escribe la versión exacta (ej. 2026.07.30.4) y pulsa reparar.', 'warning');
+                window.showToast?.('Escribe la versiÃ³n exacta (ej. 2026.07.30.6) y pulsa reparar.', 'warning');
                 return;
             }
-            // Fuerza versionCode correcto + buildId nuevo → la Cloud Function repara y manda FCM
+            // Fuerza versionCode correcto + buildId nuevo â†’ la Cloud Function repara y manda FCM
             const newBuildId = Date.now();
             await setDoc(settingsDocRef(), {
                 androidApkVersion: ver || projectVer,
@@ -561,8 +561,8 @@ export async function renderAdminApkPanel(container) {
                 const fn = window.httpsCallable?.(window.cloudFunctions, 'broadcastAppMessage');
                 if (fn) {
                     await fn({
-                        title: 'HonduRaite · Actualiza la app',
-                        body: `Nueva versión ${ver || projectVer} (${code}). Ábrela e instala la actualización.`,
+                        title: 'HonduRaite Â· Actualiza la app',
+                        body: `Nueva versiÃ³n ${ver || projectVer} (${code}). Ãbrela e instala la actualizaciÃ³n.`,
                         targetRole: 'all',
                         type: 'app_update',
                         tag: `app-update-${ver || code}`,
@@ -577,7 +577,7 @@ export async function renderAdminApkPanel(container) {
             const next = await loadApkMeta();
             if (metaEl) metaEl.innerHTML = renderAdminMetaHtml(next);
             window.showToast?.(
-                `Listo. VersionCode = ${code} (v${ver || projectVer}). Push enviado. Los teléfonos deben reabrir la app.`,
+                `Listo. VersionCode = ${code} (v${ver || projectVer}). Push enviado. Los telÃ©fonos deben reabrir la app.`,
                 'success'
             );
         } catch (e) {
@@ -595,7 +595,7 @@ export async function renderAdminApkPanel(container) {
                 || window.APP_CONFIG?.appVersion
                 || '';
             if (projectVer) vIn.value = projectVer;
-            else if (meta?.version) vIn.placeholder = `Última: ${meta.version}`;
+            else if (meta?.version) vIn.placeholder = `Ãšltima: ${meta.version}`;
         }
     }
 
@@ -618,7 +618,7 @@ export async function renderAdminApkPanel(container) {
             selectedFile = null;
             if (uploadBtn) {
                 uploadBtn.disabled = true;
-                uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Publicar y notificar actualización';
+                uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Publicar y notificar actualizaciÃ³n';
             }
             if (selectedEl) {
                 selectedEl.classList.add('hidden');
@@ -626,7 +626,7 @@ export async function renderAdminApkPanel(container) {
             }
             drop?.classList.remove('is-ready', 'is-uploading');
             if (stepHint) stepHint.textContent = 'Paso 1 de 3: elige o arrastra el archivo .apk';
-            if (dropTitle) dropTitle.textContent = 'Arrastra tu APK aquí';
+            if (dropTitle) dropTitle.textContent = 'Arrastra tu APK aquÃ­';
             if (dropSub) dropSub.textContent = 'o toca para elegir archivo';
             return;
         }
@@ -641,15 +641,15 @@ export async function renderAdminApkPanel(container) {
         selectedFile = file;
         if (uploadBtn) {
             uploadBtn.disabled = false;
-            uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Publicar y notificar actualización';
+            uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Publicar y notificar actualizaciÃ³n';
         }
         if (selectedEl) {
             selectedEl.classList.remove('hidden');
-            selectedEl.innerHTML = `<i class="fas fa-file-archive"></i> Listo para subir: <strong>${esc(file.name)}</strong> (${formatBytes(file.size)}) — aún <u>no está en el servidor</u> hasta que pulses Publicar.`;
+            selectedEl.innerHTML = `<i class="fas fa-file-archive"></i> Listo para subir: <strong>${esc(file.name)}</strong> (${formatBytes(file.size)}) â€” aÃºn <u>no estÃ¡ en el servidor</u> hasta que pulses Publicar.`;
         }
         drop?.classList.add('is-ready');
         drop?.classList.remove('is-uploading');
-        if (stepHint) stepHint.textContent = 'Paso 2 de 3: pulsa el botón verde «Publicar» para subir al servidor';
+        if (stepHint) stepHint.textContent = 'Paso 2 de 3: pulsa el botÃ³n verde Â«PublicarÂ» para subir al servidor';
         if (dropTitle) dropTitle.textContent = 'Archivo elegido';
         if (dropSub) dropSub.textContent = file.name;
         window.showToast?.(`Archivo listo: ${file.name}. Ahora pulsa Publicar.`, 'info');
@@ -688,7 +688,7 @@ export async function renderAdminApkPanel(container) {
             window.showToast?.('Primero elige un archivo .apk', 'warning');
             return;
         }
-        if (stepHint) stepHint.textContent = 'Paso 3 de 3: subiendo… no cierres esta pestaña';
+        if (stepHint) stepHint.textContent = 'Paso 3 de 3: subiendoâ€¦ no cierres esta pestaÃ±a';
         drop?.classList.add('is-uploading');
         const ok = await uploadAndroidApk(selectedFile, {
             version: document.getElementById('admin-apk-version')?.value?.trim() || '',
@@ -704,9 +704,9 @@ export async function renderAdminApkPanel(container) {
             if (resultEl) {
                 resultEl.classList.remove('hidden');
                 resultEl.className = 'text-sm mt-2 text-emerald-300 font-bold';
-                resultEl.innerHTML = '<i class="fas fa-check-circle"></i> Subida completa. Arriba en «APK actual» verás el archivo publicado.';
+                resultEl.innerHTML = '<i class="fas fa-check-circle"></i> Subida completa. Arriba en Â«APK actualÂ» verÃ¡s el archivo publicado.';
             }
-            if (stepHint) stepHint.textContent = 'Listo. El APK ya está en el servidor (mira el cuadro de arriba).';
+            if (stepHint) stepHint.textContent = 'Listo. El APK ya estÃ¡ en el servidor (mira el cuadro de arriba).';
             syncAppDownloadBadge();
             maybeShowApkUpdateModal({ force: false });
         } else if (stepHint) {
@@ -715,7 +715,7 @@ export async function renderAdminApkPanel(container) {
     });
 
     removeBtn?.addEventListener('click', async () => {
-        if (!confirm('¿Quitar el APK publicado? Los usuarios ya no verán descarga ni actualizaciones.')) return;
+        if (!confirm('Â¿Quitar el APK publicado? Los usuarios ya no verÃ¡n descarga ni actualizaciones.')) return;
         await removeAndroidApk();
         if (metaEl) metaEl.innerHTML = renderAdminMetaHtml(null);
         removeBtn.classList.add('hidden');
@@ -723,18 +723,18 @@ export async function renderAdminApkPanel(container) {
     });
 }
 
-/** @returns {Promise<boolean>} true si quedó publicado en el servidor */
+/** @returns {Promise<boolean>} true si quedÃ³ publicado en el servidor */
 async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
     if (!isAdminFn(getCurrentUser(), getUserProfile())) {
         window.showToast?.('Solo el administrador puede subir el APK.', 'error');
         return false;
     }
     if (!storageRef || !dbRef) {
-        window.showToast?.('Storage no está listo.', 'error');
+        window.showToast?.('Storage no estÃ¡ listo.', 'error');
         return false;
     }
     if (!isApkFile(file)) {
-        window.showToast?.('Archivo inválido. Usa un .apk', 'warning');
+        window.showToast?.('Archivo invÃ¡lido. Usa un .apk', 'warning');
         return false;
     }
 
@@ -752,18 +752,18 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
     if (detailEl) detailEl.textContent = `0 MB / ${formatBytes(file.size)}`;
     if (uploadBtn) {
         uploadBtn.disabled = true;
-        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo… no cierres la pestaña';
+        uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendoâ€¦ no cierres la pestaÃ±a';
     }
     if (labelEl) {
-        labelEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo al servidor…';
+        labelEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo al servidorâ€¦';
     }
     drop?.classList.add('is-uploading');
-    window.showToast?.('Subiendo APK… verás el % abajo. No cierres esta página.', 'info');
+    window.showToast?.('Subiendo APKâ€¦ verÃ¡s el % abajo. No cierres esta pÃ¡gina.', 'info');
 
     const path = apkStoragePath(file.name.endsWith('.apk') ? file.name : 'honduraite.apk');
     const storageFileRef = ref(storageRef, path);
     const buildId = Date.now();
-    // Preferir versión escrita por admin; si vacío, la del proyecto (config/meta)
+    // Preferir versiÃ³n escrita por admin; si vacÃ­o, la del proyecto (config/meta)
     const fallbackVer = (typeof window !== 'undefined' && (
         document.querySelector('meta[name="hr-app-version"]')?.content
         || window.__HR_BUILD_VERSION__
@@ -790,12 +790,12 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
                     if (fill) fill.style.width = `${pct}%`;
                     if (pctEl) pctEl.textContent = `${pct}%`;
                     if (detailEl) {
-                        detailEl.textContent = `${formatBytes(done)} / ${formatBytes(total)} · ${pct}%`;
+                        detailEl.textContent = `${formatBytes(done)} / ${formatBytes(total)} Â· ${pct}%`;
                     }
                     if (labelEl) {
                         labelEl.innerHTML = pct < 100
-                            ? `<i class="fas fa-spinner fa-spin"></i> Subiendo… ${pct}%`
-                            : '<i class="fas fa-cog fa-spin"></i> Guardando enlace…';
+                            ? `<i class="fas fa-spinner fa-spin"></i> Subiendoâ€¦ ${pct}%`
+                            : '<i class="fas fa-cog fa-spin"></i> Guardando enlaceâ€¦';
                     }
                 },
                 reject,
@@ -804,16 +804,16 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
         });
 
         if (labelEl) {
-            labelEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando en la base de datos…';
+            labelEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando en la base de datosâ€¦';
         }
         const url = await getDownloadURL(storageFileRef);
-        // Siempre el mismo esquema que build.gradle (2026.07.30.1 → 2026073001)
+        // Siempre el mismo esquema que build.gradle (2026.07.30.1 â†’ 2026073001)
         const versionCode = versionLabelToCode(versionLabel) || 0;
         if (!versionCode && versionLabel) {
             console.warn('[app-download] versionCode=0 para etiqueta:', versionLabel);
         }
-        // versionCode SIEMPRE numérico correcto (2026.07.30.4 → 2026073004)
-        // Las APKs antiguas comparan este número; si sale mal, no ven el update.
+        // versionCode SIEMPRE numÃ©rico correcto (2026.07.30.6 â†’ 2026073004)
+        // Las APKs antiguas comparan este nÃºmero; si sale mal, no ven el update.
         const safeCode = Number(versionCode) || versionLabelToCode(versionLabel) || 0;
         await setDoc(settingsDocRef(), {
             androidApkUrl: url,
@@ -830,7 +830,7 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
             updatedAt: serverTimestamp(),
         }, { merge: true });
 
-        // NUNCA marcar “ya instalado” en el admin
+        // NUNCA marcar â€œya instaladoâ€ en el admin
         clearUpdateSnooze();
 
         // Aviso FCM a todos (las APK viejas no tienen el JS nuevo; el push las despierta)
@@ -838,31 +838,31 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
             const fn = window.httpsCallable?.(window.cloudFunctions, 'broadcastAppMessage');
             if (fn) {
                 await fn({
-                    title: 'HonduRaite · Actualiza la app',
-                    body: `Nueva versión ${versionLabel}${safeCode ? ` (${safeCode})` : ''}. Ábrela e instala la actualización.`,
+                    title: 'HonduRaite Â· Actualiza la app',
+                    body: `Nueva versiÃ³n ${versionLabel}${safeCode ? ` (${safeCode})` : ''}. Ãbrela e instala la actualizaciÃ³n.`,
                     targetRole: 'all',
                     type: 'app_update',
                     tag: `app-update-${versionLabel}`,
                     version: versionLabel,
                     highPriority: true,
                 });
-                window.showToast?.('Push de actualización enviado a los usuarios.', 'info');
+                window.showToast?.('Push de actualizaciÃ³n enviado a los usuarios.', 'info');
             }
         } catch (pushErr) {
             console.warn('[app-download] broadcastAppMessage:', pushErr);
-            // La Cloud Function onApkSettingsPublished también intenta notificar
+            // La Cloud Function onApkSettingsPublished tambiÃ©n intenta notificar
         }
 
         if (labelEl) {
-            labelEl.innerHTML = '<i class="fas fa-check-circle text-emerald-400"></i> ¡Publicado en el servidor!';
+            labelEl.innerHTML = '<i class="fas fa-check-circle text-emerald-400"></i> Â¡Publicado en el servidor!';
         }
         if (fill) fill.style.width = '100%';
         if (pctEl) pctEl.textContent = '100%';
-        if (detailEl) detailEl.textContent = `${formatBytes(file.size)} / ${formatBytes(file.size)} · 100%`;
+        if (detailEl) detailEl.textContent = `${formatBytes(file.size)} / ${formatBytes(file.size)} Â· 100%`;
         if (uploadBtn) {
             uploadBtn.innerHTML = '<i class="fas fa-check"></i> Publicado correctamente';
         }
-        window.showToast?.('APK publicado. Arriba verás «APK ya está en el servidor».', 'success');
+        window.showToast?.('APK publicado. Arriba verÃ¡s Â«APK ya estÃ¡ en el servidorÂ».', 'success');
         await loadApkMeta();
         // Refrescar cuadro superior al momento
         const metaEl = document.getElementById('admin-apk-meta');
@@ -878,7 +878,7 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
         if (labelEl) {
             labelEl.innerHTML = `<i class="fas fa-times-circle text-red-400"></i> Error: ${esc(msg)}`;
         }
-        if (detailEl) detailEl.textContent = 'La subida falló. Revisa reglas de Storage e internet.';
+        if (detailEl) detailEl.textContent = 'La subida fallÃ³. Revisa reglas de Storage e internet.';
         window.showToast?.(msg, 'error');
         return false;
     } finally {
@@ -886,7 +886,7 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
         if (uploadBtn) {
             uploadBtn.disabled = false;
             if (!uploadBtn.innerHTML.includes('Publicado')) {
-                uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Publicar y notificar actualización';
+                uploadBtn.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Publicar y notificar actualizaciÃ³n';
             }
         }
         // Dejar la barra visible unos segundos para que veas el 100% o el error
@@ -932,9 +932,9 @@ async function removeAndroidApk() {
 }
 
 function shouldShowDownloadBadge() {
-    // App nativa Android: botón de actualización cuando hay APK más nuevo
+    // App nativa Android: botÃ³n de actualizaciÃ³n cuando hay APK mÃ¡s nuevo
     if (isInstalledAndroidApp()) {
-        // Update siempre visible (también en búsqueda); solo ocultar en map-pick
+        // Update siempre visible (tambiÃ©n en bÃºsqueda); solo ocultar en map-pick
         if (document.body.classList.contains('map-pick-mode')) return false;
         if (!hasApkUpdateAvailable()) return false;
         if (isUpdateSnoozed()) return false;
@@ -944,7 +944,7 @@ function shouldShowDownloadBadge() {
     // Web: necesita APK publicado en Admin
     if (!cachedApkMeta?.url) return false;
 
-    // Ya descargó/instaló ESTA versión desde web → ocultar hasta un build más nuevo
+    // Ya descargÃ³/instalÃ³ ESTA versiÃ³n desde web â†’ ocultar hasta un build mÃ¡s nuevo
     if (alreadyHasCurrentApkOnWeb()) return false;
 
     try {
@@ -969,7 +969,7 @@ function ensureBadgeEl() {
     el.className = 'app-download-badge hidden';
     el.setAttribute('aria-label', 'Descarga nuestra app');
     el.innerHTML = `
-        <button type="button" class="app-download-badge-drag" data-app-dl-drag title="Mover" aria-label="Mover botón">
+        <button type="button" class="app-download-badge-drag" data-app-dl-drag title="Mover" aria-label="Mover botÃ³n">
             <i class="fas fa-grip-vertical pointer-events-none"></i>
         </button>
         <button type="button" class="app-download-badge-main" data-app-dl-open>
@@ -1002,14 +1002,14 @@ function ensureBadgeEl() {
     el.querySelector('[data-app-dl-close]')?.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        // X: ocultar solo hasta el próximo inicio de sesión (login)
+        // X: ocultar solo hasta el prÃ³ximo inicio de sesiÃ³n (login)
         try { sessionStorage.setItem(DISMISS_KEY, '1'); } catch (_) {}
         if (isInstalledAndroidApp()) {
-            // En app nativa, la X también pospone el aviso de update hasta el próximo login
+            // En app nativa, la X tambiÃ©n pospone el aviso de update hasta el prÃ³ximo login
             snoozeUpdate();
         }
         el.classList.add('hidden');
-        window.showToast?.('Oculto por ahora. Volverá a salir al iniciar sesión de nuevo.', 'info');
+        window.showToast?.('Oculto por ahora. VolverÃ¡ a salir al iniciar sesiÃ³n de nuevo.', 'info');
     });
 
     bindBadgeDraggable(el);
@@ -1019,12 +1019,12 @@ function ensureBadgeEl() {
 /**
  * Inicia la descarga del APK.
  * En la APK Android: DownloadManager del sistema (Chrome Custom Tabs deja Firebase Storage a medias).
- * En web móvil: navegador del sistema / enlace directo.
+ * En web mÃ³vil: navegador del sistema / enlace directo.
  */
 async function startApkDownload() {
     const url = cachedApkMeta?.url;
     if (!url) {
-        window.showToast?.('La descarga aún no está disponible.', 'warning');
+        window.showToast?.('La descarga aÃºn no estÃ¡ disponible.', 'warning');
         return false;
     }
 
@@ -1033,16 +1033,16 @@ async function startApkDownload() {
     const onAndroidWeb = !onAndroidApp
         && (isCapacitorNative() || /Android/i.test(navigator.userAgent || ''));
 
-    // 1) App nativa Android → DownloadManager (completo en carpeta Descargas)
+    // 1) App nativa Android â†’ DownloadManager (completo en carpeta Descargas)
     if (onAndroidApp) {
-        window.showToast?.('Iniciando descarga del APK en Descargas…', 'info');
+        window.showToast?.('Iniciando descarga del APK en Descargasâ€¦', 'info');
         try {
             const native = await downloadApkNative(url, fileName);
             if (native?.ok !== false && native) {
                 markApkDownloadedOrInstalled(cachedApkMeta.buildId);
                 syncAppDownloadBadge();
                 window.showToast?.(
-                    'Descarga en curso. Mira la barra de notificaciones; al terminar abre el APK desde Descargas e instálalo.',
+                    'Descarga en curso. Mira la barra de notificaciones; al terminar abre el APK desde Descargas e instÃ¡lalo.',
                     'success'
                 );
                 return true;
@@ -1051,7 +1051,7 @@ async function startApkDownload() {
             console.warn('[app-download] native DownloadManager:', e);
         }
         // Fallback: navegador del sistema (no Custom Tab)
-        window.showToast?.('Abriendo el navegador del celular para descargar…', 'info');
+        window.showToast?.('Abriendo el navegador del celular para descargarâ€¦', 'info');
         const openedSys = await openInSystemBrowser(url);
         if (openedSys) {
             markApkDownloadedOrInstalled(cachedApkMeta.buildId);
@@ -1066,8 +1066,8 @@ async function startApkDownload() {
 
     window.showToast?.(
         onAndroidWeb
-            ? 'Abriendo el navegador del celular para descargar el APK…'
-            : 'Iniciando descarga del APK…',
+            ? 'Abriendo el navegador del celular para descargar el APKâ€¦'
+            : 'Iniciando descarga del APKâ€¦',
         'info'
     );
 
@@ -1103,7 +1103,7 @@ async function startApkDownload() {
 
     if (!opened) {
         window.showToast?.(
-            'No se pudo abrir la descarga. Copia el enlace desde Admin → App Android o prueba en Chrome.',
+            'No se pudo abrir la descarga. Copia el enlace desde Admin â†’ App Android o prueba en Chrome.',
             'error'
         );
         return false;
@@ -1113,8 +1113,8 @@ async function startApkDownload() {
     syncAppDownloadBadge();
     window.showToast?.(
         onAndroidWeb || onAndroidApp
-            ? 'Si no termina sola, abre Descargas o la notificación y toca el APK para instalar.'
-            : 'Descarga iniciada. Abre el archivo e instálalo cuando termine.',
+            ? 'Si no termina sola, abre Descargas o la notificaciÃ³n y toca el APK para instalar.'
+            : 'Descarga iniciada. Abre el archivo e instÃ¡lalo cuando termine.',
         'success'
     );
     return true;
@@ -1124,7 +1124,7 @@ function openApkDownload() {
     showInstallTutorial({ mode: isInstalledAndroidApp() ? 'update' : 'install' });
 }
 
-/* —— Tutorial de instalación / confianza (Play Protect) —— */
+/* â€”â€” Tutorial de instalaciÃ³n / confianza (Play Protect) â€”â€” */
 function installTutorialStepsHtml() {
     const androidHint = isCapacitorAndroid() || isCapacitorNative() || /Android/i.test(navigator.userAgent || '');
     return `
@@ -1132,11 +1132,11 @@ function installTutorialStepsHtml() {
             <li>
                 <span class="apk-tutorial-num">1</span>
                 <div>
-                    <strong>Toca “Descargar APK”</strong>
+                    <strong>Toca â€œDescargar APKâ€</strong>
                     <p>${androidHint
                         ? (isCapacitorAndroid()
-                            ? 'La app usa el <b>descargador del sistema</b>: el APK va a la carpeta <em>Descargas</em> y avisa al terminar (más fiable que Chrome).'
-                            : 'Se abrirá el <b>navegador del celular</b> (Chrome u otro) y ahí empieza la descarga.')
+                            ? 'La app usa el <b>descargador del sistema</b>: el APK va a la carpeta <em>Descargas</em> y avisa al terminar (mÃ¡s fiable que Chrome).'
+                            : 'Se abrirÃ¡ el <b>navegador del celular</b> (Chrome u otro) y ahÃ­ empieza la descarga.')
                         : 'Se descarga el instalador oficial de HonduRaite (archivo .apk).'}</p>
                 </div>
             </li>
@@ -1150,22 +1150,22 @@ function installTutorialStepsHtml() {
             <li>
                 <span class="apk-tutorial-num">3</span>
                 <div>
-                    <strong>Si Android pregunta “¿Permitir de esta fuente?”</strong>
+                    <strong>Si Android pregunta â€œÂ¿Permitir de esta fuente?â€</strong>
                     <p>Activa <em>Permitir de esta fuente</em> solo para Chrome / Archivos / el navegador que uses. Es normal fuera de Play Store.</p>
                 </div>
             </li>
             <li>
                 <span class="apk-tutorial-num">4</span>
                 <div>
-                    <strong>Si sale “Play Protect” o “app bloqueada”</strong>
-                    <p>Toca <em>Más detalles</em> → <em>Instalar de todos modos</em> (o <em>Instalar igualmente</em>). Google avisa porque la app no viene de su tienda, no porque sea virus.</p>
+                    <strong>Si sale â€œPlay Protectâ€ o â€œapp bloqueadaâ€</strong>
+                    <p>Toca <em>MÃ¡s detalles</em> â†’ <em>Instalar de todos modos</em> (o <em>Instalar igualmente</em>). Google avisa porque la app no viene de su tienda, no porque sea virus.</p>
                 </div>
             </li>
             <li>
                 <span class="apk-tutorial-num">5</span>
                 <div>
                     <strong>Confirma Instalar</strong>
-                    <p>Al terminar, abre HonduRaite. Tus datos de sesión se mantienen en la mayoría de actualizaciones.</p>
+                    <p>Al terminar, abre HonduRaite. Tus datos de sesiÃ³n se mantienen en la mayorÃ­a de actualizaciones.</p>
                 </div>
             </li>
         </ol>
@@ -1177,7 +1177,7 @@ function showInstallTutorial({ mode = 'install' } = {}) {
         document.getElementById('apk-install-tutorial')?.remove();
     }
     if (!cachedApkMeta?.url) {
-        return window.showToast?.('Aún no hay APK publicado.', 'warning');
+        return window.showToast?.('AÃºn no hay APK publicado.', 'warning');
     }
     installTutorialOpen = true;
     const isUpdate = mode === 'update';
@@ -1191,16 +1191,16 @@ function showInstallTutorial({ mode = 'install' } = {}) {
             <div class="apk-tutorial-hero">
                 <div class="apk-tutorial-hero-icon"><i class="fab fa-android"></i></div>
                 <h2 id="apk-tutorial-title">${isUpdate ? 'Actualizar HonduRaite' : 'Instalar HonduRaite'}</h2>
-                <p class="apk-tutorial-sub">Versión <strong>${esc(ver)}</strong> · descarga oficial desde la app</p>
+                <p class="apk-tutorial-sub">VersiÃ³n <strong>${esc(ver)}</strong> Â· descarga oficial desde la app</p>
             </div>
 
             <div class="apk-tutorial-trust">
-                <p class="apk-tutorial-trust-title"><i class="fas fa-shield-alt"></i> ¿Por qué Google puede avisar?</p>
+                <p class="apk-tutorial-trust-title"><i class="fas fa-shield-alt"></i> Â¿Por quÃ© Google puede avisar?</p>
                 <ul>
                     <li><strong>No es Play Store:</strong> publicamos el APK nosotros (igual que muchas apps locales y bancos en prueba).</li>
-                    <li><strong>No es un virus:</strong> el aviso es automático en apps “de origen desconocido” o fuera de Google Play.</li>
-                    <li><strong>Solo confía en este enlace:</strong> la descarga sale de HonduRaite / SOZIN, no de chats raros ni páginas ajenas.</li>
-                    <li><strong>Tú controlas:</strong> solo instalas si abriste la descarga desde aquí.</li>
+                    <li><strong>No es un virus:</strong> el aviso es automÃ¡tico en apps â€œde origen desconocidoâ€ o fuera de Google Play.</li>
+                    <li><strong>Solo confÃ­a en este enlace:</strong> la descarga sale de HonduRaite / SOZIN, no de chats raros ni pÃ¡ginas ajenas.</li>
+                    <li><strong>TÃº controlas:</strong> solo instalas si abriste la descarga desde aquÃ­.</li>
                 </ul>
             </div>
 
@@ -1208,14 +1208,14 @@ function showInstallTutorial({ mode = 'install' } = {}) {
 
             <div class="apk-tutorial-actions">
                 <button type="button" class="apk-tutorial-btn apk-tutorial-btn--primary" data-apk-tut-download>
-                    <i class="fas fa-download"></i> ${isUpdate ? 'Descargar actualización' : 'Descargar APK'}
+                    <i class="fas fa-download"></i> ${isUpdate ? 'Descargar actualizaciÃ³n' : 'Descargar APK'}
                 </button>
                 <button type="button" class="apk-tutorial-btn apk-tutorial-btn--ghost" data-apk-tut-installed>
-                    Ya instalé esta versión
+                    Ya instalÃ© esta versiÃ³n
                 </button>
                 <button type="button" class="apk-tutorial-btn apk-tutorial-btn--ghost" data-apk-tut-close>Cerrar</button>
             </div>
-            <p class="apk-tutorial-foot">Empresa SOZIN · HonduRaite Honduras · El botón no reaparece hasta una nueva versión</p>
+            <p class="apk-tutorial-foot">Empresa SOZIN Â· HonduRaite Honduras Â· El botÃ³n no reaparece hasta una nueva versiÃ³n</p>
         </div>
     `;
     document.body.appendChild(modal);
@@ -1230,25 +1230,25 @@ function showInstallTutorial({ mode = 'install' } = {}) {
         const btn = modal.querySelector('[data-apk-tut-download]');
         if (btn) {
             btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Abriendo descarga…';
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Abriendo descargaâ€¦';
         }
         const ok = await startApkDownload();
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = `<i class="fas fa-download"></i> ${isUpdate ? 'Descargar actualización' : 'Descargar APK'}`;
+            btn.innerHTML = `<i class="fas fa-download"></i> ${isUpdate ? 'Descargar actualizaciÃ³n' : 'Descargar APK'}`;
         }
-        // Cerrar tutorial solo si se abrió la descarga
+        // Cerrar tutorial solo si se abriÃ³ la descarga
         if (ok) close();
     });
     modal.querySelector('[data-apk-tut-installed]')?.addEventListener('click', () => {
         markApkDownloadedOrInstalled(cachedApkMeta?.buildId);
         syncAppDownloadBadge();
         close();
-        window.showToast?.('Perfecto. No verás el botón hasta que haya una actualización nueva.', 'success');
+        window.showToast?.('Perfecto. No verÃ¡s el botÃ³n hasta que haya una actualizaciÃ³n nueva.', 'success');
     });
 }
 
-/* —— Modal: nueva versión (usuarios con app instalada) —— */
+/* â€”â€” Modal: nueva versiÃ³n (usuarios con app instalada) â€”â€” */
 function showApkUpdateModal({ force = false } = {}) {
     if (!hasApkUpdateAvailable() && !force) return;
     if (!cachedApkMeta?.url) return;
@@ -1266,23 +1266,23 @@ function showApkUpdateModal({ force = false } = {}) {
     modal.innerHTML = `
         <div class="apk-update-sheet" role="dialog" aria-modal="true" aria-labelledby="apk-update-title">
             <div class="apk-update-icon"><i class="fas fa-rocket"></i></div>
-            <h2 id="apk-update-title">¡Nueva versión disponible!</h2>
+            <h2 id="apk-update-title">Â¡Nueva versiÃ³n disponible!</h2>
             <p class="apk-update-text">
-                Hay una actualización de HonduRaite (<strong>v${esc(ver)}</strong>).
-                Puedes actualizarla <strong>desde aquí mismo</strong> en un minuto.
+                Hay una actualizaciÃ³n de HonduRaite (<strong>v${esc(ver)}</strong>).
+                Puedes actualizarla <strong>desde aquÃ­ mismo</strong> en un minuto.
             </p>
             ${notes ? `<p class="apk-update-notes">${esc(notes)}</p>` : ''}
             <p class="apk-update-hint">
                 Android o Google pueden mostrar un aviso de seguridad: es normal en apps fuera de Play Store.
-                Te guiamos paso a paso — no hay nada raro que temer si descargas solo desde este botón.
+                Te guiamos paso a paso â€” no hay nada raro que temer si descargas solo desde este botÃ³n.
             </p>
             <button type="button" class="apk-update-btn apk-update-btn--gold" data-apk-upd-go>
                 <i class="fas fa-download"></i> Actualizar ahora
             </button>
             <button type="button" class="apk-update-btn apk-update-btn--ghost" data-apk-upd-done>
-                Ya actualicé
+                Ya actualicÃ©
             </button>
-            <button type="button" class="apk-update-later" data-apk-upd-later>Más tarde</button>
+            <button type="button" class="apk-update-later" data-apk-upd-later>MÃ¡s tarde</button>
         </div>
     `;
     document.body.appendChild(modal);
@@ -1301,7 +1301,7 @@ function showApkUpdateModal({ force = false } = {}) {
         clearUpdateSnooze();
         close();
         syncAppDownloadBadge();
-        window.showToast?.('Perfecto. Gracias por actualizar. El aviso no saldrá hasta la próxima versión.', 'success');
+        window.showToast?.('Perfecto. Gracias por actualizar. El aviso no saldrÃ¡ hasta la prÃ³xima versiÃ³n.', 'success');
     });
     modal.querySelector('[data-apk-upd-later]')?.addEventListener('click', () => {
         snoozeUpdate();
@@ -1421,13 +1421,13 @@ function bindBadgeDraggable(el) {
 }
 
 /**
- * Llamar al iniciar sesión de pasajero o conductor (cada login).
- * Limpia solo la X de la sesión. NO borra “ya instalé” (eso solo se resetea con update nueva).
+ * Llamar al iniciar sesiÃ³n de pasajero o conductor (cada login).
+ * Limpia solo la X de la sesiÃ³n. NO borra â€œya instalÃ©â€ (eso solo se resetea con update nueva).
  */
 export function onPassengerAppBadgeSessionStart(uid) {
     const id = uid || getCurrentUser()?.uid || null;
     if (!id) return;
-    // Misma sesión de login: no tocar el estado de la X
+    // Misma sesiÃ³n de login: no tocar el estado de la X
     if (badgeSessionUid === id) {
         syncAppDownloadBadge();
         // Reintentar update en cada llamada (meta puede llegar tarde)
@@ -1442,7 +1442,7 @@ export function onPassengerAppBadgeSessionStart(uid) {
         return;
     }
     badgeSessionUid = id;
-    // Solo limpia la X temporal — si ya instaló, el badge sigue oculto hasta nueva versión
+    // Solo limpia la X temporal â€” si ya instalÃ³, el badge sigue oculto hasta nueva versiÃ³n
     try {
         sessionStorage.removeItem(DISMISS_KEY);
     } catch (_) {}
@@ -1486,7 +1486,10 @@ function syncApkUpdateBanner() {
     let bar = document.getElementById('apk-update-force-bar');
     if (!need) {
         bar?.classList.add('hidden');
-        document.body.classList.remove('apk-update-bar-visible');
+        // Solo mutar body si hace falta (evita reentrada del MutationObserver)
+        if (document.body.classList.contains('apk-update-bar-visible')) {
+            document.body.classList.remove('apk-update-bar-visible');
+        }
         return;
     }
     if (!bar) {
@@ -1496,7 +1499,7 @@ function syncApkUpdateBanner() {
         bar.innerHTML = `
             <div class="apk-update-force-bar-inner">
                 <div class="apk-update-force-bar-text">
-                    <strong>Nueva versión de HonduRaite</strong>
+                    <strong>Nueva versiÃ³n de HonduRaite</strong>
                     <span id="apk-update-force-bar-ver"></span>
                 </div>
                 <button type="button" class="apk-update-force-bar-btn" data-apk-force-go>
@@ -1515,11 +1518,13 @@ function syncApkUpdateBanner() {
         const v = cachedApkMeta?.version || '';
         const rc = resolveRemoteVersionCode(cachedApkMeta || {}) || cachedApkMeta?.versionCode || '';
         verEl.textContent = v
-            ? ` · v${v}${rc ? ` (${rc})` : ''} disponible`
-            : ' · hay una actualización lista';
+            ? ` Â· v${v}${rc ? ` (${rc})` : ''} disponible`
+            : ' Â· hay una actualizaciÃ³n lista';
     }
     bar.classList.remove('hidden');
-    document.body.classList.add('apk-update-bar-visible');
+    if (!document.body.classList.contains('apk-update-bar-visible')) {
+        document.body.classList.add('apk-update-bar-visible');
+    }
 }
 
 export function syncAppDownloadBadge() {
@@ -1568,7 +1573,7 @@ function onApkMetaChanged() {
                     trySyncBuildFromNativeVersion().finally(() => {
                         syncAppDownloadBadge();
                         if (hasApkUpdateAvailable()) {
-                            // Si hay update real, forzar modal (limpia snooze viejo de otra versión)
+                            // Si hay update real, forzar modal (limpia snooze viejo de otra versiÃ³n)
                             if (isUpdateSnoozed()) {
                                 // solo respetar snooze si es la misma remote build
                                 // (reactToNewRemotePublication ya limpia snooze en build nuevo)
@@ -1634,15 +1639,53 @@ export function initAppDownload(opts = {}) {
         boot();
     }
 
-    const mo = new MutationObserver(() => {
-        syncAppDownloadBadge();
-        // Si termina un viaje, reintentar aviso de update
-        if (!document.body.classList.contains('trip-active')
-            && !document.body.classList.contains('is-searching')) {
-            maybeShowApkUpdateModal({ force: false });
+    // OJO: no llamar sync en CADA class de body (boot/theme/ops cambian class a menudo).
+    // Sin debounce/reentrancy se congela el main thread y el splash no termina.
+    let badgeMoTimer = 0;
+    let badgeMoRunning = false;
+    const RELEVANT_BODY_CLASSES = ['trip-active', 'is-searching', 'map-pick-mode', 'driver-mode', 'client-mode'];
+    const mo = new MutationObserver((mutations) => {
+        if (badgeMoRunning) return;
+        let relevant = false;
+        for (const m of mutations) {
+            if (m.type !== 'attributes' || m.attributeName !== 'class') continue;
+            const prev = String(m.oldValue || '');
+            const next = String(document.body.className || '');
+            // Ignorar cambios solo de apk-update-bar-visible (los provoca este mismo módulo)
+            const prevSet = new Set(prev.split(/\s+/).filter(Boolean));
+            const nextSet = new Set(next.split(/\s+/).filter(Boolean));
+            for (const c of RELEVANT_BODY_CLASSES) {
+                if (prevSet.has(c) !== nextSet.has(c)) {
+                    relevant = true;
+                    break;
+                }
+            }
+            if (relevant) break;
         }
+        if (!relevant) return;
+        if (badgeMoTimer) clearTimeout(badgeMoTimer);
+        badgeMoTimer = window.setTimeout(() => {
+            badgeMoTimer = 0;
+            if (badgeMoRunning) return;
+            badgeMoRunning = true;
+            try {
+                syncAppDownloadBadge();
+                if (!document.body.classList.contains('trip-active')
+                    && !document.body.classList.contains('is-searching')) {
+                    maybeShowApkUpdateModal({ force: false });
+                }
+            } catch (e) {
+                console.warn('[app-download] body class observer', e);
+            } finally {
+                badgeMoRunning = false;
+            }
+        }, 120);
     });
-    mo.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    mo.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['class'],
+        attributeOldValue: true
+    });
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
@@ -1655,7 +1698,7 @@ export function initAppDownload(opts = {}) {
         }
     });
 
-    // Debug rápido en consola WebView: window.__apkUpdateDebug()
+    // Debug rÃ¡pido en consola WebView: window.__apkUpdateDebug()
     window.__apkUpdateDebug = async () => {
         await refreshNativeAppInfo();
         await loadApkMeta();
@@ -1676,15 +1719,15 @@ export function initAppDownload(opts = {}) {
                 !isInstalledAndroidApp()
                     ? 'No es APK nativo (navegador web)'
                     : hasApkUpdateAvailable()
-                        ? `Update SÍ · app ${nativeAppInfo.version}(${nativeAppInfo.build}) < remoto ${cachedApkMeta?.version}(${remoteCode})`
-                        : `Update NO · app ${nativeAppInfo.version || '?'}(${nativeAppInfo.build || 0}) · remoto ${cachedApkMeta?.version || '—'}(${remoteCode}) · snooze ${isUpdateSnoozed()}`,
+                        ? `Update SÃ Â· app ${nativeAppInfo.version}(${nativeAppInfo.build}) < remoto ${cachedApkMeta?.version}(${remoteCode})`
+                        : `Update NO Â· app ${nativeAppInfo.version || '?'}(${nativeAppInfo.build || 0}) Â· remoto ${cachedApkMeta?.version || 'â€”'}(${remoteCode}) Â· snooze ${isUpdateSnoozed()}`,
                 hasApkUpdateAvailable() ? 'warning' : 'info'
             );
         } catch (_) {}
         return info;
     };
 
-    /** Fuerza mostrar update (admin/pruebas): limpia snooze y reevalúa */
+    /** Fuerza mostrar update (admin/pruebas): limpia snooze y reevalÃºa */
     window.__apkForceUpdateCheck = async () => {
         clearUpdateSnooze();
         setClientBuildId(null);
