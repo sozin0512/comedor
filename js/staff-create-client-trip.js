@@ -621,7 +621,8 @@ export function installStaffCreateClientTrip({
             const clientRouteCb = modal.querySelector('#staff-cct-client-route');
             const freightWrap = modal.querySelector('#staff-cct-freight-wrap');
             const driversWrap = modal.querySelector('#staff-cct-drivers-wrap');
-            const paxWrap = modal.querySelector('#staff-cct-pax-wrap');
+            // Una sola referencia al bloque de pasajeros (no redeclarar más abajo)
+            const staffCctPaxEl = modal.querySelector('#staff-cct-pax-wrap');
             const routeFields = modal.querySelector('#staff-cct-origin')?.closest?.('div')?.parentElement;
             // Contenedor de origen/destino (grid con 2 campos)
             const originDestGrid = modal.querySelector('#staff-cct-origin')?.parentElement?.parentElement?.parentElement;
@@ -635,7 +636,7 @@ export function installStaffCreateClientTrip({
                 const clientRoute = !!clientRouteCb?.checked;
                 if (freightWrap) freightWrap.style.display = flete ? 'block' : 'none';
                 if (driversWrap) driversWrap.style.display = flete ? 'block' : 'none';
-                if (paxWrap) paxWrap.style.display = flete ? 'none' : 'block';
+                if (staffCctPaxEl) staffCctPaxEl.style.display = flete ? 'none' : 'block';
                 // Si el cliente pone la ruta, ocultar campos de dirección del staff
                 const hideRoute = clientRoute;
                 const oWrap = modal.querySelector('#staff-cct-origin')?.closest('div[style*="position:relative"]');
@@ -978,7 +979,6 @@ export function installStaffCreateClientTrip({
             const paxHidden = modal.querySelector('#staff-cct-passengers');
             const paxClientChooses = modal.querySelector('#staff-cct-client-chooses-pax');
             const paxHint = modal.querySelector('#staff-cct-pax-hint');
-            const paxWrap = modal.querySelector('#staff-cct-pax-wrap');
 
             const getStaffPaxForFare = () => {
                 if (staffPassengers == null) return 1; // tarifa base estimada (1 pers.)
@@ -988,14 +988,15 @@ export function installStaffCreateClientTrip({
             const renderStaffPaxChips = () => {
                 const svc = normalizeServiceType(serviceSelect?.value || 'auto');
                 const maxP = getMaxPassengers(svc);
-                if (svc === 'delivery' || maxP <= 1) {
-                    if (paxWrap) paxWrap.style.display = 'none';
+                // Flete / delivery / 1 plaza: no mostrar selector de pasajeros
+                if (svc === 'delivery' || maxP <= 1 || isFreightService(svc)) {
+                    if (staffCctPaxEl) staffCctPaxEl.style.display = 'none';
                     staffPassengers = 1;
                     if (paxHidden) paxHidden.value = '1';
                     if (paxClientChooses) paxClientChooses.value = '0';
                     return;
                 }
-                if (paxWrap) paxWrap.style.display = 'block';
+                if (staffCctPaxEl) staffCctPaxEl.style.display = 'block';
                 if (staffPassengers != null) {
                     staffPassengers = normalizePassengerCount(svc, staffPassengers);
                 }
