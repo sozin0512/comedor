@@ -386,7 +386,7 @@ function routeForegroundPush(payload) {
         }
     }
 
-    // Admin envió “nueva versión” / broadcast de update → forzar chequeo PWA (web/iOS/Android instalados)
+    // Admin envió “nueva versión” / broadcast de update
     if (
         type === 'app_update'
         || type === 'broadcast'
@@ -400,12 +400,31 @@ function routeForegroundPush(payload) {
             if (remoteV) {
                 try { localStorage.setItem('hr_pending_version', remoteV); } catch (_) {}
             }
+            // PWA (version.json)
             setTimeout(() => {
                 window.checkForAppUpdate?.({ force: true });
             }, 400);
             setTimeout(() => {
                 window.checkForAppUpdate?.({ force: true });
             }, 2500);
+            // APK nativo: forzar modal de actualización (no solo version.json de la web)
+            const forceApk = () => {
+                try {
+                    window.__apkForceUpdateCheck?.();
+                } catch (_) {}
+                try {
+                    window.maybeShowApkUpdateModal?.({ force: true });
+                } catch (_) {}
+                try {
+                    window.showApkUpdateModal?.();
+                } catch (_) {}
+                try {
+                    window.syncAppDownloadBadge?.();
+                } catch (_) {}
+            };
+            setTimeout(forceApk, 500);
+            setTimeout(forceApk, 2000);
+            setTimeout(forceApk, 5000);
         } catch (_) {}
     }
 }

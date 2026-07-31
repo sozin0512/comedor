@@ -580,35 +580,49 @@ export async function renderAdminApkPanel(container) {
                 return;
             }
             const d = snap.data() || {};
-            const ver = String(d.androidApkVersion || '').trim();
-            let code = versionLabelToCode(ver);
-            // Si la etiqueta no parsea, pedir al admin la del proyecto
+            const projectVer = document.getElementById('admin-apk-version')?.value?.trim()
+                || document.querySelector('meta[name="hr-app-version"]')?.content
+                || window.__HR_BUILD_VERSION__
+                || '';
+            const ver = String(d.androidApkVersion || projectVer || '').trim();
+            const code = versionLabelToCode(ver) || versionLabelToCode(projectVer);
             if (!code) {
-                const projectVer = document.getElementById('admin-apk-version')?.value?.trim()
-                    || document.querySelector('meta[name="hr-app-version"]')?.content
-                    || window.__HR_BUILD_VERSION__
-                    || '';
-                code = versionLabelToCode(projectVer);
-                if (code && projectVer) {
-                    await setDoc(settingsDocRef(), {
-                        androidApkVersion: projectVer,
-                        androidApkVersionCode: code,
-                        updatedAt: serverTimestamp(),
-                    }, { merge: true });
-                }
-            } else {
-                await setDoc(settingsDocRef(), {
-                    androidApkVersionCode: code,
-                    updatedAt: serverTimestamp(),
-                }, { merge: true });
+                window.showToast?.('Escribe la versión exacta (ej. 2026.07.30.4) y pulsa reparar.', 'warning');
+                return;
             }
+            // Fuerza versionCode correcto + buildId nuevo → la Cloud Function repara y manda FCM
+            const newBuildId = Date.now();
+            await setDoc(settingsDocRef(), {
+                androidApkVersion: ver || projectVer,
+                androidApkVersionCode: code,
+                androidApkBuildId: newBuildId,
+                androidApkUpdateSignal: newBuildId,
+                updatedAt: serverTimestamp(),
+            }, { merge: true });
+
+            // Push inmediato (backup de la Cloud Function)
+            try {
+                const fn = window.httpsCallable?.(window.cloudFunctions, 'broadcastAppMessage');
+                if (fn) {
+                    await fn({
+                        title: 'HonduRaite · Actualiza la app',
+                        body: `Nueva versión ${ver || projectVer} (${code}). Ábrela e instala la actualización.`,
+                        targetRole: 'all',
+                        type: 'app_update',
+                        tag: `app-update-${ver || code}`,
+                        version: ver || projectVer,
+                        highPriority: true,
+                    });
+                }
+            } catch (pushErr) {
+                console.warn('[repair] broadcast:', pushErr);
+            }
+
             const next = await loadApkMeta();
             if (metaEl) metaEl.innerHTML = renderAdminMetaHtml(next);
             window.showToast?.(
-                next?.versionCode
-                    ? `Listo. VersionCode = ${next.versionCode} (v${next.version}). Los teléfonos deberían ver el update al reabrir la app.`
-                    : 'No se pudo calcular VersionCode. Escribe la versión tipo 2026.07.30.2 y reintenta.',
-                next?.versionCode ? 'success' : 'warning'
+                `Listo. VersionCode = ${code} (v${ver || projectVer}). Push enviado. Los teléfonos deben reabrir la app.`,
+                'success'
             );
         } catch (e) {
             console.error(e);
@@ -842,25 +856,46 @@ async function uploadAndroidApk(file, { version = '', notes = '' } = {}) {
         if (!versionCode && versionLabel) {
             console.warn('[app-download] versionCode=0 para etiqueta:', versionLabel);
         }
+        // versionCode SIEMPRE numérico correcto (2026.07.30.4 → 2026073004)
+        // Las APKs antiguas comparan este número; si sale mal, no ven el update.
+        const safeCode = Number(versionCode) || versionLabelToCode(versionLabel) || 0;
         await setDoc(settingsDocRef(), {
             androidApkUrl: url,
             androidApkFileName: file.name,
             androidApkVersion: versionLabel,
-            androidApkVersionCode: versionCode || null,
+            androidApkVersionCode: safeCode || null,
             androidApkBuildId: buildId,
             androidApkNotes: notes || null,
             androidApkSize: file.size,
             androidApkStoragePath: path,
             androidApkUploadedAt: serverTimestamp(),
             androidApkUploadedBy: getCurrentUser()?.uid || null,
+            androidApkUpdateSignal: buildId,
             updatedAt: serverTimestamp(),
         }, { merge: true });
 
-        // NUNCA marcar “ya instalado” en el admin: eso no afecta teléfonos,
-        // pero confunde pruebas en el mismo Chrome si el admin abre la web.
-        // Los clientes comparan versionCode nativo vs remoto.
-        // Nueva publicación: limpiar snooze local del admin
+        // NUNCA marcar “ya instalado” en el admin
         clearUpdateSnooze();
+
+        // Aviso FCM a todos (las APK viejas no tienen el JS nuevo; el push las despierta)
+        try {
+            const fn = window.httpsCallable?.(window.cloudFunctions, 'broadcastAppMessage');
+            if (fn) {
+                await fn({
+                    title: 'HonduRaite · Actualiza la app',
+                    body: `Nueva versión ${versionLabel}${safeCode ? ` (${safeCode})` : ''}. Ábrela e instala la actualización.`,
+                    targetRole: 'all',
+                    type: 'app_update',
+                    tag: `app-update-${versionLabel}`,
+                    version: versionLabel,
+                    highPriority: true,
+                });
+                window.showToast?.('Push de actualización enviado a los usuarios.', 'info');
+            }
+        } catch (pushErr) {
+            console.warn('[app-download] broadcastAppMessage:', pushErr);
+            // La Cloud Function onApkSettingsPublished también intenta notificar
+        }
 
         if (labelEl) {
             labelEl.innerHTML = '<i class="fas fa-check-circle text-emerald-400"></i> ¡Publicado en el servidor!';

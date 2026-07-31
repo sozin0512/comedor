@@ -2044,7 +2044,7 @@ if (document.readyState === 'loading') {
                     setTimeout(() => window.showNotificationsModal?.(), 150);
                     setTimeout(() => window.showNotificationsModal?.(), 800);
                 }
-                // Push de actualización de app (PWA web/iOS/Android): abrir chequeo de version.json
+                // Push de actualización: PWA (version.json) + APK nativo (modal/barra)
                 if (
                     event.data.type === 'app_update'
                     || event.data.forceUpdate
@@ -2052,6 +2052,15 @@ if (document.readyState === 'loading') {
                 ) {
                     setTimeout(() => window.checkForAppUpdate?.({ force: true }), 200);
                     setTimeout(() => window.checkForAppUpdate?.({ force: true }), 1500);
+                    const forceApk = () => {
+                        try { window.__apkForceUpdateCheck?.(); } catch (_) {}
+                        try { window.maybeShowApkUpdateModal?.({ force: true }); } catch (_) {}
+                        try { window.showApkUpdateModal?.(); } catch (_) {}
+                        try { window.syncAppDownloadBadge?.(); } catch (_) {}
+                    };
+                    setTimeout(forceApk, 400);
+                    setTimeout(forceApk, 1800);
+                    setTimeout(forceApk, 4500);
                 }
                 window.resetTripPanelCollapse?.();
             });

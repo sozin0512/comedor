@@ -4188,6 +4188,109 @@ exports.broadcastAppMessage = onCall(PROMO_CALLABLE_OPTS, async (request) => {
 });
 
 /**
+ * "2026.07.30.4" → 2026073004 (igual que android/app/build.gradle).
+ * Evita el bug de solo quitar puntos (202607304) que ocultaba updates en APKs viejas.
+ */
+function apkVersionLabelToCode(label) {
+    const s = String(label || '').trim();
+    const m = s.match(/^(\d{4})\.(\d{1,2})\.(\d{1,2})\.(\d{1,3})$/);
+    if (m) {
+        return (
+            Number(m[1]) * 1000000
+            + Number(m[2]) * 10000
+            + Number(m[3]) * 100
+            + Number(m[4])
+        );
+    }
+    const digits = s.replace(/\D/g, '');
+    if (!digits) return 0;
+    return Number(digits.length > 12 ? digits.slice(0, 12) : digits) || 0;
+}
+
+/**
+ * Al publicar/cambiar APK en appSettings:
+ * 1) Repara androidApkVersionCode si está mal (crítico para APKs antiguas)
+ * 2) Envía push app_update a todos cuando cambia buildId / url / version
+ */
+exports.onApkSettingsPublished = onDocumentUpdated(
+    {
+        document: `artifacts/${APP_ID}/public/data/appSettings/main`,
+        region: 'us-central1',
+    },
+    async (event) => {
+        const before = event.data?.before?.data() || {};
+        const after = event.data?.after?.data() || {};
+        if (!after.androidApkUrl) return null;
+
+        const version = String(after.androidApkVersion || '').trim();
+        const correctCode = apkVersionLabelToCode(version);
+        const storedCode = Number(after.androidApkVersionCode) || 0;
+        const ref = event.data.after.ref;
+
+        // Auto-reparar versionCode sin re-disparar loops infinitos
+        if (correctCode > 0 && storedCode !== correctCode) {
+            console.log('[onApkSettingsPublished] repair versionCode', storedCode, '→', correctCode);
+            await ref.set({
+                androidApkVersionCode: correctCode,
+                androidApkVersionCodeRepairedAt: FieldValue.serverTimestamp(),
+            }, { merge: true });
+        }
+
+        const publishedChanged =
+            String(before.androidApkBuildId || '') !== String(after.androidApkBuildId || '')
+            || String(before.androidApkUrl || '') !== String(after.androidApkUrl || '')
+            || String(before.androidApkVersion || '') !== String(after.androidApkVersion || '')
+            || (Number(before.androidApkVersionCode) || 0) !== (correctCode || storedCode);
+
+        // Evitar spam: solo notificar si el admin acaba de publicar (buildId/url/version)
+        // y no es solo un repair del code
+        const onlyCodeRepair =
+            String(before.androidApkBuildId || '') === String(after.androidApkBuildId || '')
+            && String(before.androidApkUrl || '') === String(after.androidApkUrl || '')
+            && String(before.androidApkVersion || '') === String(after.androidApkVersion || '')
+            && (Number(before.androidApkVersionCode) || 0) !== storedCode;
+
+        if (!publishedChanged || onlyCodeRepair) {
+            // Si solo reparamos code, no re-broadcast
+            if (correctCode > 0 && storedCode !== correctCode) return { repaired: true, notified: false };
+            return null;
+        }
+
+        // Señales de “publicación nueva”
+        const isNewPublish =
+            String(before.androidApkBuildId || '') !== String(after.androidApkBuildId || '')
+            || String(before.androidApkUrl || '') !== String(after.androidApkUrl || '');
+
+        if (!isNewPublish) return { repaired: correctCode !== storedCode, notified: false };
+
+        const verLabel = version || String(correctCode || storedCode || '');
+        const codeLabel = correctCode || storedCode || '';
+        console.log('[onApkSettingsPublished] broadcasting app_update', verLabel, codeLabel);
+        try {
+            const result = await broadcastPushToUsers({
+                title: 'HonduRaite · Actualiza la app',
+                body: `Hay una nueva versión${verLabel ? ` (${verLabel})` : ''}. Ábrela e instala la actualización para seguir con viajes.`,
+                targetRole: 'all',
+                tripFilter: 'all',
+                data: {
+                    type: 'app_update',
+                    tag: `app-update-${verLabel || Date.now()}`,
+                    version: verLabel,
+                    versionCode: String(codeLabel),
+                    forceUpdate: 'true',
+                    openNotifications: 'true',
+                },
+                highPriority: true,
+            });
+            return { repaired: correctCode !== storedCode, notified: true, ...result };
+        } catch (e) {
+            console.error('[onApkSettingsPublished] broadcast failed', e);
+            return { repaired: correctCode !== storedCode, notified: false, error: String(e?.message || e) };
+        }
+    }
+);
+
+/**
  * Si el admin crea una notificación con broadcastPush/sendPush = true,
  * reenvía FCM a los usuarios del rol (app cerrada o en segundo plano).
  */
