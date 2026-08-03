@@ -19,14 +19,18 @@ Pégala tal cual en Meta. Es la que envía la app cuando un cliente pide un viaj
 ### Encabezado
 - **Ninguno** (o Texto: `HonduRaite` si Meta lo pide)
 
-### Cuerpo (Body) — copia exacta
+### Cuerpo (Body) — copia exacta (recomendado HonduRaite)
 
 ```text
 Hola {{1}},
 
-Ya recibimos tu solicitud de viaje en HonduRaite. En un momento un conductor tomará tu viaje.
+✅ Viaje confirmado en HonduRaite.
+
+Estamos esperando que un conductor acepte tu solicitud. Por lo general no tarda mucho, sobre todo si tu cuenta está verificada.
 
 Ruta: {{2}}
+
+Gracias por viajar con nosotros.
 ```
 
 ### Variables de ejemplo (Meta te las pide para previsualizar)
@@ -39,7 +43,7 @@ Ruta: {{2}}
 ### Pie (Footer) — opcional
 
 ```text
-HonduRaite · no respondas a este mensaje automático
+HonduRaite · Empresa SOZIN
 ```
 
 ### Botones
@@ -51,34 +55,40 @@ HonduRaite · no respondas a este mensaje automático
 
 > Hola María,  
 >  
-> Ya recibimos tu solicitud de viaje en HonduRaite. En un momento un conductor tomará tu viaje.  
+> ✅ Viaje confirmado en HonduRaite.  
+>  
+> Estamos esperando que un conductor acepte tu solicitud. Por lo general no tarda mucho, sobre todo si tu cuenta está verificada.  
 >  
 > Ruta: Centro → Mercado  
 >  
-> HonduRaite · no respondas a este mensaje automático
+> Gracias por viajar con nosotros.  
+>  
+> HonduRaite · Empresa SOZIN
 
 ---
 
 ## Después de que Meta la apruebe
 
 1. Estado de la plantilla: **Active / Aprobada**
-2. En el servidor ya está el nombre por defecto: `trip_request_received`
-3. Configura en `functions/.env` (y redespliega):
+2. En el servidor el nombre por defecto es: `trip_request_received`
+3. Configura secretos / variables en Firebase Functions:
 
 ```env
 WHATSAPP_ACCESS_TOKEN=tu_token_permanente
 WHATSAPP_PHONE_NUMBER_ID=tu_phone_number_id
 WHATSAPP_TEMPLATE_TRIP_RECEIVED=trip_request_received
 WHATSAPP_TEMPLATE_LANG=es
+WHATSAPP_VERIFY_TOKEN=honduraite_wa_verify_2026_secure
+WHATSAPP_APP_SECRET=tu_app_secret_opcional
 ```
 
-4. Despliega:
+4. Despliega (si aún no lo has hecho):
 
 ```bash
-firebase deploy --only functions:onTripCreatedAssignOffer,functions:whatsappWebhook,functions:sendWhatsAppCloudText
+firebase deploy --only functions:onTripCreatedAssignOffer,functions:whatsappWebhook,functions:sendWhatsAppCloudText,functions:testWhatsAppTripTemplate
 ```
 
-Cada viaje `pending` nuevo (pedido por el cliente) dispara la plantilla al `clientPhone`.
+Cada viaje `pending` nuevo (pedido por el cliente) dispara la plantilla al `clientPhone` del viaje.
 
 ---
 
@@ -88,7 +98,7 @@ Cada viaje `pending` nuevo (pedido por el cliente) dispara la plantilla al `clie
 **Categoría:** Utility  
 
 ```text
-Hola {{1}}. Recibimos tu solicitud de viaje. Un conductor la atenderá en breve. Destino: {{2}}.
+Hola {{1}}. Viaje confirmado. Esperamos que un conductor acepte tu solicitud; normalmente no tarda mucho si estás verificado. Ruta: {{2}}.
 ```
 
 Ejemplos: `{{1}}` = Carlos · `{{2}}` = Hospital Regional

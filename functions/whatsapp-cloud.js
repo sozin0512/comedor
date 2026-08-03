@@ -43,13 +43,13 @@ const waPhoneNumberId = defineString('WHATSAPP_PHONE_NUMBER_ID', {
 
 /** Nombre exacto de la plantilla aprobada en Meta (minúsculas y guiones bajos) */
 const waTemplateTripReceived = defineString('WHATSAPP_TEMPLATE_TRIP_RECEIVED', {
-    default: 'trip_request_received',
-    description: 'Plantilla: solicitud de viaje recibida'
+    default: 'tu_viaje_esta_confirmado',
+    description: 'Plantilla: viaje confirmado / buscando conductor'
 });
 
 const waTemplateLang = defineString('WHATSAPP_TEMPLATE_LANG', {
-    default: 'es',
-    description: 'Idioma de plantillas WhatsApp (es o es_HN)'
+    default: 'es_HN',
+    description: 'Idioma de plantillas WhatsApp (es_HN = Spanish HND)'
 });
 
 function db() {
@@ -161,7 +161,7 @@ async function sendWhatsAppTemplate(toPhone, templateName, bodyParams = [], lang
 
 /**
  * Aviso al pasajero: “ya recibimos tu solicitud, un conductor la tomará en un momento”.
- * Plantilla Meta: trip_request_received (ver whatsapp-bot/TEMPLATES-META.md)
+ * Plantilla Meta: tu_viaje_esta_confirmado (Spanish HND / es_HN)
  */
 async function notifyTripRequestReceivedWa(trip, tripId = null) {
     if (!trip || trip.isDemandSimulation) return { ok: false, skipped: true, reason: 'no_trip' };
@@ -174,7 +174,7 @@ async function notifyTripRequestReceivedWa(trip, tripId = null) {
 
     const name = firstNameFrom(trip.clientName);
     const route = shortRouteLabel(trip);
-    const template = (waTemplateTripReceived.value() || 'trip_request_received').trim();
+    const template = (waTemplateTripReceived.value() || 'tu_viaje_esta_confirmado').trim();
 
     const result = await sendWhatsAppTemplate(phone, template, [name, route]);
     if (result.ok && tripId) {
