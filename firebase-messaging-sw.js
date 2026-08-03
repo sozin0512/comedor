@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.08.03.4';
+const HR_SW_VERSION = '2026.08.03.5';
 /* HonduRaite — Service Worker + FCM: TODAS las notificaciones emergentes tipo Temu */
 
 importScripts('https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js');
@@ -40,36 +40,61 @@ messaging.onBackgroundMessage((payload) => {
         || type === 'trip_started'
         || type === 'new_trip_staff';
 
+    // Si hay pestaña abierta (Safari/PWA), pedir que suene el tono HonduRaite custom
+    // (el SO en background solo permite ding del sistema; el custom va por Web Audio en la página)
+    const notifyClientsPlayTone = self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clients) => {
+            clients.forEach((client) => {
+                try {
+                    client.postMessage({
+                        type: 'HONDUBER_PLAY_TONE',
+                        pushData: data,
+                        notifType: type,
+                        tag,
+                        title,
+                        body
+                    });
+                } catch (_) {}
+            });
+        })
+        .catch(() => {});
+
     // Siempre emergente: requireInteraction + renotify + vibración fuerte
-    return self.registration.showNotification(title, {
-        body,
-        icon: ICON,
-        badge: ICON,
-        tag,
-        renotify: true,
-        requireInteraction: true,
-        silent: false,
-        data: {
-            tripId: data.tripId || null,
-            openChat: data.openChat === 'true',
-            openDriver,
-            openPassenger: isPassengerTrip,
-            openClient: isPassengerTrip,
-            openAdmin: data.openAdmin === 'true' || type === 'new_trip_staff',
-            openDeposit: data.openDeposit === 'true' || type === 'deposit_reminder'
-                || String(tag || '').startsWith('deposit-reminder-'),
-            openNotifications: data.openNotifications === 'true'
-                || type === 'admin_notify'
-                || type === 'app_update'
-                || type === 'recurring_notify'
-                || type === 'promo_new',
-            type,
+    // silent:false → Safari suena (tono del sistema) aunque la pestaña esté en 2.º plano
+    return Promise.all([
+        notifyClientsPlayTone,
+        self.registration.showNotification(title, {
+            body,
+            icon: ICON,
+            badge: ICON,
             tag,
-            amount: data.amount || '',
-            serviceType: data.serviceType || ''
-        },
-        vibrate: HONDU_TEMU_VIBRATE
-    });
+            renotify: true,
+            requireInteraction: true,
+            silent: false,
+            data: {
+                tripId: data.tripId || null,
+                openChat: data.openChat === 'true',
+                openDriver,
+                openPassenger: isPassengerTrip,
+                openClient: isPassengerTrip,
+                openAdmin: data.openAdmin === 'true' || type === 'new_trip_staff',
+                openDeposit: data.openDeposit === 'true' || type === 'deposit_reminder'
+                    || String(tag || '').startsWith('deposit-reminder-'),
+                openNotifications: data.openNotifications === 'true'
+                    || type === 'admin_notify'
+                    || type === 'app_update'
+                    || type === 'recurring_notify'
+                    || type === 'promo_new',
+                type,
+                tag,
+                amount: data.amount || '',
+                serviceType: data.serviceType || '',
+                // Para que al abrir el aviso el cliente pueda tocar el tono Hondu
+                toneEvent: data.toneEvent || null
+            },
+            vibrate: HONDU_TEMU_VIBRATE
+        })
+    ]);
 });
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -139,7 +164,11 @@ self.addEventListener('notificationclick', (event) => {
                     openNotifications,
                     amount: data.amount || '',
                     notifType: type,
-                    tag
+                    tag,
+                    // Al tocar el aviso: reproducir tono Hondu (gesto de usuario en Safari)
+                    playTone: true,
+                    toneEvent: data.toneEvent || null,
+                    pushData: data
                 });
                 if ('focus' in client) return client.focus();
             }

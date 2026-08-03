@@ -168,7 +168,8 @@ export async function showTripNotification({
 }
 
 /**
- * Sonido propio de la app (Web Audio). No usa el tono del sistema del celular.
+ * Sonido propio de la app (Web Audio + archivos HonduRaite).
+ * En Safari hay que desbloquear audio con un toque; si está bloqueado se encola.
  * sound: 'none' | 'chat' | 'driver' | 'staff' | 'freight' | 'deposit' | 'ride_demand' | 'default' | eventId
  */
 function playEventSound(sound = 'default', tag = '', extra = {}) {
@@ -176,6 +177,8 @@ function playEventSound(sound = 'default', tag = '', extra = {}) {
     // trip-offer- ya dispara playDriverTripOfferSound en el listener de ofertas
     if (String(tag || '').startsWith('trip-offer-') && sound === 'default') return;
     try {
+        // Reactivar Safari antes de cada toque de notificación
+        try { window.unlockNotificationTones?.(); } catch (_) {}
         if (typeof window.playEventNotificationTone === 'function') {
             const map = {
                 default: 'general',
@@ -188,7 +191,16 @@ function playEventSound(sound = 'default', tag = '', extra = {}) {
                 general: 'general'
             };
             const eventId = map[sound] || sound || 'general';
-            window.playEventNotificationTone(eventId);
+            const ok = window.playEventNotificationTone(eventId);
+            // Reintento Safari (resume async del AudioContext)
+            if (!ok) {
+                setTimeout(() => {
+                    try { window.playEventNotificationTone?.(eventId); } catch (_) {}
+                }, 180);
+                setTimeout(() => {
+                    try { window.playEventNotificationTone?.(eventId); } catch (_) {}
+                }, 500);
+            }
             return;
         }
         if (sound === 'chat') window.playChatSound?.();
@@ -312,11 +324,23 @@ export async function notifyTripEvent({
         });
     }
 
-    // Web Audio solo en primer plano (en background iOS lo mutea)
-    if (sound && sound !== 'none' && !inBackground) {
-        playEventSound(sound, tag);
+    // HonduRaite custom: siempre intentar en primer plano.
+    // En background Safari mutea Web Audio → el banner usa silent:false (tono sistema).
+    // Al volver a la app se reproduce el tono Hondu pendiente (cola en notification-tones).
+    if (sound && sound !== 'none') {
+        if (!inBackground) {
+            playEventSound(sound, tag);
+        } else {
+            // Guardar para cuando el usuario vuelva / toque el aviso
+            try {
+                window.__hrPendingNotifTone = {
+                    sound,
+                    tag,
+                    at: Date.now()
+                };
+            } catch (_) {}
+        }
     } else if (isRideAlert && !inBackground && sound === 'none') {
-        // Aun con sound none desde el caller: intentar tono de oferta si hay gesto/audio desbloqueado
         try { window.playDriverTripOfferSound?.(); } catch (_) {}
     }
 

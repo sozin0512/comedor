@@ -290,22 +290,168 @@ let lastFileAudio = null;
 let loopTimer = null;
 let loopEventId = null;
 let loopPlatform = null;
+/** Safari/iOS: Audio desbloqueado por gesto del usuario */
+let audioUnlocked = false;
+/** Pool de <audio> pre-calentados (Safari exige play() previo con gesto) */
+const unlockedAudioPool = new Map();
+/** Buffers Web Audio decodificados (custom / URL) */
+const decodedBufferCache = new Map();
+let unlockInFlight = null;
+let silentKeepAlive = null;
+let pendingToneQueue = [];
+
+function isSafariLike() {
+    try {
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPad|iPhone|iPod/i.test(ua)
+            || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isSafari = /Safari/i.test(ua) && !/Chrome|CriOS|Chromium|Edg|Firefox|FxiOS/i.test(ua);
+        return isIOS || isSafari;
+    } catch (_) {
+        return false;
+    }
+}
 
 function getAudioContext() {
     try {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return null;
-        if (!sharedCtx || sharedCtx.state === 'closed') sharedCtx = new AC();
-        if (sharedCtx.state === 'suspended') sharedCtx.resume().catch(() => {});
+        if (!sharedCtx || sharedCtx.state === 'closed') {
+            sharedCtx = new AC();
+        }
         return sharedCtx;
     } catch (_) {
         return null;
     }
 }
 
-export function unlockNotificationTones() {
+async function resumeAudioContext() {
     const ctx = getAudioContext();
-    if (ctx?.state === 'suspended') ctx.resume().catch(() => {});
+    if (!ctx) return null;
+    try {
+        if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+            await ctx.resume();
+        }
+    } catch (_) {}
+    return ctx;
+}
+
+/** Mantiene vivo el AudioContext en Safari (si no, se vuelve a suspender) */
+function startSilentKeepAlive() {
+    if (silentKeepAlive || !sharedCtx) return;
+    try {
+        const ctx = sharedCtx;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.value = 0.00001;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        silentKeepAlive = { osc, gain };
+    } catch (_) {}
+}
+
+function playSilentTick(ctx) {
+    if (!ctx) return;
+    try {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.value = 0.00001;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const t = ctx.currentTime;
+        osc.start(t);
+        osc.stop(t + 0.04);
+    } catch (_) {}
+}
+
+async function warmHtmlAudio(url) {
+    if (!url || unlockedAudioPool.has(url)) return unlockedAudioPool.get(url) || null;
+    try {
+        const audio = new Audio();
+        audio.preload = 'auto';
+        audio.playsInline = true;
+        audio.setAttribute('playsinline', 'true');
+        audio.setAttribute('webkit-playsinline', 'true');
+        // No crossOrigin: en Safari + Storage a veces rompe el play
+        audio.src = url;
+        audio.muted = true;
+        audio.volume = 0.01;
+        unlockedAudioPool.set(url, audio);
+        try {
+            await audio.play();
+            audio.pause();
+            audio.currentTime = 0;
+        } catch (_) {}
+        audio.muted = false;
+        audio.volume = 0.9;
+        return audio;
+    } catch (_) {
+        return null;
+    }
+}
+
+async function prefetchDecodeBuffer(url) {
+    if (!url || decodedBufferCache.has(url)) return decodedBufferCache.get(url) || null;
+    try {
+        const ctx = await resumeAudioContext();
+        if (!ctx) return null;
+        const res = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'force-cache' });
+        if (!res.ok) return null;
+        const ab = await res.arrayBuffer();
+        const buf = await ctx.decodeAudioData(ab.slice(0));
+        decodedBufferCache.set(url, buf);
+        return buf;
+    } catch (_) {
+        // Safari sin CORS en el bucket: se usa <audio> del pool
+        return null;
+    }
+}
+
+function flushPendingTones() {
+    const q = pendingToneQueue.splice(0, pendingToneQueue.length);
+    q.forEach((item) => {
+        try {
+            if (item?.type === 'event') playEventTone(item.eventId, { platform: item.platform });
+            else if (item?.type === 'id') playToneById(item.toneId);
+            else if (item?.type === 'url') playFileUrl(item.url);
+        } catch (_) {}
+    });
+}
+
+/**
+ * Desbloquea audio en Safari/iOS (debe ir ligado a gesto del usuario).
+ * Sin esto, Chrome suena y Safari se queda mudo con los tonos custom.
+ */
+export function unlockNotificationTones() {
+    if (unlockInFlight) return unlockInFlight;
+    unlockInFlight = (async () => {
+        try {
+            const ctx = await resumeAudioContext();
+            if (ctx) {
+                playSilentTick(ctx);
+                if (isSafariLike()) startSilentKeepAlive();
+            }
+            // Precalentar todos los tonos de archivo (custom HonduRaite)
+            const urls = customTones.map((t) => t.url).filter(Boolean);
+            await Promise.all(urls.map(async (url) => {
+                await warmHtmlAudio(url);
+                // decode en background (no bloquear el gesto)
+                prefetchDecodeBuffer(url).catch(() => {});
+            }));
+            audioUnlocked = true;
+            flushPendingTones();
+        } catch (_) {
+            // igual marcar intento: reintentos en el próximo gesto
+        } finally {
+            unlockInFlight = null;
+        }
+    })();
+    return unlockInFlight;
+}
+
+export function isNotificationAudioUnlocked() {
+    return audioUnlocked && (!sharedCtx || sharedCtx.state === 'running');
 }
 
 function platformKey() {
@@ -448,6 +594,15 @@ export function applyRemoteToneConfig(remote = {}) {
     if (remote.toneMap && typeof remote.toneMap === 'object') {
         saveTonePrefs(remote.toneMap);
     }
+    // Safari: precalentar URLs custom en cuanto llegan de Firestore
+    try {
+        customTones.forEach((t) => {
+            if (t?.url) {
+                warmHtmlAudio(t.url).catch(() => {});
+                prefetchDecodeBuffer(t.url).catch(() => {});
+            }
+        });
+    } catch (_) {}
     return {
         toneMap: loadTonePrefs(),
         customTones: getCustomTones()
@@ -462,9 +617,16 @@ export function getEventToneId(eventId, platform = platformKey()) {
     return defaultMapForPlatform(platform)[eventId] || 'soft_ding';
 }
 
-function playNotes(notes = []) {
-    const ctx = getAudioContext();
+function playNotes(notes = [], ctxOverride = null) {
+    const ctx = ctxOverride || getAudioContext();
     if (!ctx || !notes.length) return false;
+    // Safari: si sigue suspendido, no “fingir” éxito
+    if (ctx.state === 'suspended' || ctx.state === 'interrupted') {
+        resumeAudioContext().then((c) => {
+            if (c && c.state === 'running') playNotes(notes, c);
+        }).catch(() => {});
+        return false;
+    }
     try {
         const endPad = 0.06;
         notes.forEach((n) => {
@@ -477,7 +639,9 @@ function playNotes(notes = []) {
             filter.frequency.value = Math.max(1200, (n.f || 800) * 1.8);
             const t0 = ctx.currentTime + (n.t || 0);
             const dur = Math.max(0.05, n.d || 0.2);
-            const vol = Math.min(0.55, Math.max(0.05, n.v ?? 0.28));
+            // Safari suena más bajo: un poco más de volumen en iOS
+            const baseVol = Math.min(0.6, Math.max(0.05, n.v ?? 0.28));
+            const vol = isSafariLike() ? Math.min(0.65, baseVol * 1.25) : baseVol;
             gain.gain.setValueAtTime(0.0001, t0);
             gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
             gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
@@ -493,26 +657,99 @@ function playNotes(notes = []) {
     }
 }
 
-function playFileUrl(url) {
-    if (!url) return false;
+function playDecodedBuffer(buffer) {
     try {
-        if (lastFileAudio) {
-            try {
-                lastFileAudio.pause();
-                lastFileAudio.currentTime = 0;
-            } catch (_) {}
-        }
-        const audio = new Audio(url);
-        audio.preload = 'auto';
-        audio.volume = 0.9;
-        lastFileAudio = audio;
-        const p = audio.play();
-        if (p?.catch) p.catch(() => {});
+        const ctx = getAudioContext();
+        if (!ctx || !buffer || ctx.state !== 'running') return false;
+        const src = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        gain.gain.value = isSafariLike() ? 0.95 : 0.9;
+        src.buffer = buffer;
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        src.start(0);
         return true;
     } catch (_) {
         return false;
     }
 }
+
+function playFileUrl(url) {
+    if (!url) return false;
+
+    // 1) Buffer Web Audio ya decodificado (más fiable que <audio> en Safari tras unlock)
+    const cached = decodedBufferCache.get(url);
+    if (cached && playDecodedBuffer(cached)) return true;
+
+    // 2) Prefetch async para la próxima vez
+    prefetchDecodeBuffer(url).then((buf) => {
+        if (buf && !lastFileAudio) {
+            // no auto-reproducir de nuevo si ya sonó por HTMLAudio
+        }
+    }).catch(() => {});
+
+    try {
+        if (lastFileAudio && lastFileAudio !== unlockedAudioPool.get(url)) {
+            try {
+                lastFileAudio.pause();
+                lastFileAudio.currentTime = 0;
+            } catch (_) {}
+        }
+
+        // Reusar elemento pre-calentado (Safari: play() sin gesto falla si es new Audio cada vez)
+        let audio = unlockedAudioPool.get(url);
+        if (!audio) {
+            audio = new Audio();
+            audio.preload = 'auto';
+            audio.playsInline = true;
+            audio.setAttribute('playsinline', 'true');
+            audio.setAttribute('webkit-playsinline', 'true');
+            audio.src = url;
+            unlockedAudioPool.set(url, audio);
+        }
+        try {
+            audio.pause();
+            audio.currentTime = 0;
+        } catch (_) {}
+        audio.muted = false;
+        audio.volume = isSafariLike() ? 1 : 0.9;
+        lastFileAudio = audio;
+
+        const p = audio.play();
+        if (p?.then) {
+            p.then(() => {
+                audioUnlocked = true;
+            }).catch(() => {
+                // Cola para el próximo gesto del usuario (Safari)
+                pendingToneQueue.push({ type: 'url', url });
+                // Reintento corto tras resume + synth hondu de respaldo
+                resumeAudioContext().then((ctx) => {
+                    try {
+                        audio.muted = false;
+                        audio.play().catch(() => {
+                            if (ctx?.state === 'running') {
+                                playNotes(FILE_FAIL_FALLBACK_NOTES, ctx);
+                            }
+                        });
+                    } catch (_) {
+                        if (ctx?.state === 'running') playNotes(FILE_FAIL_FALLBACK_NOTES, ctx);
+                    }
+                });
+            });
+        }
+        return true;
+    } catch (_) {
+        pendingToneQueue.push({ type: 'url', url });
+        return false;
+    }
+}
+
+/** Fallback synth si el archivo custom no suena (Safari bloqueado / CORS) */
+const FILE_FAIL_FALLBACK_NOTES = [
+    { f: 784, t: 0, d: 0.14, v: 0.34, wave: 'triangle' },
+    { f: 1046, t: 0.16, d: 0.14, v: 0.34, wave: 'triangle' },
+    { f: 1318, t: 0.32, d: 0.28, v: 0.38, wave: 'sine' }
+];
 
 /** Reproduce un tono del catálogo o personalizado */
 export function playToneById(toneId) {
@@ -520,7 +757,18 @@ export function playToneById(toneId) {
     const tone = getToneById(toneId);
     if (!tone) return false;
     if (tone.url || tone.kind === 'file') {
-        return playFileUrl(tone.url);
+        const ok = playFileUrl(tone.url);
+        // Si el archivo no arranca ya, reforzar con synth hondu (Safari a veces mutea el primero)
+        if (!ok || (isSafariLike() && !audioUnlocked)) {
+            // Intento inmediato de synth de respaldo solo si context está running
+            const ctx = getAudioContext();
+            if (ctx?.state === 'running') {
+                // No pisar el archivo si play() fue aceptado: en Safari ok=true pero puede fallar async
+                // El catch de playFileUrl encola; aquí solo fallback si play devolvió false
+                if (!ok) playNotes(tone.notes?.length ? tone.notes : FILE_FAIL_FALLBACK_NOTES, ctx);
+            }
+        }
+        return ok;
     }
     if (tone.notes?.length) return playNotes(tone.notes);
     return false;
@@ -530,12 +778,36 @@ export function playEventTone(eventId, { platform = platformKey() } = {}) {
     try {
         unlockNotificationTones();
         const toneId = getEventToneId(eventId, platform);
+        const tone = getToneById(toneId);
         const ok = playToneById(toneId);
-        // Si el AudioContext sigue suspendido, reportar fallo para que Android use canal nativo
+
+        // Safari: si el contexto está suspendido, encolar y reintentar al desbloquear
         try {
             const ctx = sharedCtx;
-            if (ctx && ctx.state === 'suspended') return false;
+            if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
+                pendingToneQueue.push({ type: 'event', eventId, platform });
+                return false;
+            }
         } catch (_) {}
+
+        // Archivo custom falló en silencio: synth de respaldo para que SÍ se oiga algo Hondu
+        if (!ok && tone) {
+            if (tone.notes?.length) return playNotes(tone.notes);
+            return playNotes(FILE_FAIL_FALLBACK_NOTES);
+        }
+
+        // Safari + archivo: reintento a 120ms y 400ms (resume async)
+        if (isSafariLike() && tone?.url) {
+            [120, 400].forEach((ms) => {
+                setTimeout(() => {
+                    try {
+                        if (sharedCtx?.state === 'running' || audioUnlocked) {
+                            playFileUrl(tone.url);
+                        }
+                    } catch (_) {}
+                }, ms);
+            });
+        }
         return !!ok;
     } catch (_) {
         return false;
@@ -734,6 +1006,7 @@ export function installNotificationTonesApi() {
         resolveToneEventFromPush,
         getPlatformToneLabel,
         unlock: unlockNotificationTones,
+        isUnlocked: isNotificationAudioUnlocked,
         defaults: { web: DEFAULT_MAP_WEB, native: DEFAULT_MAP_NATIVE },
         getCustomTones,
         setCustomTones,
@@ -743,7 +1016,8 @@ export function installNotificationTonesApi() {
         isAllowedAudioFile,
         makeCustomToneId,
         getMaxCustomBytes,
-        buildToneOptionsHtml
+        buildToneOptionsHtml,
+        isSafariLike
     };
 
     window.playNotificationSound = () => playGeneralTone();
@@ -762,13 +1036,32 @@ export function installNotificationTonesApi() {
     window.stopPassengerWaitingLoop = () => stopPassengerWaitingLoop();
     window.stopNotificationToneLoop = () => stopLoopingTone();
     window.unlockNotificationTones = unlockNotificationTones;
+    window.isNotificationAudioUnlocked = isNotificationAudioUnlocked;
 
-    const unlock = () => unlockNotificationTones();
-    ['pointerdown', 'touchstart', 'keydown', 'click'].forEach((evt) => {
+    const unlock = () => { unlockNotificationTones(); };
+    // capture:true + varios eventos: Safari a veces solo suelta el audio en el primero
+    ['pointerdown', 'touchstart', 'touchend', 'mousedown', 'keydown', 'click', 'keyup'].forEach((evt) => {
         document.addEventListener(evt, unlock, { passive: true, capture: true });
     });
-    // iOS/Safari: al volver a la pestaña intentar reactivar audio
+    // iOS/Safari: al volver a la pestaña reactivar + vaciar cola de tonos pendientes
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') unlockNotificationTones();
+        if (document.visibilityState === 'visible') {
+            unlockNotificationTones();
+            setTimeout(() => flushPendingTones(), 80);
+        }
     });
+    window.addEventListener('focus', () => {
+        unlockNotificationTones();
+        setTimeout(() => flushPendingTones(), 80);
+    });
+    window.addEventListener('pageshow', () => {
+        unlockNotificationTones();
+    });
+
+    // Precalentar tonos custom ya en localStorage
+    try {
+        customTones.forEach((t) => {
+            if (t?.url) warmHtmlAudio(t.url).catch(() => {});
+        });
+    } catch (_) {}
 }

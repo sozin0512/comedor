@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.08.03.4";
+} from "./auth-credentials.js?v=2026.08.03.5";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.08.03.4";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.03.4";
+import { APP_CONFIG } from "./config.js?v=2026.08.03.5";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.03.5";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.08.03.4";
+} from "./referrals.js?v=2026.08.03.5";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -33,12 +33,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.08.03.4";
+} from "./zones.js?v=2026.08.03.5";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.08.03.4";
+} from "./trip-notifications.js?v=2026.08.03.5";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -59,43 +59,64 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.08.03.4";
+} from "./notification-tones.js?v=2026.08.03.5";
 
 installNotificationTonesApi();
+
+// Safari: al volver a la app, soltar el tono Hondu pendiente (notificación en 2.º plano)
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    try {
+        window.unlockNotificationTones?.();
+        const pending = window.__hrPendingNotifTone;
+        if (pending && Date.now() - (pending.at || 0) < 120000) {
+            window.__hrPendingNotifTone = null;
+            const s = pending.sound;
+            const map = {
+                default: 'general', chat: 'chat', driver: 'driver_offer',
+                staff: 'staff_trip', freight: 'freight', deposit: 'deposit',
+                ride_demand: 'ride_demand', general: 'general'
+            };
+            const eventId = map[s] || s || 'general';
+            setTimeout(() => window.playEventNotificationTone?.(eventId), 60);
+            setTimeout(() => window.playEventNotificationTone?.(eventId), 300);
+        }
+    } catch (_) {}
+});
 
 window.triggerSuperTripVibration = triggerSuperTripVibration;
 window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.08.03.4";
+} from "./passenger-alerts.js?v=2026.08.03.5";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.08.03.4";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.08.03.4";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.03.4";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.03.4";
-import { initOpsPanels } from "./ops-panels.js?v=2026.08.03.4";
-import { initOpsUi } from "./ops-ui.js?v=2026.08.03.4";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.03.4";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.03.4";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.03.4";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.08.03.4";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.03.4";
+} from "./passenger-verification.js?v=2026.08.03.5";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.08.03.5";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.03.5";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.03.5";
+import { initOpsPanels } from "./ops-panels.js?v=2026.08.03.5";
+import { initOpsUi } from "./ops-ui.js?v=2026.08.03.5";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.03.5";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.03.5";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.03.5";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.08.03.5";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.03.5";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.08.03.4";
+} from "./feedback.js?v=2026.08.03.5";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.08.03.4";
+} from "./greetings.js?v=2026.08.03.5";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -108,49 +129,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.08.03.4";
+} from "./service-types.js?v=2026.08.03.5";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.08.03.4";
+} from "./driver-vehicles.js?v=2026.08.03.5";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.08.03.4";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.08.03.4";
+} from "./route-conditions.js?v=2026.08.03.5";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.08.03.5";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.08.03.4";
+} from "./demand-heatmap.js?v=2026.08.03.5";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.08.03.4";
+} from "./ops-fleet-map.js?v=2026.08.03.5";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.08.03.4";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.03.4";
+} from "./live-trip-keepalive.js?v=2026.08.03.5";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.03.5";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.08.03.4";
+} from "./session-keepalive.js?v=2026.08.03.5";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.08.03.4";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.03.4";
+} from "./passenger-tutorial.js?v=2026.08.03.5";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.03.5";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.08.03.4";
+} from "./driver-tutorial.js?v=2026.08.03.5";
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
 const HR_BOOT_STARTED_AT = Date.now();
@@ -233,29 +254,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.03.4";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.03.5";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.08.03.4";
+} from "./auth-ui.js?v=2026.08.03.5";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.08.03.4";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.03.4";
+} from "./age-verification.js?v=2026.08.03.5";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.03.5";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.08.03.4";
+} from "./trip-experience.js?v=2026.08.03.5";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.08.03.4";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.03.4";
-import { initAppDownload } from "./app-download.js?v=2026.08.03.4";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.03.4";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.03.4";
+} from "./support-tickets.js?v=2026.08.03.5";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.03.5";
+import { initAppDownload } from "./app-download.js?v=2026.08.03.5";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.03.5";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.03.5";
 
 
 let app;
@@ -2213,7 +2234,52 @@ if (document.readyState === 'loading') {
 
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.addEventListener('message', (event) => {
+                // Safari/PWA: SW pide tocar el tono Hondu custom (app en 2.º plano con pestaña viva)
+                if (event.data?.type === 'HONDUBER_PLAY_TONE') {
+                    try {
+                        window.unlockNotificationTones?.();
+                        const data = event.data.pushData || event.data || {};
+                        const eventId = window.resolveToneEventFromPush?.(data)
+                            || window.HonduTones?.resolveToneEventFromPush?.(data)
+                            || 'general';
+                        window.playEventNotificationTone?.(eventId);
+                        // Reintentos: Safari a menudo necesita un resume async
+                        setTimeout(() => window.playEventNotificationTone?.(eventId), 150);
+                        setTimeout(() => window.playEventNotificationTone?.(eventId), 450);
+                    } catch (_) {}
+                    return;
+                }
+
                 if (event.data?.type !== 'HONDUBER_NOTIFICATION_CLICK') return;
+
+                // Al tocar la notificación (gesto de usuario) Safari SÍ deja sonar HonduRaite
+                if (event.data.playTone !== false) {
+                    try {
+                        window.unlockNotificationTones?.();
+                        const data = event.data.pushData || event.data || {};
+                        const eventId = event.data.toneEvent
+                            || window.resolveToneEventFromPush?.(data)
+                            || window.HonduTones?.resolveToneEventFromPush?.(data)
+                            || 'general';
+                        window.playEventNotificationTone?.(eventId);
+                    } catch (_) {}
+                }
+                // Cola de tono pendiente desde background
+                try {
+                    const pending = window.__hrPendingNotifTone;
+                    if (pending && Date.now() - (pending.at || 0) < 120000) {
+                        window.__hrPendingNotifTone = null;
+                        // playEventSound no exportado; usar mapeo simple
+                        const s = pending.sound;
+                        const map = {
+                            default: 'general', chat: 'chat', driver: 'driver_offer',
+                            staff: 'staff_trip', freight: 'freight', deposit: 'deposit',
+                            ride_demand: 'ride_demand', general: 'general'
+                        };
+                        window.playEventNotificationTone?.(map[s] || s || 'general');
+                    }
+                } catch (_) {}
+
                 if (event.data.openDriver && window.userProfile?.role === 'driver') {
                     document.getElementById('driver-view')?.classList.remove('hidden');
                     document.getElementById('client-view')?.classList.add('hidden');
@@ -29957,9 +30023,11 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 });
 
                 if (shouldPlaySound) {
+                    // Tonos HonduRaite (no el ding genérico de Google — Safari a menudo lo bloquea)
                     try {
-                        const audioObj = new Audio('https://actions.google.com/sounds/v1/ui/message_notification.ogg');
-                        audioObj.play().catch(() => {});
+                        window.playChatSound?.()
+                            || window.playEventNotificationTone?.('chat')
+                            || window.HonduTones?.playEventTone?.('chat');
                     } catch (e) {}
                 }
             }
