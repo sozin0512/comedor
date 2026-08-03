@@ -2272,8 +2272,15 @@ window.gMap = null;
          */
         window.expandDriverControlPanel = () => {
             const panel = document.getElementById('control-panel');
+            // No reabrir encima del popup de oferta / vista previa de mapa
+            if (
+                document.body.classList.contains('driver-offer-popup-open')
+                || document.body.classList.contains('driver-offer-map-peek')
+            ) {
+                return;
+            }
             document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
-            panel?.classList.remove('panel-hidden', 'panel-collapsed');
+            panel?.classList.remove('panel-hidden', 'panel-collapsed', 'driver-offer-peek-hidden');
             try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
             document.getElementById('active-trip-panel')?.classList.remove('hidden', 'panel-minimized');
             // Preferencia del usuario: no volver a auto-minimizar mientras navegue
@@ -2282,6 +2289,9 @@ window.gMap = null;
                 || document.body.classList.contains('trip-active')) {
                 window._driverNavUserKeptOpen = true;
                 window._driverNavPanelAutoMinDone = true;
+            } else {
+                // Fuera de viaje: al abrir a mano, marcar que el usuario quiere el panel
+                window._driverNavUserKeptOpen = true;
             }
             try { window.syncPanelHideChevron?.(); } catch (_) {}
             // Anclar abajo como sheet (nunca full-screen en viaje)
@@ -2358,40 +2368,34 @@ window.gMap = null;
                     try { window.syncPanelHideChevron?.(); } catch (_) {}
                     return;
                 }
-                // Nunca ocultar del todo. Si el usuario minimizó en viaje, RESPETAR
-                // (antes expandDriverControlPanel aquí reabría el panel en cada sync).
-                // La pastilla «Viaje activo» llama expandDriverControlPanel a propósito.
+                // Nunca ocultar del todo con panel-hidden (rompe el FAB).
+                // Si el usuario minimizó (radar o viaje), RESPETAR siempre —
+                // antes showControlPanel reabría el panel en cada snapshot → “no se puede minimizar”.
                 document.body.classList.remove('panel-hidden');
-                panel?.classList.remove('panel-hidden', 'driver-offer-peek-hidden');
+                panel?.classList.remove('panel-hidden');
                 // Releer al final: el usuario puede haber minimizado mientras corría un snapshot
-                if (hasTrip && !forceExpand && readUserMinimized()) {
+                const stillMinimized = !forceExpand && readUserMinimized();
+                if (stillMinimized) {
                     panel?.classList.add('panel-collapsed');
+                    panel?.classList.remove('driver-offer-peek-hidden');
                     document.body.classList.add('panel-minimized', 'panel-collapsed');
                     window.syncDriverRadarFloatPanel?.();
                     window.syncPassengerPanelToggleLabel?.();
                     window.updatePassengerPromoStripVisibility?.();
                     window.refreshPassengerCopaUI?.();
                     try { window.syncPanelHideChevron?.(); } catch (_) {}
-                    return;
-                }
-                if (hasTrip && userMinimized && !forceExpand) {
-                    panel?.classList.add('panel-collapsed');
-                    document.body.classList.add('panel-minimized', 'panel-collapsed');
-                    window.syncDriverRadarFloatPanel?.();
-                    window.syncPassengerPanelToggleLabel?.();
-                    window.updatePassengerPromoStripVisibility?.();
-                    window.refreshPassengerCopaUI?.();
-                    try { window.syncPanelHideChevron?.(); } catch (_) {}
+                    try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
                     return;
                 }
                 document.body.classList.remove('panel-minimized', 'panel-collapsed');
-                panel?.classList.remove('panel-collapsed');
+                panel?.classList.remove('panel-collapsed', 'driver-offer-peek-hidden');
                 try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
-                window.dockControlPanelForDriverTrip?.();
+                if (hasTrip) window.dockControlPanelForDriverTrip?.();
                 window.syncDriverRadarFloatPanel?.();
                 window.updatePassengerPromoStripVisibility?.();
                 window.refreshPassengerCopaUI?.();
                 try { window.syncPanelHideChevron?.(); } catch (_) {}
+                try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
                 return;
             }
 
@@ -2464,6 +2468,13 @@ window.gMap = null;
 
             // Conductor (y búsqueda): minimizar/maximizar — no bloquear con toast
             if (isDriver || isSearching || (isMobile && hasTrip)) {
+                // Oferta abierta: no reabrir/minimizar el panel central
+                if (isDriver && (
+                    document.body.classList.contains('driver-offer-popup-open')
+                    || document.body.classList.contains('driver-offer-map-peek')
+                )) {
+                    return;
+                }
                 if (panel) {
                     panel.classList.toggle('panel-collapsed');
                 }
@@ -2471,7 +2482,7 @@ window.gMap = null;
                 document.body.classList.toggle('panel-minimized', collapsed);
                 document.body.classList.toggle('panel-collapsed', collapsed);
                 document.body.classList.remove('panel-hidden');
-                panel?.classList.remove('panel-hidden');
+                panel?.classList.remove('panel-hidden', 'driver-offer-peek-hidden');
                 if (isDriver) {
                     window._driverNavUserKeptOpen = !collapsed;
                     if (!collapsed) window._driverNavPanelAutoMinDone = true;
@@ -2804,6 +2815,14 @@ window.gMap = null;
             const isDriver = document.body.classList.contains('driver-mode');
             const onActiveTrip = document.body.classList.contains('trip-active');
 
+            // Conductor con popup de oferta / peek: no pelear con el panel (queda oculto a propósito)
+            if (isDriver && (
+                document.body.classList.contains('driver-offer-popup-open')
+                || document.body.classList.contains('driver-offer-map-peek')
+            )) {
+                return;
+            }
+
             // PASAJERO: en viaje → colapsar a mini-barra (sigue tocable).
             // Fuera de viaje → puede ocultar del todo. Abrir de nuevo con FAB / toggle.
             if (isClient && !isDriver) {
@@ -2837,6 +2856,15 @@ window.gMap = null;
                     paxMinBtn.setAttribute('aria-label', collapsed ? 'Maximizar panel' : 'Minimizar panel');
                     paxMinBtn.setAttribute('title', collapsed ? 'Maximizar' : 'Minimizar');
                 }
+                // Un solo “abierto”: al maximizar el panel central → pastilla del conductor.
+                // Al minimizar el panel → se deja la burbuja como está (el user la toca para ver al conductor).
+                if (onActiveTrip) {
+                    try {
+                        if (!collapsed) {
+                            window.toggleTripFloatMinimized?.('client-trip', true);
+                        }
+                    } catch (_) {}
+                }
                 window.syncPassengerPanelToggleLabel?.();
                 try { window.syncPanelHideChevron?.(); } catch (_) {}
                 try { window.bindPassengerPanelMinBtn?.(); } catch (_) {}
@@ -2853,6 +2881,12 @@ window.gMap = null;
             document.body.classList.toggle('panel-collapsed', collapsed);
             document.body.classList.remove('panel-hidden');
             panel.classList.remove('panel-hidden');
+            // Al minimizar/maximizar a mano, quitar “peek” residual de ofertas
+            if (collapsed) {
+                panel.classList.remove('driver-offer-peek-hidden');
+            } else {
+                panel.classList.remove('driver-offer-peek-hidden');
+            }
             try { localStorage.setItem(PANEL_HIDDEN_KEY, collapsed ? '1' : '0'); } catch (_) {}
             window.syncPassengerPanelToggleLabel?.();
 
@@ -2864,6 +2898,8 @@ window.gMap = null;
                     window._driverNavUserKeptOpen = true;
                     window._driverNavPanelAutoMinDone = true;
                 }
+                // Rebind por si el DOM del sheet se re-renderizó
+                try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
             }
 
             // Mini-barra: Abrir (minimizado) / etiqueta auxiliar
@@ -3909,18 +3945,41 @@ window.gMap = null;
             const mapPeek = document.body.classList.contains('driver-offer-map-peek');
             const minimized = document.body.classList.contains('panel-minimized')
                 || document.body.classList.contains('panel-hidden');
-            // Oferta Uber: hoja ~38% → padding inferior para que la ruta quepa en el mapa visible
+            const vh = window.innerHeight || document.documentElement?.clientHeight || 700;
+            const safeTop = 48;
+            const safeSide = 24;
+
+            // Altura real de la tarjeta de solicitud (no tapa la ruta)
+            const measureOfferSheetBottom = () => {
+                try {
+                    const sheet = document.querySelector(
+                        '#driver-trip-offer-popup:not(.hidden) .driver-trip-offer-popup-sheet'
+                    );
+                    if (!sheet) return 0;
+                    const rect = sheet.getBoundingClientRect();
+                    if (!rect?.height) return 0;
+                    // Cuánto ocupa desde el borde inferior del viewport (+ margen)
+                    return Math.ceil(Math.max(0, vh - rect.top) + 16);
+                } catch (_) {
+                    return 0;
+                }
+            };
+
             if (popupOpen) {
-                // Tarjeta vertical flotante abajo → deja mapa arriba
+                const measured = measureOfferSheetBottom();
+                // Mínimo ~42% del alto; máximo ~58% para no aplastar el mapa
+                const minBottom = Math.round(vh * 0.38);
+                const maxBottom = Math.round(vh * 0.58);
+                const bottom = Math.min(maxBottom, Math.max(minBottom, measured || Math.round(vh * 0.46)));
                 return {
-                    top: 48,
-                    right: 28,
-                    left: 28,
-                    bottom: 280
+                    top: safeTop,
+                    right: safeSide,
+                    left: safeSide,
+                    bottom
                 };
             }
             if (mapPeek) {
-                return { top: 72, right: 28, left: 28, bottom: 140 };
+                return { top: 72, right: safeSide, left: safeSide, bottom: 150 };
             }
             return {
                 top: 88,
@@ -3928,6 +3987,81 @@ window.gMap = null;
                 left: 36,
                 bottom: minimized ? 96 : 280
             };
+        };
+
+        /**
+         * Encuadre de la ruta de oferta: zoom según tamaño de la ruta
+         * y padding según la tarjeta de solicitud (no la tapa).
+         */
+        window.refitDriverOfferPreviewRoute = (route, options = {}) => {
+            if (!window.gMap || !google?.maps?.LatLngBounds) return;
+            const path = route?.path
+                || window._driverOfferPreviewRoute?.path
+                || window.currentRouteFullPath
+                || [];
+            if (!Array.isArray(path) || path.length < 2) return;
+
+            const bounds = new google.maps.LatLngBounds();
+            path.forEach((p) => {
+                if (p?.lat != null && p?.lng != null) bounds.extend(p);
+            });
+            const legs = Array.isArray(route?.previewLegs) ? route.previewLegs : [];
+            legs.forEach((leg) => {
+                (leg?.path || []).forEach((p) => {
+                    if (p?.lat != null && p?.lng != null) bounds.extend(p);
+                });
+            });
+            if (window.currentDriverPos?.lat != null) bounds.extend(window.currentDriverPos);
+            if (route?.origin?.lat != null) bounds.extend(route.origin);
+            if (route?.destination?.lat != null) bounds.extend(route.destination);
+
+            if (bounds.isEmpty()) return;
+
+            const ne = bounds.getNorthEast();
+            const sw = bounds.getSouthWest();
+            const latSpan = Math.abs(ne.lat() - sw.lat());
+            const lngSpan = Math.abs(ne.lng() - sw.lng());
+            const span = Math.max(latSpan, lngSpan, 0.00001);
+
+            // Zoom máximo según distancia de la ruta (evita “demasiado cerca” o “muy lejos”)
+            // ~0.01° ≈ 1.1 km
+            let maxZoom = 15;
+            if (span < 0.004) maxZoom = 16;       // < ~450 m
+            else if (span < 0.012) maxZoom = 15;  // ~1.3 km
+            else if (span < 0.04) maxZoom = 14;   // ~4 km
+            else if (span < 0.12) maxZoom = 13;   // ~13 km
+            else maxZoom = 12;                    // rutas largas
+
+            // Solo tramo al cliente (sin destino): un poco más cerca
+            const onlyToPickup = legs.length === 1 && legs[0]?.role === 'toPickup';
+            if (onlyToPickup && maxZoom < 15) maxZoom = 15;
+
+            const padding = options.padding
+                || window.getDriverOfferPreviewMapPadding?.()
+                || { top: 56, right: 24, bottom: 280, left: 24 };
+
+            const applyFit = () => {
+                try {
+                    const prevMax = window.gMap.get('maxZoom');
+                    window.gMap.setOptions({ maxZoom });
+                    window.gMap.fitBounds(bounds, padding);
+                    google.maps.event.addListenerOnce(window.gMap, 'idle', () => {
+                        try {
+                            window.gMap.setOptions({
+                                maxZoom: prevMax == null ? undefined : prevMax
+                            });
+                            const z = window.gMap.getZoom?.();
+                            if (Number.isFinite(z) && z > maxZoom) {
+                                window.gMap.setZoom(maxZoom);
+                            }
+                        } catch (_) {}
+                    });
+                } catch (_) {
+                    try { window.gMap.fitBounds(bounds, padding); } catch (__) {}
+                }
+            };
+
+            applyFit();
         };
 
         window.hasActiveDriverNavRoute = () => {
@@ -4285,10 +4419,11 @@ window.gMap = null;
             const passedOpacity = driverLite ? 0.55 : (isPassenger ? 0.82 : 0.5);
             const reuse = window._progressRoutePolylines;
 
-            if (reuse?.remaining?.getMap?.() && (driverLite || reuse.base?.getMap?.())) {
+            if (reuse?.remaining?.getMap?.() && (driverLite || reuse.base?.getMap?.() || reuse.passed?.getMap?.())) {
                 if (reuse.base) reuse.base.setPath(path);
+                // Actualizar tramo recorrido (gris) también en conductor
                 if (reuse.passed) {
-                    if (passed.length >= 2 && !driverLite) {
+                    if (passed.length >= 2) {
                         reuse.passed.setMap(window.gMap);
                         reuse.passed.setPath(passed);
                     } else {
@@ -4299,7 +4434,7 @@ window.gMap = null;
                     if (remaining.length >= 2) {
                         reuse.remaining.setMap(window.gMap);
                         reuse.remaining.setPath(remaining);
-                        if (reuse.anim && !driverLite) {
+                        if (reuse.anim) {
                             reuse.anim.setMap(window.gMap);
                             reuse.anim.setPath(remaining);
                         }
@@ -4346,14 +4481,15 @@ window.gMap = null;
                 polylines.push(base);
             }
 
+            // Tramo ya recorrido (gris) + restante (azul) = efecto “se come la ruta” (Google Maps)
             let passedLine = null;
-            if (passed.length >= 2 && !driverLite) {  // only explicit passed for non-driver
+            if (passed.length >= 2) {
                 passedLine = new google.maps.Polyline({
                     path: passed,
                     geodesic: true,
-                    strokeColor: passedColor,
-                    strokeOpacity: passedOpacity,
-                    strokeWeight: driverLite ? 7 : (isPassenger ? 10 : 9),
+                    strokeColor: driverLite ? '#94a3b8' : passedColor,
+                    strokeOpacity: driverLite ? 0.65 : passedOpacity,
+                    strokeWeight: driverLite ? 8 : (isPassenger ? 10 : 9),
                     map: window.gMap,
                     zIndex: 2
                 });
@@ -4367,15 +4503,16 @@ window.gMap = null;
                     path: remaining,
                     geodesic: true,
                     strokeColor: remainColor,
-                    strokeOpacity: 0.95,
-                    strokeWeight: driverLite ? 9 : 10,
+                    strokeOpacity: 0.98,
+                    strokeWeight: driverLite ? 10 : 10,
                     map: window.gMap,
                     zIndex: 3
                 });
                 polylines.push(remainingLine);
 
                 const lowPower = typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode();
-                if (!lowPower && !driverLite) {
+                // Flechas animadas en la ruta restante (conductor y pasajero; se omite en low-power)
+                if (!lowPower) {
                     const dashSymbol = {
                         path: 'M 0,-2 0,2',
                         strokeOpacity: 0.85,
@@ -4447,9 +4584,11 @@ window.gMap = null;
             const now = Date.now();
             const last = window._lastRouteProgressPos;
             const isDriver = options.driverNav ?? window.isDriverNavigating?.();
+            // Snap a la ruta para “comer” el trazo como Google (solo nav)
             if (isDriver && path.length >= 2) {
                 const dist = window.getDistanceToRouteMeters?.(path, driverPos);
-                if (Number.isFinite(dist) && dist < 140) {
+                // Snap más agresivo (antes 140 m) para que la línea avance con el carrito
+                if (Number.isFinite(dist) && dist < 200) {
                     const snapped = window.snapPositionToRoute?.(path, driverPos);
                     if (snapped?.lat != null && snapped?.lng != null) {
                         driverPos = { lat: snapped.lat, lng: snapped.lng };
@@ -4457,13 +4596,15 @@ window.gMap = null;
                 }
             }
             const isPassenger = options.passengerTrack ?? window.isPassengerTracking?.();
-            const moveThreshold = isPassenger ? 0.000015 : (isDriver ? 0.00002 : 0.00008);
+            // Umbral bajo: ~2 m en conductor para ir consumiendo la ruta al moverse
+            const moveThreshold = isPassenger ? 0.000012 : (isDriver ? 0.000012 : 0.00008);
             const moved = !last
                 || Math.hypot(driverPos.lat - last.lat, driverPos.lng - last.lng) > moveThreshold;
             const lowPower = typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode();
+            // Conductor: actualizar más seguido (como Google Maps)
             const minMs = isPassenger
-                ? (lowPower ? 280 : 180)
-                : (isDriver ? (lowPower ? 2200 : 1600) : (lowPower ? 1400 : 800));
+                ? (lowPower ? 280 : 160)
+                : (isDriver ? (lowPower ? 450 : 220) : (lowPower ? 1400 : 800));
             const timeOk = !window._lastRouteProgressUpdate || now - window._lastRouteProgressUpdate > minMs;
             if (!options.force && !moved && !timeOk) return;
 
@@ -5174,9 +5315,32 @@ window.gMap = null;
                 || window.currentNavRoute?.path
                 || [];
             let pos = rawPos;
-            if (path.length >= 2 && rawPos && window.isDriverNavigating?.()) {
+            // No “pegar” el carrito a la calle si ya estás en el punto del pasajero:
+            // el snap a la ruta hace parecer que “falta una cuadra” estando al lado.
+            const trip = window.currentActiveTripData || window.activeTrip;
+            const pickup = window.getTripPickupCoords?.(trip);
+            const nearPickup = pickup && rawPos
+                ? (window.getAccuracyAwareDistanceMeters?.(
+                    rawPos,
+                    pickup,
+                    window._driverLiveAccuracy,
+                    pickup.accuracy
+                ) ?? window.getDistanceMetersBetween?.(rawPos, pickup))
+                : Infinity;
+            const nearPickupOk = Number.isFinite(nearPickup) && nearPickup < 85;
+            const acc = Number(window._driverLiveAccuracy);
+            const goodGps = Number.isFinite(acc) && acc > 0 && acc <= 35;
+
+            if (
+                path.length >= 2
+                && rawPos
+                && window.isDriverNavigating?.()
+                && !nearPickupOk
+            ) {
                 const dist = window.getDistanceToRouteMeters?.(path, rawPos);
-                if (Number.isFinite(dist) && dist < 140) {
+                // Solo snap suave si estás claramente sobre la vía y el GPS no es muy fino
+                const snapMax = goodGps ? 45 : 90;
+                if (Number.isFinite(dist) && dist < snapMax) {
                     const snapped = window.snapPositionToRoute?.(path, rawPos);
                     if (snapped?.lat != null && snapped?.lng != null) {
                         pos = { lat: snapped.lat, lng: snapped.lng };
@@ -6599,7 +6763,22 @@ window.gMap = null;
                 window.drawProgressRouteOnMap(route, progressPos, { driverNav, passengerTrack });
             } else {
                 window.clearRoutePolylines();
-                if (typeof route.createPolylines === 'function') {
+                // Oferta conductor: tramos de color (🚗 ámbar ti→cliente + 📍 verde ruta del cliente)
+                const previewLegs = Array.isArray(route.previewLegs)
+                    ? route.previewLegs.filter((leg) => Array.isArray(leg?.path) && leg.path.length >= 2)
+                    : [];
+                if (driverOfferPreview && previewLegs.length > 0) {
+                    const polylines = previewLegs.map((leg) => new google.maps.Polyline({
+                        path: leg.path,
+                        geodesic: true,
+                        strokeColor: leg.color || (leg.role === 'toPickup' ? '#f59e0b' : '#059669'),
+                        strokeOpacity: leg.role === 'toPickup' ? 0.95 : 0.9,
+                        strokeWeight: leg.role === 'toPickup' ? 8 : 7,
+                        map: window.gMap,
+                        zIndex: leg.role === 'toPickup' ? 4 : 3
+                    }));
+                    window.currentRoutePolyline = polylines;
+                } else if (typeof route.createPolylines === 'function') {
                     const polylines = route.createPolylines();
                     polylines.forEach(p => p.setMap(window.gMap));
                     window.currentRoutePolyline = polylines;
@@ -6624,19 +6803,34 @@ window.gMap = null;
                     || (driverNav && options.fitFullRoute === true)
                 );
             if (shouldFitRoute) {
-                const bounds = new google.maps.LatLngBounds();
-                fitPath.forEach((p) => bounds.extend(p));
-                if ((driverOfferPreview || driverNav) && window.currentDriverPos?.lat != null) {
-                    bounds.extend(window.currentDriverPos);
-                }
-                const padding = driverOfferPreview
-                    ? window.getDriverOfferPreviewMapPadding?.()
-                    : (driverNav
+                if (driverOfferPreview && typeof window.refitDriverOfferPreviewRoute === 'function') {
+                    // Zoom + padding según tarjeta de solicitud (no tapa la ruta)
+                    window.refitDriverOfferPreviewRoute(route);
+                    // Segunda pasada cuando el panel ya midió su alto real
+                    clearTimeout(window._driverOfferRefitTimer);
+                    window._driverOfferRefitTimer = setTimeout(() => {
+                        try {
+                            if (window.shouldPreserveDriverOfferPreview?.()
+                                || document.body.classList.contains('driver-offer-preview-active')) {
+                                window.refitDriverOfferPreviewRoute?.(
+                                    window._driverOfferPreviewRoute || route
+                                );
+                            }
+                        } catch (_) {}
+                    }, 320);
+                } else {
+                    const bounds = new google.maps.LatLngBounds();
+                    fitPath.forEach((p) => bounds.extend(p));
+                    if (driverNav && window.currentDriverPos?.lat != null) {
+                        bounds.extend(window.currentDriverPos);
+                    }
+                    const padding = driverNav
                         ? (window.getDriverNavMapPadding?.() || { top: 72, right: 36, bottom: 200, left: 36 })
-                        : undefined);
-                try {
-                    window.gMap.fitBounds(bounds, padding || undefined);
-                } catch (_) {}
+                        : undefined;
+                    try {
+                        window.gMap.fitBounds(bounds, padding || undefined);
+                    } catch (_) {}
+                }
             }
 
             if (passengerTrack && window.currentDriverTrackPos) {
@@ -6742,7 +6936,109 @@ window.gMap = null;
             } catch (e) {}
         };
 
-        // Mejores iconos de mapa usando PinElement + glifos A/B (más nativos y claros)
+        /**
+         * Pin del cliente (recogida): persona saludando con bandera de Honduras.
+         * SVG reutilizable para AdvancedMarker (HTML) y Marker clásico (data URL).
+         */
+        window.getHondurasClientPinSvg = (opts = {}) => {
+            const w = opts.width || 52;
+            const h = opts.height || 64;
+            // Colores oficiales aproximados de la bandera de Honduras
+            const blue = '#0073CF';
+            const white = '#FFFFFF';
+            const skin = '#F0C7A0';
+            const hair = '#3F2A1D';
+            const stroke = '#0F172A';
+            // Estrella de 5 puntas (bandera HN) — centro + 4 en X
+            const star = (cx, cy, r = 2.1) => {
+                // path simple de estrella
+                const pts = [];
+                for (let i = 0; i < 5; i++) {
+                    const a = (-Math.PI / 2) + (i * 2 * Math.PI) / 5;
+                    const b = a + Math.PI / 5;
+                    pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+                    pts.push([cx + r * 0.42 * Math.cos(b), cy + r * 0.42 * Math.sin(b)]);
+                }
+                return `<polygon points="${pts.map((p) => p.map((n) => n.toFixed(2)).join(',')).join(' ')}" fill="${blue}"/>`;
+            };
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 52 64" role="img" aria-label="Cliente — bandera de Honduras">
+  <defs>
+    <filter id="hnPinShadow" x="-40%" y="-20%" width="180%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.6" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <!-- Sombra en el suelo -->
+  <ellipse cx="26" cy="60.5" rx="11" ry="2.6" fill="#000" opacity="0.18"/>
+  <!-- Cuerpo con bandera de Honduras (camisa = bandera) -->
+  <g filter="url(#hnPinShadow)">
+    <!-- Piernas -->
+    <path d="M20 44 L18.5 58.5 L23 58.5 L24.5 46 Z" fill="#1e3a5f" stroke="${stroke}" stroke-width="0.6"/>
+    <path d="M28.5 46 L30 58.5 L34.5 58.5 L32.5 44 Z" fill="#1e3a5f" stroke="${stroke}" stroke-width="0.6"/>
+    <!-- Torso: bandera HN (azul-blanco-azul + estrellas) -->
+    <rect x="17" y="24" width="18" height="21" rx="4.5" fill="${blue}" stroke="${stroke}" stroke-width="0.75"/>
+    <rect x="17.5" y="30.2" width="17" height="8.2" fill="${white}"/>
+    ${star(26, 34.3, 1.85)}
+    ${star(21.6, 32.6, 1.35)}
+    ${star(30.4, 32.6, 1.35)}
+    ${star(21.6, 36.0, 1.35)}
+    ${star(30.4, 36.0, 1.35)}
+    <!-- Brazo izquierdo (bajado) -->
+    <path d="M17.5 28 Q12 32 11 40" fill="none" stroke="${skin}" stroke-width="3.2" stroke-linecap="round"/>
+    <!-- Brazo derecho saludando (arriba) -->
+    <path d="M34.5 27 Q40 18 43 11" fill="none" stroke="${skin}" stroke-width="3.2" stroke-linecap="round"/>
+    <!-- Mano saludando -->
+    <circle cx="43.5" cy="9.5" r="2.6" fill="${skin}" stroke="${stroke}" stroke-width="0.45"/>
+    <!-- Banderita HN en la mano que saluda -->
+    <g transform="translate(38,2) rotate(-18)">
+      <rect x="0" y="0" width="1.6" height="16" rx="0.6" fill="#64748b"/>
+      <rect x="1.6" y="0.4" width="12.5" height="8.2" rx="0.6" fill="${blue}" stroke="${stroke}" stroke-width="0.35"/>
+      <rect x="1.8" y="2.9" width="12.1" height="3.1" fill="${white}"/>
+      <!-- mini estrellas -->
+      <circle cx="8" cy="4.45" r="0.55" fill="${blue}"/>
+      <circle cx="6.2" cy="3.7" r="0.4" fill="${blue}"/>
+      <circle cx="9.8" cy="3.7" r="0.4" fill="${blue}"/>
+      <circle cx="6.2" cy="5.2" r="0.4" fill="${blue}"/>
+      <circle cx="9.8" cy="5.2" r="0.4" fill="${blue}"/>
+    </g>
+    <!-- Cuello + cabeza -->
+    <rect x="23.5" y="19.5" width="5" height="5.2" rx="1.5" fill="${skin}"/>
+    <circle cx="26" cy="14.2" r="7.1" fill="${skin}" stroke="${stroke}" stroke-width="0.7"/>
+    <!-- Cabello -->
+    <path d="M19.5 13.5 Q20 7.5 26 7 Q32 7.5 32.5 13.5 Q30 10.5 26 10.2 Q22 10.5 19.5 13.5 Z" fill="${hair}"/>
+    <!-- Cara sonriente / saludo -->
+    <circle cx="23.6" cy="14" r="0.85" fill="${stroke}"/>
+    <circle cx="28.4" cy="14" r="0.85" fill="${stroke}"/>
+    <path d="M23.4 17.1 Q26 19.2 28.6 17.1" fill="none" stroke="${stroke}" stroke-width="0.85" stroke-linecap="round"/>
+    <!-- Mejillas -->
+    <circle cx="21.8" cy="15.8" r="1.1" fill="#F4A89A" opacity="0.55"/>
+    <circle cx="30.2" cy="15.8" r="1.1" fill="#F4A89A" opacity="0.55"/>
+  </g>
+  <!-- Badge A (recogida) -->
+  <circle cx="10" cy="10" r="7.2" fill="#059669" stroke="#fff" stroke-width="1.6"/>
+  <text x="10" y="13.2" text-anchor="middle" font-size="9" font-weight="800" font-family="system-ui,Segoe UI,sans-serif" fill="#fff">A</text>
+</svg>`;
+        };
+
+        window.buildClientPickupMarkerContent = () => {
+            const wrap = document.createElement('div');
+            wrap.className = 'hn-client-pin';
+            wrap.setAttribute('aria-label', 'Cliente — punto de recogida');
+            wrap.style.width = '52px';
+            wrap.style.height = '64px';
+            wrap.style.display = 'block';
+            wrap.style.pointerEvents = 'none';
+            wrap.style.transform = 'translateY(-2px)';
+            wrap.style.filter = 'drop-shadow(0 2px 5px rgba(0,0,0,0.28))';
+            wrap.innerHTML = window.getHondurasClientPinSvg();
+            return wrap;
+        };
+
+        window.getClientPickupMarkerIconUrl = () => {
+            const svg = window.getHondurasClientPinSvg({ width: 52, height: 64 });
+            return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
+        };
+
+        // Pin del cliente: humano con bandera de Honduras saludando (recogida A)
         window.placePickupMarker = (latLng, title = 'Origen (Punto de encuentro)') => {
             if (!window.mapLoaded || !latLng || !window.gMap) return;
 
@@ -6762,40 +7058,64 @@ window.gMap = null;
 
                 const hasAdvanced = window.canUseAdvancedMapMarkers?.() ?? false;
                 if (hasAdvanced) {
-                    const pin = new google.maps.marker.PinElement({
-                        background: '#10b981',
-                        borderColor: '#ffffff',
-                        glyphColor: '#ffffff',
-                        glyphText: 'A',
-                        scale: 1.15
-                    });
+                    const content = window.buildClientPickupMarkerContent();
                     window.originMarker = new google.maps.marker.AdvancedMarkerElement({
                         position: pos,
                         map: window.gMap,
-                        content: pin,
-                        title: title
+                        content,
+                        title: title || 'Cliente (recogida)',
+                        // Ancla en los pies de la figura
+                        gmpClickable: false
                     });
                 } else {
-                    // Fall back to classic Marker (deprecation warning expected without mapId)
+                    // Fall back to classic Marker con el mismo SVG
+                    const iconUrl = window.getClientPickupMarkerIconUrl();
                     window.originMarker = new google.maps.Marker({
                         position: pos,
                         map: window.gMap,
-                        title: title,
-                        label: { text: 'A', color: '#ffffff', fontWeight: 'bold', fontSize: '14px' },
-                        icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: '#10b981', fillOpacity: 1, strokeColor: '#ffffff', strokeWeight: 3 }
+                        title: title || 'Cliente (recogida)',
+                        icon: {
+                            url: iconUrl,
+                            scaledSize: new google.maps.Size(52, 64),
+                            anchor: new google.maps.Point(26, 60)
+                        },
+                        optimized: false,
+                        zIndex: 50
                     });
                 }
             } catch (e) {
                 console.warn('Error placing pickup marker (usando fallback):', e);
-                // Último fallback (evitar si posible)
+                // Último fallback: pin verde A
                 try {
-                    if (window.canUseAdvancedMapMarkers?.()) {
-                        const pin = new google.maps.marker.PinElement({ background: '#10b981', glyphText: 'A' });
-                        window.originMarker = new google.maps.marker.AdvancedMarkerElement({ position: latLng, map: window.gMap, content: pin, title });
-                    } else {
-                        // always Advanced
-                        const pin = new google.maps.marker.PinElement({ background: '#10b981', glyphText: 'A' });
-                        window.originMarker = new google.maps.marker.AdvancedMarkerElement({ position: latLng, map: window.gMap, content: pin, title });
+                    if (window.canUseAdvancedMapMarkers?.() && google.maps?.marker?.PinElement) {
+                        const pin = new google.maps.marker.PinElement({
+                            background: '#10b981',
+                            borderColor: '#ffffff',
+                            glyphColor: '#ffffff',
+                            glyphText: 'A',
+                            scale: 1.15
+                        });
+                        window.originMarker = new google.maps.marker.AdvancedMarkerElement({
+                            position: latLng,
+                            map: window.gMap,
+                            content: pin,
+                            title
+                        });
+                    } else if (google.maps?.Marker) {
+                        window.originMarker = new google.maps.Marker({
+                            position: latLng,
+                            map: window.gMap,
+                            title,
+                            label: { text: 'A', color: '#ffffff', fontWeight: 'bold', fontSize: '14px' },
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 10,
+                                fillColor: '#10b981',
+                                fillOpacity: 1,
+                                strokeColor: '#ffffff',
+                                strokeWeight: 3
+                            }
+                        });
                     }
                 } catch (_) {}
             }

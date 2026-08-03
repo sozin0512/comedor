@@ -103,6 +103,20 @@ service cloud.firestore {
         || resource.data.offeredToDriverId == requestUid();
     }
 
+    // Conductor asignado al viaje (puede actualizar y completar)
+    function isAssignedDriver() {
+      return isSignedIn()
+        && resource.data.keys().hasAll(['driverId'])
+        && resource.data.driverId == requestUid();
+    }
+
+    // Completar viaje: conductor o pasajero del viaje, o staff
+    function canCompleteTrip(app) {
+      return isAssignedDriver()
+        || (resource.data.clientId == requestUid())
+        || isStaff(app);
+    }
+
     // ============================================================
     // PERFILES DE USUARIO
     // ============================================================
@@ -162,9 +176,32 @@ service cloud.firestore {
 
       // ACTUALIZAR / CANCELAR: dueño (pasajero), conductor asignado, ofertado, staff
       // Conductores pueden tocar pending (ofertas / visto / regateo / rechazar)
+      // Invitado staff (sin cuenta): al registrarse reclama el viaje y se asigna clientId = uid
+      // Conductor asignado: llegada, PIN, en curso, completar (status completed), GPS en doc
       allow update: if isSignedIn() && (
         isStaff(app)
         || isTripParticipant()
+        || isAssignedDriver()
+        // Completar viaje explícitamente (conductor o pasajero del viaje)
+        || (
+          canCompleteTrip(app)
+          && resource.data.status in ['accepted', 'in_progress']
+          && request.resource.data.status == 'completed'
+          && request.resource.data.clientId == resource.data.clientId
+          && (
+            !resource.data.keys().hasAll(['driverId'])
+            || request.resource.data.driverId == resource.data.driverId
+          )
+        )
+        // Conductor asignado: cualquier update mientras el viaje esté activo
+        // (driverArrived, driverLive*, commission*, completedAt, etc.)
+        || (
+          isAssignedDriver()
+          && resource.data.status in ['accepted', 'in_progress']
+          && request.resource.data.driverId == resource.data.driverId
+          && request.resource.data.clientId == resource.data.clientId
+          && request.resource.data.status in ['accepted', 'in_progress', 'completed']
+        )
         || (resource.data.status in ['pending', 'scheduled'] && isDriver(app))
         // Candidato de oferta (aunque no sea offeredToDriverId todavía): puede declinar
         || (
@@ -172,6 +209,20 @@ service cloud.firestore {
           && isDriver(app)
           && request.resource.data.status == 'pending'
           && request.resource.data.clientId == resource.data.clientId
+        )
+        // Viaje armado para cliente NUEVO (guest_…): el pasajero autenticado reclama 1 vez
+        || (
+          resource.data.status == 'pending'
+          && resource.data.staffAssistedClient == true
+          && resource.data.staffCreatedClientClaimed != true
+          && (
+            resource.data.guestClient == true
+            || resource.data.guestInvitePending == true
+            || (resource.data.clientId is string && resource.data.clientId.matches('guest_.*'))
+          )
+          && request.resource.data.clientId == requestUid()
+          && request.resource.data.staffCreatedClientClaimed == true
+          && request.resource.data.staffAssistedClient == true
         )
       );
 

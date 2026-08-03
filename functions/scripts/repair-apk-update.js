@@ -4,7 +4,7 @@
  * Uso (desde carpeta functions, con ADC / GOOGLE_APPLICATION_CREDENTIALS):
  *   node scripts/repair-apk-update.js
  *   node scripts/repair-apk-update.js --notify
- *   node scripts/repair-apk-update.js --version=2026.07.30.4 --notify
+ *   node scripts/repair-apk-update.js --version=2026.07.30.6 --notify
  */
 const { initializeApp, applicationDefault } = require('firebase-admin/app');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
@@ -60,8 +60,8 @@ async function notifyAll(version, versionCode) {
     console.log(`Tokens FCM: ${tokens.length}`);
     if (!tokens.length) return { success: 0, failure: 0 };
 
-    const TITLE = 'HonduRaite · Actualiza la app';
-    const BODY = `Hay una nueva versión (${version || versionCode}). Ábrela e instala la actualización para seguir recibiendo viajes.`;
+    const TITLE = 'HonduRaite Â· Actualiza la app';
+    const BODY = `Hay una nueva versiÃ³n (${version || versionCode}). Ãbrela e instala la actualizaciÃ³n para seguir recibiendo viajes.`;
     const TEMU_CHANNEL = 'hondu_temu_all_v6';
     const PUSH_ICON = `https://${PROJECT_ID}.web.app/icons/icon-192.png`;
 
@@ -118,7 +118,7 @@ async function main() {
     const d = snap.data() || {};
     console.log('--- ANTES ---');
     console.log({
-        androidApkUrl: d.androidApkUrl ? String(d.androidApkUrl).slice(0, 80) + '…' : null,
+        androidApkUrl: d.androidApkUrl ? String(d.androidApkUrl).slice(0, 80) + 'â€¦' : null,
         androidApkVersion: d.androidApkVersion || null,
         androidApkVersionCode: d.androidApkVersionCode ?? null,
         androidApkBuildId: d.androidApkBuildId ?? null,
@@ -133,7 +133,7 @@ async function main() {
     const version = String(versionArg || d.androidApkVersion || '').trim();
     const correctCode = versionLabelToCode(version);
     if (!version || !correctCode) {
-        console.error('No se pudo calcular versionCode. Pasa --version=2026.07.30.4');
+        console.error('No se pudo calcular versionCode. Pasa --version=2026.07.30.6');
         process.exit(1);
     }
 
@@ -143,7 +143,7 @@ async function main() {
         androidApkUpdateSignal: Date.now(),
         updatedAt: FieldValue.serverTimestamp(),
     };
-    // Si no hay buildId, crear uno nuevo para que clientes vean “publicación nueva”
+    // Si no hay buildId, crear uno nuevo para que clientes vean â€œpublicaciÃ³n nuevaâ€
     if (!d.androidApkBuildId) {
         patch.androidApkBuildId = Date.now();
     }
@@ -151,7 +151,7 @@ async function main() {
     await settingsRef.set(patch, { merge: true });
 
     const after = (await settingsRef.get()).data() || {};
-    console.log('--- DESPUÉS ---');
+    console.log('--- DESPUÃ‰S ---');
     console.log({
         androidApkVersion: after.androidApkVersion,
         androidApkVersionCode: after.androidApkVersionCode,
@@ -160,11 +160,11 @@ async function main() {
     });
     console.log(
         `OK: versionCode forzado a ${correctCode}. ` +
-        `Un teléfono con code < ${correctCode} debería ver update (si su JS compara versionCode).`
+        `Un telÃ©fono con code < ${correctCode} deberÃ­a ver update (si su JS compara versionCode).`
     );
 
     if (doNotify) {
-        console.log('Enviando FCM app_update…');
+        console.log('Enviando FCM app_updateâ€¦');
         const r = await notifyAll(version, correctCode);
         console.log('FCM total:', r);
     } else {

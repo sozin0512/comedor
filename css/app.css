@@ -145,40 +145,53 @@
             padding-right: var(--safe-right, 0px);
         }
 
-        /* Conductor sin viaje: panel a pantalla completa (lista de ofertas, etc.) */
+        /* Conductor sin viaje (APK): sheet medio, NO full-screen */
         body.capacitor-native.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel,
         body.capacitor-android.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel {
-            top: var(--safe-top) !important;
-            height: calc(100% - var(--safe-top) - var(--safe-bottom)) !important;
-            max-height: none !important;
-            padding-top: 0.45rem !important;
-            padding-bottom: max(0.45rem, var(--safe-bottom)) !important;
+            top: auto !important;
+            bottom: 0 !important;
+            height: auto !important;
+            max-height: min(55dvh, 26rem) !important;
+            padding-top: 0.35rem !important;
+            padding-bottom: max(0.55rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            border-radius: 1.75rem 1.75rem 0 0 !important;
         }
 
-        /* Viaje activo en APK: faja inferior, no full-screen (mapa + navegación visibles) */
+        /* Viaje activo en APK: faja BAJA (mapa grande); scroll interno */
         body.capacitor-native.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel,
         body.capacitor-android.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
             top: auto !important;
             bottom: 0 !important;
             height: auto !important;
-            max-height: min(48dvh, 22rem) !important;
-            padding-top: 0.15rem !important;
-            padding-bottom: max(0.45rem, var(--safe-bottom)) !important;
+            max-height: min(36dvh, 16rem) !important;
+            padding-top: 0.1rem !important;
+            padding-bottom: max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
         }
 
         body.capacitor-native.client-mode.is-searching:not(.panel-minimized):not(.panel-collapsed) #control-panel,
         body.capacitor-android.client-mode.is-searching:not(.panel-minimized):not(.panel-collapsed) #control-panel {
-            top: var(--safe-top) !important;
-            height: calc(100% - var(--safe-top) - var(--safe-bottom)) !important;
-            max-height: none !important;
-            padding-top: 0.45rem !important;
-            padding-bottom: max(0.45rem, var(--safe-bottom)) !important;
+            top: auto !important;
+            bottom: 0 !important;
+            height: auto !important;
+            max-height: min(58dvh, 28rem) !important;
+            padding-top: 0.35rem !important;
+            padding-bottom: max(0.55rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            border-radius: 1.75rem 1.75rem 0 0 !important;
         }
 
         body.capacitor-native.trip-active #control-panel,
         body.capacitor-android.trip-active #control-panel {
             /* El panel de viaje activo no debe subir hasta el reloj */
-            padding-bottom: max(0.75rem, var(--safe-bottom));
+            padding-bottom: max(0.85rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
         }
 
         /* Header fijo arriba â€” el logo no invade el panel de viajes */
@@ -3065,15 +3078,19 @@
             bottom: 0;
             z-index: 100;
             width: 100%;
-            max-height: min(62%, 68dvh);
-            padding-bottom: calc(0.75rem + var(--safe-bottom, 0px));
+            /* CORTO a propósito: mapa usable; el contenido hace scroll */
+            max-height: min(46dvh, 22rem);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
             background: rgba(255, 255, 255, 0.98);
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
             border-radius: 1.75rem 1.75rem 0 0;
             border-top: 1px solid rgba(226, 232, 240, 0.9);
             box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.15);
-            padding: 0.15rem 0 0.75rem;
+            padding: 0.1rem 0 0;
+            padding-bottom: max(0.55rem, calc(0.35rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
             touch-action: pan-y;
             pointer-events: auto;
             cursor: grab;
@@ -3146,7 +3163,8 @@
         #control-panel.panel-is-floating {
             position: fixed !important;
             width: min(380px, calc(100vw - 1.25rem)) !important;
-            max-height: min(72dvh, 560px) !important;
+            /* Nunca más alto que la pantalla útil (si no, al pegarlo arriba se pierde el final) */
+            max-height: min(70dvh, calc(100dvh - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 1rem), 480px) !important;
             left: 12px;
             right: auto !important;
             bottom: auto !important;
@@ -3155,6 +3173,32 @@
             box-shadow: 0 16px 48px rgba(15, 23, 42, 0.22);
             cursor: grab;
             touch-action: pan-y;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        #control-panel.panel-is-floating #panel-content,
+        #control-panel.is-drag-positioned #panel-content {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        /* Flotante de “Tu conductor” / trip floats: caben en pantalla + scroll */
+        .trip-float.is-drag-positioned,
+        #client-trip-float.is-drag-positioned {
+            max-height: min(70dvh, calc(100dvh - var(--safe-top, 0px) - var(--safe-bottom, 0px) - 1rem)) !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        #client-trip-float.is-drag-positioned .trip-float-full-view,
+        #client-trip-float.is-drag-positioned .client-trip-float-body {
+            max-height: none;
         }
 
         #control-panel.is-dragging {
@@ -3282,6 +3326,19 @@
             display: inline-flex;
         }
 
+        /* Conductor sin viaje: al minimizar el panel se oculta (display:none).
+           Mostrar FAB «Abrir panel» para poder volver (antes quedaba atrapado). */
+        body.driver-mode.panel-minimized:not(.trip-active) .panel-expand-fab,
+        body.driver-mode.panel-collapsed:not(.trip-active) .panel-expand-fab {
+            display: inline-flex !important;
+            z-index: 200 !important;
+        }
+
+        body.driver-mode.panel-minimized:not(.trip-active) #fab-center,
+        body.driver-mode.panel-collapsed:not(.trip-active) #fab-center {
+            bottom: 78px;
+        }
+
         body.panel-hidden #fab-center,
         body.panel-hidden #fab-traffic {
             bottom: 78px;
@@ -3335,26 +3392,55 @@
             margin: 0 !important;
             cursor: default !important;
             touch-action: pan-y;
+            display: flex !important;
+            flex-direction: column !important;
         }
 
-        /* Solo sin viaje activo: panel conductor a pantalla completa */
+        /*
+         * Conductor SIN viaje: ya NO pantalla completa.
+         * Sheet medio-bajo (~55% max) + scroll en la lista → se ve el final.
+         */
         body.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel {
-            top: var(--safe-top, env(safe-area-inset-top, 0px)) !important;
-            bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            top: auto !important;
+            bottom: 0 !important;
             height: auto !important;
-            max-height: none !important;
+            max-height: min(55dvh, 26rem) !important;
             min-height: 0 !important;
-            border-radius: 0 !important;
+            border-radius: 1.75rem 1.75rem 0 0 !important;
             z-index: 12000 !important;
-            padding-top: 0.5rem;
-            padding-bottom: 0.45rem;
-            box-shadow: none !important;
+            padding-top: 0.35rem;
+            padding-bottom: max(0.55rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+            box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.15) !important;
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
         }
 
         body.driver-mode:not(.panel-minimized):not(.panel-collapsed) #panel-content {
-            flex: 1 1 auto;
-            min-height: 0;
-            max-height: none;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: max(0.85rem, calc(0.5rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
+        }
+
+        body.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #driver-view {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
+
+        body.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #requests-list,
+        body.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) .driver-radar-list {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: max(1rem, calc(0.65rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
         }
 
         body.driver-mode #control-panel.panel-is-floating,
@@ -3406,14 +3492,13 @@
 
         #panel-content {
             min-height: 0;
-            flex: 1;
+            flex: 1 1 auto;
             overflow-y: auto;
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
             touch-action: pan-y;
-            padding-bottom: calc(0.25rem + var(--safe-bottom, 0px));
-            /* Scrollbar discreto (Firefox) */
+            padding-bottom: max(0.75rem, calc(0.4rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
             scrollbar-width: thin;
             scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
         }
@@ -4789,16 +4874,16 @@
             color: #93c5fd;
         }
 
-        body.trip-active #control-panel { max-height: min(72%, 70dvh); }
+        body.trip-active #control-panel { max-height: min(42dvh, 19rem); }
 
-        /* Pasajero buscando conductor: panel central a pantalla completa */
+        /* Pasajero buscando: sheet medio (no full-screen; se ve el final con scroll) */
         body.client-mode.is-searching:not(.panel-minimized):not(.panel-collapsed) #control-panel {
-            top: var(--safe-top, env(safe-area-inset-top, 0px)) !important;
-            bottom: var(--safe-bottom, env(safe-area-inset-bottom, 0px)) !important;
+            top: auto !important;
+            bottom: 0 !important;
             height: auto !important;
-            max-height: none !important;
+            max-height: min(55dvh, 26rem) !important;
             min-height: 0 !important;
-            border-radius: 0 !important;
+            border-radius: 1.75rem 1.75rem 0 0 !important;
             z-index: 12000 !important;
             padding-top: 0.5rem;
             padding-bottom: 0.45rem;
@@ -5693,6 +5778,75 @@
             line-height: 1.3;
         }
 
+        /* Ruta completa en oferta: 🚗 ti→cliente + 📍 ruta del cliente (sin truncar) */
+        .driver-offer-route-full {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            padding: 0.5rem 0.55rem;
+            border-radius: 0.85rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+        }
+
+        .driver-offer-route-full--compact {
+            max-height: 7.25rem;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 0.4rem 0.5rem;
+            gap: 0.35rem;
+            overscroll-behavior: contain;
+        }
+
+        .driver-offer-route-leg {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.4rem;
+            min-width: 0;
+        }
+
+        .driver-offer-route-emoji {
+            flex-shrink: 0;
+            font-size: 0.95rem;
+            line-height: 1.2;
+            width: 1.25rem;
+            text-align: center;
+        }
+
+        .driver-offer-route-leg-body {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.12rem;
+        }
+
+        .driver-offer-route-leg-label {
+            font-size: 0.58rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #64748b;
+            line-height: 1.2;
+        }
+
+        .driver-offer-route-leg--to-client .driver-offer-route-leg-label {
+            color: #b45309;
+        }
+
+        .driver-offer-route-leg--client .driver-offer-route-leg-label {
+            color: #047857;
+        }
+
+        .driver-offer-route-leg-addr {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.3;
+            word-break: break-word;
+            white-space: normal;
+        }
+
         .driver-offer-route-point {
             min-width: 0;
             flex: 1;
@@ -5726,6 +5880,14 @@
             border: 1px solid #e2e8f0;
         }
 
+        .driver-offer-route-chain--embedded {
+            padding: 0.25rem 0 0;
+            border: 0;
+            background: transparent;
+            border-radius: 0;
+            gap: 0.22rem;
+        }
+
         .driver-offer-route-chain-row {
             display: flex;
             align-items: flex-start;
@@ -5754,11 +5916,34 @@
         .driver-offer-route-addr {
             flex: 1;
             min-width: 0;
-            font-size: 0.62rem;
+            font-size: 0.68rem;
             font-weight: 700;
-            color: #475569;
+            color: #334155;
             line-height: 1.35;
             word-break: break-word;
+            white-space: normal;
+        }
+
+        html[data-theme="dark"] .driver-offer-route-full {
+            background: #0f172a;
+            border-color: #1e293b;
+        }
+
+        html[data-theme="dark"] .driver-offer-route-leg-addr,
+        html[data-theme="dark"] .driver-offer-route-addr {
+            color: #e2e8f0;
+        }
+
+        html[data-theme="dark"] .driver-offer-route-leg-label {
+            color: #94a3b8;
+        }
+
+        html[data-theme="dark"] .driver-offer-route-leg--to-client .driver-offer-route-leg-label {
+            color: #fbbf24;
+        }
+
+        html[data-theme="dark"] .driver-offer-route-leg--client .driver-offer-route-leg-label {
+            color: #34d399;
         }
 
         .driver-offer-stats {
@@ -7133,8 +7318,12 @@
         }
 
         body.trip-active:not(.driver-mode) #control-panel.panel-collapsed #tp-photo {
-            width: 2.65rem;
-            height: 2.65rem;
+            width: 2.65rem !important;
+            height: 2.65rem !important;
+            max-width: 2.65rem !important;
+            max-height: 2.65rem !important;
+            min-width: 2.65rem !important;
+            min-height: 2.65rem !important;
         }
 
         body.trip-active:not(.driver-mode) #control-panel.panel-collapsed #tp-name {
@@ -8544,29 +8733,38 @@
             opacity: 0.85;
         }
 
-        /* â€” Pantallas pequeÃ±as: que todo quepa sin amontonarse â€” */
+        /* — Celulares: panel CORTO; el resto se ve con scroll — */
         @media (max-width: 639px) {
             #login-screen > [data-sozin-copyright="on-gradient"] {
                 display: none;
             }
 
             #control-panel {
-                padding: 0.3rem 0 1rem;
-                max-height: min(58%, 56dvh);
+                padding: 0.2rem 0 0;
+                padding-bottom: max(0.5rem, calc(0.3rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+                max-height: min(44dvh, 20rem);
             }
 
             body.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel {
-                height: 100% !important;
-                max-height: 100% !important;
+                top: auto !important;
+                bottom: 0 !important;
+                height: auto !important;
+                max-height: min(52dvh, 24rem) !important;
             }
 
-            /* Viaje activo maximizado: faja abajo (~mitad inferior), mapa arriba usable */
+            /* Viaje activo: faja bien baja */
             body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel,
             body.trip-active.driver-mode.is-navigating:not(.panel-minimized):not(.panel-collapsed) #control-panel {
                 height: auto !important;
-                max-height: min(46dvh, 20.5rem) !important;
+                max-height: min(36dvh, 15.5rem) !important;
                 top: auto !important;
                 bottom: 0 !important;
+                overflow: hidden !important;
+            }
+
+            body.client-mode.is-searching:not(.panel-minimized):not(.panel-collapsed) #control-panel,
+            body.client-mode.trip-active:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+                max-height: min(48dvh, 22rem) !important;
             }
 
             body.trip-active.driver-mode.panel-minimized #control-panel,
@@ -13656,55 +13854,26 @@
             border: none !important;
         }
 
-        /* Pasajero en viaje: asa Â«MinimizarÂ» visible (antes estaba oculta â†’ no bajaba el panel en Android) */
-        body.client-mode.trip-active #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
-        body.passenger-trip-float-active #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
-        body.trip-active:not(.driver-mode) #control-panel:not(.panel-collapsed) #driver-panel-min-btn,
-        body.client-mode.trip-active #control-panel:not(.panel-collapsed) .trip-sheet-min-bar,
-        body.trip-active:not(.driver-mode) #control-panel:not(.panel-collapsed) .trip-sheet-min-bar {
-            display: flex !important;
-            flex-direction: column !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            height: auto !important;
+        /*
+         * Pasajero: UN solo “Minimizar” = #passenger-panel-min-btn.
+         * Ocultar #driver-panel-min-btn (estaba duplicado en el panel central).
+         */
+        body.client-mode #driver-panel-min-btn,
+        body.client-mode .trip-sheet-min-bar#driver-panel-min-btn,
+        body.passenger-trip-float-active #driver-panel-min-btn,
+        body.trip-active:not(.driver-mode) #driver-panel-min-btn {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            height: 0 !important;
             min-height: 0 !important;
-            width: 100% !important;
-            max-width: none !important;
-            margin: 0 0 0.15rem !important;
-            padding: 0.25rem 0.5rem 0.35rem !important;
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            gap: 0.25rem !important;
-            align-items: center !important;
-            justify-content: center !important;
-            z-index: 8 !important;
-            position: relative !important;
-            touch-action: manipulation !important;
-            cursor: pointer !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
         }
 
         body.client-mode.trip-active #control-panel:not(.panel-collapsed) .driver-panel-min-hint,
         body.trip-active:not(.driver-mode) #control-panel:not(.panel-collapsed) .driver-panel-min-hint {
-            display: block !important;
-            color: #94a3b8 !important;
-            font-size: 0.58rem !important;
-            font-weight: 800 !important;
-            text-transform: uppercase !important;
-            letter-spacing: 0.12em !important;
-            clip: auto !important;
-            position: static !important;
-            width: auto !important;
-            height: auto !important;
-            margin: 0 !important;
-            overflow: visible !important;
-        }
-
-        body.client-mode.trip-active #control-panel.panel-collapsed #driver-panel-min-btn,
-        body.trip-active:not(.driver-mode) #control-panel.panel-collapsed #driver-panel-min-btn,
-        body.client-mode.trip-active.panel-minimized #control-panel #driver-panel-min-btn,
-        body.trip-active:not(.driver-mode).panel-minimized #control-panel #driver-panel-min-btn {
             display: none !important;
         }
 
@@ -14780,10 +14949,10 @@
             width: 100% !important;
             margin: 0 !important;
             height: auto !important;
-            max-height: min(46dvh, 21rem) !important;
+            /* Faja corta (~1/3 pantalla): el resto se ve scrolleando */
+            max-height: min(36dvh, 16rem) !important;
             min-height: 0;
-            /* top padding para el asa del sheet dentro del radio */
-            padding: 0.15rem 0.65rem max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+            padding: 0.1rem 0.65rem max(0.4rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
             cursor: default !important;
             touch-action: pan-y;
             border-radius: 1.35rem 1.35rem 0 0 !important;
@@ -14796,6 +14965,7 @@
             visibility: visible !important;
             opacity: 1 !important;
             transform: none !important;
+            overflow: hidden !important;
         }
 
         /*
@@ -15346,7 +15516,7 @@
         }
 
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #panel-content {
-            min-height: 8.5rem;
+            min-height: 0;
         }
 
         body.trip-active.driver-mode.panel-minimized #panel-content,
@@ -15375,9 +15545,41 @@
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
-            padding-bottom: 0.35rem;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
+            padding-bottom: max(0.7rem, calc(0.4rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+            scrollbar-width: thin;
+            -ms-overflow-style: auto;
+        }
+
+        /* Viaje conductor maximizado: CORTO (~36% pantalla), scroll al final */
+        body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+            max-height: min(36dvh, 16rem) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            padding-bottom: max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #panel-content {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch;
+            min-height: 0 !important;
+            flex: 1 1 auto !important;
+            padding-bottom: max(0.65rem, calc(0.35rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #active-trip-panel {
+            min-height: 0 !important;
+            flex: 1 1 auto !important;
+            overflow: hidden !important;
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        /* Pasajero en viaje: panel también corto */
+        body.client-mode.trip-active:not(.panel-minimized):not(.panel-collapsed) #control-panel,
+        body.passenger-trip-float-active.client-mode #control-panel:not(.panel-collapsed) {
+            max-height: min(42dvh, 18.5rem) !important;
         }
 
         body.trip-active.driver-mode .driver-active-body::-webkit-scrollbar {
@@ -17839,13 +18041,14 @@
             display: none !important;
         }
 
-        /* Rectángulo VERTICAL — ancho celular real (~16.5–17.5rem) */
+        /* Rectángulo VERTICAL — ancho celular real (~16.5–17.5rem)
+           max-height acotado: el mapa queda libre arriba y la ruta no queda tapada */
         .driver-trip-offer-popup-sheet {
             position: relative;
             z-index: 1;
             width: min(17rem, calc(100vw - 1.5rem));
             max-width: 17rem;
-            max-height: none !important;
+            max-height: min(52vh, 26rem) !important;
             height: auto !important;
             display: flex;
             flex-direction: column;
@@ -17988,9 +18191,11 @@
         }
 
         .driver-trip-offer-popup-body {
-            flex: 0 0 auto;
+            flex: 1 1 auto;
             min-height: 0;
-            overflow: hidden !important; /* SIN scroll vertical */
+            overflow-x: hidden;
+            overflow-y: auto; /* si la ruta es larga, scrollea el panel, no tapa el mapa */
+            -webkit-overflow-scrolling: touch;
             padding: 0;
         }
 
@@ -18140,14 +18345,17 @@
             border: 1px solid #e2e8f0;
             border-radius: 0.75rem;
         }
+        .driver-offer-card--uber-vert .driver-offer-route-full {
+            margin: 0;
+        }
         .uber-vert-ab {
             font-size: 0.72rem;
             font-weight: 700;
             color: #334155;
             line-height: 1.25;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            white-space: normal;
+            word-break: break-word;
+            overflow: visible;
         }
         .uber-vert-ab b {
             display: inline-flex;
@@ -18277,7 +18485,8 @@
         }
 
         body.driver-offer-popup-open .driver-trip-offer-popup-sheet {
-            max-height: none !important;
+            /* No anular el tope: la ruta del mapa debe quedar visible arriba */
+            max-height: min(52vh, 26rem) !important;
         }
 
         body.driver-offer-popup-open .driver-trip-offer-popup-top {
@@ -21031,21 +21240,17 @@ img.store-card-cover {
   border-radius: 999px !important;
 }
 
-/* Cualquier img de perfil llena el contenedor y se recorta al centro */
+/* Avatar en cajas de perfil (header / registro): llena SOLO su contenedor acotado */
 .profile-photo-img,
 .profile-photo-box > img,
 #avatar-placeholder > img,
 #edit-photo-preview > img,
 #photo-preview > img,
-#passenger-reg-photo-preview,
-#client-trip-photo,
-#client-trip-min-photo,
-#tp-photo,
-.client-trip-photo {
+#passenger-reg-photo-preview {
   width: 100% !important;
   height: 100% !important;
-  max-width: none !important;
-  max-height: none !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   min-width: 0 !important;
   min-height: 0 !important;
   object-fit: cover !important;
@@ -21054,6 +21259,61 @@ img.store-card-cover {
   border-radius: inherit;
   background: #e2e8f0;
 }
+
+/*
+ * Fotos del CONDUCTOR en viaje / flotantes: tamaño FIJO.
+ * Antes heredaban width/height 100% y al minimizar el panel
+ * se expandían sobre el mapa (bug: “solo se ve la foto”).
+ */
+#client-trip-photo,
+.client-trip-photo {
+  width: 3.1rem !important;
+  height: 3.1rem !important;
+  max-width: 3.1rem !important;
+  max-height: 3.1rem !important;
+  min-width: 3.1rem !important;
+  min-height: 3.1rem !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  display: block !important;
+  border-radius: 999px !important;
+  flex-shrink: 0 !important;
+  background: #e2e8f0;
+}
+
+#client-trip-min-photo,
+.client-trip-min-photo {
+  width: 2.1rem !important;
+  height: 2.1rem !important;
+  max-width: 2.1rem !important;
+  max-height: 2.1rem !important;
+  min-width: 2.1rem !important;
+  min-height: 2.1rem !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  display: block !important;
+  border-radius: 999px !important;
+  flex-shrink: 0 !important;
+  background: #93c5fd;
+}
+
+#tp-photo {
+  width: 3.5rem !important;
+  height: 3.5rem !important;
+  max-width: 3.5rem !important;
+  max-height: 3.5rem !important;
+  min-width: 3.5rem !important;
+  min-height: 3.5rem !important;
+  object-fit: cover !important;
+  object-position: center center !important;
+  display: block !important;
+  border-radius: 999px !important;
+  flex-shrink: 0 !important;
+  background: #e2e8f0;
+}
+
+/* Burbuja del conductor: NO forzar pastilla por CSS al minimizar el panel
+   (eso impedía maximizar al tocar la burbuja azul). El estado lo marca .trip-float--min */
 
 /* Avatar header: el contenedor es el recorte */
 #avatar-placeholder {
@@ -21157,9 +21417,10 @@ body.capacitor-android.client-mode.panel-hidden #control-panel {
   margin: 0 !important;
 }
 
-/* FAB para volver a abrir el panel cuando estï¿½ oculto del todo */
+/* FAB para volver a abrir el panel cuando está oculto del todo */
 body.client-mode.panel-hidden .panel-expand-fab,
-body.panel-hidden .panel-expand-fab {
+body.panel-hidden .panel-expand-fab,
+body.driver-mode.panel-minimized:not(.trip-active) .panel-expand-fab {
   display: inline-flex !important;
   z-index: 200 !important;
 }

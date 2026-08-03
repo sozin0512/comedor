@@ -1,5 +1,6 @@
 /**
  * Zonas por ciudad (estilo Facebook Marketplace). Cobertura fija por ciudad, sin km manual.
+ * Base: honduras-cities.js + customZones en config y appSettings (admin puede agregar).
  */
 import { HONDURAS_CITIES } from "./honduras-cities.js";
 
@@ -8,17 +9,118 @@ const RADIUS_CLIENT_KEY = "honduber_radius_client";
 const RADIUS_DRIVER_KEY = "honduber_radius_driver";
 const ZONE_PANEL_OPEN_KEY = "honduber_zone_panel_open";
 
+/** Zonas custom cargadas desde Firestore appSettings (en memoria). */
+let runtimeCustomZones = [];
+
 export function getZoneConfig() {
     return window.APP_CONFIG?.serviceZones || { enabled: false };
 }
 
+/**
+ * Normaliza una zona custom (id, name, center, coverageKm, department).
+ */
+export function normalizeCustomZone(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const id = String(raw.id || '')
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+    const name = String(raw.name || '').trim();
+    const lat = Number(raw.center?.lat ?? raw.lat);
+    const lng = Number(raw.center?.lng ?? raw.lng);
+    if (!id || !name || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    const coverageKm = Number(raw.coverageKm);
+    return {
+        id,
+        name,
+        department: String(raw.department || 'Personalizadas').trim() || 'Personalizadas',
+        center: { lat, lng },
+        coverageKm: Number.isFinite(coverageKm) && coverageKm > 0 ? coverageKm : undefined,
+        custom: true,
+    };
+}
+
+/** Zonas definidas en config.js (serviceZones.customZones). */
+export function getConfigCustomZones() {
+    const cfg = getZoneConfig();
+    const list = Array.isArray(cfg.customZones) ? cfg.customZones : [];
+    return list.map(normalizeCustomZone).filter(Boolean);
+}
+
+export function getRuntimeCustomZones() {
+    return runtimeCustomZones.slice();
+}
+
+/** Reemplaza zonas custom en memoria (tras leer appSettings). */
+export function setRuntimeCustomZones(list) {
+    const arr = Array.isArray(list) ? list : [];
+    runtimeCustomZones = arr.map(normalizeCustomZone).filter(Boolean);
+    try {
+        window.__HR_CUSTOM_ZONES = runtimeCustomZones;
+    } catch (_) {}
+    return runtimeCustomZones;
+}
+
+/**
+ * Todas las zonas: ciudades de Honduras + custom de config + custom de appSettings.
+ * Si hay id duplicado, gana la custom (admin).
+ */
 export function getServiceZones() {
-    return HONDURAS_CITIES;
+    const base = Array.isArray(HONDURAS_CITIES) ? HONDURAS_CITIES : [];
+    const custom = [...getConfigCustomZones(), ...runtimeCustomZones];
+    if (!custom.length) return base;
+    const byId = new Map();
+    base.forEach((z) => {
+        if (z?.id) byId.set(z.id, z);
+    });
+    custom.forEach((z) => {
+        if (z?.id) byId.set(z.id, z);
+    });
+    return [...byId.values()];
 }
 
 export function getZoneById(zoneId) {
     if (!zoneId) return null;
     return getServiceZones().find((z) => z.id === zoneId) || null;
+}
+
+/** Opciones HTML para <select> de zona (agrupadas por departamento). */
+export function buildZoneSelectOptionsHtml(selectedId = '', { escapeHtml: esc } = {}) {
+    const escape = typeof esc === 'function'
+        ? esc
+        : (s) => String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    const zones = getServiceZones();
+    const byDept = new Map();
+    zones.forEach((z) => {
+        const d = z.department || 'Otras';
+        if (!byDept.has(d)) byDept.set(d, []);
+        byDept.get(d).push(z);
+    });
+    // Departamentos alfabéticos; Personalizadas primero
+    const depts = [...byDept.keys()].sort((a, b) => {
+        if (a === 'Personalizadas') return -1;
+        if (b === 'Personalizadas') return 1;
+        return a.localeCompare(b, 'es');
+    });
+    const sel = String(selectedId || '');
+    let html = '';
+    depts.forEach((dept) => {
+        const list = byDept.get(dept).slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'));
+        html += `<optgroup label="${escape(dept)}">`;
+        list.forEach((z) => {
+            const chosen = z.id === sel ? ' selected' : '';
+            html += `<option value="${escape(z.id)}"${chosen}>${escape(z.name)}</option>`;
+        });
+        html += '</optgroup>';
+    });
+    return html;
 }
 
 export function haversineKm(lat1, lng1, lat2, lng2) {

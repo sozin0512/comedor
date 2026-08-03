@@ -21,7 +21,14 @@ import {
     validateFreightDetails,
     getServiceLabel
 } from './service-types.js';
-import { getDefaultZoneId, getZoneById, getZoneConfig, getCityCoverageKm } from './zones.js';
+import {
+    getDefaultZoneId,
+    getZoneById,
+    getZoneConfig,
+    getCityCoverageKm,
+    getServiceZones,
+    buildZoneSelectOptionsHtml
+} from './zones.js';
 
 /** Host público siempre (WhatsApp no linkifica capacitor:// ni localhost). */
 const STAFF_TRIP_PUBLIC_BASE = 'https://comedor-86278.web.app';
@@ -135,7 +142,7 @@ function clearPendingStaffTripId() {
 function buildStaffTripWhatsAppMessage({
     tripId, clientName, origin, destination, priceLabel,
     clientChoosesSchedule, passengers, clientChoosesPassengers, scheduledFor,
-    clientChoosesRoute, serviceType, freightLabel
+    clientChoosesRoute, serviceType, freightLabel, guestInvite = false
 }) {
     const link = buildStaffTripShareLink(tripId);
     const name = (clientName || 'Cliente').split(' ')[0];
@@ -164,6 +171,9 @@ function buildStaffTripWhatsAppMessage({
             ? `HonduRaite — flete listo para ti, ${name}`
             : `HonduRaite — viaje listo para ti, ${name}`,
         '',
+        guestInvite
+            ? 'IMPORTANTE: primero regístrate o inicia sesión en HonduRaite (pasajero). Luego toca el link y se te carga el viaje.'
+            : null,
         freightLabel ? `Servicio: ${freightLabel}` : null,
         clientChoosesRoute
             ? 'Ubicaciones: las pones tú al abrir el link.'
@@ -176,7 +186,8 @@ function buildStaffTripWhatsAppMessage({
         whenLine,
         isFlete ? 'Al confirmar, te asignamos el conductor de flete elegido por soporte.' : null,
         '',
-        'Abre aquí (toca el enlace):',
+        guestInvite ? '1) Regístrate / entra a la app' : null,
+        guestInvite ? '2) Abre este enlace (toca):' : 'Abre aquí (toca el enlace):',
         '',
         link,
         '',
@@ -200,6 +211,7 @@ function showStaffTripSharePanel({
     clientChoosesRoute = false,
     serviceType = 'auto',
     freightLabel = '',
+    guestInvite = false,
     showToast,
     resend = false
 }) {
@@ -209,7 +221,7 @@ function showStaffTripSharePanel({
     const msg = buildStaffTripWhatsAppMessage({
         tripId, clientName, origin, destination, priceLabel,
         clientChoosesSchedule, passengers, clientChoosesPassengers, scheduledFor,
-        clientChoosesRoute, serviceType, freightLabel
+        clientChoosesRoute, serviceType, freightLabel, guestInvite
     });
     // wa.me suele prellenar mejor el texto con URLs; api.whatsapp.com a veces trunca
     const waUrl = phone ? getWhatsAppLink(phone, msg) : '';
@@ -231,11 +243,13 @@ function showStaffTripSharePanel({
                     display:flex;align-items:center;justify-content:center;font-size:1.5rem;">${resend ? '↩' : '✓'}</div>
                 <h3 style="margin:0;font-size:1.05rem;font-weight:900;">${resend ? 'Reenviar mensaje' : 'Viaje creado'}</h3>
                 <p style="margin:0.35rem 0 0;font-size:12px;color:#94a3b8;font-weight:700;line-height:1.4;">
-                    ${resend ? 'Vuelve a mandar el link a' : 'Notificación enviada a'}
+                    ${resend ? 'Vuelve a mandar el link a' : 'Listo para'}
                     <b style="color:#6ee7b7;">${escapeHtml(clientName || 'cliente')}</b>.
-                    ${clientChoosesSchedule
-                        ? ' Es programado: el cliente elige fecha y hora.'
-                        : (scheduledFor ? ' Es programado con fecha/hora fija.' : '')}
+                    ${guestInvite
+                        ? ' Debe <b style="color:#fde68a;">registrarse o iniciar sesión</b> y luego abrir el link para cargar el viaje.'
+                        : (clientChoosesSchedule
+                            ? ' Es programado: el cliente elige fecha y hora.'
+                            : (scheduledFor ? ' Es programado con fecha/hora fija.' : ''))}
                 </p>
             </div>
             <div style="padding:0.65rem 0.75rem;border-radius:0.85rem;background:#020617;border:1px solid #1e293b;margin-bottom:0.75rem;">
@@ -349,16 +363,20 @@ export function installStaffCreateClientTrip({
             const defaultZone = window.activeServiceZoneId || getDefaultZoneId?.() || '';
             let zoneOptionsHtml = '';
             try {
-                const zcfg = typeof getZoneConfig === 'function' ? getZoneConfig() : null;
-                const list = zcfg?.zones || zcfg || [];
-                const arr = Array.isArray(list) ? list : Object.values(list || {});
-                zoneOptionsHtml = arr.map((z) => {
-                    const id = z.id || z.zoneId || '';
-                    const name = z.name || id;
-                    if (!id) return '';
-                    return `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`;
-                }).join('');
-            } catch (_) {}
+                // Todas las ciudades HN + zonas personalizadas (antes solo leía config.zones vacío)
+                zoneOptionsHtml = typeof buildZoneSelectOptionsHtml === 'function'
+                    ? buildZoneSelectOptionsHtml(defaultZone, { escapeHtml })
+                    : (typeof getServiceZones === 'function' ? getServiceZones() : [])
+                        .map((z) => {
+                            const id = z.id || '';
+                            if (!id) return '';
+                            const sel = id === defaultZone ? ' selected' : '';
+                            return `<option value="${escapeHtml(id)}"${sel}>${escapeHtml(z.name || id)}</option>`;
+                        })
+                        .join('');
+            } catch (e) {
+                console.warn('[staff] zone options', e);
+            }
 
             const preName = pre?.name || '';
             const prePhone = pre?.phone || '';
@@ -398,14 +416,41 @@ export function installStaffCreateClientTrip({
                         <p style="margin:0;font-size:0.7rem;color:#a7f3d0;font-weight:700;">${escapeHtml(prePhone || 'Sin teléfono')}</p>
                     </div>
                     <input type="hidden" id="staff-cct-client-id" value="${escapeHtml(preUid)}">
+                    <input type="hidden" id="staff-cct-guest-mode" value="0">
                     ` : `
-                    <label style="display:block;font-size:10px;font-weight:900;text-transform:uppercase;color:#94a3b8;margin-bottom:0.25rem;">Buscar cliente</label>
-                    <input type="search" id="staff-cct-search" class="ops-input" style="width:100%;margin-bottom:0.5rem;" placeholder="Nombre o WhatsApp" autocomplete="off">
-                    <div id="staff-cct-client-list" style="max-height:9rem;overflow:auto;margin-bottom:0.75rem;border:1px solid #334155;border-radius:0.75rem;padding:0.4rem;background:#020617;">
-                        <p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">Escribe para buscar (no carga todos)</p>
+                    <div style="margin-bottom:0.75rem;padding:0.55rem 0.65rem;border-radius:0.85rem;border:1px solid #334155;background:#020617;">
+                        <p style="margin:0 0 0.45rem;font-size:10px;font-weight:900;color:#94a3b8;text-transform:uppercase;">Cliente</p>
+                        <div style="display:flex;gap:0.35rem;margin-bottom:0.55rem;">
+                            <button type="button" id="staff-cct-mode-registered" class="staff-cct-mode-btn" data-mode="registered"
+                                style="flex:1;padding:0.4rem 0.5rem;border-radius:0.65rem;border:1px solid #2563eb;background:#2563eb;color:#fff;font-size:11px;font-weight:900;cursor:pointer;">
+                                Ya está en la app
+                            </button>
+                            <button type="button" id="staff-cct-mode-guest" class="staff-cct-mode-btn" data-mode="guest"
+                                style="flex:1;padding:0.4rem 0.5rem;border-radius:0.65rem;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:11px;font-weight:900;cursor:pointer;">
+                                Nuevo (debe registrarse)
+                            </button>
+                        </div>
+                        <div id="staff-cct-registered-block">
+                            <label style="display:block;font-size:10px;font-weight:900;text-transform:uppercase;color:#94a3b8;margin-bottom:0.25rem;">Buscar cliente registrado</label>
+                            <input type="search" id="staff-cct-search" class="ops-input" style="width:100%;margin-bottom:0.5rem;" placeholder="Nombre o WhatsApp" autocomplete="off">
+                            <div id="staff-cct-client-list" style="max-height:9rem;overflow:auto;margin-bottom:0.5rem;border:1px solid #334155;border-radius:0.75rem;padding:0.4rem;background:#0f172a;">
+                                <p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">Escribe para buscar</p>
+                            </div>
+                            <p id="staff-cct-selected" style="font-size:12px;font-weight:800;color:#6ee7b7;margin:0;display:none;"></p>
+                        </div>
+                        <div id="staff-cct-guest-block" style="display:none;">
+                            <p style="margin:0 0 0.5rem;font-size:11px;color:#93c5fd;font-weight:700;line-height:1.4;">
+                                El cliente <b>aún no tiene cuenta</b>. Armas el viaje, le mandas WhatsApp y al
+                                <b>registrarse / iniciar sesión</b> con el link se le carga el viaje.
+                            </p>
+                            <label style="display:block;font-size:10px;font-weight:900;text-transform:uppercase;color:#94a3b8;margin-bottom:0.25rem;">Nombre del cliente</label>
+                            <input type="text" id="staff-cct-guest-name" class="ops-input" style="width:100%;margin-bottom:0.5rem;" placeholder="Ej. María López" autocomplete="name">
+                            <label style="display:block;font-size:10px;font-weight:900;text-transform:uppercase;color:#94a3b8;margin-bottom:0.25rem;">WhatsApp (Honduras)</label>
+                            <input type="tel" id="staff-cct-guest-phone" class="ops-input" style="width:100%;" placeholder="9xxx-xxxx o +504…" inputmode="tel" autocomplete="tel">
+                        </div>
+                        <input type="hidden" id="staff-cct-client-id" value="">
+                        <input type="hidden" id="staff-cct-guest-mode" value="0">
                     </div>
-                    <p id="staff-cct-selected" style="font-size:12px;font-weight:800;color:#6ee7b7;margin:0 0 0.75rem;display:none;"></p>
-                    <input type="hidden" id="staff-cct-client-id" value="">
                     `}
 
                     <div style="display:grid;gap:0.65rem;margin-bottom:0.65rem;">
@@ -486,13 +531,36 @@ export function installStaffCreateClientTrip({
 
                     <div id="staff-cct-drivers-wrap" style="display:none;margin-bottom:0.65rem;padding:0.65rem;border-radius:0.85rem;border:1px solid #7c3aed;background:rgba(76,29,149,0.35);">
                         <p style="margin:0 0 0.35rem;font-size:10px;font-weight:900;text-transform:uppercase;color:#ddd6fe;">
-                            Conductores del flete (elige 1 o más)
+                            Designar conductores del flete
                         </p>
                         <p style="margin:0 0 0.45rem;font-size:10px;font-weight:700;color:#c4b5fd;line-height:1.35;">
-                            Solo paila o camión según el servicio. Al confirmar el cliente, se les ofrece el flete.
+                            Tú eliges a quién se le ofrece. Puedes marcar conductores normales o los que ya hacen fletes.
+                            Al confirmar el cliente, se les manda la oferta.
                         </p>
-                        <input type="search" id="staff-cct-driver-search" class="ops-input" style="width:100%;margin-bottom:0.4rem;" placeholder="Buscar conductor…" autocomplete="off">
-                        <div id="staff-cct-driver-list" style="max-height:11rem;overflow:auto;border:1px solid #5b21b6;border-radius:0.65rem;padding:0.35rem;background:#020617;">
+                        <div id="staff-cct-driver-filters" style="display:flex;flex-wrap:wrap;gap:0.3rem;margin-bottom:0.45rem;">
+                            <button type="button" class="staff-cct-drv-filter" data-filter="all"
+                                style="padding:0.3rem 0.55rem;border-radius:0.55rem;border:1px solid #7c3aed;background:#7c3aed;color:#fff;font-size:10px;font-weight:900;cursor:pointer;">
+                                Todos
+                            </button>
+                            <button type="button" class="staff-cct-drv-filter" data-filter="freight"
+                                style="padding:0.3rem 0.55rem;border-radius:0.55rem;border:1px solid #5b21b6;background:#1e1b4b;color:#e9d5ff;font-size:10px;font-weight:900;cursor:pointer;">
+                                Fletes ON
+                            </button>
+                            <button type="button" class="staff-cct-drv-filter" data-filter="paila"
+                                style="padding:0.3rem 0.55rem;border-radius:0.55rem;border:1px solid #5b21b6;background:#1e1b4b;color:#e9d5ff;font-size:10px;font-weight:900;cursor:pointer;">
+                                Paila
+                            </button>
+                            <button type="button" class="staff-cct-drv-filter" data-filter="camion"
+                                style="padding:0.3rem 0.55rem;border-radius:0.55rem;border:1px solid #5b21b6;background:#1e1b4b;color:#e9d5ff;font-size:10px;font-weight:900;cursor:pointer;">
+                                Camión
+                            </button>
+                            <button type="button" class="staff-cct-drv-filter" data-filter="normal"
+                                style="padding:0.3rem 0.55rem;border-radius:0.55rem;border:1px solid #5b21b6;background:#1e1b4b;color:#e9d5ff;font-size:10px;font-weight:900;cursor:pointer;">
+                                Solo normales
+                            </button>
+                        </div>
+                        <input type="search" id="staff-cct-driver-search" class="ops-input" style="width:100%;margin-bottom:0.4rem;" placeholder="Buscar por nombre, tel o placa…" autocomplete="off">
+                        <div id="staff-cct-driver-list" style="max-height:12rem;overflow:auto;border:1px solid #5b21b6;border-radius:0.65rem;padding:0.35rem;background:#020617;">
                             <p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">Cargando conductores…</p>
                         </div>
                         <p id="staff-cct-drivers-picked" style="margin:0.4rem 0 0;font-size:10px;font-weight:800;color:#c4b5fd;"></p>
@@ -631,8 +699,14 @@ export function installStaffCreateClientTrip({
             const originDestGrid = modal.querySelector('#staff-cct-origin')?.parentElement?.parentElement?.parentElement;
             const selectedDriverIds = new Set();
             let fleteDriverCache = [];
+            // all | freight | paila | camion | normal — staff designa a quien quiera
+            let driverListFilter = 'all';
 
             const isFleteSvc = () => isFreightService(serviceSelect?.value || 'auto');
+
+            const hasPailaType = (d) => d.types.some((t) => /paila|pickup/i.test(t));
+            const hasCamionType = (d) => d.types.some((t) => /camion|camión/i.test(t));
+            const isFreightish = (d) => d.freightEnabled || hasPailaType(d) || hasCamionType(d);
 
             const syncFleteUi = () => {
                 const flete = isFleteSvc();
@@ -650,44 +724,69 @@ export function installStaffCreateClientTrip({
                 if (flete) loadFleteDrivers();
             };
 
+            const syncDriverFilterButtons = () => {
+                modal.querySelectorAll('.staff-cct-drv-filter').forEach((btn) => {
+                    const on = btn.getAttribute('data-filter') === driverListFilter;
+                    btn.style.background = on ? '#7c3aed' : '#1e1b4b';
+                    btn.style.borderColor = on ? '#7c3aed' : '#5b21b6';
+                    btn.style.color = on ? '#fff' : '#e9d5ff';
+                });
+            };
+
             const renderDriverList = (filter = '') => {
                 const listEl = modal.querySelector('#staff-cct-driver-list');
                 const pickedEl = modal.querySelector('#staff-cct-drivers-picked');
                 if (!listEl) return;
-                const svc = normalizeServiceType(serviceSelect?.value || 'flete_paila');
-                const needType = svc === 'flete_camion' ? 'camion' : 'paila';
                 const q = String(filter || '').trim().toLowerCase();
-                const filtered = fleteDriverCache.filter((d) => {
-                    if (!d.types.includes(needType) && !d.types.includes(svc === 'flete_camion' ? 'camion' : 'paila')) {
-                        // accept vehicleType aliases
-                        const ok = needType === 'camion'
-                            ? d.types.some((t) => /camion|camión/i.test(t))
-                            : d.types.some((t) => /paila|pickup/i.test(t));
-                        if (!ok) return false;
-                    }
+                let filtered = fleteDriverCache.filter((d) => {
+                    if (driverListFilter === 'freight' && !isFreightish(d)) return false;
+                    if (driverListFilter === 'paila' && !hasPailaType(d) && !d.freightEnabled) return false;
+                    if (driverListFilter === 'camion' && !hasCamionType(d) && !d.freightEnabled) return false;
+                    if (driverListFilter === 'normal' && isFreightish(d)) return false;
                     if (!q) return true;
-                    return `${d.name} ${d.phone} ${d.plate}`.toLowerCase().includes(q);
+                    return `${d.name} ${d.phone} ${d.plate} ${d.types.join(' ')}`.toLowerCase().includes(q);
+                });
+                // Orden: seleccionados → en línea → fletes → nombre
+                filtered = filtered.slice().sort((a, b) => {
+                    const as = selectedDriverIds.has(a.uid) ? 0 : 1;
+                    const bs = selectedDriverIds.has(b.uid) ? 0 : 1;
+                    if (as !== bs) return as - bs;
+                    if ((b.online ? 1 : 0) !== (a.online ? 1 : 0)) return (b.online ? 1 : 0) - (a.online ? 1 : 0);
+                    if ((b.freightEnabled ? 1 : 0) !== (a.freightEnabled ? 1 : 0)) {
+                        return (b.freightEnabled ? 1 : 0) - (a.freightEnabled ? 1 : 0);
+                    }
+                    return String(a.name || '').localeCompare(String(b.name || ''), 'es');
                 });
                 if (!filtered.length) {
                     listEl.innerHTML = `<p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">
-                        No hay conductores de ${needType === 'camion' ? 'camión' : 'paila'} ${q ? 'con ese filtro' : 'registrados'}.</p>`;
+                        No hay conductores con ese filtro${q ? ' / búsqueda' : ''}. Prueba «Todos».</p>`;
                 } else {
                     listEl.innerHTML = filtered.map((d) => {
                         const on = selectedDriverIds.has(d.uid);
+                        const typeLabel = d.types.length
+                            ? d.types.slice(0, 3).join('/')
+                            : 'sin tipo';
+                        const badges = [
+                            d.online ? 'EN LÍNEA' : null,
+                            d.freightEnabled ? 'FLETES ON' : 'normal',
+                        ].filter(Boolean).join(' · ');
                         return `<label style="display:flex;align-items:center;gap:0.45rem;padding:0.4rem 0.45rem;border-radius:0.5rem;
                             background:${on ? '#4c1d95' : 'transparent'};cursor:pointer;margin:0 0 0.15rem;">
                             <input type="checkbox" data-driver-uid="${escapeHtml(d.uid)}" ${on ? 'checked' : ''} style="flex-shrink:0;">
                             <span style="min-width:0;flex:1;">
                                 <span style="display:block;font-size:12px;font-weight:900;color:#fff;">${escapeHtml(d.name)}</span>
-                                <span style="display:block;font-size:10px;font-weight:700;color:#c4b5fd;">${escapeHtml(d.phone || '')}${d.plate ? ` · ${escapeHtml(d.plate)}` : ''} · ${escapeHtml(d.types.join('/'))}${d.freightEnabled ? ' · FLETES ON' : ''}</span>
+                                <span style="display:block;font-size:10px;font-weight:700;color:#c4b5fd;">
+                                    ${escapeHtml(d.phone || '')}${d.plate ? ` · ${escapeHtml(d.plate)}` : ''}
+                                    · ${escapeHtml(typeLabel)} · ${escapeHtml(badges)}
+                                </span>
                             </span>
                         </label>`;
                     }).join('');
                 }
                 if (pickedEl) {
                     pickedEl.textContent = selectedDriverIds.size
-                        ? `${selectedDriverIds.size} conductor(es) seleccionado(s)`
-                        : 'Ninguno seleccionado (recomendado elegir al menos 1)';
+                        ? `${selectedDriverIds.size} designado(s) para este flete`
+                        : 'Ninguno designado — elige al menos 1 conductor';
                 }
             };
 
@@ -695,31 +794,34 @@ export function installStaffCreateClientTrip({
                 const listEl = modal.querySelector('#staff-cct-driver-list');
                 if (listEl) listEl.innerHTML = '<p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">Cargando…</p>';
                 try {
+                    // TODOS los conductores registrados: staff designa a quien quiera (normal o flete)
                     const snap = await getDocs(query(
                         collection(db, 'artifacts', appId, 'public', 'data', 'users'),
                         where('role', '==', 'driver'),
-                        limit(200)
+                        limit(300)
                     ));
                     fleteDriverCache = snap.docs.map((d) => {
                         const u = d.data() || {};
+                        // No listar suspendidos / rechazados si el campo existe
+                        const st = String(u.approvalStatus || '').toLowerCase();
+                        if (st === 'suspended' || st === 'rejected' || st === 'banned') return null;
                         const vehicles = Array.isArray(u.vehicles) ? u.vehicles : [];
                         const types = [];
                         if (u.vehicleType) types.push(String(u.vehicleType).toLowerCase());
+                        if (u.serviceType) types.push(String(u.serviceType).toLowerCase());
                         vehicles.forEach((v) => {
                             if (v?.type) types.push(String(v.type).toLowerCase());
                             if (v?.vehicleType) types.push(String(v.vehicleType).toLowerCase());
+                            if (v?.vehicle?.type) types.push(String(v.vehicle.type).toLowerCase());
                         });
-                        // Staff habilitó fletes: mostrar aunque aún no tenga paila/camión en perfil
                         if (u.freightEnabled || u.canDoFreight) {
                             const pref = Array.isArray(u.freightPreferredTypes) ? u.freightPreferredTypes : [];
                             pref.forEach((t) => types.push(String(t).toLowerCase()));
-                            if (!types.some((t) => /paila|camion|camión/.test(t))) {
-                                types.push('paila', 'camion');
-                            }
                         }
                         const plate = u.vehicle?.plate
                             || vehicles.find((v) => v?.vehicle?.plate)?.vehicle?.plate
                             || vehicles.find((v) => v?.plate)?.plate
+                            || u.plate
                             || '';
                         return {
                             uid: d.id,
@@ -730,10 +832,8 @@ export function installStaffCreateClientTrip({
                             online: u.isOnline === true || u.online === true,
                             freightEnabled: !!(u.freightEnabled || u.canDoFreight)
                         };
-                    }).filter((d) =>
-                        d.freightEnabled
-                        || d.types.some((t) => /paila|pickup|camion|camión/.test(t))
-                    );
+                    }).filter(Boolean);
+                    syncDriverFilterButtons();
                     renderDriverList(modal.querySelector('#staff-cct-driver-search')?.value || '');
                 } catch (e) {
                     console.warn('[staff] load flete drivers', e);
@@ -743,6 +843,14 @@ export function installStaffCreateClientTrip({
                     }
                 }
             };
+
+            modal.querySelector('#staff-cct-driver-filters')?.addEventListener('click', (e) => {
+                const btn = e.target?.closest?.('.staff-cct-drv-filter');
+                if (!btn) return;
+                driverListFilter = btn.getAttribute('data-filter') || 'all';
+                syncDriverFilterButtons();
+                renderDriverList(modal.querySelector('#staff-cct-driver-search')?.value || '');
+            });
 
             modal.querySelector('#staff-cct-driver-list')?.addEventListener('change', (e) => {
                 const cb = e.target?.closest?.('input[data-driver-uid]');
@@ -1283,12 +1391,40 @@ export function installStaffCreateClientTrip({
                 openPinPick('dest');
             });
 
-            // Búsqueda solo si no hay preselección (y solo filtra en memoria tras 1 carga o por query corta)
+            // Búsqueda / invitado solo si no hay preselección
             if (!hasPre) {
                 const listEl = modal.querySelector('#staff-cct-client-list');
                 const searchEl = modal.querySelector('#staff-cct-search');
                 const selectedEl = modal.querySelector('#staff-cct-selected');
                 const clientIdEl = modal.querySelector('#staff-cct-client-id');
+                const guestModeEl = modal.querySelector('#staff-cct-guest-mode');
+                const regBlock = modal.querySelector('#staff-cct-registered-block');
+                const guestBlock = modal.querySelector('#staff-cct-guest-block');
+                const modeRegBtn = modal.querySelector('#staff-cct-mode-registered');
+                const modeGuestBtn = modal.querySelector('#staff-cct-mode-guest');
+
+                const setClientMode = (mode) => {
+                    const guest = mode === 'guest';
+                    if (guestModeEl) guestModeEl.value = guest ? '1' : '0';
+                    if (regBlock) regBlock.style.display = guest ? 'none' : 'block';
+                    if (guestBlock) guestBlock.style.display = guest ? 'block' : 'none';
+                    if (modeRegBtn) {
+                        modeRegBtn.style.background = guest ? '#1e293b' : '#2563eb';
+                        modeRegBtn.style.borderColor = guest ? '#334155' : '#2563eb';
+                    }
+                    if (modeGuestBtn) {
+                        modeGuestBtn.style.background = guest ? '#2563eb' : '#1e293b';
+                        modeGuestBtn.style.borderColor = guest ? '#2563eb' : '#334155';
+                    }
+                    if (guest && clientIdEl) clientIdEl.value = '';
+                    if (guest && selectedEl) {
+                        selectedEl.style.display = 'none';
+                        selectedEl.textContent = '';
+                    }
+                };
+                modeRegBtn?.addEventListener('click', () => setClientMode('registered'));
+                modeGuestBtn?.addEventListener('click', () => setClientMode('guest'));
+
                 let clients = [];
                 let loading = false;
 
@@ -1406,7 +1542,8 @@ export function installStaffCreateClientTrip({
         const modal = modalEl || document.getElementById('staff-create-client-trip-modal');
         if (!modal) return;
 
-        const clientId = modal.querySelector('#staff-cct-client-id')?.value?.trim();
+        const guestMode = modal.querySelector('#staff-cct-guest-mode')?.value === '1';
+        let clientId = modal.querySelector('#staff-cct-client-id')?.value?.trim();
         let origin = modal.querySelector('#staff-cct-origin')?.value?.trim();
         let destination = modal.querySelector('#staff-cct-dest')?.value?.trim();
         const serviceType = normalizeServiceType(modal.querySelector('#staff-cct-service')?.value || 'auto');
@@ -1433,7 +1570,7 @@ export function installStaffCreateClientTrip({
             ? [...modal._staffSelectedDriverIds]
             : [];
         if (isFlete && !selectedDriverIds.length) {
-            return toast(showToast, 'Elige al menos un conductor de paila/camión para el flete.', 'warning');
+            return toast(showToast, 'Designa al menos un conductor para el flete (puede ser normal o de fletes).', 'warning');
         }
 
         // Coords del pin / sugerencia (si las hay)
@@ -1446,7 +1583,28 @@ export function installStaffCreateClientTrip({
         if (!Number.isFinite(destinationLat)) destinationLat = null;
         if (!Number.isFinite(destinationLng)) destinationLng = null;
 
-        if (!clientId) return toast(showToast, 'Selecciona un cliente (o ábrelo desde su tarjeta).');
+        // Cliente registrado O invitado (debe registrarse con el link)
+        let guestInvite = false;
+        let guestName = '';
+        let guestPhone = '';
+        if (guestMode) {
+            guestInvite = true;
+            guestName = String(modal.querySelector('#staff-cct-guest-name')?.value || '').trim();
+            guestPhone = normalizeHondurasPhone(modal.querySelector('#staff-cct-guest-phone')?.value || '')
+                || String(modal.querySelector('#staff-cct-guest-phone')?.value || '').replace(/\D/g, '');
+            if (guestName.length < 2) {
+                return toast(showToast, 'Escribe el nombre del cliente nuevo.', 'warning');
+            }
+            if (!guestPhone || String(guestPhone).replace(/\D/g, '').length < 8) {
+                return toast(showToast, 'Pon un WhatsApp válido de Honduras (8 dígitos).', 'warning');
+            }
+            guestPhone = normalizeHondurasPhone(guestPhone) || guestPhone;
+            // Placeholder estable (reglas exigen clientId string no vacío). Al reclamar se cambia al uid real.
+            clientId = `guest_${String(guestPhone).replace(/\D/g, '')}`;
+        } else if (!clientId) {
+            return toast(showToast, 'Selecciona un cliente registrado, o usa «Nuevo (debe registrarse)».', 'warning');
+        }
+
         if (!clientChoosesRoute) {
             if (!origin || origin.length < 3) return toast(showToast, 'Escribe o marca el origen (búsqueda o pin).');
             if (!destination || destination.length < 3) return toast(showToast, 'Escribe o marca el destino.');
@@ -1474,19 +1632,52 @@ export function installStaffCreateClientTrip({
         if (hint) hint.textContent = 'Calculando ruta y guardando…';
 
         try {
-            const clientSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', clientId));
-            if (!clientSnap.exists()) throw new Error('Cliente no encontrado.');
-            const client = clientSnap.data() || {};
+            let client = {};
+            if (guestInvite) {
+                client = {
+                    name: guestName,
+                    phone: guestPhone,
+                    photo: null,
+                    approvalStatus: 'approved',
+                    totalTrips: 0,
+                };
+            } else {
+                const clientSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', clientId));
+                if (!clientSnap.exists()) throw new Error('Cliente no encontrado.');
+                client = clientSnap.data() || {};
+            }
 
-            const activeQ = await getDocs(query(
-                collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
-                where('clientId', '==', clientId)
-            ));
-            const busy = activeQ.docs.some((d) => {
-                const s = d.data()?.status;
-                return ['pending', 'accepted', 'in_progress', 'scheduled'].includes(s);
-            });
-            if (busy) throw new Error('Ese cliente ya tiene un viaje pendiente o activo.');
+            // Viajes activos: por uid (registrado) o por teléfono (invitado)
+            try {
+                if (!guestInvite) {
+                    const activeQ = await getDocs(query(
+                        collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
+                        where('clientId', '==', clientId)
+                    ));
+                    const busy = activeQ.docs.some((d) => {
+                        const s = d.data()?.status;
+                        return ['pending', 'accepted', 'in_progress', 'scheduled'].includes(s);
+                    });
+                    if (busy) throw new Error('Ese cliente ya tiene un viaje pendiente o activo.');
+                } else {
+                    // clientId = guest_<tel> — sin índice compuesto
+                    const gQ = await getDocs(query(
+                        collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
+                        where('clientId', '==', clientId),
+                        limit(12)
+                    ));
+                    const busy = gQ.docs.some((d) => {
+                        const s = d.data()?.status;
+                        return ['pending', 'accepted', 'in_progress', 'scheduled'].includes(s);
+                    });
+                    if (busy) {
+                        throw new Error('Ya hay un viaje armado pendiente para ese WhatsApp. Reenvíalo desde «Viajes armados».');
+                    }
+                }
+            } catch (busyErr) {
+                if (busyErr?.message && /viaje|WhatsApp|pendiente/i.test(busyErr.message)) throw busyErr;
+                console.warn('[staff] busy check', busyErr);
+            }
 
             let tripDistanceKm = 0;
             let tripDurationMs = 0;
@@ -1659,11 +1850,20 @@ export function installStaffCreateClientTrip({
                 clientName: client.name || 'Cliente',
                 clientPhone: normalizeHondurasPhone(client.phone) || client.phone || '',
                 clientPhoto: client.photo || null,
-                clientRating: window.getProfileRating?.(client) || '5.0',
+                clientRating: guestInvite ? '5.0' : (window.getProfileRating?.(client) || '5.0'),
                 clientApprovalStatus: client.approvalStatus || 'approved',
-                clientVerified: client.approvalStatus === 'approved' || client.verified === true || !client.approvalStatus,
-                clientIsFirstTrip: !(Number(client.totalTrips) > 0),
-                clientTotalTrips: Number(client.totalTrips) || 0,
+                clientVerified: guestInvite
+                    ? false
+                    : (client.approvalStatus === 'approved' || client.verified === true || !client.approvalStatus),
+                clientIsFirstTrip: guestInvite ? true : !(Number(client.totalTrips) > 0),
+                clientTotalTrips: guestInvite ? 0 : (Number(client.totalTrips) || 0),
+                // Invitado sin cuenta: debe registrarse y reclamar el link
+                guestClient: guestInvite === true,
+                guestInvitePending: guestInvite === true,
+                pendingClientPhone: guestInvite
+                    ? (normalizeHondurasPhone(client.phone) || client.phone || '')
+                    : null,
+                pendingClientName: guestInvite ? (client.name || 'Cliente') : null,
                 tripDistanceKm: clientChoosesRoute ? 0 : tripDistanceKm,
                 tripDurationMs: clientChoosesRoute ? 0 : tripDurationMs,
                 passengers,
@@ -1710,13 +1910,15 @@ export function installStaffCreateClientTrip({
             modal.remove();
             toast(
                 showToast,
-                clientChoosesRoute
-                    ? `Flete/viaje armado. Manda el link: el cliente pone ubicaciones y hora; se ofrece a ${selectedDriverIds.length} conductor(es).`
-                    : (clientChoosesSchedule
-                        ? `Viaje programado armado (cliente elige fecha/hora). Compártelo por WhatsApp.`
-                        : (scheduledFor
-                            ? `Viaje programado con fecha/hora fija. Compártelo por WhatsApp.`
-                            : `Viaje armado. Compártelo por WhatsApp o el cliente usa la notificación.`)),
+                guestInvite
+                    ? `Viaje armado para ${client.name}. Mándalo por WhatsApp: debe registrarse y abrir el link.`
+                    : (clientChoosesRoute
+                        ? `Flete/viaje armado. Manda el link: el cliente pone ubicaciones y hora; se ofrece a ${selectedDriverIds.length} conductor(es).`
+                        : (clientChoosesSchedule
+                            ? `Viaje programado armado (cliente elige fecha/hora). Compártelo por WhatsApp.`
+                            : (scheduledFor
+                                ? `Viaje programado con fecha/hora fija. Compártelo por WhatsApp.`
+                                : `Viaje armado. Compártelo por WhatsApp o el cliente usa la notificación.`))),
                 'success'
             );
 
@@ -1736,6 +1938,7 @@ export function installStaffCreateClientTrip({
                 freightLabel: isFlete
                     ? (typeof getServiceLabel === 'function' ? getServiceLabel(serviceType) : serviceType)
                     : '',
+                guestInvite,
                 showToast
             });
         } catch (e) {
@@ -1766,9 +1969,18 @@ export function installStaffCreateClientTrip({
 
         const user = getCurrentUser?.() || window.currentUser || null;
         if (!user?.uid) {
-            toast(showToast, 'Inicia sesión con la cuenta del cliente para abrir tu viaje.', 'warning');
+            toast(
+                showToast,
+                'Regístrate o inicia sesión como pasajero. Luego se te abrirá el viaje del link.',
+                'warning'
+            );
             return false;
         }
+        const isGuestTrip = (t) => !!(
+            t?.guestClient === true
+            || t?.guestInvitePending === true
+            || String(t?.clientId || '').startsWith('guest_')
+        );
         try {
             const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
             if (!snap.exists()) {
@@ -1808,12 +2020,18 @@ export function installStaffCreateClientTrip({
                 return false;
             }
             const t = { id: snap.id, ...snap.data() };
-            if (t.clientId && t.clientId !== user.uid) {
+            // Viaje de cliente registrado ajeno → bloquear
+            // Viaje invitado (guest_… / guestClient) → el dueño del link se registra y lo reclama
+            if (t.clientId && t.clientId !== user.uid && !isGuestTrip(t)) {
                 toast(
                     showToast,
                     'Este viaje es de otra cuenta. Cierra sesión y entra con el teléfono/correo del pasajero.',
                     'warning'
                 );
+                return false;
+            }
+            if (isGuestTrip(t) && t.staffCreatedClientClaimed === true && t.clientId !== user.uid) {
+                toast(showToast, 'Este viaje ya lo tomó otra cuenta.', 'warning');
                 return false;
             }
             if (t.status === 'cancelled') {
@@ -2150,6 +2368,8 @@ export function installStaffCreateClientTrip({
                     passengers: t.passengers,
                     clientChoosesPassengers: t.clientChoosesPassengers === true,
                     scheduledFor: t.scheduledFor || null,
+                    guestInvite: t.guestClient === true || t.guestInvitePending === true
+                        || String(t.clientId || '').startsWith('guest_'),
                     showToast,
                     resend: true
                 });
@@ -2185,6 +2405,8 @@ export function installStaffCreateClientTrip({
                 passengers: t.passengers,
                 clientChoosesPassengers: t.clientChoosesPassengers === true,
                 scheduledFor: t.scheduledFor || null,
+                guestInvite: t.guestClient === true || t.guestInvitePending === true
+                    || String(t.clientId || '').startsWith('guest_'),
                 showToast,
                 resend: true
             });

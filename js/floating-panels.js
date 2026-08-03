@@ -81,6 +81,10 @@ function isInteractiveTarget(el) {
     if (el?.closest?.('.passenger-promo-close, #passenger-promo-close, .app-download-badge-close, [data-copa-close], [data-app-dl-close], .copa-close-btn, .copa-strip-close')) return true;
     // Chevron min/max del panel: NUNCA iniciar drag (web lo confunde con movimiento)
     if (el?.closest?.('#panel-hide-btn, .panel-hide-btn, .trip-drag-handle, [data-trip-action="hide-panel"], [data-trip-action="toggle-panel"]')) return true;
+    // Burbuja azul “tocar para maximizar”: no arrastrar, solo expandir
+    if (el?.closest?.('[data-trip-float-expand], .client-trip-min-pill, .trip-float-min-view')) return true;
+    // Botón minimizar del flotante
+    if (el?.closest?.('[data-trip-float-min], .trip-float-min-btn')) return true;
     return !!el?.closest?.(
         'button, a, input, textarea, select, label, [data-no-drag], [data-trip-action], gmp-place-autocomplete, .panel-hide-btn, .wallet-compact-btn, .favorite-chip, .passenger-promo-card, [role="tab"], [role="button"], [role="slider"], [contenteditable="true"], .star-btn, .tip-btn'
     );
@@ -118,7 +122,7 @@ export function makeDraggable(element, options = {}) {
 
     const applyPos = (x, y, persist = true) => {
         const w = element.offsetWidth || 280;
-        const h = element.offsetHeight || 120;
+        let h = element.offsetHeight || 120;
         // No entrar bajo el reloj / notch / barra de gestos (como WhatsApp)
         const insets = readSafeInsets();
         const edge = 8;
@@ -126,8 +130,23 @@ export function makeDraggable(element, options = {}) {
         const safeT = edge + insets.top;
         const safeR = window.innerWidth - edge - insets.right;
         const safeB = window.innerHeight - edge - insets.bottom;
+        const availH = Math.max(120, safeB - safeT);
+
+        // Si el panel es más alto que la zona útil: acotar altura y scrollear dentro
+        // (si no, al pegarlo arriba el final queda fuera de la pantalla)
+        if (h > availH) {
+            element.style.maxHeight = `${availH}px`;
+            element.style.overflowY = 'auto';
+            element.style.webkitOverflowScrolling = 'touch';
+            // Forzar reflow y re-medir
+            h = Math.min(element.offsetHeight || availH, availH);
+        }
+
         const cx = clamp(x, safeL - w + minVisible, safeR - minVisible);
-        const cy = clamp(y, safeT, Math.max(safeT, safeB - minVisible));
+        // Mantener el panel ENTERO visible cuando quepa (no solo minVisible abajo)
+        const cyMax = Math.max(safeT, safeB - h);
+        const cy = clamp(y, safeT, cyMax);
+
         element.style.position = 'fixed';
         element.style.left = `${cx}px`;
         element.style.top = `${cy}px`;
@@ -250,11 +269,32 @@ function activateControlPanelFloating(panel) {
 
 function applyPosToControlPanel(panel, x, y) {
     const w = panel.offsetWidth || 320;
-    const h = panel.offsetHeight || 200;
+    let h = panel.offsetHeight || 200;
     const insets = readSafeInsets();
     const edge = 8;
-    const cx = clamp(x, edge + insets.left, window.innerWidth - w - edge - insets.right);
-    const cy = clamp(y, edge + insets.top, window.innerHeight - h - edge - insets.bottom);
+    const safeL = edge + insets.left;
+    const safeT = edge + insets.top;
+    const safeR = window.innerWidth - edge - insets.right;
+    const safeB = window.innerHeight - edge - insets.bottom;
+    const availH = Math.max(160, safeB - safeT);
+
+    // No dejar que el panel flotante sea más alto que la pantalla útil
+    if (h > availH) {
+        panel.style.maxHeight = `${availH}px`;
+        panel.style.overflow = 'hidden';
+        const content = panel.querySelector('#panel-content');
+        if (content) {
+            content.style.overflowY = 'auto';
+            content.style.webkitOverflowScrolling = 'touch';
+            content.style.minHeight = '0';
+            content.style.flex = '1 1 auto';
+        }
+        h = Math.min(panel.offsetHeight || availH, availH);
+    }
+
+    const cx = clamp(x, safeL, Math.max(safeL, safeR - w));
+    // Siempre caber entero: si lo pegas arriba, el fondo sigue en pantalla
+    const cy = clamp(y, safeT, Math.max(safeT, safeB - h));
     panel.style.position = 'fixed';
     panel.style.left = `${cx}px`;
     panel.style.top = `${cy}px`;
@@ -729,18 +769,23 @@ export function bindFloatingTripPanels() {
     layer.querySelectorAll('[data-trip-float-expand]').forEach((el) => {
         if (el.dataset.expandBound === '1') return;
         el.dataset.expandBound = '1';
-        el.addEventListener('pointerup', (e) => {
-            if (wasRecentPanelDrag()) return;
-            if (isInteractiveTarget(e.target) && !e.target.closest?.('[data-trip-float-expand]')) return;
+        let lastExpandAt = 0;
+        const expand = (e) => {
+            // Debounce pointerup+click
+            const now = Date.now();
+            if (now - lastExpandAt < 350) return;
+            lastExpandAt = now;
+            try {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+            } catch (_) {}
             const key = el.dataset.tripFloatExpand;
             if (key) toggleTripFloatMinimized(key, false);
-        });
-        el.addEventListener('click', (e) => {
-            if (wasRecentPanelDrag()) return;
-            if (isInteractiveTarget(e.target) && !e.target.closest?.('[data-trip-float-expand]')) return;
-            const key = el.dataset.tripFloatExpand;
-            if (key) toggleTripFloatMinimized(key, false);
-        });
+        };
+        // capture: gana al drag del contenedor
+        el.addEventListener('pointerup', expand, { capture: true });
+        el.addEventListener('click', expand, { capture: true });
     });
 }
 
@@ -764,6 +809,21 @@ export function toggleTripFloatMinimized(key, minimized) {
             }
         } else if (key === 'client-pin' || key === 'client-trip' || key === 'driver-pin') {
             defaultTripFloatPosition(floatEl, key);
+            // Maximizar burbuja del conductor: bajar el panel central (no abrir los 2)
+            if (key === 'client-trip' && document.body.classList.contains('client-mode')) {
+                try {
+                    const panel = document.getElementById('control-panel');
+                    document.body.classList.add('panel-minimized', 'panel-collapsed');
+                    document.body.classList.remove('panel-hidden');
+                    panel?.classList.add('panel-collapsed');
+                    panel?.classList.remove('panel-hidden');
+                    try { localStorage.setItem('honduber_control_panel_hidden', '1'); } catch (_) {}
+                    try { window.syncPanelHideChevron?.(); } catch (_) {}
+                    try { window.syncPassengerPanelToggleLabel?.(); } catch (_) {}
+                    const paxMinLabel = document.querySelector('#passenger-panel-min-btn .passenger-panel-min-label');
+                    if (paxMinLabel) paxMinLabel.textContent = 'Maximizar';
+                } catch (_) {}
+            }
         }
     } else {
         window.syncTripFloatPanels?.(window.currentActiveTripData);
@@ -853,6 +913,8 @@ export function syncTripFloatPanels(data) {
                     minPin.classList.add('hidden');
                 }
             }
+            // Independiente del panel central: el usuario maximiza la burbuja o el panel por separado.
+            // (Antes se forzaba pastilla al minimizar el panel → la burbuja azul no se abría.)
             const clientMin = isTripFloatMinimized('client-trip');
             applyTripFloatMinState(clientTripFloat, 'client-trip', clientMin);
             clientTripFloat.classList.remove('hidden');
@@ -1199,6 +1261,39 @@ export function initFloatingPanels() {
         bindFloatingObjectivePanels();
         bindFloatingTripPanels();
     });
+
+    // Re-encajar flotantes que quedaron pegados arriba con el fondo fuera de pantalla
+    const refitFloatingInViewport = () => {
+        document.querySelectorAll(
+            '#control-panel.is-drag-positioned, #client-trip-float.is-drag-positioned, .trip-float.is-drag-positioned'
+        ).forEach((el) => {
+            try {
+                const rect = el.getBoundingClientRect();
+                if (rect.height < 8) return;
+                const insets = readSafeInsets();
+                const edge = 8;
+                const safeT = edge + insets.top;
+                const safeB = window.innerHeight - edge - insets.bottom;
+                const availH = Math.max(120, safeB - safeT);
+                if (rect.height > availH + 2) {
+                    el.style.maxHeight = `${availH}px`;
+                    el.style.overflowY = 'auto';
+                }
+                if (rect.bottom > safeB + 2 || rect.top < safeT - 2) {
+                    const x = rect.left;
+                    const y = clamp(rect.top, safeT, Math.max(safeT, safeB - Math.min(rect.height, availH)));
+                    el.style.top = `${y}px`;
+                    el.style.bottom = 'auto';
+                    if (el.id === 'control-panel') {
+                        applyPosToControlPanel(el, x, y);
+                    }
+                }
+            } catch (_) {}
+        });
+    };
+    window.refitFloatingPanelsInViewport = refitFloatingInViewport;
+    setTimeout(refitFloatingInViewport, 300);
+    window.addEventListener('orientationchange', () => setTimeout(refitFloatingInViewport, 250));
 
     bindFloatingTripPanels();
     bindPassengerPromoStrip();

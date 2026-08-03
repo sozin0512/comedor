@@ -1,24 +1,24 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+﻿import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.07.30.11";
+} from "./auth-credentials.js?v=2026.08.03.1";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.07.30.11";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.07.30.11";
+import { APP_CONFIG } from "./config.js?v=2026.08.03.1";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.03.1";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.07.30.11";
+} from "./referrals.js?v=2026.08.03.1";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -31,13 +31,14 @@ import {
     getTripOfferNearRadiusKm, getTripOfferFarRadiusKm, pickDriversByProximityTier,
     applyZoneMapBias, getZoneById, isDriverOnline, isDriverVisibleToClient,
     getDepartmentForZone, sameDepartment,
-    haversineKm, detectAndSetCityFromGPS
-} from "./zones.js?v=2026.07.30.11";
+    haversineKm, detectAndSetCityFromGPS,
+    setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
+} from "./zones.js?v=2026.08.03.1";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.07.30.11";
+} from "./trip-notifications.js?v=2026.08.03.1";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -58,7 +59,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.07.30.11";
+} from "./notification-tones.js?v=2026.08.03.1";
 
 installNotificationTonesApi();
 
@@ -67,34 +68,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.07.30.11";
+} from "./passenger-alerts.js?v=2026.08.03.1";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.07.30.11";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.07.30.11";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.07.30.11";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.07.30.11";
-import { initOpsPanels } from "./ops-panels.js?v=2026.07.30.11";
-import { initOpsUi } from "./ops-ui.js?v=2026.07.30.11";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.07.30.11";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.07.30.11";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.07.30.11";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.07.30.11";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.07.30.11";
+} from "./passenger-verification.js?v=2026.08.03.1";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.08.03.1";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.03.1";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.03.1";
+import { initOpsPanels } from "./ops-panels.js?v=2026.08.03.1";
+import { initOpsUi } from "./ops-ui.js?v=2026.08.03.1";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.03.1";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.03.1";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.03.1";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.08.03.1";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.03.1";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.07.30.11";
+} from "./feedback.js?v=2026.08.03.1";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.07.30.11";
+} from "./greetings.js?v=2026.08.03.1";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -107,49 +108,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.07.30.11";
+} from "./service-types.js?v=2026.08.03.1";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.07.30.11";
+} from "./driver-vehicles.js?v=2026.08.03.1";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.07.30.11";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.07.30.11";
+} from "./route-conditions.js?v=2026.08.03.1";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.08.03.1";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.07.30.11";
+} from "./demand-heatmap.js?v=2026.08.03.1";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.07.30.11";
+} from "./ops-fleet-map.js?v=2026.08.03.1";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.07.30.11";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.07.30.11";
+} from "./live-trip-keepalive.js?v=2026.08.03.1";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.03.1";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.07.30.11";
+} from "./session-keepalive.js?v=2026.08.03.1";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.07.30.11";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.07.30.11";
+} from "./passenger-tutorial.js?v=2026.08.03.1";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.03.1";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.07.30.11";
+} from "./driver-tutorial.js?v=2026.08.03.1";
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
 const HR_BOOT_STARTED_AT = Date.now();
@@ -232,29 +233,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.07.30.11";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.03.1";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.07.30.11";
+} from "./auth-ui.js?v=2026.08.03.1";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.07.30.11";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.07.30.11";
+} from "./age-verification.js?v=2026.08.03.1";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.03.1";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.07.30.11";
+} from "./trip-experience.js?v=2026.08.03.1";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.07.30.11";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.07.30.11";
-import { initAppDownload } from "./app-download.js?v=2026.07.30.11";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.07.30.11";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.07.30.11";
+} from "./support-tickets.js?v=2026.08.03.1";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.03.1";
+import { initAppDownload } from "./app-download.js?v=2026.08.03.1";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.03.1";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.03.1";
 
 
 let app;
@@ -786,6 +787,152 @@ function resolveGlobalNegotiationEnabled(settingsOrFlag) {
     return true;
 }
 
+/** Aplica zonas personalizadas (admin) desde appSettings a la lista de ciudades. */
+function applyCustomZonesFromSettings(data) {
+    try {
+        const list = Array.isArray(data?.customServiceZones) ? data.customServiceZones : [];
+        setRuntimeCustomZones(list);
+        // Coberturas km opcionales por id
+        if (data?.cityCoverageKm && typeof data.cityCoverageKm === 'object' && window.APP_CONFIG?.serviceZones) {
+            window.APP_CONFIG.serviceZones.cityCoverageKm = {
+                ...(window.APP_CONFIG.serviceZones.cityCoverageKm || {}),
+                ...data.cityCoverageKm
+            };
+        }
+        // Refrescar selectores de ciudad si existen
+        try {
+            const sel = document.getElementById('service-zone-select');
+            if (sel && typeof buildZoneSelectOptionsHtml === 'function') {
+                const cur = sel.value || window.activeServiceZoneId || getDefaultZoneId();
+                sel.innerHTML = buildZoneSelectOptionsHtml(cur);
+            }
+        } catch (_) {}
+        try { updateServiceZoneSummary?.(); } catch (_) {}
+    } catch (e) {
+        console.warn('[zones] applyCustomZonesFromSettings', e);
+    }
+}
+
+/** Cualquier usuario: carga zonas custom del servidor (para matches y selectores). */
+window.loadCustomServiceZones = async () => {
+    try {
+        const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'));
+        if (snap.exists()) applyCustomZonesFromSettings(snap.data() || {});
+        else setRuntimeCustomZones([]);
+    } catch (e) {
+        console.warn('loadCustomServiceZones failed', e);
+    }
+};
+
+window.adminAddCustomServiceZone = async (btn) => {
+    const name = document.getElementById('admin-custom-zone-name')?.value?.trim();
+    const lat = parseFloat(document.getElementById('admin-custom-zone-lat')?.value || '');
+    const lng = parseFloat(document.getElementById('admin-custom-zone-lng')?.value || '');
+    const coverageKm = parseFloat(document.getElementById('admin-custom-zone-km')?.value || '14');
+    const department = document.getElementById('admin-custom-zone-dept')?.value?.trim() || 'Personalizadas';
+    if (!name || name.length < 2) return window.showToast?.('Escribe el nombre de la zona.', 'warning');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return window.showToast?.('Lat/Lng inválidos. Usa el centro del mapa o coordenadas.', 'warning');
+    }
+    const zone = normalizeCustomZone({ name, lat, lng, coverageKm, department });
+    if (!zone) return window.showToast?.('No se pudo crear la zona.', 'error');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Guardando…';
+    }
+    try {
+        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main');
+        const prev = await getDoc(settingsRef);
+        const prevList = Array.isArray(prev.data()?.customServiceZones) ? prev.data().customServiceZones : [];
+        const nextList = [...prevList.filter((z) => z?.id !== zone.id), zone];
+        const coverageMap = {
+            ...(prev.data()?.cityCoverageKm || {}),
+            ...(window.APP_CONFIG?.serviceZones?.cityCoverageKm || {}),
+        };
+        if (zone.coverageKm) coverageMap[zone.id] = zone.coverageKm;
+        await setDoc(settingsRef, {
+            customServiceZones: nextList,
+            cityCoverageKm: coverageMap,
+            updatedAt: serverTimestamp(),
+            customZonesUpdatedBy: currentUser?.uid || null,
+        }, { merge: true });
+        applyCustomZonesFromSettings({ customServiceZones: nextList, cityCoverageKm: coverageMap });
+        window.showToast?.(`Zona «${zone.name}» guardada.`, 'success');
+        window.renderAdminCustomZonesList?.();
+        ['admin-custom-zone-name', 'admin-custom-zone-lat', 'admin-custom-zone-lng'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+    } catch (e) {
+        console.error(e);
+        window.showToast?.(e?.message || 'No se pudo guardar la zona.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Agregar zona';
+        }
+    }
+};
+
+window.adminRemoveCustomServiceZone = async (zoneId) => {
+    const id = String(zoneId || '').trim();
+    if (!id) return;
+    if (!window.confirm(`¿Quitar la zona personalizada «${id}»?`)) return;
+    try {
+        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main');
+        const prev = await getDoc(settingsRef);
+        const prevList = Array.isArray(prev.data()?.customServiceZones) ? prev.data().customServiceZones : [];
+        const nextList = prevList.filter((z) => z?.id !== id);
+        await setDoc(settingsRef, {
+            customServiceZones: nextList,
+            updatedAt: serverTimestamp(),
+        }, { merge: true });
+        applyCustomZonesFromSettings({
+            customServiceZones: nextList,
+            cityCoverageKm: prev.data()?.cityCoverageKm || {}
+        });
+        window.showToast?.('Zona eliminada.', 'success');
+        window.renderAdminCustomZonesList?.();
+    } catch (e) {
+        window.showToast?.(e?.message || 'No se pudo eliminar.', 'error');
+    }
+};
+
+window.adminFillCustomZoneFromMap = () => {
+    try {
+        const c = window.gMap?.getCenter?.();
+        if (!c) return window.showToast?.('Abre el mapa primero.', 'warning');
+        const lat = typeof c.lat === 'function' ? c.lat() : c.lat;
+        const lng = typeof c.lng === 'function' ? c.lng() : c.lng;
+        const latEl = document.getElementById('admin-custom-zone-lat');
+        const lngEl = document.getElementById('admin-custom-zone-lng');
+        if (latEl) latEl.value = Number(lat).toFixed(5);
+        if (lngEl) lngEl.value = Number(lng).toFixed(5);
+        window.showToast?.('Centro del mapa copiado.', 'success');
+    } catch (_) {
+        window.showToast?.('No se pudo leer el mapa.', 'warning');
+    }
+};
+
+window.renderAdminCustomZonesList = () => {
+    const el = document.getElementById('admin-custom-zones-list');
+    if (!el) return;
+    const list = getRuntimeCustomZones();
+    if (!list.length) {
+        el.innerHTML = '<p class="text-xs text-slate-400 font-bold">Aún no hay zonas personalizadas. Las ciudades de Honduras ya están incluidas.</p>';
+        return;
+    }
+    el.innerHTML = list.map((z) => `
+        <div class="flex items-center justify-between gap-2 py-2 border-b border-slate-700/60">
+            <div class="min-w-0">
+                <p class="text-sm font-black text-white truncate">${String(z.name || '').replace(/</g, '')}</p>
+                <p class="text-[10px] font-bold text-slate-400">${String(z.id)} · ${z.center.lat.toFixed(4)}, ${z.center.lng.toFixed(4)} · ${z.coverageKm || 14} km</p>
+            </div>
+            <button type="button" class="ops-btn ops-btn--ghost text-xs" onclick="window.adminRemoveCustomServiceZone('${String(z.id).replace(/'/g, '')}')">Quitar</button>
+        </div>
+    `).join('');
+};
+
 window.loadAdminNegotiationState = async () => {
     const cached = readStoredAdminNegotiationState();
     if (cached != null) {
@@ -799,6 +946,7 @@ window.loadAdminNegotiationState = async () => {
             ? resolveGlobalNegotiationEnabled(snap.data() || {})
             : true;
         storeAdminNegotiationState(window.currentAdminNegotiationEnabled);
+        if (snap.exists()) applyCustomZonesFromSettings(snap.data() || {});
     } catch (e) {
         console.warn('loadAdminNegotiationState failed', e);
         if (window.currentAdminNegotiationEnabled == null) {
@@ -1632,11 +1780,15 @@ if (document.readyState === 'loading') {
             if (!trip?.id || !['accepted', 'in_progress'].includes(trip.status)) return;
 
             const hidden = document.hidden;
-            // En viaje: alta precisión siempre (estilo Uber), incluso minimizado
-            const geoOpts = {
+            // Viaje: siempre alta precisión y fix fresco (evita “falta una cuadra” con GPS viejo)
+            const geoOpts = window.getHighAccuracyGeoOptions?.({
+                liveTrip: true,
+                maximumAge: hidden ? 1200 : 0,
+                timeout: hidden ? 14000 : 12000
+            }) || {
                 enableHighAccuracy: true,
-                maximumAge: hidden ? 3000 : 1500,
-                timeout: hidden ? 12000 : 8000
+                maximumAge: hidden ? 1200 : 0,
+                timeout: hidden ? 14000 : 12000
             };
 
             navigator.geolocation.getCurrentPosition(
@@ -1647,7 +1799,7 @@ if (document.readyState === 'loading') {
                     const accuracy = position.coords.accuracy;
                     const force = true;
 
-                    window.currentDriverPos = { lat, lng };
+                    window.currentDriverPos = { lat, lng, accuracy };
                     window._driverLiveUpdatedAt = Date.now();
                     window._driverLiveAccuracy = accuracy;
                     if (heading != null && Number.isFinite(heading)) {
@@ -1679,8 +1831,14 @@ if (document.readyState === 'loading') {
                             ).catch(() => {});
                         }
                     }
-                    if (trip.clientId === currentUser.uid && trip.status === 'in_progress') {
+                    // Pasajero también publica en accepted (recogida) e in_progress
+                    if (
+                        trip.clientId === currentUser.uid
+                        && (trip.status === 'accepted' || trip.status === 'in_progress')
+                    ) {
                         window.__publishPassengerGpsPulse?.(lat, lng, heading, accuracy, force);
+                        // Si aún no hay watch, arrancar sharing en vivo
+                        try { window.startPassengerLiveLocationSharing?.(trip.id); } catch (_) {}
                     }
                 },
                 (err) => {
@@ -2475,10 +2633,24 @@ if (document.readyState === 'loading') {
         window.hondurasWallTimeToIso = hondurasWallTimeToIso;
         window.isoToHondurasDateTimeParts = isoToHondurasDateTimeParts;
 
+        /** Viaje armado para alguien sin cuenta (debe registrarse y reclamar el link). */
+        const isStaffGuestInviteTrip = (t) => !!(
+            t?.guestClient === true
+            || t?.guestInvitePending === true
+            || String(t?.clientId || '').startsWith('guest_')
+        );
+
         /** Modal: cliente acepta adueñarse del viaje armado por staff (puede ajustar personas y hora). */
         window.showStaffCreatedTripClaimModal = (trip, { force = false } = {}) => {
-            if (!trip?.id || trip.clientId !== currentUser?.uid) return;
+            if (!trip?.id || !currentUser?.uid) return;
+            const guestTrip = isStaffGuestInviteTrip(trip);
+            // Registrado: solo su uid. Invitado: cualquiera con el link (aún no reclamado).
+            if (!guestTrip && trip.clientId !== currentUser.uid) return;
             if (trip.staffCreatedClientClaimed === true) return;
+            if (guestTrip && trip.clientId && !String(trip.clientId).startsWith('guest_')
+                && trip.clientId !== currentUser.uid && trip.staffCreatedClientClaimed === true) {
+                return;
+            }
             // Si ya hay modal del mismo viaje, no duplicar; si es otro o force, reemplazar
             const existing = document.getElementById('staff-claim-trip-modal');
             if (existing && !force && existing.dataset.tripId === trip.id) return;
@@ -2843,7 +3015,13 @@ if (document.readyState === 'loading') {
             const snap = await getDoc(tripRef);
             if (!snap.exists()) throw new Error('No encontramos el viaje (link inválido o viaje borrado). Pide reenvío a soporte.');
             const t = snap.data();
-            if (t.clientId !== currentUser.uid) throw new Error('Este viaje no es de tu cuenta. Entra con el usuario del pasajero.');
+            const guestTrip = isStaffGuestInviteTrip(t);
+            if (!guestTrip && t.clientId !== currentUser.uid) {
+                throw new Error('Este viaje no es de tu cuenta. Entra con el usuario del pasajero.');
+            }
+            if (guestTrip && t.staffCreatedClientClaimed === true && t.clientId !== currentUser.uid) {
+                throw new Error('Este viaje ya lo reclamó otra cuenta.');
+            }
             if (t.status === 'cancelled') throw new Error('Este viaje fue cancelado. Pide uno nuevo a soporte.');
             if (t.status === 'completed') throw new Error('Este viaje ya se completó.');
             if (t.status !== 'pending') throw new Error('Este viaje ya no se puede tomar (estado: ' + (t.status || '?') + ').');
@@ -3011,6 +3189,18 @@ if (document.readyState === 'loading') {
                 staffOfferBy: t.staffCreatedBy || null,
                 staffOfferByName: t.staffCreatedByName || 'Staff',
             };
+            // Invitado sin cuenta → al registrarse el viaje pasa a su uid
+            if (guestTrip) {
+                const prof = window.userProfile || {};
+                patch.clientId = currentUser.uid;
+                patch.guestClient = false;
+                patch.guestInvitePending = false;
+                patch.clientClaimedFromGuest = true;
+                patch.clientName = prof.name || t.clientName || t.pendingClientName || 'Cliente';
+                const pPhone = prof.phone || t.clientPhone || t.pendingClientPhone || '';
+                if (pPhone) patch.clientPhone = pPhone;
+                if (prof.photo) patch.clientPhoto = prof.photo;
+            }
             if (scheduledFor) patch.staffSetSchedule = true;
 
             // Resolver nombre del conductor preferido
@@ -6465,10 +6655,29 @@ if (document.readyState === 'loading') {
         };
 
         function getLiveDriverPickupKm(t) {
-            if (window.currentDriverPos?.lat != null && t.originLat != null && t.originLng != null) {
-                return Math.round(haversineKm(window.currentDriverPos.lat, window.currentDriverPos.lng, t.originLat, t.originLng) * 10) / 10;
+            if (window.currentDriverPos?.lat == null) {
+                return t.offerDistanceKm != null ? Number(parseFloat(t.offerDistanceKm).toFixed(1)) : null;
             }
-            return t.offerDistanceKm != null ? Number(parseFloat(t.offerDistanceKm).toFixed(1)) : null;
+            const pickup = typeof window.getTripPickupCoords === 'function'
+                ? window.getTripPickupCoords(t)
+                : (t.originLat != null
+                    ? { lat: t.originLat, lng: t.originLng, accuracy: t.originAccuracy }
+                    : null);
+            if (!pickup) {
+                return t.offerDistanceKm != null ? Number(parseFloat(t.offerDistanceKm).toFixed(1)) : null;
+            }
+            const meters = window.getAccuracyAwareDistanceMeters?.(
+                window.currentDriverPos,
+                pickup,
+                window._driverLiveAccuracy,
+                pickup.accuracy
+            );
+            if (!Number.isFinite(meters)) {
+                return t.offerDistanceKm != null ? Number(parseFloat(t.offerDistanceKm).toFixed(1)) : null;
+            }
+            // < 40 m → 0 (mismo punto); si no, precisión a 10 m (0.01 km)
+            if (meters < 40) return 0;
+            return Math.round((meters / 1000) * 100) / 100;
         }
 
         function buildDriverOfferDistanceSummary(t, { pickupKm } = {}) {
@@ -6556,9 +6765,17 @@ if (document.readyState === 'loading') {
             return Number.isFinite(n) && n === 0;
         }
 
-        function buildDriverOfferRouteHtml(t) {
-            const originLabel = getDriverTripPointLabel(t, 'origin');
-            const destLabelFull = getDriverTripPointLabel(t, 'destination');
+        /**
+         * Ruta visible al conductor en la oferta:
+         * 1) 🚗 de ti (GPS) → punto del cliente (recogida)
+         * 2) ruta completa del cliente (A → paradas → B) sin recortar agresivo
+         */
+        function buildDriverOfferRouteHtml(t, options = {}) {
+            const originLabel = getDriverTripPointLabel(t, 'origin') || 'Origen';
+            const destLabelFull = getDriverTripPointLabel(t, 'destination') || 'Destino';
+            const originEsc = escapeViewerText(originLabel);
+            const destEsc = escapeViewerText(destLabelFull);
+            const titleEsc = escapeViewerText(`${originLabel} → ${destLabelFull}`);
             const origin = {
                 address: originLabel,
                 latLng: t.originLat != null ? { lat: t.originLat, lng: t.originLng } : null,
@@ -6569,51 +6786,79 @@ if (document.readyState === 'loading') {
             };
             const stops = t.additionalStops || [];
             const hasMultiStop = stops.length > 0;
+            const pickupKm = getLiveDriverPickupKm(t);
+            const pickupKmTxt = pickupKm != null && Number.isFinite(Number(pickupKm))
+                ? ` · ${Number(pickupKm).toFixed(1)} km`
+                : '';
 
+            // Tramo 1: conductor → cliente (siempre visible con emoji)
+            const toClientHtml = `
+                <div class="driver-offer-route-leg driver-offer-route-leg--to-client">
+                    <span class="driver-offer-route-emoji" aria-hidden="true">🚗</span>
+                    <div class="driver-offer-route-leg-body">
+                        <span class="driver-offer-route-leg-label">De ti al cliente${pickupKmTxt}</span>
+                        <span class="driver-offer-route-leg-addr" title="${originEsc}">${originEsc}</span>
+                    </div>
+                </div>`;
+
+            // Tramo 2: ruta completa del viaje del cliente
+            let clientRouteRows = '';
             if (!hasMultiStop) {
-                const destLabel = t.bookingType === 'hourly' && !t.destination
-                    ? destLabelFull
-                    : truncateOfferText(destLabelFull);
-                return `
-                    <div class="driver-offer-route" title="${originLabel} → ${destLabelFull}">
-                        <span class="driver-offer-route-point"><b>A</b> ${truncateOfferText(originLabel)}</span>
-                        <i class="fas fa-arrow-right driver-offer-route-arrow" aria-hidden="true"></i>
-                        <span class="driver-offer-route-point"><b>${t.bookingType === 'hourly' && !t.destination ? '⏱' : 'B'}</b> ${destLabel}</span>
+                const destBadge = t.bookingType === 'hourly' && !t.destination ? '⏱' : 'B';
+                clientRouteRows = `
+                    <div class="driver-offer-route-chain-row">
+                        <span class="driver-offer-route-num driver-offer-route-num--origin">A</span>
+                        <span class="driver-offer-route-addr" title="${originEsc}">${originEsc}</span>
+                    </div>
+                    <div class="driver-offer-route-chain-row">
+                        <span class="driver-offer-route-num driver-offer-route-num--dest">${destBadge}</span>
+                        <span class="driver-offer-route-addr" title="${destEsc}">${destEsc}</span>
                     </div>`;
+            } else {
+                const chain = window.buildOrderedRoutePoints?.(origin, destination, stops) || [];
+                const rows = chain.length
+                    ? chain
+                    : [
+                        { address: originLabel, routeNum: 1 },
+                        ...stops.map((s, i) => ({
+                            address: s.placeName || window.shortenMapPlaceLabel?.(s.address) || s.address || 'Parada',
+                            routeNum: i + 2,
+                        })),
+                        { address: destLabelFull, routeNum: stops.length + 2 },
+                    ];
+                clientRouteRows = rows.map((p, idx) => {
+                    const isFirst = idx === 0;
+                    const isLast = idx === rows.length - 1;
+                    const badge = isFirst
+                        ? 'A'
+                        : (isLast ? (t.bookingType === 'hourly' && !t.destination ? '⏱' : 'B') : String(p.routeNum || idx + 1));
+                    const badgeClass = isFirst
+                        ? 'driver-offer-route-num--origin'
+                        : (isLast ? 'driver-offer-route-num--dest' : 'driver-offer-route-num--stop');
+                    const addr = p.address || (isFirst ? originLabel : (isLast ? destLabelFull : 'Parada'));
+                    const addrEsc = escapeViewerText(addr);
+                    return `<div class="driver-offer-route-chain-row">
+                        <span class="driver-offer-route-num ${badgeClass}">${badge}</span>
+                        <span class="driver-offer-route-addr" title="${addrEsc}">${addrEsc}</span>
+                    </div>`;
+                }).join('');
             }
 
-            const chain = window.buildOrderedRoutePoints?.(origin, destination, stops) || [];
-            // Si buildOrderedRoutePoints no devuelve nada (sin coords), armar cadena solo con nombres
-            const rows = chain.length
-                ? chain
-                : [
-                    { address: originLabel, routeNum: 1 },
-                    ...stops.map((s, i) => ({
-                        address: s.placeName || window.shortenMapPlaceLabel?.(s.address) || s.address || 'Parada',
-                        routeNum: i + 2,
-                    })),
-                    { address: destLabelFull, routeNum: stops.length + 2 },
-                ];
-            const stopsHtml = rows.map((p, idx) => {
-                const isFirst = idx === 0;
-                const isLast = idx === rows.length - 1;
-                const badge = isFirst
-                    ? 'A'
-                    : (isLast ? (t.bookingType === 'hourly' && !t.destination ? '⏱' : 'B') : String(p.routeNum || idx + 1));
-                const badgeClass = isFirst
-                    ? 'driver-offer-route-num--origin'
-                    : (isLast ? 'driver-offer-route-num--dest' : 'driver-offer-route-num--stop');
-                const addr = p.address || (isFirst ? originLabel : (isLast ? destLabelFull : 'Parada'));
-                const shortAddr = isFirst || isLast
-                    ? addr
-                    : (window.shortenMapPlaceLabel?.(addr) || addr);
-                return `<div class="driver-offer-route-chain-row">
-                    <span class="driver-offer-route-num ${badgeClass}">${badge}</span>
-                    <span class="driver-offer-route-addr" title="${addr || ''}">${truncateOfferText(shortAddr, 48)}</span>
+            const clientRouteHtml = `
+                <div class="driver-offer-route-leg driver-offer-route-leg--client">
+                    <span class="driver-offer-route-emoji" aria-hidden="true">📍</span>
+                    <div class="driver-offer-route-leg-body">
+                        <span class="driver-offer-route-leg-label">Ruta del cliente</span>
+                        <div class="driver-offer-route-chain driver-offer-route-chain--embedded" title="${titleEsc}">
+                            ${clientRouteRows}
+                        </div>
+                    </div>
                 </div>`;
-            }).join('');
 
-            return `<div class="driver-offer-route-chain">${stopsHtml}</div>`;
+            const wrapClass = options.compact
+                ? 'driver-offer-route-full driver-offer-route-full--compact'
+                : 'driver-offer-route-full';
+            return `<div class="${wrapClass}" title="${titleEsc}">${toClientHtml}${clientRouteHtml}</div>`;
         }
 
         function renderDriverOfferStatsContent(summary) {
@@ -6718,20 +6963,30 @@ if (document.readyState === 'loading') {
             let totalDur = 0;
             const originPoint = { address: t.origin, latLng: { lat: originLat, lng: originLng } };
 
-            // Siempre: ruta del conductor al punto de recogida (también por horas)
+            // Tramos con color: 🚗 conductor→cliente (ámbar) + 📍 ruta del cliente (verde)
+            const previewLegs = [];
+
+            // Siempre: ruta del conductor al punto de recogida (también por horas / estimated)
             if (driverPos?.lat != null && driverPos?.lng != null) {
                 const toPickup = await window.computeDrivingRoute?.(
                     { latLng: driverPos },
                     originPoint
                 );
-                if (toPickup?.path?.length >= 2 && !toPickup.estimated) {
+                if (toPickup?.path?.length >= 2) {
                     segments.push(toPickup);
                     totalDist += toPickup.distanceMeters || 0;
                     totalDur += toPickup.durationMillis || 0;
+                    previewLegs.push({
+                        path: toPickup.path,
+                        color: '#f59e0b',
+                        role: 'toPickup',
+                        estimated: !!toPickup.estimated
+                    });
                 }
             }
 
             // Si hay destino (viaje normal o hourly con destino opcional), sumar tramos
+            const tripPaths = [];
             if (destLat != null && destLng != null) {
                 const destPoint = { address: t.destination, latLng: { lat: destLat, lng: destLng } };
                 const stops = t.additionalStops || [];
@@ -6740,17 +6995,19 @@ if (document.readyState === 'loading') {
                     const points = chain.map((p) => ({ latLng: p.latLng, address: p.address }));
                     for (let i = 0; i < points.length - 1; i++) {
                         const seg = await window.computeDrivingRoute?.(points[i], points[i + 1]);
-                        if (!seg?.path?.length || seg.estimated) continue;
+                        if (!seg?.path?.length) continue;
                         segments.push(seg);
                         totalDist += seg.distanceMeters || 0;
                         totalDur += seg.durationMillis || 0;
+                        tripPaths.push(seg.path);
                     }
                 } else {
                     const tripSeg = await window.computeDrivingRoute?.(originPoint, destPoint);
-                    if (tripSeg?.path?.length >= 2 && !tripSeg.estimated) {
+                    if (tripSeg?.path?.length >= 2) {
                         segments.push(tripSeg);
                         totalDist += tripSeg.distanceMeters || 0;
                         totalDur += tripSeg.durationMillis || 0;
+                        tripPaths.push(tripSeg.path);
                     }
                 }
             } else if (!segments.length) {
@@ -6758,11 +7015,24 @@ if (document.readyState === 'loading') {
                 return null;
             }
 
+            // Un solo trazo verde para toda la ruta del cliente (origen→paradas→destino)
+            if (tripPaths.length) {
+                const tripMerged = mergeDriverOfferRoutePaths(tripPaths.map((p) => ({ path: p })));
+                if (tripMerged.length >= 2) {
+                    previewLegs.push({
+                        path: tripMerged,
+                        color: '#059669',
+                        role: 'clientTrip'
+                    });
+                }
+            }
+
             const path = mergeDriverOfferRoutePaths(segments);
             if (path.length < 2) return null;
 
             return {
                 path,
+                previewLegs,
                 distanceMeters: totalDist,
                 durationMillis: totalDur,
                 previewOnly: true,
@@ -6779,11 +7049,13 @@ if (document.readyState === 'loading') {
             const force = options.force === true;
             if (!force && (window.shouldPreserveDriverNavRoute?.() || window.isDriverNavigating?.())) return;
 
+            const hadPreview = !!(window._driverPreviewOfferTripId || window._driverOfferPreviewRoute);
             window._driverPreviewOfferTripId = null;
             window._driverOfferPreviewRoute = null;
             window._driverOfferPreviewRouteTripId = null;
             window._driverOfferPreviewFailToastFor = null;
             window._driverOfferPreviewForce = false;
+            clearTimeout(window._driverOfferRefitTimer);
             document.body.classList.remove('driver-offer-preview-active', 'driver-offer-map-peek');
             try { hideDriverOfferPeekBar?.(); } catch (_) {}
             document.querySelectorAll('.driver-offer-card--selected').forEach((el) => {
@@ -6794,6 +7066,16 @@ if (document.readyState === 'loading') {
             if (!window.shouldPreserveDriverNavRoute?.() && !window.isDriverNavigating?.()) {
                 window.clearRoutePolylines?.({ force: true });
                 window.clearOriginDestinationMarkers?.();
+                // Si la oferta se fue (cancelada / otro conductor), re-centrar en el conductor
+                if (hadPreview && window.currentDriverPos?.lat != null && window.gMap) {
+                    try {
+                        window.gMap.panTo(window.currentDriverPos);
+                        const z = window.gMap.getZoom?.();
+                        if (!Number.isFinite(z) || z < 13 || z > 16) {
+                            window.gMap.setZoom(14);
+                        }
+                    } catch (_) {}
+                }
             }
         };
 
@@ -6823,13 +7105,16 @@ if (document.readyState === 'loading') {
             }
 
             // Si ya tenemos preview de este viaje, no recalcular en cada snapshot (evita spam)
+            // pero sí re-encuadrar por si el panel cambió de tamaño
             if (
                 window._driverPreviewOfferTripId === tripId
                 && window._driverOfferPreviewRoute
                 && window._driverOfferPreviewRouteTripId === tripId
                 && !window._driverOfferPreviewForce
+                && !window._driverOfferPreviewRoute.failed
             ) {
                 updateDriverOfferMapHint({ trip: t, route: window._driverOfferPreviewRoute });
+                window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
                 return;
             }
 
@@ -6837,7 +7122,14 @@ if (document.readyState === 'loading') {
 
             const driverPos = window.currentDriverPos || await window.ensureDriverPosition?.();
             const route = await buildDriverOfferPreviewRoute(t, driverPos);
+            // Oferta cancelada / tomada mientras se calculaba → no dibujar
             if (window._driverPreviewOfferTripId !== tripId) return;
+            const stillOpen = !Array.isArray(window._lastDriverMyOffers)
+                || window._lastDriverMyOffers.some((o) => o.id === tripId);
+            if (!stillOpen) {
+                window.clearDriverOfferRoutePreview?.({ force: true });
+                return;
+            }
 
             if (!route) {
                 updateDriverOfferMapHint({});
@@ -6863,6 +7155,11 @@ if (document.readyState === 'loading') {
             window._driverOfferPreviewForce = false;
             window.drawRouteOnMap?.(route, { driverOfferPreview: true });
             updateDriverOfferMapHint({ trip: t, route });
+            // Encuadre con padding real del panel (segunda pasada tras pintar)
+            requestAnimationFrame(() => {
+                if (window._driverPreviewOfferTripId !== tripId) return;
+                window.refitDriverOfferPreviewRoute?.(route);
+            });
         };
 
         window.refreshDriverOfferRoutePreview = async () => {
@@ -6874,22 +7171,37 @@ if (document.readyState === 'loading') {
         function syncDriverOfferRoutePreview(offers) {
             if (!document.body.classList.contains('driver-mode')) return;
             if (window.isDriverNavigating?.()) {
-                window.clearDriverOfferRoutePreview?.({ force: true });
+                // Navegación real del viaje activo: quitar preview de ofertas
+                if (window._driverPreviewOfferTripId || window._driverOfferPreviewRoute) {
+                    window._driverPreviewOfferTripId = null;
+                    window._driverOfferPreviewRoute = null;
+                    window._driverOfferPreviewRouteTripId = null;
+                    document.body.classList.remove('driver-offer-preview-active', 'driver-offer-map-peek');
+                }
                 return;
             }
 
+            // Cancelado / tomado por otro / ya no visible → quitar polilínea y marcadores
             if (!offers?.length) {
                 window.clearDriverOfferRoutePreview?.({ force: true });
                 return;
             }
 
+            const offerIds = new Set(offers.map((o) => o.id));
+            // La oferta que se previsualizaba ya no está (cancelada o la tomó otro)
+            if (window._driverPreviewOfferTripId && !offerIds.has(window._driverPreviewOfferTripId)) {
+                window.clearDriverOfferRoutePreview?.({ force: true });
+            }
+
             if (offers.length === 1) {
-                // Ya dibujado o ya intentado para este viaje → no re-disparar (evita toast en bucle)
+                // Ya dibujado o ya intentado para este viaje → solo re-encuadrar
                 if (
                     window._driverPreviewOfferTripId === offers[0].id
                     && window._driverOfferPreviewRouteTripId === offers[0].id
                     && window._driverOfferPreviewRoute
+                    && !window._driverOfferPreviewRoute.failed
                 ) {
+                    window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
                     return;
                 }
                 updateDriverOfferMapHint({});
@@ -6904,14 +7216,18 @@ if (document.readyState === 'loading') {
                     window._driverPreviewOfferTripId === selected
                     && window._driverOfferPreviewRouteTripId === selected
                     && window._driverOfferPreviewRoute
+                    && !window._driverOfferPreviewRoute.failed
                 ) {
+                    window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
                     return;
                 }
                 window.selectDriverOfferForPreview?.(selected, selectedTrip);
                 return;
             }
 
-            updateDriverOfferMapHint({ multiSelect: true });
+            // Varias ofertas y ninguna seleccionada: dibujar la más cercana (primera de la lista)
+            updateDriverOfferMapHint({});
+            window.selectDriverOfferForPreview?.(offers[0].id, offers[0]);
         }
 
         async function computeDriverOfferTripRoute(t) {
@@ -7016,7 +7332,12 @@ if (document.readyState === 'loading') {
                 // Chip de la tarjeta vertical Uber
                 document.querySelectorAll(`[data-pickup-km-for="${t.id}"]`).forEach((chip) => {
                     if (pickupKm != null && Number.isFinite(pickupKm)) {
-                        chip.innerHTML = `<i class="fas fa-location-arrow"></i> ${pickupKm.toFixed(1)} km a ti`;
+                        const distLabel = pickupKm < 0.05
+                            ? 'Aquí'
+                            : (pickupKm < 1
+                                ? `${Math.round(pickupKm * 1000)} m a ti`
+                                : `${pickupKm.toFixed(1)} km a ti`);
+                        chip.innerHTML = `<i class="fas fa-location-arrow"></i> ${distLabel}`;
                     }
                 });
 
@@ -7292,16 +7613,8 @@ if (document.readyState === 'loading') {
             const schedBadge = getDriverScheduledBadgeHtml(t);
             const schedBanner = buildDriverScheduledBannerHtml(t);
 
-            // Popup Uber: tarjeta HORIZONTAL baja (sin scroll). Precio + aceptar en una fila.
+            // Popup Uber: tarjeta baja. Muestra ruta completa (ti→cliente + ruta del cliente).
             if (compact) {
-                const aShort = escapeViewerText(
-                    (getDriverTripPointLabel(t, 'origin') || 'Origen').toString().slice(0, 22)
-                );
-                const bShort = escapeViewerText(
-                    (getDriverTripPointLabel(t, 'destination') || (isHourlyTripOffer(t) ? 'Por horas' : 'Destino'))
-                        .toString()
-                        .slice(0, 22)
-                );
                 const clientShort = escapeViewerText(
                     String(t.clientName || 'Pasajero').trim().split(/\s+/)[0] || 'Pasajero'
                 );
@@ -7341,6 +7654,7 @@ if (document.readyState === 'loading') {
                             <i class="fas fa-paper-plane pointer-events-none"></i>
                             <span class="pointer-events-none">Ofertar ${offerDisplay}</span>
                        </button>`;
+                const fullRouteHtml = buildDriverOfferRouteHtml(t, { compact: true });
                 return `
                 <div class="driver-offer-card driver-offer-card--uber-vert" data-preview-offer="${tripId}" data-trip-id="${tripId}" data-offer-id-prefix="${pfx}">
                     <div class="uber-vert-toolbar">
@@ -7362,10 +7676,7 @@ if (document.readyState === 'loading') {
                             ${unverifiedHtml}
                         </div>
                     </div>
-                    <p class="uber-vert-route" title="${aShort} → ${bShort}">
-                        <span class="uber-vert-ab"><b>A</b> ${aShort}</span>
-                        <span class="uber-vert-ab"><b>B</b> ${bShort}</span>
-                    </p>
+                    ${fullRouteHtml}
                     <div class="uber-vert-price-row">
                         <span class="uber-vert-price">${priceLabel}</span>
                         ${paymentBadge}
@@ -7430,7 +7741,7 @@ if (document.readyState === 'loading') {
                                 const alert = document.createElement('p');
                                 alert.className = 'driver-offer-alert driver-offer-alert--first';
                                 alert.innerHTML = '<i class="fas fa-star"></i> Primer viaje del cliente';
-                                const route = card.querySelector('.driver-offer-route, .driver-offer-route-chain, .driver-offer-preview-btn');
+                                const route = card.querySelector('.driver-offer-route-full, .driver-offer-route, .driver-offer-route-chain, .driver-offer-preview-btn');
                                 if (route) route.insertAdjacentElement('beforebegin', alert);
                                 else card.appendChild(alert);
                             }
@@ -7923,6 +8234,8 @@ if (document.readyState === 'loading') {
                 _driverOfferPopupMapPeek = false;
                 setDriverOfferMapPeekUi(false);
                 hideDriverTripOfferPopup();
+                // Viaje cancelado o adquirido por otro → quitar ruta del mapa
+                window.clearDriverOfferRoutePreview?.({ force: true });
                 _driverOfferPopupDismissedKey = null;
                 return;
             }
@@ -8038,17 +8351,19 @@ if (document.readyState === 'loading') {
                 document.body.classList.add('driver-offer-preview-active');
                 window.selectDriverOfferForPreview?.(trip.id, trip);
             } catch (_) {}
-            // Reajustar cámara cuando la ruta termine de dibujarse
+            // Reajustar cámara cuando la ruta y el panel ya tienen tamaño real
             if (isNewOffer || needsFullRender) {
-                setTimeout(() => {
+                const fitOfferRoute = () => {
                     try {
-                        if (window._driverPreviewOfferTripId === trip.id && window._driverOfferPreviewRoute?.path?.length) {
-                            window.drawRouteOnMap?.(window._driverOfferPreviewRoute, { driverOfferPreview: true });
-                        } else {
-                            window.refreshDriverOfferRoutePreview?.();
+                        if (window._driverPreviewOfferTripId !== trip.id) return;
+                        const r = window._driverOfferPreviewRoute;
+                        if (r?.path?.length >= 2 && !r.failed) {
+                            window.refitDriverOfferPreviewRoute?.(r);
                         }
                     } catch (_) {}
-                }, 450);
+                };
+                setTimeout(fitOfferRoute, 280);
+                setTimeout(fitOfferRoute, 700);
             }
         }
 
@@ -8197,6 +8512,9 @@ if (document.readyState === 'loading') {
                         });
                         hydrateDriverOfferDistances(myOffers);
                         syncDriverOfferRoutePreview(myOffers);
+                    } else {
+                        // Cola vacía (cancelaron o tomaron el extra) → limpiar ruta de oferta
+                        window.clearDriverOfferRoutePreview?.({ force: true });
                     }
                     return;
                 }
@@ -14875,6 +15193,41 @@ if (document.readyState === 'loading') {
                     <p class="ops-hint-box mt-2 text-xs">Usa 🚗 y 🏍️ en el mapa (no puntos). Los simulados se mueven en tiempo real cuando activas el demo. Abre el mapa normal o de flota.</p>
                 `) : '';
 
+                const customZonesPanel = isFullAdmin ? U.formPanel(
+                    'Zonas / ciudades (agregar)',
+                    'Las ciudades de Honduras ya vienen en la app. Aquí agregas colonias, municipios o puntos extra.',
+                    `
+                    <p class="text-xs text-slate-400 font-bold mb-2">Al guardar, aparecen en el selector de ciudad y en «Viaje por cliente».</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                        <div>
+                            ${U.fieldLabel('Nombre de la zona')}
+                            <input id="admin-custom-zone-name" class="ops-input mt-1" placeholder="Ej. Residencial Los Robles" maxlength="80">
+                        </div>
+                        <div>
+                            ${U.fieldLabel('Departamento (opcional)')}
+                            <input id="admin-custom-zone-dept" class="ops-input mt-1" placeholder="Personalizadas" maxlength="40" value="Personalizadas">
+                        </div>
+                        <div>
+                            ${U.fieldLabel('Latitud')}
+                            <input id="admin-custom-zone-lat" type="number" step="any" class="ops-input mt-1" placeholder="14.45">
+                        </div>
+                        <div>
+                            ${U.fieldLabel('Longitud')}
+                            <input id="admin-custom-zone-lng" type="number" step="any" class="ops-input mt-1" placeholder="-87.63">
+                        </div>
+                        <div>
+                            ${U.fieldLabel('Cobertura (km)')}
+                            <input id="admin-custom-zone-km" type="number" min="3" max="80" step="1" class="ops-input mt-1" value="14">
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        ${U.btn('Usar centro del mapa', 'window.adminFillCustomZoneFromMap()', { variant: 'ghost', icon: 'fa-map-marker-alt' })}
+                        ${U.btn('Agregar zona', 'window.adminAddCustomServiceZone(this)', { variant: 'primary', icon: 'fa-plus' })}
+                    </div>
+                    <div id="admin-custom-zones-list" class="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 max-h-48 overflow-auto"></div>
+                    `
+                ) : '';
+
                 const demandSimPanel = isFullAdmin ? U.formPanel('Zonas calientes (prueba admin)', 'Crea pedidos reales de prueba · el rojo aparece desde 3 viajes por zona', `
                     <div class="mb-3">
                         ${U.fieldLabel('Ciudad donde simular')}
@@ -14914,12 +15267,17 @@ if (document.readyState === 'loading') {
                         { value: trips.length, label: 'Viajes activos', variant: 'amber' },
                         { value: testDriverUid ? 1 : 0, label: 'Conductor test', variant: 'purple' }
                     ])) +
+                    customZonesPanel +
                     demandSimPanel +
                     fleetSimPanel +
                     testPanel +
                     tripsSection +
                     invoicePanel
                 );
+                try {
+                    await window.loadCustomServiceZones?.();
+                    window.renderAdminCustomZonesList?.();
+                } catch (_) {}
             } catch (e) {
                 console.error('loadAdminTestingPanel:', e);
                 container.innerHTML = '<p class="text-red-500 text-center font-bold">Error al cargar panel de pruebas</p>';
@@ -23838,18 +24196,16 @@ window.saveProfileChanges = async () => {
                 navigator.geolocation.getCurrentPosition(
                     onGps,
                     () => {},
-                    { enableHighAccuracy: !shouldUseLowPowerMode(), maximumAge: 5000, timeout: 10000 }
+                    window.getHighAccuracyGeoOptions?.({ liveTrip: true, maximumAge: 0 })
+                        || { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 }
                 );
             }
 
             window.passengerLiveWatchId = navigator.geolocation.watchPosition(
                 onGps,
                 () => {},
-                {
-                    enableHighAccuracy: !shouldUseLowPowerMode(),
-                    maximumAge: shouldUseLowPowerMode() ? 8000 : 4000,
-                    timeout: 12000
-                }
+                window.getHighAccuracyGeoOptions?.({ liveTrip: true, maximumAge: 800 })
+                    || { enableHighAccuracy: true, maximumAge: 800, timeout: 15000 }
             );
 
             window.__publishPassengerGpsPulse = (lat, lng, h, acc, force) => publishLive(lat, lng, h, acc, force);
@@ -23863,7 +24219,8 @@ window.saveProfileChanges = async () => {
             syncLiveTripKeepalive(trip);
 
             if (trip.clientId === currentUser?.uid) {
-                if (trip.status === 'in_progress') {
+                // También en accepted: el conductor ve la posición real del pasajero (no solo el pin del pedido)
+                if (trip.status === 'accepted' || trip.status === 'in_progress') {
                     window.startPassengerLiveLocationSharing?.(trip.id);
                 }
                 ensurePassengerTrackingForTrip(trip);
@@ -23896,8 +24253,87 @@ window.saveProfileChanges = async () => {
         }
 
         /**
-         * Tras PIN / in_progress: navegación completa al destino
-         * (misma UX que ir al pasajero: carrito top-down, brújula, zoom calle, panel).
+         * Ruta SOLO del viaje del cliente: A (origen) → paradas → B (destino).
+         * NO incluye el tramo conductor → recogida (eso era solo antes del PIN).
+         */
+        async function buildDriverClientTripRouteOnly(trip) {
+            if (!trip) return null;
+            let originLat = trip.originLat != null ? Number(trip.originLat) : null;
+            let originLng = trip.originLng != null ? Number(trip.originLng) : null;
+            let destLat = trip.destinationLat != null ? Number(trip.destinationLat) : null;
+            let destLng = trip.destinationLng != null ? Number(trip.destinationLng) : null;
+
+            if ((originLat == null || originLng == null) && typeof resolveTripOriginCoords === 'function') {
+                try {
+                    const o = await resolveTripOriginCoords(trip);
+                    if (o) { originLat = o.lat; originLng = o.lng; }
+                } catch (_) {}
+            }
+            if ((destLat == null || destLng == null) && trip.destination) {
+                try {
+                    const g = await window.geocodeAddressString?.(trip.destination);
+                    if (g?.latLng) { destLat = g.latLng.lat; destLng = g.latLng.lng; }
+                } catch (_) {}
+            }
+            if (originLat == null || originLng == null || destLat == null || destLng == null) return null;
+
+            const originPoint = {
+                address: trip.origin || 'Origen',
+                latLng: { lat: originLat, lng: originLng }
+            };
+            const destPoint = {
+                address: trip.destination || 'Destino',
+                latLng: { lat: destLat, lng: destLng }
+            };
+            const stops = trip.additionalStops || [];
+            const segments = [];
+            let totalDist = 0;
+            let totalDur = 0;
+
+            try {
+                if (stops.length > 0 && window.buildOrderedRoutePoints) {
+                    const chain = window.buildOrderedRoutePoints(originPoint, destPoint, stops);
+                    const points = chain.map((p) => ({ latLng: p.latLng, address: p.address }));
+                    for (let i = 0; i < points.length - 1; i++) {
+                        const seg = await window.computeDrivingRoute?.(points[i], points[i + 1]);
+                        if (!seg?.path?.length) continue;
+                        segments.push(seg);
+                        totalDist += seg.distanceMeters || 0;
+                        totalDur += seg.durationMillis || 0;
+                    }
+                } else {
+                    const seg = await window.computeDrivingRoute?.(originPoint, destPoint);
+                    if (seg?.path?.length >= 2) {
+                        segments.push(seg);
+                        totalDist += seg.distanceMeters || 0;
+                        totalDur += seg.durationMillis || 0;
+                    }
+                }
+            } catch (e) {
+                console.warn('buildDriverClientTripRouteOnly:', e);
+                return null;
+            }
+
+            if (!segments.length) return null;
+            const path = typeof mergeDriverOfferRoutePaths === 'function'
+                ? mergeDriverOfferRoutePaths(segments)
+                : segments.flatMap((s, i) => (i === 0 ? (s.path || []) : (s.path || []).slice(1)));
+            if (path.length < 2) return null;
+
+            return {
+                path,
+                distanceMeters: totalDist,
+                durationMillis: totalDur,
+                origin: { lat: originLat, lng: originLng },
+                destination: { lat: destLat, lng: destLng },
+                clientTripOnly: true
+            };
+        }
+        window.buildDriverClientTripRouteOnly = buildDriverClientTripRouteOnly;
+
+        /**
+         * Tras PIN / in_progress: solo ruta del viaje A → B
+         * (ya no el trazo “desde donde venía el conductor” hasta el pasajero).
          */
         function startDriverDestinationNavigation(trip) {
             if (!trip?.id || trip.driverId !== currentUser?.uid) return;
@@ -23924,8 +24360,13 @@ window.saveProfileChanges = async () => {
 
             const navBootKey = `${trip.id}:dest:${legIdx}:${legTarget?.lat || dest.lat || ''}:${legTarget?.lng || dest.lng || ''}`;
             const hasRoute = window.hasActiveDriverNavRoute?.();
-            // Evitar reinicios en cada snapshot si ya navegamos a este tramo
-            if (window._inProgressNavBootKey === navBootKey && hasRoute && window.isDriverNavigating?.()) {
+            // Evitar reinicios en cada snapshot si ya navegamos a este tramo A→B
+            if (
+                window._inProgressNavBootKey === navBootKey
+                && hasRoute
+                && window.isDriverNavigating?.()
+                && window.currentNavRoute?.clientTripOnly
+            ) {
                 window.ensureDriverNavRouteVisible?.();
                 return;
             }
@@ -23962,8 +24403,36 @@ window.saveProfileChanges = async () => {
             window.syncDriverPanelNavVisibility?.();
             window.syncDriverChromeForActiveTrip?.();
 
-            window.updateNavigation?.(dest, true);
-            window.ensureDriverNavRouteVisible?.();
+            // Borrar polilínea de “ida al pasajero” (conductor → A)
+            try {
+                window.currentNavRoute = null;
+                window.currentRouteFullPath = null;
+                window._progressRoutePolylines = null;
+                window._driverOfferPreviewRoute = null;
+                window.clearRoutePolylines?.({ force: true });
+            } catch (_) {}
+
+            // Trazar SOLO A → B (y paradas del cliente); no desde GPS lejano
+            (async () => {
+                try {
+                    const ab = await buildDriverClientTripRouteOnly(trip);
+                    if (ab?.path?.length >= 2) {
+                        window.currentNavRoute = ab;
+                        window.currentRouteFullPath = ab.path;
+                        window.drawRouteOnMap?.(ab, { driverNav: true, fitFullRoute: true });
+                        try {
+                            if (ab.origin) window.placePickupMarker?.(ab.origin, 'A - Origen');
+                            if (ab.destination) window.placeDestinationMarker?.(ab.destination, 'B - Destino');
+                        } catch (_) {}
+                    }
+                } catch (e) {
+                    console.warn('startDriverDestinationNavigation A→B:', e);
+                }
+                // Navegación en curso (turnos / re-ruta si se desvía); el path base es A→B
+                window.updateNavigation?.(dest, true);
+                window.ensureDriverNavRouteVisible?.();
+            })();
+
             // Si no hay ruta a los 2 s, recuperación automática (sin recargar app)
             setTimeout(() => {
                 if (!window.hasActiveDriverNavRoute?.()) {
@@ -24338,12 +24807,25 @@ window.saveProfileChanges = async () => {
                 }
                 if (polyMissing) window._lastNavPolyRecoverAt = now;
 
+                // Tras PIN (in_progress): trazar SOLO A→B del cliente, no “desde donde venía el conductor”.
+                // Si se sale de la ruta (offRoute), sí recalcular desde GPS actual → destino.
+                const inProgressAb = isDriverNav
+                    && activeTrip?.status === 'in_progress'
+                    && !offRoute;
+                if (inProgressAb && typeof window.buildDriverClientTripRouteOnly === 'function') {
+                    route = await window.buildDriverClientTripRouteOnly(activeTrip);
+                }
                 // Reintentos de compute (red / Routes API a veces falla a la 1ª)
-                route = await window.computeDrivingRoute(pos, dest);
+                if (!route) {
+                    route = await window.computeDrivingRoute(pos, dest);
+                }
                 if (!route) {
                     for (let retry = 0; retry < 2 && !route; retry++) {
                         await new Promise((r) => setTimeout(r, 600 + retry * 500));
-                        route = await window.computeDrivingRoute(pos, dest);
+                        if (inProgressAb && typeof window.buildDriverClientTripRouteOnly === 'function') {
+                            route = await window.buildDriverClientTripRouteOnly(activeTrip);
+                        }
+                        if (!route) route = await window.computeDrivingRoute(pos, dest);
                     }
                 }
                 if (!route) {
@@ -24502,6 +24984,8 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         try { onMerchantAuthReady?.(); } catch (_) {}
         try { syncPassengerHomeForRole?.(); } catch (_) {}
+        // Zonas custom del admin (además de las ciudades de HN)
+        try { window.loadCustomServiceZones?.(); } catch (_) {}
 
         // Define download helpers early so onclick in admin lists work immediately
         if (!window.downloadRefImage) {
@@ -25582,12 +26066,63 @@ window.stopClientTracking = () => {
 // ==================== LLEGADA AL ORIGEN (1 km) / DESTINO (1 km) — CONDUCTOR → PASAJERO ====================
 const TRIP_PICKUP_ARRIVAL_RADIUS_M = 1000;
 const TRIP_DEST_CONFIRM_RADIUS_M = 1000;
+/** Si la distancia real es menor que la suma de precisiones GPS, se considera “mismo punto”. */
+const GPS_COLOCATED_PAD_M = 18;
+
+/** Opciones GPS de alta precisión (viaje activo / llegada). */
+window.getHighAccuracyGeoOptions = (opts = {}) => {
+    const liveTrip = opts.liveTrip === true
+        || document.body.classList.contains('trip-active')
+        || document.body.classList.contains('is-navigating');
+    // En viaje siempre precisión alta; maximumAge bajo evita coords viejas de “una cuadra”
+    return {
+        enableHighAccuracy: true,
+        maximumAge: liveTrip ? (opts.maximumAge ?? 800) : (opts.maximumAge ?? 2500),
+        timeout: opts.timeout ?? (liveTrip ? 15000 : 12000)
+    };
+};
+
+/**
+ * Distancia en metros considerando el error de GPS de ambos.
+ * Si cae dentro del radio de precisión, devuelve 0 (mismo punto).
+ */
+window.getAccuracyAwareDistanceMeters = (from, to, fromAcc = null, toAcc = null) => {
+    const raw = window.getDistanceMetersBetween?.(from, to);
+    if (!Number.isFinite(raw)) return Infinity;
+    const a = Number.isFinite(Number(fromAcc)) ? Number(fromAcc) : (window._driverLiveAccuracy ?? 0);
+    const b = Number.isFinite(Number(toAcc)) ? Number(toAcc) : 0;
+    // Limitar radioses absurdas del GPS (a veces reporta 500–2000 m)
+    const accSum = Math.min(120, Math.max(0, a) + Math.max(0, b)) + GPS_COLOCATED_PAD_M;
+    if (raw <= accSum) return 0;
+    return Math.max(0, raw - Math.min(accSum * 0.35, 25));
+};
 
 window.getTripPickupCoords = (trip) => {
     const t = trip || activeTrip || window.currentActiveTripData;
     if (!t) return null;
+    // Preferir GPS en vivo del pasajero (más preciso que el pin del pedido)
+    const liveAge = t.clientLiveUpdatedAt != null ? (Date.now() - Number(t.clientLiveUpdatedAt)) : Infinity;
+    if (
+        t.clientLiveLat != null
+        && t.clientLiveLng != null
+        && Number.isFinite(Number(t.clientLiveLat))
+        && Number.isFinite(Number(t.clientLiveLng))
+        && liveAge < 45000
+    ) {
+        return {
+            lat: Number(t.clientLiveLat),
+            lng: Number(t.clientLiveLng),
+            accuracy: t.clientLiveAccuracy != null ? Number(t.clientLiveAccuracy) : null,
+            source: 'client_live'
+        };
+    }
     if (t.originLat != null && t.originLng != null) {
-        return { lat: t.originLat, lng: t.originLng };
+        return {
+            lat: Number(t.originLat),
+            lng: Number(t.originLng),
+            accuracy: t.originAccuracy != null ? Number(t.originAccuracy) : null,
+            source: t.originSource || 'origin'
+        };
     }
     return null;
 };
@@ -25665,7 +26200,8 @@ window.getTripDestinationCoords = (trip) => {
 };
 
 window.getDistanceMetersBetween = (from, to) => {
-    if (!from?.lat || !from?.lng || !to?.lat || !to?.lng) return Infinity;
+    // Usar != null: en Honduras lng es negativo; !lng fallaría
+    if (from?.lat == null || from?.lng == null || to?.lat == null || to?.lng == null) return Infinity;
     if (typeof window.getDistanceToNavPoint === 'function') {
         return window.getDistanceToNavPoint(from, to);
     }
@@ -25694,7 +26230,14 @@ window.syncDriverPickupArrivalUi = (driverPos = null) => {
 
     const pos = driverPos || window.currentDriverPos;
     const pickup = window.getTripPickupCoords(trip);
-    const dist = pos && pickup ? window.getDistanceMetersBetween(pos, pickup) : Infinity;
+    const dist = pos && pickup
+        ? window.getAccuracyAwareDistanceMeters(
+            pos,
+            pickup,
+            window._driverLiveAccuracy ?? pos.accuracy,
+            pickup.accuracy
+        )
+        : Infinity;
     const within = Number.isFinite(dist) && dist <= TRIP_PICKUP_ARRIVAL_RADIUS_M;
 
     btn.classList.toggle('is-disabled', !within);
@@ -28961,6 +29504,51 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             if (data.clientId === currentUser.uid) {
                 if (['accepted', 'in_progress'].includes(data.status) && data.driverId) {
                     ensurePassengerTrackingForTrip(data);
+                    // Conductor marcó “llegué”: centrar mapa del pasajero en su posición exacta
+                    if (
+                        data.status === 'accepted'
+                        && data.driverArrived
+                        && data.driverArrivedLat != null
+                        && data.driverArrivedLng != null
+                        && data.driverId
+                    ) {
+                        const arrPos = {
+                            lat: Number(data.driverArrivedLat),
+                            lng: Number(data.driverArrivedLng)
+                        };
+                        window.currentDriverTrackPos = arrPos;
+                        window._lastDriverFirebasePos = {
+                            ...arrPos,
+                            accuracy: data.driverArrivedAccuracy,
+                            updatedAt: Date.now()
+                        };
+                        try {
+                            window.updateDriverMarker?.(
+                                data.driverId,
+                                arrPos.lat,
+                                arrPos.lng,
+                                false,
+                                {
+                                    variant: 'assigned',
+                                    heading: data.driverArrivedHeading || 0,
+                                    vehicleType: data.vehicleType || data.serviceType || 'auto',
+                                    forceReposition: true
+                                }
+                            );
+                            if (window.gMap && !window._passengerArrivedPanKey) {
+                                window._passengerArrivedPanKey = `${data.id}:arrived`;
+                                window.gMap.panTo(arrPos);
+                                if ((window.gMap.getZoom?.() || 0) < 17) window.gMap.setZoom(17);
+                            }
+                        } catch (_) {}
+                        if (window._lastNotifiedDriverArrived !== data.id) {
+                            window._lastNotifiedDriverArrived = data.id;
+                            window.showToast?.(
+                                'Tu conductor llegó. Búscalo en el mapa (ubicación actualizada).',
+                                'success'
+                            );
+                        }
+                    }
                     if (data.status === 'in_progress' && data.driverArrivedDestination) {
                         if (activeTrip?.id === data.id) {
                             activeTrip = { ...activeTrip, ...data };
@@ -28974,6 +29562,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     window._passengerTrackKey = null;
                     window._passengerTrackSessionKey = null;
                     window._passengerTrackRouteSession = null;
+                    window._passengerArrivedPanKey = null;
                     window.stopPassengerLiveLocationSharing?.();
                     if (data.status === 'completed') {
                     // Mostrar al conductor el pago en efectivo
@@ -33174,6 +33763,11 @@ window.cancelSetupAndLogout = () => {
                     originSource,
                     originLat: originCoords?.lat ?? null,
                     originLng: originCoords?.lng ?? null,
+                    originAccuracy: originEp?.accuracy != null
+                        ? Number(originEp.accuracy)
+                        : (window._passengerLastGps?.accuracy != null
+                            ? Number(window._passengerLastGps.accuracy)
+                            : null),
                     destinationLat: destinationCoords?.lat ?? null,
                     destinationLng: destinationCoords?.lng ?? null,
                     serviceZoneId: zone?.id || null,
@@ -33340,13 +33934,47 @@ window.cancelSetupAndLogout = () => {
         window.markArrival = async () => {
             if (!activeTrip) return window.showToast("No hay viaje activo.");
 
-            const pos = window.currentDriverPos;
+            // Fix fresco de alta precisión: esta posición es la que verá el pasajero en el mapa
+            let arrivalPos = null;
+            let arrivalAcc = null;
+            let arrivalHeading = null;
+            try {
+                if (navigator.geolocation?.getCurrentPosition) {
+                    await new Promise((resolve) => {
+                        navigator.geolocation.getCurrentPosition(
+                            (p) => {
+                                arrivalPos = {
+                                    lat: p.coords.latitude,
+                                    lng: p.coords.longitude
+                                };
+                                arrivalAcc = p.coords.accuracy != null ? Number(p.coords.accuracy) : null;
+                                arrivalHeading = Number.isFinite(p.coords.heading) ? p.coords.heading : null;
+                                window.currentDriverPos = { ...arrivalPos, accuracy: arrivalAcc };
+                                window._driverLiveAccuracy = arrivalAcc;
+                                window._driverLiveUpdatedAt = Date.now();
+                                if (arrivalHeading != null) window.currentDriverHeading = arrivalHeading;
+                                resolve();
+                            },
+                            () => resolve(),
+                            window.getHighAccuracyGeoOptions?.({ liveTrip: true, maximumAge: 0 })
+                                || { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+                        );
+                    });
+                }
+            } catch (_) {}
+
+            const pos = arrivalPos || window.currentDriverPos;
             const pickup = window.getTripPickupCoords(activeTrip);
             if (pickup && !pos) {
                 return window.showToast('Esperando tu ubicación GPS…');
             }
             if (pickup && pos) {
-                const dist = window.getDistanceMetersBetween(pos, pickup);
+                const dist = window.getAccuracyAwareDistanceMeters?.(
+                    pos,
+                    pickup,
+                    arrivalAcc ?? window._driverLiveAccuracy,
+                    pickup.accuracy
+                ) ?? window.getDistanceMetersBetween(pos, pickup);
                 if (dist > TRIP_PICKUP_ARRIVAL_RADIUS_M) {
                     const distLabel = dist >= 1000
                         ? `${(dist / 1000).toFixed(1)} km`
@@ -33356,9 +33984,80 @@ window.cancelSetupAndLogout = () => {
             }
 
             try {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), { driverArrived: true });
-                // Optimistic update: make PIN entry work immediately, even if snapshot is slow
-                activeTrip = { ...activeTrip, driverArrived: true };
+                const now = Date.now();
+                const arrivedLat = pos?.lat != null ? Number(pos.lat) : null;
+                const arrivedLng = pos?.lng != null ? Number(pos.lng) : null;
+
+                // 1) Publicar YA en drivers_location (el pasajero escucha esto en el mapa)
+                if (arrivedLat != null && arrivedLng != null && currentUser?.uid) {
+                    try {
+                        if (window.__publishDriverGpsPulse) {
+                            await window.__publishDriverGpsPulse(
+                                arrivedLat,
+                                arrivedLng,
+                                arrivalHeading,
+                                arrivalAcc
+                            );
+                        } else {
+                            await setDoc(
+                                doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid),
+                                {
+                                    lat: arrivedLat,
+                                    lng: arrivedLng,
+                                    heading: arrivalHeading,
+                                    accuracy: arrivalAcc,
+                                    online: true,
+                                    appVisible: !document.hidden,
+                                    appVisibleAt: now,
+                                    updatedAt: now,
+                                    name: window.userProfile?.name || '',
+                                    approvalStatus: window.userProfile?.approvalStatus || 'approved'
+                                },
+                                { merge: true }
+                            );
+                        }
+                    } catch (_) {}
+                    // Marcador local del conductor (su propio mapa)
+                    try {
+                        window.updateDriverMarker?.(
+                            currentUser.uid,
+                            arrivedLat,
+                            arrivedLng,
+                            true,
+                            {
+                                heading: arrivalHeading || window.currentDriverHeading || 0,
+                                vehicleType: getActiveVehicleType(window.userProfile) || 'auto',
+                                forceReposition: true
+                            }
+                        );
+                    } catch (_) {}
+                }
+
+                // 2) Guardar en el viaje: el pasajero ve “conductor aquí” exacto al marcar llegada
+                const tripPatch = {
+                    driverArrived: true,
+                    driverArrivedAt: serverTimestamp()
+                };
+                if (arrivedLat != null && arrivedLng != null) {
+                    tripPatch.driverArrivedLat = arrivedLat;
+                    tripPatch.driverArrivedLng = arrivedLng;
+                    tripPatch.driverArrivedAccuracy = arrivalAcc;
+                    tripPatch.driverArrivedHeading = arrivalHeading;
+                    // También como “última posición conocida” en el doc del viaje
+                    tripPatch.driverLiveLat = arrivedLat;
+                    tripPatch.driverLiveLng = arrivedLng;
+                    tripPatch.driverLiveAccuracy = arrivalAcc;
+                    tripPatch.driverLiveHeading = arrivalHeading;
+                    tripPatch.driverLiveUpdatedAt = now;
+                }
+
+                await updateDoc(
+                    doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id),
+                    tripPatch
+                );
+
+                // Optimistic update: PIN y UI al instante
+                activeTrip = { ...activeTrip, ...tripPatch, driverArrived: true };
                 window.currentActiveTripData = { ...activeTrip };
 
                 window.toggleTripFloatMinimized?.('driver-pin', false);
@@ -33370,7 +34069,12 @@ window.cancelSetupAndLogout = () => {
                     setTimeout(() => pinInput.focus(), 80);
                 }
 
-                window.showToast("¡Llegada confirmada! Ingresa el PIN del pasajero.", "success");
+                window.showToast(
+                    arrivedLat != null
+                        ? '¡Llegada confirmada! Tu ubicación exacta ya la ve el pasajero en el mapa. Pide el PIN.'
+                        : '¡Llegada confirmada! Ingresa el PIN del pasajero.',
+                    'success'
+                );
             } catch (e) {
                 handleFirestoreError(e, 'Error al confirmar llegada.');
             }
@@ -33536,42 +34240,67 @@ window.cancelSetupAndLogout = () => {
             if (!activeTrip) return;
             if (!opts.skipConfirm && !confirm("¿Confirmas que el viaje ha finalizado?")) return;
             try {
+                // Asegurar que somos el conductor del viaje (evita finish con activeTrip viejo)
+                if (window.userProfile?.role === 'driver' && activeTrip.driverId && currentUser?.uid
+                    && activeTrip.driverId !== currentUser.uid) {
+                    return window.showToast?.('Solo el conductor asignado puede finalizar este viaje.', 'warning');
+                }
+                if (window.userProfile?.role === 'driver' && !activeTrip.driverId && currentUser?.uid) {
+                    // Recuperar trip fresco por si falta driverId en memoria
+                    await refreshActiveTripFromServer?.();
+                }
+
                 const priceNum = parseTripPrice(activeTrip);
                 const isBirthdayGift = activeTrip.birthdayFree || activeTrip.paymentMethod === 'birthday_gift';
                 let tripUpdate = {
                     status: 'completed',
                     priceNum: isBirthdayGift ? 0 : priceNum,
-                    completedAt: serverTimestamp()
+                    completedAt: serverTimestamp(),
+                    completedBy: currentUser?.uid || null,
+                    completedByRole: window.userProfile?.role || null
                 };
                 let toastMsg = `Viaje finalizado. Ganancia en efectivo: L. ${priceNum.toFixed(2)}`;
 
+                // Liquidación de saldo (puede fallar por reglas de otro usuario): no bloquear el complete
                 if (activeTrip.paymentMethod === 'saldo' || isBirthdayGift) {
-                    const settlement = await settleSaldoTripOnComplete(activeTrip, activeTrip.id);
-                    if (settlement) {
-                        tripUpdate = { ...tripUpdate, ...settlement.tripUpdate };
-                        if (settlement.commissionWaivedBirthday) {
-                            toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
-                        } else if (isBirthdayGift) {
-                            toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} (regalo de cumpleaños del pasajero).`;
-                        } else {
-                            toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} en tu saldo (comisión L. ${settlement.commissionAmount.toFixed(2)} ya pagada).`;
+                    try {
+                        const settlement = await settleSaldoTripOnComplete(activeTrip, activeTrip.id);
+                        if (settlement) {
+                            tripUpdate = { ...tripUpdate, ...settlement.tripUpdate };
+                            if (settlement.commissionWaivedBirthday) {
+                                toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
+                            } else if (isBirthdayGift) {
+                                toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} (regalo de cumpleaños del pasajero).`;
+                            } else {
+                                toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} en tu saldo (comisión L. ${settlement.commissionAmount.toFixed(2)} ya pagada).`;
+                            }
                         }
+                    } catch (settleErr) {
+                        console.warn('settleSaldoTripOnComplete (no bloquea finish):', settleErr);
+                        tripUpdate.saldoSettlementPending = true;
                     }
                 } else {
-                    const { commissionPercent, commissionWaivedBirthday } = await resolveCommissionForTrip(activeTrip);
-                    const split = calcTripCommissionSplit(priceNum, commissionPercent);
-                    tripUpdate.commissionPercent = commissionPercent;
-                    tripUpdate.commissionAmount = split.commissionAmount;
-                    tripUpdate.commissionWaivedBirthday = commissionWaivedBirthday || false;
-                    if (commissionWaivedBirthday) {
-                        toastMsg = `Viaje finalizado. Ganancia: L. ${priceNum.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
+                    try {
+                        const { commissionPercent, commissionWaivedBirthday } = await resolveCommissionForTrip(activeTrip);
+                        const split = calcTripCommissionSplit(priceNum, commissionPercent);
+                        tripUpdate.commissionPercent = commissionPercent;
+                        tripUpdate.commissionAmount = split.commissionAmount;
+                        tripUpdate.commissionWaivedBirthday = commissionWaivedBirthday || false;
+                        if (commissionWaivedBirthday) {
+                            toastMsg = `Viaje finalizado. Ganancia: L. ${priceNum.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
+                        }
+                    } catch (commErr) {
+                        console.warn('resolveCommissionForTrip:', commErr);
                     }
-                    // La comisión en efectivo es "pendiente del día" (se calcula por viajes).
-                    // NO se convierte en deuda acumulada hasta: cerrar turno, prórroga staff, o vencer el plazo (12 p.m. día siguiente).
                 }
 
+                // Primero completar el viaje (permiso de conductor asignado en rules)
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), tripUpdate);
-                await redeemPromoIfNeeded({ ...activeTrip, ...tripUpdate }, activeTrip.id);
+                try {
+                    await redeemPromoIfNeeded({ ...activeTrip, ...tripUpdate }, activeTrip.id);
+                } catch (promoErr) {
+                    console.warn('redeemPromoIfNeeded:', promoErr);
+                }
 
                 if (activeTrip.driverId) {
                     window.incrementDriverObjectiveOnTripComplete?.(activeTrip.driverId, activeTrip.id).catch(() => {});
@@ -34683,12 +35412,40 @@ window.cancelSetupAndLogout = () => {
 
                 let markerPos = vehiclePos;
                 let markerHeading = vehicleHeading;
-                if (routePath.length >= 2) {
+                // Si el conductor YA marcó llegada: mostrar GPS exacto (no pegar a la calle)
+                const driverJustArrived = !!(liveTrip?.driverArrived || tripData?.driverArrived);
+                const arrivedFix = (liveTrip?.driverArrivedLat != null && liveTrip?.driverArrivedLng != null)
+                    ? {
+                        lat: Number(liveTrip.driverArrivedLat),
+                        lng: Number(liveTrip.driverArrivedLng),
+                        age: liveTrip.driverLiveUpdatedAt
+                            ? Date.now() - Number(liveTrip.driverLiveUpdatedAt)
+                            : 0
+                    }
+                    : null;
+                // Priorizar el punto de llegada reciente del viaje (hasta ~90 s) o el GPS en vivo
+                if (
+                    driverJustArrived
+                    && arrivedFix
+                    && arrivedFix.age < 90000
+                    && Number.isFinite(arrivedFix.lat)
+                    && Number.isFinite(arrivedFix.lng)
+                ) {
+                    // Mezcla: si el live está a <40 m del “llegué”, usar live; si no, el punto de llegada
+                    const dLive = window.getDistanceMetersBetween?.(vehiclePos, arrivedFix);
+                    if (!Number.isFinite(dLive) || dLive > 40) {
+                        markerPos = { lat: arrivedFix.lat, lng: arrivedFix.lng };
+                    }
+                } else if (routePath.length >= 2 && !driverJustArrived) {
                     const snapped = window.snapPositionToRoute?.(routePath, vehiclePos);
                     if (snapped?.lat != null && snapped?.lng != null) {
                         markerPos = { lat: snapped.lat, lng: snapped.lng };
                         if (Number.isFinite(snapped.heading)) markerHeading = snapped.heading;
                     }
+                }
+                // Llegó: nunca snap a ruta (el cliente debe verlo donde está parado)
+                if (driverJustArrived && routePath.length >= 2) {
+                    // markerPos ya es GPS real / arrived fix
                 }
 
                 window.currentDriverTrackPos = markerPos;
@@ -35023,11 +35780,8 @@ window.cancelSetupAndLogout = () => {
                     position.coords.accuracy
                 ),
                 () => {},
-                {
-                    enableHighAccuracy: !shouldUseLowPowerMode(),
-                    maximumAge: shouldUseLowPowerMode() ? 300000 : 120000,
-                    timeout: 12000
-                }
+                window.getHighAccuracyGeoOptions?.({ liveTrip: false, maximumAge: 2000, timeout: 12000 })
+                    || { enableHighAccuracy: true, maximumAge: 2000, timeout: 12000 }
             );
         };
 
@@ -35135,7 +35889,7 @@ window.cancelSetupAndLogout = () => {
             const publishDriverGps = async (lat, lng, heading = null, accuracy = null) => {
                 if (lat == null || lng == null) return;
                 const now = Date.now();
-                window.currentDriverPos = { lat, lng };
+                window.currentDriverPos = { lat, lng, accuracy };
                 window._driverLiveAccuracy = accuracy;
                 window._driverLiveUpdatedAt = now;
                 const driverZoneId = window.activeServiceZoneId || getDefaultZoneId();
@@ -35221,7 +35975,8 @@ window.cancelSetupAndLogout = () => {
                         };
                         try { window.notifyDriverGpsHealth?.(false, err); } catch (_) {}
                     },
-                    { enableHighAccuracy: !shouldUseLowPowerMode(), maximumAge: 60000, timeout: 12000 }
+                    window.getHighAccuracyGeoOptions?.({ liveTrip: true, maximumAge: 0, timeout: 15000 })
+                        || { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
                 );
             }
 
@@ -35245,7 +36000,20 @@ window.cancelSetupAndLogout = () => {
                     const accuracy = position.coords.accuracy;
                     const now = Date.now();
 
-                    window.currentDriverPos = { lat, lng };
+                    // Descartar fixes muy imprecisos si ya tenemos uno mejor reciente
+                    const prevAcc = window._driverLiveAccuracy;
+                    const prevAt = window._driverLiveUpdatedAt || 0;
+                    if (
+                        accuracy != null
+                        && Number(accuracy) > 80
+                        && prevAcc != null
+                        && Number(prevAcc) < 40
+                        && (now - prevAt) < 12000
+                    ) {
+                        return;
+                    }
+
+                    window.currentDriverPos = { lat, lng, accuracy };
                     window._driverLiveAccuracy = accuracy;
                     window._driverLiveUpdatedAt = now;
                     window._driverGpsOk = true;
@@ -35299,21 +36067,23 @@ window.cancelSetupAndLogout = () => {
                     }
 
                     if (onLiveDriverTrip && hasNavRoute) {
-                        const progressMs = LOW_POWER ? 400 : 280;
+                        // Actualizar siempre la ruta “comida” con cada GPS (force)
+                        const progressMs = LOW_POWER ? 320 : 180;
                         if (!window._lastDriverRouteProgress || now - window._lastDriverRouteProgress > progressMs) {
                             window._lastDriverRouteProgress = now;
-                            // Progreso de ruta del conductor: solo su GPS (no el del pasajero)
-                            let progressPos = { lat, lng };
-                            if (activeTrip?.status === 'in_progress') {
-                                const best = await resolveBestVehiclePosition(activeTrip, { vehicleOnly: true });
-                                if (best && (best.source === 'driver' || best.source === 'driver_local')) {
-                                    progressPos = { lat: best.lat, lng: best.lng };
-                                }
-                            }
+                            // Solo GPS del conductor — avanza el trazo como Google Maps
+                            const progressPos = { lat, lng };
                             window.updateRouteProgress?.(
                                 progressPos,
                                 { driverNav: true, force: true }
                             );
+                        }
+                    } else if (onLiveDriverTrip && !hasNavRoute && window.isDriverNavigating?.()) {
+                        // Sin path en memoria: recuperar y dibujar
+                        if (!window._lastDriverRouteGuard || now - window._lastDriverRouteGuard > 4000) {
+                            window._lastDriverRouteGuard = now;
+                            window.ensureDriverNavRouteVisible?.();
+                            window.recoverDriverNavRoute?.({ force: false, silent: true });
                         }
                     }
 
@@ -35435,7 +36205,8 @@ window.cancelSetupAndLogout = () => {
                         window.showToast?.(msg, 'warning');
                     }
                 },
-                { enableHighAccuracy: !LOW_POWER, maximumAge: LOW_POWER ? 30000 : 5000, timeout: 15000 }
+                window.getHighAccuracyGeoOptions?.({ liveTrip: true, maximumAge: 0, timeout: 15000 })
+                    || { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
             );
 
             // Heartbeat: mantiene actualizado el updatedAt aunque no haya movimiento GPS.
@@ -36797,9 +37568,18 @@ window.addEventListener('map-route-trigger', () => {
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    // Coordenadas crudas del GPS (no el centro del POI de geocoding)
                     const latlng = {
                         lat: position.coords.latitude,
                         lng: position.coords.longitude
+                    };
+                    const gpsAccuracy = position.coords.accuracy != null
+                        ? Number(position.coords.accuracy)
+                        : null;
+                    window._passengerLastGps = {
+                        ...latlng,
+                        accuracy: gpsAccuracy,
+                        updatedAt: Date.now()
                     };
 
                     // Ciudad sigue al origen GPS
@@ -36810,7 +37590,7 @@ window.addEventListener('map-route-trigger', () => {
                     // Centrar el mapa
                     if (window.gMap) {
                         window.gMap.panTo(latlng);
-                        window.gMap.setZoom(17);
+                        window.gMap.setZoom(18);
                     }
 
                     // Obtener dirección (preferir nombre del lugar en el mapa si hay POI cerca)
@@ -36831,7 +37611,7 @@ window.addEventListener('map-route-trigger', () => {
                             }
 
                             const geo = await window.reverseGeocodeLatLng?.(latlng);
-                            const address = geo?.address || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+                            const address = geo?.address || `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
                             const placeName = geo?.placeName || null;
                             const formatted = geo?.formattedAddress || null;
                             const originEl = document.getElementById('origin-autocomplete');
@@ -36843,6 +37623,7 @@ window.addEventListener('map-route-trigger', () => {
                                 return;
                             }
 
+                            // latLng = GPS exacto; la dirección es solo etiqueta (no mover el pin al POI)
                             window.storeRouteEndpoint?.(originEl, {
                                 address,
                                 placeName,
@@ -36850,7 +37631,8 @@ window.addEventListener('map-route-trigger', () => {
                                 latLng: latlng,
                                 place: null,
                                 source: 'gps',
-                                gpsAddress: address
+                                gpsAddress: address,
+                                accuracy: gpsAccuracy
                             });
 
                             if (originEl) {
