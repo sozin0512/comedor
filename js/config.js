@@ -1,10 +1,10 @@
-﻿/**
+/**
  * Configuración central de HonduRaite.
  * Edita aquí API keys, Map ID y correos de admin.
  */
 export const APP_CONFIG = {
     /** Sube este número cada vez que publicas cambios (y el mismo valor en version.json). */
-    appVersion: '2026.08.03.3',
+    appVersion: '2026.08.03.4',
     /** Push nativo Android (auto: google-services.json + paquete APK) */
     androidFcmEnabled: true,
     firebase: {

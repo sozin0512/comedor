@@ -8,7 +8,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
 function readVersion() {
-    const raw = fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8');
+    const raw = stripBom(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8'));
     const data = JSON.parse(raw);
     const version = String(data.version || '').trim();
     if (!version) throw new Error('version.json sin campo "version"');
@@ -72,17 +72,59 @@ function patchIndexHtml(version, filePath) {
         (function () {
             try {
                 var build = '${version}';
-                var doneKey = 'hr_boot_updated_' + build;
-                if (sessionStorage.getItem(doneKey)) return;
-                fetch('/version.json?t=' + Date.now(), { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } })
+                function showEarlyUpdateBanner(remote) {
+                    if (document.getElementById('hr-early-update')) return;
+                    var el = document.createElement('div');
+                    el.id = 'hr-early-update';
+                    el.setAttribute('role', 'dialog');
+                    el.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:1.25rem;background:rgba(15,23,42,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)';
+                    el.innerHTML = '<div style="width:100%;max-width:22rem;background:#fff;border-radius:1.5rem;padding:1.4rem;text-align:center;box-shadow:0 24px 48px rgba(0,0,0,.3)">'
+                        + '<p style="font-weight:900;font-size:1.05rem;color:#0f172a;margin:0 0 .5rem">Nueva versión disponible</p>'
+                        + '<p style="font-size:.78rem;font-weight:600;color:#475569;margin:0 0 .35rem">HonduRaite tiene una actualización.</p>'
+                        + '<p style="font-size:.62rem;font-weight:700;color:#94a3b8;margin:0 0 1rem">Instalada: ' + build + (remote ? ' · Disponible: ' + remote : '') + '</p>'
+                        + '<button type="button" id="hr-early-update-btn" style="width:100%;min-height:3rem;border:0;border-radius:1rem;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;font-weight:900;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase">Actualizar ahora</button>'
+                        + '<p style="font-size:.62rem;color:#64748b;margin:.75rem 0 0;line-height:1.4">En iPhone: cierra la app desde multitarea y vuelve a abrir el ícono si no carga.</p>'
+                        + '</div>';
+                    (document.body || document.documentElement).appendChild(el);
+                    var btn = document.getElementById('hr-early-update-btn');
+                    if (btn) btn.onclick = function () {
+                        try { sessionStorage.removeItem('hr_boot_reload_n'); } catch (e) {}
+                        var url = new URL(location.origin + (location.pathname || '/'));
+                        url.search = '';
+                        url.hash = '';
+                        if (remote) url.searchParams.set('v', remote);
+                        url.searchParams.set('hr_refresh', String(Date.now()));
+                        url.searchParams.set('_', String(Date.now()));
+                        location.replace(url.toString());
+                        setTimeout(function () { try { location.reload(); } catch (e) {} }, 600);
+                    };
+                }
+                // iOS PWA: reintentos limitados + banner si el HTML viejo se queda pegado
+                var n = parseInt(sessionStorage.getItem('hr_boot_reload_n') || '0', 10) || 0;
+                fetch('/version.json?t=' + Date.now() + '&r=' + Math.random(), {
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', Pragma: 'no-cache' }
+                })
                     .then(function (r) { return r.ok ? r.json() : null; })
                     .then(function (d) {
-                        if (!d || !d.version || d.version === build) return;
-                        sessionStorage.setItem(doneKey, '1');
-                        var url = new URL(location.href);
-                        url.searchParams.set('v', d.version);
-                        url.searchParams.set('hr_refresh', String(Date.now()));
-                        location.replace(url.toString());
+                        if (!d || !d.version) return;
+                        if (String(d.version).trim() === String(build).trim()) {
+                            try { sessionStorage.removeItem('hr_boot_reload_n'); } catch (e) {}
+                            return;
+                        }
+                        // Hasta 2 recargas automáticas; luego banner visible (iPhone lo ve sí o sí)
+                        if (n < 2) {
+                            try { sessionStorage.setItem('hr_boot_reload_n', String(n + 1)); } catch (e) {}
+                            var url = new URL(location.origin + (location.pathname || '/'));
+                            url.search = '';
+                            url.hash = '';
+                            url.searchParams.set('v', d.version);
+                            url.searchParams.set('hr_refresh', String(Date.now()));
+                            url.searchParams.set('_', String(Date.now()));
+                            location.replace(url.toString());
+                            return;
+                        }
+                        showEarlyUpdateBanner(d.version);
                     })
                     .catch(function () {});
             } catch (e) {}
@@ -98,9 +140,13 @@ function patchIndexHtml(version, filePath) {
     fs.writeFileSync(filePath, html, 'utf8');
 }
 
+function stripBom(text) {
+    return String(text || '').replace(/^\uFEFF/, '');
+}
+
 function patchManifest(version, filePath) {
     if (!fs.existsSync(filePath)) return;
-    const manifest = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const manifest = JSON.parse(stripBom(fs.readFileSync(filePath, 'utf8')));
     manifest.start_url = `/?v=${version}`;
     manifest.id = `/?v=${version}`;
     fs.writeFileSync(filePath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');

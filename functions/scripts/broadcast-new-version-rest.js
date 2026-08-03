@@ -6,10 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const VERSION = '2026.07.17.19';
+const VERSION = '2026.08.03.4';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
-    `Actualización ${VERSION}: viajes armados por staff (link WhatsApp, confirmar personas y hora), programados con día/hora visibles al conductor, y avisos tipo Temu. Actualiza la web o la app. ¡Gracias!`;
+    `Actualización ${VERSION}: navegación post-PIN, mapa del pasajero más estable, y rutas de ofertas limpias. Toca Actualizar o cierra y abre la app. ¡Gracias!`;
 const APP_ID = 'comayagua-vip-pro-v4';
 const PROJECT = 'comedor-86278';
 const CFG_PATH = path.join(

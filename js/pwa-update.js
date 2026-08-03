@@ -261,28 +261,36 @@ async function prepareUpdateAssets(remoteVersion) {
 async function checkForAppUpdate({ force = false } = {}) {
     const now = Date.now();
     const interval = getCheckInterval();
+    // En iOS/PWA no throttlear checks forzados ni los primeros 30s (Safari cachea fuerte)
     if (!force && now - lastCheckAt < interval) return false;
     lastCheckAt = now;
 
     try {
         const remoteVersion = await fetchLatestVersion();
-        if (!remoteVersion) return false;
+        if (!remoteVersion) {
+            console.info('[pwa-update] version.json no disponible');
+            return false;
+        }
 
         const running = getBuildVersion();
         if (!versionsDiffer(running, remoteVersion)) {
             localStorage.removeItem(PENDING_VERSION_KEY);
             localStorage.removeItem(STALE_RETRY_KEY);
+            try { sessionStorage.removeItem('hr_boot_reload_n'); } catch (_) {}
             dismissUpdateModal();
             return false;
         }
 
+        try { localStorage.setItem(PENDING_VERSION_KEY, remoteVersion); } catch (_) {}
+        console.info('[pwa-update] Nueva versión:', remoteVersion, '(instalada:', running + ')');
         showAppUpdateModal({
             remoteVersion,
-            force,
-            showIosHelp: isIOSDevice() && !!localStorage.getItem(PENDING_VERSION_KEY)
+            force: true,
+            showIosHelp: isIOSDevice()
         });
         return true;
-    } catch (_) {
+    } catch (err) {
+        console.warn('[pwa-update] check failed', err);
         return false;
     }
 }
@@ -391,28 +399,48 @@ export function initAppUpdateCheck() {
     window.getMessagingSwUrl = getMessagingSwUrl;
 
     // App nativa empaqueta assets: el update de web/PWA no aplica
-    if (isCapacitorNative()) return;
+    if (isCapacitorNative()) {
+        console.info('[pwa-update] Capacitor nativo: se omite check web');
+        return;
+    }
 
     bindServiceWorkerUpdateFlow();
 
-    window.setTimeout(() => checkForAppUpdate({ force: true }), 1800);
-    window.setTimeout(() => verifyPendingVersionAfterLoad(), 3200);
-    // PWA iOS a veces cachea fuerte: segundo y tercer chequeo
-    window.setTimeout(() => checkForAppUpdate({ force: true }), 8000);
-    window.setTimeout(() => checkForAppUpdate({ force: true }), 20000);
+    // iPhone / PWA: varios pases tempranos (Safari a veces tarda o cachea el primer fetch)
+    const earlyMs = isIOSDevice()
+        ? [400, 1200, 2800, 6000, 12000, 25000]
+        : [1200, 4000, 12000];
+    earlyMs.forEach((ms) => {
+        window.setTimeout(() => {
+            checkForAppUpdate({ force: true }).catch(() => {});
+        }, ms);
+    });
+    window.setTimeout(() => verifyPendingVersionAfterLoad(), isIOSDevice() ? 1800 : 3200);
+
+    // Intervalo recurrente (1 min iOS, 5 min resto)
+    window.setInterval(() => {
+        checkForAppUpdate({ force: true }).catch(() => {});
+    }, getCheckInterval());
 
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) checkForAppUpdate({ force: true });
     });
 
     window.addEventListener('focus', () => checkForAppUpdate({ force: true }));
-
     window.addEventListener('online', () => checkForAppUpdate({ force: true }));
-
     window.addEventListener('pageshow', (event) => {
-        if (event.persisted) {
-            checkForAppUpdate({ force: true });
-            verifyPendingVersionAfterLoad();
-        }
+        checkForAppUpdate({ force: true });
+        if (event.persisted) verifyPendingVersionAfterLoad();
     });
+
+    // Si el HTML viejo se quedó en memoria (bfcache iOS), re-check al tocar la pantalla
+    if (isIOSDevice()) {
+        let touchChecked = false;
+        const onFirstTouch = () => {
+            if (touchChecked) return;
+            touchChecked = true;
+            checkForAppUpdate({ force: true });
+        };
+        document.addEventListener('touchstart', onFirstTouch, { passive: true, once: true });
+    }
 }
