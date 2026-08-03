@@ -13,6 +13,7 @@ const COPY_DIRS = ['css', 'js', 'icons', 'assets'];
 const COPY_FILES = [
     'index.html',
     'terminos-y-condiciones.html',
+    'politica-de-privacidad.html',
     'manifest.json',
     'version.json',
     'sw.js',
