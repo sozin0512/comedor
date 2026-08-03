@@ -558,19 +558,40 @@ exports.registerUserProfile = onCall(async (request) => {
     return { ok: true, uid, role: patch.role || existingRole || 'client' };
 });
 
-/** Aceptar tÃ©rminos y condiciones â€” siempre vÃ­a Admin SDK (sin depender de reglas cliente). */
+/** Aceptar Términos y Condiciones + Política de Privacidad (Admin SDK). */
 exports.acceptTermsProfile = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
-        throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
 
-    const acceptedAt = String(request.data?.termsAcceptedAt || new Date().toISOString());
+    const nowIso = new Date().toISOString();
+    const termsAcceptedAt = String(request.data?.termsAcceptedAt || nowIso);
+    const privacyAcceptedAt = String(request.data?.privacyAcceptedAt || nowIso);
+    const privacyPolicyVersion = String(request.data?.privacyPolicyVersion || '1.0');
+    const wantTerms = request.data?.termsAccepted !== false;
+    const wantPrivacy = request.data?.privacyAccepted !== false;
+
     const patch = {
-        termsAccepted: true,
-        termsAcceptedAt: acceptedAt,
         updatedAt: FieldValue.serverTimestamp(),
     };
+    if (wantTerms) {
+        patch.termsAccepted = true;
+        patch.termsAcceptedAt = termsAcceptedAt;
+    }
+    if (wantPrivacy) {
+        patch.privacyAccepted = true;
+        patch.privacyAcceptedAt = privacyAcceptedAt;
+        patch.privacyPolicyVersion = privacyPolicyVersion;
+    }
+    // Flujo normal de la app: ambas a la vez
+    if (wantTerms && wantPrivacy) {
+        patch.termsAccepted = true;
+        patch.termsAcceptedAt = termsAcceptedAt;
+        patch.privacyAccepted = true;
+        patch.privacyAcceptedAt = privacyAcceptedAt;
+        patch.privacyPolicyVersion = privacyPolicyVersion;
+    }
 
     const pubRef = db.doc(`artifacts/${APP_ID}/public/data/users/${uid}`);
     const privRef = db.doc(`artifacts/${APP_ID}/users/${uid}/profile/data`);
@@ -578,7 +599,13 @@ exports.acceptTermsProfile = onCall(async (request) => {
     await pubRef.set(patch, { merge: true });
     await privRef.set(patch, { merge: true });
 
-    return { ok: true, uid, termsAcceptedAt: acceptedAt };
+    return {
+        ok: true,
+        uid,
+        termsAcceptedAt: patch.termsAcceptedAt || null,
+        privacyAcceptedAt: patch.privacyAcceptedAt || null,
+        privacyPolicyVersion: patch.privacyPolicyVersion || null
+    };
 });
 
 /** Valida creaciÃ³n de trips en el servidor (checks bÃ¡sicos). */
@@ -614,8 +641,9 @@ exports.validateTripCreation = onCall(async (request) => {
         throw new HttpsError('failed-precondition', 'Cuenta suspendida o rechazada. Contacta a soporte.');
     }
 
-    // Terms check: no bloquear, solo advertir (cliente puede optar). Devolver warning si aplica
+    // Legal check: no bloquear, solo advertir
     const termsAccepted = !!(priv.termsAccepted || pub.termsAccepted);
+    const privacyAccepted = !!(priv.privacyAccepted || pub.privacyAccepted);
 
     // Leer configuraciÃ³n global de appSettings para negociaciÃ³n
     const settingsRef = db.doc(`artifacts/${APP_ID}/public/data/appSettings/main`);
@@ -662,10 +690,10 @@ exports.validateTripCreation = onCall(async (request) => {
         }
     }
 
-    if (!termsAccepted) {
+    if (!termsAccepted || !privacyAccepted) {
         return {
             ok: true,
-            warning: 'terms_not_accepted',
+            warning: !termsAccepted ? 'terms_not_accepted' : 'privacy_not_accepted',
             negotiationEnabled: globalNegotiationEnabled,
             role,
             balance,

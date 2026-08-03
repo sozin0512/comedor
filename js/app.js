@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.08.03.6";
+} from "./auth-credentials.js?v=2026.08.03.7";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.08.03.6";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.03.6";
+import { APP_CONFIG } from "./config.js?v=2026.08.03.7";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.03.7";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.08.03.6";
+} from "./referrals.js?v=2026.08.03.7";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -33,12 +33,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.08.03.6";
+} from "./zones.js?v=2026.08.03.7";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.08.03.6";
+} from "./trip-notifications.js?v=2026.08.03.7";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -59,7 +59,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.08.03.6";
+} from "./notification-tones.js?v=2026.08.03.7";
 
 installNotificationTonesApi();
 
@@ -89,34 +89,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.08.03.6";
+} from "./passenger-alerts.js?v=2026.08.03.7";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.08.03.6";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.08.03.6";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.03.6";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.03.6";
-import { initOpsPanels } from "./ops-panels.js?v=2026.08.03.6";
-import { initOpsUi } from "./ops-ui.js?v=2026.08.03.6";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.03.6";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.03.6";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.03.6";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.08.03.6";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.03.6";
+} from "./passenger-verification.js?v=2026.08.03.7";
+import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.08.03.7";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.03.7";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.03.7";
+import { initOpsPanels } from "./ops-panels.js?v=2026.08.03.7";
+import { initOpsUi } from "./ops-ui.js?v=2026.08.03.7";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.03.7";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.03.7";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.03.7";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.08.03.7";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.03.7";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.08.03.6";
+} from "./feedback.js?v=2026.08.03.7";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.08.03.6";
+} from "./greetings.js?v=2026.08.03.7";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -129,49 +129,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.08.03.6";
+} from "./service-types.js?v=2026.08.03.7";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.08.03.6";
+} from "./driver-vehicles.js?v=2026.08.03.7";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.08.03.6";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.08.03.6";
+} from "./route-conditions.js?v=2026.08.03.7";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.08.03.7";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.08.03.6";
+} from "./demand-heatmap.js?v=2026.08.03.7";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.08.03.6";
+} from "./ops-fleet-map.js?v=2026.08.03.7";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.08.03.6";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.03.6";
+} from "./live-trip-keepalive.js?v=2026.08.03.7";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.03.7";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.08.03.6";
+} from "./session-keepalive.js?v=2026.08.03.7";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.08.03.6";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.03.6";
+} from "./passenger-tutorial.js?v=2026.08.03.7";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.03.7";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.08.03.6";
+} from "./driver-tutorial.js?v=2026.08.03.7";
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
 const HR_BOOT_STARTED_AT = Date.now();
@@ -254,29 +254,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.03.6";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.03.7";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.08.03.6";
+} from "./auth-ui.js?v=2026.08.03.7";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.08.03.6";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.03.6";
+} from "./age-verification.js?v=2026.08.03.7";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.03.7";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.08.03.6";
+} from "./trip-experience.js?v=2026.08.03.7";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.08.03.6";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.03.6";
-import { initAppDownload } from "./app-download.js?v=2026.08.03.6";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.03.6";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.03.6";
+} from "./support-tickets.js?v=2026.08.03.7";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.03.7";
+import { initAppDownload } from "./app-download.js?v=2026.08.03.7";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.03.7";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.03.7";
 
 
 let app;
@@ -424,17 +424,26 @@ async function registerUserProfileWrite(uid, profileData) {
 }
 window.registerUserProfileWrite = registerUserProfileWrite;
 
-/** Actualización parcial del propio perfil (términos, foto, teléfono, vehículos, etc.). */
+/** Actualización parcial del propio perfil (términos, privacidad, foto, teléfono, vehículos, etc.). */
 async function ownerProfilePatch(uid, fields) {
     if (!uid || !fields) return;
 
-    const isTermsOnly = fields.termsAccepted === true
-        && Object.keys(fields).every((k) => ['termsAccepted', 'termsAcceptedAt'].includes(k));
+    const legalKeys = new Set([
+        'termsAccepted', 'termsAcceptedAt',
+        'privacyAccepted', 'privacyAcceptedAt', 'privacyPolicyVersion'
+    ]);
+    const isLegalOnly = Object.keys(fields).length > 0
+        && Object.keys(fields).every((k) => legalKeys.has(k))
+        && (fields.termsAccepted === true || fields.privacyAccepted === true);
 
-    if (isTermsOnly) {
+    if (isLegalOnly) {
         try {
             await httpsCallable(cloudFunctions, 'acceptTermsProfile')({
                 termsAcceptedAt: fields.termsAcceptedAt || new Date().toISOString(),
+                privacyAcceptedAt: fields.privacyAcceptedAt || new Date().toISOString(),
+                privacyPolicyVersion: fields.privacyPolicyVersion || '1.0',
+                termsAccepted: fields.termsAccepted !== false,
+                privacyAccepted: fields.privacyAccepted !== false,
             });
             return;
         } catch (cloudErr) {
@@ -1402,6 +1411,9 @@ function buildPublicProfileSyncPayload(user, profile, { includeRole = false } = 
         setupComplete: safe.setupComplete ?? null,
         termsAccepted: safe.termsAccepted ?? null,
         termsAcceptedAt: safe.termsAcceptedAt || null,
+        privacyAccepted: safe.privacyAccepted ?? null,
+        privacyAcceptedAt: safe.privacyAcceptedAt || null,
+        privacyPolicyVersion: safe.privacyPolicyVersion || null,
         emergencyContact: safe.emergencyContact || null,
         lastSeenReportsAt: safe.lastSeenReportsAt ?? null,
         updatedAt: serverTimestamp(),
@@ -23849,7 +23861,10 @@ window.saveProfileChanges = async () => {
                 serviceZoneName: currentZone?.name || null,
                 totalTrips: 0, ratingSum: 5, ratingCount: 1, setupComplete: true,
                 termsAccepted: false,
-                termsAcceptedAt: null
+                termsAcceptedAt: null,
+                privacyAccepted: false,
+                privacyAcceptedAt: null,
+                privacyPolicyVersion: null
             };
             
             if (userRole === 'driver') {
@@ -23924,6 +23939,11 @@ window.saveProfileChanges = async () => {
                     if (existingProfile.termsAccepted) {
                         data.termsAccepted = true;
                         data.termsAcceptedAt = existingProfile.termsAcceptedAt || null;
+                    }
+                    if (existingProfile.privacyAccepted) {
+                        data.privacyAccepted = true;
+                        data.privacyAcceptedAt = existingProfile.privacyAcceptedAt || null;
+                        data.privacyPolicyVersion = existingProfile.privacyPolicyVersion || null;
                     }
                     data.allowSwitchToDriver = false;
                     data.needsFullDriverSetup = false;
@@ -25571,8 +25591,8 @@ onAuthStateChanged(auth, async (user) => {
                     return;
                 }
 
-                // === Verificación de aceptación de Términos y Condiciones (antes de ocultar setup) ===
-                if (!profile.termsAccepted) {
+                // === Términos + Política de Privacidad (obligatorio antes de usar la app) ===
+                if (!profile.termsAccepted || !profile.privacyAccepted) {
                     setElementDisplay('app-interface', 'none');
                     window.showTermsAcceptance?.();
                     return;
@@ -26732,6 +26752,7 @@ function summarizeProfileForTrip(profile) {
         approvalStatus: profile.approvalStatus || null,
         accountRestricted: !!profile.accountRestricted,
         termsAccepted: !!profile.termsAccepted,
+        privacyAccepted: !!profile.privacyAccepted,
         identityVerificationSubmitted: !!profile.identityVerificationSubmitted,
         hasVehicles: Array.isArray(profile.vehicles) && profile.vehicles.length > 0,
         activeVehicleId: profile.activeVehicleId || null
@@ -30637,37 +30658,63 @@ window.cancelPassengerSetup = () => {
     }
 };
 
-// === Aceptación de Términos y Condiciones (forzado después del registro) ===
+// === Aceptación de Términos + Política de Privacidad (obligatorio) ===
+const HR_PRIVACY_POLICY_VERSION = '1.0';
+
+function buildLegalAcceptanceCardHtml() {
+    return `
+        <div style="text-align:center;margin-bottom:18px;">
+            <div style="width:64px;height:64px;margin:0 auto 12px;background:#dbeafe;border-radius:9999px;display:flex;align-items:center;justify-content:center;">
+                <i class="fas fa-file-contract" style="font-size:26px;color:#2563eb;"></i>
+            </div>
+            <h2 style="font-size:22px;font-weight:900;margin:0 0 6px;color:#1e293b;">Términos y Privacidad</h2>
+            <p style="font-size:13px;color:#64748b;margin:0;">Debes aceptar ambos documentos para usar HonduRaite.</p>
+        </div>
+
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:12px;margin-bottom:14px;font-size:12px;color:#1e40af;line-height:1.4;">
+            Al continuar confirmas que leíste y aceptas los <strong>Términos y Condiciones</strong> y la
+            <strong>Política de Privacidad</strong> de HonduRaite (Empresa SOZIN).
+        </div>
+
+        <a href="terminos-y-condiciones.html" target="_blank" rel="noopener"
+           style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 0;margin-bottom:8px;border:2px solid #2563eb;color:#2563eb;font-weight:700;border-radius:14px;text-decoration:none;font-size:13px;">
+            <i class="fas fa-file-alt"></i>
+            <span>Leer Términos y Condiciones</span>
+        </a>
+        <a href="politica-de-privacidad.html" target="_blank" rel="noopener"
+           style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 0;margin-bottom:14px;border:2px solid #0d9488;color:#0f766e;font-weight:700;border-radius:14px;text-decoration:none;font-size:13px;">
+            <i class="fas fa-user-shield"></i>
+            <span>Leer Política de Privacidad</span>
+        </a>
+
+        <label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;cursor:pointer;font-size:12px;color:#334155;line-height:1.35;">
+            <input type="checkbox" id="legal-check-terms" style="margin-top:3px;width:18px;height:18px;accent-color:#2563eb;flex-shrink:0;">
+            <span>Acepto los <strong>Términos y Condiciones</strong> de HonduRaite.</span>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:16px;cursor:pointer;font-size:12px;color:#334155;line-height:1.35;">
+            <input type="checkbox" id="legal-check-privacy" style="margin-top:3px;width:18px;height:18px;accent-color:#0d9488;flex-shrink:0;">
+            <span>Acepto la <strong>Política de Privacidad</strong> y el tratamiento de mis datos (ubicación, cuenta, viajes y notificaciones).</span>
+        </label>
+
+        <button type="button" onclick="window.acceptTermsAndContinue()"
+                style="width:100%;background:linear-gradient(to right,#2563eb,#1d4ed8);color:white;font-weight:800;padding:15px 0;border-radius:16px;border:none;font-size:12px;text-transform:uppercase;letter-spacing:0.4px;cursor:pointer;box-shadow:0 10px 15px -3px rgb(37 99 235 / 0.3);">
+            ✓ Acepto términos y privacidad
+        </button>
+        <p style="font-size:10px;text-align:center;color:#64748b;margin-top:14px;">
+            Puedes volver a leerlos cuando quieras desde tu perfil.
+        </p>
+    `;
+}
+
 window.showTermsAcceptance = () => {
     const setupScreen = document.getElementById('setup-screen');
     if (!setupScreen) {
-        // Fallback: create overlay if setup-screen missing
         const overlay = document.createElement('div');
+        overlay.id = 'hr-legal-acceptance-overlay';
         overlay.style.cssText = 'position:fixed;inset:0;background:linear-gradient(165deg, #041e42 0%, #2563eb 38%, #0f4c8a 68%, #1e5f9e 100%);z-index:20000;display:flex;align-items:center;justify-content:center;padding:1rem;overflow:auto;';
         overlay.innerHTML = `
             <div style="max-width:420px;width:100%;background:white;border-radius:24px;padding:24px;box-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);">
-                <div style="text-align:center;margin-bottom:20px;">
-                    <div style="width:64px;height:64px;margin:0 auto 16px;background:#dbeafe;border-radius:9999px;display:flex;align-items:center;justify-content:center;">
-                        <i class="fas fa-file-contract" style="font-size:28px;color:#2563eb;"></i>
-                    </div>
-                    <h2 style="font-size:24px;font-weight:900;margin:0 0 8px;">Acepta los Términos</h2>
-                    <p style="font-size:14px;color:#4b5563;margin:0;">Es necesario aceptar los Términos y Condiciones para usar HonduRaite.</p>
-                </div>
-
-                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;padding:12px;margin-bottom:16px;font-size:12px;color:#1e40af;line-height:1.4;">
-                    Al continuar, confirmas que has leído y aceptas los <strong>Términos y Condiciones</strong> y la política de privacidad de HonduRaite.
-                </div>
-
-                <a href="terminos-y-condiciones.html" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 0;margin-bottom:12px;border:2px solid #2563eb;color:#2563eb;font-weight:700;border-radius:16px;text-decoration:none;font-size:14px;">
-                    <i class="fas fa-external-link-alt"></i>
-                    <span>Leer Términos y Condiciones completos</span>
-                </a>
-
-                <button onclick="window.acceptTermsAndContinue()" style="width:100%;background:linear-gradient(to right,#2563eb,#1d4ed8);color:white;font-weight:700;padding:16px 0;border-radius:16px;border:none;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;">
-                    ✓ ACEPTO LOS TÉRMINOS Y CONDICIONES
-                </button>
-
-                <p style="font-size:10px;text-align:center;color:#64748b;margin-top:12px;">Puedes ver estos términos en cualquier momento desde tu perfil.</p>
+                ${buildLegalAcceptanceCardHtml()}
             </div>
         `;
         document.body.appendChild(overlay);
@@ -30675,13 +30722,10 @@ window.showTermsAcceptance = () => {
         return;
     }
 
-    // Force visibility - hide may have set display:none inline
     setupScreen.style.cssText = 'display:flex !important; visibility:visible !important; opacity:1 !important; position:fixed; inset:0; z-index:20000;';
-
     setupScreen.className = 'login-screen flex flex-col min-h-[100dvh] z-[20000] auth-screen-open';
     setupScreen.classList.remove('hidden');
 
-    // Use simpler, more reliable inline-styled content to avoid Tailwind scan issues
     setupScreen.innerHTML = `
         <div style="background:linear-gradient(165deg, #041e42 0%, #2563eb 38%, #0f4c8a 68%, #1e5f9e 100%);min-height:100dvh;width:100%;display:flex;flex-direction:column;align-items:center;padding-top:env(safe-area-inset-top,0);">
             <div style="text-align:center;padding:16px 20px 12px;flex-shrink:0;">
@@ -30689,45 +30733,18 @@ window.showTermsAcceptance = () => {
                     <i class="fas fa-car-side" style="font-size:32px;color:white;"></i>
                 </div>
                 <div style="color:white;font-size:13px;font-weight:700;letter-spacing:1px;">🇭🇳 HonduRaite</div>
-                <div style="color:rgba(255,255,255,0.85);font-size:11px;margin-top:2px;">Antes de continuar, acepta nuestros términos</div>
+                <div style="color:rgba(255,255,255,0.85);font-size:11px;margin-top:2px;">Acepta términos y política de privacidad</div>
             </div>
-
             <div style="flex:1;width:100%;max-width:420px;padding:0 16px 40px;">
                 <div style="background:white;border-radius:24px;padding:24px;box-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);">
-                    <div style="text-align:center;margin-bottom:20px;">
-                        <div style="width:64px;height:64px;margin:0 auto 12px;background:#dbeafe;border-radius:9999px;display:flex;align-items:center;justify-content:center;">
-                            <i class="fas fa-file-contract" style="font-size:26px;color:#2563eb;"></i>
-                        </div>
-                        <h2 style="font-size:22px;font-weight:900;margin:0 0 6px;color:#1e293b;">Acepta los Términos</h2>
-                        <p style="font-size:13px;color:#64748b;margin:0;">Es necesario aceptar los Términos y Condiciones para usar HonduRaite.</p>
-                    </div>
-
-                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:14px;padding:12px;margin-bottom:16px;font-size:12px;color:#1e40af;line-height:1.35;">
-                        Al continuar, confirmas que has leído y aceptas los <strong>Términos y Condiciones</strong> de HonduRaite (Empresa SOZIN).
-                    </div>
-
-                    <a href="terminos-y-condiciones.html" target="_blank" 
-                       style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:13px 0;margin-bottom:12px;border:2px solid #2563eb;color:#2563eb;font-weight:700;border-radius:16px;text-decoration:none;font-size:13px;">
-                        <i class="fas fa-external-link-alt"></i>
-                        <span>Leer Términos y Condiciones completos</span>
-                    </a>
-
-                    <button onclick="window.acceptTermsAndContinue()" 
-                            style="width:100%;background:linear-gradient(to right,#2563eb,#1d4ed8);color:white;font-weight:700;padding:15px 0;border-radius:16px;border:none;font-size:13px;text-transform:uppercase;letter-spacing:0.5px;cursor:pointer;box-shadow:0 10px 15px -3px rgb(37 99 235 / 0.3);">
-                        ✓ ACEPTO LOS TÉRMINOS Y CONDICIONES
-                    </button>
-
-                    <p style="font-size:10px;text-align:center;color:#64748b;margin-top:14px;">Puedes ver estos términos en cualquier momento desde tu perfil.</p>
+                    ${buildLegalAcceptanceCardHtml()}
                 </div>
             </div>
         </div>
     `;
 
-    // Hide the main app just in case
     const appInterface = document.getElementById('app-interface');
     if (appInterface) appInterface.style.display = 'none';
-
-    // Also make sure login screen is hidden
     const loginScreen = document.getElementById('login-screen');
     if (loginScreen) loginScreen.style.display = 'none';
 };
@@ -30737,28 +30754,38 @@ window.acceptTermsAndContinue = async () => {
         return location.reload();
     }
 
+    const termsOk = !!document.getElementById('legal-check-terms')?.checked;
+    const privacyOk = !!document.getElementById('legal-check-privacy')?.checked;
+    if (!termsOk || !privacyOk) {
+        return window.showToast?.(
+            'Marca las dos casillas: Términos y Condiciones y Política de Privacidad.',
+            'warning'
+        );
+    }
+
     try {
+        const nowIso = new Date().toISOString();
         const updateData = {
             termsAccepted: true,
-            termsAcceptedAt: new Date().toISOString()
+            termsAcceptedAt: nowIso,
+            privacyAccepted: true,
+            privacyAcceptedAt: nowIso,
+            privacyPolicyVersion: HR_PRIVACY_POLICY_VERSION
         };
 
         await window.ownerProfilePatch(currentUser.uid, updateData);
 
         if (window.userProfile) {
-            window.userProfile.termsAccepted = true;
-            window.userProfile.termsAcceptedAt = updateData.termsAcceptedAt;
+            Object.assign(window.userProfile, updateData);
         }
 
-        window.showToast("¡Gracias! Has aceptado los Términos y Condiciones.", "success");
-
+        window.showToast('¡Gracias! Aceptaste los Términos y la Política de Privacidad.', 'success');
         setTimeout(() => location.reload(), 600);
-
     } catch (e) {
         console.error('acceptTermsAndContinue:', e);
         const msg = e?.code === 'functions/unauthenticated'
             ? 'Sesión expirada. Cierra sesión y vuelve a entrar.'
-            : 'No se pudieron guardar los términos. Recarga (Ctrl+F5) e intenta de nuevo.';
+            : 'No se pudo guardar la aceptación. Recarga e intenta de nuevo.';
         window.showToast(msg, 'error');
     }
 };
@@ -31114,7 +31141,10 @@ window.saveSimplePassengerProfile = async () => {
         ratingCount: 1,
         verified: false,
         termsAccepted: false,
-        termsAcceptedAt: null
+        termsAcceptedAt: null,
+        privacyAccepted: false,
+        privacyAcceptedAt: null,
+        privacyPolicyVersion: null
     };
 
     try {
