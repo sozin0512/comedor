@@ -281,9 +281,22 @@ service cloud.firestore {
     // DATOS OPERATIVOS DE STAFF
     // ============================================================
 
+    // Depósitos de conductores (comprobantes / baucher)
+    // - Staff: leer, validar, rechazar, borrar, crear condonaciones
+    // - Conductor: crear su solicitud y leer SOLO las suyas (listener de estado)
     match /artifacts/{app}/public/data/driver_deposit_requests/{requestId} {
-      allow read, write: if isSignedIn() && isStaff(app);
-      allow create: if isSignedIn() && isDriver(app);
+      allow read: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.driverId == requestUid()
+      );
+      allow create: if isSignedIn() && (
+        isStaff(app)
+        || (
+          isDriver(app)
+          && request.resource.data.driverId == requestUid()
+        )
+      );
+      allow update, delete: if isSignedIn() && isStaff(app);
     }
 
     // Eventos de sesión del conductor (cierre de turno / descanso)

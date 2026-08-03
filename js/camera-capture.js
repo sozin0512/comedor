@@ -110,7 +110,21 @@ function insecureContextHint() {
     return 'La cámara en vivo requiere HTTPS. Usa la opción de tomar o subir foto que se abrirá ahora.';
 }
 
-function openFilePickerSync({ facing = 'user', maxSize = 640, onCapture, onError } = {}) {
+/**
+ * @param {{ facing?: 'user'|'environment', maxSize?: number, source?: 'camera'|'gallery'|'any', onCapture?: Function, onError?: Function, onFile?: Function }} opts
+ * source:
+ *  - camera  → atributo capture (solo cámara en la mayoría de móviles)
+ *  - gallery → sin capture (abre galería / archivos)
+ *  - any     → sin capture (el SO puede ofrecer cámara o galería)
+ */
+function openFilePickerSync({
+    facing = 'user',
+    maxSize = 640,
+    source = 'camera',
+    onCapture,
+    onError,
+    onFile,
+} = {}) {
     if (_activePickerInput) {
         try { _activePickerInput.remove(); } catch (_) {}
         _activePickerInput = null;
@@ -119,10 +133,13 @@ function openFilePickerSync({ facing = 'user', maxSize = 640, onCapture, onError
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    if (facing === 'environment') {
-        input.setAttribute('capture', 'environment');
-    } else {
-        input.setAttribute('capture', 'user');
+    // Solo forzar cámara si se pide explícitamente. Galería / any NO llevan capture.
+    if (source === 'camera') {
+        if (facing === 'environment') {
+            input.setAttribute('capture', 'environment');
+        } else {
+            input.setAttribute('capture', 'user');
+        }
     }
     input.className = 'sr-only';
     input.setAttribute('aria-hidden', 'true');
@@ -135,8 +152,11 @@ function openFilePickerSync({ facing = 'user', maxSize = 640, onCapture, onError
         _activePickerInput = null;
         if (!file) return;
         try {
+            if (typeof onFile === 'function') {
+                onFile(file);
+            }
             const dataUrl = await compressDataUrlFromFile(file, maxSize);
-            onCapture?.(dataUrl);
+            onCapture?.(dataUrl, file);
         } catch (e) {
             onError?.(e?.message || 'No se pudo procesar la foto');
         }
@@ -145,7 +165,9 @@ function openFilePickerSync({ facing = 'user', maxSize = 640, onCapture, onError
     try {
         input.click();
     } catch (_) {
-        onError?.('No se pudo abrir la cámara. Toca de nuevo o revisa los permisos del navegador.');
+        onError?.(source === 'gallery'
+            ? 'No se pudo abrir la galería. Toca de nuevo o revisa los permisos.'
+            : 'No se pudo abrir la cámara. Toca de nuevo o revisa los permisos del navegador.');
     }
 }
 
@@ -246,18 +268,19 @@ export function pickPhotoFromCamera(opts = {}) {
         maxSize = 640,
         onCapture,
         onError,
+        onFile,
     } = opts;
 
-    if (typeof onCapture !== 'function') return;
+    if (typeof onCapture !== 'function' && typeof onFile !== 'function') return;
 
     if (shouldUseNativeFileCapture()) {
-        openFilePickerSync({ facing, maxSize, onCapture, onError });
+        openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile });
         return;
     }
 
     if (!window.isSecureContext) {
         onError?.(insecureContextHint());
-        openFilePickerSync({ facing, maxSize, onCapture, onError });
+        openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile });
         return;
     }
 
@@ -266,7 +289,105 @@ export function pickPhotoFromCamera(opts = {}) {
         return;
     }
 
-    openFilePickerSync({ facing, maxSize, onCapture, onError });
+    openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile });
+}
+
+/**
+ * Abrir galería / archivos (sin atributo capture).
+ * Sirve para comprobantes de depósito ya guardados en el teléfono.
+ */
+export function pickPhotoFromGallery(opts = {}) {
+    const {
+        maxSize = 1280,
+        onCapture,
+        onError,
+        onFile,
+    } = opts;
+
+    if (typeof onCapture !== 'function' && typeof onFile !== 'function') return;
+
+    openFilePickerSync({
+        facing: 'environment',
+        maxSize,
+        source: 'gallery',
+        onCapture,
+        onError,
+        onFile,
+    });
+}
+
+/**
+ * Hoja con dos opciones: Tomar foto o Galería.
+ * Ideal para depósitos / comprobantes en la app de conductores.
+ */
+export function pickPhotoWithSourceChoice(opts = {}) {
+    const {
+        facing = 'environment',
+        maxSize = 1280,
+        onCapture,
+        onError,
+        onFile,
+        title = 'Foto del comprobante',
+        cameraLabel = 'Tomar foto',
+        galleryLabel = 'Buscar en galería',
+    } = opts;
+
+    if (typeof onCapture !== 'function' && typeof onFile !== 'function') return;
+
+    // Quitar hoja previa si quedó abierta
+    document.querySelectorAll('[data-photo-source-sheet="1"]').forEach((el) => el.remove());
+
+    const sheet = document.createElement('div');
+    sheet.dataset.photoSourceSheet = '1';
+    sheet.className = 'fixed inset-0 z-[50050] flex items-end sm:items-center justify-center bg-black/55 p-3';
+    sheet.innerHTML = `
+        <div class="bg-white dark:bg-slate-900 w-full max-w-sm rounded-3xl p-4 shadow-2xl border border-slate-200 dark:border-slate-700"
+             role="dialog" aria-modal="true" aria-label="${title}">
+            <p class="text-center font-black text-slate-800 dark:text-white text-sm mb-1">${title}</p>
+            <p class="text-center text-[11px] text-slate-500 dark:text-slate-400 mb-4 leading-snug">
+                Puedes capturar con la cámara o elegir una imagen ya guardada en tu galería.
+            </p>
+            <div class="space-y-2">
+                <button type="button" data-action="camera"
+                    class="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm active:scale-[0.98] transition">
+                    <i class="fas fa-camera mr-2"></i>${cameraLabel}
+                </button>
+                <button type="button" data-action="gallery"
+                    class="w-full py-3.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-black text-sm active:scale-[0.98] transition">
+                    <i class="fas fa-images mr-2"></i>${galleryLabel}
+                </button>
+                <button type="button" data-action="cancel"
+                    class="w-full py-3 rounded-2xl text-slate-500 font-bold text-sm">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(sheet);
+
+    const close = () => {
+        try { sheet.remove(); } catch (_) {}
+    };
+
+    sheet.addEventListener('click', (e) => {
+        if (e.target === sheet) close();
+    });
+
+    sheet.querySelector('[data-action="cancel"]')?.addEventListener('click', close);
+    sheet.querySelector('[data-action="camera"]')?.addEventListener('click', () => {
+        close();
+        // El click debe seguir siendo síncrono en el mismo gesto de usuario en la mayoría de browsers;
+        // al cerrar y reabrir el picker en el siguiente tick suele funcionar en Android/WebView.
+        setTimeout(() => {
+            pickPhotoFromCamera({ facing, maxSize, onCapture, onError, onFile });
+        }, 50);
+    });
+    sheet.querySelector('[data-action="gallery"]')?.addEventListener('click', () => {
+        close();
+        setTimeout(() => {
+            pickPhotoFromGallery({ maxSize, onCapture, onError, onFile });
+        }, 50);
+    });
 }
 
 export function bindCameraPickButton(buttonId, { facing = 'user', maxSize = 640, onCapture, onError } = {}) {

@@ -97,7 +97,7 @@ import {
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
 } from "./passenger-verification.js?v=2026.08.03.8";
-import { pickPhotoFromCamera } from "./camera-capture.js?v=2026.08.03.8";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.03.8";
 import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.03.8";
 import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.03.8";
 import { initOpsPanels } from "./ops-panels.js?v=2026.08.03.8";
@@ -19681,6 +19681,188 @@ if (document.readyState === 'loading') {
         };
 
         /**
+         * Admin/supervisor (Estadísticas): borra la cuenta pendiente de depósito de un conductor.
+         * - Pone en 0 la deuda acumulada (pendingDepositDebt)
+         * - Registra un depósito “staff_clear” aprobado por el monto total, para que el hueco
+         *   de 7 días / comisión del día deje de aparecer en la lista
+         * - Quita bloqueo automático por depósito vencido
+         */
+        window.staffClearDriverPendingAccount = async (driverId, driverName = '', amount = 0) => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor puede borrar cuentas pendientes.', 'error');
+            }
+            if (!driverId) return;
+
+            try {
+                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', driverId);
+                const snap = await getDoc(userRef);
+                if (!snap.exists()) return window.showToast?.('Conductor no encontrado.');
+                const u = snap.data() || {};
+                const label = driverName || u.name || 'conductor';
+                const profileDebt = Math.max(0, parseFloat(u.pendingDepositDebt) || 0);
+                let clearAmount = Math.max(0, Number(amount) || 0, profileDebt);
+
+                // Si no vino monto, recalcular con stats del día
+                if (clearAmount < 0.01 && typeof computeDriverDayStats === 'function') {
+                    try {
+                        const s = await computeDriverDayStats(driverId);
+                        clearAmount = Math.max(
+                            0,
+                            Number(s?.totalOwed != null
+                                ? s.totalOwed
+                                : ((s?.pendingDepositDebt || 0) + (s?.remainingToDeposit || 0))) || 0,
+                            profileDebt
+                        );
+                    } catch (_) {}
+                }
+
+                if (clearAmount < 0.01 && profileDebt < 0.01) {
+                    return window.showToast?.('Este conductor no tiene cuenta pendiente de depósito.', 'info');
+                }
+
+                if (!confirm(
+                    `¿BORRAR la cuenta pendiente de ${label}?\n\n`
+                    + `Monto a limpiar: L. ${clearAmount.toFixed(2)}\n\n`
+                    + '• Se pone en L. 0.00 la deuda acumulada\n'
+                    + '• Se registra un depósito de staff (condonación / pago en persona)\n'
+                    + '• Desaparece de “Sin depositar” en Estadísticas\n'
+                    + '• Se quita el bloqueo por plazo vencido si aplica\n\n'
+                    + 'No se puede deshacer.'
+                )) return;
+
+                const staffName = window.userProfile?.name
+                    || (isAdminUser(currentUser, window.userProfile) ? 'Administrador' : 'Supervisor');
+                const wasAutoBlocked = !!u.depositAutoBlocked
+                    || u.depositAutoBlockedReason === 'deposit_deadline_missed';
+                const commissionPct = await getPlatformCommission().catch(() => APP_CONFIG.commissionPercent || 25);
+
+                // 1) Cero deuda + desbloqueo
+                const patch = {
+                    pendingDepositDebt: 0,
+                    driverLastDepositOwed: 0,
+                    depositDebtClearedBy: currentUser.uid,
+                    depositDebtClearedByName: staffName,
+                    depositDebtClearedAt: serverTimestamp(),
+                    depositDebtClearedAmount: clearAmount,
+                    depositAutoBlocked: false,
+                    depositAutoBlockedAt: null,
+                    depositAutoBlockedReason: null,
+                    updatedAt: serverTimestamp()
+                };
+                if (wasAutoBlocked && u.driverOnBreak) {
+                    patch.driverOnBreak = false;
+                }
+                await setDoc(userRef, patch, { merge: true });
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'users', driverId, 'profile', 'data'), {
+                        pendingDepositDebt: 0,
+                        driverLastDepositOwed: 0,
+                        depositAutoBlocked: false,
+                        depositAutoBlockedAt: null,
+                        depositAutoBlockedReason: null,
+                        ...(wasAutoBlocked && u.driverOnBreak ? { driverOnBreak: false } : {}),
+                        updatedAt: serverTimestamp()
+                    }, { merge: true });
+                } catch (_) {}
+
+                await clearDriverDepositScheduleIfPaid(driverId, 0);
+
+                // 2) Depósito aprobado de staff: cubre hueco de viajes (stats 7d y hoy)
+                try {
+                    const reqRef = await addDoc(
+                        collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposit_requests'),
+                        {
+                            driverId,
+                            driverName: label,
+                            driverPhone: normalizeHondurasPhone(u.phone) || '',
+                            amount: clearAmount,
+                            commissionPercentage: commissionPct,
+                            receiptPhoto: null,
+                            status: 'approved',
+                            type: 'staff_pending_clear',
+                            note: `Cuenta pendiente borrada por staff (L. ${clearAmount.toFixed(2)})`,
+                            validatedAt: serverTimestamp(),
+                            validatedBy: currentUser.uid,
+                            validatedByName: staffName,
+                            createdAt: serverTimestamp()
+                        }
+                    );
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'), {
+                        driverId,
+                        driverName: label,
+                        amount: clearAmount,
+                        commissionPercentage: commissionPct,
+                        status: 'approved',
+                        type: 'staff_pending_clear',
+                        note: `Cuenta pendiente borrada por staff (L. ${clearAmount.toFixed(2)})`,
+                        clearedAmount: clearAmount,
+                        clearedBy: currentUser.uid,
+                        clearedByName: staffName,
+                        requestId: reqRef.id,
+                        date: new Date().toISOString(),
+                        createdAt: serverTimestamp(),
+                        validatedAt: serverTimestamp(),
+                        validatedBy: currentUser.uid
+                    });
+                } catch (depErr) {
+                    console.warn('staffClearDriverPendingAccount deposit log:', depErr);
+                    // Fallback mínimo al historial simple
+                    try {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'), {
+                            driverId,
+                            driverName: label,
+                            amount: clearAmount,
+                            type: 'staff_pending_clear',
+                            note: `Cuenta pendiente borrada por staff (L. ${clearAmount.toFixed(2)})`,
+                            clearedAmount: clearAmount,
+                            clearedBy: currentUser.uid,
+                            clearedByName: staffName,
+                            date: new Date().toISOString(),
+                            createdAt: serverTimestamp()
+                        });
+                    } catch (_) {}
+                }
+
+                window.showToast?.(
+                    `Cuenta pendiente borrada: L. ${clearAmount.toFixed(2)} · ${label}`,
+                    'success'
+                );
+
+                // Quitar de la lista en memoria y refrescar UI
+                try {
+                    if (Array.isArray(window._statsOwingDrivers)) {
+                        window._statsOwingDrivers = window._statsOwingDrivers.filter((d) => d.uid !== driverId);
+                    }
+                } catch (_) {}
+                try {
+                    if (document.getElementById('global-stats-content')) {
+                        const activeChip = document.querySelector('#admin-panel .ops-chip--active, #supervisor-panel .ops-chip--active');
+                        const period = (activeChip?.textContent || '').toLowerCase().includes('semana')
+                            ? 'week'
+                            : (activeChip?.textContent || '').toLowerCase().includes('mes')
+                                ? 'month'
+                                : (activeChip?.textContent || '').toLowerCase().includes('año') || (activeChip?.textContent || '').toLowerCase().includes('ano')
+                                    ? 'year'
+                                    : 'today';
+                        window.loadGlobalStats?.(period);
+                    }
+                } catch (_) {}
+                try {
+                    if (document.getElementById('staff-driver-finance-sheet')) {
+                        window.showStaffDriverFinanceMapSheet?.(driverId, label);
+                    }
+                } catch (_) {}
+                try {
+                    window.loadDriverDepositRequests?.();
+                    window.loadSupervisorDeposits?.();
+                } catch (_) {}
+            } catch (e) {
+                console.error('staffClearDriverPendingAccount:', e);
+                window.showToast?.(e?.message || 'No se pudo borrar la cuenta pendiente.', 'error');
+            }
+        };
+
+        /**
          * Admin/supervisor: borra la deuda acumulada (pendingDepositDebt).
          * La comisión del día (remainingToDeposit) se recalcula por viajes de hoy y no se “borra”
          * como campo: solo la deuda acumulada en el perfil.
@@ -21139,13 +21321,25 @@ if (document.readyState === 'loading') {
                                 <input type="number" id="driver-deposit-amount" step="0.01" min="0.01"
                                     value="${suggestedAmount}"
                                     class="w-full border border-gray-300 rounded-2xl px-4 py-3 text-lg font-black" placeholder="Monto depositado">
-                                <div onclick="document.getElementById('driver-deposit-receipt').click()"
-                                     class="border-2 border-dashed border-emerald-400 bg-emerald-50/30 rounded-2xl h-28 flex flex-col items-center justify-center cursor-pointer hover:bg-emerald-50">
-                                    <i class="fas fa-camera text-2xl text-emerald-600 mb-1"></i>
-                                    <p class="text-[10px] text-emerald-800 font-bold">Foto del baucher / comprobante</p>
-                                    <img id="driver-deposit-preview" class="hidden max-h-20 rounded-xl mt-1">
+                                <div id="driver-deposit-receipt-zone"
+                                     class="border-2 border-dashed border-emerald-400 bg-emerald-50/30 rounded-2xl p-3 flex flex-col items-center justify-center">
+                                    <i class="fas fa-receipt text-2xl text-emerald-600 mb-1"></i>
+                                    <p class="text-[10px] text-emerald-800 font-bold text-center">Foto del baucher / comprobante</p>
+                                    <p class="text-[9px] text-emerald-700/80 text-center mb-2">Cámara o galería del teléfono</p>
+                                    <img id="driver-deposit-preview" class="hidden max-h-24 rounded-xl mb-2 object-contain">
+                                    <div class="flex flex-wrap gap-2 w-full justify-center">
+                                        <button type="button" onclick="window.pickDriverDepositReceipt('camera')"
+                                            class="flex-1 min-w-[7.5rem] py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black">
+                                            <i class="fas fa-camera mr-1"></i> Tomar foto
+                                        </button>
+                                        <button type="button" onclick="window.pickDriverDepositReceipt('gallery')"
+                                            class="flex-1 min-w-[7.5rem] py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-[11px] font-black">
+                                            <i class="fas fa-images mr-1"></i> Galería
+                                        </button>
+                                    </div>
                                 </div>
-                                <input type="file" id="driver-deposit-receipt" accept="image/*" capture="environment" class="hidden" onchange="window.previewDriverDepositReceipt(this)">
+                                <!-- Sin capture: permite galería. Botones usan pickDriverDepositReceipt. -->
+                                <input type="file" id="driver-deposit-receipt" accept="image/*" class="hidden" onchange="window.previewDriverDepositReceipt(this)">
                                 <button type="button" onclick="window.submitDriverDepositRequest(this)"
                                     class="w-full bg-emerald-600 text-white py-3.5 rounded-2xl font-black text-sm">ENVIAR COMPROBANTE A REVISIÓN</button>
                                 <p class="text-[9px] text-center text-gray-500">Al enviar, un supervisor revisará y reducirá tu deuda acumulada.</p>
@@ -21193,6 +21387,7 @@ if (document.readyState === 'loading') {
         window.previewDriverDepositReceipt = (input) => {
             if (!input.files?.[0]) return;
             window.driverDepositReceiptFile = input.files[0];
+            window.driverDepositReceiptBase64 = null;
             const reader = new FileReader();
             reader.onload = (e) => {
                 const preview = document.getElementById('driver-deposit-preview');
@@ -21200,8 +21395,66 @@ if (document.readyState === 'loading') {
                     preview.src = e.target.result;
                     preview.classList.remove('hidden');
                 }
+                window.driverDepositReceiptBase64 = e.target.result;
             };
             reader.readAsDataURL(input.files[0]);
+        };
+
+        /** Cámara o galería para el comprobante de depósito del conductor. */
+        window.pickDriverDepositReceipt = (source = 'choice') => {
+            const applyFile = (file, dataUrl) => {
+                if (file) {
+                    window.driverDepositReceiptFile = file;
+                }
+                if (dataUrl) {
+                    window.driverDepositReceiptBase64 = dataUrl;
+                    const preview = document.getElementById('driver-deposit-preview');
+                    if (preview) {
+                        preview.src = dataUrl;
+                        preview.classList.remove('hidden');
+                    }
+                }
+            };
+            const onError = (msg) => {
+                if (msg) window.showToast?.(msg, 'warning');
+            };
+            const onFile = (file) => {
+                window.driverDepositReceiptFile = file;
+            };
+            const onCapture = (dataUrl, file) => {
+                applyFile(file || window.driverDepositReceiptFile, dataUrl);
+            };
+
+            if (source === 'camera') {
+                pickPhotoFromCamera({
+                    facing: 'environment',
+                    maxSize: 1280,
+                    onCapture,
+                    onFile,
+                    onError,
+                });
+                return;
+            }
+            if (source === 'gallery') {
+                pickPhotoFromGallery({
+                    maxSize: 1280,
+                    onCapture,
+                    onFile,
+                    onError,
+                });
+                return;
+            }
+            // Por defecto: hoja con ambas opciones
+            pickPhotoWithSourceChoice({
+                facing: 'environment',
+                maxSize: 1280,
+                title: 'Comprobante de depósito',
+                cameraLabel: 'Tomar foto',
+                galleryLabel: 'Buscar en galería',
+                onCapture,
+                onFile,
+                onError,
+            });
         };
 
         window.submitDriverDepositRequest = async (btn) => {
@@ -40275,6 +40528,11 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                             class="flex-1 min-w-[7rem] py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-black">
                             Mensaje libre
                         </button>
+                        <button type="button"
+                            onclick="window.staffClearDriverPendingAccount('${d.uid}', '${safeName}', ${d.totalOwed.toFixed(2)})"
+                            class="flex-1 min-w-[7rem] py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black">
+                            <i class="fas fa-trash-alt"></i> Borrar cuenta pendiente
+                        </button>
                     </div>
                 </div>`;
             }).join('')
@@ -40327,6 +40585,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                 <p class="text-[10px] text-slate-400 font-bold mb-3 leading-snug">
                     Revisa <b>últimos 7 días</b> (también si el filtro es “Hoy”): comisión en efectivo − depósitos aprobados + deuda en perfil.
                     Así salen los que viajaron <b>hace 2 días</b> y no depositaron.
+                    Usa <b>Borrar cuenta pendiente</b> si pagó en persona o condonas el monto (admin/supervisor).
                 </p>
                 ${bulkBtn}
                 <div class="space-y-2 max-h-72 overflow-y-auto">${owingHtml}</div>
