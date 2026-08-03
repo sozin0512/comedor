@@ -7974,6 +7974,18 @@ if (document.readyState === 'loading') {
                 _driverOfferPopupRenderKey = '';
                 if (!_driverOfferPopupMapPeek) {
                     document.body.classList.remove('driver-offer-map-peek');
+                    // Cierre completo (no “ver mapa”): limpiar ruta de preview
+                    // para no mezclar con la siguiente oferta entrante
+                    if (
+                        !window.isDriverNavigating?.()
+                        && !(
+                            window.currentActiveTripData
+                            && ['accepted', 'in_progress'].includes(window.currentActiveTripData.status)
+                            && window.currentActiveTripData.driverId === currentUser?.uid
+                        )
+                    ) {
+                        try { window.clearDriverOfferRoutePreview?.({ force: true }); } catch (_) {}
+                    }
                     // Restaurar panel del conductor si no hay viaje activo
                     const active = window.currentActiveTripData || window.activeTrip;
                     const reallyOnTrip = active
@@ -8192,6 +8204,13 @@ if (document.readyState === 'loading') {
                 if (_driverOfferPopupTripId) {
                     _driverOfferPopupDismissedKey = `${_driverOfferPopupTripId}:${_driverOfferPopupRenderKey}`;
                 }
+                // X = quitar ruta del mapa para que no se mezcle con la próxima solicitud
+                _driverOfferPopupMapPeek = false;
+                window._driverOfferMapPeekTripId = null;
+                setDriverOfferMapPeekUi(false);
+                document.body.classList.remove('driver-offer-map-peek', 'driver-offer-preview-active');
+                try { hideDriverOfferPeekBar?.(); } catch (_) {}
+                window.clearDriverOfferRoutePreview?.({ force: true });
                 hideDriverTripOfferPopup();
             });
         }
@@ -24332,12 +24351,35 @@ window.saveProfileChanges = async () => {
         window.buildDriverClientTripRouteOnly = buildDriverClientTripRouteOnly;
 
         /**
-         * Tras PIN / in_progress: solo ruta del viaje A → B
-         * (ya no el trazo “desde donde venía el conductor” hasta el pasajero).
+         * Tras PIN / in_progress:
+         * - Mantener modo navegación (no se apaga)
+         * - Quitar emoji del cliente
+         * - Ruta solo desde punto A → B
          */
         function startDriverDestinationNavigation(trip) {
             if (!trip?.id || trip.driverId !== currentUser?.uid) return;
             if (trip.status !== 'in_progress') return;
+
+            const reaffirmDestNav = () => {
+                window.driverNavMode = true;
+                document.body.classList.add(
+                    'is-navigating',
+                    'driver-nav-mode',
+                    'trip-active',
+                    'driver-trip-dest-phase'
+                );
+                document.body.classList.remove('driver-pin-phase', 'nav-hud-top-minimized', 'nav-hud-minimized');
+                window.syncDriverPanelNavVisibility?.();
+            };
+
+            // Evitar carreras: verifyPin + ensureInProgress + snapshot
+            if (window._startingDestNavTripId === trip.id) {
+                reaffirmDestNav();
+                if (window.currentNavRoute?.clientTripOnly || window.hasActiveDriverNavRoute?.()) {
+                    window.ensureDriverNavRouteVisible?.();
+                }
+                return;
+            }
 
             if (!activeTrip || activeTrip.id !== trip.id) {
                 activeTrip = { id: trip.id, ...trip };
@@ -24360,33 +24402,31 @@ window.saveProfileChanges = async () => {
 
             const navBootKey = `${trip.id}:dest:${legIdx}:${legTarget?.lat || dest.lat || ''}:${legTarget?.lng || dest.lng || ''}`;
             const hasRoute = window.hasActiveDriverNavRoute?.();
-            // Evitar reinicios en cada snapshot si ya navegamos a este tramo A→B
+            // Ya navegando este tramo A→B: no borrar la ruta (eso apagaba la nav)
             if (
                 window._inProgressNavBootKey === navBootKey
                 && hasRoute
-                && window.isDriverNavigating?.()
+                && (window.isDriverNavigating?.() || window.driverNavMode)
                 && window.currentNavRoute?.clientTripOnly
             ) {
+                reaffirmDestNav();
                 window.ensureDriverNavRouteVisible?.();
                 return;
             }
             window._inProgressNavBootKey = navBootKey;
+            window._startingDestNavTripId = trip.id;
 
-            window.driverNavMode = true;
-            document.body.classList.add('is-navigating', 'driver-nav-mode', 'trip-active', 'driver-trip-dest-phase');
-            document.body.classList.remove('driver-pin-phase');
-            // Salir de free-look y forzar centrado (como al tocar «Centrar»)
+            // Activar nav ANTES de tocar polilíneas (evita que hideDriverTripExtraPanels apague HUD)
+            reaffirmDestNav();
             try { window.resumeDriverNavCameraFollow?.(); } catch (_) {}
             window.autoCenter = true;
             window._driverMapFreeLook = false;
             document.body.classList.remove('map-free-look');
 
-            // Tras PIN el panel suele estar abierto por el teclado: forzar mapa grande una vez por tramo
             const destMinKey = `${trip.id}:dest-min`;
             const firstDestLeg = window._driverDestNavMinKey !== destMinKey;
             if (firstDestLeg) {
                 window._driverDestNavMinKey = destMinKey;
-                // Abrir panel para escribir PIN no cuenta como “quiero panel abierto en ruta”
                 window._driverNavUserKeptOpen = false;
                 window._driverNavPanelAutoMinDone = false;
             }
@@ -24400,50 +24440,90 @@ window.saveProfileChanges = async () => {
 
             window.enableDriverMapFreeGestures?.();
             window.startDriverCompassTracking?.().catch?.(() => {});
-            window.syncDriverPanelNavVisibility?.();
             window.syncDriverChromeForActiveTrip?.();
-
-            // Borrar polilínea de “ida al pasajero” (conductor → A)
+            // Quitar emoji del cliente YA (antes de la ruta A→B)
             try {
-                window.currentNavRoute = null;
-                window.currentRouteFullPath = null;
-                window._progressRoutePolylines = null;
                 window._driverOfferPreviewRoute = null;
-                window.clearRoutePolylines?.({ force: true });
+                document.body.classList.remove('driver-offer-preview-active');
+                // Solo emoji/marcador persona — no borrar la ruta vieja hasta tener A→B
+                // (evita mapa vacío + recover que mataba la nav a los 500ms)
+                window.clearOriginDestinationMarkers?.();
+                // Pin temporal simple en origen si ya lo conocemos
+                if (trip.originLat != null && trip.originLng != null) {
+                    window.placePickupMarker?.(
+                        { lat: Number(trip.originLat), lng: Number(trip.originLng) },
+                        'A - Origen',
+                        { style: 'simple' }
+                    );
+                }
             } catch (_) {}
+            reaffirmDestNav();
 
-            // Trazar SOLO A → B (y paradas del cliente); no desde GPS lejano
+            // Trazar SOLO A → B desde el punto A; pin simple A (sin emoji)
             (async () => {
                 try {
                     const ab = await buildDriverClientTripRouteOnly(trip);
+                    if (window._startingDestNavTripId !== trip.id && window._inProgressNavBootKey !== navBootKey) {
+                        // Otro arranque superó este
+                        return;
+                    }
                     if (ab?.path?.length >= 2) {
+                        // Swap atómico: limpia ida al pasajero y dibuja A→B
+                        try {
+                            window.clearRoutePolylines?.({ force: true });
+                        } catch (_) {}
                         window.currentNavRoute = ab;
                         window.currentRouteFullPath = ab.path;
+                        window._progressRoutePolylines = null;
                         window.drawRouteOnMap?.(ab, { driverNav: true, fitFullRoute: true });
                         try {
-                            if (ab.origin) window.placePickupMarker?.(ab.origin, 'A - Origen');
-                            if (ab.destination) window.placeDestinationMarker?.(ab.destination, 'B - Destino');
+                            if (ab.origin) {
+                                window.placePickupMarker?.(ab.origin, 'A - Origen', { style: 'simple' });
+                            }
+                            if (ab.destination) {
+                                window.placeDestinationMarker?.(ab.destination, 'B - Destino');
+                            }
                         } catch (_) {}
                     }
                 } catch (e) {
                     console.warn('startDriverDestinationNavigation A→B:', e);
                 }
-                // Navegación en curso (turnos / re-ruta si se desvía); el path base es A→B
-                window.updateNavigation?.(dest, true);
-                window.ensureDriverNavRouteVisible?.();
-            })();
 
-            // Si no hay ruta a los 2 s, recuperación automática (sin recargar app)
+                // Reafirmar modo navegación (por si un snapshot lo tocó)
+                reaffirmDestNav();
+                window.enterDriverNavMode?.();
+
+                // Turnos / re-ruta; updateNavigation respeta clientTripOnly en in_progress
+                try {
+                    window.updateNavigation?.(dest, true);
+                } catch (_) {}
+                window.ensureDriverNavRouteVisible?.();
+                window._startingDestNavTripId = null;
+            })().catch(() => {
+                window._startingDestNavTripId = null;
+            });
+
+            // NO llamar recover a los 500ms: pisaba A→B y apagaba la nav.
+            // Solo reafirmar HUD; recover solo si tras 2.5s sigue sin ruta.
             setTimeout(() => {
-                if (!window.hasActiveDriverNavRoute?.()) {
-                    window.recoverDriverNavRoute?.({ force: true, silent: true });
-                } else {
+                reaffirmDestNav();
+                if (window.hasActiveDriverNavRoute?.()) {
                     try { window.fitDriverActiveRouteOverview?.(); } catch (_) {}
                 }
-            }, 2000);
+            }, 400);
 
-            // Encuadrar ruta + centrar (async)
+            setTimeout(() => {
+                reaffirmDestNav();
+                if (
+                    !window.hasActiveDriverNavRoute?.()
+                    && window._startingDestNavTripId !== trip.id
+                ) {
+                    window.recoverDriverNavRoute?.({ force: true, silent: true });
+                }
+            }, 2800);
+
             const snapCenter = () => {
+                if (!window.isDriverNavigating?.() && !window.driverNavMode) return;
                 try { window.fitDriverActiveRouteOverview?.(); } catch (_) {}
                 try { window.recenterDriverNav?.(); } catch (_) {
                     if (!window.currentDriverPos || !window.gMap) return;
@@ -24478,9 +24558,8 @@ window.saveProfileChanges = async () => {
                     } catch (_) {}
                 }
             };
-            snapCenter();
-            setTimeout(snapCenter, 350);
-            setTimeout(snapCenter, 900);
+            setTimeout(snapCenter, 500);
+            setTimeout(snapCenter, 1200);
         }
         window.startDriverDestinationNavigation = startDriverDestinationNavigation;
 
@@ -24812,12 +24891,26 @@ window.saveProfileChanges = async () => {
                 const inProgressAb = isDriverNav
                     && activeTrip?.status === 'in_progress'
                     && !offRoute;
-                if (inProgressAb && typeof window.buildDriverClientTripRouteOnly === 'function') {
+                // Si ya hay A→B del cliente y solo se refresca, no recalcular desde GPS
+                if (
+                    inProgressAb
+                    && window.currentNavRoute?.clientTripOnly
+                    && window.currentNavRoute?.path?.length >= 2
+                    && !forceRecompute
+                    && !polyMissing
+                ) {
+                    route = window.currentNavRoute;
+                }
+                if (!route && inProgressAb && typeof window.buildDriverClientTripRouteOnly === 'function') {
                     route = await window.buildDriverClientTripRouteOnly(activeTrip);
                 }
                 // Reintentos de compute (red / Routes API a veces falla a la 1ª)
                 if (!route) {
+                    // Solo desde GPS si se salió de la ruta o no hay A→B
                     route = await window.computeDrivingRoute(pos, dest);
+                    if (route && activeTrip?.status === 'in_progress' && !offRoute) {
+                        // No marcar como clientTripOnly: es desvío / fallback GPS
+                    }
                 }
                 if (!route) {
                     for (let retry = 0; retry < 2 && !route; retry++) {
@@ -24873,6 +24966,27 @@ window.saveProfileChanges = async () => {
             }
             if (isDriverNav && route?.path?.length >= 2) {
                 window.updateRouteProgress?.(pos, { driverNav: true, force: true });
+            }
+            // Tras PIN: pin simple A (sin emoji cliente) + B — solo al trazar ruta nueva
+            if (isDriverNav && needsFullRoute && activeTrip?.status === 'in_progress' && route) {
+                try {
+                    const origin = route.origin
+                        || (activeTrip.originLat != null
+                            ? { lat: Number(activeTrip.originLat), lng: Number(activeTrip.originLng) }
+                            : null)
+                        || route.path?.[0];
+                    const destination = route.destination
+                        || (activeTrip.destinationLat != null
+                            ? { lat: Number(activeTrip.destinationLat), lng: Number(activeTrip.destinationLng) }
+                            : null)
+                        || (route.path?.length ? route.path[route.path.length - 1] : null);
+                    if (origin) {
+                        window.placePickupMarker?.(origin, 'A - Origen', { style: 'simple' });
+                    }
+                    if (destination) {
+                        window.placeDestinationMarker?.(destination, 'B - Destino');
+                    }
+                } catch (_) {}
             }
             window.syncTripMiniBar?.(route);
 
@@ -29684,12 +29798,20 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             window.currentActiveTripData = data;
 
             // Solo colocar marcadores de ruta mientras el viaje está activo (no al completar/cancelar)
+            // in_progress = pin simple A (sin emoji del cliente); accepted = emoji catracho de recogida
             if (['accepted', 'in_progress'].includes(data.status)) {
                 if (data.originLat != null && data.originLng != null) {
-                    window.placePickupMarker?.({ lat: data.originLat, lng: data.originLng }, 'Origen');
+                    window.placePickupMarker?.(
+                        { lat: data.originLat, lng: data.originLng },
+                        data.status === 'in_progress' ? 'A - Origen' : 'Origen',
+                        { style: data.status === 'in_progress' ? 'simple' : 'client' }
+                    );
                 }
                 if (data.destinationLat != null && data.destinationLng != null) {
-                    window.placeDestinationMarker?.({ lat: data.destinationLat, lng: data.destinationLng }, 'Destino');
+                    window.placeDestinationMarker?.(
+                        { lat: data.destinationLat, lng: data.destinationLng },
+                        data.status === 'in_progress' ? 'B - Destino' : 'Destino'
+                    );
                 }
             }
 
@@ -35322,6 +35444,8 @@ window.cancelSetupAndLogout = () => {
                 window._passengerTrackSessionKey = trackSessionKey;
                 window._passengerTrackRouteSession = null;
                 window._passengerRouteComputeKey = null;
+                window._passengerEndpointsSession = null;
+                window._passengerFrozenOrigin = null;
                 window.clearRoutePolylines?.();
                 window.currentRouteFullPath = null;
                 window.currentPassengerTrackRoute = null;
@@ -35459,21 +35583,25 @@ window.cancelSetupAndLogout = () => {
                     forceReposition: true
                 });
 
+                // Pines A/B fijos: solo al montar la sesión o si faltan (no cada tick GPS)
                 if (phase === 'destination') {
-                    window.syncPassengerTripMapEndpoints?.(tripData);
+                    if (window._passengerEndpointsSession !== trackSessionKey || !window.originMarker || !window.targetMarker) {
+                        window._passengerEndpointsSession = trackSessionKey;
+                        window.syncPassengerTripMapEndpoints?.(tripData);
+                    }
                 }
 
                 const offRouteM = routePath.length >= 2
                     ? window.getDistanceToRouteMeters?.(routePath, vehiclePos)
                     : Infinity;
-                const trackRecalcMs = shouldUseLowPowerMode() ? 28000 : 18000;
+                // Recalcular ruta solo si no hay path o se salió mucho (NO cada 18s: reiniciaba la vista)
+                const trackRecalcMs = shouldUseLowPowerMode() ? 90000 : 75000;
                 const routeComputePending = window._passengerRouteComputeKey === trackSessionKey;
                 const needsNewRoute = !routeComputePending && (
                     !routeReadyForSession
                     || !routePath.length
-                    || !lastRouteCalc
-                    || now - lastRouteCalc > trackRecalcMs
-                    || offRouteM > 120
+                    || offRouteM > 150
+                    || (lastRouteCalc && now - lastRouteCalc > trackRecalcMs && offRouteM > 80)
                 );
 
                 if (routePath.length >= 2 && routeReadyForSession) {
@@ -35489,7 +35617,7 @@ window.cancelSetupAndLogout = () => {
                         if (route?.path?.length) {
                             window._passengerTrackRouteSession = trackSessionKey;
                             window.currentPassengerTrackRoute = route;
-                            window.syncPassengerTripMapEndpoints?.(tripData);
+                            // No re-sincronizar pines en cada re-ruta (evita parpadeo)
                             window.drawRouteOnMap(route, { passengerTrack: true });
                             window.syncPassengerTrackEta?.(route, tripData, phase);
                             window.updateRouteProgress?.(vehiclePos, { passengerTrack: true, force: true });
@@ -35512,18 +35640,16 @@ window.cancelSetupAndLogout = () => {
                     forceReposition: true
                 });
 
-                if (phase === 'destination') {
-                    // Seguir al conductor al destino (no congelar cámara en origen+destino fijos)
-                    window.applyPassengerNavCamera?.(markerPos, markerHeading, false);
-                    // fitBounds ocasional para no perder el destino en pantalla
-                    if (!window._passengerDestCamBoundAt || now - window._passengerDestCamBoundAt > 12000) {
-                        window._passengerDestCamBoundAt = now;
-                        window.applyPassengerLiveTripCamera?.(markerPos, tripData, true);
+                // Cámara: solo seguir al carro si el pasajero activó “Centrar” / follow.
+                // NUNCA fitBounds periódico: eso “reiniciaba” el zoom y hacía parpadear pines.
+                if (window.passengerTrackFollow !== false) {
+                    if (phase === 'destination') {
+                        window.applyPassengerNavCamera?.(markerPos, markerHeading, false);
+                    } else if (!routePath.length) {
+                        window.applyPassengerNavCamera?.(markerPos, markerHeading, true);
+                    } else {
+                        window.applyPassengerNavCamera?.(markerPos, markerHeading);
                     }
-                } else if (!routePath.length) {
-                    window.applyPassengerNavCamera?.(markerPos, markerHeading, true);
-                } else {
-                    window.applyPassengerNavCamera?.(markerPos, markerHeading);
                 }
 
                 // Actualizar panel movible de llegada usando ubicación del conductor
@@ -37404,8 +37530,12 @@ window.addEventListener('map-route-trigger', () => {
 
         window.centerMap = () => {
             if (window.isPassengerTracking?.() && window.currentDriverTrackPos) {
+                // Seguir al conductor sin reiniciar zoom/pines (no fitBounds de toda la ruta)
                 window.passengerTrackFollow = true;
                 window.autoCenter = true;
+                window._passengerDestCamBoundAt = Date.now(); // bloquea overview forzado
+                window._passengerNavCamPos = null;
+                window._passengerCameraLastUpdate = 0;
                 window.setMapFabVisible?.('fab-center', false);
                 window.applyPassengerNavCamera?.(
                     window.currentDriverTrackPos,

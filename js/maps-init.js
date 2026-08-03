@@ -3556,19 +3556,34 @@ window.gMap = null;
         window.hideDriverTripExtraPanels = () => {
             if (!document.body.classList.contains('trip-active')
                 || !document.body.classList.contains('driver-mode')) {
-                document.body.classList.remove('driver-trip-dest-phase');
+                // No borrar driver-trip-dest-phase si estamos arrancando nav post-PIN
+                if (!window._startingDestNavTripId) {
+                    document.body.classList.remove('driver-trip-dest-phase');
+                }
                 return;
             }
-            // NO ocultar HUD de navegación si hay ruta activa hacia el cliente
+            // Nunca apagar nav en viaje activo del conductor
             const navigating = window.isDriverNavigating?.()
                 || window.driverNavMode
                 || document.body.classList.contains('is-navigating')
-                || window.hasActiveDriverNavRoute?.();
-            if (!navigating) {
+                || document.body.classList.contains('driver-trip-dest-phase')
+                || !!window._startingDestNavTripId
+                || window.hasActiveDriverNavRoute?.()
+                || (window.currentActiveTripData?.status === 'in_progress'
+                    && window.currentActiveTripData?.driverId === window.currentUser?.uid);
+            if (navigating) {
+                // Reafirmar clases y HUD (tras PIN a veces se perdían)
+                document.body.classList.add('is-navigating', 'driver-nav-mode');
+                if (window.currentActiveTripData?.status === 'in_progress') {
+                    document.body.classList.add('driver-trip-dest-phase');
+                }
+                window.driverNavMode = true;
+                window.syncDriverPanelNavVisibility?.();
+            } else {
                 const navTop = document.getElementById('nav-hud-top');
                 const navBottom = document.getElementById('nav-hud-bottom');
-                if (navTop) navTop.style.display = 'none';
-                if (navBottom) navBottom.style.display = 'none';
+                if (navTop) navTop.style.setProperty('display', 'none', 'important');
+                if (navBottom) navBottom.style.setProperty('display', 'none', 'important');
             }
             window.hideCenterMapFab?.();
             window.dockControlPanelForDriverTrip?.();
@@ -4087,6 +4102,13 @@ window.gMap = null;
             if (!document.body.classList.contains('trip-active')
                 && trip.status !== 'in_progress'
                 && trip.status !== 'accepted') {
+                return false;
+            }
+            // No interrumpir el arranque post-PIN (A→B); si no, borra la ruta y “desaparece” la nav
+            if (window._startingDestNavTripId && window._startingDestNavTripId === trip.id) {
+                document.body.classList.add('is-navigating', 'driver-nav-mode', 'driver-trip-dest-phase');
+                window.driverNavMode = true;
+                window.syncDriverPanelNavVisibility?.();
                 return false;
             }
 
@@ -4616,15 +4638,13 @@ window.gMap = null;
                 { driverNav: isDriver, passengerTrack: isPassenger }
             );
 
-            if (isPassenger) {
-                if (window.passengerTrackPhase === 'destination') {
-                    window.applyPassengerLiveTripCamera?.(driverPos, window.currentActiveTripData, options.force);
-                } else {
-                    window.applyPassengerNavCamera?.(
-                        driverPos,
-                        window._passengerTrackHeading || 0
-                    );
-                }
+            if (isPassenger && window.passengerTrackFollow !== false) {
+                // Solo seguir al carro (no fitBounds de A+B: reiniciaba la vista al centrar)
+                window.applyPassengerNavCamera?.(
+                    driverPos,
+                    window._passengerTrackHeading || 0,
+                    !!options.force
+                );
             }
         };
 
@@ -5860,25 +5880,53 @@ window.gMap = null;
             });
         };
 
-        /** Conductor: nav vive en el panel central. Pasajero: HUDs flotantes. */
+        /**
+         * Conductor: nav en panel central si está abierto.
+         * Si el panel está minimizado (p. ej. tras PIN), el HUD flotante superior
+         * debe seguir visible — si no, “desaparece” el modo navegación.
+         */
         window.syncDriverPanelNavVisibility = () => {
             const isDriver = document.body.classList.contains('driver-mode')
                 || window.userProfile?.role === 'driver';
+            const destPhase = document.body.classList.contains('driver-trip-dest-phase')
+                || window.currentActiveTripData?.status === 'in_progress';
             const navigating = window.isDriverNavigating?.()
-                || document.body.classList.contains('is-navigating');
+                || document.body.classList.contains('is-navigating')
+                || document.body.classList.contains('driver-nav-mode')
+                || !!window.driverNavMode
+                || destPhase
+                || window.hasActiveDriverNavRoute?.();
+            const panel = document.getElementById('control-panel');
+            const panelMin = document.body.classList.contains('panel-minimized')
+                || document.body.classList.contains('panel-collapsed')
+                || !!panel?.classList.contains('panel-collapsed');
             const panelNav = document.getElementById('driver-panel-nav');
             if (panelNav) {
-                panelNav.classList.toggle('hidden', !(isDriver && navigating));
+                // En panel maximizado: nav dentro del sheet
+                panelNav.classList.toggle('hidden', !(isDriver && navigating && !panelMin));
             }
             if (isDriver) {
                 const top = document.getElementById('nav-hud-top');
                 const bottom = document.getElementById('nav-hud-bottom');
+                // HUD flotante si navega y el panel está abajo (mapa libre) — crítico tras PIN
+                const showFloatHud = navigating && panelMin;
                 if (top) {
-                    top.style.display = 'none';
-                    top.classList.add('hidden');
+                    if (showFloatHud) {
+                        top.classList.remove('hidden');
+                        // !important gana a body.driver-mode { display:none !important }
+                        top.style.setProperty('display', 'flex', 'important');
+                        top.style.setProperty('visibility', 'visible', 'important');
+                        top.style.setProperty('opacity', '1', 'important');
+                        top.style.setProperty('pointer-events', 'auto', 'important');
+                        top.style.setProperty('z-index', '2800', 'important');
+                    } else {
+                        top.style.setProperty('display', 'none', 'important');
+                        top.classList.add('hidden');
+                    }
                 }
+                // Bottom float sigue oculto en conductor (ETA en mini-bar / panel)
                 if (bottom) {
-                    bottom.style.display = 'none';
+                    bottom.style.setProperty('display', 'none', 'important');
                     bottom.classList.add('hidden');
                 }
             }
@@ -6201,7 +6249,20 @@ window.gMap = null;
             if (minHint) minHint.textContent = 'Maximizar';
             try { window.syncPanelHideChevron?.(); } catch (_) {}
             try { window.syncDriverRadarFloatPanel?.(); } catch (_) {}
-            try { window.syncDriverPanelNavVisibility?.(); } catch (_) {}
+            // Tras minimizar: si hay nav, mostrar HUD flotante de giros (no “desaparecer” nav)
+            try {
+                if (
+                    window.isDriverNavigating?.()
+                    || window.driverNavMode
+                    || document.body.classList.contains('driver-trip-dest-phase')
+                    || window.currentActiveTripData?.status === 'in_progress'
+                ) {
+                    document.body.classList.add('is-navigating', 'driver-nav-mode');
+                    window.driverNavMode = true;
+                    document.body.classList.remove('nav-hud-top-minimized', 'nav-hud-minimized');
+                }
+                window.syncDriverPanelNavVisibility?.();
+            } catch (_) {}
             try { window.syncPassengerPanelToggleLabel?.(); } catch (_) {}
             try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
             try {
@@ -6469,6 +6530,10 @@ window.gMap = null;
             window.currentDriverTrackPos = null;
             window.currentPassengerTrackDest = null;
             window._passengerCameraLastUpdate = 0;
+            window._passengerDestCamBoundAt = 0;
+            window._passengerFrozenOrigin = null;
+            window._originMarkerKey = null;
+            window._targetMarkerKey = null;
             window.stopRouteProgressAnimation?.();
             window.resetPassengerNavCamera?.();
             window.setMapFabVisible?.('fab-center', false);
@@ -6526,31 +6591,53 @@ window.gMap = null;
             const trip = tripData || window.currentActiveTripData || null;
             if (!trip || !window.mapLoaded || !window.gMap) return;
 
-            let originLat = trip.originLat;
-            let originLng = trip.originLng;
-            const liveDriver = window.currentDriverTrackPos;
-            const inLiveTrip = trip.status === 'in_progress' || window.passengerTrackPhase === 'destination';
-            if (inLiveTrip && liveDriver?.lat != null && liveDriver?.lng != null) {
-                const originMissing = originLat == null || originLng == null;
-                const usedDriverFallback = trip.originSource === 'driver_fallback';
-                if (originMissing || usedDriverFallback) {
-                    originLat = liveDriver.lat;
-                    originLng = liveDriver.lng;
+            // Origen FIJO del viaje (no el GPS del carro). Antes se usaba liveDriver
+            // cuando originSource=driver_fallback → el pin A saltaba cada frame y “parpadeaba”.
+            let originLat = trip.originLat != null ? Number(trip.originLat) : null;
+            let originLng = trip.originLng != null ? Number(trip.originLng) : null;
+            // Solo una vez: si falta origen, fijar desde el primer GPS del conductor (no cada tick)
+            if (
+                (originLat == null || originLng == null || !Number.isFinite(originLat) || !Number.isFinite(originLng))
+                && !window._passengerFrozenOrigin
+            ) {
+                const liveDriver = window.currentDriverTrackPos;
+                if (liveDriver?.lat != null && liveDriver?.lng != null) {
+                    window._passengerFrozenOrigin = {
+                        lat: Number(liveDriver.lat),
+                        lng: Number(liveDriver.lng)
+                    };
                 }
             }
-            if (originLat != null && originLng != null) {
-                window.placePickupMarker?.({ lat: originLat, lng: originLng }, 'Inicio del viaje');
+            if (
+                (originLat == null || originLng == null)
+                && window._passengerFrozenOrigin
+            ) {
+                originLat = window._passengerFrozenOrigin.lat;
+                originLng = window._passengerFrozenOrigin.lng;
+            }
+
+            if (originLat != null && originLng != null && Number.isFinite(originLat) && Number.isFinite(originLng)) {
+                window.placePickupMarker?.(
+                    { lat: originLat, lng: originLng },
+                    'A - Origen',
+                    { style: 'simple' }
+                );
             }
 
             const legTarget = window.getTripCurrentLegNavTarget?.(trip);
             const legLabel = window.getTripRouteLegLabel?.(trip);
             if (legTarget?.lat != null && legTarget?.lng != null) {
-                const markerLabel = legLabel?.isFinal ? 'Destino' : `Punto ${legLabel?.routeNum || ''}`;
+                const markerLabel = legLabel?.isFinal !== false
+                    ? 'B - Destino'
+                    : `Punto ${legLabel?.routeNum || ''}`;
                 window.placeDestinationMarker?.({ lat: legTarget.lat, lng: legTarget.lng }, markerLabel);
             } else if (trip.destinationLat != null && trip.destinationLng != null) {
-                window.placeDestinationMarker?.({ lat: trip.destinationLat, lng: trip.destinationLng }, 'Destino');
+                window.placeDestinationMarker?.(
+                    { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng) },
+                    'B - Destino'
+                );
             } else if (window.currentPassengerTrackDest?.lat != null) {
-                window.placeDestinationMarker?.(window.currentPassengerTrackDest, 'Destino');
+                window.placeDestinationMarker?.(window.currentPassengerTrackDest, 'B - Destino');
             }
         };
 
@@ -6932,6 +7019,8 @@ window.gMap = null;
                     }
                     window.targetMarker = null;
                 }
+                window._originMarkerKey = null;
+                window._targetMarkerKey = null;
                 window.clearStopMarkers?.();
             } catch (e) {}
         };
@@ -7038,11 +7127,29 @@ window.gMap = null;
             return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg);
         };
 
-        // Pin del cliente: humano con bandera de Honduras saludando (recogida A)
-        window.placePickupMarker = (latLng, title = 'Origen (Punto de encuentro)') => {
+        /**
+         * Pin de origen/recogida.
+         * options.style: 'client' = emoji catracho (ida al pasajero);
+         *                'simple' = A verde (tras PIN, ruta A→B sin emoji de cliente).
+         */
+        window.placePickupMarker = (latLng, title = 'Origen (Punto de encuentro)', options = {}) => {
             if (!window.mapLoaded || !latLng || !window.gMap) return;
 
             try {
+                // Normalizar coordenadas
+                const pos = (latLng.lat != null && latLng.lng != null)
+                    ? { lat: typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat,
+                        lng: typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng }
+                    : latLng;
+
+                // Evitar destruir/recrear el pin en cada tick GPS (parpadeo en pasajero)
+                const styleKey = options.style || 'auto';
+                const posKey = `${Number(pos.lat).toFixed(5)},${Number(pos.lng).toFixed(5)}|${styleKey}|${title || ''}`;
+                if (window.originMarker && window._originMarkerKey === posKey) {
+                    return;
+                }
+                window._originMarkerKey = posKey;
+
                 // Limpiar marcador anterior
                 if (window.originMarker) {
                     if (window.originMarker.map !== undefined) window.originMarker.map = null;
@@ -7050,25 +7157,70 @@ window.gMap = null;
                     window.originMarker = null;
                 }
 
-                // Normalizar coordenadas
-                const pos = (latLng.lat != null && latLng.lng != null)
-                    ? { lat: typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat,
-                        lng: typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng }
-                    : latLng;
+                // Tras PIN / en curso: pin simple A (sin emoji de persona)
+                const tripStatus = window.currentActiveTripData?.status
+                    || window.activeTrip?.status
+                    || null;
+                const destPhase = options.style === 'simple'
+                    || document.body.classList.contains('driver-trip-dest-phase')
+                    || tripStatus === 'in_progress';
+                // Nunca emoji de cliente en viaje en curso, aunque llamen sin options
+                const useClientEmoji = !destPhase
+                    && (options.style === 'client' || options.style !== 'simple');
 
                 const hasAdvanced = window.canUseAdvancedMapMarkers?.() ?? false;
+                const placeSimpleAMarker = () => {
+                    if (hasAdvanced && google.maps?.marker?.PinElement) {
+                        const pin = new google.maps.marker.PinElement({
+                            background: '#059669',
+                            borderColor: '#ffffff',
+                            glyphColor: '#ffffff',
+                            glyphText: 'A',
+                            scale: 1.15
+                        });
+                        window.originMarker = new google.maps.marker.AdvancedMarkerElement({
+                            position: pos,
+                            map: window.gMap,
+                            content: pin.element || pin,
+                            title: title || 'A - Origen',
+                            gmpClickable: false
+                        });
+                        return;
+                    }
+                    if (google.maps?.Marker) {
+                        window.originMarker = new google.maps.Marker({
+                            position: pos,
+                            map: window.gMap,
+                            title: title || 'A - Origen',
+                            label: { text: 'A', color: '#ffffff', fontWeight: 'bold', fontSize: '14px' },
+                            icon: {
+                                path: google.maps.SymbolPath.CIRCLE,
+                                scale: 11,
+                                fillColor: '#059669',
+                                fillOpacity: 1,
+                                strokeColor: '#ffffff',
+                                strokeWeight: 3
+                            },
+                            zIndex: 50
+                        });
+                    }
+                };
+
                 if (hasAdvanced) {
-                    const content = window.buildClientPickupMarkerContent();
-                    window.originMarker = new google.maps.marker.AdvancedMarkerElement({
-                        position: pos,
-                        map: window.gMap,
-                        content,
-                        title: title || 'Cliente (recogida)',
-                        // Ancla en los pies de la figura
-                        gmpClickable: false
-                    });
-                } else {
-                    // Fall back to classic Marker con el mismo SVG
+                    if (useClientEmoji) {
+                        const content = window.buildClientPickupMarkerContent();
+                        window.originMarker = new google.maps.marker.AdvancedMarkerElement({
+                            position: pos,
+                            map: window.gMap,
+                            content,
+                            title: title || 'Cliente (recogida)',
+                            gmpClickable: false
+                        });
+                    } else {
+                        placeSimpleAMarker();
+                    }
+                } else if (useClientEmoji) {
+                    // Fall back to classic Marker con el emoji del cliente
                     const iconUrl = window.getClientPickupMarkerIconUrl();
                     window.originMarker = new google.maps.Marker({
                         position: pos,
@@ -7082,6 +7234,8 @@ window.gMap = null;
                         optimized: false,
                         zIndex: 50
                     });
+                } else {
+                    placeSimpleAMarker();
                 }
             } catch (e) {
                 console.warn('Error placing pickup marker (usando fallback):', e);
@@ -7125,16 +7279,23 @@ window.gMap = null;
             if (!window.mapLoaded || !latLng || !window.gMap) return;
 
             try {
+                const pos = (latLng.lat != null && latLng.lng != null)
+                    ? { lat: typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat,
+                        lng: typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng }
+                    : latLng;
+
+                // Evitar parpadeo: no recrear si es el mismo punto
+                const posKey = `${Number(pos.lat).toFixed(5)},${Number(pos.lng).toFixed(5)}|${title || ''}`;
+                if (window.targetMarker && window._targetMarkerKey === posKey) {
+                    return;
+                }
+                window._targetMarkerKey = posKey;
+
                 if (window.targetMarker) {
                     if (window.targetMarker.map !== undefined) window.targetMarker.map = null;
                     else if (typeof window.targetMarker.setMap === 'function') window.targetMarker.setMap(null);
                     window.targetMarker = null;
                 }
-
-                const pos = (latLng.lat != null && latLng.lng != null)
-                    ? { lat: typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat,
-                        lng: typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng }
-                    : latLng;
 
                 const hasAdvanced = window.canUseAdvancedMapMarkers?.() ?? false;
                 if (hasAdvanced) {

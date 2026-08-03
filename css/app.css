@@ -6744,22 +6744,51 @@
         }
 
         /*
-         * Conductor: SIN banners verdes flotantes.
-         * La navegaciÃ³n vive en #driver-panel-nav (panel central).
-         * El panel ya tiene Minimizar / Mapa.
+         * Conductor con panel ABIERTO: nav vive en #driver-panel-nav (sheet).
+         * HUD flotante oculto solo en ese caso.
          */
-        body.driver-mode #nav-hud-top,
-        body.driver-mode #nav-hud-bottom,
-        body.driver-nav-mode #nav-hud-top,
-        body.driver-nav-mode #nav-hud-bottom,
-        body.trip-active.driver-mode #nav-hud-top,
-        body.trip-active.driver-mode #nav-hud-bottom,
-        body.is-navigating.driver-mode #nav-hud-top,
-        body.is-navigating.driver-mode #nav-hud-bottom {
+        body.driver-mode:not(.panel-minimized) #nav-hud-top,
+        body.driver-mode:not(.panel-minimized) #nav-hud-bottom,
+        body.driver-nav-mode:not(.panel-minimized) #nav-hud-top,
+        body.driver-nav-mode:not(.panel-minimized) #nav-hud-bottom,
+        body.trip-active.driver-mode:not(.panel-minimized) #nav-hud-top,
+        body.trip-active.driver-mode:not(.panel-minimized) #nav-hud-bottom,
+        body.is-navigating.driver-mode:not(.panel-minimized) #nav-hud-top,
+        body.is-navigating.driver-mode:not(.panel-minimized) #nav-hud-bottom {
             display: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
             opacity: 0 !important;
+        }
+
+        /* Bottom chip ETA: siempre oculto en conductor (ETA en panel / mini-bar) */
+        body.driver-mode #nav-hud-bottom,
+        body.driver-nav-mode #nav-hud-bottom,
+        body.trip-active.driver-mode #nav-hud-bottom {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            opacity: 0 !important;
+        }
+
+        /*
+         * Tras PIN / panel minimizado: el sheet no muestra #driver-panel-nav.
+         * Mostrar HUD superior de giros (como Google) — el conductor NECESITA la nav.
+         */
+        body.driver-mode.panel-minimized.is-navigating #nav-hud-top,
+        body.driver-mode.panel-minimized.driver-nav-mode #nav-hud-top,
+        body.driver-mode.panel-minimized.driver-trip-dest-phase #nav-hud-top,
+        body.trip-active.driver-mode.panel-minimized.is-navigating #nav-hud-top,
+        body.trip-active.driver-mode.panel-minimized.driver-nav-mode #nav-hud-top,
+        body.trip-active.driver-mode.panel-minimized.driver-trip-dest-phase #nav-hud-top,
+        body.driver-mode.panel-collapsed.is-navigating #nav-hud-top,
+        body.driver-mode.panel-collapsed.driver-nav-mode #nav-hud-top,
+        body.driver-mode.panel-collapsed.driver-trip-dest-phase #nav-hud-top {
+            display: flex !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+            opacity: 1 !important;
+            z-index: 2800 !important;
         }
 
         /* NavegaciÃ³n dentro del panel central del conductor */
@@ -6915,7 +6944,7 @@
             max-width: min(320px, calc(100vw - 1.25rem));
         }
 
-        /* Chip ETA inferior izquierdo â€” compacto, anclado al sheet Uber (~18rem), NO a 70dvh */
+        /* Chip ETA inferior — layout legacy; conductor lo oculta (ETA en panel / mini-bar) */
         body.driver-nav-mode #nav-hud-bottom {
             position: absolute;
             left: max(8px, var(--safe-left, env(safe-area-inset-left, 0px)));
@@ -6931,13 +6960,14 @@
             border: 1px solid rgba(255, 255, 255, 0.12);
             box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
             z-index: 1850;
-            display: flex !important;
+            /* No forzar flex: en conductor el bottom se oculta (nav = HUD top + panel) */
+            display: none !important;
             flex-direction: column;
             overflow: hidden;
             transition: opacity 0.2s ease, bottom 0.25s ease, max-width 0.25s ease;
             padding: 0;
             font-size: 0.72em;
-            pointer-events: auto;
+            pointer-events: none;
             max-height: 4.75rem;
         }
 
