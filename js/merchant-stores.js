@@ -13,9 +13,10 @@ import {
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.07.27.9';
 import { haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId } from './zones.js?v=2026.07.27.9';
-import { resolvePhotoUrl } from './storage.js?v=2026.07.27.9';
-import { APP_CONFIG } from './config.js?v=2026.08.03.8';
-import { calculateAge } from './age-verification.js?v=2026.08.03.8';
+import { resolvePhotoUrl } from './storage.js?v=2026.08.04.3';
+import { APP_CONFIG } from './config.js?v=2026.08.04.3';
+import { calculateAge } from './age-verification.js?v=2026.08.04.3';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.08.04.3';
 
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
@@ -2161,7 +2162,7 @@ function renderMerchantStoreForm() {
                         ${logoPreview ? 'Cambiar logo o foto' : 'Agregar logo o foto (recomendado)'}
                     </span>
                 </button>
-                <input type="file" id="m-store-logo-input" accept="image/*" capture="environment" class="hidden">
+                <input type="file" id="m-store-logo-input" accept="image/*" class="hidden">
                 <p class="text-[10px] text-slate-500 mt-1">Se muestra en el catálogo y en la portada de tu tienda.</p>
             </div>
             <label class="stores-field"><span>Nombre de la tienda *</span>
@@ -2346,7 +2347,7 @@ function renderMerchantProducts() {
                     ${preview}
                     <span class="m-prod-photo-hint"><i class="fas fa-image"></i> ${pendingProductPhoto ? 'Cambiar foto' : 'Agregar foto (recomendado)'}</span>
                 </button>
-                <input type="file" id="m-prod-photo-input" accept="image/*" capture="environment" class="hidden">
+                <input type="file" id="m-prod-photo-input" accept="image/*" class="hidden">
                 <input id="m-prod-name" class="stores-input" placeholder="Nombre *" required>
                 <input id="m-prod-price" class="stores-input" type="number" min="1" step="0.01" placeholder="Tu precio base L. *" required inputmode="decimal">
                 <div id="m-prod-tariff-live" class="rounded-xl bg-white/80 border border-amber-100 px-2.5 py-2 text-[10px] font-semibold text-slate-600 leading-snug">
@@ -2382,7 +2383,7 @@ function renderMerchantProducts() {
                     </div>`;
                 }).join('') : `<div class="stores-empty stores-empty--sm"><p>Agrega tu primer producto con foto.</p></div>`}
             </div>
-            <input type="file" id="m-prod-photo-edit-input" accept="image/*" capture="environment" class="hidden">
+            <input type="file" id="m-prod-photo-edit-input" accept="image/*" class="hidden">
         </div>
     `;
 }
@@ -2422,15 +2423,27 @@ function readFileAsDataUrl(file) {
     });
 }
 
-/** Comprime imagen para catálogo (max ~960px, jpeg). */
+/**
+ * Comprime imagen para catálogo (max ~960px, jpeg).
+ * Android a veces entrega type vacío u octet-stream al elegir de la galería.
+ */
 async function compressImageFile(file, maxSide = 960, quality = 0.82) {
-    if (!file || !file.type?.startsWith('image/')) throw new Error('Archivo no es imagen');
+    if (!file) throw new Error('Sin archivo');
+    const type = String(file.type || '').toLowerCase().trim();
+    // No bloquear galería Android: type vacío / octet-stream / image/*
+    if (type && !type.startsWith('image/') && type !== 'application/octet-stream') {
+        throw new Error('Archivo no es imagen');
+    }
     const dataUrl = await readFileAsDataUrl(file);
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
             try {
                 let { width, height } = img;
+                if (!width || !height) {
+                    reject(new Error('Imagen inválida'));
+                    return;
+                }
                 const scale = Math.min(1, maxSide / Math.max(width, height));
                 width = Math.max(1, Math.round(width * scale));
                 height = Math.max(1, Math.round(height * scale));
@@ -2444,7 +2457,7 @@ async function compressImageFile(file, maxSide = 960, quality = 0.82) {
                 reject(e);
             }
         };
-        img.onerror = () => reject(new Error('Imagen inválida'));
+        img.onerror = () => reject(new Error('No se pudo leer la imagen de la galería. Prueba otra foto o JPG/PNG.'));
         img.src = dataUrl;
     });
 }
@@ -2463,80 +2476,60 @@ async function uploadStoreLogo(dataUrlOrFile, storeId) {
     return resolvePhotoUrl(storageRef, dataUrlOrFile, path);
 }
 
+/**
+ * Emprendedor: cámara O galería (fotos ya en el celular).
+ * Antes los inputs tenían capture="environment" y en Android solo abrían la cámara.
+ */
 function pickStoreLogo() {
-    const input = document.getElementById('m-store-logo-input');
-    if (!input) return;
-    if (input.dataset.bound !== '1') {
-        input.dataset.bound = '1';
-        input.addEventListener('change', async () => {
-            const file = input.files?.[0];
-            input.value = '';
-            if (!file) return;
-            try {
-                if (file.size > 12 * 1024 * 1024) {
-                    toast('La imagen es muy pesada (máx. ~12 MB)', 'warning');
-                    return;
-                }
-                const compressed = await compressImageFile(file, 1200, 0.85);
-                pendingStorePhoto = compressed;
-                pendingStorePhotoPreview = compressed;
-                renderMerchantBody();
-                toast('Logo listo. Guarda la tienda para publicarlo.', 'success');
-            } catch (e) {
-                console.warn(e);
-                toast('No se pudo procesar el logo', 'error');
-            }
-        });
-    }
-    input.click();
+    pickPhotoWithSourceChoice({
+        facing: 'environment',
+        maxSize: 1200,
+        title: 'Logo de la tienda',
+        cameraLabel: 'Tomar foto',
+        galleryLabel: 'Elegir de la galería',
+        onCapture: (dataUrl) => {
+            if (!dataUrl) return;
+            pendingStorePhoto = dataUrl;
+            pendingStorePhotoPreview = dataUrl;
+            renderMerchantBody();
+            toast('Logo listo. Guarda la tienda para publicarlo.', 'success');
+        },
+        onError: (msg) => toast(msg || 'No se pudo procesar el logo', 'error'),
+    });
 }
 
 function pickNewProductPhoto() {
-    const input = document.getElementById('m-prod-photo-input');
-    if (!input) return;
-    if (input.dataset.bound !== '1') {
-        input.dataset.bound = '1';
-        input.addEventListener('change', async () => {
-            const file = input.files?.[0];
-            input.value = '';
-            if (!file) return;
-            try {
-                if (file.size > 12 * 1024 * 1024) {
-                    toast('La imagen es muy pesada (máx. ~12 MB)', 'warning');
-                    return;
-                }
-                const compressed = await compressImageFile(file);
-                pendingProductPhoto = compressed;
-                pendingProductPhotoPreview = compressed;
-                renderMerchantBody();
-                toast('Foto lista. Completa nombre y precio.', 'success');
-            } catch (e) {
-                console.warn(e);
-                toast('No se pudo procesar la foto', 'error');
-            }
-        });
-    }
-    input.click();
+    pickPhotoWithSourceChoice({
+        facing: 'environment',
+        maxSize: 960,
+        title: 'Foto del producto',
+        cameraLabel: 'Tomar foto',
+        galleryLabel: 'Elegir de la galería',
+        onCapture: (dataUrl) => {
+            if (!dataUrl) return;
+            pendingProductPhoto = dataUrl;
+            pendingProductPhotoPreview = dataUrl;
+            renderMerchantBody();
+            toast('Foto lista. Completa nombre y precio.', 'success');
+        },
+        onError: (msg) => toast(msg || 'No se pudo procesar la foto', 'error'),
+    });
 }
 
-let editingPhotoProductId = null;
 function pickEditProductPhoto(productId) {
-    editingPhotoProductId = productId;
-    const input = document.getElementById('m-prod-photo-edit-input');
-    if (!input) return;
-    if (input.dataset.bound !== '1') {
-        input.dataset.bound = '1';
-        input.addEventListener('change', async () => {
-            const file = input.files?.[0];
-            input.value = '';
-            const pid = editingPhotoProductId;
-            editingPhotoProductId = null;
-            if (!file || !pid) return;
+    if (!productId) return;
+    pickPhotoWithSourceChoice({
+        facing: 'environment',
+        maxSize: 960,
+        title: 'Cambiar foto del producto',
+        cameraLabel: 'Tomar foto',
+        galleryLabel: 'Elegir de la galería',
+        onCapture: async (dataUrl) => {
+            if (!dataUrl || !productId) return;
             try {
                 toast('Subiendo foto…', 'info');
-                const compressed = await compressImageFile(file);
-                const url = await uploadProductPhoto(compressed, pid);
-                await updateDoc(publicDoc('store_products', pid), {
+                const url = await uploadProductPhoto(dataUrl, productId);
+                await updateDoc(publicDoc('store_products', productId), {
                     photoUrl: url,
                     updatedAt: serverTimestamp(),
                 });
@@ -2545,11 +2538,16 @@ function pickEditProductPhoto(productId) {
                 toast('Foto del producto actualizada', 'success');
             } catch (e) {
                 console.error(e);
-                toast('No se pudo subir la foto: ' + (e.message || e), 'error');
+                const msg = String(e?.message || e || '');
+                if (/permission|unauthorized|403|storage/i.test(msg)) {
+                    toast('Sin permiso para subir la foto. Cierra sesión y vuelve a entrar.', 'error');
+                } else {
+                    toast('No se pudo subir la foto: ' + msg, 'error');
+                }
             }
-        });
-    }
-    input.click();
+        },
+        onError: (msg) => toast(msg || 'No se pudo procesar la foto', 'error'),
+    });
 }
 
 async function saveStore() {

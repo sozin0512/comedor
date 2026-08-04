@@ -42,9 +42,12 @@ service firebase.storage {
     }
 
     function isImageOrPdf() {
-      return request.resource.contentType.matches('image/.*') 
+      // image/* (jpeg, png, webp, heic…), PDF, u octet-stream (algunos Android no mandan MIME)
+      return request.resource.contentType.matches('image/.*')
              || request.resource.contentType == 'application/pdf'
-             || request.resource.contentType == 'application/octet-stream';
+             || request.resource.contentType == 'application/octet-stream'
+             || request.resource.contentType == 'application/x-octet-stream'
+             || request.resource.contentType == '';
     }
 
     function maxSize(mb) {
@@ -88,6 +91,30 @@ service firebase.storage {
       allow write: if isOwner(userId) 
                    && maxSize(10)
                    && isImageOrPdf();
+    }
+
+    // ============================================================
+    // TIENDAS VIRTUALES (logo + fotos de productos del emprendedor)
+    // Ruta que usa merchant-stores.js:
+    //   artifacts/{appId}/users/{uid}/store_logos/...
+    //   artifacts/{appId}/users/{uid}/store_products/...
+    // El dueño autenticado puede subir; lectura autenticada (catálogo).
+    // ============================================================
+
+    match /artifacts/{appId}/users/{userId}/store_logos/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId)
+                   && maxSize(12)
+                   && isImageOrPdf();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /artifacts/{appId}/users/{userId}/store_products/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId)
+                   && maxSize(12)
+                   && isImageOrPdf();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // ============================================================
