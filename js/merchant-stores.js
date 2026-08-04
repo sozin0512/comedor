@@ -2,6 +2,9 @@
  * Tiendas virtuales para emprendedores (sección aparte de Envíos).
  * - Cliente: navega tiendas, ve fotos, carrito y pide.
  * - Emprendedor: crea tienda, menú con fotos y gestiona pedidos.
+ * - Supervisores: verifican tiendas (aprobar/rechazar) y marcan +18.
+ * - Tarifa del momento (comisión plataforma) se divide 50/50:
+ *   mitad en el precio mostrado al cliente, mitad cobrada al comprador al pedir.
  * - Al marcar "listo" se crea un viaje delivery (moto + Taxi VIP).
  */
 import {
@@ -11,6 +14,8 @@ import {
 import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.07.27.9';
 import { haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId } from './zones.js?v=2026.07.27.9';
 import { resolvePhotoUrl } from './storage.js?v=2026.07.27.9';
+import { APP_CONFIG } from './config.js?v=2026.08.03.8';
+import { calculateAge } from './age-verification.js?v=2026.08.03.8';
 
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
@@ -30,6 +35,21 @@ const ORDER_STATUS = {
     cancelled: { label: 'Cancelado', tone: 'red' },
 };
 
+/** Estado de verificación de tienda (supervisores). */
+const STORE_APPROVAL = {
+    pending: { label: 'En revisión', tone: 'amber', icon: 'fa-hourglass-half' },
+    approved: { label: 'Aprobada', tone: 'emerald', icon: 'fa-check-circle' },
+    rejected: { label: 'Rechazada', tone: 'red', icon: 'fa-times-circle' },
+};
+
+/** Caché corta de la tarifa del momento (comisión %). */
+let cachedTariffPercent = null;
+let cachedTariffAt = 0;
+/** Filtro del panel staff de tiendas */
+let staffStoresFilter = 'pending';
+/** Lista cargada para panel staff */
+let staffStoresList = [];
+
 let dbRef = null;
 let appIdRef = null;
 let storageRef = null;
@@ -46,7 +66,7 @@ const storesCache = new Map();
 let viewingStore = null;
 /** @type {object[]} */
 let viewingProducts = [];
-/** @type {{ productId: string, name: string, price: number, qty: number, notes?: string }[]} */
+/** @type {{ productId: string, name: string, basePrice: number, price: number, displayPrice: number, merchantShare: number, buyerShare: number, qty: number, notes?: string, photoUrl?: string|null, storeId?: string }[]} */
 let cart = [];
 /** @type {object|null} */
 let myStore = null;
@@ -167,6 +187,121 @@ function money(n) {
     return `L. ${v.toFixed(2)}`;
 }
 
+function roundMoney(n) {
+    return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+/**
+ * Tarifa del momento = comisión de plataforma (%).
+ * Misma fuente que viajes: platformConfig/main → commissionPercentage.
+ */
+async function getTarifaDelMomento() {
+    const now = Date.now();
+    if (cachedTariffPercent != null && (now - cachedTariffAt) < 12000) {
+        return cachedTariffPercent;
+    }
+    try {
+        if (typeof window.getPlatformCommission === 'function') {
+            const v = await window.getPlatformCommission();
+            if (Number.isFinite(Number(v))) {
+                cachedTariffPercent = Number(v);
+                cachedTariffAt = now;
+                return cachedTariffPercent;
+            }
+        }
+    } catch (_) {}
+    try {
+        if (dbRef && appIdRef) {
+            const snap = await getDoc(publicDoc('platformConfig', 'main'));
+            if (snap.exists()) {
+                const raw = parseFloat(snap.data().commissionPercentage);
+                if (Number.isFinite(raw) && raw >= 0 && raw <= 100) {
+                    cachedTariffPercent = raw;
+                    cachedTariffAt = now;
+                    return cachedTariffPercent;
+                }
+            }
+        }
+    } catch (_) {}
+    const fb = Number(APP_CONFIG?.commissionPercent);
+    cachedTariffPercent = Number.isFinite(fb) && fb >= 0 && fb <= 100 ? fb : 25;
+    cachedTariffAt = now;
+    return cachedTariffPercent;
+}
+
+function getTarifaDelMomentoSync() {
+    if (cachedTariffPercent != null) return cachedTariffPercent;
+    const fb = Number(APP_CONFIG?.commissionPercent);
+    return Number.isFinite(fb) && fb >= 0 && fb <= 100 ? fb : 25;
+}
+
+/**
+ * Divide la tarifa del momento 50/50 entre emprendedor y comprador.
+ * - Precio mostrado al cliente = base + mitad de la tarifa
+ * - Al comprar se cobra la otra mitad (además del envío)
+ *
+ * @param {number} basePrice precio que pone el emprendedor
+ * @param {number} [commissionPercent] % tarifa del momento
+ */
+function calcSplitTariff(basePrice, commissionPercent = getTarifaDelMomentoSync()) {
+    const base = roundMoney(basePrice);
+    const pct = Number(commissionPercent);
+    const safePct = Number.isFinite(pct) && pct >= 0 ? pct : 25;
+    const fullTariff = roundMoney(base * (safePct / 100));
+    // Mitad redondeada: la 2.ª mitad absorbe el centavo residual
+    const merchantShare = roundMoney(fullTariff / 2);
+    const buyerShare = roundMoney(fullTariff - merchantShare);
+    const displayPrice = roundMoney(base + merchantShare);
+    return {
+        basePrice: base,
+        commissionPercent: safePct,
+        fullTariff,
+        merchantShare,
+        buyerShare,
+        displayPrice,
+        halfPercent: roundMoney(safePct / 2),
+    };
+}
+
+function productBasePrice(p) {
+    if (!p) return 0;
+    const base = p.basePrice != null ? Number(p.basePrice) : Number(p.price);
+    return Number.isFinite(base) ? base : 0;
+}
+
+function productDisplayPrice(p, commissionPercent = getTarifaDelMomentoSync()) {
+    if (!p) return 0;
+    const base = productBasePrice(p);
+    return calcSplitTariff(base, commissionPercent).displayPrice;
+}
+
+function storeApprovalStatus(store) {
+    const raw = String(store?.approvalStatus || '').toLowerCase().trim();
+    if (raw === 'pending' || raw === 'approved' || raw === 'rejected') return raw;
+    // Tiendas antiguas sin campo: ya publicadas → aprobadas
+    if (store?.createdAt) return 'approved';
+    return 'pending';
+}
+
+function isStoreApprovedForPublic(store) {
+    return storeApprovalStatus(store) === 'approved' && store?.active !== false;
+}
+
+function isStoreAdultsOnly(store) {
+    return !!(store?.adultsOnly || store?.requiresAge18 || store?.ageRestricted);
+}
+
+function getUserAgeYears() {
+    const profile = getUserProfile() || window.userProfile || {};
+    const age = calculateAge(profile.birthDate || profile.dateOfBirth || profile.birthday);
+    return age;
+}
+
+function userIsAdult18() {
+    const age = getUserAgeYears();
+    return age != null && age >= 18;
+}
+
 function phoneNorm(p) {
     if (typeof window.normalizeHondurasPhone === 'function') {
         return window.normalizeHondurasPhone(String(p || '').trim()) || '';
@@ -196,8 +331,44 @@ function cartCount() {
     return cart.reduce((s, i) => s + (i.qty || 0), 0);
 }
 
+/** Total de productos como los ve el cliente (precio con mitad de tarifa). */
+function cartItemsDisplayTotal() {
+    return roundMoney(cart.reduce((s, i) => {
+        const unit = Number(i.displayPrice ?? i.price) || 0;
+        return s + unit * (i.qty || 0);
+    }, 0));
+}
+
+/** Suma de las mitades de tarifa que paga el comprador (aparte del precio mostrado). */
+function cartBuyerTariffTotal() {
+    return roundMoney(cart.reduce((s, i) => {
+        const share = Number(i.buyerShare);
+        if (Number.isFinite(share)) return s + share * (i.qty || 0);
+        const base = Number(i.basePrice ?? i.price) || 0;
+        return s + calcSplitTariff(base).buyerShare * (i.qty || 0);
+    }, 0));
+}
+
+/** Total a cobrar al comprador por productos + su mitad de tarifa (sin envío). */
 function cartItemsTotal() {
-    return Math.round(cart.reduce((s, i) => s + (Number(i.price) || 0) * (i.qty || 0), 0) * 100) / 100;
+    return roundMoney(cartItemsDisplayTotal() + cartBuyerTariffTotal());
+}
+
+function cartBaseTotal() {
+    return roundMoney(cart.reduce((s, i) => {
+        const base = Number(i.basePrice);
+        if (Number.isFinite(base)) return s + base * (i.qty || 0);
+        return s + (Number(i.price) || 0) * (i.qty || 0);
+    }, 0));
+}
+
+function cartMerchantTariffTotal() {
+    return roundMoney(cart.reduce((s, i) => {
+        const share = Number(i.merchantShare);
+        if (Number.isFinite(share)) return s + share * (i.qty || 0);
+        const base = Number(i.basePrice ?? i.price) || 0;
+        return s + calcSplitTariff(base).merchantShare * (i.qty || 0);
+    }, 0));
 }
 
 function ensureShell() {
@@ -732,6 +903,12 @@ export function openMarketplace() {
     // Sincronizar input de búsqueda
     const input = document.getElementById('stores-search-input');
     if (input && input.value !== storesSearchQuery) input.value = storesSearchQuery;
+    // Prefetch tarifa del momento para precios correctos
+    getTarifaDelMomento().then(() => {
+        if (marketplaceView === 'store' || marketplaceView === 'cart' || marketplaceView === 'checkout') {
+            renderMarketplace();
+        }
+    }).catch(() => {});
     renderCategoryChips();
     renderMarketplace();
 }
@@ -781,6 +958,11 @@ function renderCategoryChips() {
                         data-stores-action="staff-invite-business" title="Invitar a crear empresa por WhatsApp">
                     <i class="fab fa-whatsapp"></i>
                     <span>Invitar empresa</span>
+               </button>
+               <button type="button" class="stores-action-chip stores-action-chip--review"
+                        data-stores-action="staff-review-stores" title="Verificar tiendas (aprobar / +18)">
+                    <i class="fas fa-clipboard-check"></i>
+                    <span>Verificar tiendas</span>
                </button>`
             : '';
         // Fila propia: acciones de emprendedor (+ invitar si es staff)
@@ -810,6 +992,15 @@ function renderCategoryChips() {
                 showStaffInviteBusinessModal();
             });
         }
+        const reviewBtn = merchantWrap.querySelector('[data-stores-action="staff-review-stores"]');
+        if (reviewBtn) {
+            reviewBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                try { ev.stopImmediatePropagation(); } catch (_) {}
+                loadSupervisorStores();
+            });
+        }
     }
     if (!wrap) return;
     const chips = [
@@ -831,7 +1022,13 @@ function renderCategoryChips() {
 function filteredStoreList() {
     const city = activeCity();
     const q = storesSearchQuery.trim().toLowerCase();
+    const staff = isStoresStaff();
     let all = [...storesCache.values()].filter((s) => s.active !== false);
+
+    // Público: solo tiendas aprobadas por supervisores. Staff ve todas (moderar).
+    if (!staff) {
+        all = all.filter((s) => isStoreApprovedForPublic(s));
+    }
 
     if (storesCategoryFilter && storesCategoryFilter !== 'all') {
         all = all.filter((s) => (s.category || 'otro') === storesCategoryFilter);
@@ -850,7 +1047,9 @@ function filteredStoreList() {
     return list.sort((a, b) => {
         const ao = a.isOpen === false ? 1 : 0;
         const bo = b.isOpen === false ? 1 : 0;
-        return ao - bo || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+        const ap = storeApprovalStatus(a) === 'approved' ? 0 : 1;
+        const bp = storeApprovalStatus(b) === 'approved' ? 0 : 1;
+        return ap - bp || ao - bo || String(a.name || '').localeCompare(String(b.name || ''), 'es');
     });
 }
 
@@ -911,29 +1110,44 @@ function renderMarketplace() {
         setToolbarVisible(false);
         setMarketplaceTitle(viewingStore.name || 'Tienda');
         const open = viewingStore.isOpen !== false;
+        const adults = isStoreAdultsOnly(viewingStore);
+        const appr = storeApprovalStatus(viewingStore);
+        const apprMeta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
+        const tariffPct = getTarifaDelMomentoSync();
         const logoBlock = viewingStore.photoUrl
             ? `<div class="store-detail-logo-wrap"><img class="store-detail-logo" src="${esc(viewingStore.photoUrl)}" alt="${esc(viewingStore.name || 'Tienda')}" loading="lazy" onerror="this.style.opacity='0'"></div>`
             : `<div class="store-detail-avatar"><i class="fas ${esc(catIcon(viewingStore.category))}"></i></div>`;
         const staffBar = isStoresStaff()
             ? `<div class="store-staff-bar">
-                    <p class="store-staff-bar-label"><i class="fas fa-shield-alt"></i> Moderación staff</p>
-                    <button type="button" class="stores-danger-btn store-staff-delete-btn"
-                        data-stores-action="admin-delete-store" data-store-id="${esc(viewingStore.id)}">
-                        <i class="fas fa-trash-alt"></i> Borrar esta tienda
-                    </button>
+                    <p class="store-staff-bar-label"><i class="fas fa-shield-alt"></i> Moderación staff · ${esc(apprMeta.label)}</p>
+                    <div class="flex flex-wrap gap-2">
+                        ${appr !== 'approved' ? `<button type="button" class="stores-primary-btn store-staff-delete-btn" data-stores-action="staff-approve-store" data-store-id="${esc(viewingStore.id)}"><i class="fas fa-check"></i> Nos parece bien</button>` : ''}
+                        ${appr !== 'rejected' ? `<button type="button" class="stores-danger-btn store-staff-delete-btn" data-stores-action="staff-reject-store" data-store-id="${esc(viewingStore.id)}"><i class="fas fa-times"></i> Nos parece mal</button>` : ''}
+                        <button type="button" class="stores-secondary-btn store-staff-delete-btn" data-stores-action="staff-toggle-18" data-store-id="${esc(viewingStore.id)}">
+                            <i class="fas fa-user-shield"></i> ${adults ? 'Quitar +18' : 'Marcar +18'}
+                        </button>
+                        <button type="button" class="stores-danger-btn store-staff-delete-btn"
+                            data-stores-action="admin-delete-store" data-store-id="${esc(viewingStore.id)}">
+                            <i class="fas fa-trash-alt"></i> Borrar
+                        </button>
+                    </div>
                </div>`
             : '';
         body.innerHTML = `
             <div class="store-detail-head">
                 ${logoBlock}
                 <div class="min-w-0">
-                    <p class="store-detail-name">${esc(viewingStore.name)}</p>
+                    <p class="store-detail-name">${esc(viewingStore.name)}${adults ? ' <span class="store-badge-18">+18</span>' : ''}</p>
                     <p class="store-detail-meta">${esc(catLabel(viewingStore.category))} · ${open ? '<span class="text-emerald-600 font-bold">Abierta</span>' : '<span class="text-slate-500">Cerrada</span>'}</p>
                     ${viewingStore.address ? `<p class="store-detail-addr"><i class="fas fa-map-marker-alt"></i> ${esc(viewingStore.address)}</p>` : ''}
                     ${viewingStore.description ? `<p class="store-detail-desc">${esc(viewingStore.description)}</p>` : ''}
+                    ${adults ? `<p class="text-[11px] font-bold text-rose-700 mt-1"><i class="fas fa-exclamation-triangle"></i> Solo mayores de 18 años</p>` : ''}
                 </div>
             </div>
             ${staffBar}
+            <p class="text-[10px] text-slate-500 px-1 mb-2 leading-snug">
+                Precios incluyen la mitad de la tarifa del momento (${esc(String(tariffPct))}%). La otra mitad se suma al pagar el pedido. El envío va aparte.
+            </p>
             <div class="store-products">
                 <p class="stores-section-label">Menú / productos</p>
                 ${viewingProducts.length ? viewingProducts.map(productCardHtml).join('') : `
@@ -968,6 +1182,9 @@ function catLabel(id) {
 function storeCardHtml(s) {
     const open = s.isOpen !== false;
     const staff = isStoresStaff();
+    const adults = isStoreAdultsOnly(s);
+    const appr = storeApprovalStatus(s);
+    const apprMeta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
     const cover = s.photoUrl
         ? `<div class="store-card-cover-wrap"><img class="store-card-cover" src="${esc(s.photoUrl)}" alt="${esc(s.name || 'Tienda')}" loading="lazy" onerror="this.style.opacity='0'"></div>`
         : `<div class="store-card-cover-wrap"><div class="store-card-cover store-card-cover--icon"><i class="fas ${esc(catIcon(s.category))}"></i></div></div>`;
@@ -978,17 +1195,18 @@ function storeCardHtml(s) {
            </button>`
         : '';
     return `
-        <div class="store-card-wrap ${staff ? 'store-card-wrap--staff' : ''}" role="listitem">
+        <div class="store-card-wrap ${staff ? 'store-card-wrap--staff' : ''} ${appr !== 'approved' ? 'store-card-wrap--pending' : ''}" role="listitem">
             <button type="button" class="store-card store-card--browse ${open ? '' : 'store-card--closed'}" data-stores-action="open-store" data-store-id="${esc(s.id)}">
                 ${cover}
                 <div class="store-card-body">
                     <div class="store-card-top">
-                        <p class="store-card-name">${esc(s.name || 'Tienda')}</p>
+                        <p class="store-card-name">${esc(s.name || 'Tienda')}${adults ? ' <span class="store-badge-18">+18</span>' : ''}</p>
                         <span class="store-card-status ${open ? 'is-open' : ''}">${open ? 'Abierta' : 'Cerrada'}</span>
                     </div>
                     <p class="store-card-meta">${esc(catLabel(s.category))}${s.cityName ? ` · ${esc(s.cityName)}` : ''}</p>
                     ${s.address ? `<p class="store-card-addr"><i class="fas fa-map-marker-alt"></i> ${esc(s.address)}</p>` : ''}
                     ${s.description ? `<p class="store-card-desc">${esc(s.description)}</p>` : ''}
+                    ${staff ? `<p class="text-[10px] font-bold mt-1 order-status order-status--${apprMeta.tone}" style="display:inline-block">${esc(apprMeta.label)}</p>` : ''}
                     ${staff && s.ownerId ? `<p class="store-card-owner-id text-[10px] text-slate-400 font-semibold mt-1">Dueño: ${esc(String(s.ownerId).slice(0, 10))}…</p>` : ''}
                 </div>
             </button>
@@ -1007,13 +1225,15 @@ function productPhotoHtml(p, cls = 'product-card-photo') {
 function productCardHtml(p) {
     const available = p.available !== false;
     const inCart = cart.find((c) => c.productId === p.id);
+    const split = calcSplitTariff(productBasePrice(p));
     return `
         <div class="product-card ${available ? '' : 'product-card--off'}">
             ${productPhotoHtml(p)}
             <div class="min-w-0 flex-1">
                 <p class="product-card-name">${esc(p.name)}</p>
                 ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
-                <p class="product-card-price">${money(p.price)}</p>
+                <p class="product-card-price">${money(split.displayPrice)}</p>
+                <p class="text-[9px] text-slate-400 font-semibold leading-snug">Incluye ½ tarifa · + ${money(split.buyerShare)} al pagar</p>
             </div>
             ${available ? `
                 <div class="product-qty">
@@ -1035,29 +1255,42 @@ function renderCartHtml() {
         return `<div class="stores-empty"><i class="fas fa-shopping-cart"></i><p>Tu carrito está vacío.</p>
             <button type="button" class="stores-secondary-btn mt-3" data-stores-action="back-list">Ver tiendas</button></div>`;
     }
+    const displayTotal = cartItemsDisplayTotal();
+    const buyerHalf = cartBuyerTariffTotal();
+    const grand = cartItemsTotal();
+    const tariffPct = getTarifaDelMomentoSync();
     return `
         <div class="cart-lines">
-            ${cart.map((i) => `
+            ${cart.map((i) => {
+                const unit = Number(i.displayPrice ?? i.price) || 0;
+                return `
                 <div class="cart-line">
                     ${i.photoUrl
                         ? `<img class="cart-line-photo" src="${esc(i.photoUrl)}" alt="" loading="lazy">`
                         : `<div class="cart-line-photo cart-line-photo--placeholder"><i class="fas fa-image"></i></div>`}
                     <div class="min-w-0 flex-1">
                         <p class="font-bold text-sm text-slate-900">${esc(i.name)}</p>
-                        <p class="text-xs text-slate-500">${money(i.price)} c/u</p>
+                        <p class="text-xs text-slate-500">${money(unit)} c/u <span class="text-slate-400">(con ½ tarifa)</span></p>
                     </div>
                     <div class="product-qty">
                         <button type="button" class="product-qty-btn" data-stores-action="cart-dec" data-product-id="${esc(i.productId)}">−</button>
                         <span>${i.qty}</span>
                         <button type="button" class="product-qty-btn" data-stores-action="cart-inc" data-product-id="${esc(i.productId)}">+</button>
                     </div>
-                    <p class="cart-line-total">${money(i.price * i.qty)}</p>
-                </div>
-            `).join('')}
+                    <p class="cart-line-total">${money(unit * i.qty)}</p>
+                </div>`;
+            }).join('')}
         </div>
-        <div class="cart-summary">
-            <div class="flex justify-between text-sm font-bold"><span>Productos</span><span>${money(cartItemsTotal())}</span></div>
-            <p class="text-[11px] text-slate-500 mt-1">El envío (moto o Taxi VIP) se calcula cuando el negocio marca el pedido listo.</p>
+        <div class="cart-summary space-y-1">
+            <div class="flex justify-between text-sm font-bold"><span>Productos (precio mostrado)</span><span>${money(displayTotal)}</span></div>
+            <div class="flex justify-between text-xs font-bold text-amber-800">
+                <span>Tu mitad de tarifa (${esc(String(tariffPct))}%)</span>
+                <span>${money(buyerHalf)}</span>
+            </div>
+            <div class="flex justify-between text-sm font-black text-slate-900 border-t border-slate-100 pt-1.5 mt-1">
+                <span>Total productos</span><span>${money(grand)}</span>
+            </div>
+            <p class="text-[11px] text-slate-500 mt-1">El envío (moto o Taxi VIP) se calcula cuando el negocio marca el pedido listo y se paga al conductor.</p>
         </div>
         <button type="button" class="stores-primary-btn w-full mt-4" data-stores-action="to-checkout">Continuar al envío</button>
     `;
@@ -1206,7 +1439,10 @@ async function refundStoreOrderIfSaldo(order, reason = 'cancel') {
 function renderCheckoutHtml() {
     const profile = getUserProfile() || {};
     const bal = getClientBalance();
+    const displayTotal = cartItemsDisplayTotal();
+    const buyerHalf = cartBuyerTariffTotal();
     const total = cartItemsTotal();
+    const tariffPct = getTarifaDelMomentoSync();
     const dest = document.getElementById('destination-autocomplete');
     const destVal = dest?.value || dest?.getAttribute?.('value') || '';
     return `
@@ -1216,14 +1452,19 @@ function renderCheckoutHtml() {
                 <i class="fas fa-store"></i>
                 <span>${esc(viewingStore?.name || 'Tienda')}</span>
             </div>
-            <div class="cart-summary">
-                <div class="flex justify-between text-sm font-bold"><span>Productos</span><span>${money(total)}</span></div>
+            <div class="cart-summary space-y-1">
+                <div class="flex justify-between text-sm font-bold"><span>Productos (con ½ tarifa)</span><span>${money(displayTotal)}</span></div>
+                <div class="flex justify-between text-xs font-bold text-amber-800">
+                    <span>Tu mitad de tarifa (${esc(String(tariffPct))}%)</span>
+                    <span>${money(buyerHalf)}</span>
+                </div>
+                <div class="flex justify-between text-sm font-black"><span>Total a pagar (productos)</span><span>${money(total)}</span></div>
                 <div class="flex justify-between text-xs font-bold text-purple-700 mt-1.5">
                     <span><i class="fas fa-wallet"></i> Tu saldo</span>
                     <span>L. ${bal.toFixed(2)}</span>
                 </div>
                 <p class="text-[10px] text-slate-500 mt-1.5 leading-snug">
-                    Puedes pagar productos con <b>puntos/saldo</b> o en <b>efectivo</b>. El envío se paga al conductor.
+                    Puedes pagar productos + tu mitad de tarifa con <b>puntos/saldo</b> o en <b>efectivo</b>. El envío se paga al conductor.
                 </p>
             </div>
             <label class="stores-field">
@@ -1283,6 +1524,14 @@ function orderCardHtml(o, { merchant = false } = {}) {
                 </span>
                 ${o.deliveryAddress ? `<span><i class="fas fa-map-marker-alt"></i> ${esc(o.deliveryAddress)}</span>` : ''}
             </div>
+            ${o.platformFeeBuyer != null || o.platformFeeMerchant != null ? `
+                <p class="text-[10px] text-slate-500 font-semibold mt-1 leading-snug">
+                    Base ${money(o.itemsBaseTotal ?? 0)}
+                    · ½ tarifa negocio ${money(o.platformFeeMerchant ?? 0)}
+                    · ½ tarifa comprador ${money(o.platformFeeBuyer ?? 0)}
+                    ${o.commissionPercent != null ? `· tarifa ${esc(String(o.commissionPercent))}%` : ''}
+                </p>
+            ` : ''}
             ${o.notes ? `<p class="order-notes">${esc(o.notes)}</p>` : ''}
             ${actions}
         </div>
@@ -1329,6 +1578,36 @@ function merchantOrderActionsHtml(o) {
 async function openStore(storeId) {
     const store = storesCache.get(storeId) || (await getDoc(publicDoc('stores', storeId)).then((d) => d.exists() ? { id: d.id, ...d.data() } : null));
     if (!store) return toast('Tienda no encontrada', 'error');
+
+    const uid = getCurrentUser()?.uid;
+    const isOwner = uid && store.ownerId === uid;
+    const staff = isStoresStaff();
+    const appr = storeApprovalStatus(store);
+
+    if (!staff && !isOwner && appr !== 'approved') {
+        return toast('Esta tienda aún no está verificada por un supervisor', 'warning');
+    }
+    if (!staff && !isOwner && store.active === false) {
+        return toast('Esta tienda no está disponible', 'warning');
+    }
+
+    // +18: solo mayores de edad (staff y dueño pueden ver para gestionar)
+    if (isStoreAdultsOnly(store) && !staff && !isOwner) {
+        if (!getCurrentUser()) {
+            return toast('Inicia sesión para ver tiendas +18', 'warning');
+        }
+        if (!userIsAdult18()) {
+            const age = getUserAgeYears();
+            return toast(
+                age == null
+                    ? 'Esta tienda es solo para mayores de 18. Completa tu fecha de nacimiento en el perfil.'
+                    : 'Esta tienda es solo para mayores de 18 años.',
+                'warning'
+            );
+        }
+    }
+
+    await getTarifaDelMomento().catch(() => {});
     viewingStore = store;
     viewingProducts = await loadProducts(storeId);
     // If cart is from another store, clear
@@ -1343,6 +1622,10 @@ function addToCart(productId) {
     const p = viewingProducts.find((x) => x.id === productId);
     if (!p || p.available === false) return;
     if (viewingStore?.isOpen === false) return toast('La tienda está cerrada', 'warning');
+    if (!isStoreApprovedForPublic(viewingStore) && !isStoresStaff()) {
+        return toast('Esta tienda aún no está verificada', 'warning');
+    }
+    const split = calcSplitTariff(productBasePrice(p));
     const existing = cart.find((c) => c.productId === productId);
     if (existing) existing.qty += 1;
     else {
@@ -1350,7 +1633,11 @@ function addToCart(productId) {
             productId: p.id,
             storeId: viewingStore.id,
             name: p.name,
-            price: Number(p.price) || 0,
+            basePrice: split.basePrice,
+            price: split.displayPrice,
+            displayPrice: split.displayPrice,
+            merchantShare: split.merchantShare,
+            buyerShare: split.buyerShare,
             qty: 1,
             photoUrl: p.photoUrl || null,
         });
@@ -1400,14 +1687,37 @@ async function placeOrder() {
         }
     } catch (_) {}
 
-    const items = cart.map((i) => ({
-        productId: i.productId,
-        name: i.name,
-        price: Number(i.price) || 0,
-        qty: i.qty,
-        photoUrl: i.photoUrl || null,
-    }));
-    const itemsTotal = cartItemsTotal();
+    if (!isStoreApprovedForPublic(viewingStore) && !isStoresStaff()) {
+        return toast('Esta tienda aún no está verificada por un supervisor', 'warning');
+    }
+    if (isStoreAdultsOnly(viewingStore) && !userIsAdult18() && !isStoresStaff()) {
+        return toast('Esta tienda es solo para mayores de 18 años', 'warning');
+    }
+
+    const tariffPct = await getTarifaDelMomento();
+    // Recalcular splits con la tarifa del momento al confirmar
+    const items = cart.map((i) => {
+        const base = Number(i.basePrice);
+        const split = calcSplitTariff(Number.isFinite(base) ? base : (Number(i.price) || 0), tariffPct);
+        return {
+            productId: i.productId,
+            name: i.name,
+            basePrice: split.basePrice,
+            price: split.displayPrice,
+            displayPrice: split.displayPrice,
+            merchantShare: split.merchantShare,
+            buyerShare: split.buyerShare,
+            qty: i.qty,
+            photoUrl: i.photoUrl || null,
+        };
+    });
+    const itemsBaseTotal = roundMoney(items.reduce((s, i) => s + i.basePrice * i.qty, 0));
+    const itemsDisplayTotal = roundMoney(items.reduce((s, i) => s + i.displayPrice * i.qty, 0));
+    const platformFeeMerchant = roundMoney(items.reduce((s, i) => s + i.merchantShare * i.qty, 0));
+    const platformFeeBuyer = roundMoney(items.reduce((s, i) => s + i.buyerShare * i.qty, 0));
+    const platformFeeTotal = roundMoney(platformFeeMerchant + platformFeeBuyer);
+    // Lo que paga el cliente por productos (precio mostrado + su mitad de tarifa)
+    const itemsTotal = roundMoney(itemsDisplayTotal + platformFeeBuyer);
     if (itemsTotal <= 0) return toast('Total inválido', 'warning');
 
     // Elegir pago: efectivo o puntos/saldo (como viajes)
@@ -1441,7 +1751,14 @@ async function placeOrder() {
             clientName: profile.name || 'Cliente',
             clientPhone: phoneNorm(profile.phone || recipientPhone),
             items,
+            itemsBaseTotal,
+            itemsDisplayTotal,
             itemsTotal,
+            platformFeeMerchant,
+            platformFeeBuyer,
+            platformFeeTotal,
+            commissionPercent: tariffPct,
+            tariffSplit: true,
             status: 'pending',
             deliveryAddress: address,
             deliveryLat,
@@ -1610,6 +1927,26 @@ function onMarketplaceClick(e) {
         e.stopPropagation?.();
         return showStaffInviteBusinessModal();
     }
+    if (action === 'staff-review-stores') {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return loadSupervisorStores();
+    }
+    if (action === 'staff-approve-store' && storeId) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return staffSetStoreApproval(storeId, 'approved');
+    }
+    if (action === 'staff-reject-store' && storeId) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return staffSetStoreApproval(storeId, 'rejected');
+    }
+    if (action === 'staff-toggle-18' && storeId) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return staffToggleAdultsOnly(storeId);
+    }
 }
 
 /* ===================== MERCHANT PANEL ===================== */
@@ -1734,13 +2071,29 @@ function renderMerchantBody() {
     }
     if (merchantTab === 'products') {
         body.innerHTML = renderMerchantProducts();
+        // Preview en vivo de precio + tarifa
+        requestAnimationFrame(() => bindMerchantProductPricePreview());
         return;
     }
     // orders
     const active = merchantOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
     const past = merchantOrders.filter((o) => ['delivered', 'cancelled'].includes(o.status));
+    const appr = myStore ? storeApprovalStatus(myStore) : null;
+    const apprMeta = appr ? (STORE_APPROVAL[appr] || STORE_APPROVAL.pending) : null;
     body.innerHTML = `
         <div class="orders-list">
+            ${myStore && appr && appr !== 'approved' ? `
+                <div class="rounded-2xl border px-3 py-2.5 mb-2 ${appr === 'rejected' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}">
+                    <p class="text-[11px] font-black ${appr === 'rejected' ? 'text-red-900' : 'text-amber-900'}">
+                        <i class="fas ${apprMeta.icon}"></i> ${esc(apprMeta.label)}
+                    </p>
+                    <p class="text-[10px] font-semibold mt-1 ${appr === 'rejected' ? 'text-red-800' : 'text-amber-800'} leading-snug">
+                        ${appr === 'rejected'
+                            ? 'Los clientes no ven tu tienda. Corrige datos en la pestaña Tienda y guarda para reenviar a revisión.'
+                            : 'Un supervisor debe verificar tu tienda antes de que aparezca en el marketplace. Ya puedes armar el menú.'}
+                    </p>
+                </div>
+            ` : ''}
             ${myStore ? `
                 <div class="merchant-share-banner">
                     <div class="min-w-0">
@@ -1821,6 +2174,37 @@ function renderMerchantStoreForm() {
                 <input id="m-store-address" class="stores-input" required value="${esc(s.address || '')}" placeholder="Colonia, calle, referencia"></label>
             <label class="stores-field"><span>WhatsApp del negocio *</span>
                 <input id="m-store-phone" class="stores-input" required value="${esc(s.phone || (!editingExisting ? (getUserProfile()?.phone || '') : ''))}" placeholder="+504..."></label>
+            <label class="stores-field stores-field--check" style="flex-direction:row;align-items:flex-start;gap:0.65rem;cursor:pointer;">
+                <input type="checkbox" id="m-store-adults-only" ${s.adultsOnly ? 'checked' : ''} style="width:1.1rem;height:1.1rem;margin-top:0.15rem;flex-shrink:0;">
+                <span>
+                    <strong class="block text-sm text-slate-800">Tienda solo para mayores de 18 (+18)</strong>
+                    <small class="text-[10px] text-slate-500 font-semibold leading-snug">Ej. alcohol, tabaco u otros productos restringidos. Un supervisor lo confirma al verificar.</small>
+                </span>
+            </label>
+            ${editingExisting ? (() => {
+                const appr = storeApprovalStatus(s);
+                const meta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
+                return `
+                <div class="rounded-xl border px-3 py-2.5 ${appr === 'approved' ? 'border-emerald-200 bg-emerald-50' : appr === 'rejected' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}">
+                    <p class="text-[11px] font-black ${appr === 'approved' ? 'text-emerald-900' : appr === 'rejected' ? 'text-red-900' : 'text-amber-900'}">
+                        <i class="fas ${meta.icon}"></i> Verificación: ${esc(meta.label)}
+                    </p>
+                    <p class="text-[10px] font-semibold mt-1 ${appr === 'approved' ? 'text-emerald-800' : appr === 'rejected' ? 'text-red-800' : 'text-amber-800'} leading-snug">
+                        ${appr === 'approved'
+                            ? 'Tu tienda es visible en el marketplace.'
+                            : appr === 'rejected'
+                                ? (s.rejectionReason ? `Motivo: ${esc(s.rejectionReason)}` : 'Un supervisor la rechazó. Corrige datos y guarda de nuevo para reenviar a revisión.')
+                                : 'Un supervisor debe marcar si nos parece bien o mal antes de que los clientes te vean.'}
+                    </p>
+                </div>`;
+            })() : `
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <p class="text-[11px] font-black text-amber-900"><i class="fas fa-hourglass-half"></i> Requiere verificación</p>
+                    <p class="text-[10px] font-semibold text-amber-800 mt-1 leading-snug">
+                        Al crear, la tienda queda <b>en revisión</b>. Un supervisor la aprueba o rechaza y puede marcarla +18.
+                    </p>
+                </div>
+            `}
             <div class="grid grid-cols-2 gap-2">
                 <label class="stores-field"><span>Lat (opcional)</span>
                     <input id="m-store-lat" class="stores-input" type="number" step="any" value="${s.lat != null ? esc(s.lat) : ''}" placeholder="14.45"></label>
@@ -1924,6 +2308,18 @@ function renderMerchantProducts() {
     const preview = pendingProductPhotoPreview
         ? `<img src="${esc(pendingProductPhotoPreview)}" alt="Vista previa" class="m-prod-photo-preview">`
         : `<div class="m-prod-photo-preview m-prod-photo-preview--empty"><i class="fas fa-camera"></i><span>Foto del producto</span></div>`;
+    const tariffPct = getTarifaDelMomentoSync();
+    const halfPct = roundMoney(tariffPct / 2);
+    // Prefetch en vivo
+    getTarifaDelMomento().then((p) => {
+        const el = document.getElementById('m-prod-tariff-live');
+        if (el && Math.abs(p - tariffPct) > 0.001) {
+            // Re-render si cambió
+            renderMerchantBody();
+        } else {
+            updateMerchantProductPricePreview();
+        }
+    }).catch(() => {});
     return `
         <div class="merchant-products">
             <div class="merchant-share-banner">
@@ -1935,6 +2331,15 @@ function renderMerchantProducts() {
                     <i class="fas fa-bullhorn"></i> Compartir
                 </button>
             </div>
+            <div class="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2.5 mb-3">
+                <p class="text-[11px] font-black text-violet-900"><i class="fas fa-percentage"></i> Tarifa del momento: ${esc(String(tariffPct))}%</p>
+                <p class="text-[10px] font-semibold text-violet-800 mt-1 leading-snug">
+                    Se divide en <b>2 partes iguales (${esc(String(halfPct))}% cada una)</b>:<br>
+                    • <b>Tu mitad</b> se suma al precio que ve el cliente (tú pones el precio base).<br>
+                    • <b>La mitad del comprador</b> se le cobra al pedir (además del envío).<br>
+                    Ejemplo: si pones L. 100, el cliente ve ~${money(calcSplitTariff(100, tariffPct).displayPrice)} y al pagar suma ~${money(calcSplitTariff(100, tariffPct).buyerShare)} más de tarifa.
+                </p>
+            </div>
             <form id="merchant-product-form" class="merchant-form space-y-2 mb-4 p-3 rounded-2xl border border-amber-100 bg-amber-50/50" onsubmit="return false;">
                 <p class="stores-section-label">Agregar producto</p>
                 <button type="button" class="m-prod-photo-pick" data-merchant-action="pick-product-photo" aria-label="Elegir foto del producto">
@@ -1943,18 +2348,24 @@ function renderMerchantProducts() {
                 </button>
                 <input type="file" id="m-prod-photo-input" accept="image/*" capture="environment" class="hidden">
                 <input id="m-prod-name" class="stores-input" placeholder="Nombre *" required>
-                <input id="m-prod-price" class="stores-input" type="number" min="1" step="0.01" placeholder="Precio L. *" required>
+                <input id="m-prod-price" class="stores-input" type="number" min="1" step="0.01" placeholder="Tu precio base L. *" required inputmode="decimal">
+                <div id="m-prod-tariff-live" class="rounded-xl bg-white/80 border border-amber-100 px-2.5 py-2 text-[10px] font-semibold text-slate-600 leading-snug">
+                    Escribe tu precio base para ver cuánto verá el cliente.
+                </div>
                 <input id="m-prod-desc" class="stores-input" placeholder="Descripción (opcional)">
                 <button type="button" class="stores-primary-btn w-full" data-merchant-action="add-product">Agregar al menú</button>
             </form>
             <p class="stores-section-label">Tu menú (${myProducts.length})</p>
             <div class="space-y-2">
-                ${myProducts.length ? myProducts.map((p) => `
+                ${myProducts.length ? myProducts.map((p) => {
+                    const split = calcSplitTariff(productBasePrice(p), tariffPct);
+                    return `
                     <div class="product-card">
                         ${productPhotoHtml(p)}
                         <div class="min-w-0 flex-1">
                             <p class="product-card-name">${esc(p.name)}</p>
-                            <p class="product-card-price">${money(p.price)}</p>
+                            <p class="product-card-price">Tu precio: ${money(split.basePrice)}</p>
+                            <p class="text-[10px] font-bold text-violet-700">Cliente ve: ${money(split.displayPrice)} · + ${money(split.buyerShare)} al pagar</p>
                             ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
                         </div>
                         <div class="flex flex-col gap-1">
@@ -1968,12 +2379,38 @@ function renderMerchantProducts() {
                                 Borrar
                             </button>
                         </div>
-                    </div>
-                `).join('') : `<div class="stores-empty stores-empty--sm"><p>Agrega tu primer producto con foto.</p></div>`}
+                    </div>`;
+                }).join('') : `<div class="stores-empty stores-empty--sm"><p>Agrega tu primer producto con foto.</p></div>`}
             </div>
             <input type="file" id="m-prod-photo-edit-input" accept="image/*" capture="environment" class="hidden">
         </div>
     `;
+}
+
+function updateMerchantProductPricePreview() {
+    const input = document.getElementById('m-prod-price');
+    const live = document.getElementById('m-prod-tariff-live');
+    if (!live) return;
+    const base = Number(input?.value);
+    const pct = getTarifaDelMomentoSync();
+    if (!Number.isFinite(base) || base <= 0) {
+        live.innerHTML = `Escribe tu precio base. Tarifa del momento: <b>${esc(String(pct))}%</b> (dividida a la mitad contigo y el cliente).`;
+        return;
+    }
+    const split = calcSplitTariff(base, pct);
+    live.innerHTML = `
+        <span class="text-slate-800">Al cliente se le mostrará <b class="text-violet-800">${money(split.displayPrice)}</b>
+        (= tu precio ${money(split.basePrice)} + tu mitad de tarifa ${money(split.merchantShare)}).</span><br>
+        <span class="text-amber-800">Al comprar se le sumará la otra mitad: <b>${money(split.buyerShare)}</b> (además del envío).</span>
+    `;
+}
+
+function bindMerchantProductPricePreview() {
+    const input = document.getElementById('m-prod-price');
+    if (!input || input.dataset.tariffBound === '1') return;
+    input.dataset.tariffBound = '1';
+    input.addEventListener('input', updateMerchantProductPricePreview);
+    updateMerchantProductPricePreview();
 }
 
 function readFileAsDataUrl(file) {
@@ -2138,6 +2575,7 @@ async function saveStore() {
     // If no coords, use city center as soft location
     const finalLat = Number.isFinite(lat) ? lat : (city.center?.lat ?? null);
     const finalLng = Number.isFinite(lng) ? lng : (city.center?.lng ?? null);
+    const adultsOnly = !!document.getElementById('m-store-adults-only')?.checked;
 
     // Revalidar: máximo 1 tienda por usuario
     await loadMyStore();
@@ -2146,6 +2584,13 @@ async function saveStore() {
         merchantCreateMode = false;
         toast('Ya tienes una tienda. Solo se permite una por cuenta.', 'warning');
         return openMerchantPanel({ createNew: false });
+    }
+
+    const prevStatus = !isNewStore ? storeApprovalStatus(myStore) : 'pending';
+    // Si estaba rechazada y edita, vuelve a revisión. No puede auto-aprobarse.
+    let nextApproval = isNewStore ? 'pending' : prevStatus;
+    if (!isNewStore && prevStatus === 'rejected') {
+        nextApproval = 'pending';
     }
 
     const payload = {
@@ -2162,10 +2607,24 @@ async function saveStore() {
         cityName: (!isNewStore && myStore?.cityName) ? myStore.cityName : city.cityName,
         isOpen: isNewStore ? true : (myStore?.isOpen !== false),
         active: true,
+        adultsOnly,
+        requiresAge18: adultsOnly,
         // Conservar logo anterior si no hay uno nuevo pendiente
         photoUrl: (!isNewStore && myStore?.photoUrl) ? myStore.photoUrl : null,
         updatedAt: serverTimestamp(),
     };
+
+    // Campos de verificación: el dueño solo puede reenviar a pending tras rechazo
+    if (isNewStore) {
+        payload.approvalStatus = 'pending';
+        payload.submittedForReviewAt = serverTimestamp();
+    } else if (prevStatus === 'rejected') {
+        payload.approvalStatus = 'pending';
+        payload.submittedForReviewAt = serverTimestamp();
+        payload.rejectionReason = null;
+        payload.reviewedAt = null;
+        payload.reviewedBy = null;
+    }
 
     try {
         toast(pendingStorePhoto ? 'Subiendo logo y guardando…' : 'Guardando tienda…', 'info');
@@ -2180,13 +2639,18 @@ async function saveStore() {
                 }
             }
             await updateDoc(publicDoc('stores', myStore.id), payload);
-            myStore = { ...myStore, ...payload };
+            myStore = { ...myStore, ...payload, approvalStatus: payload.approvalStatus || myStore.approvalStatus };
             storesCache.set(myStore.id, myStore);
             pendingStorePhoto = null;
             pendingStorePhotoPreview = null;
-            toast(payload.photoUrl ? 'Tienda y logo actualizados' : 'Tienda actualizada', 'success');
+            if (nextApproval === 'pending' && prevStatus === 'rejected') {
+                toast('Cambios guardados · tienda reenviada a verificación', 'success');
+            } else {
+                toast(payload.photoUrl ? 'Tienda y logo actualizados' : 'Tienda actualizada', 'success');
+            }
         } else {
             payload.createdAt = serverTimestamp();
+            payload.approvalStatus = 'pending';
             const ref = await addDoc(publicCol('stores'), payload);
             let photoUrl = null;
             if (pendingStorePhoto) {
@@ -2198,12 +2662,17 @@ async function saveStore() {
                     toast('Tienda creada, pero el logo no subió. Puedes editarlo en Mi tienda.', 'warning');
                 }
             }
-            myStore = { id: ref.id, ...payload, photoUrl: photoUrl || null };
+            myStore = { id: ref.id, ...payload, photoUrl: photoUrl || null, approvalStatus: 'pending' };
             storesCache.set(ref.id, myStore);
             merchantCreateMode = false;
             pendingStorePhoto = null;
             pendingStorePhotoPreview = null;
-            toast(photoUrl ? '¡Tienda con logo creada! Ahora agrega productos.' : '¡Tienda nueva creada! Ahora agrega productos.', 'success');
+            toast(
+                photoUrl
+                    ? '¡Tienda creada! Está en revisión de un supervisor. Mientras, agrega productos.'
+                    : '¡Tienda creada! Está en revisión de un supervisor. Mientras, agrega productos.',
+                'success'
+            );
             merchantTab = 'products';
             document.querySelectorAll('.merchant-tab').forEach((b) => {
                 b.classList.remove('hidden');
@@ -2263,12 +2732,20 @@ async function addProduct() {
 
     try {
         toast(pendingProductPhoto ? 'Subiendo foto y guardando…' : 'Guardando producto…', 'info');
+        const tariffPct = await getTarifaDelMomento();
+        const base = roundMoney(price);
+        const split = calcSplitTariff(base, tariffPct);
         // Primero creamos el doc para tener id estable de foto
         const ref = await addDoc(publicCol('store_products'), {
             storeId: myStore.id,
             ownerId: getCurrentUser().uid,
             name,
-            price: Math.round(price * 100) / 100,
+            // price = precio base del emprendedor (lo que él define)
+            price: base,
+            basePrice: base,
+            // referencia de cómo se muestra (se recalcula con tarifa del momento al vender)
+            displayPrice: split.displayPrice,
+            commissionPercentAtCreate: tariffPct,
             description,
             photoUrl: null,
             available: true,
@@ -2665,6 +3142,309 @@ async function onMerchantClick(e) {
         await setOrderStatus(orderId, 'delivered', { deliveredAt: serverTimestamp() });
         return toast('Pedido marcado entregado', 'success');
     }
+}
+
+/* ===================== VERIFICACIÓN DE TIENDAS (SUPERVISOR / ADMIN) ===================== */
+
+/**
+ * Aprobar ("nos parece bien") o rechazar ("nos parece mal") una tienda.
+ * @param {string} storeId
+ * @param {'approved'|'rejected'} status
+ */
+async function staffSetStoreApproval(storeId, status) {
+    if (!isStoresStaff()) return toast('Solo supervisores o admin', 'error');
+    if (!storeId || !['approved', 'rejected'].includes(status)) return;
+
+    let rejectionReason = null;
+    if (status === 'rejected') {
+        const rawReason = window.prompt('Motivo del rechazo (opcional):', '');
+        if (rawReason === null) return; // cancel
+        rejectionReason = String(rawReason || '').trim();
+        if (!confirm('¿Confirmar que nos parece mal esta tienda? No será visible en el marketplace.')) return;
+    } else if (!confirm('¿Confirmar que nos parece bien? La tienda será visible para clientes.')) {
+        return;
+    }
+
+    const user = getCurrentUser();
+    const profile = getUserProfile() || {};
+    try {
+        const patch = {
+            approvalStatus: status,
+            reviewedAt: serverTimestamp(),
+            reviewedBy: user?.uid || null,
+            reviewedByName: profile.name || profile.email || 'Staff',
+            updatedAt: serverTimestamp(),
+        };
+        if (status === 'rejected') {
+            patch.rejectionReason = String(rejectionReason || '').trim() || 'No cumple requisitos de HonduRaite';
+            // No debe seguir "abierta" al público
+            patch.isOpen = false;
+        }
+        if (status === 'approved') {
+            patch.rejectionReason = null;
+            patch.active = true;
+        }
+        await updateDoc(publicDoc('stores', storeId), patch);
+
+        // Actualizar cachés locales
+        const cached = storesCache.get(storeId);
+        if (cached) {
+            Object.assign(cached, patch, { approvalStatus: status, rejectionReason: patch.rejectionReason ?? null });
+            storesCache.set(storeId, cached);
+        }
+        if (myStore?.id === storeId) {
+            Object.assign(myStore, { approvalStatus: status, rejectionReason: patch.rejectionReason ?? null });
+        }
+        if (viewingStore?.id === storeId) {
+            Object.assign(viewingStore, { approvalStatus: status, rejectionReason: patch.rejectionReason ?? null });
+        }
+
+        toast(
+            status === 'approved' ? 'Tienda aprobada · visible en marketplace' : 'Tienda rechazada · oculta al público',
+            status === 'approved' ? 'success' : 'info'
+        );
+        if (marketplaceView === 'store' || marketplaceView === 'list') renderMarketplace();
+        // Refrescar panel staff si está abierto
+        if (document.getElementById('staff-stores-review') || document.getElementById('supervisor-pending-list')) {
+            try { await loadSupervisorStores({ keepFilter: true }); } catch (_) {}
+        }
+    } catch (e) {
+        console.error('[stores] staffSetStoreApproval', e);
+        toast('No se pudo actualizar la verificación', 'error');
+    }
+}
+
+async function staffToggleAdultsOnly(storeId) {
+    if (!isStoresStaff()) return toast('Solo supervisores o admin', 'error');
+    if (!storeId) return;
+    let store = storesCache.get(storeId);
+    if (!store) {
+        try {
+            const snap = await getDoc(publicDoc('stores', storeId));
+            if (snap.exists()) store = { id: snap.id, ...snap.data() };
+        } catch (_) {}
+    }
+    if (!store) return toast('Tienda no encontrada', 'error');
+    const next = !isStoreAdultsOnly(store);
+    try {
+        await updateDoc(publicDoc('stores', storeId), {
+            adultsOnly: next,
+            requiresAge18: next,
+            ageRestrictedBy: getCurrentUser()?.uid || null,
+            ageRestrictedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+        const patch = { adultsOnly: next, requiresAge18: next };
+        if (storesCache.has(storeId)) Object.assign(storesCache.get(storeId), patch);
+        if (viewingStore?.id === storeId) Object.assign(viewingStore, patch);
+        if (myStore?.id === storeId) Object.assign(myStore, patch);
+        toast(next ? 'Marcada como tienda +18' : 'Restricción +18 quitada', 'success');
+        if (marketplaceView === 'store' || marketplaceView === 'list') renderMarketplace();
+        if (document.getElementById('staff-stores-review') || document.getElementById('supervisor-pending-list')) {
+            try { await loadSupervisorStores({ keepFilter: true }); } catch (_) {}
+        }
+    } catch (e) {
+        console.error(e);
+        toast('No se pudo cambiar +18', 'error');
+    }
+}
+
+/**
+ * Panel de supervisión: listar y verificar tiendas.
+ * Se renderiza en #supervisor-pending-list (o admin content) cuando el staff elige la pestaña.
+ */
+export async function loadSupervisorStores(opts = {}) {
+    if (!isStoresStaff()) {
+        toast('Solo supervisores o admin pueden verificar tiendas', 'error');
+        return;
+    }
+    if (!opts.keepFilter) staffStoresFilter = staffStoresFilter || 'pending';
+
+    // Activar nav supervisor si existe
+    try {
+        window.setSupervisorNavActive?.('stores');
+    } catch (_) {}
+
+    const container = document.getElementById('supervisor-pending-list')
+        || document.getElementById('admin-content')
+        || document.getElementById('admin-users-list');
+    if (!container) {
+        // Fallback: abrir en modal del marketplace
+        toast('Abre el panel de supervisión para ver la lista completa', 'info');
+        closeMarketplace({ silent: true });
+        try { window.openSupervisorPanel?.(); } catch (_) {}
+        setTimeout(() => loadSupervisorStores(opts), 400);
+        return;
+    }
+
+    const U = window.OpsUi;
+    container.innerHTML = U?.page
+        ? U.page(`<div class="ops-loading"><div class="ops-loading-ring"><i class="fas fa-spinner fa-spin"></i></div><p class="ops-loading-text">Cargando tiendas…</p></div>`)
+        : `<div class="p-6 text-center text-slate-400"><i class="fas fa-spinner fa-spin"></i> Cargando tiendas…</div>`;
+
+    try {
+        // Asegurar db
+        if (!dbRef) {
+            toast('App aún cargando. Intenta de nuevo.', 'warning');
+            return;
+        }
+        startStoresListener();
+        // Cargar todas (incl. inactive) para staff
+        let list = [];
+        try {
+            const snap = await getDocs(query(publicCol('stores'), limit(300)));
+            list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        } catch (e) {
+            list = [...storesCache.values()];
+        }
+        staffStoresList = list.sort((a, b) => {
+            const order = { pending: 0, rejected: 1, approved: 2 };
+            const ao = order[storeApprovalStatus(a)] ?? 3;
+            const bo = order[storeApprovalStatus(b)] ?? 3;
+            return ao - bo || String(a.name || '').localeCompare(String(b.name || ''), 'es');
+        });
+
+        const pending = staffStoresList.filter((s) => storeApprovalStatus(s) === 'pending');
+        const approved = staffStoresList.filter((s) => storeApprovalStatus(s) === 'approved');
+        const rejected = staffStoresList.filter((s) => storeApprovalStatus(s) === 'rejected');
+        const adults = staffStoresList.filter((s) => isStoreAdultsOnly(s));
+
+        let filtered = staffStoresList;
+        if (staffStoresFilter === 'pending') filtered = pending;
+        else if (staffStoresFilter === 'approved') filtered = approved;
+        else if (staffStoresFilter === 'rejected') filtered = rejected;
+        else if (staffStoresFilter === 'adults') filtered = adults;
+
+        const chips = [
+            { id: 'pending', label: `En revisión (${pending.length})` },
+            { id: 'approved', label: `Aprobadas (${approved.length})` },
+            { id: 'rejected', label: `Rechazadas (${rejected.length})` },
+            { id: 'adults', label: `+18 (${adults.length})` },
+            { id: 'all', label: `Todas (${staffStoresList.length})` },
+        ];
+
+        const cards = filtered.length
+            ? filtered.map((s) => staffStoreCardHtml(s)).join('')
+            : (U?.empty
+                ? U.empty('fa-store', 'Sin tiendas aquí', 'Cambia el filtro o espera nuevas solicitudes.')
+                : `<p class="text-center text-slate-400 py-8">Sin tiendas en este filtro.</p>`);
+
+        const body = `
+            <div id="staff-stores-review" class="space-y-4">
+                ${U?.hero
+                    ? U.hero('Tiendas virtuales', 'Verifica negocios · aprobar / rechazar · marcar +18',
+                        U.kpiRow?.([
+                            { value: pending.length, label: 'En revisión', variant: 'amber' },
+                            { value: approved.length, label: 'Aprobadas', variant: 'emerald' },
+                            { value: rejected.length, label: 'Rechazadas', variant: 'red' },
+                            { value: adults.length, label: '+18', variant: 'purple' },
+                        ]) || '')
+                    : `<h2 class="text-xl font-black text-white mb-2">Tiendas virtuales</h2>`}
+                <div class="ops-chipbar flex flex-wrap gap-2" id="staff-stores-filter-chips">
+                    ${chips.map((c) => `
+                        <button type="button" class="ops-chip ${staffStoresFilter === c.id ? 'ops-chip--active' : ''}"
+                            data-staff-stores-filter="${esc(c.id)}">${esc(c.label)}</button>
+                    `).join('')}
+                </div>
+                <p class="text-[11px] text-slate-400 font-semibold leading-snug">
+                    <b>Nos parece bien</b> = tienda visible en el marketplace.
+                    <b>Nos parece mal</b> = rechazada y oculta.
+                    <b>+18</b> = solo clientes mayores de 18 (según fecha de nacimiento del perfil).
+                </p>
+                <div class="space-y-3">${cards}</div>
+            </div>
+        `;
+        container.innerHTML = U?.page ? U.page(body) : body;
+
+        container.querySelectorAll('[data-staff-stores-filter]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                staffStoresFilter = btn.getAttribute('data-staff-stores-filter') || 'pending';
+                loadSupervisorStores({ keepFilter: true });
+            });
+        });
+        container.querySelectorAll('[data-staff-store-action]').forEach((btn) => {
+            btn.addEventListener('click', async (ev) => {
+                ev.preventDefault();
+                const action = btn.getAttribute('data-staff-store-action');
+                const id = btn.getAttribute('data-store-id');
+                if (!id) return;
+                btn.disabled = true;
+                try {
+                    if (action === 'approve') await staffSetStoreApproval(id, 'approved');
+                    else if (action === 'reject') await staffSetStoreApproval(id, 'rejected');
+                    else if (action === 'toggle18') await staffToggleAdultsOnly(id);
+                    else if (action === 'delete') await adminDeleteStore(id);
+                    else if (action === 'open') {
+                        try { window.closeSupervisorPanel?.(); } catch (_) {}
+                        openMarketplace();
+                        setTimeout(() => openStore(id), 300);
+                    }
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+        });
+    } catch (e) {
+        console.error('[stores] loadSupervisorStores', e);
+        container.innerHTML = `<div class="text-center py-10 text-red-400"><p>Error al cargar tiendas</p></div>`;
+    }
+}
+
+function staffStoreCardHtml(s) {
+    const appr = storeApprovalStatus(s);
+    const meta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
+    const adults = isStoreAdultsOnly(s);
+    const open = s.isOpen !== false;
+    const photo = s.photoUrl
+        ? `<img src="${esc(s.photoUrl)}" alt="" class="w-14 h-14 rounded-xl object-cover border border-slate-600" loading="lazy">`
+        : `<div class="w-14 h-14 rounded-xl bg-slate-700 flex items-center justify-center text-slate-400"><i class="fas ${esc(catIcon(s.category))}"></i></div>`;
+    return `
+        <article class="ops-card rounded-2xl border border-slate-700/80 bg-slate-900/50 p-4 space-y-3" data-store-id="${esc(s.id)}">
+            <div class="flex gap-3 items-start">
+                ${photo}
+                <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <h3 class="font-black text-white text-sm">${esc(s.name || 'Sin nombre')}</h3>
+                        <span class="ops-badge ops-badge--${meta.tone === 'emerald' ? 'emerald' : meta.tone === 'red' ? 'red' : 'amber'}">${esc(meta.label)}</span>
+                        ${adults ? `<span class="ops-badge ops-badge--purple">+18</span>` : ''}
+                        <span class="text-[10px] font-bold ${open ? 'text-emerald-400' : 'text-slate-500'}">${open ? 'Abierta' : 'Cerrada'}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 font-semibold mt-0.5">
+                        ${esc(catLabel(s.category))}${s.cityName ? ` · ${esc(s.cityName)}` : ''}
+                    </p>
+                    ${s.address ? `<p class="text-[11px] text-slate-500 mt-0.5"><i class="fas fa-map-marker-alt"></i> ${esc(s.address)}</p>` : ''}
+                    ${s.phone ? `<p class="text-[11px] text-slate-500"><i class="fab fa-whatsapp"></i> ${esc(s.phone)}</p>` : ''}
+                    ${s.description ? `<p class="text-[11px] text-slate-400 mt-1 line-clamp-2">${esc(s.description)}</p>` : ''}
+                    ${s.ownerName || s.ownerId ? `<p class="text-[10px] text-slate-500 mt-1">Dueño: ${esc(s.ownerName || String(s.ownerId).slice(0, 12) + '…')}</p>` : ''}
+                    ${appr === 'rejected' && s.rejectionReason ? `<p class="text-[10px] text-red-400 font-semibold mt-1">Motivo: ${esc(s.rejectionReason)}</p>` : ''}
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                ${appr !== 'approved' ? `
+                    <button type="button" class="ops-btn ops-btn--emerald text-xs py-2 px-3 rounded-xl font-bold"
+                        data-staff-store-action="approve" data-store-id="${esc(s.id)}">
+                        <i class="fas fa-thumbs-up"></i> Nos parece bien
+                    </button>` : ''}
+                ${appr !== 'rejected' ? `
+                    <button type="button" class="ops-btn ops-btn--danger text-xs py-2 px-3 rounded-xl font-bold"
+                        data-staff-store-action="reject" data-store-id="${esc(s.id)}">
+                        <i class="fas fa-thumbs-down"></i> Nos parece mal
+                    </button>` : ''}
+                <button type="button" class="ops-btn text-xs py-2 px-3 rounded-xl font-bold border border-slate-600"
+                    data-staff-store-action="toggle18" data-store-id="${esc(s.id)}">
+                    <i class="fas fa-user-shield"></i> ${adults ? 'Quitar +18' : 'Marcar +18'}
+                </button>
+                <button type="button" class="ops-btn text-xs py-2 px-3 rounded-xl font-bold border border-slate-600"
+                    data-staff-store-action="open" data-store-id="${esc(s.id)}">
+                    <i class="fas fa-external-link-alt"></i> Ver en app
+                </button>
+                <button type="button" class="ops-btn ops-btn--danger text-xs py-2 px-3 rounded-xl font-bold"
+                    data-staff-store-action="delete" data-store-id="${esc(s.id)}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </article>
+    `;
 }
 
 /* ===================== INVITAR EMPRESA (STAFF → WHATSAPP) ===================== */
@@ -3148,6 +3928,9 @@ export function initMerchantStores(deps = {}) {
     window.inviteBusinessViaWhatsApp = showStaffInviteBusinessModal;
     window.handleCreateBusinessInvite = handleCreateBusinessInvite;
     window.buildCreateBusinessInviteLink = buildCreateBusinessInviteLink;
+    window.loadSupervisorStores = loadSupervisorStores;
+    window.staffSetStoreApproval = staffSetStoreApproval;
+    window.staffToggleStoreAdultsOnly = staffToggleAdultsOnly;
 
     // When user logs in, warm listeners lightly
     if (getCurrentUser()?.uid) {
@@ -3186,4 +3969,4 @@ export function onMerchantAuthReady() {
     });
 }
 
-export { STORE_CATEGORIES, ORDER_STATUS };
+export { STORE_CATEGORIES, ORDER_STATUS, STORE_APPROVAL, calcSplitTariff, getTarifaDelMomento };

@@ -372,13 +372,30 @@ service cloud.firestore {
 
     match /artifacts/{app}/public/data/stores/{storeId} {
       allow read: if isSignedIn();
+      // Crear tienda: dueño; verificación siempre pending (no auto-aprobar)
       allow create: if isSignedIn()
         && request.resource.data.ownerId == requestUid()
         && request.resource.data.name is string
-        && request.resource.data.name.size() > 0;
+        && request.resource.data.name.size() > 0
+        && (
+          !('approvalStatus' in request.resource.data)
+          || request.resource.data.approvalStatus == 'pending'
+        );
+      // Staff: todo. Dueño: editar datos pero NO auto-aprobarse.
+      // Solo puede poner approvalStatus a pending (reenvío tras rechazo).
       allow update: if isSignedIn() && (
         isStaff(app)
-        || resource.data.ownerId == requestUid()
+        || (
+          resource.data.ownerId == requestUid()
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['approvalStatus', 'reviewedBy', 'reviewedByName', 'reviewedAt', 'rejectionReason'])
+            || (
+              request.resource.data.approvalStatus == 'pending'
+              && resource.data.approvalStatus == 'rejected'
+            )
+          )
+        )
       );
       allow delete: if isSignedIn() && (
         isStaff(app)

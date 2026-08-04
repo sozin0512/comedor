@@ -20,6 +20,7 @@ const ADMIN_TAB_META = {
 const SUP_TAB_META = {
     pending: { label: 'Verificaciones', icon: 'fa-hourglass-half', group: 'drivers' },
     active: { label: 'Activos', icon: 'fa-check-circle', group: 'drivers' },
+    stores: { label: 'Verificar tiendas', icon: 'fa-store', group: 'stores' },
     objectives: { label: 'Objetivos', icon: 'fa-bullseye', group: 'ops' },
     copa: { label: 'Copa Conductores', icon: 'fa-trophy', group: 'ops' },
     'copa-pasajeros': { label: 'Copa Pasajeros', icon: 'fa-users', group: 'ops' },
@@ -228,6 +229,7 @@ export function initOpsPanels() {
             window._supActiveDriversCache = null;
             window.loadActiveDrivers?.(true);
         }
+        else if (active?.dataset?.supTab === 'stores') window.loadSupervisorStores?.();
         else if (active?.dataset?.supTab === 'objectives') window.loadSupervisorObjectives?.();
         else if (active?.dataset?.supTab === 'reports') window.loadSupervisorReports?.();
         else if (active?.dataset?.supTab === 'tickets') window.loadAdminTickets?.();
