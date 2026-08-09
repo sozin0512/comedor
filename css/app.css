@@ -18250,6 +18250,26 @@
             justify-content: space-between;
             gap: 0.4rem;
         }
+        .uber-vert-toolbar-right {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            flex-shrink: 0;
+        }
+        .uber-vert-map {
+            width: 2rem;
+            height: 2rem;
+            border: 1px solid #bbf7d0;
+            background: #ecfdf5;
+            color: #047857;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.78rem;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
         .uber-vert-timer {
             display: inline-flex;
             align-items: center;
@@ -18417,10 +18437,21 @@
             font-size: 0.58rem !important;
             padding: 0.12rem 0.4rem !important;
         }
+        /* Aceptar siempre visible aunque la ruta/direcciones hagan scroll */
         .uber-vert-actions {
             display: flex;
             flex-direction: column;
             gap: 0.35rem;
+            position: sticky;
+            bottom: 0;
+            z-index: 4;
+            flex-shrink: 0;
+            margin-top: 0.1rem;
+            padding-top: 0.45rem;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 32%);
+        }
+        html[data-theme="dark"] .uber-vert-actions {
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0) 0%, #0f172a 32%);
         }
         .uber-vert-btn {
             border: 0;
@@ -18451,6 +18482,11 @@
             font-size: 0.8rem;
         }
         html[data-theme="dark"] .uber-vert-name { color: #f8fafc; }
+        html[data-theme="dark"] .uber-vert-map {
+            background: #064e3b;
+            border-color: #059669;
+            color: #6ee7b7;
+        }
         html[data-theme="dark"] .uber-vert-route {
             background: #0f172a;
             border-color: #1e293b;
@@ -18517,6 +18553,14 @@
         body.driver-offer-popup-open .driver-trip-offer-popup-sheet {
             /* No anular el tope: la ruta del mapa debe quedar visible arriba */
             max-height: min(52vh, 26rem) !important;
+            /* Sheet siempre tocable para Aceptar, aunque se use el mapa arriba */
+            pointer-events: auto !important;
+        }
+
+        /* Asegurar que el recuadro de oferta no se “pierda” bajo capas del mapa */
+        body.driver-offer-popup-open .driver-trip-offer-popup:not(.hidden) {
+            visibility: visible !important;
+            opacity: 1 !important;
         }
 
         body.driver-offer-popup-open .driver-trip-offer-popup-top {
@@ -21741,8 +21785,17 @@ body.driver-offer-map-peek #map {
   z-index: 46000;
   padding: 0.55rem 0.75rem calc(0.65rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
   pointer-events: none;
+  /* Siempre encima del mapa en peek: no se pierde el Aceptar */
+  visibility: visible;
+  opacity: 1;
 }
 .driver-offer-peek-bar.hidden { display: none !important; }
+body.driver-offer-map-peek .driver-offer-peek-bar:not(.hidden) {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: none;
+}
 .driver-offer-peek-bar-inner {
   pointer-events: auto;
   max-width: 28rem;

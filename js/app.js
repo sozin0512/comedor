@@ -4,21 +4,21 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.08.04.3";
+} from "./auth-credentials.js?v=2026.08.08.1";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.08.04.3";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.04.3";
+import { APP_CONFIG } from "./config.js?v=2026.08.08.1";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.08.1";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.08.04.3";
+} from "./referrals.js?v=2026.08.08.1";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -33,12 +33,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.08.04.3";
+} from "./zones.js?v=2026.08.08.1";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.08.04.3";
+} from "./trip-notifications.js?v=2026.08.08.1";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -59,7 +59,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.08.04.3";
+} from "./notification-tones.js?v=2026.08.08.1";
 
 installNotificationTonesApi();
 
@@ -89,34 +89,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.08.04.3";
+} from "./passenger-alerts.js?v=2026.08.08.1";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.08.04.3";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.04.3";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.04.3";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.04.3";
-import { initOpsPanels } from "./ops-panels.js?v=2026.08.04.3";
-import { initOpsUi } from "./ops-ui.js?v=2026.08.04.3";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.04.3";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.04.3";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.04.3";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.08.04.3";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.04.3";
+} from "./passenger-verification.js?v=2026.08.08.1";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.08.1";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.08.1";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.08.1";
+import { initOpsPanels } from "./ops-panels.js?v=2026.08.08.1";
+import { initOpsUi } from "./ops-ui.js?v=2026.08.08.1";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.08.1";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.08.1";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.08.1";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.08.08.1";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.08.1";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.08.04.3";
+} from "./feedback.js?v=2026.08.08.1";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.08.04.3";
+} from "./greetings.js?v=2026.08.08.1";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -129,49 +129,49 @@ import {
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
     formatPassengersLabel, applyPassengerSurcharge
-} from "./service-types.js?v=2026.08.04.3";
+} from "./service-types.js?v=2026.08.08.1";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.08.04.3";
+} from "./driver-vehicles.js?v=2026.08.08.1";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.08.04.3";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.08.04.3";
+} from "./route-conditions.js?v=2026.08.08.1";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.08.08.1";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.08.04.3";
+} from "./demand-heatmap.js?v=2026.08.08.1";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver
-} from "./ops-fleet-map.js?v=2026.08.04.3";
+} from "./ops-fleet-map.js?v=2026.08.08.1";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.08.04.3";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.04.3";
+} from "./live-trip-keepalive.js?v=2026.08.08.1";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.08.1";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.08.04.3";
+} from "./session-keepalive.js?v=2026.08.08.1";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.08.04.3";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.04.3";
+} from "./passenger-tutorial.js?v=2026.08.08.1";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.08.1";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.08.04.3";
+} from "./driver-tutorial.js?v=2026.08.08.1";
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
 const HR_BOOT_STARTED_AT = Date.now();
@@ -254,29 +254,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.04.3";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.08.1";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.08.04.3";
+} from "./auth-ui.js?v=2026.08.08.1";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.08.04.3";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.04.3";
+} from "./age-verification.js?v=2026.08.08.1";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.08.1";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.08.04.3";
+} from "./trip-experience.js?v=2026.08.08.1";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.08.04.3";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.04.3";
-import { initAppDownload } from "./app-download.js?v=2026.08.04.3";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.04.3";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.04.3";
+} from "./support-tickets.js?v=2026.08.08.1";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.08.1";
+import { initAppDownload } from "./app-download.js?v=2026.08.08.1";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.08.1";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.08.1";
 
 
 let app;
@@ -4496,25 +4496,37 @@ if (document.readyState === 'loading') {
                 return;
             }
 
+            // Solo con botón explícito se baja el recuadro (mapa a pantalla casi completa)
+            const expandMapBtn = e.target.closest('[data-driver-offer-map-expand]');
+            if (expandMapBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const tripId = expandMapBtn.dataset.previewOffer
+                    || expandMapBtn.closest('[data-preview-offer]')?.dataset.previewOffer
+                    || expandMapBtn.closest('[data-trip-id]')?.dataset.tripId;
+                if (!tripId) return;
+                window.enterDriverOfferMapPeek?.(tripId);
+                window.selectDriverOfferForPreview?.(tripId);
+                return;
+            }
+
             const previewOfferEl = e.target.closest('[data-preview-offer]');
             if (previewOfferEl) {
                 const blocked = e.target.closest(
-                    '[data-accept-trip], [data-decline-trip], [data-negotiate-trip], [data-quick-bid], [data-submit-listed-bid], input, textarea, select, .driver-offer-kbd-toggle, .driver-offer-details, .driver-offer-kbd-drawer'
+                    '[data-accept-trip], [data-decline-trip], [data-negotiate-trip], [data-quick-bid], [data-submit-listed-bid], [data-driver-offer-map-expand], input, textarea, select, .driver-offer-kbd-toggle, .driver-offer-details, .driver-offer-kbd-drawer'
                 );
                 if (!blocked) {
                     e.preventDefault();
                     e.stopPropagation();
                     const tripId = previewOfferEl.dataset.previewOffer;
                     if (!tripId) return;
-                    // Si la oferta está en el popup, hay que bajarlo para ver el mapa de fondo
                     const fromPopup = !!previewOfferEl.closest('#driver-trip-offer-popup');
-                    if (fromPopup) {
-                        window.enterDriverOfferMapPeek?.(tripId);
-                    }
-                    window.selectDriverOfferForPreview?.(tripId);
-                    if (!fromPopup && document.body.classList.contains('panel-minimized') === false) {
-                        // Desde la lista: minimizar un poco el panel ayuda a ver la ruta
-                        // (no forzar si ya está minimizado)
+                    // Importante: NO esconder el popup al tocar la tarjeta.
+                    // Antes enterDriverOfferMapPeek() ocultaba Aceptar al pellizcar/tocar
+                    // la ruta (o con "ghost click" tras zoom) y se perdía el recuadro.
+                    // El mapa ya es usable arriba del sheet (overlay con pointer-events: none).
+                    if (!fromPopup) {
+                        window.selectDriverOfferForPreview?.(tripId);
                     }
                     return;
                 }
@@ -7133,8 +7145,10 @@ if (document.readyState === 'loading') {
             window._driverOfferPreviewRouteTripId = null;
             window._driverOfferPreviewFailToastFor = null;
             window._driverOfferPreviewForce = false;
+            window._driverOfferPreviewUserCamera = false;
             clearTimeout(window._driverOfferRefitTimer);
             document.body.classList.remove('driver-offer-preview-active', 'driver-offer-map-peek');
+            try { window.abortDriverOfferMapPeek?.(); } catch (_) {}
             try { hideDriverOfferPeekBar?.(); } catch (_) {}
             document.querySelectorAll('.driver-offer-card--selected').forEach((el) => {
                 el.classList.remove('driver-offer-card--selected');
@@ -7162,6 +7176,10 @@ if (document.readyState === 'loading') {
             if (!document.body.classList.contains('driver-mode')) return;
             if (window.isDriverNavigating?.()) return;
 
+            // Oferta distinta → permitir un encuadre inicial de nuevo
+            if (window._driverPreviewOfferTripId && window._driverPreviewOfferTripId !== tripId) {
+                window._driverOfferPreviewUserCamera = false;
+            }
             window._driverPreviewOfferTripId = tripId;
             // No borrar la ruta previa hasta tener la nueva (evita parpadeo / re-toasts)
             document.querySelectorAll('.driver-offer-card[data-preview-offer]').forEach((card) => {
@@ -7182,8 +7200,8 @@ if (document.readyState === 'loading') {
                 t = { id: tripId, ...t };
             }
 
-            // Si ya tenemos preview de este viaje, no recalcular en cada snapshot (evita spam)
-            // pero sí re-encuadrar por si el panel cambió de tamaño
+            // Si ya tenemos preview de este viaje, no recalcular en cada snapshot (evita spam).
+            // NO re-encuadrar si el conductor ya movió/zoomeó el mapa a mano.
             if (
                 window._driverPreviewOfferTripId === tripId
                 && window._driverOfferPreviewRoute
@@ -7192,7 +7210,9 @@ if (document.readyState === 'loading') {
                 && !window._driverOfferPreviewRoute.failed
             ) {
                 updateDriverOfferMapHint({ trip: t, route: window._driverOfferPreviewRoute });
-                window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
+                if (!window._driverOfferPreviewUserCamera) {
+                    window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
+                }
                 return;
             }
 
@@ -7272,14 +7292,16 @@ if (document.readyState === 'loading') {
             }
 
             if (offers.length === 1) {
-                // Ya dibujado o ya intentado para este viaje → solo re-encuadrar
+                // Ya dibujado o ya intentado → no pelear con el zoom manual del conductor
                 if (
                     window._driverPreviewOfferTripId === offers[0].id
                     && window._driverOfferPreviewRouteTripId === offers[0].id
                     && window._driverOfferPreviewRoute
                     && !window._driverOfferPreviewRoute.failed
                 ) {
-                    window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
+                    if (!window._driverOfferPreviewUserCamera) {
+                        window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
+                    }
                     return;
                 }
                 updateDriverOfferMapHint({});
@@ -7296,7 +7318,9 @@ if (document.readyState === 'loading') {
                     && window._driverOfferPreviewRoute
                     && !window._driverOfferPreviewRoute.failed
                 ) {
-                    window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
+                    if (!window._driverOfferPreviewUserCamera) {
+                        window.refitDriverOfferPreviewRoute?.(window._driverOfferPreviewRoute);
+                    }
                     return;
                 }
                 window.selectDriverOfferForPreview?.(selected, selectedTrip);
@@ -7739,9 +7763,14 @@ if (document.readyState === 'loading') {
                         <span class="uber-vert-timer" id="uber-vert-timer-label" aria-live="polite">
                             <i class="fas fa-clock"></i> <span class="uber-vert-timer-sec">—</span>s
                         </span>
-                        <button type="button" class="uber-vert-x trip-touch-btn" data-driver-offer-popup-dismiss aria-label="Cerrar">
-                            <i class="fas fa-times pointer-events-none"></i>
-                        </button>
+                        <div class="uber-vert-toolbar-right">
+                            <button type="button" class="uber-vert-map trip-touch-btn" data-driver-offer-map-expand data-preview-offer="${tripId}" aria-label="Ver mapa completo" title="Ver mapa completo">
+                                <i class="fas fa-map pointer-events-none"></i>
+                            </button>
+                            <button type="button" class="uber-vert-x trip-touch-btn" data-driver-offer-popup-dismiss aria-label="Cerrar">
+                                <i class="fas fa-times pointer-events-none"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="uber-vert-head">
                         <p class="uber-vert-name client-name-${tripId}">${clientShort}</p>
@@ -8086,9 +8115,19 @@ if (document.readyState === 'loading') {
             if (backBtn) backBtn.classList.toggle('hidden', !active);
         }
 
+        /** Limpia estado peek sin reabrir el popup (p. ej. al borrar la ruta). */
+        window.abortDriverOfferMapPeek = function () {
+            _driverOfferPopupMapPeek = false;
+            window._driverOfferMapPeekTripId = null;
+            setDriverOfferMapPeekUi(false);
+            document.body.classList.remove('driver-offer-map-peek');
+            try { hideDriverOfferPeekBar?.(); } catch (_) {}
+        };
+
         /**
          * Baja la oferta y muestra SOLO el mapa (vista previa).
          * No es aceptación de viaje: no toca trip-active ni el panel de viaje activo.
+         * Solo se entra con el botón "Ver mapa" — no al tocar la tarjeta ni al hacer zoom.
          */
         window.enterDriverOfferMapPeek = function (tripId) {
             if (!tripId) return;
@@ -8358,6 +8397,7 @@ if (document.readyState === 'loading') {
                 if (_driverOfferPopupTripId !== trip.id) {
                     _driverOfferPopupTripId = trip.id;
                     _driverOfferPopupRenderKey = renderKey;
+                    window._driverOfferPreviewUserCamera = false;
                 }
                 return;
             }
@@ -8383,6 +8423,11 @@ if (document.readyState === 'loading') {
             const needsFullRender = isNewOffer
                 || _driverOfferPopupRenderKey !== renderKey
                 || popup.classList.contains('hidden');
+
+            // Nueva oferta: re-encuadrar una vez; no pelear si ya zoomeó esta misma
+            if (isNewOffer) {
+                window._driverOfferPreviewUserCamera = false;
+            }
 
             if (needsFullRender) {
                 const svcCopy = getTripOfferNotificationCopy(trip.serviceType || '');
@@ -8448,10 +8493,11 @@ if (document.readyState === 'loading') {
                 document.body.classList.add('driver-offer-preview-active');
                 window.selectDriverOfferForPreview?.(trip.id, trip);
             } catch (_) {}
-            // Reajustar cámara cuando la ruta y el panel ya tienen tamaño real
-            if (isNewOffer || needsFullRender) {
+            // Reajustar cámara solo al caer la oferta / primer render (no tras zoom manual)
+            if ((isNewOffer || needsFullRender) && !window._driverOfferPreviewUserCamera) {
                 const fitOfferRoute = () => {
                     try {
+                        if (window._driverOfferPreviewUserCamera) return;
                         if (window._driverPreviewOfferTripId !== trip.id) return;
                         const r = window._driverOfferPreviewRoute;
                         if (r?.path?.length >= 2 && !r.failed) {

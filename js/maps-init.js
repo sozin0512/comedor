@@ -791,12 +791,27 @@ window.gMap = null;
             if (window._driverMapGestureBound) return;
             window._driverMapGestureBound = true;
 
-            const onUserGesture = () => window.pauseDriverNavCameraFollow?.('gesture');
+            const markOfferPreviewUserCamera = () => {
+                if (
+                    document.body.classList.contains('driver-offer-preview-active')
+                    || document.body.classList.contains('driver-offer-popup-open')
+                    || document.body.classList.contains('driver-offer-map-peek')
+                ) {
+                    window._driverOfferPreviewUserCamera = true;
+                }
+            };
+
+            const onUserGesture = () => {
+                markOfferPreviewUserCamera();
+                window.pauseDriverNavCameraFollow?.('gesture');
+            };
 
             window.gMap.addListener('dragstart', onUserGesture);
             // Pellizco / zoom manual (ignorar cambios programáticos de la nav)
             window.gMap.addListener('zoom_changed', () => {
                 if (window._mapCameraProgrammatic) return;
+                // Oferta: cualquier zoom manual del user se respeta (no re-fitBounds)
+                markOfferPreviewUserCamera();
                 if (window.autoCenter === false) return; // ya en free-look
                 // Si el zoom cambió sin drag (pinch), pausar seguimiento
                 onUserGesture();
@@ -817,13 +832,17 @@ window.gMap = null;
                 mapEl.dataset.freeLookTouchBound = '1';
                 mapEl.addEventListener('touchstart', (e) => {
                     if (!e.touches || e.touches.length < 1) return;
+                    const offerPreview = document.body.classList.contains('driver-offer-preview-active')
+                        || document.body.classList.contains('driver-offer-popup-open')
+                        || document.body.classList.contains('driver-offer-map-peek');
                     const driverTrip = document.body.classList.contains('driver-mode')
                         && (document.body.classList.contains('trip-active')
                             || document.body.classList.contains('is-navigating'));
-                    if (!driverTrip) return;
+                    if (!driverTrip && !offerPreview) return;
                     // 1+ dedos sobre el mapa: si luego se mueve, dragstart lo confirma;
-                    // 2 dedos = zoom/rotar → pausar ya
+                    // 2 dedos = zoom/rotar → pausar ya y respetar zoom de oferta
                     if (e.touches.length >= 2) {
+                        if (offerPreview) window._driverOfferPreviewUserCamera = true;
                         window.pauseDriverNavCameraFollow?.('pinch');
                     }
                 }, { passive: true, capture: true });
@@ -4010,6 +4029,9 @@ window.gMap = null;
          */
         window.refitDriverOfferPreviewRoute = (route, options = {}) => {
             if (!window.gMap || !google?.maps?.LatLngBounds) return;
+            // Si el conductor ya pellizcó/arrastró el mapa, no devolver el zoom
+            // (antes cada snapshot rehacía fitBounds y “perdía” la vista + sensación de UI)
+            if (window._driverOfferPreviewUserCamera && options.force !== true) return;
             const path = route?.path
                 || window._driverOfferPreviewRoute?.path
                 || window.currentRouteFullPath
@@ -4056,7 +4078,12 @@ window.gMap = null;
                 || { top: 56, right: 24, bottom: 280, left: 24 };
 
             const applyFit = () => {
+                const clearProg = () => {
+                    // Dar un tick para que zoom_changed/idle no marquen “user camera”
+                    setTimeout(() => { window._mapCameraProgrammatic = false; }, 120);
+                };
                 try {
+                    window._mapCameraProgrammatic = true;
                     const prevMax = window.gMap.get('maxZoom');
                     window.gMap.setOptions({ maxZoom });
                     window.gMap.fitBounds(bounds, padding);
@@ -4067,12 +4094,18 @@ window.gMap = null;
                             });
                             const z = window.gMap.getZoom?.();
                             if (Number.isFinite(z) && z > maxZoom) {
+                                window._mapCameraProgrammatic = true;
                                 window.gMap.setZoom(maxZoom);
                             }
                         } catch (_) {}
+                        clearProg();
                     });
                 } catch (_) {
-                    try { window.gMap.fitBounds(bounds, padding); } catch (__) {}
+                    try {
+                        window._mapCameraProgrammatic = true;
+                        window.gMap.fitBounds(bounds, padding);
+                    } catch (__) {}
+                    clearProg();
                 }
             };
 
@@ -6891,12 +6924,13 @@ window.gMap = null;
                 );
             if (shouldFitRoute) {
                 if (driverOfferPreview && typeof window.refitDriverOfferPreviewRoute === 'function') {
-                    // Zoom + padding según tarjeta de solicitud (no tapa la ruta)
+                    // Zoom + padding según tarjeta (salta si el user ya zoomeó a mano)
                     window.refitDriverOfferPreviewRoute(route);
                     // Segunda pasada cuando el panel ya midió su alto real
                     clearTimeout(window._driverOfferRefitTimer);
                     window._driverOfferRefitTimer = setTimeout(() => {
                         try {
+                            if (window._driverOfferPreviewUserCamera) return;
                             if (window.shouldPreserveDriverOfferPreview?.()
                                 || document.body.classList.contains('driver-offer-preview-active')) {
                                 window.refitDriverOfferPreviewRoute?.(
