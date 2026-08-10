@@ -38,7 +38,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize|stateHidden"
+            android:windowSoftInputMode="adjustNothing|stateHidden"
             android:exported="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true">

@@ -56,6 +56,14 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ApkDownloadPlugin.class);
         super.onCreate(savedInstanceState);
         WebView.setWebContentsDebuggingEnabled(true);
+        // No redimensionar/empujar el WebView con el teclado (evita que origen se meta bajo el reloj).
+        // El layout del teclado lo maneja CSS/JS con visualViewport + --keyboard-inset.
+        try {
+            getWindow().setSoftInputMode(
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                    | WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
+            );
+        } catch (Exception ignored) {}
         applyPushWakeFlagsIfNeeded(getIntent());
         setupSystemBarsAndInsets();
         // Bridge/WebView a veces termina de montarse un frame después

@@ -1190,6 +1190,132 @@
             z-index: 30;
         }
 
+        /*
+         * Al editar origen/destino (sobre todo borrar y buscar de nuevo):
+         * el teclado + WebView no deben mezclar el campo con reloj/status bar.
+         * softInputMode=adjustNothing en Android; aquí anclamos el sheet en px.
+         */
+        :root {
+            --vv-height: 100dvh;
+            --vv-offset-top: 0px;
+            --keyboard-inset: 0px;
+            /* Piso mínimo bajo status bar (APK); JS puede subir --search-safe-top */
+            --search-safe-top: max(var(--safe-top, env(safe-area-inset-top, 0px)), 36px);
+        }
+
+        /* Escudo sólido bajo reloj/batería: nada de UI se “mezcla” visualmente ahí */
+        #status-bar-shield {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--search-safe-top, 36px);
+            background: #f8fafc;
+            z-index: 50000;
+            pointer-events: none;
+        }
+
+        html[data-theme="dark"] #status-bar-shield {
+            background: #0f172a;
+        }
+
+        body.trip-autocomplete-open #status-bar-shield {
+            display: block !important;
+        }
+
+        body.trip-autocomplete-open,
+        body.trip-autocomplete-open #app-interface,
+        body.trip-autocomplete-open #map,
+        body.trip-autocomplete-open #map-container {
+            overflow: hidden !important;
+            overscroll-behavior: none !important;
+            touch-action: none;
+        }
+
+        body.trip-autocomplete-open #app-interface {
+            touch-action: manipulation;
+        }
+
+        /* Header oculto mientras se busca: no compite con reloj ni con el input */
+        body.trip-autocomplete-open #app-header,
+        body.trip-autocomplete-open .hn-flag-stripe {
+            visibility: hidden !important;
+            pointer-events: none !important;
+            opacity: 0 !important;
+        }
+
+        body.trip-autocomplete-open.client-mode #control-panel,
+        body.trip-autocomplete-open #control-panel {
+            position: fixed !important;
+            left: 0 !important;
+            right: 0 !important;
+            /* JS escribe top/bottom en inline; fallback CSS: */
+            top: var(--search-safe-top, 36px) !important;
+            bottom: max(0px, var(--keyboard-inset, 0px)) !important;
+            height: auto !important;
+            max-height: none !important;
+            min-height: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            border-radius: 1rem 1rem 0 0 !important;
+            z-index: 40000 !important;
+            transform: none !important;
+            translate: none !important;
+            box-shadow: 0 -10px 36px rgba(15, 23, 42, 0.22) !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            padding-top: 0.65rem !important;
+            padding-bottom: max(0.5rem, var(--safe-bottom, 0px)) !important;
+            background: #ffffff !important;
+        }
+
+        html[data-theme="dark"] body.trip-autocomplete-open #control-panel {
+            background: #0f172a !important;
+        }
+
+        body.trip-autocomplete-open #control-panel #panel-content,
+        body.trip-autocomplete-open #panel-content {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            max-height: none !important;
+            touch-action: pan-y;
+            /* Empuja el bloque de ruta hacia abajo un poco más */
+            padding-top: 0.35rem !important;
+        }
+
+        /* Prioridad al campo que se está editando */
+        body.trip-autocomplete-open .trip-origin-wrap.is-autocomplete-active,
+        body.trip-autocomplete-open .trip-dest-wrap.is-autocomplete-active,
+        body.trip-autocomplete-open .trip-extra-stop-wrap.is-autocomplete-active {
+            z-index: 50;
+            position: relative;
+            background: inherit;
+            border-radius: 0.85rem;
+            padding: 0.15rem 0;
+        }
+
+        body.trip-autocomplete-open gmp-place-autocomplete {
+            z-index: 51;
+            position: relative;
+        }
+
+        /* En búsqueda: menos ruido visual (ocultar lo que no es ruta) */
+        body.trip-autocomplete-open #passenger-home-hub,
+        body.trip-autocomplete-open #passenger-mode-bar,
+        body.trip-autocomplete-open .trip-step-advanced,
+        body.trip-autocomplete-open .trip-step-service,
+        body.trip-autocomplete-open #ride-options,
+        body.trip-autocomplete-open #fare-card,
+        body.trip-autocomplete-open #favorites-bar,
+        body.trip-autocomplete-open #client-stores-section {
+            display: none !important;
+        }
+
         .trip-step-card.trip-step-route {
             overflow: visible;
         }

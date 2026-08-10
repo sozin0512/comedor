@@ -902,10 +902,169 @@ window.gMap = null;
                 } catch (_) {}
             };
 
+            /** Lee safe-top real (px) inyectado por MainActivity / CSS. */
+            const readSearchSafeTopPx = () => {
+                try {
+                    const root = getComputedStyle(document.documentElement);
+                    const body = getComputedStyle(document.body);
+                    const parse = (v) => {
+                        const n = parseFloat(String(v || '').trim());
+                        return Number.isFinite(n) ? n : 0;
+                    };
+                    let t = parse(root.getPropertyValue('--native-safe-top'))
+                        || parse(body.getPropertyValue('--safe-top'))
+                        || parse(root.getPropertyValue('--safe-top'))
+                        || parse(root.getPropertyValue('env(safe-area-inset-top)'));
+                    // Piso Android: status bar típica + respiro (no pegar al reloj)
+                    if (t < 32) t = 32;
+                    // Capacidad nativa a veces reporta 24; damos aire extra al input
+                    t += 10;
+                    return Math.round(t);
+                } catch (_) {
+                    return 42;
+                }
+            };
+
+            const ensureStatusBarShield = () => {
+                let el = document.getElementById('status-bar-shield');
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = 'status-bar-shield';
+                    el.setAttribute('aria-hidden', 'true');
+                    document.body.appendChild(el);
+                }
+                return el;
+            };
+
+            const clearControlPanelSearchInline = (panel) => {
+                if (!panel) return;
+                [
+                    'position', 'top', 'bottom', 'left', 'right', 'height', 'max-height',
+                    'z-index', 'transform', 'width', 'margin'
+                ].forEach((p) => {
+                    try { panel.style.removeProperty(p); } catch (_) {}
+                });
+            };
+
+            /**
+             * Posiciona el panel en píxeles: debajo del reloj, encima del teclado.
+             * Con adjustNothing el WebView no se redimensiona; usamos visualViewport.
+             */
+            const syncTripAutocompleteViewport = () => {
+                try {
+                    const root = document.documentElement;
+                    const open = document.body.classList.contains('trip-autocomplete-open');
+                    const vv = window.visualViewport;
+                    const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
+                    let offsetTop = 0;
+                    let height = layoutH;
+                    let keyboard = 0;
+                    if (vv) {
+                        offsetTop = Math.max(0, Number(vv.offsetTop) || 0);
+                        height = Math.max(0, Number(vv.height) || layoutH);
+                        // Con adjustNothing, el teclado suele cubrir sin cambiar offsetTop
+                        keyboard = Math.max(0, layoutH - height - offsetTop);
+                        // Algunos WebView reportan height ≈ layoutH aunque el teclado esté abierto;
+                        // si hay focus en autocomplete y height bajó poco, no forzar 0.
+                    }
+                    root.style.setProperty('--vv-height', `${Math.round(height)}px`);
+                    root.style.setProperty('--vv-offset-top', `${Math.round(offsetTop)}px`);
+                    root.style.setProperty('--keyboard-inset', `${Math.round(keyboard)}px`);
+
+                    const safeTop = readSearchSafeTopPx();
+                    root.style.setProperty('--search-safe-top', `${safeTop}px`);
+                    const shield = ensureStatusBarShield();
+                    shield.style.height = `${safeTop}px`;
+
+                    if (!open) return;
+
+                    // Bloquear scroll del documento (causa del “mezclado” con la hora)
+                    window.scrollTo(0, 0);
+                    if (document.documentElement) document.documentElement.scrollTop = 0;
+                    if (document.body) document.body.scrollTop = 0;
+
+                    const panel = document.getElementById('control-panel');
+                    if (panel) {
+                        panel.style.setProperty('position', 'fixed', 'important');
+                        panel.style.setProperty('left', '0px', 'important');
+                        panel.style.setProperty('right', '0px', 'important');
+                        panel.style.setProperty('width', '100%', 'important');
+                        panel.style.setProperty('margin', '0px', 'important');
+                        panel.style.setProperty('transform', 'none', 'important');
+                        panel.style.setProperty('z-index', '40000', 'important');
+                        // Siempre bajo el escudo del reloj (no usar offsetTop: empuja el panel al reloj)
+                        panel.style.setProperty('top', `${safeTop}px`, 'important');
+                        panel.style.setProperty('bottom', `${Math.round(keyboard)}px`, 'important');
+                        panel.style.setProperty('height', 'auto', 'important');
+                        panel.style.setProperty('max-height', 'none', 'important');
+                    }
+                } catch (_) {}
+            };
+
+            const setTripAutocompleteOpen = (on, el = null) => {
+                const active = !!on;
+                document.body.classList.toggle('trip-autocomplete-open', active);
+                try {
+                    document.getElementById('control-panel')
+                        ?.classList.toggle('trip-autocomplete-open', active);
+                } catch (_) {}
+                ensureStatusBarShield();
+                syncTripAutocompleteViewport();
+                if (!active) {
+                    clearControlPanelSearchInline(document.getElementById('control-panel'));
+                    return;
+                }
+                // Re-aplicar varias veces: el teclado tarda en reportar altura
+                [0, 40, 100, 200, 350, 500, 800].forEach((ms) => {
+                    setTimeout(() => {
+                        if (document.body.classList.contains('trip-autocomplete-open')) {
+                            syncTripAutocompleteViewport();
+                        }
+                    }, ms);
+                });
+                if (el) {
+                    requestAnimationFrame(() => {
+                        try {
+                            const panel = document.getElementById('panel-content');
+                            const wrap = el.closest?.('.trip-origin-wrap, .trip-dest-wrap, .trip-extra-stop-wrap')
+                                || el.parentElement;
+                            if (panel && wrap && panel.contains(wrap)) {
+                                // Campo de búsqueda arriba del sheet (bajo el reloj, no bajo el teclado)
+                                panel.scrollTop = Math.max(0, wrap.offsetTop - 12);
+                            }
+                            window.scrollTo(0, 0);
+                        } catch (_) {}
+                    });
+                }
+            };
+
+            if (!window._tripAutocompleteViewportBound) {
+                window._tripAutocompleteViewportBound = true;
+                const onVv = () => {
+                    if (!document.body.classList.contains('trip-autocomplete-open')) return;
+                    syncTripAutocompleteViewport();
+                };
+                window.visualViewport?.addEventListener('resize', onVv, { passive: true });
+                window.visualViewport?.addEventListener('scroll', onVv, { passive: true });
+                window.addEventListener('resize', onVv, { passive: true });
+                // Cualquier scroll del documento → volver a 0 en modo búsqueda
+                window.addEventListener('scroll', () => {
+                    if (!document.body.classList.contains('trip-autocomplete-open')) return;
+                    window.scrollTo(0, 0);
+                }, { passive: true, capture: true });
+            }
+            window.syncTripAutocompleteViewport = syncTripAutocompleteViewport;
+            window.setTripAutocompleteOpen = setTripAutocompleteOpen;
+
             const clearAutocompleteStack = (el) => {
                 const wrap = el?.closest?.('.trip-origin-wrap, .trip-dest-wrap, .trip-extra-stop-wrap') || el?.parentElement;
                 wrap?.classList.remove('is-autocomplete-active');
                 try { el?._clearAutocompleteStack?.(); } catch (_) {}
+                // Si ningún campo de ruta sigue activo, soltar modo teclado
+                const still = document.querySelector(
+                    '.trip-origin-wrap.is-autocomplete-active, .trip-dest-wrap.is-autocomplete-active, .trip-extra-stop-wrap.is-autocomplete-active'
+                );
+                if (!still) setTripAutocompleteOpen(false);
             };
 
             /** Blur de gmp-place-autocomplete (shadow input). En APK el teclado no se cierra solo al elegir lugar. */
@@ -936,6 +1095,12 @@ window.gMap = null;
                             active.blur();
                         }
                     }
+                } catch (_) {}
+                try {
+                    document.querySelectorAll(
+                        '.trip-origin-wrap.is-autocomplete-active, .trip-dest-wrap.is-autocomplete-active, .trip-extra-stop-wrap.is-autocomplete-active'
+                    ).forEach((w) => w.classList.remove('is-autocomplete-active'));
+                    setTripAutocompleteOpen(false);
                 } catch (_) {}
             };
 
@@ -1152,6 +1317,14 @@ window.gMap = null;
                 let blurTimer = null;
                 const setActive = (on) => {
                     wrap.classList.toggle('is-autocomplete-active', on);
+                    if (on) {
+                        setTripAutocompleteOpen(true, el);
+                    } else {
+                        const still = document.querySelector(
+                            '.trip-origin-wrap.is-autocomplete-active, .trip-dest-wrap.is-autocomplete-active, .trip-extra-stop-wrap.is-autocomplete-active'
+                        );
+                        if (!still) setTripAutocompleteOpen(false);
+                    }
                 };
                 const deactivate = () => {
                     clearTimeout(blurTimer);
@@ -1167,10 +1340,25 @@ window.gMap = null;
                     input.addEventListener('focus', () => {
                         clearTimeout(blurTimer);
                         setActive(true);
+                        // Android a veces scrollea el doc; re-anclar tras abrir teclado
+                        setTimeout(syncTripAutocompleteViewport, 50);
+                        setTimeout(syncTripAutocompleteViewport, 180);
+                        setTimeout(syncTripAutocompleteViewport, 360);
+                    });
+                    // Borrar origen y seguir escribiendo: mantener modo búsqueda activo
+                    input.addEventListener('input', () => {
+                        clearTimeout(blurTimer);
+                        setActive(true);
+                        syncTripAutocompleteViewport();
+                    });
+                    input.addEventListener('click', () => {
+                        clearTimeout(blurTimer);
+                        setActive(true);
+                        syncTripAutocompleteViewport();
                     });
                     input.addEventListener('blur', () => {
                         clearTimeout(blurTimer);
-                        blurTimer = setTimeout(deactivate, 180);
+                        blurTimer = setTimeout(deactivate, 220);
                     });
                     return true;
                 };
@@ -1183,6 +1371,8 @@ window.gMap = null;
                 el.addEventListener('focus', () => {
                     clearTimeout(blurTimer);
                     setActive(true);
+                    setTimeout(syncTripAutocompleteViewport, 50);
+                    setTimeout(syncTripAutocompleteViewport, 200);
                 }, true);
                 el.addEventListener('blur', () => {
                     clearTimeout(blurTimer);
@@ -1192,6 +1382,9 @@ window.gMap = null;
 
             attachAutocompleteStackFix(originEl, '.trip-origin-wrap');
             attachAutocompleteStackFix(destEl, '.trip-dest-wrap');
+            if (extraStopEl) {
+                attachAutocompleteStackFix(extraStopEl, '.trip-extra-stop-wrap');
+            }
 
             // === Origin actions: pin siempre visible; GPS solo si el campo está vacío ===
             const gpsBtn = document.getElementById('btn-use-location');
