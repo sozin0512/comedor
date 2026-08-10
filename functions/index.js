@@ -4585,7 +4585,168 @@ exports.processScheduledAndRecurringPushes = onSchedule(
     }
 );
 
-// â”€â”€â”€ WhatsApp Cloud API (Meta oficial) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Día sin comisión (push a conductores) ─────────────────────────────
+const commissionFreeDayLib = require('./commission-free-day');
+
+/**
+ * Notifica con push a conductores cuyo día libre es HOY (por UID + ciudad).
+ * Marca commissionFreeDayNotifiedDate para no spamear el mismo día.
+ * @param {{ force?: boolean, reason?: string }} opts
+ */
+async function notifyDriversCommissionFreeDayToday(opts = {}) {
+    const appId = APP_ID;
+    const force = opts.force === true;
+    const reason = String(opts.reason || 'daily');
+    const settingsSnap = await db.doc(`artifacts/${appId}/public/data/appSettings/main`).get();
+    const cfg = commissionFreeDayLib.normalizeCommissionFreeDayConfig(
+        settingsSnap.exists ? (settingsSnap.data()?.commissionFreeDay || {}) : {}
+    );
+    if (!cfg.enabled) {
+        return { ok: true, skipped: true, reason: 'disabled', notified: 0, candidates: 0 };
+    }
+
+    const dateKey = commissionFreeDayLib.getHondurasDateKey();
+    const usersSnap = await db.collection(`artifacts/${appId}/public/data/users`).get();
+    let candidates = 0;
+    let notified = 0;
+    let skippedAlready = 0;
+    let skippedNotToday = 0;
+    let skippedCity = 0;
+
+    for (const docSnap of usersSnap.docs) {
+        const u = docSnap.data() || {};
+        const uid = docSnap.id;
+        if (u.role !== 'driver') continue;
+        if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
+
+        const zoneId = u.serviceZoneId || u.cityId || null;
+        if (!commissionFreeDayLib.isCityInProgram(zoneId, cfg)) {
+            skippedCity += 1;
+            continue;
+        }
+        if (!commissionFreeDayLib.isDriverFreeCommissionDayToday(uid)) {
+            skippedNotToday += 1;
+            continue;
+        }
+        candidates += 1;
+
+        if (!force && u.commissionFreeDayNotifiedDate === dateKey) {
+            skippedAlready += 1;
+            continue;
+        }
+
+        const dayLabel = commissionFreeDayLib.getDriverFreeWeekdayLabel(uid) || 'hoy';
+        const cityName = u.serviceZoneName || u.cityName || zoneId || 'tu ciudad';
+        const title = '🎉 ¡Hoy es TU día sin comisión!';
+        const body = `${dayLabel} en ${cityName}: te quedas con el 100% de cada viaje. ¡Aprovecha que te queremos más que otras apps!`;
+
+        try {
+            await sendPushToUser(appId, uid, {
+                title,
+                body,
+                data: {
+                    type: 'commission_free_day',
+                    tag: `commission-free-${dateKey}-${uid}`,
+                    openDriver: 'true',
+                    freeDayLabel: dayLabel,
+                    zoneId: String(zoneId || ''),
+                    reason,
+                    superVibrate: 'true',
+                },
+                highPriority: true,
+            });
+        } catch (e) {
+            console.warn('[commission-free-day] push failed', uid, e?.message || e);
+        }
+
+        // Aviso en bandeja in-app
+        try {
+            await db.collection(`artifacts/${appId}/public/data/notifications`).add({
+                targetUserId: uid,
+                targetRole: 'driver',
+                personal: true,
+                type: 'commission_free_day',
+                title,
+                message: body,
+                body,
+                sendPush: false, // ya se envió FCM arriba
+                broadcastPush: false,
+                pushDispatched: true,
+                createdAt: FieldValue.serverTimestamp(),
+                createdAtMs: Date.now(),
+                tag: `commission-free-${dateKey}-${uid}`,
+                freeDayLabel: dayLabel,
+                zoneId: zoneId || null,
+            });
+        } catch (e) {
+            console.warn('[commission-free-day] notif doc failed', uid, e?.message || e);
+        }
+
+        try {
+            await db.doc(`artifacts/${appId}/public/data/users/${uid}`).set({
+                commissionFreeDayNotifiedDate: dateKey,
+                commissionFreeDayNotifiedAt: FieldValue.serverTimestamp(),
+            }, { merge: true });
+        } catch (_) {}
+
+        notified += 1;
+    }
+
+    console.log(
+        `[commission-free-day] reason=${reason} candidates=${candidates} notified=${notified} `
+        + `already=${skippedAlready} notToday=${skippedNotToday} cityOff=${skippedCity}`
+    );
+    return {
+        ok: true,
+        notified,
+        candidates,
+        skippedAlready,
+        skippedNotToday,
+        skippedCity,
+        dateKey,
+        reason,
+    };
+}
+
+/**
+ * Admin: al activar el programa (o forzar), avisa YA a quien le toca hoy.
+ */
+exports.notifyCommissionFreeDayDrivers = onCall(async (request) => {
+    const auth = request.auth || {};
+    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    await assertCallerCanModerate(request.auth);
+
+    const force = request.data?.force === true;
+    // Si el admin acaba de encender el master, forzar re-aviso del día
+    const result = await notifyDriversCommissionFreeDayToday({
+        force: force || request.data?.fromAdminActivate === true,
+        reason: String(request.data?.reason || 'admin_activate'),
+    });
+    return result;
+});
+
+/**
+ * Cada día 7:00 Honduras: push a conductores cuyo día libre es hoy.
+ */
+exports.dailyCommissionFreeDayPush = onSchedule(
+    {
+        schedule: '0 7 * * *',
+        timeZone: commissionFreeDayLib.HN_TZ || 'America/Tegucigalpa',
+    },
+    async () => {
+        const result = await notifyDriversCommissionFreeDayToday({
+            force: false,
+            reason: 'daily_7am',
+        }).catch((e) => {
+            console.error('[dailyCommissionFreeDayPush]', e);
+            return { ok: false, error: String(e?.message || e) };
+        });
+        console.log('[dailyCommissionFreeDayPush]', result);
+        return null;
+    }
+);
+
+// ── WhatsApp Cloud API (Meta oficial) ────────────────────────────────
 const whatsappCloud = require('./whatsapp-cloud');
 exports.whatsappWebhook = whatsappCloud.whatsappWebhook;
 exports.sendWhatsAppCloudText = whatsappCloud.sendWhatsAppCloudText;

@@ -1113,6 +1113,10 @@ export function setActiveServiceZone(zoneId, { persist = true, biasMap = true } 
 
     if (biasMap) applyZoneMapBias(zone, getCityCoverageKm(zoneId));
     updateZoneHint();
+    // Refrescar botones de servicio (taxi/fletes/grúa deshabilitados por ciudad)
+    try { window.applyCityServiceAvailabilityToUI?.(); } catch (_) {}
+    // Banner día sin comisión si el conductor cambia de ciudad
+    try { window.updateDriverCommissionFreeDayBanner?.(); } catch (_) {}
     return zone;
 }
 

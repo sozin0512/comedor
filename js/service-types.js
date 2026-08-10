@@ -1185,3 +1185,159 @@ export function getHourlyLabel(hours) {
 export function isHourlyService(type) {
     return normalizeServiceType(type) === 'hora'; // we'll also support bookingType flag
 }
+
+// ============================================================
+// Deshabilitar servicios por ciudad (admin)
+// Taxi VIP · Taxi normal · Moto · Fletes · Grúas
+// → appSettings.disabledServicesByCity
+// ============================================================
+
+/** Categorías que el admin puede apagar por ciudad. */
+export const CITY_SERVICE_DISABLE_CATEGORIES = {
+    auto: {
+        id: 'auto',
+        label: 'Taxi VIP (automóvil)',
+        shortLabel: 'Taxi VIP',
+        icon: 'fa-car',
+        serviceTypes: ['auto'],
+    },
+    taxi: {
+        id: 'taxi',
+        label: 'Taxi normal (tradicional)',
+        shortLabel: 'Taxi normal',
+        icon: 'fa-taxi',
+        serviceTypes: ['taxi'],
+    },
+    moto: {
+        id: 'moto',
+        label: 'Moto (pasajeros)',
+        shortLabel: 'Moto',
+        icon: 'fa-motorcycle',
+        serviceTypes: ['moto'],
+    },
+    fletes: {
+        id: 'fletes',
+        label: 'Fletes (paila y camión)',
+        shortLabel: 'Fletes',
+        icon: 'fa-truck',
+        serviceTypes: ['flete_paila', 'flete_camion'],
+    },
+    grua: {
+        id: 'grua',
+        label: 'Grúas / remolque',
+        shortLabel: 'Grúas',
+        icon: 'icon-grua',
+        serviceTypes: ['grua'],
+    },
+};
+
+/** @type {Record<string, Record<string, boolean>>} */
+let disabledServicesByCity = {};
+
+function truthyFlag(v) {
+    return v === true || v === 1 || v === '1' || v === 'true';
+}
+
+/**
+ * Normaliza el mapa { zoneId: { auto, taxi, moto, fletes, grua } }.
+ * Solo guarda ciudades con al menos un flag true.
+ */
+export function normalizeDisabledServicesByCity(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    Object.keys(raw).forEach((zoneId) => {
+        const id = String(zoneId || '').trim();
+        if (!id) return;
+        const src = raw[zoneId];
+        if (!src || typeof src !== 'object') return;
+        const entry = {};
+        Object.keys(CITY_SERVICE_DISABLE_CATEGORIES).forEach((catId) => {
+            if (truthyFlag(src[catId])) entry[catId] = true;
+        });
+        // Compat: aliases y serviceTypes sueltos
+        if (truthyFlag(src.auto) || truthyFlag(src.vip) || truthyFlag(src.taxi_vip) || truthyFlag(src.taxiVip)) {
+            entry.auto = true;
+        }
+        if (truthyFlag(src.taxi) || truthyFlag(src.flete_taxi) || truthyFlag(src.taxi_tradicional)) {
+            entry.taxi = true;
+        }
+        if (truthyFlag(src.moto) || truthyFlag(src.motorcycle) || truthyFlag(src.motocicleta)) {
+            entry.moto = true;
+        }
+        if (truthyFlag(src.fletes) || truthyFlag(src.flete_paila) || truthyFlag(src.flete_camion) || truthyFlag(src.flete)) {
+            entry.fletes = true;
+        }
+        if (truthyFlag(src.grua) || truthyFlag(src.tow)) entry.grua = true;
+        if (Object.keys(entry).length) out[id] = entry;
+    });
+    return out;
+}
+
+export function setDisabledServicesByCity(map) {
+    disabledServicesByCity = normalizeDisabledServicesByCity(map);
+    try {
+        window.__HR_DISABLED_SERVICES_BY_CITY = disabledServicesByCity;
+    } catch (_) {}
+    return disabledServicesByCity;
+}
+
+export function getDisabledServicesByCity() {
+    return { ...disabledServicesByCity };
+}
+
+export function getCityDisabledCategories(zoneId) {
+    if (!zoneId) return {};
+    const entry = disabledServicesByCity[zoneId];
+    return entry && typeof entry === 'object' ? { ...entry } : {};
+}
+
+/** ¿La categoría (auto|taxi|moto|fletes|grua) está deshabilitada en la ciudad? */
+export function isCityServiceCategoryDisabled(categoryId, zoneId) {
+    if (!zoneId || !categoryId) return false;
+    return !!getCityDisabledCategories(zoneId)[categoryId];
+}
+
+/**
+ * ¿Este serviceType está apagado por el admin en la ciudad?
+ * @param {string} serviceType
+ * @param {string|null} zoneId
+ */
+export function isServiceTypeDisabledInCity(serviceType, zoneId) {
+    if (!zoneId) return false;
+    const t = normalizeServiceType(serviceType);
+    const flags = getCityDisabledCategories(zoneId);
+    if (!flags || !Object.keys(flags).length) return false;
+
+    for (const cat of Object.values(CITY_SERVICE_DISABLE_CATEGORIES)) {
+        if (flags[cat.id] && cat.serviceTypes.includes(t)) return true;
+    }
+    return false;
+}
+
+/** Mensaje corto para toast/UI. */
+export function getCityServiceDisabledMessage(serviceType, zoneName = '') {
+    const t = normalizeServiceType(serviceType);
+    let what = getServiceLabel(t) || 'Este servicio';
+    if (t === 'auto') what = 'Taxi VIP';
+    else if (t === 'taxi') what = 'Taxi normal (tradicional)';
+    else if (t === 'moto') what = 'Los viajes en moto';
+    else if (t === 'flete_paila' || t === 'flete_camion') what = 'Los fletes';
+    else if (t === 'grua') what = 'El servicio de grúa';
+    const city = zoneName ? ` en ${zoneName}` : ' en esta ciudad';
+    return `${what} no está disponible${city}. El administrador lo desactivó.`;
+}
+
+/** Lista de serviceTypes bloqueados en una ciudad (para filtrar UI). */
+export function getDisabledServiceTypesForCity(zoneId) {
+    const flags = getCityDisabledCategories(zoneId);
+    const types = new Set();
+    Object.values(CITY_SERVICE_DISABLE_CATEGORIES).forEach((cat) => {
+        if (flags[cat.id]) cat.serviceTypes.forEach((t) => types.add(t));
+    });
+    return [...types];
+}
+
+/** ¿Hay alguna restricción en alguna ciudad? (para UI admin). */
+export function countCitiesWithDisabledServices() {
+    return Object.keys(disabledServicesByCity).length;
+}

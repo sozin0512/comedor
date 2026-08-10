@@ -2,6 +2,13 @@
  * Menú inicial del pasajero: elige qué busca en HonduRaite
  * (viaje, pedido, envío, flete, grúa) y siempre puede volver.
  */
+import {
+    isServiceTypeDisabledInCity,
+    getCityServiceDisabledMessage,
+    isCityServiceCategoryDisabled,
+} from './service-types.js?v=2026.08.08.1';
+import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.08.08.1';
+
 const BOOKING_SECTION_IDS = [
     'passenger-booking-route',
     'passenger-booking-advanced',
@@ -181,9 +188,47 @@ function ensureHomeUi() {
     }
 }
 
+function getActiveCityId() {
+    return window.activeServiceZoneId || getDefaultZoneId() || null;
+}
+
+/** Filtra tipos permitidos por lo que el admin desactivó en la ciudad. */
+function filterTypesByCity(types = []) {
+    const zoneId = getActiveCityId();
+    if (!zoneId) return types.slice();
+    return types.filter((t) => !isServiceTypeDisabledInCity(t, zoneId));
+}
+
+/** Oculta tarjetas del menú inicio si fletes/grúa/viaje están apagados en la ciudad. */
+function syncHomeCardsForCity() {
+    const hub = document.getElementById('passenger-home-hub');
+    if (!hub) return;
+    const zoneId = getActiveCityId();
+    const hideFreight = isCityServiceCategoryDisabled('fletes', zoneId);
+    const hideTow = isCityServiceCategoryDisabled('grua', zoneId);
+    // Viaje = moto + VIP + taxi tradicional; si los 3 están off, ocultar tarjeta
+    const tripTypesLeft = filterTypesByCity(['moto', 'auto', 'taxi']);
+    const hideTrip = tripTypesLeft.length === 0;
+
+    hub.querySelector('[data-home-mode="trip"]')?.classList.toggle('hidden', hideTrip);
+    hub.querySelector('[data-home-mode="freight"]')?.classList.toggle('hidden', hideFreight);
+    hub.querySelector('[data-home-mode="tow"]')?.classList.toggle('hidden', hideTow);
+
+    // Subtítulo del card Viaje según lo disponible
+    const tripCard = hub.querySelector('[data-home-mode="trip"] small');
+    if (tripCard && !hideTrip) {
+        const parts = [];
+        if (!isCityServiceCategoryDisabled('moto', zoneId)) parts.push('Moto');
+        if (!isCityServiceCategoryDisabled('auto', zoneId)) parts.push('VIP');
+        if (!isCityServiceCategoryDisabled('taxi', zoneId)) parts.push('Taxi');
+        tripCard.textContent = parts.length ? parts.join(' · ') : 'Viajes';
+    }
+}
+
 function setServicePickerFilter(allowedTypes) {
     const picker = document.getElementById('service-type-picker');
     if (!picker) return;
+    const zoneId = getActiveCityId();
     const buttons = picker.querySelectorAll('[data-service-type], #svc-btn-stores');
     buttons.forEach((btn) => {
         const type = btn.getAttribute('data-service-type') || (btn.id === 'svc-btn-stores' ? 'stores' : '');
@@ -192,7 +237,8 @@ function setServicePickerFilter(allowedTypes) {
             btn.classList.add('hidden');
             return;
         }
-        const show = allowedTypes.includes(type);
+        const cityBlocked = type && type !== 'stores' && isServiceTypeDisabledInCity(type, zoneId);
+        const show = allowedTypes.includes(type) && !cityBlocked;
         btn.classList.toggle('hidden', !show);
     });
 }
@@ -231,6 +277,7 @@ function applyMode(mode) {
         // Cerrar paneles de tiendas si estaban abiertos
         window.closeStoresMarketplace?.();
         window.closeMerchantPanel?.();
+        syncHomeCardsForCity();
         return;
     }
 
@@ -244,17 +291,23 @@ function applyMode(mode) {
     }
 
     if (showBooking && meta.serviceTypes?.length) {
-        setServicePickerFilter(meta.serviceTypes);
+        const allowed = filterTypesByCity(meta.serviceTypes);
+        setServicePickerFilter(allowed);
         const wrap = document.getElementById('client-service-type-wrap');
         // Si solo hay 1 tipo, se puede ocultar el picker; si hay varios, mostrar
         if (wrap) {
-            wrap.classList.toggle('hidden', meta.serviceTypes.length <= 1);
+            wrap.classList.toggle('hidden', allowed.length <= 1);
         }
-        if (meta.defaultService && typeof window.selectServiceType === 'function') {
-            window.selectServiceType(meta.defaultService, { keepFareVisible: false });
-        } else if (meta.defaultService) {
-            window.currentServiceType = meta.defaultService;
+        let pick = meta.defaultService;
+        if (pick && isServiceTypeDisabledInCity(pick, getActiveCityId())) {
+            pick = allowed[0] || null;
         }
+        if (pick && typeof window.selectServiceType === 'function') {
+            window.selectServiceType(pick, { keepFareVisible: false, skipCityCheck: true });
+        } else if (pick) {
+            window.currentServiceType = pick;
+        }
+        try { window.applyCityServiceAvailabilityToUI?.({ skipHomeRefresh: true }); } catch (_) {}
         // Expandir panel de control
         window.showControlPanel?.();
         // Avanzados para delivery/flete/grúa
@@ -283,7 +336,7 @@ function applyMode(mode) {
 
 export function setPassengerHomeMode(mode) {
     if (!isClientLike()) return;
-    const next = MODE_META[mode] ? mode : 'home';
+    let next = MODE_META[mode] ? mode : 'home';
 
     // Si está en búsqueda/viaje activo, solo permitir quedarse (no forzar home sin cancelar)
     if (isBusyWithTripUi() && next === 'home') {
@@ -291,6 +344,23 @@ export function setPassengerHomeMode(mode) {
             window.showToast('Cancela la búsqueda o termina el viaje para volver al menú.', 'warning');
         }
         return;
+    }
+
+    // Admin: no entrar a modos sin servicios disponibles en la ciudad
+    const zoneId = getActiveCityId();
+    const zoneName = getZoneById(zoneId)?.name || '';
+    if (next === 'trip' && filterTypesByCity(['moto', 'auto', 'taxi']).length === 0) {
+        window.showToast?.(
+            `No hay viajes (moto / Taxi VIP / taxi) disponibles${zoneName ? ` en ${zoneName}` : ' en esta ciudad'}. El admin los desactivó.`,
+            'warning'
+        );
+        next = 'home';
+    } else if (next === 'freight' && isCityServiceCategoryDisabled('fletes', zoneId)) {
+        window.showToast?.(getCityServiceDisabledMessage('flete_paila', zoneName), 'warning');
+        next = 'home';
+    } else if (next === 'tow' && isCityServiceCategoryDisabled('grua', zoneId)) {
+        window.showToast?.(getCityServiceDisabledMessage('grua', zoneName), 'warning');
+        next = 'home';
     }
 
     currentMode = next;
@@ -342,6 +412,13 @@ export function syncPassengerHomeForRole() {
         }
     } catch (_) {}
     if (!MODE_META[saved]) saved = 'home';
+
+    // Si el modo guardado quedó deshabilitado por ciudad, volver a inicio
+    const zoneId = getActiveCityId();
+    if (saved === 'trip' && filterTypesByCity(['moto', 'auto', 'taxi']).length === 0) saved = 'home';
+    if (saved === 'freight' && isCityServiceCategoryDisabled('fletes', zoneId)) saved = 'home';
+    if (saved === 'tow' && isCityServiceCategoryDisabled('grua', zoneId)) saved = 'home';
+
     currentMode = saved;
     applyMode(saved);
 
@@ -354,7 +431,25 @@ export function syncPassengerHomeForRole() {
         }
         document.body.classList.add('passenger-mode-home');
         document.body.classList.remove('passenger-mode-active');
+        syncHomeCardsForCity();
     }
+}
+
+/** Refrescar menú/botones cuando el admin cambia servicios o el pasajero cambia de ciudad. */
+export function refreshPassengerHomeCityServices() {
+    if (!isClientLike()) return;
+    ensureHomeUi();
+    if (currentMode === 'home') {
+        syncHomeCardsForCity();
+    } else {
+        // Re-aplicar filtros del modo actual
+        applyMode(currentMode);
+    }
+}
+
+// Expone para app.js / cambio de ciudad
+if (typeof window !== 'undefined') {
+    window.refreshPassengerHomeCityServices = refreshPassengerHomeCityServices;
 }
 
 export function initPassengerHome(deps = {}) {

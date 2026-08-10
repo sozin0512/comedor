@@ -128,7 +128,10 @@ import {
     getDriverVehicleBadgeHtml, getDriverVehicleEmoji, getDriverVehicleTypeColorClass, getDriverVehicleNoun,
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
-    formatPassengersLabel, applyPassengerSurcharge
+    formatPassengersLabel, applyPassengerSurcharge,
+    CITY_SERVICE_DISABLE_CATEGORIES, setDisabledServicesByCity, getDisabledServicesByCity,
+    getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
+    getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices
 } from "./service-types.js?v=2026.08.08.1";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
@@ -136,6 +139,13 @@ import {
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
 } from "./driver-vehicles.js?v=2026.08.08.1";
+import {
+    setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
+    isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
+    getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
+    getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
+    resolveDriverIdForCommission
+} from "./commission-free-day.js?v=2026.08.08.1";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
@@ -147,7 +157,7 @@ import {
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
-    getFleetActiveTripForDriver
+    getFleetActiveTripForDriver, removeFleetDriverMarker
 } from "./ops-fleet-map.js?v=2026.08.08.1";
 import {
     syncLiveTripKeepalive,
@@ -227,6 +237,7 @@ window.refreshDemandHeatmapFromCache = refreshDemandHeatmapFromCache;
 window.refreshOpsFleetMapFromCache = refreshOpsFleetMapFromCache;
 window.pruneGhostFleetMarkers = pruneGhostFleetMarkers;
 window.mergeFleetFromApprovedDrivers = mergeFleetFromApprovedDrivers;
+window.removeFleetDriverMarker = removeFleetDriverMarker;
 
 window.__liveTripRepaintPassenger = () => {
     const pos = window._lastDriverFirebasePos || window.currentDriverTrackPos;
@@ -829,6 +840,15 @@ function applyCustomZonesFromSettings(data) {
                 ...data.cityCoverageKm
             };
         }
+        // Servicios deshabilitados por ciudad (taxi normal, fletes, grúas)
+        if (data && Object.prototype.hasOwnProperty.call(data, 'disabledServicesByCity')) {
+            setDisabledServicesByCity(data.disabledServicesByCity || {});
+        }
+        // Día sin comisión rotativo (incentivo conductores)
+        if (data && Object.prototype.hasOwnProperty.call(data, 'commissionFreeDay')) {
+            setCommissionFreeDayConfig(data.commissionFreeDay || {});
+        }
+        try { window.refreshCommissionFreeDayUI?.(); } catch (_) {}
         // Refrescar selectores de ciudad si existen
         try {
             const sel = document.getElementById('service-zone-select');
@@ -838,6 +858,8 @@ function applyCustomZonesFromSettings(data) {
             }
         } catch (_) {}
         try { updateServiceZoneSummary?.(); } catch (_) {}
+        try { window.applyCityServiceAvailabilityToUI?.(); } catch (_) {}
+        try { window.renderAdminCityServicesDisabledList?.(); } catch (_) {}
     } catch (e) {
         console.warn('[zones] applyCustomZonesFromSettings', e);
     }
@@ -848,9 +870,39 @@ window.loadCustomServiceZones = async () => {
     try {
         const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'));
         if (snap.exists()) applyCustomZonesFromSettings(snap.data() || {});
-        else setRuntimeCustomZones([]);
+        else {
+            setRuntimeCustomZones([]);
+            setDisabledServicesByCity({});
+        }
     } catch (e) {
         console.warn('loadCustomServiceZones failed', e);
+    }
+    // En vivo: si el admin desactiva un servicio, al pasajero se le oculta sin reiniciar la app
+    try { window.startAppSettingsLiveListener?.(); } catch (_) {}
+};
+
+/** Listener único de appSettings (zonas + servicios desactivados por ciudad). */
+window.startAppSettingsLiveListener = () => {
+    if (window.__hrAppSettingsUnsub) return;
+    try {
+        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main');
+        window.__hrAppSettingsUnsub = onSnapshot(
+            settingsRef,
+            (snap) => {
+                if (!snap.exists()) {
+                    setRuntimeCustomZones([]);
+                    setDisabledServicesByCity({});
+                    try { window.applyCityServiceAvailabilityToUI?.(); } catch (_) {}
+                    return;
+                }
+                applyCustomZonesFromSettings(snap.data() || {});
+            },
+            (err) => {
+                console.warn('appSettings live listener:', err?.code || err);
+            }
+        );
+    } catch (e) {
+        console.warn('startAppSettingsLiveListener:', e);
     }
 };
 
@@ -961,6 +1013,506 @@ window.renderAdminCustomZonesList = () => {
             <button type="button" class="ops-btn ops-btn--ghost text-xs" onclick="window.adminRemoveCustomServiceZone('${String(z.id).replace(/'/g, '')}')">Quitar</button>
         </div>
     `).join('');
+};
+
+/**
+ * Oculta/muestra botones de taxi normal, fletes y grúa según la ciudad activa.
+ * También cambia el tipo seleccionado si quedó deshabilitado.
+ * @param {{ skipHomeRefresh?: boolean }} opts
+ */
+window.applyCityServiceAvailabilityToUI = (opts = {}) => {
+    if (window.__hrApplyingCityServices) return;
+    window.__hrApplyingCityServices = true;
+    try {
+        const zoneId = window.activeServiceZoneId || getDefaultZoneId();
+        const zoneName = getZoneById(zoneId)?.name || '';
+        // Todos los tipos que el admin puede apagar por ciudad
+        const typesToControl = ['auto', 'taxi', 'moto', 'flete_paila', 'flete_camion', 'grua'];
+
+        typesToControl.forEach((type) => {
+            const disabled = isServiceTypeDisabledInCity(type, zoneId);
+            const btn = document.getElementById(`svc-btn-${type}`);
+            if (btn) {
+                // No forzar visible si el home mode lo ocultó (solo ocultar si deshabilitado)
+                if (disabled) {
+                    btn.classList.add('hidden');
+                    btn.disabled = true;
+                    btn.setAttribute('aria-disabled', 'true');
+                    btn.title = getCityServiceDisabledMessage(type, zoneName);
+                } else {
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-disabled');
+                    btn.removeAttribute('title');
+                    // La visibilidad final la decide el filtro del menú home / setServicePickerFilter
+                }
+            }
+        });
+
+        // Si el tipo actual quedó apagado, saltar a uno disponible
+        const current = normalizeServiceType(window.currentServiceType || 'auto');
+        if (isServiceTypeDisabledInCity(current, zoneId)) {
+            const maleBlockedMoto = window.userProfile?.role === 'client' && window.userProfile?.gender === 'male';
+            const fallback = ['moto', 'auto', 'delivery', 'taxi', 'flete_paila', 'flete_camion', 'grua']
+                .find((t) => {
+                    if (t === 'moto' && maleBlockedMoto) return false;
+                    return !isServiceTypeDisabledInCity(t, zoneId);
+                });
+            if (fallback && typeof window.selectServiceType === 'function') {
+                window.selectServiceType(fallback, { keepFareVisible: true, skipCityCheck: true });
+            }
+        }
+
+        // Refrescar tarjetas de "cambiar tipo" si están visibles
+        try {
+            const rideList = document.getElementById('ride-options-list');
+            if (rideList && !document.getElementById('ride-options')?.classList.contains('hidden')) {
+                window.renderRideOptions?.(window.currentTripQuote?.route || null, { syncFare: false });
+            }
+        } catch (_) {}
+
+        // Menú inicio del pasajero (ocultar Flete/Grúa si aplica)
+        if (!opts.skipHomeRefresh) {
+            try { window.refreshPassengerHomeCityServices?.(); } catch (_) {}
+        }
+    } finally {
+        window.__hrApplyingCityServices = false;
+    }
+};
+
+/** Carga toggles del select de ciudad en el panel admin de servicios. */
+window.adminLoadCityServicesForm = () => {
+    const sel = document.getElementById('admin-city-services-zone');
+    const zoneId = sel?.value || '';
+    const flags = getCityDisabledCategories(zoneId);
+    Object.keys(CITY_SERVICE_DISABLE_CATEGORIES).forEach((catId) => {
+        const cb = document.getElementById(`admin-city-svc-disable-${catId}`);
+        if (cb) cb.checked = !!flags[catId];
+    });
+    const nameEl = document.getElementById('admin-city-services-zone-label');
+    if (nameEl) {
+        const z = getZoneById(zoneId);
+        nameEl.textContent = z ? `${z.name}${z.department ? ` · ${z.department}` : ''}` : 'Elige una ciudad';
+    }
+};
+
+/** Guarda deshabilitaciones de taxi/fletes/grúa para la ciudad elegida. */
+window.adminSaveCityServicesDisabled = async (btn) => {
+    if (!isAdminUser(currentUser, window.userProfile)) {
+        return window.showToast?.('Solo el administrador puede cambiar servicios por ciudad.', 'error');
+    }
+    const zoneId = document.getElementById('admin-city-services-zone')?.value?.trim();
+    if (!zoneId) return window.showToast?.('Selecciona una ciudad.', 'warning');
+
+    const entry = {};
+    Object.keys(CITY_SERVICE_DISABLE_CATEGORIES).forEach((catId) => {
+        const cb = document.getElementById(`admin-city-svc-disable-${catId}`);
+        if (cb?.checked) entry[catId] = true;
+    });
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Guardando…';
+    }
+    try {
+        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main');
+        const prev = await getDoc(settingsRef);
+        const prevMap = normalizeDisabledServicesByCity(prev.data()?.disabledServicesByCity || {});
+        const nextMap = { ...prevMap };
+        if (Object.keys(entry).length) nextMap[zoneId] = entry;
+        else delete nextMap[zoneId];
+
+        await setDoc(settingsRef, {
+            disabledServicesByCity: nextMap,
+            updatedAt: serverTimestamp(),
+            disabledServicesUpdatedBy: currentUser?.uid || null,
+            disabledServicesUpdatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        setDisabledServicesByCity(nextMap);
+        window.applyCityServiceAvailabilityToUI?.();
+        window.renderAdminCityServicesDisabledList?.();
+
+        const zName = getZoneById(zoneId)?.name || zoneId;
+        const offLabels = Object.keys(entry)
+            .map((id) => CITY_SERVICE_DISABLE_CATEGORIES[id]?.shortLabel || id)
+            .join(', ');
+        window.showToast?.(
+            Object.keys(entry).length
+                ? `En ${zName}: desactivados → ${offLabels}`
+                : `En ${zName}: todos los servicios habilitados`,
+            'success'
+        );
+    } catch (e) {
+        console.error(e);
+        window.showToast?.(e?.message || 'No se pudo guardar.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Guardar para esta ciudad';
+        }
+    }
+};
+
+/** Lista compacta de ciudades con algo desactivado. */
+window.renderAdminCityServicesDisabledList = () => {
+    const el = document.getElementById('admin-city-services-disabled-list');
+    if (!el) return;
+    const map = getDisabledServicesByCity();
+    const ids = Object.keys(map);
+    if (!ids.length) {
+        el.innerHTML = '<p class="text-xs text-slate-400 font-bold">Ninguna ciudad tiene taxis/fletes/grúas desactivados. Todo disponible.</p>';
+        return;
+    }
+    const rows = ids
+        .map((id) => {
+            const z = getZoneById(id);
+            const name = z?.name || id;
+            const flags = map[id] || {};
+            const chips = Object.keys(CITY_SERVICE_DISABLE_CATEGORIES)
+                .filter((c) => flags[c])
+                .map((c) => {
+                    const lab = CITY_SERVICE_DISABLE_CATEGORIES[c].shortLabel;
+                    return `<span class="inline-flex items-center px-2 py-0.5 rounded-lg bg-red-950/60 border border-red-800/50 text-[10px] font-black text-red-300">${lab}</span>`;
+                })
+                .join(' ');
+            return `
+                <div class="flex items-start justify-between gap-2 py-2 border-b border-slate-700/60">
+                    <div class="min-w-0">
+                        <p class="text-sm font-black text-white truncate">${String(name).replace(/</g, '')}</p>
+                        <div class="flex flex-wrap gap-1 mt-1">${chips}</div>
+                    </div>
+                    <button type="button" class="ops-btn ops-btn--ghost text-[10px] shrink-0"
+                        onclick="document.getElementById('admin-city-services-zone').value='${String(id).replace(/'/g, '')}'; window.adminLoadCityServicesForm();">
+                        Editar
+                    </button>
+                </div>`;
+        })
+        .join('');
+    el.innerHTML = `<p class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">${ids.length} ciudad(es) con restricciones</p>${rows}`;
+};
+
+window.adminClearCityServicesDisabled = async (btn) => {
+    if (!isAdminUser(currentUser, window.userProfile)) {
+        return window.showToast?.('Solo el administrador.', 'error');
+    }
+    const zoneId = document.getElementById('admin-city-services-zone')?.value?.trim();
+    if (!zoneId) return window.showToast?.('Selecciona una ciudad.', 'warning');
+    Object.keys(CITY_SERVICE_DISABLE_CATEGORIES).forEach((catId) => {
+        const cb = document.getElementById(`admin-city-svc-disable-${catId}`);
+        if (cb) cb.checked = false;
+    });
+    await window.adminSaveCityServicesDisabled(btn);
+};
+
+// ── Día sin comisión rotativo (admin) ─────────────────────────
+
+window.adminLoadCommissionFreeDayCityForm = () => {
+    const zoneId = document.getElementById('commission-free-day-zone')?.value?.trim();
+    const cfg = getCommissionFreeDayConfig();
+    const master = document.getElementById('commission-free-day-enabled');
+    if (master) master.checked = !!cfg.enabled;
+    const cityCb = document.getElementById('commission-free-day-city-on');
+    if (cityCb) {
+        cityCb.checked = zoneId ? isCityInCommissionFreeDayProgram(zoneId, cfg) : !!cfg.defaultCityEnabled;
+    }
+};
+
+window.renderCommissionFreeDayCityList = () => {
+    const el = document.getElementById('commission-free-day-city-list');
+    if (!el) return;
+    const cfg = getCommissionFreeDayConfig();
+    if (!cfg.enabled) {
+        el.innerHTML = '<p class="text-xs text-slate-400 font-bold">El día sin comisión está APAGADO a nivel global.</p>';
+        return;
+    }
+    const zones = typeof getServiceZones === 'function' ? getServiceZones() : [];
+    const overrides = cfg.cityEnabled || {};
+    const offCities = zones.filter((z) => {
+        if (Object.prototype.hasOwnProperty.call(overrides, z.id)) return overrides[z.id] === false;
+        return cfg.defaultCityEnabled === false;
+    });
+    const status = getCommissionFreeDayStatusText();
+    let html = `<p class="text-[10px] font-black text-emerald-400/90 uppercase tracking-wider mb-2">${status.headline}</p>`;
+    if (!offCities.length) {
+        html += '<p class="text-xs text-slate-400 font-bold">Todas las ciudades participan (por defecto). Desmarca una ciudad y guarda para excluirla.</p>';
+    } else {
+        html += `<p class="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1">${offCities.length} ciudad(es) EXCLUIDAS</p>`;
+        html += offCities.slice(0, 40).map((z) => `
+            <div class="flex items-center justify-between gap-2 py-1.5 border-b border-slate-700/50">
+                <span class="text-xs font-bold text-slate-300 truncate">${String(z.name || z.id).replace(/</g, '')}</span>
+                <button type="button" class="ops-btn ops-btn--ghost text-[10px]"
+                    onclick="document.getElementById('commission-free-day-zone').value='${String(z.id).replace(/'/g, '')}'; window.adminLoadCommissionFreeDayCityForm();">
+                    Editar
+                </button>
+            </div>
+        `).join('');
+        if (offCities.length > 40) {
+            html += `<p class="text-[10px] text-slate-500 font-bold mt-1">… y ${offCities.length - 40} más</p>`;
+        }
+    }
+    el.innerHTML = html;
+};
+
+window.refreshCommissionFreeDayUI = () => {
+    try { window.renderCommissionFreeDayCityList?.(); } catch (_) {}
+    try { window.adminLoadCommissionFreeDayCityForm?.(); } catch (_) {}
+    try { window.updateDriverCommissionFreeDayBanner?.(); } catch (_) {}
+    const box = document.getElementById('commission-free-day-status');
+    if (box) {
+        const freeCfg = getCommissionFreeDayConfig();
+        const freeStatus = getCommissionFreeDayStatusText(new Date(), freeCfg, currentUser?.uid);
+        box.className = `mb-3 p-3 rounded-xl border ${freeCfg.enabled ? 'border-emerald-600/50 bg-emerald-950/40' : 'border-slate-700/60 bg-slate-950/40'}`;
+        box.innerHTML = `
+            <p class="text-sm font-black text-white">${freeStatus.headline}</p>
+            <p class="text-[11px] font-bold text-slate-400 mt-1">${freeStatus.detail}</p>
+            <p class="text-[10px] font-bold text-slate-500 mt-2">Semana #${freeStatus.weekIndex} · ~1/7 flota sin comisión/día · resto paga normal</p>
+        `;
+    }
+};
+
+window.adminSaveCommissionFreeDay = async (btn) => {
+    if (!isAdminUser(currentUser, window.userProfile)) {
+        return window.showToast?.('Solo el administrador puede configurar el día sin comisión.', 'error');
+    }
+    const enabled = !!document.getElementById('commission-free-day-enabled')?.checked;
+    const zoneId = document.getElementById('commission-free-day-zone')?.value?.trim();
+    const cityOn = !!document.getElementById('commission-free-day-city-on')?.checked;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Guardando…';
+    }
+    try {
+        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main');
+        const prev = await getDoc(settingsRef);
+        const prevCfg = normalizeCommissionFreeDayConfig(prev.data()?.commissionFreeDay || {});
+        const cityEnabled = { ...(prevCfg.cityEnabled || {}) };
+        if (zoneId) cityEnabled[zoneId] = cityOn;
+
+        const nextCfg = {
+            enabled,
+            defaultCityEnabled: prevCfg.defaultCityEnabled !== false,
+            cityEnabled,
+        };
+
+        await setDoc(settingsRef, {
+            commissionFreeDay: nextCfg,
+            updatedAt: serverTimestamp(),
+            commissionFreeDayUpdatedBy: currentUser?.uid || null,
+            commissionFreeDayUpdatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        setCommissionFreeDayConfig(nextCfg);
+        window.refreshCommissionFreeDayUI?.();
+
+        const zName = zoneId ? (getZoneById(zoneId)?.name || zoneId) : '';
+        let pushNote = '';
+        // Si se activó: push YA a conductores a los que les toca hoy
+        if (enabled) {
+            try {
+                if (btn) btn.textContent = 'Avisando conductores…';
+                const justTurnedOn = !prevCfg.enabled && enabled;
+                const res = await httpsCallable(cloudFunctions, 'notifyCommissionFreeDayDrivers')({
+                    fromAdminActivate: justTurnedOn || true,
+                    force: justTurnedOn,
+                    reason: justTurnedOn ? 'admin_activate' : 'admin_save',
+                });
+                const n = res?.data?.notified ?? res?.notified ?? 0;
+                const c = res?.data?.candidates ?? res?.candidates ?? 0;
+                pushNote = n > 0
+                    ? ` · Push enviado a ${n} conductor(es) (día libre hoy)`
+                    : (c > 0
+                        ? ` · ${c} con día libre hoy ya avisados o sin token`
+                        : ' · Nadie con día libre hoy (se avisará a las 7:00 HN cuando les toque)');
+            } catch (pushErr) {
+                console.warn('notifyCommissionFreeDayDrivers:', pushErr);
+                pushNote = ' · Config guardada; el push diario se envía a las 7:00 HN';
+            }
+        }
+
+        window.showToast?.(
+            enabled
+                ? `Día sin comisión ON (por conductor)${zName ? ` · ${zName}: ${cityOn ? 'participa' : 'excluida'}` : ''}${pushNote}`
+                : 'Día sin comisión APAGADO en todo el país',
+            'success'
+        );
+    } catch (e) {
+        console.error(e);
+        window.showToast?.(e?.message || 'No se pudo guardar.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Guardar configuración';
+        }
+    }
+};
+
+/** Activa o desactiva todas las ciudades del programa (con master ON). */
+window.adminSetAllCitiesCommissionFreeDay = async (participate, btn) => {
+    if (!isAdminUser(currentUser, window.userProfile)) {
+        return window.showToast?.('Solo el administrador.', 'error');
+    }
+    const enabled = !!document.getElementById('commission-free-day-enabled')?.checked;
+    if (!enabled && participate) {
+        const master = document.getElementById('commission-free-day-enabled');
+        if (master) master.checked = true;
+    }
+    if (btn) {
+        btn.disabled = true;
+        const old = btn.textContent;
+        btn.dataset.oldLabel = old;
+        btn.textContent = 'Aplicando…';
+    }
+    try {
+        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main');
+        const zones = typeof getServiceZones === 'function' ? getServiceZones() : [];
+        const cityEnabled = {};
+        zones.forEach((z) => {
+            if (z?.id) cityEnabled[z.id] = !!participate;
+        });
+        const nextCfg = {
+            enabled: participate ? true : !!document.getElementById('commission-free-day-enabled')?.checked,
+            defaultCityEnabled: !!participate,
+            cityEnabled,
+        };
+        // Si "quitar todas", apagar master también es más claro
+        if (!participate) nextCfg.enabled = false;
+
+        await setDoc(settingsRef, {
+            commissionFreeDay: nextCfg,
+            updatedAt: serverTimestamp(),
+            commissionFreeDayUpdatedBy: currentUser?.uid || null,
+            commissionFreeDayUpdatedAt: serverTimestamp(),
+        }, { merge: true });
+
+        setCommissionFreeDayConfig(nextCfg);
+        const master = document.getElementById('commission-free-day-enabled');
+        if (master) master.checked = !!nextCfg.enabled;
+        window.adminLoadCommissionFreeDayCityForm?.();
+        window.refreshCommissionFreeDayUI?.();
+
+        let pushNote = '';
+        if (nextCfg.enabled && participate) {
+            try {
+                const res = await httpsCallable(cloudFunctions, 'notifyCommissionFreeDayDrivers')({
+                    fromAdminActivate: true,
+                    force: true,
+                    reason: 'admin_all_cities',
+                });
+                const n = res?.data?.notified ?? res?.notified ?? 0;
+                pushNote = n > 0 ? ` Push a ${n} conductor(es) con día libre hoy.` : '';
+            } catch (pushErr) {
+                console.warn('notifyCommissionFreeDayDrivers:', pushErr);
+            }
+        }
+
+        window.showToast?.(
+            participate
+                ? `Todas las ciudades participan del día sin comisión.${pushNote}`
+                : 'Día sin comisión desactivado en todas las ciudades.',
+            'success'
+        );
+    } catch (e) {
+        console.error(e);
+        window.showToast?.(e?.message || 'No se pudo aplicar.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = btn.dataset.oldLabel || 'Listo';
+        }
+    }
+};
+
+/** Admin: forzar push de “día sin comisión” a quien le toca hoy. */
+window.adminNotifyCommissionFreeDayNow = async (btn) => {
+    if (!isAdminUser(currentUser, window.userProfile) && window.userProfile?.role !== 'supervisor') {
+        return window.showToast?.('Solo staff puede reenviar el aviso.', 'error');
+    }
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Enviando…';
+    }
+    try {
+        const res = await httpsCallable(cloudFunctions, 'notifyCommissionFreeDayDrivers')({
+            force: true,
+            fromAdminActivate: true,
+            reason: 'admin_manual_resend',
+        });
+        const n = res?.data?.notified ?? res?.notified ?? 0;
+        const c = res?.data?.candidates ?? res?.candidates ?? 0;
+        if (res?.data?.skipped) {
+            window.showToast?.('El día sin comisión está apagado. Actívalo primero.', 'warning');
+        } else {
+            window.showToast?.(
+                n > 0
+                    ? `Push enviado a ${n} conductor(es) con día libre hoy.`
+                    : (c > 0
+                        ? `Hay ${c} candidatos pero no se reenvió (sin token o error).`
+                        : 'Nadie tiene día libre hoy en ciudades activas.'),
+                n > 0 ? 'success' : 'info'
+            );
+        }
+    } catch (e) {
+        console.error(e);
+        window.showToast?.(e?.message || 'No se pudo enviar el push. Despliega la Cloud Function notifyCommissionFreeDayDrivers.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Reenviar push hoy';
+        }
+    }
+};
+
+/** Banner en panel del conductor cuando HOY es SU día sin comisión (no el de todos). */
+window.updateDriverCommissionFreeDayBanner = () => {
+    const role = window.userProfile?.role;
+    const driverId = currentUser?.uid;
+    if (role !== 'driver' || !driverId) {
+        document.getElementById('driver-commission-free-day-banner')?.remove();
+        return;
+    }
+    const zoneId = resolveZoneIdForCommission(null, window.userProfile)
+        || window.activeServiceZoneId
+        || getDefaultZoneId();
+    const cfg = getCommissionFreeDayConfig();
+    const inProgram = isCityInCommissionFreeDayProgram(zoneId, cfg);
+    const active = isCommissionFreeDayActive(zoneId, driverId);
+    const myDay = getDriverFreeWeekdayLabel(driverId);
+    const nextDay = getDriverNextWeekFreeWeekdayLabel(driverId);
+    let banner = document.getElementById('driver-commission-free-day-banner');
+
+    // Si el programa está ON y la ciudad participa, mostrar aviso (hoy o cuándo es su día)
+    if (!cfg.enabled || !inProgram) {
+        banner?.remove();
+        return;
+    }
+
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'driver-commission-free-day-banner';
+        banner.className = 'driver-commission-free-day-banner';
+        banner.setAttribute('role', 'status');
+        const host = document.getElementById('driver-view')
+            || document.getElementById('requests-list')?.parentElement
+            || document.body;
+        host.insertBefore(banner, host.firstChild);
+    }
+    const cityName = getZoneById(zoneId)?.name || 'tu ciudad';
+    if (active) {
+        banner.innerHTML = `
+            <div style="margin:8px 10px;padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,#064e3b,#065f46);border:1px solid #34d399;color:#ecfdf5;box-shadow:0 4px 14px rgba(16,185,129,0.25);">
+                <p style="margin:0;font-weight:900;font-size:13px;">🎉 ¡HOY ES TU DÍA SIN COMISIÓN! · ${myDay}</p>
+                <p style="margin:4px 0 0;font-size:11px;font-weight:700;opacity:0.9;">${myDay} en ${cityName}: te quedas con el 100% de cada viaje. ¡Aprovecha que te queremos más que otras apps!</p>
+            </div>
+        `;
+    } else {
+        banner.innerHTML = `
+            <div style="margin:8px 10px;padding:10px 12px;border-radius:14px;background:#0f172a;border:1px solid #334155;color:#e2e8f0;">
+                <p style="margin:0;font-weight:900;font-size:12px;">Tu día sin comisión: <span style="color:#34d399">${myDay}</span></p>
+                <p style="margin:3px 0 0;font-size:10px;font-weight:700;opacity:0.85;">Rota cada semana · la próxima te toca ${nextDay}. ¡Te queremos más que otras apps!</p>
+            </div>
+        `;
+    }
 };
 
 window.loadAdminNegotiationState = async () => {
@@ -3926,6 +4478,12 @@ if (document.readyState === 'loading') {
                 types = types.filter(t => t !== 'moto');
             }
 
+            // Admin: ocultar taxi normal (y otros) deshabilitados en la ciudad activa
+            {
+                const zoneId = window.activeServiceZoneId || getDefaultZoneId();
+                types = types.filter((t) => !isServiceTypeDisabledInCity(t, zoneId));
+            }
+
             list.innerHTML = '';
 
             const quickConditions = route
@@ -4001,7 +4559,7 @@ if (document.readyState === 'loading') {
             }
         };
 
-        window.selectServiceType = (type, { keepFareVisible = false } = {}) => {
+        window.selectServiceType = (type, { keepFareVisible = false, skipCityCheck = false } = {}) => {
             const normalizedType = normalizeServiceType(type);
 
             // Restricción: Pasajeros hombres NO pueden usar "Moto (viajes de pasajeros)"
@@ -4012,6 +4570,16 @@ if (document.readyState === 'loading') {
                 const msg = 'Decreto 91-2012 se aplica de forma estricta en 34 municipios que se refiere a que 2 hombres no pueden circular en moto';
                 window.showToast?.(msg, 'error');
                 return; // No permitir seleccionar Moto para viajes de pasajeros hombres
+            }
+
+            // Admin: taxi normal / fletes / grúas deshabilitados por ciudad
+            if (!skipCityCheck) {
+                const zoneId = window.activeServiceZoneId || getDefaultZoneId();
+                if (isServiceTypeDisabledInCity(normalizedType, zoneId)) {
+                    const zoneName = getZoneById(zoneId)?.name || '';
+                    window.showToast?.(getCityServiceDisabledMessage(normalizedType, zoneName), 'warning');
+                    return;
+                }
             }
 
             window.currentServiceType = normalizedType;
@@ -4162,6 +4730,9 @@ if (document.readyState === 'loading') {
                 window.currentServiceType = 'auto';
                 window.showToast?.('Decreto 91-2012 se aplica de forma estricta en 34 municipios que se refiere a que 2 hombres no pueden circular en moto. Se seleccionó Taxi VIP.', 'warning');
             }
+
+            // Servicios desactivados por ciudad (admin)
+            try { window.applyCityServiceAvailabilityToUI?.({ skipHomeRefresh: true }); } catch (_) {}
 
             // El menú de inicio controla si se ve el picker de servicios
             const mode = window.getPassengerHomeMode?.() || 'home';
@@ -8524,6 +9095,7 @@ if (document.readyState === 'loading') {
             const container = document.getElementById('requests-list');
             const offerBanner = document.getElementById('driver-incoming-offer');
             try { bindDriverOfferVisibilityWake?.(); } catch (_) {}
+            try { window.updateDriverCommissionFreeDayBanner?.(); } catch (_) {}
             // Conductor web/iOS: pedir avisos si aún no (sin esto no suena nada en Safari)
             try {
                 const perm = typeof getNotificationPermission === 'function'
@@ -9445,6 +10017,47 @@ if (document.readyState === 'loading') {
             await setDoc(pubRef, patch, { merge: true });
             await setDoc(privRef, { uid, ...patch }, { merge: true });
         }
+
+        /**
+         * Quita al conductor del mapa de forma inmediata:
+         * - borra drivers_location (si falla, lo marca offline/rechazado)
+         * - quita el marker del pasajero y el de la flota admin/sup
+         */
+        async function clearDriverMapPresence(uid, { approvalStatus = 'rejected' } = {}) {
+            if (!uid) return;
+            try {
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid));
+            } catch (_) {
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid), {
+                        online: false,
+                        appVisible: false,
+                        appVisibleAt: Date.now(),
+                        approvalStatus,
+                        inRecycleBin: approvalStatus === 'rejected',
+                        updatedAt: Date.now()
+                    }, { merge: true });
+                } catch (__) {}
+            }
+            try { window.removeDriverMarker?.(uid); } catch (_) {}
+            try { window.removeFleetDriverMarker?.(uid); } catch (_) {}
+            try {
+                if (window._nearbyDriverPosCache?.[uid]) delete window._nearbyDriverPosCache[uid];
+            } catch (_) {}
+            // Actualizar allUsersData local para que prune/render no lo vuelvan a pintar
+            try {
+                if (Array.isArray(window.allUsersData)) {
+                    const u = window.allUsersData.find((x) => x.uid === uid);
+                    if (u) {
+                        u.approvalStatus = approvalStatus;
+                        if (approvalStatus === 'rejected') u.inRecycleBin = true;
+                    }
+                }
+            } catch (_) {}
+            try { window.pruneGhostFleetMarkers?.(); } catch (_) {}
+            try { window.refreshOpsFleetMapFromCache?.(); } catch (_) {}
+        }
+        window.clearDriverMapPresence = clearDriverMapPresence;
 
         async function syncUserEmailToProfile(user, profile) {
             if (!user?.email || !user?.uid) return profile;
@@ -10695,6 +11308,8 @@ if (document.readyState === 'loading') {
             // === NUEVA PESTAÑA: CUENTAS BANCARIAS Y COMISIÓN ===
             if (role === 'bank') {
                 const U = window.OpsUi;
+                const freeStatus = getCommissionFreeDayStatusText(new Date(), getCommissionFreeDayConfig(), currentUser?.uid);
+                const freeCfg = getCommissionFreeDayConfig();
                 container.innerHTML = U.page(
                     U.hero('Cuentas bancarias', 'Recargas pasajeros · depósitos conductores') +
                     U.formPanel('Comisión de plataforma', 'Este % se aplica al instante a depósitos y comisiones a depositar', `
@@ -10705,6 +11320,50 @@ if (document.readyState === 'loading') {
                         </div>
                         <p class="text-[10px] text-slate-400 mt-2 font-bold">Si pones 18%, el conductor ve y debe depositar al 18% (no un % viejo del viaje).</p>
                     `) +
+                    U.formPanel(
+                        'Día sin comisión (por conductor)',
+                        'Incentivo: cada conductor tiene SU día libre. Rota cada semana. No todos el mismo día → la app sigue generando.',
+                        `
+                        <div id="commission-free-day-status" class="mb-3 p-3 rounded-xl border ${freeCfg.enabled ? 'border-emerald-600/50 bg-emerald-950/40' : 'border-slate-700/60 bg-slate-950/40'}">
+                            <p class="text-sm font-black text-white">${freeStatus.headline}</p>
+                            <p class="text-[11px] font-bold text-slate-400 mt-1">${freeStatus.detail}</p>
+                            <p class="text-[10px] font-bold text-slate-500 mt-2">Semana de rotación #${freeStatus.weekIndex} · ~1/7 de la flota sin comisión cada día · el resto paga normal</p>
+                        </div>
+                        <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-700/70 bg-slate-950/40 cursor-pointer mb-3">
+                            <input type="checkbox" id="commission-free-day-enabled" class="w-4 h-4 rounded accent-emerald-500" ${freeCfg.enabled ? 'checked' : ''}>
+                            <span>
+                                <span class="block text-sm font-black text-white">Activar día sin comisión (global)</span>
+                                <span class="block text-[10px] font-bold text-slate-400">Master switch. Cada conductor de ciudades participantes tiene su propio día (rotativo).</span>
+                            </span>
+                        </label>
+                        <div class="mb-3">
+                            ${U.fieldLabel('Ciudad')}
+                            <select id="commission-free-day-zone" class="ops-input mt-1"
+                                onchange="window.adminLoadCommissionFreeDayCityForm()">
+                                ${typeof buildZoneSelectOptionsHtml === 'function'
+                                    ? buildZoneSelectOptionsHtml(window.activeServiceZoneId || getDefaultZoneId() || '')
+                                    : '<option value="">Cargando…</option>'}
+                            </select>
+                        </div>
+                        <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-700/70 bg-slate-950/40 cursor-pointer mb-3">
+                            <input type="checkbox" id="commission-free-day-city-on" class="w-4 h-4 rounded accent-emerald-500">
+                            <span>
+                                <span class="block text-sm font-black text-white">Esta ciudad participa del día sin comisión</span>
+                                <span class="block text-[10px] font-bold text-slate-400">Si lo desmarcas, en esa ciudad SÍ se cobra comisión aunque sea el día rotativo.</span>
+                            </span>
+                        </label>
+                        <div class="flex flex-wrap gap-2 mb-3">
+                            ${U.btn('Guardar configuración', 'window.adminSaveCommissionFreeDay(this)', { variant: 'primary', icon: 'fa-save' })}
+                            ${U.btn('Activar todas las ciudades', 'window.adminSetAllCitiesCommissionFreeDay(true, this)', { variant: 'ghost' })}
+                            ${U.btn('Quitar todas las ciudades', 'window.adminSetAllCitiesCommissionFreeDay(false, this)', { variant: 'ghost' })}
+                            ${U.btn('Reenviar push hoy', 'window.adminNotifyCommissionFreeDayNow(this)', { variant: 'emerald', icon: 'fa-bell' })}
+                        </div>
+                        <p class="text-[10px] font-bold text-slate-500 mb-2">
+                            Al activar: push inmediato a quien le toca hoy. Cada día a las 7:00 HN se avisa al grupo del día.
+                        </p>
+                        <div id="commission-free-day-city-list" class="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 max-h-48 overflow-auto"></div>
+                        `
+                    ) +
                     U.formPanel('Agregar cuenta', 'Visible para recargas y depósitos', `
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <input id="bank-name" placeholder="Nombre del banco" class="ops-input">
@@ -10717,6 +11376,10 @@ if (document.readyState === 'loading') {
                     U.section({ title: 'Cuentas activas', icon: 'fa-university', body: `<div id="bank-accounts-list" class="space-y-3"></div>` })
                 );
                 window.loadBankAccountsForAdmin();
+                try {
+                    window.adminLoadCommissionFreeDayCityForm?.();
+                    window.renderCommissionFreeDayCityList?.();
+                } catch (_) {}
                 return;
             }
 
@@ -12398,11 +13061,13 @@ if (document.readyState === 'loading') {
                 const priceNum = parseTripPrice(trip);
                 const isBirthdayGift = trip.birthdayFree || trip.paymentMethod === 'birthday_gift';
                 const payLabel = trip.paymentMethod === 'saldo' ? 'saldo' : (isBirthdayGift ? 'regalo cumpleaños' : 'efectivo');
-                const { commissionPercent } = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: 15 }));
+                const commissionResolved = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: 15 }));
+                const commissionPercent = commissionResolved.commissionPercent;
                 const split = calcTripCommissionSplit(priceNum, commissionPercent);
+                const freeDayNote = commissionResolved.commissionFreeDay ? ' · DÍA SIN COMISIÓN' : '';
                 const commissionLine = isBirthdayGift || trip.paymentMethod === 'saldo'
-                    ? `Comisión plataforma: L. ${split.commissionAmount.toFixed(2)}`
-                    : `Comisión a depositar (efectivo): L. ${split.commissionAmount.toFixed(2)}`;
+                    ? `Comisión plataforma: L. ${split.commissionAmount.toFixed(2)}${freeDayNote}`
+                    : `Comisión a depositar (efectivo): L. ${split.commissionAmount.toFixed(2)}${freeDayNote}`;
 
                 if (!confirm(
                     `¿Finalizar manualmente este viaje cancelado?\n\n`
@@ -12437,6 +13102,7 @@ if (document.readyState === 'loading') {
                     tripUpdate.commissionPercent = commissionPercent;
                     tripUpdate.commissionAmount = split.commissionAmount;
                     tripUpdate.commissionWaivedBirthday = false;
+                    Object.assign(tripUpdate, commissionFreeDayTripFields(commissionResolved));
                     // Comisión del día (no deuda aún): solo se consolida a deuda al vencer el plazo o al cerrar turno.
                     toastMsg = `Viaje finalizado. Comisión a depositar L. ${split.commissionAmount.toFixed(2)} (pendiente del día, no deuda vencida).`;
                 }
@@ -13226,13 +13892,17 @@ if (document.readyState === 'loading') {
                     toastMsg = `Viaje finalizado. Conductor recibió L. ${settlement.driverNet.toFixed(2)} (comisión L. ${settlement.commissionAmount.toFixed(2)}).`;
                 }
             } else {
-                const { commissionPercent } = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: 15 }));
+                const commissionResolved = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: 15 }));
+                const commissionPercent = commissionResolved.commissionPercent;
                 const split = calcTripCommissionSplit(priceNum, commissionPercent);
                 tripUpdate.commissionPercent = commissionPercent;
                 tripUpdate.commissionAmount = split.commissionAmount;
                 tripUpdate.commissionWaivedBirthday = false;
+                Object.assign(tripUpdate, commissionFreeDayTripFields(commissionResolved));
                 // Comisión del día (no deuda aún): se consolida al vencer plazo o cerrar turno.
-                toastMsg = `Viaje finalizado. Comisión a depositar L. ${split.commissionAmount.toFixed(2)} (pendiente del día).`;
+                toastMsg = commissionResolved.commissionFreeDay
+                    ? `Viaje finalizado. 🎉 Día sin comisión (${commissionResolved.freeDayLabel || 'hoy'}): L. 0.00 a depositar.`
+                    : `Viaje finalizado. Comisión a depositar L. ${split.commissionAmount.toFixed(2)} (pendiente del día).`;
             }
 
             await updateDoc(tripRef, tripUpdate);
@@ -15371,6 +16041,46 @@ if (document.readyState === 'loading') {
                     `
                 ) : '';
 
+                const cityServicesDisabledPanel = isFullAdmin ? U.formPanel(
+                    'Servicios por ciudad',
+                    'Desactiva Taxi VIP, Taxi normal, Moto, Fletes o Grúas por ciudad. Envíos/delivery no se tocan aquí.',
+                    `
+                    <p class="text-xs text-slate-400 font-bold mb-3">
+                        Marca lo que NO debe aparecer en esa ciudad. Los pasajeros no lo verán ni podrán pedirlo.
+                        Puedes dejar solo moto, solo VIP, etc.
+                    </p>
+                    <div class="mb-3">
+                        ${U.fieldLabel('Ciudad')}
+                        <select id="admin-city-services-zone" class="ops-input mt-1"
+                            onchange="window.adminLoadCityServicesForm()">
+                            ${typeof buildZoneSelectOptionsHtml === 'function'
+                                ? buildZoneSelectOptionsHtml(window.activeServiceZoneId || getDefaultZoneId() || '')
+                                : '<option value="">Cargando…</option>'}
+                        </select>
+                        <p id="admin-city-services-zone-label" class="text-[10px] font-bold text-slate-500 mt-1"></p>
+                    </div>
+                    <div class="space-y-2 mb-3">
+                        ${Object.values(CITY_SERVICE_DISABLE_CATEGORIES).map((cat) => `
+                            <label class="flex items-center gap-3 p-3 rounded-xl border border-slate-700/70 bg-slate-950/40 cursor-pointer hover:border-slate-500 transition-colors">
+                                <input type="checkbox" id="admin-city-svc-disable-${cat.id}"
+                                    class="w-4 h-4 rounded accent-red-500 shrink-0">
+                                <span class="min-w-0">
+                                    <span class="block text-sm font-black text-white">${cat.label}</span>
+                                    <span class="block text-[10px] font-bold text-slate-400">
+                                        ${cat.serviceTypes.map((t) => getServiceLabel(t) || t).join(' · ')}
+                                    </span>
+                                </span>
+                            </label>
+                        `).join('')}
+                    </div>
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        ${U.btn('Guardar para esta ciudad', 'window.adminSaveCityServicesDisabled(this)', { variant: 'primary', icon: 'fa-save' })}
+                        ${U.btn('Habilitar todo aquí', 'window.adminClearCityServicesDisabled(this)', { variant: 'ghost', icon: 'fa-check' })}
+                    </div>
+                    <div id="admin-city-services-disabled-list" class="rounded-xl border border-slate-700/60 bg-slate-950/40 px-3 py-2 max-h-56 overflow-auto"></div>
+                    `
+                ) : '';
+
                 const demandSimPanel = isFullAdmin ? U.formPanel('Zonas calientes (prueba admin)', 'Crea pedidos reales de prueba · el rojo aparece desde 3 viajes por zona', `
                     <div class="mb-3">
                         ${U.fieldLabel('Ciudad donde simular')}
@@ -15411,6 +16121,7 @@ if (document.readyState === 'loading') {
                         { value: testDriverUid ? 1 : 0, label: 'Conductor test', variant: 'purple' }
                     ])) +
                     customZonesPanel +
+                    cityServicesDisabledPanel +
                     demandSimPanel +
                     fleetSimPanel +
                     testPanel +
@@ -15420,6 +16131,8 @@ if (document.readyState === 'loading') {
                 try {
                     await window.loadCustomServiceZones?.();
                     window.renderAdminCustomZonesList?.();
+                    window.adminLoadCityServicesForm?.();
+                    window.renderAdminCityServicesDisabledList?.();
                 } catch (_) {}
             } catch (e) {
                 console.error('loadAdminTestingPanel:', e);
@@ -16024,10 +16737,12 @@ if (document.readyState === 'loading') {
                                 : `Viaje finalizado. Conductor recibió L. ${settlement.driverNet.toFixed(2)} (comisión L. ${settlement.commissionAmount.toFixed(2)} ya pagada).`;
                         }
                     } else {
-                        const { commissionPercent } = await resolveCommissionForTrip(trip);
+                        const commissionResolved = await resolveCommissionForTrip(trip);
+                        const commissionPercent = commissionResolved.commissionPercent;
                         const split = calcTripCommissionSplit(priceNum, commissionPercent);
                         completeFields.commissionPercent = commissionPercent;
                         completeFields.commissionAmount = split.commissionAmount;
+                        Object.assign(completeFields, commissionFreeDayTripFields(commissionResolved));
                         // Test: solo registra comisión del viaje; no convierte a deuda hasta vencer plazo / cerrar turno.
                     }
 
@@ -19047,19 +19762,50 @@ if (document.readyState === 'loading') {
             if (trip.commissionWaivedBirthday) {
                 return { commissionPercent: 0, commissionWaivedBirthday: true };
             }
+            // Viaje ya marcado como día sin comisión (completado o en curso)
+            if (trip.commissionFreeDay === true || trip.commissionWaivedPromo === 'free_day_rotation') {
+                return {
+                    commissionPercent: 0,
+                    commissionWaivedBirthday: false,
+                    commissionFreeDay: true,
+                    freeDayLabel: trip.commissionFreeDayLabel
+                        || getDriverFreeWeekdayLabel(trip.driverId)
+                        || getRotatingFreeWeekdayLabel()
+                };
+            }
 
             let commissionPercent = await getPlatformCommission();
+            let driverProfile = null;
 
             if (trip.driverId) {
                 try {
                     const driverSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', trip.driverId));
-                    if (driverSnap.exists() && isDriverBirthdayNoCommission(driverSnap.data())) {
-                        return { commissionPercent: 0, commissionWaivedBirthday: true };
+                    if (driverSnap.exists()) {
+                        driverProfile = driverSnap.data();
+                        if (isDriverBirthdayNoCommission(driverProfile)) {
+                            return { commissionPercent: 0, commissionWaivedBirthday: true };
+                        }
                     }
                 } catch (_) {}
             }
 
-            return { commissionPercent, commissionWaivedBirthday: false };
+            // Día sin comisión rotativo POR CONDUCTOR (no todos el mismo día)
+            try {
+                const zoneId = resolveZoneIdForCommission(trip, driverProfile);
+                const driverId = resolveDriverIdForCommission(trip, trip?.driverId || null);
+                if (driverId && isCommissionFreeDayActive(zoneId, driverId)) {
+                    return {
+                        commissionPercent: 0,
+                        commissionWaivedBirthday: false,
+                        commissionFreeDay: true,
+                        freeDayLabel: getDriverFreeWeekdayLabel(driverId),
+                        freeDayZoneId: zoneId,
+                        freeDayDriverId: driverId
+                    };
+                }
+            } catch (_) {}
+
+            return { commissionPercent, commissionWaivedBirthday: false, commissionFreeDay: false };
         }
 
         async function markBirthdayFreeTripUsed(clientId) {
@@ -19085,6 +19831,17 @@ if (document.readyState === 'loading') {
             const commissionAmount = Math.round((priceNum * commissionPercent) / 100 * 100) / 100;
             const driverNet = Math.round((priceNum - commissionAmount) * 100) / 100;
             return { commissionAmount, driverNet, commissionPercent };
+        }
+
+        /** Campos de viaje cuando aplica día sin comisión rotativo. */
+        function commissionFreeDayTripFields(resolved) {
+            if (!resolved?.commissionFreeDay) return {};
+            return {
+                commissionFreeDay: true,
+                commissionWaivedPromo: 'free_day_rotation',
+                commissionFreeDayLabel: resolved.freeDayLabel || getRotatingFreeWeekdayLabel(),
+                commissionFreeDayZoneId: resolved.freeDayZoneId || null,
+            };
         }
 
         async function refreshPassengerBalanceFromServer(showToastOnSuccess = false) {
@@ -20279,7 +21036,8 @@ if (document.readyState === 'loading') {
 
             const priceNum = parseTripPrice(trip);
             const passengerCharge = getPassengerSaldoChargeAmount(trip);
-            const { commissionPercent, commissionWaivedBirthday } = await resolveCommissionForTrip(trip);
+            const commissionResolved = await resolveCommissionForTrip(trip);
+            const { commissionPercent, commissionWaivedBirthday } = commissionResolved;
             const { commissionAmount, driverNet } = calcTripCommissionSplit(priceNum, commissionPercent);
 
             if (!isBirthdayGift && !trip.saldoCharged && trip.clientId) {
@@ -20300,11 +21058,13 @@ if (document.readyState === 'loading') {
                 commissionAmount,
                 driverNet,
                 commissionWaivedBirthday: commissionWaivedBirthday || false,
+                commissionFreeDay: !!commissionResolved.commissionFreeDay,
                 tripUpdate: {
                     saldoSettled: true,
                     saldoCharged: !isBirthdayGift,
                     saldoChargedAmount: isBirthdayGift ? 0 : (trip.saldoChargedAmount || passengerCharge),
                     priceNum: isBirthdayGift ? 0 : priceNum,
+                    ...commissionFreeDayTripFields(commissionResolved),
                     originalPriceNum: isBirthdayGift ? priceNum : (trip.originalPriceNum || (trip.promoId ? priceNum : null)),
                     passengerPaysAmount: trip.passengerPaysAmount ?? null,
                     promoId: trip.promoId || null,
@@ -20352,11 +21112,22 @@ if (document.readyState === 'loading') {
         // Expuesto para tiendas (tarifa del momento / comisión dividida 50-50)
         window.getPlatformCommission = getPlatformCommission;
 
-        /** % efectivo para depósito: siempre el del admin, salvo cumpleaños sin comisión. */
+        /** % efectivo para depósito: prioriza el % guardado en el viaje (día libre / cumpleaños). */
         function resolveDepositCommissionPercent(trip, livePlatformPercent) {
             if (trip?.commissionWaivedBirthday || trip?.birthdayFree || trip?.paymentMethod === 'birthday_gift') {
                 return 0;
             }
+            if (trip?.commissionFreeDay === true || trip?.commissionWaivedPromo === 'free_day_rotation') {
+                return 0;
+            }
+            // Si el viaje ya guardó 0% (día sin comisión al completar), respetarlo
+            if (trip?.commissionPercent != null && Number(trip.commissionPercent) === 0) {
+                return 0;
+            }
+            // Preferir el % congelado del viaje (no re-aplicar el del día actual a viajes viejos)
+            const stored = Number(trip?.commissionPercent);
+            if (Number.isFinite(stored) && stored >= 0 && stored <= 100) return stored;
+
             const live = Number(livePlatformPercent);
             if (Number.isFinite(live) && live >= 0 && live <= 100) return live;
             return Number(APP_CONFIG.commissionPercent) || 25;
@@ -21068,6 +21839,7 @@ if (document.readyState === 'loading') {
                 return;
             }
             wrap.style.removeProperty('display');
+            try { window.updateDriverCommissionFreeDayBanner?.(); } catch (_) {}
 
             try {
                 const s = await computeDriverDayStats(currentUser.uid);
@@ -21101,6 +21873,12 @@ if (document.readyState === 'loading') {
                                 <div class="driver-earnings-total text-center mb-2">
                                     <p class="driver-earnings-total-label">Total ganado hoy</p>
                                     <p class="driver-earnings-total-value">L. ${s.totalEarnedToday.toFixed(2)}</p>
+                                    ${(() => {
+                                        const zid = resolveZoneIdForCommission(null, window.userProfile) || window.activeServiceZoneId || getDefaultZoneId();
+                                        const did = currentUser?.uid;
+                                        if (!did || !isCommissionFreeDayActive(zid, did)) return '';
+                                        return `<p class="text-[10px] font-black text-emerald-600 mt-1">🎉 Hoy es TU día sin comisión · 100%</p>`;
+                                    })()}
                                     <p class="driver-earnings-total-meta">${s.tripCount} viaje${s.tripCount !== 1 ? 's' : ''} · saldo: L. ${parseFloat(driverWallet).toFixed(2)}</p>
                                 </div>
                                 <div class="driver-earnings-split">
@@ -26996,10 +27774,12 @@ window.passengerConfirmDestinationArrival = async function() {
     } else {
       tripUpdate.paymentMethod = payMethod;
       if (!isBirthdayGift) {
-        const { commissionPercent } = await resolveCommissionForTrip(activeTrip).catch(() => ({ commissionPercent: 15 }));
+        const commissionResolved = await resolveCommissionForTrip(activeTrip).catch(() => ({ commissionPercent: 15 }));
+        const commissionPercent = commissionResolved.commissionPercent;
         const split = calcTripCommissionSplit(priceNum, commissionPercent);
         tripUpdate.commissionPercent = commissionPercent;
         tripUpdate.commissionAmount = split.commissionAmount;
+        Object.assign(tripUpdate, commissionFreeDayTripFields(commissionResolved));
       }
     }
 
@@ -27997,6 +28777,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         sanctionDays: days,
                         autoSuspended: false
                     });
+                    // Suspendido: no debe seguir apareciendo en el mapa
+                    await clearDriverMapPresence(uid, { approvalStatus: 'suspended' });
                 } else {
                     await moderationWriteUser(uid, {
                         accountRestricted: true,
@@ -34045,6 +34827,17 @@ window.cancelSetupAndLogout = () => {
                 const msg = 'Decreto 91-2012 se aplica de forma estricta en 34 municipios que se refiere a que 2 hombres no pueden circular en moto';
                 return window.showToast?.(msg, 'error');
             }
+
+            // Admin: bloquear solicitud si taxi/flete/grúa está desactivado en la ciudad del viaje
+            {
+                const tripZoneId = window.activeServiceZoneId
+                    || window.currentTripQuote?.serviceZoneId
+                    || getDefaultZoneId();
+                if (isServiceTypeDisabledInCity(serviceType, tripZoneId)) {
+                    const zoneName = getZoneById(tripZoneId)?.name || '';
+                    return window.showToast?.(getCityServiceDisabledMessage(serviceType, zoneName), 'warning');
+                }
+            }
             if (window.currentTripQuote) {
                 window.currentTripQuote.serviceType = serviceType;
             }
@@ -34790,6 +35583,8 @@ window.cancelSetupAndLogout = () => {
                             tripUpdate = { ...tripUpdate, ...settlement.tripUpdate };
                             if (settlement.commissionWaivedBirthday) {
                                 toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
+                            } else if (settlement.commissionFreeDay) {
+                                toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} — ¡día sin comisión!`;
                             } else if (isBirthdayGift) {
                                 toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} (regalo de cumpleaños del pasajero).`;
                             } else {
@@ -34802,13 +35597,17 @@ window.cancelSetupAndLogout = () => {
                     }
                 } else {
                     try {
-                        const { commissionPercent, commissionWaivedBirthday } = await resolveCommissionForTrip(activeTrip);
+                        const commissionResolved = await resolveCommissionForTrip(activeTrip);
+                        const { commissionPercent, commissionWaivedBirthday } = commissionResolved;
                         const split = calcTripCommissionSplit(priceNum, commissionPercent);
                         tripUpdate.commissionPercent = commissionPercent;
                         tripUpdate.commissionAmount = split.commissionAmount;
                         tripUpdate.commissionWaivedBirthday = commissionWaivedBirthday || false;
+                        Object.assign(tripUpdate, commissionFreeDayTripFields(commissionResolved));
                         if (commissionWaivedBirthday) {
                             toastMsg = `Viaje finalizado. Ganancia: L. ${priceNum.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
+                        } else if (commissionResolved.commissionFreeDay) {
+                            toastMsg = `Viaje finalizado. Ganancia: L. ${priceNum.toFixed(2)} — ¡día sin comisión (${commissionResolved.freeDayLabel || 'hoy'})!`;
                         }
                     } catch (commErr) {
                         console.warn('resolveCommissionForTrip:', commErr);
@@ -38829,6 +39628,8 @@ window.addEventListener('map-route-trigger', () => {
                         trashedAt: new Date().toISOString(),
                         inRecycleBin: true
                     });
+                    // Quitar carro del mapa al rechazar (no dejar fantasma en drivers_location)
+                    await clearDriverMapPresence(uid, { approvalStatus: 'rejected' });
                     window.showToast('Conductor enviado a la papelera de reciclaje.', 'warning');
 
                     // Immediately remove this card from the pending verifications view
@@ -38935,8 +39736,15 @@ window.addEventListener('map-route-trigger', () => {
 
             try {
                 await prepareStaffModeration();
-                await deleteDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'));
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uid));
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data')).catch(() => {});
+                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uid)).catch(() => {});
+                // Antes no se borraba drivers_location → el carro seguía en el mapa
+                await clearDriverMapPresence(uid, { approvalStatus: 'rejected' });
+                try {
+                    if (Array.isArray(window.allUsersData)) {
+                        window.allUsersData = window.allUsersData.filter((x) => x.uid !== uid);
+                    }
+                } catch (_) {}
 
                 window.showToast('Usuario borrado permanentemente de la papelera.', 'warning');
                 if (typeof window.loadAdminUsers === 'function') {
@@ -38944,6 +39752,9 @@ window.addEventListener('map-route-trigger', () => {
                 }
                 if (typeof window.loadPendingDrivers === 'function') {
                     window.loadPendingDrivers();
+                }
+                if (typeof window.loadActiveDrivers === 'function') {
+                    window.loadActiveDrivers();
                 }
             } catch (e) {
                 showModerationError(e, 'eliminar de papelera');
@@ -38970,9 +39781,12 @@ window.addEventListener('map-route-trigger', () => {
                 await deleteDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data')).catch(() => {});
                 await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', uid)).catch(() => {});
 
-                // Limpiar ubicación de conductor si existe
+                // Limpiar ubicación + markers del mapa (pasajero y flota staff)
+                await clearDriverMapPresence(uid, { approvalStatus: 'rejected' });
                 try {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', uid));
+                    if (Array.isArray(window.allUsersData)) {
+                        window.allUsersData = window.allUsersData.filter((x) => x.uid !== uid);
+                    }
                 } catch (_) {}
 
                 window.showToast('Usuario eliminado permanentemente por admin.', 'warning');

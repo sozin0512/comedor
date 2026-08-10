@@ -46,6 +46,7 @@ function isOnActiveTrip(uid) {
 function resolveDriverProfile(uid, data = {}) {
     const user = (window.allUsersData || []).find((u) => u.uid === uid) || {};
     const approvalStatus = user.approvalStatus || data.approvalStatus;
+    if (user.inRecycleBin === true || data.inRecycleBin === true) return null;
     if (approvalStatus && approvalStatus !== 'approved') return null;
     if (user.role && user.role !== 'driver') return null;
 
@@ -63,11 +64,28 @@ function resolveDriverProfile(uid, data = {}) {
 function shouldShowFleetDriver(uid, data) {
     if (data?.lat == null || data?.lng == null) return false;
 
-    // Admin/sup: cualquier conductor aprobado con posición en Firebase
-    // (en línea, en viaje, segundo plano, app cerrada = última posición conocida)
-    if (resolveDriverProfile(uid, data)) return true;
+    // Si el perfil ya está en cache y NO es conductor aprobado, ocultar siempre.
+    // Antes se caía al fallback de drivers_location y el carro seguía en el mapa
+    // tras rechazar/borrar la cuenta.
+    const users = window.allUsersData || [];
+    const usersLoaded = Array.isArray(users) && users.length > 0;
+    const user = users.find((u) => u.uid === uid) || null;
+    if (user) {
+        if (user.role && user.role !== 'driver') return false;
+        if (user.inRecycleBin === true) return false;
+        if (user.approvalStatus && user.approvalStatus !== 'approved') return false;
+        const driverName = (user.name || data.name || '').toString().trim();
+        if (!driverName || driverName.toLowerCase() === 'conductor' || /sin.?nombre/i.test(driverName)) {
+            return false;
+        }
+        return true;
+    }
+
+    // Lista de usuarios ya cargada y esta cuenta no existe → fantasma de borrado
+    if (usersLoaded) return false;
 
     // Perfil aún no cargado en allUsersData: confiar en drivers_location
+    if (data.inRecycleBin === true) return false;
     const name = (data.name || '').toString().trim();
     if (!name || name.toLowerCase() === 'conductor' || /sin.?nombre/i.test(name)) return false;
     if (data.approvalStatus && data.approvalStatus !== 'approved') return false;
@@ -271,6 +289,15 @@ function removeFleetMarker(driverId) {
     else if (typeof m.setMap === 'function') m.setMap(null);
     delete markers[driverId];
     delete markerMeta[driverId];
+}
+
+/** Quita el carro del mapa de flota (admin/sup) de inmediato. */
+export function removeFleetDriverMarker(driverId) {
+    if (!driverId) return;
+    removeFleetMarker(driverId);
+    try {
+        if (activeTripDrivers.has(driverId)) activeTripDrivers.delete(driverId);
+    } catch (_) {}
 }
 
 function clearAllFleetMarkers() {
@@ -492,16 +519,30 @@ export function renderOpsFleetMap(snap) {
     const activeSim = window.tripSimDriverUid || (window.lastSimTrip ? window.lastSimTrip.driverId : null);
     if (activeSim) visibleIds.add(activeSim);
 
+    const users = window.allUsersData || [];
+    const usersLoaded = Array.isArray(users) && users.length > 0;
+
     Object.keys(markers).forEach((id) => {
         if (visibleIds.has(id)) return;
         if (activeSim && id === activeSim) return;
         if (isOnActiveTrip(id)) return;
 
-        const u = (window.allUsersData || []).find((x) => x.uid === id) || {};
-        const st = u.approvalStatus || null;
-        const nm = (u.name || '').toString().trim().toLowerCase();
-        const badRole = u.role && u.role !== 'driver';
-        const isGoodApproved = (st === 'approved') && !badRole && nm && nm !== 'conductor' && !/sin.?nombre/.test(nm);
+        const u = users.find((x) => x.uid === id) || null;
+        // Sin perfil (cuenta borrada) o no aprobado → fuera del mapa
+        if (usersLoaded && !u) {
+            removeFleetMarker(id);
+            return;
+        }
+        const st = u?.approvalStatus || null;
+        const nm = (u?.name || '').toString().trim().toLowerCase();
+        const badRole = u?.role && u.role !== 'driver';
+        const isGoodApproved = !!u
+            && (st === 'approved')
+            && !badRole
+            && nm
+            && nm !== 'conductor'
+            && !/sin.?nombre/.test(nm)
+            && u.inRecycleBin !== true;
 
         if (!isGoodApproved) removeFleetMarker(id);
     });
@@ -522,7 +563,9 @@ function processFleetDocChanges(snap) {
         const uid = change.doc.id;
 
         if (change.type === 'removed') {
-            if (!isOnActiveTrip(uid)) removeFleetMarker(uid);
+            // Doc de ubicación borrado (cuenta eliminada / limpieza staff): quitar carro ya.
+            // Si hay viaje activo, paintActiveTripFallbacks puede re-pintar en el render.
+            removeFleetMarker(uid);
             return;
         }
 
@@ -663,25 +706,40 @@ export function mergeFleetFromApprovedDrivers() {
 export function pruneGhostFleetMarkers() {
     if (!viewerCanSeeFleet()) return;
 
+    const users = window.allUsersData || [];
+    const usersLoaded = Array.isArray(users) && users.length > 0;
+
     Object.keys(markers).forEach((id) => {
         if (isOnActiveTrip(id)) return;
-        const u = (window.allUsersData || []).find((x) => x.uid === id) || {};
-        const st = u.approvalStatus || null;
-        const nm = (u.name || '').toString().trim().toLowerCase();
-        const badRole = u.role && u.role !== 'driver';
-        const isGood = (st === 'approved') && !badRole && nm && nm !== 'conductor' && !/sin.?nombre/.test(nm);
+        const u = users.find((x) => x.uid === id) || null;
+        // Cuenta ya borrada (no está en users) → quitar carro fantasma
+        if (usersLoaded && !u) {
+            removeFleetMarker(id);
+            return;
+        }
+        const st = u?.approvalStatus || null;
+        const nm = (u?.name || '').toString().trim().toLowerCase();
+        const badRole = u?.role && u.role !== 'driver';
+        const isGood = !!u && (st === 'approved') && !badRole && nm && nm !== 'conductor' && !/sin.?nombre/.test(nm)
+            && u.inRecycleBin !== true;
         if (!isGood) removeFleetMarker(id);
     });
 
     if (window.driverMarkers && typeof window.removeDriverMarker === 'function') {
         Object.keys(window.driverMarkers).forEach((id) => {
-            const u = (window.allUsersData || []).find((x) => x.uid === id) || {};
-            const st = u.approvalStatus || null;
-            const nm = (u.name || '').toString().trim().toLowerCase();
-            const badRole = u.role && u.role !== 'driver';
-            const isGood = (st === 'approved') && !badRole && nm && nm !== 'conductor' && !/sin.?nombre/.test(nm);
+            const u = users.find((x) => x.uid === id) || null;
             const isSelf = id === (window.currentUser?.uid || window.userProfile?.uid);
-            if (!isGood && !isSelf) {
+            if (isSelf) return;
+            if (usersLoaded && !u) {
+                try { window.removeDriverMarker(id); } catch (_) {}
+                return;
+            }
+            const st = u?.approvalStatus || null;
+            const nm = (u?.name || '').toString().trim().toLowerCase();
+            const badRole = u?.role && u.role !== 'driver';
+            const isGood = !!u && (st === 'approved') && !badRole && nm && nm !== 'conductor' && !/sin.?nombre/.test(nm)
+                && u.inRecycleBin !== true;
+            if (!isGood) {
                 try { window.removeDriverMarker(id); } catch (_) {}
             }
         });
