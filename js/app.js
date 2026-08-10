@@ -1,24 +1,24 @@
-﻿import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js";
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.08.10.1";
+} from "./auth-credentials.js?v=2026.08.10.4";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.08.10.1";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.10.1";
+import { APP_CONFIG } from "./config.js?v=2026.08.10.4";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.10.4";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.08.10.1";
+} from "./referrals.js?v=2026.08.10.4";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -33,12 +33,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.08.10.1";
+} from "./zones.js?v=2026.08.10.4";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.08.10.1";
+} from "./trip-notifications.js?v=2026.08.10.4";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -59,7 +59,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.08.10.1";
+} from "./notification-tones.js?v=2026.08.10.4";
 
 installNotificationTonesApi();
 
@@ -89,34 +89,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.08.10.1";
+} from "./passenger-alerts.js?v=2026.08.10.4";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.08.10.1";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.10.1";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.10.1";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.10.1";
-import { initOpsPanels } from "./ops-panels.js?v=2026.08.10.1";
-import { initOpsUi } from "./ops-ui.js?v=2026.08.10.1";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.10.1";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.10.1";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.10.1";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.08.10.1";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.10.1";
+} from "./passenger-verification.js?v=2026.08.10.4";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.10.4";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.10.4";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.10.4";
+import { initOpsPanels } from "./ops-panels.js?v=2026.08.10.4";
+import { initOpsUi } from "./ops-ui.js?v=2026.08.10.4";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.10.4";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.10.4";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.10.4";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.08.10.4";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.10.4";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.08.10.1";
+} from "./feedback.js?v=2026.08.10.4";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.08.10.1";
+} from "./greetings.js?v=2026.08.10.4";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -132,56 +132,61 @@ import {
     CITY_SERVICE_DISABLE_CATEGORIES, setDisabledServicesByCity, getDisabledServicesByCity,
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices
-} from "./service-types.js?v=2026.08.10.1";
+} from "./service-types.js?v=2026.08.10.4";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.08.10.1";
+} from "./driver-vehicles.js?v=2026.08.10.4";
+import {
+    applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
+    normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
+    makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
+} from "./route-fixed-fares.js?v=2026.08.10.4";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.08.10.1";
+} from "./commission-free-day.js?v=2026.08.10.4";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.08.10.1";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.08.10.1";
+} from "./route-conditions.js?v=2026.08.10.4";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.08.10.4";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.08.10.1";
+} from "./demand-heatmap.js?v=2026.08.10.4";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.08.10.1";
+} from "./ops-fleet-map.js?v=2026.08.10.4";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.08.10.1";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.10.1";
+} from "./live-trip-keepalive.js?v=2026.08.10.4";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.10.4";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.08.10.1";
+} from "./session-keepalive.js?v=2026.08.10.4";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.08.10.1";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.10.1";
+} from "./passenger-tutorial.js?v=2026.08.10.4";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.10.4";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.08.10.1";
+} from "./driver-tutorial.js?v=2026.08.10.4";
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
 const HR_BOOT_STARTED_AT = Date.now();
@@ -265,29 +270,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.10.1";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.10.4";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.08.10.1";
+} from "./auth-ui.js?v=2026.08.10.4";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.08.10.1";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.10.1";
+} from "./age-verification.js?v=2026.08.10.4";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.10.4";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.08.10.1";
+} from "./trip-experience.js?v=2026.08.10.4";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.08.10.1";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.10.1";
-import { initAppDownload } from "./app-download.js?v=2026.08.10.1";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.10.1";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.10.1";
+} from "./support-tickets.js?v=2026.08.10.4";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.10.4";
+import { initAppDownload } from "./app-download.js?v=2026.08.10.4";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.10.4";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.10.4";
 
 
 let app;
@@ -848,7 +853,21 @@ function applyCustomZonesFromSettings(data) {
         if (data && Object.prototype.hasOwnProperty.call(data, 'commissionFreeDay')) {
             setCommissionFreeDayConfig(data.commissionFreeDay || {});
         }
+        // Tarifas fijas / viaje mínimo (admin) — siempre normalizar (migra aeropuerto a L.300)
+        if (data && Object.prototype.hasOwnProperty.call(data, 'fixedFares')) {
+            setFixedFaresConfig(data.fixedFares || {});
+        } else {
+            // Asegurar defaults en memoria (aeropuerto 300, mínimo 65, noche +25%)
+            setFixedFaresConfig(getFixedFaresConfig());
+        }
         try { window.refreshCommissionFreeDayUI?.(); } catch (_) {}
+        try { window.renderAdminFixedFaresUI?.(); } catch (_) {}
+        // Si hay cotización abierta, reaplicar tarifa (ej. aeropuerto → 300)
+        try {
+            if (window.currentRouteData && typeof window.syncFareCardFromRoute === 'function') {
+                window.syncFareCardFromRoute(window.currentRouteData, { scroll: false });
+            }
+        } catch (_) {}
         // Refrescar selectores de ciudad si existen
         try {
             const sel = document.getElementById('service-zone-select');
@@ -1202,6 +1221,724 @@ window.adminClearCityServicesDisabled = async (btn) => {
         if (cb) cb.checked = false;
     });
     await window.adminSaveCityServicesDisabled(btn);
+};
+
+// ── Tarifas fijas / viaje mínimo (admin) ─────────────────────
+
+/** Estado editable en memoria del panel (hasta Guardar). */
+window._adminFixedFaresDraft = null;
+
+function getAdminFixedFaresDraft() {
+    if (!window._adminFixedFaresDraft) {
+        window._adminFixedFaresDraft = getFixedFaresConfig();
+    }
+    return window._adminFixedFaresDraft;
+}
+
+function escAdminHtml(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+window.renderAdminFixedFaresUI = () => {
+    const draft = getAdminFixedFaresDraft();
+    const placesEl = document.getElementById('admin-fixed-places-list');
+    const routesEl = document.getElementById('admin-fixed-routes-list');
+    if (!placesEl && !routesEl) return;
+
+    // Sync min fare / night / km rate fields if present
+    const minEn = document.getElementById('admin-min-fare-enabled');
+    const minVal = document.getElementById('admin-min-fare');
+    const minRad = document.getElementById('admin-min-fare-radius');
+    const nightEn = document.getElementById('admin-night-fare-enabled');
+    const nightPct = document.getElementById('admin-night-fare-percent');
+    if (minEn) minEn.checked = !!draft.minFareEnabled;
+    if (minVal) minVal.value = draft.minFare;
+    if (minRad) minRad.value = draft.minFareHubRadiusKm;
+    if (nightEn) nightEn.checked = draft.nightSurchargeEnabled !== false;
+    if (nightPct) nightPct.value = draft.nightPercent ?? 25;
+    ['auto', 'taxi', 'moto', 'delivery'].forEach((id) => {
+        const r = (draft.serviceRates && draft.serviceRates[id]) || {};
+        const b = document.getElementById(`admin-rate-base-${id}`);
+        const k = document.getElementById(`admin-rate-km-${id}`);
+        if (b && r.base != null) b.value = r.base;
+        if (k && r.perKm != null) k.value = r.perKm;
+    });
+
+    if (placesEl) {
+        if (!draft.places.length) {
+            placesEl.innerHTML = '<p class="text-xs text-slate-500 font-bold">Sin puntos. Agrega aeropuerto, golf, etc.</p>';
+        } else {
+            placesEl.innerHTML = draft.places.map((p, idx) => `
+                <div class="p-2.5 rounded-xl border ${p.enabled ? 'border-slate-600 bg-slate-900/50' : 'border-slate-800 bg-slate-950/40 opacity-60'}">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="text-sm font-black text-white truncate">${escAdminHtml(p.name)}</p>
+                            <p class="text-[10px] font-bold text-slate-400">
+                                ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)} · radio ${p.radiusKm} km
+                                ${p.fixedPrice > 0
+                                    ? ` · <span class="text-amber-300">precio L. ${p.fixedPrice}</span>`
+                                    : ' · <span class="text-slate-500">sin precio (solo rutas)</span>'}
+                                ${p.onlyDaytime ? ' · solo día' : ''}
+                                ${p.enabled ? '' : ' · APAGADO'}
+                            </p>
+                        </div>
+                        <div class="flex flex-col gap-1 shrink-0">
+                            <button type="button" class="ops-btn ops-btn--ghost text-[10px] py-1"
+                                onclick="window.adminToggleFixedPlace(${idx})">${p.enabled ? 'ON' : 'OFF'}</button>
+                            <button type="button" class="ops-btn ops-btn--ghost text-[10px] py-1 text-red-300"
+                                onclick="window.adminRemoveFixedPlace(${idx})">Quitar</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 mt-2">
+                        <input type="number" class="ops-input text-xs" value="${p.fixedPrice}" min="0" step="1"
+                            title="Precio fijo" onchange="window.adminPatchFixedPlace(${idx},'fixedPrice',this.value)">
+                        <input type="number" class="ops-input text-xs" value="${p.radiusKm}" min="0.5" step="0.5"
+                            title="Radio km" onchange="window.adminPatchFixedPlace(${idx},'radiusKm',this.value)">
+                        <label class="flex items-center gap-1 text-[10px] font-bold text-slate-300">
+                            <input type="checkbox" ${p.onlyDaytime ? 'checked' : ''}
+                                onchange="window.adminPatchFixedPlace(${idx},'onlyDaytime',this.checked)"> Día
+                        </label>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // Route selects
+    const optHtml = draft.places.map((p) =>
+        `<option value="${escAdminHtml(p.id)}">${escAdminHtml(p.name)}</option>`
+    ).join('');
+    const selA = document.getElementById('admin-fr-a');
+    const selB = document.getElementById('admin-fr-b');
+    if (selA) selA.innerHTML = `<option value="">Punto A…</option>${optHtml}`;
+    if (selB) selB.innerHTML = `<option value="">Punto B…</option>${optHtml}`;
+
+    if (routesEl) {
+        if (!draft.routes.length) {
+            routesEl.innerHTML = '<p class="text-xs text-slate-500 font-bold">Sin rutas fijas entre puntos.</p>';
+        } else {
+            routesEl.innerHTML = draft.routes.map((r, idx) => {
+                const a = draft.places.find((p) => p.id === r.placeAId)?.name || r.placeAId;
+                const b = draft.places.find((p) => p.id === r.placeBId)?.name || r.placeBId;
+                return `
+                <div class="flex items-center justify-between gap-2 p-2 rounded-xl border ${r.enabled ? 'border-sky-800/50 bg-sky-950/20' : 'border-slate-800 opacity-60'}">
+                    <div class="min-w-0">
+                        <p class="text-xs font-black text-white truncate">${escAdminHtml(r.name)}</p>
+                        <p class="text-[10px] font-bold text-slate-400">${escAdminHtml(a)} ↔ ${escAdminHtml(b)} · <span class="text-sky-300">L. ${r.price}</span></p>
+                    </div>
+                    <div class="flex gap-1 shrink-0">
+                        <button type="button" class="ops-btn ops-btn--ghost text-[10px] py-1"
+                            onclick="window.adminToggleFixedRoute(${idx})">${r.enabled ? 'ON' : 'OFF'}</button>
+                        <button type="button" class="ops-btn ops-btn--ghost text-[10px] py-1 text-red-300"
+                            onclick="window.adminRemoveFixedRoute(${idx})">X</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+};
+
+window.adminFixedFareFillFromMap = () => {
+    try {
+        const c = window.gMap?.getCenter?.();
+        if (!c) return window.showToast?.('Abre el mapa y centra donde quieras el punto.', 'warning');
+        const lat = typeof c.lat === 'function' ? c.lat() : c.lat;
+        const lng = typeof c.lng === 'function' ? c.lng() : c.lng;
+        window.adminFixedFareApplyCoords(lat, lng, { source: 'center' });
+    } catch (_) {
+        window.showToast?.('No se pudo leer el mapa.', 'warning');
+    }
+};
+
+/** Rellena lat/lng (+ nombre si se puede) al marcar un punto caro. */
+window.adminFixedFareApplyCoords = async (lat, lng, { name = '', source = 'pin' } = {}) => {
+    const nlat = Number(lat);
+    const nlng = Number(lng);
+    if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return;
+    const latEl = document.getElementById('admin-fp-lat');
+    const lngEl = document.getElementById('admin-fp-lng');
+    const nameEl = document.getElementById('admin-fp-name');
+    const kwEl = document.getElementById('admin-fp-keywords');
+    if (latEl) latEl.value = nlat.toFixed(5);
+    if (lngEl) lngEl.value = nlng.toFixed(5);
+
+    let label = String(name || '').trim();
+    if (!label && typeof window.reverseGeocodeLatLng === 'function') {
+        try {
+            const rev = await window.reverseGeocodeLatLng({ lat: nlat, lng: nlng });
+            label = rev?.address || rev?.formattedAddress || '';
+        } catch (_) {}
+    }
+    if (!label && typeof window.geocodeAddressString === 'function' && source === 'search') {
+        // ya vendrá con nombre
+    }
+    if (label) {
+        // Nombre corto: primera parte del address
+        const short = label.split(',')[0].trim();
+        if (nameEl && !nameEl.value.trim()) nameEl.value = short || label;
+        if (kwEl && !kwEl.value.trim()) {
+            // Keywords útiles para matchear texto del pasajero
+            const parts = label
+                .split(/[,·|]/)
+                .map((s) => s.trim())
+                .filter((s) => s.length > 2)
+                .slice(0, 6);
+            kwEl.value = parts.join(', ');
+        }
+    }
+    try {
+        window.gMap?.panTo?.({ lat: nlat, lng: nlng });
+        window.gMap?.setZoom?.(Math.max(window.gMap.getZoom?.() || 12, 14));
+        // Pin temporal de preview
+        if (window._adminFixedFarePreviewMarker) {
+            try {
+                if (window._adminFixedFarePreviewMarker.map !== undefined) {
+                    window._adminFixedFarePreviewMarker.map = null;
+                } else {
+                    window._adminFixedFarePreviewMarker.setMap?.(null);
+                }
+            } catch (_) {}
+        }
+        if (window.gMap && typeof google !== 'undefined' && google.maps?.Marker) {
+            window._adminFixedFarePreviewMarker = new google.maps.Marker({
+                position: { lat: nlat, lng: nlng },
+                map: window.gMap,
+                title: nameEl?.value || 'Punto caro',
+                zIndex: 9999,
+            });
+        }
+    } catch (_) {}
+    const hint = document.getElementById('admin-fp-pick-hint');
+    if (hint) {
+        hint.classList.remove('hidden');
+        hint.textContent = `Ubicación lista (${nlat.toFixed(5)}, ${nlng.toFixed(5)}). Pon precio y toca «Agregar punto».`;
+    }
+    window.showToast?.(
+        source === 'pin' ? 'Pin marcado. Revisa nombre/precio y agrega el punto.' : 'Lugar cargado. Revisa precio y agrega el punto.',
+        'success'
+    );
+};
+
+/** Predicciones de Google Places (lista para elegir). */
+async function adminFixedFareFetchPredictions(input) {
+    const q = String(input || '').trim();
+    if (q.length < 2) return [];
+    if (typeof google === 'undefined' || !google.maps) return [];
+
+    try {
+        await google.maps.importLibrary('places');
+    } catch (_) {}
+
+    // AutocompleteService (clásico, estable con libraries=places)
+    if (google.maps.places?.AutocompleteService) {
+        const svc = new google.maps.places.AutocompleteService();
+        const biasCenter = window.gMap?.getCenter?.()
+            || { lat: 14.4513, lng: -87.6374 };
+        const lat = typeof biasCenter.lat === 'function' ? biasCenter.lat() : biasCenter.lat;
+        const lng = typeof biasCenter.lng === 'function' ? biasCenter.lng() : biasCenter.lng;
+        return new Promise((resolve) => {
+            const req = {
+                input: q,
+                componentRestrictions: { country: 'hn' },
+                // Sesgo a Comayagua / centro del mapa (legacy + moderno)
+                location: new google.maps.LatLng(lat, lng),
+                radius: 80000,
+            };
+            try {
+                req.locationBias = { center: { lat, lng }, radius: 80000 };
+            } catch (_) {}
+            svc.getPlacePredictions(req, (preds, status) => {
+                if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length) {
+                    resolve([]);
+                    return;
+                }
+                resolve(preds.map((p) => ({
+                    placeId: p.place_id,
+                    main: p.structured_formatting?.main_text || p.description,
+                    secondary: p.structured_formatting?.secondary_text || '',
+                    description: p.description,
+                })));
+            });
+        });
+    }
+    return [];
+}
+
+async function adminFixedFarePlaceDetails(placeId) {
+    if (!placeId || typeof google === 'undefined') return null;
+    try {
+        await google.maps.importLibrary('places');
+    } catch (_) {}
+    if (!google.maps.places?.PlacesService) return null;
+    const anchor = document.createElement('div');
+    const svc = new google.maps.places.PlacesService(anchor);
+    return new Promise((resolve) => {
+        svc.getDetails(
+            {
+                placeId,
+                fields: ['geometry', 'name', 'formatted_address'],
+            },
+            (place, status) => {
+                if (status !== google.maps.places.PlacesServiceStatus.OK || !place?.geometry?.location) {
+                    resolve(null);
+                    return;
+                }
+                const loc = place.geometry.location;
+                resolve({
+                    lat: typeof loc.lat === 'function' ? loc.lat() : loc.lat,
+                    lng: typeof loc.lng === 'function' ? loc.lng() : loc.lng,
+                    name: place.name || '',
+                    address: place.formatted_address || place.name || '',
+                });
+            }
+        );
+    });
+}
+
+function adminFixedFareHideSearchResults() {
+    const box = document.getElementById('admin-fp-search-results');
+    if (box) {
+        box.classList.add('hidden');
+        box.innerHTML = '';
+    }
+}
+
+window.adminFixedFareRenderSearchResults = (items = []) => {
+    const box = document.getElementById('admin-fp-search-results');
+    if (!box) return;
+    if (!items.length) {
+        box.innerHTML = '<p class="px-3 py-2 text-[11px] font-bold text-slate-400">Sin resultados. Prueba otro nombre o el pin.</p>';
+        box.classList.remove('hidden');
+        return;
+    }
+    box.innerHTML = items.map((it, i) => `
+        <button type="button"
+            class="w-full text-left px-3 py-2.5 border-b border-slate-700/60 hover:bg-slate-800 transition-colors"
+            onclick="window.adminFixedFarePickPrediction(${i})">
+            <span class="block text-xs font-black text-white">${escAdminHtml(it.main)}</span>
+            <span class="block text-[10px] font-bold text-slate-400">${escAdminHtml(it.secondary || it.description || '')}</span>
+        </button>
+    `).join('');
+    box.classList.remove('hidden');
+    window._adminFixedFarePredictions = items;
+};
+
+/** Búsqueda en vivo con lista desplegable. */
+window.adminFixedFareSearchLive = (value) => {
+    clearTimeout(window._adminFixedFareSearchTimer);
+    const q = String(value || '').trim();
+    if (q.length < 2) {
+        adminFixedFareHideSearchResults();
+        return;
+    }
+    window._adminFixedFareSearchTimer = setTimeout(async () => {
+        try {
+            const items = await adminFixedFareFetchPredictions(q);
+            if (!items.length) {
+                // Fallback: un solo resultado por geocoder
+                const geo = await window.geocodeAddressString?.(q);
+                const lat = geo?.latLng?.lat;
+                const lng = geo?.latLng?.lng;
+                if (lat != null && lng != null) {
+                    window.adminFixedFareRenderSearchResults([{
+                        placeId: null,
+                        main: (geo.address || q).split(',')[0],
+                        secondary: geo.address || 'Honduras',
+                        description: geo.address || q,
+                        lat,
+                        lng,
+                    }]);
+                    return;
+                }
+            }
+            window.adminFixedFareRenderSearchResults(items);
+        } catch (e) {
+            console.warn('adminFixedFareSearchLive:', e);
+        }
+    }, 280);
+};
+
+window.adminFixedFarePickPrediction = async (index) => {
+    const items = window._adminFixedFarePredictions || [];
+    const it = items[index];
+    if (!it) return;
+    adminFixedFareHideSearchResults();
+    const searchEl = document.getElementById('admin-fp-search');
+    if (searchEl) searchEl.value = it.main || it.description || '';
+
+    let lat = it.lat;
+    let lng = it.lng;
+    let name = it.main || it.description || '';
+    let address = it.description || name;
+
+    if (it.placeId) {
+        const det = await adminFixedFarePlaceDetails(it.placeId);
+        if (det) {
+            lat = det.lat;
+            lng = det.lng;
+            name = det.name || name;
+            address = det.address || address;
+        }
+    }
+    if (lat == null || lng == null) {
+        return window.showToast?.('No se pudo ubicar ese resultado. Usa el pin.', 'warning');
+    }
+    const nameEl = document.getElementById('admin-fp-name');
+    if (nameEl) nameEl.value = name;
+    await window.adminFixedFareApplyCoords(lat, lng, { name: address || name, source: 'search' });
+};
+
+/** Botón Buscar: muestra lista (no elige a ciegas el primero). */
+window.adminFixedFareSearchPlace = async (btn) => {
+    const q = document.getElementById('admin-fp-search')?.value?.trim()
+        || document.getElementById('admin-fp-name')?.value?.trim();
+    if (!q || q.length < 2) {
+        return window.showToast?.('Escribe un lugar (mín. 2 letras).', 'warning');
+    }
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Buscando…';
+    }
+    try {
+        if (typeof google === 'undefined' || !google.maps) {
+            return window.showToast?.('El mapa aún carga. Espera e intenta de nuevo.', 'warning');
+        }
+        const items = await adminFixedFareFetchPredictions(q);
+        if (!items.length) {
+            // fallback geocoder único
+            const geo = await window.geocodeAddressString?.(q);
+            if (geo?.latLng) {
+                window.adminFixedFareRenderSearchResults([{
+                    placeId: null,
+                    main: (geo.address || q).split(',')[0],
+                    secondary: geo.address || '',
+                    description: geo.address || q,
+                    lat: geo.latLng.lat,
+                    lng: geo.latLng.lng,
+                }]);
+                window.showToast?.('Elige el resultado de la lista.', 'info');
+                return;
+            }
+            return window.showToast?.('Sin resultados. Prueba otro nombre o marca con pin.', 'warning');
+        }
+        window.adminFixedFareRenderSearchResults(items);
+        window.showToast?.('Elige un lugar de la lista.', 'info');
+    } catch (e) {
+        console.warn(e);
+        window.showToast?.('Error al buscar. Prueba el pin en el mapa.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-search"></i> Buscar';
+        }
+    }
+};
+
+function adminFixedFareEnsurePickBanner() {
+    let el = document.getElementById('admin-fixed-fare-pick-banner');
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'admin-fixed-fare-pick-banner';
+    el.className = 'hidden';
+    el.innerHTML = `
+        <div style="position:fixed;left:50%;top:max(12px, var(--safe-top, 12px));transform:translateX(-50%);z-index:60000;max-width:92vw;width:340px;
+            background:linear-gradient(135deg,#b45309,#d97706);color:#fff;padding:12px 14px;border-radius:14px;
+            box-shadow:0 10px 30px rgba(0,0,0,.35);font-family:inherit;">
+            <p style="margin:0;font-weight:900;font-size:13px;">📍 Toca el mapa para el punto caro</p>
+            <p style="margin:4px 0 10px;font-size:11px;font-weight:700;opacity:.95;">El panel admin se ocultó para que puedas pinchar el mapa.</p>
+            <button type="button" id="admin-fixed-fare-pick-cancel"
+                style="width:100%;border:0;border-radius:10px;padding:8px;font-weight:900;font-size:12px;background:#fff;color:#9a3412;cursor:pointer;">
+                Cancelar
+            </button>
+        </div>`;
+    document.body.appendChild(el);
+    el.querySelector('#admin-fixed-fare-pick-cancel')?.addEventListener('click', () => {
+        window.adminFixedFareCancelPinPick?.();
+    });
+    return el;
+}
+
+window.adminFixedFareCancelPinPick = () => {
+    try {
+        if (window._adminFixedFarePinListener) {
+            google.maps.event.removeListener(window._adminFixedFarePinListener);
+            window._adminFixedFarePinListener = null;
+        }
+    } catch (_) {}
+    document.body.classList.remove('admin-fixed-fare-picking');
+    const banner = document.getElementById('admin-fixed-fare-pick-banner');
+    if (banner) banner.classList.add('hidden');
+    // Reabrir admin en pestaña bank
+    try {
+        const adminP = document.getElementById('admin-panel');
+        if (adminP) {
+            adminP.classList.remove('hidden');
+            adminP.style.pointerEvents = '';
+            adminP.style.opacity = '';
+        }
+        if (typeof window.renderAdminTab === 'function') {
+            window.renderAdminTab('bank');
+        }
+    } catch (_) {}
+    window.showToast?.('Selección de pin cancelada.', 'info');
+};
+
+/** Clic en el mapa: oculta admin, pin, y vuelve al panel. */
+window.adminFixedFareStartPinPick = () => {
+    if (!window.gMap || typeof google === 'undefined') {
+        return window.showToast?.('El mapa aún no está listo. Espera un segundo.', 'warning');
+    }
+    // Cancelar listener anterior
+    try {
+        if (window._adminFixedFarePinListener) {
+            google.maps.event.removeListener(window._adminFixedFarePinListener);
+            window._adminFixedFarePinListener = null;
+        }
+    } catch (_) {}
+
+    // Guardar draft para no perder cambios al re-render
+    try { getAdminFixedFaresDraft(); } catch (_) {}
+
+    // Ocultar panel admin (tapa el mapa y bloquea clics)
+    const adminP = document.getElementById('admin-panel');
+    if (adminP) {
+        adminP.classList.add('hidden');
+    }
+
+    const banner = adminFixedFareEnsurePickBanner();
+    banner.classList.remove('hidden');
+    document.body.classList.add('admin-fixed-fare-picking');
+    window.showToast?.('Toca el mapa donde va el punto caro.', 'info');
+
+    window._adminFixedFarePinListener = window.gMap.addListener('click', async (e) => {
+        try {
+            const lat = typeof e.latLng?.lat === 'function' ? e.latLng.lat() : e.latLng?.lat;
+            const lng = typeof e.latLng?.lng === 'function' ? e.latLng.lng() : e.latLng?.lng;
+            if (window._adminFixedFarePinListener) {
+                google.maps.event.removeListener(window._adminFixedFarePinListener);
+                window._adminFixedFarePinListener = null;
+            }
+            document.body.classList.remove('admin-fixed-fare-picking');
+            banner.classList.add('hidden');
+
+            // Reabrir admin y pestaña bank ANTES de rellenar, para que existan los inputs
+            if (adminP) adminP.classList.remove('hidden');
+            if (typeof window.renderAdminTab === 'function') {
+                await window.renderAdminTab('bank');
+            }
+            // Pequeña espera a que el DOM del formulario exista
+            await new Promise((r) => setTimeout(r, 80));
+            await window.adminFixedFareApplyCoords(lat, lng, { source: 'pin' });
+        } catch (err) {
+            console.warn(err);
+            document.body.classList.remove('admin-fixed-fare-picking');
+            banner.classList.add('hidden');
+            if (adminP) adminP.classList.remove('hidden');
+            try { window.renderAdminTab?.('bank'); } catch (_) {}
+        }
+    });
+};
+
+// Cerrar lista de búsqueda al tocar fuera
+if (!window._adminFixedFareSearchOutsideBound) {
+    window._adminFixedFareSearchOutsideBound = true;
+    document.addEventListener('click', (e) => {
+        if (e.target.closest?.('#admin-fp-search-results, #admin-fp-search')) return;
+        adminFixedFareHideSearchResults();
+    }, true);
+}
+
+window.adminPatchFixedPlace = (idx, field, value) => {
+    const draft = getAdminFixedFaresDraft();
+    const p = draft.places[idx];
+    if (!p) return;
+    if (field === 'onlyDaytime') p.onlyDaytime = !!value;
+    else if (field === 'fixedPrice' || field === 'radiusKm') p[field] = Number(value) || 0;
+    else p[field] = value;
+    if (field === 'radiusKm' && p.radiusKm < 0.3) p.radiusKm = 0.3;
+    window.renderAdminFixedFaresUI?.();
+};
+
+window.adminToggleFixedPlace = (idx) => {
+    const draft = getAdminFixedFaresDraft();
+    if (!draft.places[idx]) return;
+    draft.places[idx].enabled = !draft.places[idx].enabled;
+    window.renderAdminFixedFaresUI?.();
+};
+
+window.adminRemoveFixedPlace = (idx) => {
+    const draft = getAdminFixedFaresDraft();
+    const p = draft.places[idx];
+    if (!p) return;
+    if (!confirm(`¿Quitar el punto «${p.name}»?`)) return;
+    const id = p.id;
+    draft.places.splice(idx, 1);
+    draft.routes = draft.routes.filter((r) => r.placeAId !== id && r.placeBId !== id);
+    window.renderAdminFixedFaresUI?.();
+};
+
+window.adminAddFixedFarePlace = () => {
+    const draft = getAdminFixedFaresDraft();
+    const name = document.getElementById('admin-fp-name')?.value?.trim();
+    const lat = parseFloat(document.getElementById('admin-fp-lat')?.value || '');
+    const lng = parseFloat(document.getElementById('admin-fp-lng')?.value || '');
+    const radiusKm = parseFloat(document.getElementById('admin-fp-radius')?.value || '4');
+    const fixedPrice = parseFloat(document.getElementById('admin-fp-price')?.value || '0');
+    let keywords = document.getElementById('admin-fp-keywords')?.value || '';
+    const onlyDaytime = !!document.getElementById('admin-fp-dayonly')?.checked;
+    if (!name) return window.showToast?.('Escribe el nombre del punto (o búscalo / márcalo con pin).', 'warning');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return window.showToast?.('Falta ubicación. Usa «Buscar», «Marcar con pin» o «Centro del mapa».', 'warning');
+    }
+    // Asegurar que el nombre también sea keyword (match con lo que escribe el pasajero)
+    if (!keywords.toLowerCase().includes(name.toLowerCase().slice(0, 8))) {
+        keywords = keywords ? `${name}, ${keywords}` : name;
+    }
+    const place = normalizePlace({
+        id: makePlaceId(name),
+        name,
+        lat,
+        lng,
+        radiusKm: Number.isFinite(radiusKm) ? radiusKm : 4,
+        fixedPrice: Number.isFinite(fixedPrice) ? fixedPrice : 0,
+        keywords,
+        onlyDaytime,
+        enabled: true,
+        priority: (fixedPrice || 0) > 0 ? 40 : 0,
+    });
+    if (!place) return window.showToast?.('No se pudo crear el punto.', 'error');
+    draft.places.push(place);
+    ['admin-fp-name', 'admin-fp-lat', 'admin-fp-lng', 'admin-fp-price', 'admin-fp-keywords', 'admin-fp-search'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const day = document.getElementById('admin-fp-dayonly');
+    if (day) day.checked = false;
+    const hint = document.getElementById('admin-fp-pick-hint');
+    if (hint) {
+        hint.classList.add('hidden');
+        hint.textContent = '';
+    }
+    window.renderAdminFixedFaresUI?.();
+    window.showToast?.(
+        `Punto «${place.name}» listo${place.fixedPrice > 0 ? ` · L. ${place.fixedPrice}` : ''}. Toca «Guardar tarifas».`,
+        'success'
+    );
+};
+
+window.adminToggleFixedRoute = (idx) => {
+    const draft = getAdminFixedFaresDraft();
+    if (!draft.routes[idx]) return;
+    draft.routes[idx].enabled = !draft.routes[idx].enabled;
+    window.renderAdminFixedFaresUI?.();
+};
+
+window.adminRemoveFixedRoute = (idx) => {
+    const draft = getAdminFixedFaresDraft();
+    const r = draft.routes[idx];
+    if (!r) return;
+    if (!confirm(`¿Quitar la ruta «${r.name}»?`)) return;
+    draft.routes.splice(idx, 1);
+    window.renderAdminFixedFaresUI?.();
+};
+
+window.adminAddFixedFareRoute = () => {
+    const draft = getAdminFixedFaresDraft();
+    const placeAId = document.getElementById('admin-fr-a')?.value?.trim();
+    const placeBId = document.getElementById('admin-fr-b')?.value?.trim();
+    const price = parseFloat(document.getElementById('admin-fr-price')?.value || '');
+    let name = document.getElementById('admin-fr-name')?.value?.trim();
+    if (!placeAId || !placeBId) return window.showToast?.('Elige punto A y B.', 'warning');
+    if (placeAId === placeBId) return window.showToast?.('A y B deben ser distintos.', 'warning');
+    if (!(price > 0)) return window.showToast?.('Precio inválido.', 'warning');
+    const aName = draft.places.find((p) => p.id === placeAId)?.name || placeAId;
+    const bName = draft.places.find((p) => p.id === placeBId)?.name || placeBId;
+    if (!name) name = `${aName} ↔ ${bName}`;
+    const route = normalizeRoute({
+        id: makeRouteId(placeAId, placeBId),
+        name,
+        placeAId,
+        placeBId,
+        price,
+        enabled: true,
+        priority: 80,
+    });
+    if (!route) return window.showToast?.('No se pudo crear la ruta.', 'error');
+    draft.routes.push(route);
+    const priceEl = document.getElementById('admin-fr-price');
+    const nameEl = document.getElementById('admin-fr-name');
+    if (priceEl) priceEl.value = '';
+    if (nameEl) nameEl.value = '';
+    window.renderAdminFixedFaresUI?.();
+    window.showToast?.(`Ruta «${route.name}» agregada. Guarda para aplicar.`, 'success');
+};
+
+window.adminSaveFixedFares = async (btn) => {
+    if (!isAdminUser(currentUser, window.userProfile)) {
+        return window.showToast?.('Solo el administrador puede guardar tarifas.', 'error');
+    }
+    const draft = getAdminFixedFaresDraft();
+    draft.minFareEnabled = !!document.getElementById('admin-min-fare-enabled')?.checked;
+    draft.minFare = Math.max(0, parseFloat(document.getElementById('admin-min-fare')?.value || draft.minFare) || 0);
+    draft.minFareHubRadiusKm = Math.max(1, parseFloat(document.getElementById('admin-min-fare-radius')?.value || draft.minFareHubRadiusKm) || 40);
+    draft.nightSurchargeEnabled = !!document.getElementById('admin-night-fare-enabled')?.checked;
+    draft.nightPercent = Math.max(0, Math.min(100, parseFloat(document.getElementById('admin-night-fare-percent')?.value || draft.nightPercent || 25) || 0));
+
+    // Base + por km
+    draft.serviceRates = draft.serviceRates || {};
+    ['auto', 'taxi', 'moto', 'delivery'].forEach((id) => {
+        const baseEl = document.getElementById(`admin-rate-base-${id}`);
+        const kmEl = document.getElementById(`admin-rate-km-${id}`);
+        const prev = draft.serviceRates[id] || {};
+        draft.serviceRates[id] = {
+            base: Math.max(0, parseFloat(baseEl?.value ?? prev.base) || 0),
+            perKm: Math.max(0, parseFloat(kmEl?.value ?? prev.perKm) || 0),
+        };
+    });
+
+    const next = normalizeFixedFaresConfig(draft);
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Guardando…';
+    }
+    try {
+        const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main');
+        await setDoc(settingsRef, {
+            fixedFares: next,
+            updatedAt: serverTimestamp(),
+            fixedFaresUpdatedBy: currentUser?.uid || null,
+            fixedFaresUpdatedAt: serverTimestamp(),
+        }, { merge: true });
+        setFixedFaresConfig(next);
+        window._adminFixedFaresDraft = getFixedFaresConfig();
+        window.renderAdminFixedFaresUI?.();
+        window.showToast?.(
+            `Tarifas guardadas. Mínimo: ${next.minFareEnabled ? `L. ${next.minFare}` : 'OFF'} · ${next.places.length} puntos · ${next.routes.length} rutas`,
+            'success'
+        );
+    } catch (e) {
+        console.error(e);
+        window.showToast?.(e?.message || 'No se pudo guardar.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = 'Guardar tarifas';
+        }
+    }
+};
+
+window.adminResetFixedFaresDefaults = async (btn) => {
+    if (!isAdminUser(currentUser, window.userProfile)) {
+        return window.showToast?.('Solo el administrador.', 'error');
+    }
+    if (!confirm('¿Restaurar puntos y rutas por defecto de Comayagua (aeropuerto, golf, cipreses, etc.)?')) return;
+    window._adminFixedFaresDraft = normalizeFixedFaresConfig(DEFAULT_FIXED_FARES_CONFIG);
+    window.renderAdminFixedFaresUI?.();
+    await window.adminSaveFixedFares(btn);
 };
 
 // ── Día sin comisión rotativo (admin) ─────────────────────────
@@ -4358,6 +5095,81 @@ if (document.readyState === 'loading') {
             });
         }
 
+        /** Contexto de origen/destino actual para tarifas fijas admin. */
+        function getRouteFareContextFromUI(route = null) {
+            const originEl = document.getElementById('origin-autocomplete');
+            const destEl = document.getElementById('destination-autocomplete');
+            const originText = window.readAutocompleteText?.(originEl) || originEl?._routeEndpoint?.address || '';
+            const destText = window.readAutocompleteText?.(destEl) || destEl?._routeEndpoint?.address || '';
+            const oEp = originEl?._routeEndpoint || route?.originEndpoint || null;
+            const dEp = destEl?._routeEndpoint || route?.destinationEndpoint || null;
+
+            const asLL = (v) => {
+                if (!v) return null;
+                if (v.lat != null && v.lng != null) return { lat: Number(v.lat), lng: Number(v.lng) };
+                if (v.latLng?.lat != null) return { lat: Number(v.latLng.lat), lng: Number(v.latLng.lng) };
+                return null;
+            };
+
+            // Coords del path de la ruta (más fiable cuando hay pin/GPS)
+            let routeStart = null;
+            let routeEnd = null;
+            try {
+                const path = route?.path || route?.overview_path || null;
+                if (Array.isArray(path) && path.length >= 2) {
+                    const a = path[0];
+                    const b = path[path.length - 1];
+                    routeStart = {
+                        lat: typeof a.lat === 'function' ? a.lat() : a.lat,
+                        lng: typeof a.lng === 'function' ? a.lng() : a.lng,
+                    };
+                    routeEnd = {
+                        lat: typeof b.lat === 'function' ? b.lat() : b.lat,
+                        lng: typeof b.lng === 'function' ? b.lng() : b.lng,
+                    };
+                } else if (route?.origin?.lat != null && route?.destination?.lat != null) {
+                    routeStart = { lat: route.origin.lat, lng: route.origin.lng };
+                    routeEnd = { lat: route.destination.lat, lng: route.destination.lng };
+                }
+            } catch (_) {}
+
+            const oLL = asLL(oEp)
+                || asLL(routeStart)
+                || (window.currentTripQuote?.originLat != null
+                    ? { lat: window.currentTripQuote.originLat, lng: window.currentTripQuote.originLng }
+                    : null);
+            const dLL = asLL(dEp)
+                || asLL(routeEnd)
+                || (window.currentTripQuote?.destinationLat != null
+                    ? { lat: window.currentTripQuote.destinationLat, lng: window.currentTripQuote.destinationLng }
+                    : null);
+            return {
+                originText,
+                destText,
+                originLat: oLL?.lat ?? null,
+                originLng: oLL?.lng ?? null,
+                destLat: dLL?.lat ?? null,
+                destLng: dLL?.lng ?? null,
+                serviceZoneId: window.activeServiceZoneId || getDefaultZoneId() || null,
+            };
+        }
+
+        /** Aplica tarifas fijas / mínimo admin sobre un precio calculado. */
+        function applyAdminFixedFare(priceNum, serviceType, route = null, extraCtx = {}) {
+            try {
+                const ctx = {
+                    serviceType,
+                    ...getRouteFareContextFromUI(route),
+                    ...extraCtx,
+                };
+                return applyFixedRouteFareToPrice(priceNum, ctx);
+            } catch (e) {
+                console.warn('applyAdminFixedFare:', e);
+                return { price: priceNum, fixed: false, ruleId: null, label: null, minApplied: false };
+            }
+        }
+        window.applyAdminFixedFare = applyAdminFixedFare;
+
         window.syncFareCardFromRoute = (route, { scroll = true } = {}) => {
             if (!route) return;
             const serviceType = normalizeServiceType(window.currentServiceType || 'auto');
@@ -4380,8 +5192,14 @@ if (document.readyState === 'loading') {
                 price = calculateServiceFare(serviceType, km, quickConditions, pax);
             }
 
-            const originText = window.readAutocompleteText?.(document.getElementById('origin-autocomplete')) || '';
-            const destText = window.readAutocompleteText?.(document.getElementById('destination-autocomplete')) || '';
+            const fareCtx = getRouteFareContextFromUI(route);
+            const originText = fareCtx.originText || '';
+            const destText = fareCtx.destText || '';
+            let fixedMeta = { fixed: false, label: null, minApplied: false, ruleId: null };
+            if (!isHourly) {
+                fixedMeta = applyAdminFixedFare(price, serviceType, route, fareCtx);
+                price = fixedMeta.price;
+            }
             const birthdayEligible = canUseBirthdayFreeTrip(window.userProfile);
             const displayPrice = birthdayEligible ? 'L. 0.00' : `L. ${price.toFixed(2)}`;
 
@@ -4393,18 +5211,34 @@ if (document.readyState === 'loading') {
                 birthdayEligible,
                 origin: originText,
                 destination: destText,
+                originLat: fareCtx.originLat,
+                originLng: fareCtx.originLng,
+                destinationLat: fareCtx.destLat,
+                destinationLng: fareCtx.destLng,
                 routeConditions: quickConditions,
                 bookingMode: isHourly ? 'hourly' : 'standard',
                 reservedHours: isHourly ? hours : null,
                 hourlyRate: isHourly ? getHourlyRate(serviceType) : null,
                 passengers: pax,
                 passengerSurcharge: paxSurcharge,
-                priceNum: price
+                priceNum: price,
+                // Interno (no se muestra al cliente)
+                fixedFareRuleId: fixedMeta.ruleId || null,
+                fixedFareLabel: fixedMeta.label || null,
+                fixedFareApplied: !!(fixedMeta.fixed || fixedMeta.minApplied),
+                fixedFareIsNight: !!fixedMeta.isNight,
+                fixedFareDayPrice: fixedMeta.dayPrice ?? null,
             };
 
             const fareCard = document.getElementById('fare-card');
             const priceEl = document.getElementById('price-display');
-            if (priceEl) priceEl.innerText = displayPrice;
+            if (priceEl) {
+                priceEl.innerText = displayPrice;
+                // Forzar repaint visual al cambiar a tarifa de punto caro / noche
+                priceEl.classList.remove('fare-price-flash');
+                void priceEl.offsetWidth;
+                priceEl.classList.add('fare-price-flash');
+            }
             const birthdayNote = document.getElementById('birthday-fare-note');
             if (birthdayNote) {
                 if (birthdayEligible) {
@@ -4440,6 +5274,7 @@ if (document.readyState === 'loading') {
                 freightBreakdownEl.textContent = '';
                 freightBreakdownEl.classList.add('hidden');
             }
+            // Cliente: siempre se ve como tarifa normal (no delata reglas del sistema)
             const fareLabel = document.getElementById('fare-card-label');
             if (fareLabel) fareLabel.textContent = 'Tarifa estimada';
             const etaPreview = document.getElementById('eta-preview');
@@ -4506,7 +5341,10 @@ if (document.readyState === 'loading') {
                     subLabel += ` · ${pax} pers · ${hourlyOpts.multipleStops ? 'múltiples' : '2 paradas'}`;
                 } else {
                     price = calculateServiceFare(type, km, quickConditions, pax);
+                    const fx = applyAdminFixedFare(price, type, route);
+                    price = fx.price;
                     priceLabel = `L. ${price.toFixed(2)}`;
+                    // Misma pinta “normal” que un cálculo de ruta (sin decir “fija/sistema”)
                     subLabel = quickConditions?.traffic?.trafficAware ? 'con tráfico' : 'aprox';
                     if (pax > 1) subLabel += ` · ${pax} pers`;
                 }
@@ -11310,6 +12148,7 @@ if (document.readyState === 'loading') {
                 const U = window.OpsUi;
                 const freeStatus = getCommissionFreeDayStatusText(new Date(), getCommissionFreeDayConfig(), currentUser?.uid);
                 const freeCfg = getCommissionFreeDayConfig();
+                const ff = getFixedFaresConfig();
                 container.innerHTML = U.page(
                     U.hero('Cuentas bancarias', 'Recargas pasajeros · depósitos conductores') +
                     U.formPanel('Comisión de plataforma', 'Este % se aplica al instante a depósitos y comisiones a depositar', `
@@ -11320,6 +12159,117 @@ if (document.readyState === 'loading') {
                         </div>
                         <p class="text-[10px] text-slate-400 mt-2 font-bold">Si pones 18%, el conductor ve y debe depositar al 18% (no un % viejo del viaje).</p>
                     `) +
+                    U.formPanel(
+                        'Tarifas fijas y viaje mínimo',
+                        'Marca puntos caros en el mapa, rutas fijas (ej. Golf↔Aeropuerto) y el mínimo del viaje (ej. L. 65).',
+                        `
+                        <div class="mb-4 p-3 rounded-xl border border-sky-800/40 bg-sky-950/30">
+                            <p class="text-xs font-black text-sky-300 mb-2">Precio base y por kilómetro</p>
+                            <p class="text-[10px] text-slate-400 font-bold mb-2">Fórmula: <b>base + (km × precio/km)</b>. Luego se aplican mínimo, puntos caros y noche.</p>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                ${['auto', 'taxi', 'moto', 'delivery'].map((id) => {
+                                    const labels = { auto: 'Taxi VIP', taxi: 'Taxi tradicional', moto: 'Moto', delivery: 'Envío' };
+                                    const r = (ff.serviceRates && ff.serviceRates[id]) || {};
+                                    const def = { auto: { base: 37, perKm: 12 }, taxi: { base: 30, perKm: 10 }, moto: { base: 20, perKm: 8 }, delivery: { base: 15, perKm: 7 } }[id];
+                                    return `
+                                    <div class="p-2.5 rounded-xl border border-slate-700/60 bg-slate-950/40">
+                                        <p class="text-[11px] font-black text-white mb-1.5">${labels[id]}</p>
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-[10px] font-bold text-slate-400 w-14">Base L.</span>
+                                            <input type="number" id="admin-rate-base-${id}" min="0" step="1"
+                                                value="${r.base ?? def.base}" class="ops-input flex-1 text-center font-black text-sm">
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-[10px] font-bold text-slate-400 w-14">Por km L.</span>
+                                            <input type="number" id="admin-rate-km-${id}" min="0" step="0.5"
+                                                value="${r.perKm ?? def.perKm}" class="ops-input flex-1 text-center font-black text-sm">
+                                        </div>
+                                    </div>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        <div class="mb-4 p-3 rounded-xl border border-emerald-800/40 bg-emerald-950/30">
+                            <p class="text-xs font-black text-emerald-300 mb-2">Viaje mínimo</p>
+                            <label class="flex items-center gap-2 mb-2 cursor-pointer">
+                                <input type="checkbox" id="admin-min-fare-enabled" class="w-4 h-4 accent-emerald-500" ${ff.minFareEnabled ? 'checked' : ''}>
+                                <span class="text-sm font-bold text-white">Activar viaje mínimo</span>
+                            </label>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-bold text-slate-400">L.</span>
+                                <input type="number" id="admin-min-fare" min="0" step="1" value="${ff.minFare}" class="ops-input w-24 text-center font-black">
+                                <span class="text-[10px] font-bold text-slate-500">en radio del hub (km)</span>
+                                <input type="number" id="admin-min-fare-radius" min="1" max="120" step="1" value="${ff.minFareHubRadiusKm}" class="ops-input w-20 text-center">
+                            </div>
+                            <p class="text-[10px] text-slate-500 font-bold mt-2">Hub: ${ff.minFareHubLat.toFixed(4)}, ${ff.minFareHubLng.toFixed(4)} (Comayagua por defecto)</p>
+                            <div class="mt-3 pt-3 border-t border-emerald-900/50">
+                                <p class="text-xs font-black text-violet-300 mb-2">Recargo nocturno (puntos caros + mínimo)</p>
+                                <label class="flex items-center gap-2 mb-2 cursor-pointer">
+                                    <input type="checkbox" id="admin-night-fare-enabled" class="w-4 h-4 accent-violet-500" ${ff.nightSurchargeEnabled !== false ? 'checked' : ''}>
+                                    <span class="text-sm font-bold text-white">De noche subir tarifa fija</span>
+                                </label>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="text-[10px] font-bold text-slate-400">+%</span>
+                                    <input type="number" id="admin-night-fare-percent" min="0" max="100" step="1" value="${ff.nightPercent ?? 25}" class="ops-input w-20 text-center font-black">
+                                    <span class="text-[10px] font-bold text-slate-500">ej. 300 + 25% = L. 375 de noche</span>
+                                </div>
+                                <p class="text-[10px] text-slate-500 font-bold mt-1">Horario noche: fuera de ${ff.dayHourStart ?? 5}:00–${ff.dayHourEnd ?? 18}:00 (Honduras)</p>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <p class="text-xs font-black text-amber-300 mb-2">Puntos caros / lugares</p>
+                            <p class="text-[10px] text-slate-400 font-bold mb-2">
+                                Si el <b>origen o destino</b> cae en el radio (o el texto del lugar coincide), se aplica el precio.
+                                El pasajero solo ve “Tarifa estimada” con el monto — no se entera de la regla.
+                            </p>
+                            <div id="admin-fixed-places-list" class="space-y-2 max-h-64 overflow-auto mb-3"></div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-xl border border-slate-700/60 bg-slate-950/40">
+                                <div class="sm:col-span-2 relative">
+                                    <div class="flex flex-wrap gap-2">
+                                        <input id="admin-fp-search" class="ops-input flex-1 min-w-[140px]"
+                                            placeholder="Escribe y elige de la lista (ej. Palmerola, Golf…)"
+                                            autocomplete="off"
+                                            oninput="window.adminFixedFareSearchLive(this.value)">
+                                        ${U.btn('Buscar', 'window.adminFixedFareSearchPlace(this)', { variant: 'ghost', icon: 'fa-search' })}
+                                    </div>
+                                    <div id="admin-fp-search-results"
+                                        class="hidden absolute left-0 right-0 top-full mt-1 z-[80] max-h-52 overflow-auto rounded-xl border border-slate-600 bg-slate-900 shadow-xl"></div>
+                                </div>
+                                <input id="admin-fp-name" class="ops-input" placeholder="Nombre del punto caro">
+                                <input id="admin-fp-price" type="number" min="0" step="1" class="ops-input" placeholder="Precio L. (0 = solo ancla de rutas)">
+                                <input id="admin-fp-lat" type="number" step="any" class="ops-input" placeholder="Latitud">
+                                <input id="admin-fp-lng" type="number" step="any" class="ops-input" placeholder="Longitud">
+                                <input id="admin-fp-radius" type="number" min="0.5" step="0.5" value="4" class="ops-input" placeholder="Radio km (detección)">
+                                <input id="admin-fp-keywords" class="ops-input" placeholder="Palabras clave auto (coma)">
+                                <label class="flex items-center gap-2 text-xs font-bold text-slate-300 sm:col-span-2">
+                                    <input type="checkbox" id="admin-fp-dayonly" class="accent-amber-500"> Solo de día (5:00–18:00 HN)
+                                </label>
+                                <p id="admin-fp-pick-hint" class="hidden sm:col-span-2 text-[10px] font-bold text-amber-300"></p>
+                            </div>
+                            <div class="flex flex-wrap gap-2 mt-2">
+                                ${U.btn('Marcar con pin en mapa', 'window.adminFixedFareStartPinPick()', { variant: 'primary', icon: 'fa-map-pin' })}
+                                ${U.btn('Usar centro del mapa', 'window.adminFixedFareFillFromMap()', { variant: 'ghost', icon: 'fa-crosshairs' })}
+                                ${U.btn('Agregar punto', 'window.adminAddFixedFarePlace(this)', { variant: 'emerald', icon: 'fa-plus' })}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <p class="text-xs font-black text-sky-300 mb-2">Rutas fijas (entre dos puntos)</p>
+                            <div id="admin-fixed-routes-list" class="space-y-2 max-h-40 overflow-auto mb-3"></div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 rounded-xl border border-slate-700/60 bg-slate-950/40">
+                                <select id="admin-fr-a" class="ops-input"></select>
+                                <select id="admin-fr-b" class="ops-input"></select>
+                                <input id="admin-fr-name" class="ops-input" placeholder="Nombre (ej. Golf ↔ Aeropuerto)">
+                                <input id="admin-fr-price" type="number" min="1" step="1" class="ops-input" placeholder="Precio L.">
+                            </div>
+                            <div class="mt-2">
+                                ${U.btn('Agregar ruta fija', 'window.adminAddFixedFareRoute(this)', { variant: 'primary', icon: 'fa-route' })}
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            ${U.btn('Guardar tarifas', 'window.adminSaveFixedFares(this)', { variant: 'emerald', icon: 'fa-save' })}
+                            ${U.btn('Restaurar defaults Comayagua', 'window.adminResetFixedFaresDefaults(this)', { variant: 'ghost' })}
+                        </div>
+                        `
+                    ) +
                     U.formPanel(
                         'Día sin comisión (por conductor)',
                         'Incentivo: cada conductor tiene SU día libre. Rota cada semana. No todos el mismo día → la app sigue generando.',
@@ -11379,6 +12329,7 @@ if (document.readyState === 'loading') {
                 try {
                     window.adminLoadCommissionFreeDayCityForm?.();
                     window.renderCommissionFreeDayCityList?.();
+                    window.renderAdminFixedFaresUI?.();
                 } catch (_) {}
                 return;
             }
@@ -34916,6 +35867,24 @@ window.cancelSetupAndLogout = () => {
             } else {
                 priceNum = parsePriceText(document.getElementById('price-display')?.innerText || 'L. 0.00');
             }
+            // Tarifas fijas / mínimo configurados por admin
+            if (!isHourly && !isFreightService(serviceType) && serviceType !== 'delivery' && !isTowService(serviceType)) {
+                const fx = applyAdminFixedFare(priceNum, serviceType, null, {
+                    originLat: originCoords?.lat ?? window.currentTripQuote?.originLat,
+                    originLng: originCoords?.lng ?? window.currentTripQuote?.originLng,
+                    destLat: destinationCoords?.lat ?? window.currentTripQuote?.destinationLat,
+                    destLng: destinationCoords?.lng ?? window.currentTripQuote?.destinationLng,
+                    originText: origin,
+                    destText: destination,
+                });
+                priceNum = fx.price;
+                if (window.currentTripQuote) {
+                    window.currentTripQuote.priceNum = priceNum;
+                    window.currentTripQuote.fixedFareRuleId = fx.ruleId || null;
+                    window.currentTripQuote.fixedFareLabel = fx.label || null;
+                    window.currentTripQuote.fixedFareApplied = !!(fx.fixed || fx.minApplied);
+                }
+            }
             const priceText = `L. ${priceNum.toFixed(2)}`;
 
             const birthdayFree = serviceType !== 'delivery' && !isFreightService(serviceType) && canUseBirthdayFreeTrip(window.userProfile);
@@ -38533,11 +39502,43 @@ window.calculateTripRoute = async (options = {}) => {
         const calcPaxSurcharge = getPassengerSurcharge(serviceType, calcPassengers, km);
 
         let freightFareQuote = null;
-        const price = isHourlyCalc
+        let price = isHourlyCalc
             ? calculateHourlyFare(serviceType, hoursForCalc, hourlyOpts, routeConditions)
             : isFreightService(serviceType)
                 ? (freightFareQuote = calculateFreightFare(serviceType, km, freightDetails, routeConditions, freightRouteMeta)).total
                 : calculateServiceFare(serviceType, km, routeConditions, calcPassengers);
+
+        // Zona / ruta cara: precio fijo del admin (NO recalcular por km).
+        // Si no hay match, se conserva el price por km (o min fare si aplica).
+        let fixedFareMeta = {
+            fixed: false,
+            minApplied: false,
+            ruleId: null,
+            label: null,
+            isNight: false,
+            dayPrice: null,
+            nightPercent: 0,
+            price,
+        };
+        if (!isHourlyCalc
+            && !isFreightService(serviceType)
+            && serviceType !== 'delivery'
+            && !(typeof isTowService === 'function' && isTowService(serviceType))
+            && serviceType !== 'grua'
+            && typeof window.applyAdminFixedFare === 'function') {
+            fixedFareMeta = window.applyAdminFixedFare(price, serviceType, route, {
+                originLat: origin?.latLng?.lat ?? null,
+                originLng: origin?.latLng?.lng ?? null,
+                destLat: destination?.latLng?.lat ?? null,
+                destLng: destination?.latLng?.lng ?? null,
+                originText: origin?.address || '',
+                destText: destination?.address || '',
+            }) || fixedFareMeta;
+            if (Number.isFinite(Number(fixedFareMeta.price))) {
+                price = Number(fixedFareMeta.price);
+            }
+        }
+
         const duration = (!isHourlyCalc && route && typeof window.formatRouteDuration === 'function')
             ? window.formatRouteDuration(route)
             : (isHourlyCalc ? getHourlyLabel(hoursForCalc) : (route ? formatDurationMillis(route.durationMillis || route?.legs?.[0]?.durationMillis) : ''));
@@ -38576,9 +39577,17 @@ window.calculateTripRoute = async (options = {}) => {
             passengers: calcPassengers,
             passengerSurcharge: calcPaxSurcharge,
             hourlyStartTime: isHourlyCalc ? (document.getElementById('hourly-start-time')?.value || null) : null,
-            isNightSurcharge: isHourlyCalc ? (hourlyOpts.isNight || false) : false,
+            isNightSurcharge: isHourlyCalc
+                ? (hourlyOpts.isNight || false)
+                : !!(fixedFareMeta.isNight),
             multipleStops: isHourlyCalc ? (hourlyOpts.multipleStops || false) : false,
-            distanceKmForCharge: isHourlyCalc ? (km || 0) : 0
+            distanceKmForCharge: isHourlyCalc ? (km || 0) : 0,
+            // Interno: tarifa fija / zona cara (no se muestra al cliente como "fija")
+            fixedFareRuleId: fixedFareMeta.ruleId || null,
+            fixedFareLabel: fixedFareMeta.label || null,
+            fixedFareApplied: !!(fixedFareMeta.fixed || fixedFareMeta.minApplied),
+            fixedFareIsNight: !!fixedFareMeta.isNight,
+            fixedFareDayPrice: fixedFareMeta.dayPrice ?? null,
         };
 
         window.updateHourlyOneHourAlert?.();

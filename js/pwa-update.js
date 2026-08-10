@@ -46,9 +46,36 @@ function dismissUpdateModal() {
     document.getElementById('app-update-modal')?.remove();
 }
 
-function versionsDiffer(running, remote) {
+function parseVersionParts(v) {
+    return String(v || '')
+        .trim()
+        .split(/[^\d]+/)
+        .filter(Boolean)
+        .map((n) => parseInt(n, 10) || 0);
+}
+
+/** true si remote es estrictamente mas nueva que running (2026.08.10.4 > 2026.08.10.1). */
+function isRemoteNewer(running, remote) {
     if (!remote || !running) return false;
-    return String(running).trim() !== String(remote).trim();
+    const a = parseVersionParts(running);
+    const b = parseVersionParts(remote);
+    if (!a.length || !b.length) {
+        return String(running).trim() !== String(remote).trim();
+    }
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+        const x = a[i] || 0;
+        const y = b[i] || 0;
+        if (y > x) return true;
+        if (y < x) return false;
+    }
+    return false;
+}
+
+function versionsDiffer(running, remote) {
+    // Solo pedir update si el servidor tiene una version mas nueva.
+    // Si el HTML local ya es igual o mas nuevo que version.json, no bloquear al usuario.
+    return isRemoteNewer(running, remote);
 }
 
 function withTimeout(promise, ms, label = 'timeout') {

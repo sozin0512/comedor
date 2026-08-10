@@ -99,6 +99,21 @@ function patchIndexHtml(version, filePath) {
                         setTimeout(function () { try { location.reload(); } catch (e) {} }, 600);
                     };
                 }
+                // Solo actualizar si version.json es mas NUEVA que este HTML (evita bucle si version.json se quedo atras).
+                function hrIsRemoteNewer(running, remote) {
+                    function parts(v) {
+                        return String(v || '').trim().split(/[^\d]+/).filter(Boolean).map(function (n) { return parseInt(n, 10) || 0; });
+                    }
+                    var a = parts(running), b = parts(remote);
+                    if (!a.length || !b.length) return String(running).trim() !== String(remote).trim();
+                    var len = Math.max(a.length, b.length);
+                    for (var i = 0; i < len; i++) {
+                        var x = a[i] || 0, y = b[i] || 0;
+                        if (y > x) return true;
+                        if (y < x) return false;
+                    }
+                    return false;
+                }
                 // iOS PWA: reintentos limitados + banner si el HTML viejo se queda pegado
                 var n = parseInt(sessionStorage.getItem('hr_boot_reload_n') || '0', 10) || 0;
                 fetch('/version.json?t=' + Date.now() + '&r=' + Math.random(), {
@@ -108,11 +123,11 @@ function patchIndexHtml(version, filePath) {
                     .then(function (r) { return r.ok ? r.json() : null; })
                     .then(function (d) {
                         if (!d || !d.version) return;
-                        if (String(d.version).trim() === String(build).trim()) {
+                        if (!hrIsRemoteNewer(build, d.version)) {
                             try { sessionStorage.removeItem('hr_boot_reload_n'); } catch (e) {}
                             return;
                         }
-                        // Hasta 2 recargas automáticas; luego banner visible (iPhone lo ve sí o sí)
+                        // Hasta 2 recargas automaticas; luego banner visible
                         if (n < 2) {
                             try { sessionStorage.setItem('hr_boot_reload_n', String(n + 1)); } catch (e) {}
                             var url = new URL(location.origin + (location.pathname || '/'));

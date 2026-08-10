@@ -1304,6 +1304,27 @@
             position: relative;
         }
 
+        /* Admin: modo pin de puntos caros — cursor cruz sobre el mapa */
+        body.admin-fixed-fare-picking,
+        body.admin-fixed-fare-picking #map,
+        body.admin-fixed-fare-picking .map-container {
+            cursor: crosshair !important;
+        }
+
+        #admin-fp-search-results button:last-child {
+            border-bottom: 0 !important;
+        }
+
+        /* Flash suave al actualizar tarifa (punto caro / noche) — se ve “viva” sin delatar el sistema */
+        #price-display.fare-price-flash {
+            animation: fare-price-pop 0.45s ease;
+        }
+        @keyframes fare-price-pop {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.06); }
+            100% { transform: scale(1); }
+        }
+
         /* En búsqueda: menos ruido visual (ocultar lo que no es ruta) */
         body.trip-autocomplete-open #passenger-home-hub,
         body.trip-autocomplete-open #passenger-mode-bar,

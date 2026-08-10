@@ -138,8 +138,45 @@ export function normalizeServiceType(type) {
     return SERVICE_TYPE_META[type] ? type : 'auto';
 }
 
+/** Overrides de base / por km desde admin (appSettings.fixedFares.serviceRates). */
+let runtimeServiceRates = {};
+
+/**
+ * @param {Record<string, { base?: number, perKm?: number }>|null} map
+ */
+export function setServiceRateOverrides(map) {
+    runtimeServiceRates = (map && typeof map === 'object') ? { ...map } : {};
+    try {
+        window.__HR_SERVICE_RATES = runtimeServiceRates;
+    } catch (_) {}
+    return runtimeServiceRates;
+}
+
+export function getServiceRateOverrides() {
+    return { ...runtimeServiceRates };
+}
+
+/** Tarifas por defecto (sin override admin). */
+export function getDefaultServiceRates() {
+    const out = {};
+    ['auto', 'taxi', 'moto', 'delivery'].forEach((id) => {
+        const m = SERVICE_TYPE_META[id];
+        if (m) out[id] = { base: m.base, perKm: m.perKm };
+    });
+    return out;
+}
+
 export function getServiceMeta(type) {
-    return SERVICE_TYPE_META[normalizeServiceType(type)];
+    const id = normalizeServiceType(type);
+    const meta = SERVICE_TYPE_META[id];
+    if (!meta) return SERVICE_TYPE_META.auto;
+    const ov = runtimeServiceRates[id];
+    if (!ov) return meta;
+    return {
+        ...meta,
+        base: Number.isFinite(Number(ov.base)) ? Number(ov.base) : meta.base,
+        perKm: Number.isFinite(Number(ov.perKm)) ? Number(ov.perKm) : meta.perKm,
+    };
 }
 
 /** Títulos de notificación push / toast por tipo de servicio */
