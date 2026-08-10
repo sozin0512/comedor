@@ -294,6 +294,8 @@ let loopPlatform = null;
 let audioUnlocked = false;
 /** Pool de <audio> pre-calentados (Safari exige play() previo con gesto) */
 const unlockedAudioPool = new Map();
+/** URLs ya precalentadas en silencio (nunca re-play audible de warm) */
+const warmedAudioUrls = new Set();
 /** Buffers Web Audio decodificados (custom / URL) */
 const decodedBufferCache = new Map();
 let unlockInFlight = null;
@@ -366,31 +368,44 @@ function playSilentTick(ctx) {
 }
 
 async function warmHtmlAudio(url) {
-    if (!url || unlockedAudioPool.has(url)) return unlockedAudioPool.get(url) || null;
+    if (!url) return null;
+    // Ya precalentado: no volver a play() (eso es lo que hacía sonar TODOS los tonos en web)
+    if (warmedAudioUrls.has(url) && unlockedAudioPool.has(url)) {
+        return unlockedAudioPool.get(url);
+    }
     try {
-        const audio = new Audio();
-        audio.preload = 'auto';
-        audio.playsInline = true;
-        audio.setAttribute('playsinline', 'true');
-        audio.setAttribute('webkit-playsinline', 'true');
-        // No crossOrigin: en Safari + Storage a veces rompe el play
-        audio.src = url;
+        let audio = unlockedAudioPool.get(url);
+        if (!audio) {
+            audio = new Audio();
+            audio.preload = 'auto';
+            audio.playsInline = true;
+            audio.setAttribute('playsinline', 'true');
+            audio.setAttribute('webkit-playsinline', 'true');
+            audio.src = url;
+            unlockedAudioPool.set(url, audio);
+        }
+        // Siempre silencioso durante warm — NUNCA subir volumen aquí
         audio.muted = true;
-        audio.volume = 0.01;
-        unlockedAudioPool.set(url, audio);
+        audio.volume = 0;
         try {
-            await audio.play();
-            audio.pause();
-            audio.currentTime = 0;
+            const p = audio.play();
+            if (p?.then) await p.catch(() => {});
         } catch (_) {}
-        audio.muted = false;
-        audio.volume = 0.9;
+        try {
+            audio.pause();
+            if (Number.isFinite(audio.duration) && audio.duration > 0) {
+                audio.currentTime = 0;
+            }
+        } catch (_) {}
+        // Dejar muteado hasta un playFileUrl real
+        audio.muted = true;
+        audio.volume = 0;
+        warmedAudioUrls.add(url);
         return audio;
     } catch (_) {
         return null;
     }
 }
-
 async function prefetchDecodeBuffer(url) {
     if (!url || decodedBufferCache.has(url)) return decodedBufferCache.get(url) || null;
     try {
@@ -408,22 +423,51 @@ async function prefetchDecodeBuffer(url) {
     }
 }
 
-function flushPendingTones() {
-    const q = pendingToneQueue.splice(0, pendingToneQueue.length);
-    q.forEach((item) => {
-        try {
-            if (item?.type === 'event') playEventTone(item.eventId, { platform: item.platform });
-            else if (item?.type === 'id') playToneById(item.toneId);
-            else if (item?.type === 'url') playFileUrl(item.url);
-        } catch (_) {}
+function enqueuePendingTone(item) {
+    if (!item || !item.type) return;
+    const key = item.type === 'event'
+        ? `e:${item.eventId}:${item.platform || ''}`
+        : item.type === 'id'
+            ? `i:${item.toneId}`
+            : item.type === 'url'
+                ? `u:${item.url}`
+                : null;
+    if (!key) return;
+    // Sustituir pendiente del mismo tipo (evitar cola enorme)
+    pendingToneQueue = pendingToneQueue.filter((x) => {
+        const k = x.type === 'event'
+            ? `e:${x.eventId}:${x.platform || ''}`
+            : x.type === 'id'
+                ? `i:${x.toneId}`
+                : x.type === 'url'
+                    ? `u:${x.url}`
+                    : '';
+        return k !== key;
     });
+    pendingToneQueue.push(item);
+    // Máximo 2 pendientes: el más reciente gana
+    if (pendingToneQueue.length > 2) {
+        pendingToneQueue = pendingToneQueue.slice(-2);
+    }
 }
 
-/**
- * Desbloquea audio en Safari/iOS (debe ir ligado a gesto del usuario).
- * Sin esto, Chrome suena y Safari se queda mudo con los tonos custom.
- */
+function flushPendingTones() {
+    if (!pendingToneQueue.length) return;
+    // Solo el último (evita “suenan todos” al desbloquear audio en web)
+    const last = pendingToneQueue[pendingToneQueue.length - 1];
+    pendingToneQueue = [];
+    try {
+        if (last?.type === 'event') playEventTone(last.eventId, { platform: last.platform, _fromFlush: true });
+        else if (last?.type === 'id') playToneById(last.toneId, { _fromFlush: true });
+        else if (last?.type === 'url') playFileUrl(last.url);
+    } catch (_) {}
+}
 export function unlockNotificationTones() {
+    // Ya desbloqueado: no re-calentar ni vaciar colas de nuevo en cada click (web)
+    if (audioUnlocked && sharedCtx && sharedCtx.state === 'running') {
+        if (pendingToneQueue.length) flushPendingTones();
+        return Promise.resolve(true);
+    }
     if (unlockInFlight) return unlockInFlight;
     unlockInFlight = (async () => {
         try {
@@ -432,24 +476,23 @@ export function unlockNotificationTones() {
                 playSilentTick(ctx);
                 if (isSafariLike()) startSilentKeepAlive();
             }
-            // Precalentar todos los tonos de archivo (custom HonduRaite)
+            // Precalentar en SILENCIO solo tonos custom aún no warmed
             const urls = customTones.map((t) => t.url).filter(Boolean);
             await Promise.all(urls.map(async (url) => {
                 await warmHtmlAudio(url);
-                // decode en background (no bloquear el gesto)
                 prefetchDecodeBuffer(url).catch(() => {});
             }));
             audioUnlocked = true;
             flushPendingTones();
         } catch (_) {
-            // igual marcar intento: reintentos en el próximo gesto
+            // reintentar en el próximo gesto
         } finally {
             unlockInFlight = null;
         }
+        return true;
     })();
     return unlockInFlight;
 }
-
 export function isNotificationAudioUnlocked() {
     return audioUnlocked && (!sharedCtx || sharedCtx.state === 'running');
 }
@@ -594,16 +637,23 @@ export function applyRemoteToneConfig(remote = {}) {
     if (remote.toneMap && typeof remote.toneMap === 'object') {
         saveTonePrefs(remote.toneMap);
     }
-    // Safari: precalentar URLs custom en cuanto llegan de Firestore
+    // No reproducir tonos al cargar config remota (en web sonaba "todo" al desbloquear).
+    // Solo crear elementos <audio> muteados sin play; el warm real va en el primer gesto.
     try {
         customTones.forEach((t) => {
-            if (t?.url) {
-                warmHtmlAudio(t.url).catch(() => {});
-                prefetchDecodeBuffer(t.url).catch(() => {});
-            }
+            if (!t?.url || unlockedAudioPool.has(t.url)) return;
+            try {
+                const audio = new Audio();
+                audio.preload = 'auto';
+                audio.playsInline = true;
+                audio.muted = true;
+                audio.volume = 0;
+                audio.src = t.url;
+                unlockedAudioPool.set(t.url, audio);
+            } catch (_) {}
         });
     } catch (_) {}
-    return {
+return {
         toneMap: loadTonePrefs(),
         customTones: getCustomTones()
     };
@@ -721,7 +771,7 @@ function playFileUrl(url) {
                 audioUnlocked = true;
             }).catch(() => {
                 // Cola para el próximo gesto del usuario (Safari)
-                pendingToneQueue.push({ type: 'url', url });
+                enqueuePendingTone({ type: 'url', url });
                 // Reintento corto tras resume + synth hondu de respaldo
                 resumeAudioContext().then((ctx) => {
                     try {
@@ -739,7 +789,7 @@ function playFileUrl(url) {
         }
         return true;
     } catch (_) {
-        pendingToneQueue.push({ type: 'url', url });
+        enqueuePendingTone({ type: 'url', url });
         return false;
     }
 }
@@ -752,8 +802,8 @@ const FILE_FAIL_FALLBACK_NOTES = [
 ];
 
 /** Reproduce un tono del catálogo o personalizado */
-export function playToneById(toneId) {
-    unlockNotificationTones();
+export function playToneById(toneId, opts = {}) {
+    if (!opts._fromFlush) unlockNotificationTones();
     const tone = getToneById(toneId);
     if (!tone) return false;
     if (tone.url || tone.kind === 'file') {
@@ -774,18 +824,18 @@ export function playToneById(toneId) {
     return false;
 }
 
-export function playEventTone(eventId, { platform = platformKey() } = {}) {
+export function playEventTone(eventId, { platform = platformKey(), _fromFlush = false } = {}) {
     try {
-        unlockNotificationTones();
+        if (!_fromFlush) unlockNotificationTones();
         const toneId = getEventToneId(eventId, platform);
         const tone = getToneById(toneId);
-        const ok = playToneById(toneId);
+        const ok = playToneById(toneId, { _fromFlush });
 
         // Safari: si el contexto está suspendido, encolar y reintentar al desbloquear
         try {
             const ctx = sharedCtx;
             if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
-                pendingToneQueue.push({ type: 'event', eventId, platform });
+                enqueuePendingTone({ type: 'event', eventId, platform });
                 return false;
             }
         } catch (_) {}
@@ -1058,10 +1108,6 @@ export function installNotificationTonesApi() {
         unlockNotificationTones();
     });
 
-    // Precalentar tonos custom ya en localStorage
-    try {
-        customTones.forEach((t) => {
-            if (t?.url) warmHtmlAudio(t.url).catch(() => {});
-        });
-    } catch (_) {}
+    // NO precalentar tonos custom al cargar (sin gesto del usuario suena / falla y satura).
+    // Se calientan en silencio en el primer unlockNotificationTones() por gesto.
 }

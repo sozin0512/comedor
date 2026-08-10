@@ -54,7 +54,7 @@ function parseVersionParts(v) {
         .map((n) => parseInt(n, 10) || 0);
 }
 
-/** true si remote es estrictamente mas nueva que running (2026.08.10.4 > 2026.08.10.1). */
+/** true si remote es estrictamente mas nueva que running (2026.08.10.5 > 2026.08.10.1). */
 function isRemoteNewer(running, remote) {
     if (!remote || !running) return false;
     const a = parseVersionParts(running);
