@@ -141,20 +141,69 @@ function buildSteps() {
         {
             id: 'service',
             icon: 'fa-motorcycle',
-            title: 'Paso 3 · Tipo de servicio',
-            body: 'Elige Moto, Taxi VIP, Taxi T-, envío/comida o flete (paila/camión). Cada tipo tiene conductores y tarifas distintas.',
-            target: () => document.getElementById('passenger-booking-service'),
+            title: 'En cadena · Tipo de servicio',
+            body: 'Cuando pongas origen y destino se DESPLIEGA esta tarjeta (como pasajeros y horario). Elige Moto, Taxi VIP o Taxi T- y sale el siguiente paso.',
+            target: () => pickVisible('#passenger-booking-service', '#add-service-btn', '#trip-service-choice-wrap'),
             placement: 'top',
             mobilePlacement: 'top',
+            beforeShow: () => {
+                try {
+                    document.getElementById('booking-float-layer')?.classList.remove('hidden');
+                    document.getElementById('passenger-booking-service')?.classList.remove('hidden');
+                    window.setServiceAdderOpen?.(true);
+                    window.syncBookingProgression?.({ forceOpenStep: 'service', scroll: true });
+                } catch (_) {}
+            },
+        },
+        {
+            id: 'passengers',
+            icon: 'fa-users',
+            title: 'En cadena · Pasajeros',
+            body: 'Cuando pongas origen y destino, se DESPLIEGA sola esta tarjeta (como «Agregar parada»). Elige 1–4 personas y sale el siguiente paso.',
+            target: () => pickVisible('#passenger-booking-passengers', '#add-passengers-btn', '#trip-passengers-wrap'),
+            placement: 'top',
+            mobilePlacement: 'top',
+            beforeShow: () => {
+                try {
+                    window.serviceTypeChosen = true;
+                    window.setPassengersAdderOpen?.(true);
+                    window.syncBookingProgression?.({ forceOpenStep: 'passengers', scroll: true });
+                } catch (_) {}
+            },
+        },
+        {
+            id: 'when',
+            icon: 'fa-clock',
+            title: 'En cadena · ¿Ahora o después?',
+            body: 'Después de las personas se despliega esta tarjeta. Elige Ahora, o Programar + un atajo de hora. Entonces sale el último paso.',
+            target: () => pickVisible('#passenger-booking-when', '#add-when-btn', '#trip-when-panel'),
+            placement: 'top',
+            mobilePlacement: 'top',
+            beforeShow: () => {
+                try {
+                    window.serviceTypeChosen = true;
+                    window.passengersChosen = true;
+                    window.currentPassengers = window.currentPassengers || 1;
+                    window.setWhenAdderOpen?.(true);
+                    window.syncBookingProgression?.({ forceOpenStep: 'when', scroll: true });
+                } catch (_) {}
+            },
         },
         {
             id: 'fare',
             icon: 'fa-hand-holding-usd',
-            title: 'Tarifa y solicitar',
-            body: 'Cuando pongas origen y destino, aquí verás el precio estimado y el botón SOLICITAR AHORA para buscar conductores.',
-            target: () => pickVisible('#fare-request-btn', '#fare-card', '#passenger-booking-service'),
+            title: 'En cadena · Pedir el viaje',
+            body: 'Última tarjeta de la cadena: tarifa estimada y botón PEDIR EL VIAJE. Solo aparece cuando ya elegiste personas y cuándo.',
+            target: () => pickVisible('#fare-request-btn', '#fare-card', '#passenger-booking-request'),
             placement: 'top',
             mobilePlacement: 'top',
+            beforeShow: () => {
+                try {
+                    window.serviceTypeChosen = true;
+                    window.whenStepConfirmed = true;
+                    window.syncBookingProgression?.({ forceOpenStep: 'request', scroll: true });
+                } catch (_) {}
+            },
         },
         {
             id: 'panel',

@@ -331,7 +331,8 @@ service cloud.firestore {
     // ============================================================
 
     match /artifacts/{app}/public/data/appSettings/{doc} {
-      allow read: if isSignedIn();
+      // Logo, bienvenida, APK y config se leen en el login (aún sin sesión)
+      allow read: if true;
       allow write: if isSignedIn() && isStaff(app);
     }
 

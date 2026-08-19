@@ -1330,6 +1330,9 @@
         body.trip-autocomplete-open #passenger-mode-bar,
         body.trip-autocomplete-open .trip-step-advanced,
         body.trip-autocomplete-open .trip-step-service,
+        body.trip-autocomplete-open .trip-step-passengers,
+        body.trip-autocomplete-open .trip-step-when,
+        body.trip-autocomplete-open .trip-step-request,
         body.trip-autocomplete-open #ride-options,
         body.trip-autocomplete-open #fare-card,
         body.trip-autocomplete-open #favorites-bar,
@@ -2308,15 +2311,118 @@
             background: linear-gradient(135deg, #9f1239 0%, #e11d48 55%, #fb7185 100%);
         }
 
-        /* Selector de personas al pedir viaje (obligatorio 1–4) */
+        /* Selector de personas al pedir viaje (obligatorio 1–4) — tarjeta expandible */
+        /* Progresión de pedir viaje: FLOTANTE sobre el mapa (NO en el panel central) */
+        .booking-float-layer {
+            position: fixed;
+            left: max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+            right: max(0.65rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+            bottom: max(0.85rem, calc(0.55rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+            z-index: 620;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            max-height: min(62vh, 34rem);
+        }
+        .booking-float-layer.hidden {
+            display: none !important;
+        }
+        .booking-float-stack,
+        .passenger-booking-progress {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            min-width: 0;
+            max-height: inherit;
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            pointer-events: auto;
+            padding-bottom: 0.15rem;
+        }
+        .booking-float-card,
+        .booking-progress-step {
+            min-width: 0;
+            pointer-events: auto;
+            border-radius: 1.15rem;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.08);
+            padding: 0.65rem 0.7rem 0.7rem;
+        }
+        .booking-progress-step.hidden {
+            display: none !important;
+        }
+        .booking-progress-step--appear {
+            animation: booking-progress-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        @keyframes booking-progress-in {
+            from {
+                opacity: 0;
+                transform: translateY(18px) scale(0.96);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        .booking-progress-step--active .add-extra-stop-btn {
+            border-style: solid;
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.16);
+        }
+        /* Con tarjetas flotantes: panel minimizado + FAB para reabrir origen/destino */
+        body.booking-float-active.client-mode .panel-expand-fab {
+            display: inline-flex !important;
+            bottom: calc(5.75rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+            z-index: 630 !important;
+        }
+        body.booking-float-active.client-mode.panel-minimized #control-panel,
+        body.booking-float-active.client-mode #control-panel.panel-collapsed {
+            /* deja el mapa libre; la interacción es en las tarjetas flotantes */
+            max-height: 0 !important;
+            min-height: 0 !important;
+            opacity: 0;
+            pointer-events: none;
+            overflow: hidden !important;
+        }
+        body.is-searching .booking-float-layer,
+        body.trip-active .booking-float-layer,
+        body.passenger-mode-home .booking-float-layer,
+        body.driver-mode .booking-float-layer,
+        body.map-pick-mode .booking-float-layer {
+            display: none !important;
+        }
+        html[data-theme="dark"] .booking-float-card,
+        html[data-theme="dark"] .booking-progress-step {
+            background: #0f172a;
+            border-color: #334155;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        }
+        .trip-step-passengers {
+            padding: 0.75rem 0.85rem 0.85rem;
+        }
         .trip-passengers-wrap {
             transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
         }
-        .trip-passengers-wrap--missing {
+        .trip-passengers-wrap--missing .add-passengers-btn {
             border-color: #f59e0b !important;
-            background: #fffbeb !important;
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 55%, #ffffff 100%) !important;
             box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25);
             animation: trip-pax-pulse 1.4s ease-in-out infinite;
+        }
+        .trip-passengers-wrap--missing .add-passengers-btn .add-extra-stop-btn-icon {
+            background: linear-gradient(145deg, #d97706 0%, #f59e0b 100%);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.28);
+        }
+        .trip-passengers-wrap--missing .add-passengers-btn .add-extra-stop-btn-label {
+            color: #92400e;
+        }
+        .trip-passengers-wrap--missing .add-passengers-btn .add-extra-stop-btn-badge {
+            color: #b45309;
+            border-color: #fcd34d;
+            background: rgba(255, 255, 255, 0.95);
         }
         @keyframes trip-pax-pulse {
             0%, 100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.22); }
@@ -2324,6 +2430,200 @@
         }
         .trip-pax-chip[aria-pressed="true"] {
             transform: scale(1.04);
+        }
+        .add-passengers-btn {
+            margin-top: 0;
+        }
+        .add-passengers-btn.is-chosen:not(.is-active) {
+            border-style: solid;
+            border-color: #34d399;
+            background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 55%, #ffffff 100%);
+        }
+        .add-passengers-btn.is-chosen:not(.is-active) .add-extra-stop-btn-icon {
+            background: linear-gradient(145deg, #059669 0%, #10b981 100%);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.28);
+        }
+        .add-passengers-btn.is-chosen:not(.is-active) .add-extra-stop-btn-label {
+            color: #065f46;
+        }
+        .add-passengers-btn.is-chosen:not(.is-active) .add-extra-stop-btn-badge {
+            color: #047857;
+            border-color: #a7f3d0;
+            background: rgba(255, 255, 255, 0.92);
+        }
+        .trip-passengers-adder {
+            margin-top: 0.55rem;
+            padding: 0.65rem 0.7rem 0.75rem;
+            background: #f8fafc;
+            border-radius: 0.9rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: none;
+        }
+        .trip-step-when {
+            padding: 0.75rem 0.85rem 0.85rem;
+        }
+        .add-service-btn {
+            margin-top: 0;
+        }
+        .add-service-btn .add-extra-stop-btn-icon {
+            background: linear-gradient(145deg, #1d4ed8 0%, #2563eb 100%);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+        }
+        .add-service-btn:not(.is-active) {
+            border-color: #93c5fd;
+            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 55%, #ffffff 100%);
+        }
+        .add-service-btn:not(.is-active) .add-extra-stop-btn-label {
+            color: #1e3a8a;
+        }
+        .add-service-btn:not(.is-active) .add-extra-stop-btn-badge {
+            color: #2563eb;
+            border-color: #bfdbfe;
+        }
+        .add-service-btn.is-chosen:not(.is-active) {
+            border-style: solid;
+            border-color: #60a5fa;
+            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 55%, #ffffff 100%);
+        }
+        .trip-service-adder {
+            margin-top: 0.55rem;
+            padding: 0.65rem 0.7rem 0.75rem;
+            background: #f8fafc;
+            border-radius: 0.9rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: none;
+        }
+        .trip-service-adder .trip-service-picker {
+            grid-template-columns: repeat(auto-fit, minmax(4.6rem, 1fr));
+        }
+        .trip-service-adder .trip-ride-options {
+            margin-top: 0.65rem;
+        }
+        .trip-service-choice-wrap--missing .add-service-btn {
+            border-color: #3b82f6 !important;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 55%, #ffffff 100%) !important;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+        }
+        html[data-theme="dark"] .add-service-btn:not(.is-active) {
+            border-color: #1d4ed8;
+            background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+        }
+        html[data-theme="dark"] .add-service-btn:not(.is-active) .add-extra-stop-btn-label {
+            color: #bfdbfe;
+        }
+        html[data-theme="dark"] .trip-service-adder {
+            background: #0f172a;
+            border-color: #334155;
+        }
+        html[data-theme="dark"] .add-service-btn.is-chosen:not(.is-active) {
+            border-color: #2563eb;
+            background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
+        }
+        html[data-theme="dark"] .add-service-btn.is-chosen:not(.is-active) .add-extra-stop-btn-label {
+            color: #93c5fd;
+        }
+
+        .add-when-btn {
+            margin-top: 0;
+        }
+        .add-when-btn .add-extra-stop-btn-icon {
+            background: linear-gradient(145deg, #7c3aed 0%, #8b5cf6 100%);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.28);
+        }
+        .add-when-btn:not(.is-active) {
+            border-color: #c4b5fd;
+            background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 55%, #ffffff 100%);
+        }
+        .add-when-btn:not(.is-active) .add-extra-stop-btn-label {
+            color: #5b21b6;
+        }
+        .add-when-btn:not(.is-active) .add-extra-stop-btn-badge {
+            color: #7c3aed;
+            border-color: #ddd6fe;
+        }
+        .add-when-btn.is-chosen:not(.is-active) {
+            border-style: solid;
+            border-color: #a78bfa;
+            background: linear-gradient(135deg, #f5f3ff 0%, #faf5ff 55%, #ffffff 100%);
+        }
+        .add-when-btn.is-chosen.is-later:not(.is-active) {
+            border-color: #f59e0b;
+            background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 55%, #ffffff 100%);
+        }
+        .add-when-btn.is-chosen.is-later:not(.is-active) .add-extra-stop-btn-icon {
+            background: linear-gradient(145deg, #d97706 0%, #f59e0b 100%);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.28);
+        }
+        .add-when-btn.is-chosen.is-later:not(.is-active) .add-extra-stop-btn-label {
+            color: #92400e;
+        }
+        .add-when-btn.is-chosen.is-later:not(.is-active) .add-extra-stop-btn-badge {
+            color: #b45309;
+            border-color: #fcd34d;
+        }
+        .trip-when-adder {
+            margin-top: 0.55rem;
+            padding: 0.65rem 0.7rem 0.75rem;
+            background: #f8fafc;
+            border-radius: 0.9rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: none;
+        }
+        .trip-when-adder .trip-when-panel {
+            margin: 0;
+            padding: 0;
+            border: none;
+            background: transparent;
+            box-shadow: none;
+        }
+        .trip-step-request {
+            padding: 0.75rem 0.85rem 0.85rem;
+        }
+        .trip-step-badge--request {
+            background: linear-gradient(145deg, #059669 0%, #10b981 100%);
+        }
+        html[data-theme="dark"] .add-when-btn:not(.is-active) {
+            border-color: #6d28d9;
+            background: linear-gradient(135deg, #2e1065 0%, #1e1b4b 100%);
+        }
+        html[data-theme="dark"] .add-when-btn:not(.is-active) .add-extra-stop-btn-label {
+            color: #ddd6fe;
+        }
+        html[data-theme="dark"] .trip-when-adder {
+            background: #0f172a;
+            border-color: #334155;
+        }
+        html[data-theme="dark"] .add-when-btn.is-chosen.is-later:not(.is-active) {
+            border-color: #d97706;
+            background: linear-gradient(135deg, #451a03 0%, #0f172a 100%);
+        }
+        html[data-theme="dark"] .add-when-btn.is-chosen.is-later:not(.is-active) .add-extra-stop-btn-label {
+            color: #fde68a;
+        }
+        .trip-request-hint {
+            margin: 0.55rem 0 0;
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: #94a3b8;
+            line-height: 1.35;
+            text-align: center;
+        }
+        .trip-step-request.is-ready .trip-request-hint {
+            display: none;
+        }
+        html[data-theme="dark"] .trip-passengers-adder {
+            background: #0f172a;
+            border-color: #334155;
+        }
+        html[data-theme="dark"] .trip-request-hint {
+            color: #64748b;
+        }
+        html[data-theme="dark"] .add-passengers-btn.is-chosen:not(.is-active) {
+            border-color: #059669;
+            background: linear-gradient(135deg, #064e3b 0%, #0f172a 100%);
+        }
+        html[data-theme="dark"] .add-passengers-btn.is-chosen:not(.is-active) .add-extra-stop-btn-label {
+            color: #a7f3d0;
         }
 
         .login-screen, .setup-screen, .rating-screen, .cancellation-survey-screen { 
@@ -4038,7 +4338,7 @@
             padding: 0.75rem 0.85rem 0.85rem;
         }
 
-        .trip-step-service .trip-fare-card {
+        .trip-step-request .trip-fare-card {
             margin-top: 0.65rem;
         }
 
@@ -5195,6 +5495,9 @@
         body.is-searching #passenger-booking-route,
         body.is-searching #passenger-booking-advanced,
         body.is-searching #passenger-booking-service {
+            display: none !important;
+        }
+        body.is-searching #booking-float-layer {
             display: none !important;
         }
 
@@ -20544,6 +20847,7 @@ body.stores-panel-open { overflow: hidden; }
 body.passenger-mode-home #passenger-booking-route,
 body.passenger-mode-home #passenger-booking-advanced,
 body.passenger-mode-home #passenger-booking-service,
+body.passenger-mode-home #booking-float-layer,
 body.passenger-mode-home #client-stores-section {
   display: none !important;
 }

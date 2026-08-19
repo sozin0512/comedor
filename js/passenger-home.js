@@ -12,7 +12,7 @@ import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.08.08.1';
 const BOOKING_SECTION_IDS = [
     'passenger-booking-route',
     'passenger-booking-advanced',
-    'passenger-booking-service',
+    // tipo de servicio / pasajeros / cuándo / pedir van en #booking-float-layer
     'client-stores-section',
     'favorites-bar',
 ];
@@ -250,7 +250,19 @@ function setBookingVisible(show) {
         if (!el) return;
         el.classList.toggle('hidden', !show);
     });
-    // fare card / searching handled by existing app logic
+    // Flotantes de progresión (fuera del panel): ocultar al salir; al entrar re-sync
+    if (!show) {
+        document.getElementById('booking-float-layer')?.classList.add('hidden');
+        document.body.classList.remove('booking-float-active');
+        ['passenger-booking-service', 'passenger-booking-passengers', 'passenger-booking-when', 'passenger-booking-request']
+            .forEach((id) => document.getElementById(id)?.classList.add('hidden'));
+    } else {
+        try {
+            window.whenStepConfirmed = false;
+            window.serviceTypeChosen = false;
+            window.syncBookingProgression?.({ scroll: false });
+        } catch (_) {}
+    }
 }
 
 function applyMode(mode) {
@@ -302,11 +314,13 @@ function applyMode(mode) {
         if (pick && isServiceTypeDisabledInCity(pick, getActiveCityId())) {
             pick = allowed[0] || null;
         }
+        window.serviceTypeChosen = allowed.length <= 1;
         if (pick && typeof window.selectServiceType === 'function') {
-            window.selectServiceType(pick, { keepFareVisible: false, skipCityCheck: true });
+            window.selectServiceType(pick, { keepFareVisible: false, skipCityCheck: true, confirmStep: false });
         } else if (pick) {
             window.currentServiceType = pick;
         }
+        try { window.syncServiceCardSummary?.(); } catch (_) {}
         try { window.applyCityServiceAvailabilityToUI?.({ skipHomeRefresh: true }); } catch (_) {}
         // Expandir panel de control
         window.showControlPanel?.();

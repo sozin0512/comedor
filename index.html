@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.08.10.5">
+    <meta name="hr-app-version" content="2026.08.18.2">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.08.10.5">
+    <link rel="manifest" href="manifest.json?v=2026.08.18.2">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,13 +31,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.08.10.5">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.08.18.2">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.08.10.5">
-    <script src="js/maps-init.js?v=2026.08.10.5"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.08.18.2">
+    <script src="js/maps-init.js?v=2026.08.18.2"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.08.10.5';
+        import { APP_CONFIG } from './js/config.js?v=2026.08.18.2';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -80,11 +80,19 @@
             100% { opacity: 1; transform: scale(1); }
         }
         body.map-load-failed #map { background: #e2e8f0; }
-        body.map-load-failed #map::after {
+        body.map-load-failed:not(.map-billing-disabled) #map::after {
             content: 'Mapa no disponible. Revisa conexión o API de Google Maps.';
             position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
             color: #475569; font-size: 12px; text-align: center; max-width: 80%; padding: 1rem;
         }
+        .maps-billing-banner {
+            position: absolute; z-index: 50; left: 0.75rem; right: 0.75rem; top: 0.75rem;
+            background: #fff7ed; border: 1px solid #fdba74; color: #9a3412;
+            border-radius: 0.9rem; padding: 0.75rem 0.85rem; font-size: 0.72rem;
+            font-weight: 700; line-height: 1.4; box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+        }
+        .maps-billing-banner p { margin: 0; }
+        .maps-billing-banner p + p { margin-top: 0.35rem; font-weight: 600; color: #c2410c; }
     </style>
     <script type="module">
         try {
@@ -97,10 +105,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.08.10.5';
+        window.__HR_BUILD_VERSION__ = '2026.08.18.2';
         (function () {
             try {
-                var build = '2026.08.10.5';
+                var build = '2026.08.18.2';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -388,6 +396,186 @@
     <!-- Copa HonduRaite (retos globales) — badge se crea en #map-container por JS (igual que app-download) -->
     <div id="driver-copa-active" class="hidden" aria-live="polite"></div>
     <div id="passenger-copa-active" class="hidden" aria-live="polite"></div>
+
+    <!--
+      Pedir viaje en PROGRESIÓN (fuera del panel central):
+      se despliegan sobre el mapa como tarjetas flotantes, una tras otra.
+    -->
+    <div id="booking-float-layer" class="booking-float-layer hidden" aria-live="polite" aria-label="Pasos para pedir viaje">
+        <div id="passenger-booking-progress" class="passenger-booking-progress booking-float-stack">
+
+            <!-- Paso A: tipo de servicio (fuera del panel central) -->
+            <div id="passenger-booking-service" class="booking-progress-step booking-float-card hidden" data-progress-step="service">
+                <div id="trip-service-choice-wrap" class="trip-service-choice-wrap">
+                    <button type="button" id="add-service-btn" class="add-extra-stop-btn add-service-btn trip-touch-btn"
+                            aria-expanded="false" aria-controls="trip-service-adder">
+                        <span class="add-extra-stop-btn-icon" aria-hidden="true"><i class="fas fa-taxi"></i></span>
+                        <span class="add-extra-stop-btn-text">
+                            <span class="add-extra-stop-btn-label" id="add-service-btn-label">Tipo de servicio</span>
+                            <span class="add-extra-stop-btn-badge" id="add-service-btn-badge">Toca para elegir</span>
+                        </span>
+                        <i class="fas fa-chevron-down add-extra-stop-btn-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div id="trip-service-adder" class="trip-service-adder hidden" role="region" aria-label="Elegir tipo de servicio">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[10px] font-black text-slate-600 uppercase tracking-wide">Elige el tipo</span>
+                            <button type="button" id="btn-service-cancel-inline" class="text-slate-400 hover:text-red-500 text-lg leading-none px-1" aria-label="Cerrar">×</button>
+                        </div>
+                        <div id="client-service-type-wrap" class="client-service-type-wrap trip-service-wrap">
+                            <div id="service-type-picker" class="service-type-picker trip-service-picker" role="tablist" aria-label="Tipo de viaje">
+                                <button type="button" data-service-type="moto" id="svc-btn-moto" role="tab" aria-selected="true"
+                                        class="service-type-btn service-type-moto active trip-service-chip" title="Viajes de pasajeros en motocicleta">
+                                    <i class="fas fa-motorcycle pointer-events-none"></i><span class="pointer-events-none">Moto (pasajeros)</span>
+                                </button>
+                                <button type="button" data-service-type="auto" id="svc-btn-auto" role="tab" aria-selected="false"
+                                        class="service-type-btn trip-service-chip" title="Automóvil privado · tarifa premium">
+                                    <i class="fas fa-car pointer-events-none"></i><span class="pointer-events-none">Taxi VIP</span>
+                                </button>
+                                <button type="button" data-service-type="taxi" id="svc-btn-taxi" role="tab" aria-selected="false"
+                                        class="service-type-btn trip-service-chip" title="Solo taxis con placa T- oficial">
+                                    <i class="fas fa-taxi pointer-events-none"></i><span class="pointer-events-none">Taxi T-</span>
+                                </button>
+                                <button type="button" data-service-type="delivery" id="svc-btn-delivery" role="tab" aria-selected="false"
+                                        class="service-type-btn service-type-delivery trip-service-chip trip-service-chip--delivery" title="Comida de restaurantes y envíos/paquetes (en moto)">
+                                    <i class="fas fa-box pointer-events-none"></i><span class="pointer-events-none">Envío / Comida (moto)</span>
+                                </button>
+                                <button type="button" data-service-type="flete_paila" id="svc-btn-flete_paila" role="tab" aria-selected="false"
+                                        class="service-type-btn service-type-flete trip-service-chip" title="Fletes en pickup o paila">
+                                    <i class="fas fa-truck-pickup pointer-events-none"></i><span class="pointer-events-none">Flete · Paila</span>
+                                </button>
+                                <button type="button" data-service-type="flete_camion" id="svc-btn-flete_camion" role="tab" aria-selected="false"
+                                        class="service-type-btn service-type-flete trip-service-chip" title="Fletes en camión">
+                                    <i class="fas fa-truck pointer-events-none"></i><span class="pointer-events-none">Flete · Camión</span>
+                                </button>
+                                <button type="button" data-service-type="grua" id="svc-btn-grua" role="tab" aria-selected="false"
+                                        class="service-type-btn service-type-grua trip-service-chip" title="Grúa y remolque · tarifa premium">
+                                    <i class="icon-grua pointer-events-none"></i><span class="pointer-events-none">Grúa</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="ride-options" class="hidden trip-ride-options">
+                            <p class="trip-ride-options-label">Cambiar tipo de vehículo</p>
+                            <div class="space-y-2" id="ride-options-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paso B: pasajeros -->
+            <div id="passenger-booking-passengers" class="booking-progress-step booking-float-card hidden" data-progress-step="passengers" data-pax-required="1">
+                <div id="trip-passengers-wrap" class="trip-passengers-wrap">
+                    <button type="button" id="add-passengers-btn" class="add-extra-stop-btn add-passengers-btn trip-touch-btn"
+                            aria-expanded="false" aria-controls="trip-passengers-adder">
+                        <span class="add-extra-stop-btn-icon" aria-hidden="true"><i class="fas fa-users"></i></span>
+                        <span class="add-extra-stop-btn-text">
+                            <span class="add-extra-stop-btn-label" id="add-passengers-btn-label">¿Cuántas personas van?</span>
+                            <span class="add-extra-stop-btn-badge" id="add-passengers-btn-badge">Toca para elegir · máx 4</span>
+                        </span>
+                        <i class="fas fa-chevron-down add-extra-stop-btn-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div id="trip-passengers-adder" class="trip-passengers-adder hidden" role="region" aria-label="Elegir número de personas">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[10px] font-black text-slate-600 uppercase tracking-wide">Elige cuántas van</span>
+                            <button type="button" id="btn-passengers-cancel-inline" class="text-slate-400 hover:text-red-500 text-lg leading-none px-1" aria-label="Cerrar">×</button>
+                        </div>
+                        <div id="trip-passenger-chips" class="flex flex-wrap gap-1.5" role="group" aria-label="Número de personas (obligatorio)" aria-required="true">
+                            <button type="button" data-trip-pax="1" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">1</button>
+                            <button type="button" data-trip-pax="2" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">2</button>
+                            <button type="button" data-trip-pax="3" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">3</button>
+                            <button type="button" data-trip-pax="4" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">4</button>
+                        </div>
+                        <p id="trip-passenger-hint" class="text-[10px] font-bold text-blue-900/80 mt-2 leading-snug m-0">
+                            Toca un número (1–4). Luego se despliega el siguiente paso.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paso C: ¿ahora o después? -->
+            <div id="passenger-booking-when" class="booking-progress-step booking-float-card hidden" data-progress-step="when">
+                <div id="trip-when-wrap" class="trip-when-wrap">
+                    <button type="button" id="add-when-btn" class="add-extra-stop-btn add-when-btn trip-touch-btn"
+                            aria-expanded="false" aria-controls="trip-when-adder">
+                        <span class="add-extra-stop-btn-icon" aria-hidden="true"><i class="fas fa-clock"></i></span>
+                        <span class="add-extra-stop-btn-text">
+                            <span class="add-extra-stop-btn-label" id="add-when-btn-label">¿Ahora o en otro momento?</span>
+                            <span class="add-extra-stop-btn-badge" id="add-when-btn-badge">Toca para elegir</span>
+                        </span>
+                        <i class="fas fa-chevron-down add-extra-stop-btn-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div id="trip-when-adder" class="trip-when-adder hidden" role="region" aria-label="Elegir cuándo necesitas el servicio">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="text-[10px] font-black text-slate-600 uppercase tracking-wide">Elige el momento</span>
+                            <button type="button" id="btn-when-cancel-inline" class="text-slate-400 hover:text-red-500 text-lg leading-none px-1" aria-label="Cerrar">×</button>
+                        </div>
+                        <div id="trip-when-panel" class="trip-when-panel" aria-label="Cuándo necesitas el servicio">
+                            <div class="trip-when-head">
+                                <p id="trip-when-title" class="trip-when-title">
+                                    <i class="fas fa-clock"></i> ¿Cuándo lo necesitas?
+                                </p>
+                                <p id="trip-when-sub" class="trip-when-sub">Carro, moto, flete o envío · hora de Honduras</p>
+                            </div>
+                            <div class="trip-when-modes" role="tablist" aria-label="Ahora o programar">
+                                <button type="button" id="trip-when-now" class="trip-when-mode-btn is-active" data-when-mode="now" role="tab" aria-selected="true">
+                                    <i class="fas fa-bolt"></i>
+                                    <span>Ahora</span>
+                                </button>
+                                <button type="button" id="trip-when-later" class="trip-when-mode-btn" data-when-mode="later" role="tab" aria-selected="false">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <span id="trip-when-later-label">Programar</span>
+                                </button>
+                            </div>
+                            <div id="trip-when-schedule" class="trip-when-schedule hidden">
+                                <p class="trip-when-presets-label">Elige en un toque</p>
+                                <div id="trip-when-presets" class="trip-when-presets" role="group" aria-label="Atajos de horario">
+                                    <!-- chips por JS -->
+                                </div>
+                                <div id="trip-when-custom" class="trip-when-custom hidden">
+                                    <div class="trip-when-custom-grid">
+                                        <label class="trip-when-field">
+                                            <span>Fecha</span>
+                                            <input type="date" id="trip-schedule-date" class="trip-when-input">
+                                        </label>
+                                        <label class="trip-when-field">
+                                            <span>Hora</span>
+                                            <input type="time" id="trip-schedule-time" class="trip-when-input" step="300">
+                                        </label>
+                                    </div>
+                                    <p class="trip-when-hint">Mínimo 15 min desde ahora · zona America/Tegucigalpa</p>
+                                </div>
+                                <div id="trip-when-summary" class="trip-when-summary hidden" aria-live="polite">
+                                    <i class="fas fa-calendar-day"></i>
+                                    <div>
+                                        <p id="trip-when-summary-text" class="trip-when-summary-text">—</p>
+                                        <p id="trip-when-summary-note" class="trip-when-summary-note">Buscamos conductor ya; el servicio queda para esa hora.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paso D: pedir el viaje -->
+            <div id="passenger-booking-request" class="booking-progress-step booking-float-card hidden" data-progress-step="request">
+                <div id="fare-card" class="trip-fare-card hidden">
+                    <p id="price-display" class="fare-price-hero">L. 0.00</p>
+                    <p id="fare-card-label" class="fare-card-label">Tarifa estimada</p>
+                    <p id="birthday-fare-note" class="hidden fare-birthday-note">🎂 ¡Viaje gratis por tu cumpleaños!</p>
+                    <p id="promo-fare-note" class="hidden fare-promo-note"></p>
+                    <div class="fare-card-details">
+                        <p id="route-summary" class="fare-route-summary"></p>
+                        <p id="freight-fare-breakdown" class="hidden fare-extra-line"></p>
+                        <p id="route-conditions-note" class="hidden fare-extra-line"></p>
+                        <p id="eta-preview" class="hidden fare-eta-line"></p>
+                    </div>
+                    <button type="button" id="fare-request-btn" data-trip-action="request" class="fare-request-btn trip-touch-btn"><span class="pointer-events-none">PEDIR EL VIAJE</span></button>
+                </div>
+                <p id="trip-request-hint" class="trip-request-hint">Calculando tarifa…</p>
+            </div>
+
+        </div>
+    </div>
 
     <!-- Pasajero: 1 flotante unificado (conductor + PIN). Evita 2 paneles superpuestos. -->
     <div id="trip-floats-layer" class="hidden" aria-live="polite">
@@ -1939,126 +2127,9 @@
         </div>
     </section>
 
-    <section id="passenger-booking-service" class="trip-step-card trip-step-service">
-        <div id="client-service-type-wrap" class="client-service-type-wrap trip-service-wrap">
-            <p class="trip-service-type-label text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Tipo de servicio</p>
-            <div id="service-type-picker" class="service-type-picker trip-service-picker" role="tablist" aria-label="Tipo de viaje">
-                <button type="button" data-service-type="moto" id="svc-btn-moto" role="tab" aria-selected="true"
-                        class="service-type-btn service-type-moto active trip-service-chip" title="Viajes de pasajeros en motocicleta">
-                    <i class="fas fa-motorcycle pointer-events-none"></i><span class="pointer-events-none">Moto (pasajeros)</span>
-                </button>
-                <button type="button" data-service-type="auto" id="svc-btn-auto" role="tab" aria-selected="false"
-                        class="service-type-btn trip-service-chip" title="Automóvil privado · tarifa premium">
-                    <i class="fas fa-car pointer-events-none"></i><span class="pointer-events-none">Taxi VIP</span>
-                </button>
-                <button type="button" data-service-type="taxi" id="svc-btn-taxi" role="tab" aria-selected="false"
-                        class="service-type-btn trip-service-chip" title="Solo taxis con placa T- oficial">
-                    <i class="fas fa-taxi pointer-events-none"></i><span class="pointer-events-none">Taxi T-</span>
-                </button>
-                <button type="button" data-service-type="delivery" id="svc-btn-delivery" role="tab" aria-selected="false"
-                        class="service-type-btn service-type-delivery trip-service-chip trip-service-chip--delivery" title="Comida de restaurantes y envíos/paquetes (en moto)">
-                    <i class="fas fa-box pointer-events-none"></i><span class="pointer-events-none">Envío / Comida (moto)</span>
-                </button>
-                <button type="button" data-service-type="flete_paila" id="svc-btn-flete_paila" role="tab" aria-selected="false"
-                        class="service-type-btn service-type-flete trip-service-chip" title="Fletes en pickup o paila">
-                    <i class="fas fa-truck-pickup pointer-events-none"></i><span class="pointer-events-none">Flete · Paila</span>
-                </button>
-                <button type="button" data-service-type="flete_camion" id="svc-btn-flete_camion" role="tab" aria-selected="false"
-                        class="service-type-btn service-type-flete trip-service-chip" title="Fletes en camión">
-                    <i class="fas fa-truck pointer-events-none"></i><span class="pointer-events-none">Flete · Camión</span>
-                </button>
-                <button type="button" data-service-type="grua" id="svc-btn-grua" role="tab" aria-selected="false"
-                        class="service-type-btn service-type-grua trip-service-chip" title="Grúa y remolque · tarifa premium">
-                    <i class="icon-grua pointer-events-none"></i><span class="pointer-events-none">Grúa</span>
-                </button>
-            </div>
-        </div>
+    <!-- Tipo de servicio vive en #booking-float-layer (tarjeta desplegable, fuera del panel) -->
 
-        <div id="trip-passengers-wrap" class="trip-passengers-wrap mt-2 mb-2 p-3 rounded-2xl border-2 border-blue-300 bg-blue-50/95 shadow-sm" data-pax-required="1">
-            <div class="flex items-center justify-between gap-2 mb-1.5">
-                <p class="text-[10px] font-black text-blue-900 uppercase tracking-widest m-0">
-                    <i class="fas fa-users text-blue-600"></i> ¿Cuántas personas van? <span class="text-red-600 normal-case">*</span>
-                </p>
-                <span class="text-[9px] font-black uppercase tracking-wide text-white bg-blue-600 px-2 py-0.5 rounded-full">Obligatorio · máx 4</span>
-            </div>
-            <div id="trip-passenger-chips" class="flex flex-wrap gap-1.5" role="group" aria-label="Número de personas (obligatorio)" aria-required="true">
-                <button type="button" data-trip-pax="1" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">1</button>
-                <button type="button" data-trip-pax="2" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">2</button>
-                <button type="button" data-trip-pax="3" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">3</button>
-                <button type="button" data-trip-pax="4" class="trip-pax-chip px-3 py-2.5 min-w-[2.85rem] rounded-xl text-sm font-black border-2 border-slate-200 bg-white text-slate-700">4</button>
-            </div>
-            <p id="trip-passenger-hint" class="text-[10px] font-bold text-blue-900/80 mt-2 leading-snug m-0">
-                Toca un número (1–4). Obligatorio para pedir el viaje. El conductor verá cuántas personas van.
-            </p>
-        </div>
-
-        <!-- Programar: visible para carro, moto, flete y entregas (estilo fácil, atajos) -->
-        <div id="trip-when-panel" class="trip-when-panel" aria-label="Cuándo necesitas el servicio">
-            <div class="trip-when-head">
-                <p id="trip-when-title" class="trip-when-title">
-                    <i class="fas fa-clock"></i> ¿Cuándo lo necesitas?
-                </p>
-                <p id="trip-when-sub" class="trip-when-sub">Carro, moto, flete o envío · hora de Honduras</p>
-            </div>
-            <div class="trip-when-modes" role="tablist" aria-label="Ahora o programar">
-                <button type="button" id="trip-when-now" class="trip-when-mode-btn is-active" data-when-mode="now" role="tab" aria-selected="true">
-                    <i class="fas fa-bolt"></i>
-                    <span>Ahora</span>
-                </button>
-                <button type="button" id="trip-when-later" class="trip-when-mode-btn" data-when-mode="later" role="tab" aria-selected="false">
-                    <i class="fas fa-calendar-check"></i>
-                    <span id="trip-when-later-label">Programar</span>
-                </button>
-            </div>
-            <div id="trip-when-schedule" class="trip-when-schedule hidden">
-                <p class="trip-when-presets-label">Elige en un toque</p>
-                <div id="trip-when-presets" class="trip-when-presets" role="group" aria-label="Atajos de horario">
-                    <!-- chips por JS -->
-                </div>
-                <div id="trip-when-custom" class="trip-when-custom hidden">
-                    <div class="trip-when-custom-grid">
-                        <label class="trip-when-field">
-                            <span>Fecha</span>
-                            <input type="date" id="trip-schedule-date" class="trip-when-input">
-                        </label>
-                        <label class="trip-when-field">
-                            <span>Hora</span>
-                            <input type="time" id="trip-schedule-time" class="trip-when-input" step="300">
-                        </label>
-                    </div>
-                    <p class="trip-when-hint">Mínimo 15 min desde ahora · zona America/Tegucigalpa</p>
-                </div>
-                <div id="trip-when-summary" class="trip-when-summary hidden" aria-live="polite">
-                    <i class="fas fa-calendar-day"></i>
-                    <div>
-                        <p id="trip-when-summary-text" class="trip-when-summary-text">—</p>
-                        <p id="trip-when-summary-note" class="trip-when-summary-note">Buscamos conductor ya; el servicio queda para esa hora.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="fare-card" class="trip-fare-card hidden">
-            <p id="price-display" class="fare-price-hero">L. 0.00</p>
-            <p id="fare-card-label" class="fare-card-label">Tarifa estimada</p>
-            <p id="birthday-fare-note" class="hidden fare-birthday-note">🎂 ¡Viaje gratis por tu cumpleaños!</p>
-            <p id="promo-fare-note" class="hidden fare-promo-note"></p>
-            <div class="fare-card-details">
-                <p id="route-summary" class="fare-route-summary"></p>
-                <p id="freight-fare-breakdown" class="hidden fare-extra-line"></p>
-                <p id="route-conditions-note" class="hidden fare-extra-line"></p>
-                <p id="eta-preview" class="hidden fare-eta-line"></p>
-            </div>
-            <button type="button" id="fare-request-btn" data-trip-action="request" class="fare-request-btn trip-touch-btn"><span class="pointer-events-none">SOLICITAR AHORA</span></button>
-        </div>
-
-        <div id="ride-options" class="hidden trip-ride-options">
-            <p class="trip-ride-options-label">Cambiar tipo de vehículo</p>
-            <div class="space-y-2" id="ride-options-list"></div>
-        </div>
-
-    </section>
-
+    <!-- Progresión de tarjetas: FUERA del panel (capa flotante sobre el mapa) -->
     <div id="searching-state" class="mt-6 hidden passenger-pending-wrap">
         <div id="install-reminder-banner" class="hidden"></div>
         <div class="passenger-pending-hero text-center">
@@ -2482,6 +2553,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.08.10.5"></script>
+    <script type="module" src="js/app.js?v=2026.08.18.2"></script>
 </body>
 </html>

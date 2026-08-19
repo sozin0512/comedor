@@ -3,6 +3,32 @@ window.gMap = null;
         window.geocoder = null;
         window.trafficLayer = null;        
         window.mapLoaded = false;
+
+        /** Google Maps llama esto si la clave/facturación falla (BillingNotEnabledMapError, etc.). */
+        window.gm_authFailure = function () {
+            window.__mapsAuthFailure = true;
+            window.__mapsLoadError = true;
+            document.body?.classList.add('map-load-failed', 'map-billing-disabled');
+            console.error(
+                '[maps] BillingNotEnabledMapError: activa facturación en el proyecto de Google Cloud que usa la clave de Maps.',
+                'https://console.cloud.google.com/project/_/billing/enable'
+            );
+            try {
+                let banner = document.getElementById('maps-billing-banner');
+                if (!banner) {
+                    banner = document.createElement('div');
+                    banner.id = 'maps-billing-banner';
+                    banner.setAttribute('role', 'alert');
+                    banner.className = 'maps-billing-banner';
+                    banner.innerHTML = '<p><strong>Google Maps no carga:</strong> la facturación del proyecto Cloud está apagada.</p>'
+                        + '<p>En Google Cloud activa facturación y las APIs Maps JavaScript, Places (New), Routes y Geocoding. Luego recarga.</p>';
+                    const mapEl = document.getElementById('map');
+                    if (mapEl?.parentNode) mapEl.parentNode.insertBefore(banner, mapEl);
+                    else document.body?.prepend(banner);
+                }
+                banner.hidden = false;
+            } catch (_) {}
+        };
         window.driverMarkers = {};
         window.currentDriverPos = null;
         window.autoCenter = true;

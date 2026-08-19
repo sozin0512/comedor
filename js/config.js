@@ -4,11 +4,11 @@
  */
 export const APP_CONFIG = {
     /** Sube este número cada vez que publicas cambios (y el mismo valor en version.json). */
-    appVersion: '2026.08.10.5',
+    appVersion: '2026.08.18.2',
     /** Push nativo Android (auto: google-services.json + paquete APK) */
     androidFcmEnabled: true,
     firebase: {
-        apiKey: "AIzaSyBwaRzw2R1DCFOSn-YtfM5tRLdN7p4dpk8",
+        apiKey: "AIzaSyCJfh_J-5gx25yl0OWV5a7-8tLfbI0cjRQ",
         authDomain: "comedor-86278.firebaseapp.com",
         projectId: "comedor-86278",
         storageBucket: "comedor-86278.firebasestorage.app",
@@ -22,9 +22,9 @@ export const APP_CONFIG = {
     appId: "comayagua-vip-pro-v4",
     googleMaps: {
         // Misma clave para Maps JS API (debe tener Places, Routes y Maps habilitados)
-        apiKey: "AIzaSyBcYbSDhDoijVhitHY5HXx0-NyPQaRa0Z8",
+        apiKey: "AIzaSyBCpZ209ORRrbbEDTx0wNUMei0kHXyCZYQ",
         // Map ID REAL (proporcionado por usuario)
-        mapId: "8dc612e600a3cf29755af4fe",
+        mapId: "4655e840c3f48bfce8dd4ead",
         defaultCenter: { lat: 14.4513, lng: -87.6374 },
         countryRestriction: ["hn"],
         // Máximo permitido por Places API (metros)

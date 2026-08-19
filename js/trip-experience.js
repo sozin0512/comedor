@@ -256,6 +256,81 @@ function updateRequestButtonLabel() {
     const span = fareBtn.querySelector('.pointer-events-none');
     if (span) span.textContent = label;
     else fareBtn.innerText = label;
+    // Mantener sincronizada la tarjeta expandible «¿Ahora o en otro momento?»
+    try { syncWhenCardSummary?.(); } catch (_) {}
+}
+
+/** Tarjeta expandible (mismo patrón que parada/pasajeros). */
+export function syncWhenAdderBtnState() {
+    const btn = document.getElementById('add-when-btn');
+    const adder = document.getElementById('trip-when-adder');
+    if (!btn || !adder) return;
+    const open = !adder.classList.contains('hidden');
+    btn.classList.toggle('is-active', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+export function setWhenAdderOpen(open) {
+    const adder = document.getElementById('trip-when-adder');
+    if (!adder) return;
+    adder.classList.toggle('hidden', !open);
+    syncWhenAdderBtnState();
+}
+
+/** Etiqueta del botón: Ahora / Programado para … */
+export function syncWhenCardSummary() {
+    const btn = document.getElementById('add-when-btn');
+    const labelEl = document.getElementById('add-when-btn-label');
+    const badgeEl = document.getElementById('add-when-btn-badge');
+    if (!btn && !labelEl && !badgeEl) return;
+
+    const later = !!document.getElementById('trip-schedule-toggle')?.checked;
+    const summaryText = document.getElementById('trip-when-summary-text')?.textContent?.trim() || '';
+    const hasSummary = later && summaryText && summaryText !== '—';
+
+    btn?.classList.toggle('is-chosen', true);
+    btn?.classList.toggle('is-later', later);
+
+    if (labelEl) {
+        if (!later) {
+            labelEl.textContent = 'Ahora · lo necesito ya';
+        } else if (hasSummary) {
+            labelEl.textContent = `Programado · ${summaryText}`;
+        } else {
+            labelEl.textContent = 'En otro momento · elige hora';
+        }
+    }
+    if (badgeEl) {
+        if (!later) {
+            badgeEl.textContent = 'Toca para programar';
+        } else if (hasSummary) {
+            badgeEl.textContent = 'Listo · toca para cambiar';
+        } else {
+            badgeEl.textContent = 'Elige un atajo o fecha';
+        }
+    }
+    syncWhenAdderBtnState();
+}
+
+export function bindWhenAdder() {
+    const toggle = document.getElementById('add-when-btn');
+    const adder = document.getElementById('trip-when-adder');
+    const closeInline = document.getElementById('btn-when-cancel-inline');
+    if (!toggle || !adder) return;
+    if (toggle.dataset.bound === '1') {
+        syncWhenCardSummary();
+        return;
+    }
+    toggle.dataset.bound = '1';
+    toggle.addEventListener('click', () => {
+        const willOpen = adder.classList.contains('hidden');
+        setWhenAdderOpen(willOpen);
+    });
+    if (closeInline && closeInline.dataset.bound !== '1') {
+        closeInline.dataset.bound = '1';
+        closeInline.addEventListener('click', () => setWhenAdderOpen(false));
+    }
+    syncWhenCardSummary();
 }
 
 function setActiveWhenMode(mode) {
@@ -303,6 +378,7 @@ function applyIsoToInputs(iso) {
     setHiddenScheduleFields({ enabled: true, date: parts.date, time: parts.time });
     updateSummary(iso);
     updateRequestButtonLabel();
+    syncWhenCardSummary();
 }
 
 function readIsoFromCustomInputs() {
@@ -346,6 +422,8 @@ export function setTripScheduleMode(mode, { expandCustom = false } = {}) {
         setActivePreset('');
         updateSummary(null);
         updateRequestButtonLabel();
+        syncWhenCardSummary();
+        // No forzar cierre aquí: la progresión decide si colapsar al confirmar
         return;
     }
     setHiddenScheduleFields({
@@ -355,6 +433,8 @@ export function setTripScheduleMode(mode, { expandCustom = false } = {}) {
     });
     ensureCustomMinAttributes();
     renderSchedulePresets();
+    // Programar: mantener la tarjeta abierta para elegir hora
+    setWhenAdderOpen(true);
     if (expandCustom) {
         showCustomFields(true);
         setActivePreset('custom');
@@ -377,6 +457,7 @@ export function setTripScheduleMode(mode, { expandCustom = false } = {}) {
         }
     }
     updateRequestButtonLabel();
+    syncWhenCardSummary();
 }
 
 export function applySchedulePreset(presetId) {
@@ -485,6 +566,11 @@ export function buildTripOptionsFromUI() {
 export function validateTripOptions(options) {
     if (document.getElementById('trip-schedule-toggle')?.checked) {
         if (!options.scheduledFor) {
+            try {
+                setWhenAdderOpen(true);
+                document.getElementById('passenger-booking-when')
+                    ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+            } catch (_) {}
             return {
                 ok: false,
                 message: `Elige cuándo lo necesitas (mínimo ${MIN_SCHEDULE_LEAD_MINUTES} minutos). Usa un atajo o fecha y hora.`
@@ -492,6 +578,11 @@ export function validateTripOptions(options) {
         }
         const ms = new Date(options.scheduledFor).getTime();
         if (!Number.isFinite(ms) || ms < Date.now() + (MIN_SCHEDULE_LEAD_MINUTES - 1) * 60 * 1000) {
+            try {
+                setWhenAdderOpen(true);
+                document.getElementById('passenger-booking-when')
+                    ?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+            } catch (_) {}
             return {
                 ok: false,
                 message: `La hora programada debe ser al menos ${MIN_SCHEDULE_LEAD_MINUTES} minutos en el futuro.`
@@ -535,6 +626,9 @@ export function initTripScheduleUI() {
     const panel = document.getElementById('trip-when-panel');
     if (!panel) return;
 
+    // Tarjeta expandible «¿Ahora o en otro momento?»
+    bindWhenAdder();
+
     panel.addEventListener('click', (e) => {
         const modeBtn = e.target?.closest?.('[data-when-mode]');
         if (modeBtn) {
@@ -542,9 +636,17 @@ export function initTripScheduleUI() {
             const mode = modeBtn.dataset.whenMode === 'later' ? 'later' : 'now';
             setTripScheduleMode(mode, { expandCustom: false });
             if (mode === 'later') {
-                // Primer toque: atajos visibles; si no hay selección, sugiere 1 hora
-                const active = document.querySelector('.trip-when-preset.is-active');
-                if (!active) applySchedulePreset('h1');
+                // Atajos visibles; el usuario toca uno (30 min, 1 h, etc.) y ahí se despliega «Pedir viaje»
+                if (typeof window !== 'undefined') {
+                    window.whenStepConfirmed = false;
+                    window.syncBookingProgression?.({ forceOpenStep: 'when', scroll: false });
+                    window.syncWhenCardSummary?.();
+                }
+            } else {
+                // «Ahora» confirma el paso y despliega «Pedir el viaje»
+                if (typeof window !== 'undefined') {
+                    window.confirmWhenStep?.('now');
+                }
             }
             return;
         }
@@ -552,6 +654,16 @@ export function initTripScheduleUI() {
         if (presetBtn) {
             e.preventDefault();
             applySchedulePreset(presetBtn.dataset.preset);
+            // Tras elegir un atajo (no custom), confirmar y pasar al último paso
+            if (presetBtn.dataset.custom !== '1') {
+                if (typeof window !== 'undefined') {
+                    window.whenStepConfirmed = true;
+                    window.confirmWhenStep?.('later');
+                }
+                setTimeout(() => setWhenAdderOpen(false), 120);
+            } else {
+                if (typeof window !== 'undefined') window.whenStepConfirmed = false;
+            }
         }
     });
 
@@ -562,13 +674,22 @@ export function initTripScheduleUI() {
         const iso = readIsoFromCustomInputs();
         if (iso) {
             applyIsoToInputs(iso);
+            if (typeof window !== 'undefined') {
+                window.whenStepConfirmed = true;
+                window.syncBookingProgression?.({ scroll: true });
+            }
         } else {
             const date = document.getElementById('trip-schedule-date')?.value || '';
             const time = document.getElementById('trip-schedule-time')?.value || '';
             setHiddenScheduleFields({ enabled: true, date, time });
             updateSummary(null);
             updateRequestButtonLabel();
+            if (typeof window !== 'undefined') {
+                window.whenStepConfirmed = false;
+                window.syncBookingProgression?.({ scroll: false });
+            }
         }
+        syncWhenCardSummary();
     };
     document.getElementById('trip-schedule-date')?.addEventListener('change', onCustomChange);
     document.getElementById('trip-schedule-time')?.addEventListener('change', onCustomChange);
@@ -579,7 +700,17 @@ export function initTripScheduleUI() {
     updateTripScheduleLabels(
         (typeof window !== 'undefined' && window.currentServiceType) || 'auto'
     );
+    syncWhenCardSummary();
 }
+
+// Atajos globales (tutorial + validación al pedir viaje)
+try {
+    if (typeof window !== 'undefined') {
+        window.setWhenAdderOpen = setWhenAdderOpen;
+        window.syncWhenCardSummary = syncWhenCardSummary;
+        window.bindWhenAdder = bindWhenAdder;
+    }
+} catch (_) {}
 
 // Auto-init cuando el DOM esté listo
 try {

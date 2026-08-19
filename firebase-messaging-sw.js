@@ -1,11 +1,11 @@
-const HR_SW_VERSION = '2026.08.10.5';
+const HR_SW_VERSION = '2026.08.18.2';
 /* HonduRaite — Service Worker + FCM: TODAS las notificaciones emergentes tipo Temu */
 
 importScripts('https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-    apiKey: 'AIzaSyBwaRzw2R1DCFOSn-YtfM5tRLdN7p4dpk8',
+    apiKey: 'AIzaSyCJfh_J-5gx25yl0OWV5a7-8tLfbI0cjRQ',
     authDomain: 'comedor-86278.firebaseapp.com',
     projectId: 'comedor-86278',
     storageBucket: 'comedor-86278.firebasestorage.app',
