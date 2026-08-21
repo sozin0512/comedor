@@ -8,6 +8,10 @@
       "**/node_modules/**",
       "functions/**"
     ],
+    "rewrites": [
+      { "source": "/eliminar-cuenta", "destination": "/eliminar-cuenta.html" },
+      { "source": "/eliminar-cuenta/", "destination": "/eliminar-cuenta.html" }
+    ],
     "headers": [
       {
         "source": "/version.json",
