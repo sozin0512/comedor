@@ -731,7 +731,12 @@ function dockTripFloat(el, key) {
 }
 
 function getTripFloatDragHandle(el, key) {
-    if (key === 'chat' || key === 'client-pin' || key === 'client-trip' || key === 'driver-pin') {
+    // Pasajero: arrastrar SOLO del grip. Si el handle es toda la cabecera,
+    // Android se come el toque del botón Minimizar.
+    if (key === 'client-trip') {
+        return el.querySelector('.trip-float-grip') || el.querySelector('.trip-float-head') || el;
+    }
+    if (key === 'chat' || key === 'client-pin' || key === 'driver-pin') {
         return el.querySelector('.trip-float-head') || el;
     }
     return el;
@@ -856,18 +861,21 @@ export function bindFloatingTripPanels() {
         if (btn.dataset.minBound === '1') return;
         btn.dataset.minBound = '1';
         const minimize = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+            try {
+                e.preventDefault();
+                e.stopPropagation();
+                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+            } catch (_) {}
             const key = btn.dataset.tripFloatMin;
             if (key) toggleTripFloatMinimized(key, true);
         };
-        // capture + pointerdown/up/click: en web a veces el click se pierde o el drag lo cancela
+        // capture + pointerdown/up/click/touchend: en APK el drag de la cabecera cancela el click
         btn.addEventListener('pointerdown', (e) => {
             e.stopPropagation();
             if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-        }, { capture: true, passive: true });
+        }, { capture: true });
         btn.addEventListener('pointerup', minimize, { capture: true });
+        btn.addEventListener('touchend', minimize, { capture: true, passive: false });
         btn.addEventListener('click', minimize, { capture: true });
     });
 
@@ -913,7 +921,10 @@ export function toggleTripFloatMinimized(key, minimized) {
                 floatEl.style.right = 'auto';
             }
         } else if (key === 'client-pin' || key === 'client-trip' || key === 'driver-pin') {
-            defaultTripFloatPosition(floatEl, key);
+            // Al abrir, anclar bajo el header (no reusar la posición de la pastilla:
+            // si estaba arriba, Minimizar quedaba bajo el reloj y no se podía tocar).
+            if (key === 'client-trip') dockTripFloat(floatEl, key);
+            else defaultTripFloatPosition(floatEl, key);
             // Maximizar burbuja del conductor: bajar el panel central (no abrir los 2)
             if (key === 'client-trip' && document.body.classList.contains('client-mode')) {
                 try {
