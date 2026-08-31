@@ -323,6 +323,10 @@ export function bindWhenAdder() {
     }
     toggle.dataset.bound = '1';
     toggle.addEventListener('click', () => {
+        if (window.whenStepConfirmed) {
+            window.goBackBookingStep?.('when');
+            return;
+        }
         const willOpen = adder.classList.contains('hidden');
         setWhenAdderOpen(willOpen);
     });

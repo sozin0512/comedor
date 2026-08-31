@@ -4,28 +4,28 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.08.31.7";
+} from "./auth-credentials.js?v=2026.08.31.8";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.08.31.7";
+import { APP_CONFIG } from "./config.js?v=2026.08.31.8";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.08.31.7";
+} from "./market.js?v=2026.08.31.8";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.08.31.7";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.31.7";
+} from "./phone-utils.js?v=2026.08.31.8";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.31.8";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.08.31.7";
+} from "./referrals.js?v=2026.08.31.8";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -40,12 +40,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.08.31.7";
+} from "./zones.js?v=2026.08.31.8";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.08.31.7";
+} from "./trip-notifications.js?v=2026.08.31.8";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -66,7 +66,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.08.31.7";
+} from "./notification-tones.js?v=2026.08.31.8";
 
 installNotificationTonesApi();
 
@@ -97,34 +97,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.08.31.7";
+} from "./passenger-alerts.js?v=2026.08.31.8";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.08.31.7";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.31.7";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.31.7";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.31.7";
-import { initOpsPanels } from "./ops-panels.js?v=2026.08.31.7";
-import { initOpsUi } from "./ops-ui.js?v=2026.08.31.7";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.31.7";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.31.7";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.31.7";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.08.31.7";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.31.7";
+} from "./passenger-verification.js?v=2026.08.31.8";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.31.8";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.31.8";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.31.8";
+import { initOpsPanels } from "./ops-panels.js?v=2026.08.31.8";
+import { initOpsUi } from "./ops-ui.js?v=2026.08.31.8";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.31.8";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.31.8";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.31.8";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.08.31.8";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.31.8";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.08.31.7";
+} from "./feedback.js?v=2026.08.31.8";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.08.31.7";
+} from "./greetings.js?v=2026.08.31.8";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -141,61 +141,61 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.08.31.7";
+} from "./service-types.js?v=2026.08.31.8";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.08.31.7";
+} from "./driver-vehicles.js?v=2026.08.31.8";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.08.31.7";
+} from "./route-fixed-fares.js?v=2026.08.31.8";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.08.31.7";
+} from "./commission-free-day.js?v=2026.08.31.8";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.08.31.7";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.08.31.7";
+} from "./route-conditions.js?v=2026.08.31.8";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.08.31.8";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.08.31.7";
+} from "./demand-heatmap.js?v=2026.08.31.8";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.08.31.7";
+} from "./ops-fleet-map.js?v=2026.08.31.8";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.08.31.7";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.31.7";
+} from "./live-trip-keepalive.js?v=2026.08.31.8";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.31.8";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.08.31.7";
+} from "./session-keepalive.js?v=2026.08.31.8";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.08.31.7";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.31.7";
+} from "./passenger-tutorial.js?v=2026.08.31.8";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.31.8";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.08.31.7";
+} from "./driver-tutorial.js?v=2026.08.31.8";
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
 const HR_BOOT_STARTED_AT = Date.now();
@@ -279,29 +279,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.31.7";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.31.8";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.08.31.7";
+} from "./auth-ui.js?v=2026.08.31.8";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.08.31.7";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.31.7";
+} from "./age-verification.js?v=2026.08.31.8";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.31.8";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.08.31.7";
+} from "./trip-experience.js?v=2026.08.31.8";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.08.31.7";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.31.7";
-import { initAppDownload } from "./app-download.js?v=2026.08.31.7";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.31.7";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.31.7";
+} from "./support-tickets.js?v=2026.08.31.8";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.31.8";
+import { initAppDownload } from "./app-download.js?v=2026.08.31.8";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.31.8";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.31.8";
 
 
 let app;
@@ -35582,6 +35582,10 @@ window.cancelSetupAndLogout = () => {
             }
             toggle.dataset.bound = '1';
             toggle.addEventListener('click', () => {
+                if (window.serviceTypeChosen && (window.passengersChosen || window.whenStepConfirmed)) {
+                    window.goBackBookingStep('service');
+                    return;
+                }
                 const willOpen = adder.classList.contains('hidden');
                 window.setServiceAdderOpen(willOpen);
             });
@@ -35603,6 +35607,10 @@ window.cancelSetupAndLogout = () => {
             toggle.addEventListener('click', () => {
                 const svc = normalizeServiceType(window.currentServiceType || 'auto');
                 if (svc === 'delivery' || isFreightService(svc) || svc === 'grua') return;
+                if (window.passengersChosen && window.whenStepConfirmed) {
+                    window.goBackBookingStep('passengers');
+                    return;
+                }
                 const willOpen = adder.classList.contains('hidden');
                 window.setPassengersAdderOpen(willOpen);
             });
@@ -35618,6 +35626,91 @@ window.cancelSetupAndLogout = () => {
          * Tarjetas FLOTANTES sobre el mapa (fuera del panel central).
          * Se despliegan en cadena como «Agregar parada».
          */
+        window.goBackBookingStep = (target = 'auto') => {
+            const svc = normalizeServiceType(window.currentServiceType || 'auto');
+            const needsPax = typeof requiresPassengerCountChoice === 'function'
+                ? requiresPassengerCountChoice(svc)
+                : !(svc === 'delivery' || isFreightService(svc) || svc === 'grua');
+            const needsService = !!window.needsServiceTypeChoice?.();
+
+            const current = window.whenStepConfirmed
+                ? 'request'
+                : ((window.serviceTypeChosen && (!needsPax || window.passengersChosen))
+                    ? 'when'
+                    : (window.serviceTypeChosen ? 'passengers' : (needsService ? 'service' : 'route')));
+
+            let dest = target;
+            if (target === 'auto') {
+                dest = current === 'request'
+                    ? 'when'
+                    : (current === 'when'
+                        ? (needsPax ? 'passengers' : (needsService ? 'service' : 'route'))
+                        : (current === 'passengers'
+                            ? (needsService ? 'service' : 'route')
+                            : 'route'));
+            }
+
+            if (dest === 'route') {
+                window.whenStepConfirmed = false;
+                window.passengersChosen = false;
+                window.serviceTypeChosen = false;
+                document.body.classList.remove('panel-minimized', 'panel-collapsed', 'panel-hidden');
+                const panel = document.getElementById('control-panel');
+                panel?.classList.remove('panel-collapsed', 'panel-hidden');
+                try { window.showControlPanel?.(); } catch (_) {}
+                window.syncBookingProgression?.({ scroll: false });
+                window.showToast?.('Corrige origen o destino y sigue.', 'info');
+                return;
+            }
+            if (dest === 'service') {
+                window.whenStepConfirmed = false;
+                window.passengersChosen = false;
+                window.serviceTypeChosen = false;
+                window.syncBookingProgression?.({ forceOpenStep: 'service', scroll: true });
+                return;
+            }
+            if (dest === 'passengers') {
+                window.whenStepConfirmed = false;
+                window.passengersChosen = false;
+                window.syncBookingProgression?.({ forceOpenStep: 'passengers', scroll: true });
+                return;
+            }
+            if (dest === 'when') {
+                window.whenStepConfirmed = false;
+                window.syncBookingProgression?.({ forceOpenStep: 'when', scroll: true });
+            }
+        };
+
+        window.bindBookingBackBar = () => {
+            const back = document.getElementById('booking-back-btn');
+            const route = document.getElementById('booking-edit-route-btn');
+            const reqBack = document.getElementById('booking-request-back-btn');
+            if (back && back.dataset.bound !== '1') {
+                back.dataset.bound = '1';
+                back.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.goBackBookingStep('auto');
+                });
+            }
+            if (route && route.dataset.bound !== '1') {
+                route.dataset.bound = '1';
+                route.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.goBackBookingStep('route');
+                });
+            }
+            if (reqBack && reqBack.dataset.bound !== '1') {
+                reqBack.dataset.bound = '1';
+                reqBack.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.goBackBookingStep('when');
+                });
+            }
+        };
+
         window.syncBookingProgression = (opts = {}) => {
             const { forceOpenStep = null, scroll = true } = opts;
             const layer = document.getElementById('booking-float-layer');
@@ -35729,6 +35822,7 @@ window.cancelSetupAndLogout = () => {
             markAppear(whenEl, wasWhen, showWhen);
             markAppear(reqEl, wasReq, showRequest);
 
+            window.bindBookingBackBar?.();
             window.bindServiceAdder?.();
             window.syncServiceCardSummary?.();
 
