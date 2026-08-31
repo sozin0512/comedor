@@ -81,6 +81,13 @@
             padding-top: 0.4rem;
         }
 
+        /* APK: blur de fondo = GPU saturada y UI trabada */
+        body.capacitor-android *,
+        html.capacitor-android * {
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+
         body.capacitor-android .header-toolbar {
             min-height: 3.5rem;
             padding-top: 0.2rem;

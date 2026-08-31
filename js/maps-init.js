@@ -294,61 +294,76 @@ window.gMap = null;
         window.trafficLayer = null;        
         window.mapLoaded = false;
 
-/**
- * APK/Android: al salir y volver, el WebGL del mapa se pierde y la pantalla queda negra.
- * Forzar resize + recentrar; si no hay mapa, igual restaurar UI del viaje.
- */
-window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(_reason) {
+window.hrIsNativeAndroid = function hrIsNativeAndroid() {
     try {
-        window.hideCapacitorSplash?.({ fadeOutDuration: 80 });
+        if (window.Capacitor?.isNativePlatform?.() === true && window.Capacitor.getPlatform?.() === 'android') {
+            return true;
+        }
     } catch (_) {}
+    try {
+        return !!(document.body?.classList.contains('capacitor-android')
+            || document.documentElement.classList.contains('capacitor-android'));
+    } catch (_) {
+        return false;
+    }
+};
+
+/** APK / gamas bajas: mapa raster, sin tráfico ni dash animado. */
+window.hrUseLiteMaps = function hrUseLiteMaps() {
+    if (window.hrIsNativeAndroid?.()) return true;
+    try {
+        if (navigator.deviceMemory && navigator.deviceMemory < 4) return true;
+        if (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) return true;
+    } catch (_) {}
+    return false;
+};
+
+/**
+ * APK: al volver de segundo plano el WebGL se pierde. Un solo resize, sin ocultar el mapa
+ * (ocultarlo en cada focus traba toda la UI).
+ */
+window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason) {
+    try { window.hideCapacitorSplash?.({ fadeOutDuration: 80 }); } catch (_) {}
+    const hiddenFor = window._hrWasHiddenAt ? (Date.now() - window._hrWasHiddenAt) : 0;
+    const needRecover = reason === 'webgl' || hiddenFor > 500;
+    if (!needRecover) return;
+    if (window._hrMapRecovering) return;
+    window._hrMapRecovering = true;
+    setTimeout(() => { window._hrMapRecovering = false; }, 1200);
+
+    try { window.restoreLiveTripUiOnResume?.(); } catch (_) {}
     const el = document.getElementById('map');
     const map = window.gMap;
-    try { window.restoreLiveTripUiOnResume?.(); } catch (_) {}
     if (!el || !map || typeof google === 'undefined' || !google.maps) return;
     let center = null;
-    let zoom = null;
     try { center = map.getCenter(); } catch (_) {}
-    try { zoom = map.getZoom(); } catch (_) {}
-    try {
-        el.style.visibility = 'hidden';
-        requestAnimationFrame(() => {
-            try { el.style.visibility = ''; } catch (_) {}
-            try { google.maps.event.trigger(map, 'resize'); } catch (_) {}
-            try {
-                if (center) map.setCenter(center);
-                else if (zoom != null) map.setZoom(zoom);
-            } catch (_) {}
-            try { window.__liveTripRepaintPassenger?.(); } catch (_) {}
-        });
-    } catch (_) {}
+    try { google.maps.event.trigger(map, 'resize'); } catch (_) {}
+    try { if (center) map.setCenter(center); } catch (_) {}
+    try { window.__liveTripRepaintPassenger?.(); } catch (_) {}
 };
 
 (function bindMapResumeRecovery() {
     if (window._hrMapResumeBound) return;
     window._hrMapResumeBound = true;
-    const run = (why) => {
-        setTimeout(() => window.recoverGoogleMapAfterResume?.(why), 30);
-        setTimeout(() => window.recoverGoogleMapAfterResume?.(why), 280);
-        setTimeout(() => window.recoverGoogleMapAfterResume?.(why), 900);
-    };
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') run('visible');
+        if (document.visibilityState === 'hidden') {
+            window._hrWasHiddenAt = Date.now();
+            return;
+        }
+        setTimeout(() => window.recoverGoogleMapAfterResume?.('visible'), 80);
     });
-    window.addEventListener('focus', () => run('focus'));
     window.addEventListener('pageshow', (e) => {
-        if (e && e.persisted) run('pageshow');
+        if (e && e.persisted) window.recoverGoogleMapAfterResume?.('pageshow');
     });
     document.addEventListener('webglcontextlost', (e) => {
         try { e.preventDefault(); } catch (_) {}
-        run('webgl');
+        window.recoverGoogleMapAfterResume?.('webgl');
     }, true);
     try {
         const App = window.Capacitor?.Plugins?.App;
         App?.addListener?.('appStateChange', (s) => {
-            if (s && s.isActive) run('app-active');
+            if (s && s.isActive) setTimeout(() => window.recoverGoogleMapAfterResume?.('app-active'), 80);
         });
-        App?.addListener?.('resume', () => run('resume'));
     } catch (_) {}
 })();
 
@@ -504,28 +519,33 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(_reaso
             ? houstonCoords
             : comayaguaCoords;
 
-        const LOW = (typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode());
+        const LOW = !!(window.hrUseLiteMaps?.());
         const mapOptions = {
             center: startCenter,
             zoom: LOW ? 15 : 16,
             disableDefaultUI: true,
             mapTypeId: 'roadmap',
             backgroundColor: '#e2e8f0',
+            clickableIcons: !LOW,
             // greedy: 1 dedo mueve el mapa (como Google Maps app)
             gestureHandling: 'greedy',
             draggable: true,
             scrollwheel: true,
             disableDoubleClickZoom: false,
-            keyboardShortcuts: true,
-            isFractionalZoomEnabled: true,
+            keyboardShortcuts: !LOW,
+            isFractionalZoomEnabled: !LOW,
         };
         if (LOW) {
-            // lighter for low-end / slow net
             try { window.trafficLayer = null; } catch(_) {}
+            try {
+                if (google.maps.RenderingType) {
+                    mapOptions.renderingType = google.maps.RenderingType.RASTER;
+                }
+            } catch (_) {}
         }
 
-        // Set mapId if provided (required for Advanced Markers with custom icons)
-        if (cfg.mapId) {
+        // mapId fuerza mapa vectorial (WebGL). En APK eso traba y se pone negro.
+        if (cfg.mapId && !LOW) {
             mapOptions.mapId = cfg.mapId;
         }
 
@@ -4089,8 +4109,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(_reaso
                 window.driverVoiceNavEnabled = window.driverVoiceNavEnabled !== false;
                 document.body.classList.add('driver-nav-mode', 'is-navigating');
                 window.autoCenter = true;
-                // Tráfico visible durante navegación
-                if (window.trafficLayer && window.gMap) {
+                // Tráfico: no auto-activar en APK (capa extra que traba el mapa)
+                if (window.trafficLayer && window.gMap && !window.hrUseLiteMaps?.()) {
                     window.trafficLayer.setMap(window.gMap);
                     window.isTrafficVisible = true;
                     document.getElementById('fab-traffic')?.classList.add('active');
@@ -5263,8 +5283,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(_reaso
                 });
                 polylines.push(remainingLine);
 
-                const lowPower = typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode();
-                // Flechas animadas en la ruta restante (conductor y pasajero; se omite en low-power)
+                const lowPower = !!(window.hrUseLiteMaps?.()
+                    || (typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode()));
+                // Flechas animadas: carísimas en WebView Android; se omiten en APK / low-power
                 if (!lowPower) {
                     const dashSymbol = {
                         path: 'M 0,-2 0,2',
@@ -6288,8 +6309,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(_reaso
 
                 // Usuario movió el mapa: brújula no toca la cámara
                 if (window.autoCenter === false || window._driverMapFreeLook) return;
-                // ~12–15 fps basta para brújula fluida sin matar batería
-                if (ts - lastTs < 70) return;
+                const lite = !!(window.hrUseLiteMaps?.());
+                // APK: 7 fps; web: ~12–14 fps
+                if (ts - lastTs < (lite ? 140 : 70)) return;
                 lastTs = ts;
 
                 const speed = Number(window._gpsSpeedMps) || 0;
@@ -6898,7 +6920,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(_reaso
             const cam = window.getDriverNavCameraState?.(rawPos, rawHeading) || { pos: rawPos, heading: rawHeading || 0 };
             const pos = cam.pos || rawPos;
             const h = Number.isFinite(cam.heading) ? cam.heading : 0;
-            const lowPower = typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode();
+            const lowPower = !!(window.hrUseLiteMaps?.()
+                || (typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode()));
             const lastCam = window._lastDriverNavCamPos;
             const moved = !lastCam || Math.hypot(pos.lat - lastCam.lat, pos.lng - lastCam.lng) > (lowPower ? 0.0001 : 0.00003);
             const headingDelta = window._lastDriverNavCamHeading == null
@@ -6916,7 +6939,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(_reaso
                 const landscape = (window.visualViewport?.width || window.innerWidth || 360)
                     > (window.visualViewport?.height || window.innerHeight || 640);
                 // Zoom para VER la ruta (no tan pegado al carro que se pierda el trazo)
-                const tilt = lowPower ? (landscape ? 22 : 32) : (landscape ? 38 : 48);
+                const tilt = lowPower ? 0 : (landscape ? 38 : 48);
                 const speed = Number(window._gpsSpeedMps);
                 const mps = Number.isFinite(speed) && speed >= 0 ? speed : 0;
                 // ~16.5–18.5: se ve tramo de ruta + calles; no 20–21 de “micro calle”
