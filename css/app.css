@@ -1131,7 +1131,15 @@
             pointer-events: auto;
         }
 
-        #map { height: 100%; width: 100%; position: absolute; inset: 0; transition: opacity 0.35s ease; }
+        #map {
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            inset: 0;
+            transition: opacity 0.35s ease;
+            background: #e2e8f0;
+        }
+        html[data-theme="dark"] #map { background: #1e293b; }
 
         .moto-star-banner {
             animation: moto-glow 4s ease-in-out infinite;
@@ -21225,13 +21233,15 @@ body.passenger-mode-home #booking-float-layer,
 body.passenger-mode-home #client-stores-section {
   display: none !important;
 }
-/* En bï¿½squeda/viaje activo no mostrar hub */
+/* En búsqueda/viaje activo no mostrar hub */
 body.is-searching #passenger-home-hub,
-body.is-active-trip #passenger-home-hub {
+body.is-active-trip #passenger-home-hub,
+body.trip-active #passenger-home-hub {
   display: none !important;
 }
 body.is-searching #passenger-mode-bar,
-body.is-active-trip #passenger-mode-bar {
+body.is-active-trip #passenger-mode-bar,
+body.trip-active #passenger-mode-bar {
   display: none !important;
 }
 .passenger-stores-landing {

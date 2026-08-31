@@ -82,11 +82,14 @@ function isClientLike() {
 function isBusyWithTripUi() {
     // No forzar menú si está buscando o en viaje activo
     if (document.body.classList.contains('is-searching')) return true;
+    if (document.body.classList.contains('trip-active')) return true;
     if (document.body.classList.contains('is-active-trip')) return true;
     const searching = document.getElementById('searching-state');
     if (searching && !searching.classList.contains('hidden')) return true;
     const active = document.getElementById('active-trip-panel');
     if (active && !active.classList.contains('hidden')) return true;
+    const trip = window.activeTrip || window.currentActiveTripData;
+    if (trip && ['pending', 'accepted', 'in_progress'].includes(trip.status)) return true;
     return false;
 }
 
@@ -532,6 +535,7 @@ export function initPassengerHome(deps = {}) {
     // Reintentos: en Capacitor/Android a veces client-view aún no está listo
     const boot = (why) => {
         try {
+            if (isBusyWithTripUi()) return;
             ensureHomeUi();
             if (getUserProfile?.() && isClientLike()) {
                 // No pisar un flujo ya abierto (Viaje / envío / flete) con el menú inicio
@@ -556,15 +560,17 @@ export function initPassengerHome(deps = {}) {
         if (document.visibilityState === 'visible') boot('visible');
     });
 
-    // Por defecto: menú de inicio (hasta que cargue el perfil y sincronice)
-    try {
-        sessionStorage.setItem('hr-passenger-mode', 'home');
-    } catch (_) {}
-    currentMode = 'home';
-    applyMode('home');
+    // Por defecto: menú de inicio, salvo que ya haya búsqueda/viaje activo
+    if (!isBusyWithTripUi()) {
+        try {
+            sessionStorage.setItem('hr-passenger-mode', 'home');
+        } catch (_) {}
+        currentMode = 'home';
+        applyMode('home');
+    }
 
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && isClientLike()) {
+        if (document.visibilityState === 'visible' && isClientLike() && !isBusyWithTripUi()) {
             ensureHomeUi();
         }
     });

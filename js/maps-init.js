@@ -294,6 +294,64 @@ window.gMap = null;
         window.trafficLayer = null;        
         window.mapLoaded = false;
 
+/**
+ * APK/Android: al salir y volver, el WebGL del mapa se pierde y la pantalla queda negra.
+ * Forzar resize + recentrar; si no hay mapa, igual restaurar UI del viaje.
+ */
+window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(_reason) {
+    try {
+        window.hideCapacitorSplash?.({ fadeOutDuration: 80 });
+    } catch (_) {}
+    const el = document.getElementById('map');
+    const map = window.gMap;
+    try { window.restoreLiveTripUiOnResume?.(); } catch (_) {}
+    if (!el || !map || typeof google === 'undefined' || !google.maps) return;
+    let center = null;
+    let zoom = null;
+    try { center = map.getCenter(); } catch (_) {}
+    try { zoom = map.getZoom(); } catch (_) {}
+    try {
+        el.style.visibility = 'hidden';
+        requestAnimationFrame(() => {
+            try { el.style.visibility = ''; } catch (_) {}
+            try { google.maps.event.trigger(map, 'resize'); } catch (_) {}
+            try {
+                if (center) map.setCenter(center);
+                else if (zoom != null) map.setZoom(zoom);
+            } catch (_) {}
+            try { window.__liveTripRepaintPassenger?.(); } catch (_) {}
+        });
+    } catch (_) {}
+};
+
+(function bindMapResumeRecovery() {
+    if (window._hrMapResumeBound) return;
+    window._hrMapResumeBound = true;
+    const run = (why) => {
+        setTimeout(() => window.recoverGoogleMapAfterResume?.(why), 30);
+        setTimeout(() => window.recoverGoogleMapAfterResume?.(why), 280);
+        setTimeout(() => window.recoverGoogleMapAfterResume?.(why), 900);
+    };
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') run('visible');
+    });
+    window.addEventListener('focus', () => run('focus'));
+    window.addEventListener('pageshow', (e) => {
+        if (e && e.persisted) run('pageshow');
+    });
+    document.addEventListener('webglcontextlost', (e) => {
+        try { e.preventDefault(); } catch (_) {}
+        run('webgl');
+    }, true);
+    try {
+        const App = window.Capacitor?.Plugins?.App;
+        App?.addListener?.('appStateChange', (s) => {
+            if (s && s.isActive) run('app-active');
+        });
+        App?.addListener?.('resume', () => run('resume'));
+    } catch (_) {}
+})();
+
         /** Google Maps llama esto si la clave/facturación falla (BillingNotEnabledMapError, etc.). */
         window.gm_authFailure = function () {
             window.__mapsAuthFailure = true;
@@ -452,6 +510,7 @@ window.gMap = null;
             zoom: LOW ? 15 : 16,
             disableDefaultUI: true,
             mapTypeId: 'roadmap',
+            backgroundColor: '#e2e8f0',
             // greedy: 1 dedo mueve el mapa (como Google Maps app)
             gestureHandling: 'greedy',
             draggable: true,
