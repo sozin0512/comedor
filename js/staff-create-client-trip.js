@@ -463,7 +463,7 @@ export function installStaffCreateClientTrip({
                                     <i class="fas fa-map-marker-alt"></i> Pin
                                 </button>
                             </div>
-                            <div id="staff-cct-origin-suggest" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:0.2rem;max-height:10rem;overflow:auto;background:#020617;border:1px solid #334155;border-radius:0.65rem;box-shadow:0 10px 30px rgba(0,0,0,.45);"></div>
+                            <div id="staff-cct-origin-suggest" style="display:none;position:fixed;z-index:2147483646;max-height:12rem;overflow:auto;background:#020617;border:1px solid #334155;border-radius:0.65rem;box-shadow:0 10px 30px rgba(0,0,0,.45);"></div>
                             <input type="hidden" id="staff-cct-origin-lat" value="">
                             <input type="hidden" id="staff-cct-origin-lng" value="">
                         </div>
@@ -476,7 +476,7 @@ export function installStaffCreateClientTrip({
                                     <i class="fas fa-map-pin"></i> Pin
                                 </button>
                             </div>
-                            <div id="staff-cct-dest-suggest" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:0.2rem;max-height:10rem;overflow:auto;background:#020617;border:1px solid #334155;border-radius:0.65rem;box-shadow:0 10px 30px rgba(0,0,0,.45);"></div>
+                            <div id="staff-cct-dest-suggest" style="display:none;position:fixed;z-index:2147483646;max-height:12rem;overflow:auto;background:#020617;border:1px solid #334155;border-radius:0.65rem;box-shadow:0 10px 30px rgba(0,0,0,.45);"></div>
                             <input type="hidden" id="staff-cct-dest-lat" value="">
                             <input type="hidden" id="staff-cct-dest-lng" value="">
                         </div>
@@ -1175,17 +1175,138 @@ export function installStaffCreateClientTrip({
                 }
             });
 
+            const staffPlaceBias = () => {
+                const zoneId = modal.querySelector('#staff-cct-zone')?.value || getDefaultZoneId();
+                const zone = getZoneById(zoneId);
+                const mapC = window.gMap?.getCenter?.();
+                if (zone?.center?.lat != null) {
+                    return { lat: Number(zone.center.lat), lng: Number(zone.center.lng) };
+                }
+                if (mapC) {
+                    return {
+                        lat: typeof mapC.lat === 'function' ? mapC.lat() : mapC.lat,
+                        lng: typeof mapC.lng === 'function' ? mapC.lng() : mapC.lng
+                    };
+                }
+                return { lat: 14.4513, lng: -87.6374 };
+            };
+
+            const fetchStaffPlacePredictions = async (q, tokenRef) => {
+                if (typeof google === 'undefined' || !google.maps) return [];
+                let lib = null;
+                try { lib = await google.maps.importLibrary('places'); } catch (_) {}
+                const places = lib || google.maps.places || {};
+                const bias = staffPlaceBias();
+
+                // Places API (New)
+                const Suggestion = places.AutocompleteSuggestion || google.maps.places?.AutocompleteSuggestion;
+                const Token = places.AutocompleteSessionToken || google.maps.places?.AutocompleteSessionToken;
+                if (Suggestion?.fetchAutocompleteSuggestions) {
+                    try {
+                        if (!tokenRef.current && Token) tokenRef.current = new Token();
+                        const req = {
+                            input: q,
+                            includedRegionCodes: ['hn'],
+                            language: 'es',
+                            sessionToken: tokenRef.current || undefined
+                        };
+                        try {
+                            req.locationBias = { center: bias, radius: 50000 };
+                        } catch (_) {}
+                        const res = await Suggestion.fetchAutocompleteSuggestions(req);
+                        const list = res?.suggestions || [];
+                        return list.slice(0, 8).map((s) => {
+                            const pred = s?.placePrediction;
+                            const text = pred?.text?.toString?.()
+                                || pred?.text?.text
+                                || s?.placePrediction?.mainText?.text
+                                || '';
+                            return {
+                                placeId: pred?.placeId || pred?.place_id || '',
+                                description: text || pred?.mainText?.toString?.() || q
+                            };
+                        }).filter((p) => p.description);
+                    } catch (e) {
+                        console.warn('[staff] AutocompleteSuggestion', e);
+                    }
+                }
+
+                // Places clásico
+                const AutocompleteService = places.AutocompleteService || google.maps.places?.AutocompleteService;
+                if (AutocompleteService) {
+                    if (!tokenRef.current && (places.AutocompleteSessionToken || google.maps.places?.AutocompleteSessionToken)) {
+                        const T = places.AutocompleteSessionToken || google.maps.places.AutocompleteSessionToken;
+                        tokenRef.current = new T();
+                    }
+                    return new Promise((resolve) => {
+                        try {
+                            const svc = new AutocompleteService();
+                            const req = {
+                                input: q,
+                                componentRestrictions: { country: 'hn' },
+                                language: 'es',
+                                sessionToken: tokenRef.current || undefined,
+                                location: new google.maps.LatLng(bias.lat, bias.lng),
+                                radius: 80000
+                            };
+                            try { req.locationBias = { center: bias, radius: 80000 }; } catch (_) {}
+                            svc.getPlacePredictions(req, (preds, status) => {
+                                if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length) {
+                                    resolve([]);
+                                    return;
+                                }
+                                resolve(preds.slice(0, 8).map((p) => ({
+                                    placeId: p.place_id,
+                                    description: p.description || ''
+                                })));
+                            });
+                        } catch (e) {
+                            console.warn('[staff] AutocompleteService', e);
+                            resolve([]);
+                        }
+                    });
+                }
+                return [];
+            };
+
             /** Búsqueda de lugares (Places Autocomplete) o geocode simple */
             const bindPlaceSearch = (inputId, suggestId, which) => {
                 const input = modal.querySelector(`#${inputId}`);
                 const box = modal.querySelector(`#${suggestId}`);
                 if (!input || !box) return;
                 let timer = null;
-                let sessionToken = null;
+                const tokenRef = { current: null };
 
                 const hideBox = () => {
                     box.style.display = 'none';
                     box.innerHTML = '';
+                };
+
+                const placeBox = () => {
+                    const r = input.getBoundingClientRect();
+                    box.style.position = 'fixed';
+                    box.style.left = `${Math.max(8, r.left)}px`;
+                    box.style.width = `${Math.max(180, r.width)}px`;
+                    box.style.right = 'auto';
+                    box.style.top = `${r.bottom + 4}px`;
+                    box.style.zIndex = '2147483646';
+                    box.style.display = 'block';
+                };
+
+                const renderPreds = (items) => {
+                    if (!items?.length) {
+                        box.innerHTML = `<p style="margin:0;padding:0.6rem 0.7rem;font-size:12px;font-weight:700;color:#94a3b8;">
+                            Sin resultados. Prueba otro nombre o el botón Pin.</p>`;
+                        placeBox();
+                        return;
+                    }
+                    box.innerHTML = items.map((p) => `
+                        <button type="button" data-place-id="${escapeHtml(p.placeId || '')}"
+                            style="display:block;width:100%;text-align:left;padding:0.55rem 0.65rem;border:0;border-bottom:1px solid #1e293b;background:transparent;color:#e2e8f0;cursor:pointer;font-size:12px;font-weight:700;">
+                            ${escapeHtml(p.description || '')}
+                        </button>
+                    `).join('');
+                    placeBox();
                 };
 
                 const setPlace = (address, lat, lng) => {
@@ -1216,51 +1337,33 @@ export function installStaffCreateClientTrip({
 
                     clearTimeout(timer);
                     const q = input.value.trim();
-                    if (q.length < 3) {
+                    if (q.length < 2) {
                         hideBox();
                         return;
                     }
                     timer = setTimeout(async () => {
+                        box.innerHTML = `<p style="margin:0;padding:0.55rem 0.65rem;font-size:12px;font-weight:700;color:#64748b;">Buscando…</p>`;
+                        placeBox();
                         try {
-                            if (typeof google === 'undefined' || !google.maps?.places) {
-                                hideBox();
-                                return;
-                            }
-                            if (!sessionToken) {
-                                sessionToken = new google.maps.places.AutocompleteSessionToken();
-                            }
-                            const service = new google.maps.places.AutocompleteService();
-                            const bias = window.gMap?.getCenter?.();
-                            const req = {
-                                input: q,
-                                componentRestrictions: { country: 'hn' },
-                                sessionToken
-                            };
-                            if (bias) {
-                                req.location = bias;
-                                req.radius = 40000;
-                            }
-                            service.getPlacePredictions(req, (preds, status) => {
-                                if (status !== google.maps.places.PlacesServiceStatus.OK || !preds?.length) {
-                                    hideBox();
-                                    return;
-                                }
-                                box.innerHTML = preds.slice(0, 6).map((p) => `
-                                    <button type="button" data-place-id="${escapeHtml(p.place_id)}"
-                                        style="display:block;width:100%;text-align:left;padding:0.55rem 0.65rem;border:0;border-bottom:1px solid #1e293b;background:transparent;color:#e2e8f0;cursor:pointer;font-size:12px;font-weight:700;">
-                                        ${escapeHtml(p.description || '')}
-                                    </button>
-                                `).join('');
-                                box.style.display = 'block';
-                            });
+                            const preds = await fetchStaffPlacePredictions(q, tokenRef);
+                            if (input.value.trim() !== q) return;
+                            renderPreds(preds);
                         } catch (e) {
                             console.warn('[staff] place search', e);
-                            hideBox();
+                            if (input.value.trim() === q) {
+                                box.innerHTML = `<p style="margin:0;padding:0.55rem 0.65rem;font-size:12px;font-weight:700;color:#fca5a5;">
+                                    No se pudo buscar. Usa el botón Pin.</p>`;
+                                placeBox();
+                            }
                         }
-                    }, 280);
+                    }, 220);
                 });
 
-                box.addEventListener('click', (e) => {
+                input.addEventListener('focus', () => {
+                    if (box.innerHTML && input.value.trim().length >= 2) placeBox();
+                });
+
+                box.addEventListener('click', async (e) => {
                     const btn = e.target.closest('[data-place-id]');
                     if (!btn) return;
                     const placeId = btn.dataset.placeId;
@@ -1270,12 +1373,28 @@ export function installStaffCreateClientTrip({
                         return;
                     }
                     try {
+                        const lib = await google.maps.importLibrary('places').catch(() => google.maps.places);
+                        const PlaceCls = lib?.Place || google.maps.places?.Place;
+                        if (PlaceCls) {
+                            const place = new PlaceCls({ id: placeId });
+                            const fetchOpts = { fields: ['formattedAddress', 'displayName', 'location'] };
+                            if (tokenRef.current) fetchOpts.sessionToken = tokenRef.current;
+                            await place.fetchFields(fetchOpts);
+                            tokenRef.current = null;
+                            const loc = place.location;
+                            const lat = loc ? (typeof loc.lat === 'function' ? loc.lat() : loc.lat) : null;
+                            const lng = loc ? (typeof loc.lng === 'function' ? loc.lng() : loc.lng) : null;
+                            const addr = place.formattedAddress || place.displayName || label;
+                            setPlace(addr, lat, lng);
+                            toast(showToast, which === 'origin' ? 'Origen listo.' : 'Destino listo.', 'success');
+                            return;
+                        }
                         const mapOrDiv = window.gMap || document.createElement('div');
                         const ps = new google.maps.places.PlacesService(mapOrDiv);
                         ps.getDetails(
-                            { placeId, fields: ['formatted_address', 'geometry', 'name'], sessionToken },
+                            { placeId, fields: ['formatted_address', 'geometry', 'name'], sessionToken: tokenRef.current || undefined },
                             (place, status) => {
-                                sessionToken = null;
+                                tokenRef.current = null;
                                 if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
                                     const loc = place.geometry.location;
                                     const lat = typeof loc.lat === 'function' ? loc.lat() : loc.lat;
@@ -1288,7 +1407,8 @@ export function installStaffCreateClientTrip({
                                 }
                             }
                         );
-                    } catch (_) {
+                    } catch (err) {
+                        console.warn('[staff] place details', err);
                         setPlace(label, null, null);
                     }
                 });
