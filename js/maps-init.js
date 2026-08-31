@@ -370,27 +370,17 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         /** Google Maps llama esto si la clave/facturación falla (BillingNotEnabledMapError, etc.). */
         window.gm_authFailure = function () {
             window.__mapsAuthFailure = true;
-            window.__mapsLoadError = true;
-            document.body?.classList.add('map-load-failed', 'map-billing-disabled');
-            console.error(
-                '[maps] BillingNotEnabledMapError: activa facturación en el proyecto de Google Cloud que usa la clave de Maps.',
-                'https://console.cloud.google.com/project/_/billing/enable'
-            );
-            try {
-                let banner = document.getElementById('maps-billing-banner');
-                if (!banner) {
-                    banner = document.createElement('div');
-                    banner.id = 'maps-billing-banner';
-                    banner.setAttribute('role', 'alert');
-                    banner.className = 'maps-billing-banner';
-                    banner.innerHTML = '<p><strong>Google Maps no carga:</strong> la facturación del proyecto Cloud está apagada.</p>'
-                        + '<p>En Google Cloud activa facturación y las APIs Maps JavaScript, Places (New), Routes y Geocoding. Luego recarga.</p>';
-                    const mapEl = document.getElementById('map');
-                    if (mapEl?.parentNode) mapEl.parentNode.insertBefore(banner, mapEl);
-                    else document.body?.prepend(banner);
+            console.warn('[maps] Google reportó un aviso de Maps; si el mapa ya se ve, se ignora.');
+            // El mapa a menudo carga igual. Solo avisar si a los 8s sigue sin tiles.
+            setTimeout(() => {
+                if (window.gMap && document.body?.classList.contains('map-ready')) {
+                    try { document.getElementById('maps-billing-banner')?.remove(); } catch (_) {}
+                    document.body?.classList.remove('map-load-failed', 'map-billing-disabled');
+                    return;
                 }
-                banner.hidden = false;
-            } catch (_) {}
+                window.__mapsLoadError = true;
+                document.body?.classList.add('map-load-failed', 'map-billing-disabled');
+            }, 8000);
         };
         window.driverMarkers = {};
         window.currentDriverPos = null;
@@ -537,20 +527,18 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         };
         if (LOW) {
             try { window.trafficLayer = null; } catch(_) {}
-            try {
-                if (google.maps.RenderingType) {
-                    mapOptions.renderingType = google.maps.RenderingType.RASTER;
-                }
-            } catch (_) {}
         }
 
-        // mapId fuerza mapa vectorial (WebGL). En APK eso traba y se pone negro.
-        if (cfg.mapId && !LOW) {
+        if (cfg.mapId) {
             mapOptions.mapId = cfg.mapId;
         }
 
         window.gMap = new google.maps.Map(document.getElementById("map"), mapOptions);
         document.body?.classList.add('map-ready');
+        document.body?.classList.remove('map-load-failed', 'map-billing-disabled');
+        window.__mapsLoadError = false;
+        window.__mapsAuthFailure = false;
+        try { document.getElementById('maps-billing-banner')?.remove(); } catch (_) {}
 
         /** Tipos de Google Geocoder que suelen ser el nombre real del lugar en el mapa. */
         const MAP_PLACE_GEOCODE_TYPES = new Set([
@@ -1073,6 +1061,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         window.setMapFabVisible = (id, visible) => {
             const el = document.getElementById(id);
             if (!el) return;
+            if (id === 'fab-center') visible = false;
             el.classList.toggle('hidden', !visible);
         };
 
@@ -1092,17 +1081,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 || document.body.classList.contains('is-navigating'));
 
         window.showCenterMapFabIfNavigating = () => {
-            // Conductor: nunca FAB flotante de centrar
-            if (window.isDriverTripCenterOnPanel?.()) {
-                window.autoCenter = false;
-                window.setMapFabVisible?.('fab-center', false);
-                return;
-            }
-            const navigating = document.body.classList.contains('is-navigating')
-                || document.body.classList.contains('driver-nav-mode');
-            if (!navigating) return;
-            window.autoCenter = false;
-            window.setMapFabVisible?.('fab-center', true);
+            window.setMapFabVisible?.('fab-center', false);
         };
 
         window.syncNavigationMapFabs = () => {
@@ -1111,19 +1090,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const passengerNav = document.body.classList.contains('passenger-nav-mode');
             const driverTrip = document.body.classList.contains('trip-active')
                 && document.body.classList.contains('driver-mode');
-            // Tráfico: opcional en viaje (no forzar oculto)
             window.setMapFabVisible?.('fab-traffic', navigating && !passengerNav && !driverTrip);
-            // Conductor en viaje: Centrar solo en panel verde (no FAB del mapa)
-            if (driverTrip || window.isDriverTripCenterOnPanel?.()) {
-                window.setMapFabVisible?.('fab-center', false);
-                return;
-            }
-            const followBroken = window.autoCenter === false;
-            if (navigating && followBroken) {
-                window.setMapFabVisible?.('fab-center', true);
-            } else {
-                window.setMapFabVisible?.('fab-center', false);
-            }
+            window.setMapFabVisible?.('fab-center', false);
         };
 
         window.hideCenterMapFab?.();
@@ -1142,21 +1110,23 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             if (!driverTrip && !document.body.classList.contains('is-navigating')) {
                 if (document.body.classList.contains('passenger-track-mode')) {
                     window.passengerTrackFollow = false;
-                    window.setMapFabVisible?.('fab-center', true);
+                    window.setMapFabVisible?.('fab-center', false);
+                    clearTimeout(window._hrAutoRecenterTimer);
+                    window._hrAutoRecenterTimer = setTimeout(() => {
+                        window.passengerTrackFollow = true;
+                    }, 5000);
                 }
                 return;
             }
             window.autoCenter = false;
             window._driverMapFreeLook = true;
             document.body.classList.add('map-free-look');
-            // Brújula sigue actualizando _deviceCompassHeading; el loop de cámara no mueve el mapa
-            if (window.isDriverTripCenterOnPanel?.()) {
-                window.setMapFabVisible?.('fab-center', false);
-            } else {
-                window.showCenterMapFabIfNavigating?.();
-                window.setMapFabVisible?.('fab-center', true);
-            }
+            window.setMapFabVisible?.('fab-center', false);
             window._driverMapFreeLookReason = reason;
+            clearTimeout(window._hrAutoRecenterTimer);
+            window._hrAutoRecenterTimer = setTimeout(() => {
+                window.resumeDriverNavCameraFollow?.();
+            }, 5000);
         };
 
         window.resumeDriverNavCameraFollow = () => {
