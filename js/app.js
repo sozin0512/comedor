@@ -4,28 +4,28 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.08.31.6";
+} from "./auth-credentials.js?v=2026.08.31.7";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.08.31.6";
+import { APP_CONFIG } from "./config.js?v=2026.08.31.7";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.08.31.6";
+} from "./market.js?v=2026.08.31.7";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.08.31.6";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.31.6";
+} from "./phone-utils.js?v=2026.08.31.7";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.31.7";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.08.31.6";
+} from "./referrals.js?v=2026.08.31.7";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -40,12 +40,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.08.31.6";
+} from "./zones.js?v=2026.08.31.7";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.08.31.6";
+} from "./trip-notifications.js?v=2026.08.31.7";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -66,7 +66,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.08.31.6";
+} from "./notification-tones.js?v=2026.08.31.7";
 
 installNotificationTonesApi();
 
@@ -97,34 +97,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.08.31.6";
+} from "./passenger-alerts.js?v=2026.08.31.7";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.08.31.6";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.31.6";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.31.6";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.31.6";
-import { initOpsPanels } from "./ops-panels.js?v=2026.08.31.6";
-import { initOpsUi } from "./ops-ui.js?v=2026.08.31.6";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.31.6";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.31.6";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.31.6";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.08.31.6";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.31.6";
+} from "./passenger-verification.js?v=2026.08.31.7";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.31.7";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIOSSafari, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.31.7";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.31.7";
+import { initOpsPanels } from "./ops-panels.js?v=2026.08.31.7";
+import { initOpsUi } from "./ops-ui.js?v=2026.08.31.7";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.31.7";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.31.7";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.31.7";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.08.31.7";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.31.7";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.08.31.6";
+} from "./feedback.js?v=2026.08.31.7";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.08.31.6";
+} from "./greetings.js?v=2026.08.31.7";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -141,61 +141,61 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.08.31.6";
+} from "./service-types.js?v=2026.08.31.7";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.08.31.6";
+} from "./driver-vehicles.js?v=2026.08.31.7";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.08.31.6";
+} from "./route-fixed-fares.js?v=2026.08.31.7";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.08.31.6";
+} from "./commission-free-day.js?v=2026.08.31.7";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.08.31.6";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.08.31.6";
+} from "./route-conditions.js?v=2026.08.31.7";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.08.31.7";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.08.31.6";
+} from "./demand-heatmap.js?v=2026.08.31.7";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.08.31.6";
+} from "./ops-fleet-map.js?v=2026.08.31.7";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.08.31.6";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.31.6";
+} from "./live-trip-keepalive.js?v=2026.08.31.7";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.31.7";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.08.31.6";
+} from "./session-keepalive.js?v=2026.08.31.7";
 import {
     initPassengerTutorial,
     maybeAutoStartPassengerTutorial,
     syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.08.31.6";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.31.6";
+} from "./passenger-tutorial.js?v=2026.08.31.7";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.31.7";
 import {
     initDriverTutorial,
     maybeAutoStartDriverTutorial,
     syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.08.31.6";
+} from "./driver-tutorial.js?v=2026.08.31.7";
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
 const HR_BOOT_STARTED_AT = Date.now();
@@ -279,29 +279,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.31.6";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.31.7";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.08.31.6";
+} from "./auth-ui.js?v=2026.08.31.7";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.08.31.6";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.31.6";
+} from "./age-verification.js?v=2026.08.31.7";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.31.7";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.08.31.6";
+} from "./trip-experience.js?v=2026.08.31.7";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.08.31.6";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.31.6";
-import { initAppDownload } from "./app-download.js?v=2026.08.31.6";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.31.6";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.31.6";
+} from "./support-tickets.js?v=2026.08.31.7";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.31.7";
+import { initAppDownload } from "./app-download.js?v=2026.08.31.7";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.31.7";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.31.7";
 
 
 let app;
@@ -17403,110 +17403,280 @@ if (document.readyState === 'loading') {
         // ================================================
         // GENERADOR DE FACTURAS / RECIBOS POR CORREO
         // ================================================
-        window.generateFacturaHTML = (trip, client, driver) => {
-            const now = new Date();
-            const fecha = trip.completedAt && trip.completedAt.toDate ? 
-                trip.completedAt.toDate().toLocaleString('es-HN') : 
-                (trip.createdAt && trip.createdAt.toDate ? trip.createdAt.toDate().toLocaleString('es-HN') : now.toLocaleString('es-HN'));
+        function hrEscInvoice(s) {
+            return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
+        }
 
-            const tripIdShort = (trip.id || 'XXXXXX').slice(0, 8).toUpperCase();
-            const precio = parseFloat(trip.priceNum || trip.price || 0);
+        function hrNumeroALetras(n) {
+            const u = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve',
+                'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
+            const d = ['', '', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+            const c = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
+            const under100 = (x) => {
+                if (x < 21) return u[x];
+                if (x < 30) return x === 20 ? 'veinte' : `veinti${u[x - 20] === 'uno' ? 'ún' : u[x - 20]}`;
+                const ten = Math.floor(x / 10);
+                const one = x % 10;
+                return one ? `${d[ten]} y ${u[one]}` : d[ten];
+            };
+            const under1000 = (x) => {
+                if (x < 100) return under100(x);
+                if (x === 100) return 'cien';
+                const hun = Math.floor(x / 100);
+                const rest = x % 100;
+                return rest ? `${c[hun]} ${under100(rest)}` : c[hun];
+            };
+            if (n === 0) return 'cero';
+            if (n < 1000) return under1000(n);
+            if (n < 1000000) {
+                const mil = Math.floor(n / 1000);
+                const rest = n % 1000;
+                const milTxt = mil === 1 ? 'mil' : `${under1000(mil)} mil`;
+                return rest ? `${milTxt} ${under1000(rest)}` : milTxt;
+            }
+            const mill = Math.floor(n / 1000000);
+            const rest = n % 1000000;
+            const millTxt = mill === 1 ? 'un millón' : `${under1000(mill)} millones`;
+            return rest ? `${millTxt} ${hrNumeroALetras(rest)}` : millTxt;
+        }
+
+        function hrLempirasEnLetras(amount) {
+            const v = Number(amount);
+            if (!Number.isFinite(v)) return '';
+            const enteros = Math.floor(Math.abs(v));
+            const cents = Math.round((Math.abs(v) - enteros) * 100);
+            let ent = hrNumeroALetras(enteros);
+            if (enteros === 1) ent = 'un';
+            ent = ent.charAt(0).toUpperCase() + ent.slice(1);
+            const noun = enteros === 1 ? 'lempira' : 'lempiras';
+            return `${ent} ${noun} con ${String(cents).padStart(2, '0')}/100`;
+        }
+
+        function hrInvoiceCityFromAddress(addr) {
+            const parts = String(addr || '').split(',').map((p) => p.trim()).filter(Boolean);
+            if (parts.length >= 2) {
+                const last = parts[parts.length - 1];
+                const prev = parts[parts.length - 2];
+                if (/honduras/i.test(last) && prev) return `${prev}, Honduras`;
+                if (last) return /honduras/i.test(last) ? last : `${last}, Honduras`;
+            }
+            return 'Honduras';
+        }
+
+        function hrInvoiceServiceLabel(type) {
+            const t = String(type || 'auto').toLowerCase();
+            if (typeof window.getServiceLabel === 'function') {
+                try { return window.getServiceLabel(t) || t; } catch (_) {}
+            }
+            const map = {
+                auto: 'AUTO', taxi: 'TAXI', moto: 'MOTO', delivery: 'ENVÍO',
+                flete_paila: 'FLETE PAILA', flete_camion: 'FLETE CAMIÓN', grua: 'GRÚA'
+            };
+            return map[t] || t.toUpperCase();
+        }
+
+        window.generateFacturaHTML = (trip, client, driver, extras = {}) => {
+            const now = new Date();
+            const dateObj = trip.completedAt?.toDate?.()
+                || (trip.completedAt?.seconds ? new Date(trip.completedAt.seconds * 1000) : null)
+                || trip.createdAt?.toDate?.()
+                || (trip.createdAt?.seconds ? new Date(trip.createdAt.seconds * 1000) : null)
+                || now;
+            const fechaLarga = dateObj.toLocaleDateString('es-HN', { day: 'numeric', month: 'long', year: 'numeric' });
+            const fechaCorta = dateObj.toLocaleDateString('es-HN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/-/g, ' / ');
+
+            const tripIdShort = String(trip.id || 'XXXXXX').slice(0, 10);
+            const precio = parseFloat(trip.priceNum != null ? trip.priceNum : trip.price) || 0;
             const servicio = trip.serviceType || trip.type || 'auto';
-            const servicioLabel = servicio === 'moto' ? 'Moto (Envíos)' : (servicio === 'taxi' ? 'Taxi' : (servicio === 'delivery' ? 'Delivery' : 'Auto'));
-            const pago = trip.paymentMethod === 'saldo' ? 'Saldo HonduRaite' : 'Efectivo';
+            const servicioLabel = hrInvoiceServiceLabel(servicio);
+            const paid = !['cancelled', 'pending'].includes(String(trip.status || 'completed'));
 
             const clientName = client?.name || trip.clientName || 'Pasajero';
-            const clientEmail = client?.email || trip.clientEmail || '';
+            const clientRtn = client?.rtn || client?.taxId || trip.clientRtn || extras.rtn || '';
             const driverName = driver?.name || trip.driverName || 'Conductor';
-            const placa = driver?.vehicle?.plate || trip.vehicle?.plate || '—';
+            const placa = driver?.vehicle?.plate || trip.vehiclePlate || trip.vehicle?.plate || '—';
 
             const origin = trip.origin || 'Origen';
             const destination = trip.destination || 'Destino';
+            const originCity = hrInvoiceCityFromAddress(origin);
+            const destCity = hrInvoiceCityFromAddress(destination);
 
-            const html = `
-                <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 620px; margin: 0 auto; background: white; color: #111; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);">
-                    <!-- Header -->
-                    <div style="background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: white; padding: 20px 24px; text-align: center;">
-                        <div style="font-size: 28px; font-weight: 900; letter-spacing: 1px;">HONDU RAITE</div>
-                        <div style="font-size: 11px; opacity: 0.9; margin-top: 2px;">🇭🇳 Transporte seguro en Honduras</div>
-                        <div style="margin-top: 12px; background: rgba(255,255,255,0.2); display: inline-block; padding: 4px 14px; border-radius: 9999px; font-size: 13px; font-weight: 700;">FACTURA / RECIBO</div>
-                    </div>
+            const bank = extras.bank || window._hrInvoiceBank || {
+                bankName: 'BAC Credomatic',
+                accountNumber: '790708690',
+                accountHolder: 'ELMER JOSUE HERNANDEZ SOZA',
+                badge: 'BAC'
+            };
+            const bankBadge = String(bank.bankName || bank.bank || 'BAC').replace(/credomatic/i, '').trim().slice(0, 4).toUpperCase() || 'BAC';
+            const support = (window.APP_CONFIG?.support?.whatsapp || '50495733866').replace(/\D/g, '');
+            const supportPretty = support.startsWith('504')
+                ? `+504 ${support.slice(3, 7)}-${support.slice(7)}`
+                : `+${support}`;
+            const logo = `${location.origin || 'https://honduraite.com'}/icons/splash-logo.png`;
 
-                    <div style="padding: 20px 24px;">
-                        <!-- Info general -->
-                        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 16px; border-bottom: 1px solid #eee; padding-bottom: 12px;">
-                            <div>
-                                <strong>No. de Viaje:</strong> <span style="font-family: monospace;">${tripIdShort}</span><br>
-                                <strong>Fecha:</strong> ${fecha}
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 22px; font-weight: 900; color: #166534;">L. ${precio.toFixed(2)}</div>
-                                <div style="font-size: 10px; color: #666;">Pagado</div>
-                            </div>
-                        </div>
-
-                        <!-- Pasajero -->
-                        <div style="margin-bottom: 14px;">
-                            <div style="font-size: 10px; color: #666; font-weight: 700; text-transform: uppercase;">PASAJERO</div>
-                            <div style="font-weight: 700; font-size: 15px;">${clientName}</div>
-                            ${clientEmail ? `<div style="font-size: 12px; color: #2563eb;">${clientEmail}</div>` : ''}
-                        </div>
-
-                        <!-- Conductor -->
-                        <div style="margin-bottom: 14px;">
-                            <div style="font-size: 10px; color: #666; font-weight: 700; text-transform: uppercase;">CONDUCTOR</div>
-                            <div style="font-weight: 700;">${driverName}</div>
-                            <div style="font-size: 12px; color: #555;">${servicioLabel} • Placa: <strong>${placa}</strong></div>
-                        </div>
-
-                        <!-- Ruta -->
-                        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 16px;">
-                            <div style="font-size: 10px; font-weight: 700; color: #64748b;">RUTA DEL VIAJE</div>
-                            <div style="margin-top: 6px; font-size: 13px; line-height: 1.3;">
-                                <strong>Desde:</strong> ${origin}<br>
-                                <strong>Hasta:</strong> ${destination}
-                            </div>
-                        </div>
-
-                        <!-- Desglose -->
-                        <div style="border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px;">
-                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
-                                <span>Servicio (${servicioLabel})</span>
-                                <span style="font-weight: 700;">L. ${precio.toFixed(2)}</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
-                                <span>Método de pago</span>
-                                <span style="font-weight: 600;">${pago}</span>
-                            </div>
-                            <div style="border-top: 1px solid #eee; margin-top: 8px; padding-top: 8px; display: flex; justify-content: space-between; font-weight: 900; font-size: 15px;">
-                                <span>TOTAL PAGADO</span>
-                                <span style="color: #166534;">L. ${precio.toFixed(2)}</span>
-                            </div>
-                        </div>
-
-                        <div style="margin-top: 16px; font-size: 10px; color: #64748b; text-align: center;">
-                            Gracias por viajar con <strong>HonduRaite</strong>.<br>
-                            Empresa SOZIN • Honduras
-                        </div>
-                    </div>
-
-                    <!-- Footer -->
-                    <div style="background: #f1f5f9; padding: 10px 24px; font-size: 10px; color: #475569; text-align: center; border-top: 1px solid #e2e8f0;">
-                        Soporte: <strong>504 9573-3866</strong> • Este es un comprobante electrónico.
-                    </div>
-                </div>
-            `;
-            return html;
+            return `
+<style>
+#hr-recibo,#hr-recibo *{box-sizing:border-box}
+#hr-recibo{width:100%;max-width:800px;margin:0 auto;background:#F8FAFC;border-radius:20px;overflow:hidden;box-shadow:0 18px 50px rgba(15,23,42,.12);font-family:Inter,system-ui,sans-serif;color:#0B1F3A}
+#hr-recibo .hr-h{background:linear-gradient(135deg,#0B1F3A 0%,#123056 70%,#1D4ED8 140%);color:#fff;padding:22px 28px 20px;display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;position:relative}
+#hr-recibo .hr-h::after{content:"";position:absolute;left:0;right:0;bottom:-6px;height:6px;background:linear-gradient(90deg,#2563EB 0 46%,#fff 46% 54%,#2563EB 54% 100%)}
+#hr-recibo .hr-logo{width:92px;height:92px;background:#fff;border-radius:16px;display:grid;place-items:center;overflow:hidden}
+#hr-recibo .hr-logo img{width:86px;height:86px;object-fit:contain}
+#hr-recibo .hr-brand h1{margin:0;font-size:28px;letter-spacing:-.03em}
+#hr-recibo .hr-slogan{margin:2px 0 8px;color:#93C5FD;font-size:12px;font-weight:600;letter-spacing:.04em}
+#hr-recibo .hr-meta{margin:0;color:#BFDBFE;font-size:13px}
+#hr-recibo .hr-co{margin:4px 0 0;color:#93C5FD;font-size:12px}
+#hr-recibo .hr-trip{text-align:right}
+#hr-recibo .hr-pill{display:inline-flex;align-items:center;border-radius:999px;padding:5px 12px;font-size:11px;font-weight:700;letter-spacing:.04em}
+#hr-recibo .hr-pill-ok{background:#ECFDF5;color:#059669}
+#hr-recibo .hr-pill-wait{background:#FEF3C7;color:#B45309}
+#hr-recibo .hr-pill-svc{background:#DBEAFE;color:#2563EB}
+#hr-recibo .hr-trip .hr-k{margin:10px 0 0;color:#93C5FD;font-size:11px}
+#hr-recibo .hr-id{margin:2px 0 0;font-size:18px;font-weight:800}
+#hr-recibo .hr-date{margin:2px 0 0;color:#93C5FD;font-size:12px}
+#hr-recibo .hr-body{padding:28px;display:grid;gap:14px}
+#hr-recibo .hr-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#hr-recibo .hr-card{background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:16px 18px}
+#hr-recibo .hr-accent{border-left:4px solid #2563EB}
+#hr-recibo .hr-accent-sky{border-left:4px solid #38BDF8}
+#hr-recibo .hr-k{font-size:11px;font-weight:700;color:#64748B;letter-spacing:.06em}
+#hr-recibo .hr-v{margin:6px 0 4px;font-size:17px;font-weight:800}
+#hr-recibo .hr-s{margin:0;color:#334155;font-size:13px}
+#hr-recibo .hr-muted{color:#64748B;font-size:12px}
+#hr-recibo .hr-route-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+#hr-recibo .hr-stop{display:grid;grid-template-columns:18px 1fr;gap:12px}
+#hr-recibo .hr-dot{width:12px;height:12px;border-radius:50%;margin-top:14px;background:#2563EB;box-shadow:0 0 0 3px #DBEAFE}
+#hr-recibo .hr-dot.end{background:#0B1F3A;box-shadow:0 0 0 3px #BFDBFE}
+#hr-recibo .hr-rail{position:relative}
+#hr-recibo .hr-rail::before{content:"";position:absolute;left:5px;top:28px;bottom:28px;border-left:2px dotted #2563EB}
+#hr-recibo .hr-total{background:#0B1F3A;color:#fff;border-radius:16px;padding:18px 22px;display:flex;justify-content:space-between;align-items:center}
+#hr-recibo .hr-total .hr-k{color:#93C5FD}
+#hr-recibo .hr-amount{margin:4px 0 2px;font-size:36px;font-weight:800;letter-spacing:-.03em}
+#hr-recibo .hr-words{margin:0;color:#BFDBFE;font-size:12px}
+#hr-recibo .hr-tright{text-align:right}
+#hr-recibo .hr-bank{display:flex;align-items:center;gap:14px;background:#F1F5F9;border-radius:12px;padding:12px 14px;margin-top:10px}
+#hr-recibo .hr-bank-badge{width:42px;height:42px;border-radius:10px;background:#2563EB;color:#fff;display:grid;place-items:center;font-weight:800;font-size:11px;flex-shrink:0}
+#hr-recibo .hr-bank b{display:block;font-size:14px}
+#hr-recibo .hr-foot{display:flex;justify-content:space-between;gap:16px;padding:6px 4px 8px;color:#64748B;font-size:12px}
+#hr-recibo .hr-foot a{color:#2563EB;font-weight:800;text-decoration:none;font-size:15px}
+#hr-recibo .hr-thanks{text-align:center;color:#94A3B8;font-size:12px;padding-bottom:8px;margin:0}
+@media (max-width:640px){
+  #hr-recibo .hr-h,#hr-recibo .hr-row,#hr-recibo .hr-total,#hr-recibo .hr-foot{grid-template-columns:1fr;display:grid;text-align:left}
+  #hr-recibo .hr-trip,#hr-recibo .hr-tright{text-align:left}
+  #hr-recibo .hr-amount{font-size:28px}
+}
+@media print{
+  #hr-recibo{box-shadow:none;border-radius:0;max-width:none}
+}
+</style>
+<article class="sheet" id="hr-recibo">
+  <header class="hr-h">
+    <div class="hr-logo"><img src="${hrEscInvoice(logo)}" alt="HonduRaite"></div>
+    <div class="hr-brand">
+      <h1>HonduRaite</h1>
+      <p class="hr-slogan">VIAJA SEGURO, LLEGA LEJOS</p>
+      <p class="hr-meta">Comprobante de viaje · Recibo de servicio</p>
+      <p class="hr-co">Empresa SOZIN · Honduras</p>
+    </div>
+    <div class="hr-trip">
+      <span class="hr-pill ${paid ? 'hr-pill-ok' : 'hr-pill-wait'}">${paid ? 'PAGADO' : 'PENDIENTE'}</span>
+      <p class="hr-k">No. de viaje</p>
+      <p class="hr-id">${hrEscInvoice(tripIdShort)}</p>
+      <p class="hr-date">${hrEscInvoice(fechaLarga)}</p>
+    </div>
+  </header>
+  <div class="hr-body">
+    <div class="hr-row">
+      <section class="hr-card hr-accent">
+        <div class="hr-k">FACTURADO A</div>
+        <div class="hr-v">${hrEscInvoice(clientName)}</div>
+        ${clientRtn ? `<p class="hr-s">RTN ${hrEscInvoice(clientRtn)}</p>` : ''}
+        <p class="hr-muted">Pasajero: ${hrEscInvoice(clientName)}</p>
+      </section>
+      <section class="hr-card hr-accent-sky">
+        <div class="hr-k">CONDUCTOR</div>
+        <div class="hr-v">${hrEscInvoice(driverName)}</div>
+        <p class="hr-s">Conductor verificado${placa && placa !== '—' ? ` · ${hrEscInvoice(placa)}` : ''}</p>
+        <p><span class="hr-pill hr-pill-svc">${hrEscInvoice(servicioLabel)}</span></p>
+      </section>
+    </div>
+    <section class="hr-card">
+      <div class="hr-route-head">
+        <div class="hr-k">RUTA DEL VIAJE</div>
+        <span class="hr-pill hr-pill-svc">Servicio ${hrEscInvoice(String(servicioLabel).toLowerCase())}</span>
+      </div>
+      <div class="hr-rail">
+        <div class="hr-stop">
+          <span class="hr-dot"></span>
+          <div>
+            <div class="hr-k">ORIGEN</div>
+            <div class="hr-v" style="font-size:16px">${hrEscInvoice(origin)}</div>
+            <p class="hr-muted">${hrEscInvoice(originCity)}</p>
+          </div>
+        </div>
+        <div class="hr-stop" style="margin-top:14px">
+          <span class="hr-dot end"></span>
+          <div>
+            <div class="hr-k">DESTINO</div>
+            <div class="hr-v" style="font-size:16px">${hrEscInvoice(destination)}</div>
+            <p class="hr-muted">${hrEscInvoice(destCity)}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="hr-total">
+      <div>
+        <div class="hr-k">TOTAL PAGADO</div>
+        <div class="hr-amount">L ${precio.toFixed(2)}</div>
+        <p class="hr-words">${hrEscInvoice(hrLempirasEnLetras(precio))}</p>
+      </div>
+      <div class="hr-tright">
+        <div class="hr-k">Estado</div>
+        <div style="font-size:18px;font-weight:800">${paid ? 'Pagado' : 'Pendiente'}</div>
+        <p class="hr-words">${hrEscInvoice(fechaCorta)}</p>
+      </div>
+    </section>
+    <section class="hr-card">
+      <div class="hr-k">CUENTA PARA DEPÓSITOS / PAGOS</div>
+      <div class="hr-bank">
+        <div class="hr-bank-badge">${hrEscInvoice(bankBadge)}</div>
+        <div style="flex:1">
+          <b>${hrEscInvoice(bank.accountHolder || bank.holder || '')}</b>
+          <span class="hr-muted">Cuenta ${hrEscInvoice(bank.accountNumber || bank.account || '')}</span>
+        </div>
+        <div class="hr-muted">${hrEscInvoice(bank.bankName || bank.bank || 'BAC Credomatic')}</div>
+      </div>
+    </section>
+    <footer class="hr-foot">
+      <div>
+        <div style="color:#0B1F3A;font-weight:700">Soporte HonduRaite</div>
+        <a href="https://wa.me/${hrEscInvoice(support)}">${hrEscInvoice(supportPretty)}</a>
+        <div>WhatsApp Business · honduraite.com</div>
+      </div>
+      <div style="text-align:right">
+        © ${dateObj.getFullYear()} Empresa SOZIN<br>
+        HonduRaite es propiedad de Empresa SOZIN.
+      </div>
+    </footer>
+    <p class="hr-thanks">Gracias por viajar con HonduRaite · Viaja seguro, llega lejos.</p>
+  </div>
+</article>`;
         };
 
-        window.showTestFacturaModal = (tripData, targetEmail) => {
+        window.showTestFacturaModal = (tripData, targetEmail, client, driver) => {
             const modal = document.createElement('div');
             modal.className = `fixed inset-0 bg-black/70 z-[50000] flex items-center justify-center p-4`;
             
-            const facturaHTML = window.generateFacturaHTML(tripData, { name: tripData.clientName || 'Pasajero de prueba', email: targetEmail }, { name: tripData.driverName || 'Conductor', vehicle: tripData.vehicle || {} });
+            const facturaHTML = window.generateFacturaHTML(
+                tripData,
+                client || { name: tripData.clientName || 'Pasajero de prueba', email: targetEmail, rtn: tripData.clientRtn || tripData.rtn },
+                driver || { name: tripData.driverName || 'Conductor', vehicle: tripData.vehicle || {} }
+            );
 
             modal.innerHTML = `
-                <div class="bg-white rounded-3xl w-full max-w-[620px] shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
+                <div class="bg-white rounded-3xl w-full max-w-[860px] shadow-2xl overflow-hidden max-h-[92vh] flex flex-col">
                     <div class="flex items-center justify-between px-5 py-3 border-b">
                         <div class="font-black text-lg">Vista previa de Factura</div>
                         <button onclick="this.closest('.fixed').remove()" class="text-2xl leading-none px-2 text-gray-500 hover:text-red-500">&times;</button>
@@ -17539,10 +17709,11 @@ if (document.readyState === 'loading') {
             printWin.document.write(`
                 <html>
                     <head>
-                        <title>Factura HonduRaite</title>
+                        <title>HonduRaite — Comprobante de viaje</title>
+                        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
                         <style>
-                            body { font-family: system-ui; margin: 20px; }
-                            @media print { body { margin: 0; } }
+                            body { margin: 0; background: #E8EEF5; font-family: Inter, system-ui, sans-serif; }
+                            @media print { body { background: #fff; } }
                         </style>
                     </head>
                     <body>${content.innerHTML}</body>
@@ -17722,7 +17893,11 @@ if (document.readyState === 'loading') {
                     try {
                         const [cSnap] = await enrichUsersWithContact([{ uid: trip.clientId }]);
                         if (cSnap) {
-                            clientInfo = { name: cSnap.name || trip.clientName, email: cSnap.email || cSnap.payoutEmail };
+                            clientInfo = {
+                                name: cSnap.name || trip.clientName,
+                                email: cSnap.email || cSnap.payoutEmail,
+                                rtn: cSnap.rtn || cSnap.taxId || cSnap.RTN || ''
+                            };
                         }
                     } catch (_) {}
                 }
@@ -17740,6 +17915,20 @@ if (document.readyState === 'loading') {
                     window.showToast('Este viaje no tiene correo asociado del pasajero.');
                     // Aún mostramos preview
                 }
+
+                try {
+                    if (!window._hrInvoiceBank) {
+                        const bankSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'bankAccounts'));
+                        const b = bankSnap.docs[0]?.data();
+                        if (b) {
+                            window._hrInvoiceBank = {
+                                bankName: b.bankName || b.bank || 'BAC Credomatic',
+                                accountNumber: b.accountNumber || b.account || '',
+                                accountHolder: b.accountHolder || b.holder || ''
+                            };
+                        }
+                    }
+                } catch (_) {}
 
                 window.showTestFacturaModal(trip, targetEmail);
 
