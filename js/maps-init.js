@@ -1,3 +1,293 @@
+/**
+ * gmp-place-autocomplete en APK abre un dialog/popover a pantalla completa
+ * (top layer). En Android WebView env(safe-area-inset-top) suele ser 0, así
+ * que el overlay se pinta bajo el reloj/batería. Inyectamos el inset nativo
+ * ANTES de que Maps cree el shadow (este archivo carga antes del script de Maps).
+ */
+(function installPlacesOverlaySafeTop() {
+    if (window._hrPlacesOverlaySafeTopInstalled) return;
+    window._hrPlacesOverlaySafeTopInstalled = true;
+
+    const isPlacesHostName = (name) => {
+        const n = String(name || '').toLowerCase();
+        return n.includes('place-autocomplete') || (n.startsWith('gmp-') && n.includes('autocomplete'));
+    };
+
+    const readSearchSafeTopPx = () => {
+        try {
+            const root = getComputedStyle(document.documentElement);
+            const body = document.body ? getComputedStyle(document.body) : root;
+            const parse = (v) => {
+                const num = parseFloat(String(v || '').trim());
+                return Number.isFinite(num) ? num : 0;
+            };
+            let t = parse(root.getPropertyValue('--native-safe-top'))
+                || parse(body.getPropertyValue('--safe-top'))
+                || parse(root.getPropertyValue('--safe-top'))
+                || parse(root.getPropertyValue('--search-safe-top'));
+            if (t < 36) t = 36;
+            t += 12;
+            return Math.round(t);
+        } catch (_) {
+            return 48;
+        }
+    };
+    window.readSearchSafeTopPx = readSearchSafeTopPx;
+
+    const isHrNativeAndroid = () => {
+        try {
+            if (window.Capacitor?.isNativePlatform?.() === true) return true;
+        } catch (_) {}
+        try {
+            return document.documentElement.classList.contains('capacitor-android')
+                || document.body?.classList.contains('capacitor-android');
+        } catch (_) {
+            return false;
+        }
+    };
+    window.isHrNativeAndroid = isHrNativeAndroid;
+
+    const overlayCssText = () => `
+        :host { position: relative; overflow: visible !important; }
+        dialog,
+        dialog[open],
+        [popover],
+        .full-window-autocomplete-dialog,
+        .place-autocomplete-element-overlay,
+        .place-autocomplete-element-full-window,
+        .overlay-container {
+            position: absolute !important;
+            inset: auto !important;
+            top: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            max-height: min(50vh, 18rem) !important;
+            margin: 0 !important;
+            transform: none !important;
+            z-index: 99999 !important;
+            box-sizing: border-box !important;
+        }
+        dialog::backdrop {
+            display: none !important;
+            opacity: 0 !important;
+            background: transparent !important;
+        }
+    `;
+
+    const stylePlacesDropdown = (el) => {
+        if (!el || el.nodeType !== 1) return;
+        try {
+            el.style.setProperty('position', 'absolute', 'important');
+            el.style.setProperty('inset', 'auto', 'important');
+            el.style.setProperty('top', '100%', 'important');
+            el.style.setProperty('left', '0px', 'important');
+            el.style.setProperty('right', '0px', 'important');
+            el.style.setProperty('bottom', 'auto', 'important');
+            el.style.setProperty('width', '100%', 'important');
+            el.style.setProperty('max-width', '100%', 'important');
+            el.style.setProperty('height', 'auto', 'important');
+            el.style.setProperty('max-height', 'min(50vh, 18rem)', 'important');
+            el.style.setProperty('margin', '0px', 'important');
+            el.style.setProperty('transform', 'none', 'important');
+        } catch (_) {}
+    };
+
+    const isPlacesDialog = (el) => {
+        try {
+            const root = el?.getRootNode?.();
+            const host = root?.host;
+            return !!(host && isPlacesHostName(host.localName));
+        } catch (_) {
+            return false;
+        }
+    };
+
+    const injectStyleIntoRoot = (root) => {
+        if (!root || !root.appendChild) return;
+        let style = null;
+        try { style = root.getElementById?.('hr-places-safe-top'); } catch (_) {}
+        if (!style) {
+            try { style = root.querySelector?.('#hr-places-safe-top'); } catch (_) {}
+        }
+        if (!style) {
+            style = document.createElement('style');
+            style.id = 'hr-places-safe-top';
+            root.appendChild(style);
+        }
+        style.textContent = overlayCssText();
+    };
+
+    const looksLikePlacesOverlay = (el) => {
+        if (!el || el.nodeType !== 1) return false;
+        if (el.id === 'status-bar-shield' || el.id === 'control-panel') return false;
+        if (el.localName === 'gmp-place-autocomplete' || el.localName === 'gmp-basic-place-autocomplete') return false;
+        try {
+            if (el.closest?.('#control-panel, #app-header, #status-bar-shield')) return false;
+        } catch (_) {}
+        const cls = `${el.className || ''} ${el.getAttribute?.('part') || ''}`.toLowerCase();
+        if (cls.includes('pac-container') || cls.includes('full-window')) return true;
+        const tag = String(el.localName || '');
+        if (tag !== 'dialog' && el.getAttribute?.('popover') == null && !cls.includes('overlay')) {
+            return false;
+        }
+        try {
+            const r = el.getBoundingClientRect();
+            const vh = window.innerHeight || 640;
+            const vw = window.innerWidth || 360;
+            return r.top <= 12 && r.height >= vh * 0.55 && r.width >= vw * 0.7;
+        } catch (_) {
+            return false;
+        }
+    };
+
+    const pinOverlayBelowStatusBar = (el, force = false) => {
+        if (!el || el.id === 'status-bar-shield' || el.id === 'control-panel') return;
+        if (el.localName === 'gmp-place-autocomplete' || el.localName === 'gmp-basic-place-autocomplete') return;
+        if (!looksLikePlacesOverlay(el) && !force) return;
+        if (force && !looksLikePlacesOverlay(el)) return;
+        const top = readSearchSafeTopPx();
+        const kb = (() => {
+            try {
+                return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--keyboard-inset')) || 0;
+            } catch (_) { return 0; }
+        })();
+        try {
+            el.style.setProperty('inset', `${top}px 0 ${Math.round(kb)}px 0`, 'important');
+            el.style.setProperty('top', `${top}px`, 'important');
+            el.style.setProperty('left', '0px', 'important');
+            el.style.setProperty('right', '0px', 'important');
+            el.style.setProperty('bottom', `${Math.round(kb)}px`, 'important');
+            el.style.setProperty('margin', '0px', 'important');
+            el.style.setProperty('width', '100%', 'important');
+            el.style.setProperty('max-width', 'none', 'important');
+            el.style.setProperty('height', 'auto', 'important');
+            el.style.setProperty('max-height', 'none', 'important');
+            el.style.setProperty('box-sizing', 'border-box', 'important');
+            try { el.dataset.hrSafeTopPinned = '1'; } catch (_) {}
+        } catch (_) {}
+    };
+
+    const applyPlacesOverlaySafeTop = () => {
+        try {
+            const top = readSearchSafeTopPx();
+            document.documentElement.style.setProperty('--search-safe-top', `${top}px`);
+        } catch (_) {}
+        try {
+            document.querySelectorAll('dialog[open], .pac-container').forEach((el) => {
+                if (isPlacesDialog(el) || String(el.className || '').includes('pac-container')) {
+                    stylePlacesDropdown(el);
+                }
+            });
+        } catch (_) {}
+        try {
+            document.querySelectorAll('[popover]').forEach((el) => {
+                if (el.id === 'status-bar-shield') return;
+                if (isPlacesDialog(el)) stylePlacesDropdown(el);
+            });
+        } catch (_) {}
+        document.querySelectorAll('gmp-place-autocomplete, gmp-basic-place-autocomplete').forEach((host) => {
+            const root = host.shadowRoot || host._hrShadow;
+            if (!root) return;
+            injectStyleIntoRoot(root);
+            try {
+                root.querySelectorAll(
+                    'dialog, [popover], .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, .place-autocomplete-element-full-window'
+                ).forEach(stylePlacesDropdown);
+            } catch (_) {}
+        });
+    };
+    window.applyPlacesOverlaySafeTop = applyPlacesOverlaySafeTop;
+
+    const origAttachShadow = Element.prototype.attachShadow;
+    if (typeof origAttachShadow === 'function') {
+        Element.prototype.attachShadow = function hrAttachShadow(init) {
+            const shadow = origAttachShadow.apply(this, arguments);
+            try {
+                if (isPlacesHostName(this.localName)) {
+                    this._hrShadow = shadow;
+                    injectStyleIntoRoot(shadow);
+                    try {
+                        const mo = new MutationObserver(() => {
+                            try {
+                                shadow.querySelectorAll('dialog, [popover], .full-window-autocomplete-dialog, .place-autocomplete-element-overlay').forEach(stylePlacesDropdown);
+                            } catch (_) {}
+                        });
+                        mo.observe(shadow, { childList: true, subtree: true });
+                    } catch (_) {}
+                }
+            } catch (_) {}
+            return shadow;
+        };
+    }
+
+    const protoDlg = window.HTMLDialogElement && HTMLDialogElement.prototype;
+    if (protoDlg && typeof protoDlg.showModal === 'function' && !protoDlg.showModal._hrDropdown) {
+        const origShowModal = protoDlg.showModal;
+        protoDlg.showModal = function hrPlacesShowModal() {
+            if (isPlacesDialog(this)) {
+                stylePlacesDropdown(this);
+                if (typeof this.show === 'function') return this.show();
+            }
+            return origShowModal.apply(this, arguments);
+        };
+        protoDlg.showModal._hrDropdown = true;
+    }
+    if (window.HTMLElement && typeof HTMLElement.prototype.showPopover === 'function' && !HTMLElement.prototype.showPopover._hrDropdown) {
+        const origShowPopover = HTMLElement.prototype.showPopover;
+        HTMLElement.prototype.showPopover = function hrPlacesShowPopover() {
+            if (isPlacesDialog(this) || (this.id === 'status-bar-shield')) {
+                if (this.id === 'status-bar-shield') {
+                    try { return origShowPopover.apply(this, arguments); } catch (_) { return undefined; }
+                }
+                stylePlacesDropdown(this);
+            }
+            return origShowPopover.apply(this, arguments);
+        };
+        HTMLElement.prototype.showPopover._hrDropdown = true;
+    }
+
+    let applyTimer = 0;
+    const scheduleApplyPlacesOverlaySafeTop = () => {
+        if (applyTimer) return;
+        applyTimer = setTimeout(() => {
+            applyTimer = 0;
+            applyPlacesOverlaySafeTop();
+        }, 32);
+    };
+
+    const ensurePersistentShield = () => {
+        try {
+            if (!document.body) return;
+            let el = document.getElementById('status-bar-shield');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'status-bar-shield';
+                el.setAttribute('aria-hidden', 'true');
+                document.body.appendChild(el);
+            }
+        } catch (_) {}
+    };
+
+    const onReady = () => {
+        ensurePersistentShield();
+        applyPlacesOverlaySafeTop();
+        if (window._hrPlacesOverlayMo) return;
+        try {
+            const mo = new MutationObserver(scheduleApplyPlacesOverlaySafeTop);
+            mo.observe(document.documentElement, { childList: true, subtree: true });
+            window._hrPlacesOverlayMo = mo;
+        } catch (_) {}
+    };
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', onReady, { once: true });
+    } else {
+        onReady();
+    }
+})();
+
 window.gMap = null;
         window.directionsRenderer = null;
         window.geocoder = null;
@@ -59,12 +349,20 @@ window.gMap = null;
                 || '';
         };
 
+        window._geocodeCache = window._geocodeCache || new Map();
         window.geocodeAddressString = (address) => new Promise((resolve) => {
             const text = String(address || '').trim();
             if (!text || !window.geocoder) return resolve(null);
+            const cacheKey = text.toLowerCase();
+            const hit = window._geocodeCache.get(cacheKey);
+            if (hit && Date.now() - hit.ts < 30 * 60 * 1000) return resolve(hit.result);
+
+            const region = (typeof window.getGeocodeRegion === 'function'
+                ? window.getGeocodeRegion()
+                : 'HN') || 'HN';
 
             const tryGeocode = (query) => new Promise((res) => {
-                window.geocoder.geocode({ address: query, region: 'HN' }, (results, status) => {
+                window.geocoder.geocode({ address: query, region }, (results, status) => {
                     if (status === 'OK' && results?.[0]?.geometry?.location) {
                         const loc = results[0].geometry.location;
                         res({
@@ -81,17 +379,21 @@ window.gMap = null;
             });
 
             (async () => {
-                // First try as-is
                 let result = await tryGeocode(text);
-                if (result?.latLng) return resolve(result);
-
-                // Try with context for better results in the service area (Comayagua)
-                if (!text.toLowerCase().includes('honduras') && !text.toLowerCase().includes('comayagua')) {
-                    result = await tryGeocode(text + ', Comayagua, Honduras');
-                    if (result?.latLng) return resolve(result);
+                if (result?.latLng) {
+                    window._geocodeCache.set(cacheKey, { result, ts: Date.now() });
+                    return resolve(result);
                 }
 
-                // Fallback: return address without coords (will be rejected later)
+                const us = typeof window.isUsMarket === 'function' && window.isUsMarket();
+                if (!us && !text.toLowerCase().includes('honduras') && !text.toLowerCase().includes('comayagua')) {
+                    result = await tryGeocode(text + ', Comayagua, Honduras');
+                    if (result?.latLng) {
+                        window._geocodeCache.set(cacheKey, { result, ts: Date.now() });
+                        return resolve(result);
+                    }
+                }
+
                 resolve({ address: text, latLng: null });
             })();
         });
@@ -114,6 +416,10 @@ window.gMap = null;
             console.error("Google Maps aún no está listo");
             return;
         }
+        // Un solo mapa por sesión: no destruir / recrear (ahorra Maps JS).
+        if (window.gMap && window.mapLoaded) {
+            return;
+        }
 
         window.geocoder = new google.maps.Geocoder();
         // Rutas: Route.computeRoutes (Routes API). Sin DirectionsService deprecado.
@@ -126,7 +432,7 @@ window.gMap = null;
         });
         window.geometryLibraryReady = google.maps.importLibrary('geometry').catch(() => null);
         window._routeComputeCache = new Map();
-        window._routeCacheTtlMs = 90000;
+        window._routeCacheTtlMs = 10 * 60 * 1000;
 
         // Prevent repeated noisy failures when Routes library / key doesn't support the new computeRoutes in this env
         window._routesApiTried = false;
@@ -135,10 +441,14 @@ window.gMap = null;
 
         const cfg = window.APP_CONFIG?.googleMaps || {};
         const comayaguaCoords = cfg.defaultCenter || { lat: 14.4513, lng: -87.6374 };
+        const houstonCoords = { lat: 29.7604, lng: -95.3698 };
+        const startCenter = (typeof window.getActiveMarket === 'function' && window.getActiveMarket() === 'us')
+            ? houstonCoords
+            : comayaguaCoords;
 
         const LOW = (typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode());
         const mapOptions = {
-            center: comayaguaCoords,
+            center: startCenter,
             zoom: LOW ? 15 : 16,
             disableDefaultUI: true,
             mapTypeId: 'roadmap',
@@ -897,7 +1207,9 @@ window.gMap = null;
         const destEl = document.getElementById('destination-autocomplete');
 
         if (originEl && destEl) {
-            const countries = cfg.countryRestriction || ['hn'];
+            const countries = (typeof window.getMapCountryRestriction === 'function'
+                ? window.getMapCountryRestriction()
+                : null) || cfg.countryRestriction || ['hn'];
             try {
                 // API nueva (Place Autocomplete Element): includedRegionCodes
                 originEl.includedRegionCodes = countries;
@@ -905,6 +1217,14 @@ window.gMap = null;
             } catch (_) {
                 // Fallback silencioso si el navegador no soporta la propiedad
             }
+
+            window.updatePlacesCountryRestriction = (codes) => {
+                const list = Array.isArray(codes) && codes.length ? codes : ['hn'];
+                [originEl, destEl, document.getElementById('extra-stop-autocomplete')].forEach((el) => {
+                    if (!el) return;
+                    try { el.includedRegionCodes = list; } catch (_) {}
+                });
+            };
 
             const applyLocationBias = (center) => {
                 const radius = Math.min(cfg.locationBiasRadius || 50000, 50000);
@@ -918,7 +1238,7 @@ window.gMap = null;
             };
 
             try {
-                applyLocationBias(comayaguaCoords);
+                applyLocationBias(startCenter);
             } catch (_) {}
 
             window.updatePlacesLocationBias = (lat, lng) => {
@@ -929,27 +1249,11 @@ window.gMap = null;
             };
 
             /** Lee safe-top real (px) inyectado por MainActivity / CSS. */
-            const readSearchSafeTopPx = () => {
-                try {
-                    const root = getComputedStyle(document.documentElement);
-                    const body = getComputedStyle(document.body);
-                    const parse = (v) => {
-                        const n = parseFloat(String(v || '').trim());
-                        return Number.isFinite(n) ? n : 0;
-                    };
-                    let t = parse(root.getPropertyValue('--native-safe-top'))
-                        || parse(body.getPropertyValue('--safe-top'))
-                        || parse(root.getPropertyValue('--safe-top'))
-                        || parse(root.getPropertyValue('env(safe-area-inset-top)'));
-                    // Piso Android: status bar típica + respiro (no pegar al reloj)
-                    if (t < 32) t = 32;
-                    // Capacidad nativa a veces reporta 24; damos aire extra al input
-                    t += 10;
-                    return Math.round(t);
-                } catch (_) {
-                    return 42;
-                }
-            };
+            const readSearchSafeTopPx = () => (
+                typeof window.readSearchSafeTopPx === 'function'
+                    ? window.readSearchSafeTopPx()
+                    : 48
+            );
 
             const ensureStatusBarShield = () => {
                 let el = document.getElementById('status-bar-shield');
@@ -962,11 +1266,22 @@ window.gMap = null;
                 return el;
             };
 
+            const restackStatusBarShield = () => {
+                try {
+                    const el = ensureStatusBarShield();
+                    try { el.hidePopover?.(); } catch (_) {}
+                    try { el.removeAttribute('popover'); } catch (_) {}
+                } catch (_) {}
+                return document.getElementById('status-bar-shield');
+            };
+            window.restackStatusBarShield = restackStatusBarShield;
+
             const clearControlPanelSearchInline = (panel) => {
                 if (!panel) return;
                 [
                     'position', 'top', 'bottom', 'left', 'right', 'height', 'max-height',
-                    'z-index', 'transform', 'width', 'margin'
+                    'min-height', 'z-index', 'transform', 'width', 'margin',
+                    'opacity', 'visibility', 'pointer-events'
                 ].forEach((p) => {
                     try { panel.style.removeProperty(p); } catch (_) {}
                 });
@@ -985,24 +1300,28 @@ window.gMap = null;
                     let offsetTop = 0;
                     let height = layoutH;
                     let keyboard = 0;
+                    const safeTop = readSearchSafeTopPx();
                     if (vv) {
                         offsetTop = Math.max(0, Number(vv.offsetTop) || 0);
                         height = Math.max(0, Number(vv.height) || layoutH);
-                        // Con adjustNothing, el teclado suele cubrir sin cambiar offsetTop
                         keyboard = Math.max(0, layoutH - height - offsetTop);
-                        // Algunos WebView reportan height ≈ layoutH aunque el teclado esté abierto;
-                        // si hay focus en autocomplete y height bajó poco, no forzar 0.
+                        const minPanel = Math.min(240, Math.round(layoutH * 0.42));
+                        const maxKb = Math.max(0, layoutH - safeTop - minPanel);
+                        if (keyboard > maxKb) keyboard = maxKb;
                     }
                     root.style.setProperty('--vv-height', `${Math.round(height)}px`);
                     root.style.setProperty('--vv-offset-top', `${Math.round(offsetTop)}px`);
                     root.style.setProperty('--keyboard-inset', `${Math.round(keyboard)}px`);
-
-                    const safeTop = readSearchSafeTopPx();
                     root.style.setProperty('--search-safe-top', `${safeTop}px`);
                     const shield = ensureStatusBarShield();
                     shield.style.height = `${safeTop}px`;
+                    try { window.applyPlacesOverlaySafeTop?.(); } catch (_) {}
 
-                    if (!open) return;
+                    if (!open) {
+                        try { shield.hidePopover?.(); } catch (_) {}
+                        try { shield.style.removeProperty('height'); } catch (_) {}
+                        return;
+                    }
 
                     // Bloquear scroll del documento (causa del “mezclado” con la hora)
                     window.scrollTo(0, 0);
@@ -1010,7 +1329,10 @@ window.gMap = null;
                     if (document.body) document.body.scrollTop = 0;
 
                     const panel = document.getElementById('control-panel');
-                    if (panel) {
+                    const native = typeof window.isHrNativeAndroid === 'function'
+                        ? window.isHrNativeAndroid()
+                        : false;
+                    if (panel && native) {
                         panel.style.setProperty('position', 'fixed', 'important');
                         panel.style.setProperty('left', '0px', 'important');
                         panel.style.setProperty('right', '0px', 'important');
@@ -1023,6 +1345,10 @@ window.gMap = null;
                         panel.style.setProperty('bottom', `${Math.round(keyboard)}px`, 'important');
                         panel.style.setProperty('height', 'auto', 'important');
                         panel.style.setProperty('max-height', 'none', 'important');
+                        panel.style.setProperty('min-height', '220px', 'important');
+                        panel.style.setProperty('opacity', '1', 'important');
+                        panel.style.setProperty('pointer-events', 'auto', 'important');
+                        panel.style.setProperty('visibility', 'visible', 'important');
                     }
                 } catch (_) {}
             };
@@ -1031,20 +1357,44 @@ window.gMap = null;
                 const active = !!on;
                 document.body.classList.toggle('trip-autocomplete-open', active);
                 try {
-                    document.getElementById('control-panel')
-                        ?.classList.toggle('trip-autocomplete-open', active);
+                    const panel = document.getElementById('control-panel');
+                    panel?.classList.toggle('trip-autocomplete-open', active);
+                    if (active) {
+                        document.body.classList.remove('panel-minimized', 'panel-collapsed', 'panel-hidden');
+                        panel?.classList.remove('panel-collapsed', 'panel-hidden');
+                    }
                 } catch (_) {}
                 ensureStatusBarShield();
                 syncTripAutocompleteViewport();
                 if (!active) {
                     clearControlPanelSearchInline(document.getElementById('control-panel'));
+                    try { document.getElementById('status-bar-shield')?.hidePopover?.(); } catch (_) {}
+                    if (window._hrPlacesSafeTopPulse) {
+                        clearInterval(window._hrPlacesSafeTopPulse);
+                        window._hrPlacesSafeTopPulse = null;
+                    }
                     return;
                 }
+                restackStatusBarShield();
+                const native = typeof window.isHrNativeAndroid === 'function' && window.isHrNativeAndroid();
+                if (native && !window._hrPlacesSafeTopPulse) {
+                    window._hrPlacesSafeTopPulse = setInterval(() => {
+                        if (!document.body.classList.contains('trip-autocomplete-open')) {
+                            clearInterval(window._hrPlacesSafeTopPulse);
+                            window._hrPlacesSafeTopPulse = null;
+                            return;
+                        }
+                        window.applyPlacesOverlaySafeTop?.();
+                    }, 450);
+                }
                 // Re-aplicar varias veces: el teclado tarda en reportar altura
+                // y el overlay de Places sube a la top layer un frame después.
                 [0, 40, 100, 200, 350, 500, 800].forEach((ms) => {
                     setTimeout(() => {
                         if (document.body.classList.contains('trip-autocomplete-open')) {
                             syncTripAutocompleteViewport();
+                            restackStatusBarShield(ms === 100 || ms === 350 || ms === 800);
+                            window.applyPlacesOverlaySafeTop?.();
                         }
                     }, ms);
                 });
@@ -1155,6 +1505,16 @@ window.gMap = null;
                 } catch (_) {}
             };
 
+            const newPlacesSessionToken = async (el) => {
+                try {
+                    const lib = await google.maps.importLibrary('places');
+                    const Token = lib.AutocompleteSessionToken || google.maps.places?.AutocompleteSessionToken;
+                    if (Token && el) el._placesSessionToken = new Token();
+                } catch (_) {}
+            };
+            newPlacesSessionToken(originEl);
+            newPlacesSessionToken(destEl);
+
             const onPlaceSelect = async (event, el) => {
                 const snap = window.captureRouteFieldSnapshot?.(el);
                 try {
@@ -1163,7 +1523,10 @@ window.gMap = null;
                         place = event.placePrediction.toPlace();
                     }
                     if (place?.fetchFields) {
-                        await place.fetchFields({ fields: ['formattedAddress', 'displayName', 'location', 'id'] });
+                        const fetchOpts = { fields: ['formattedAddress', 'displayName', 'location', 'id'] };
+                        if (el._placesSessionToken) fetchOpts.sessionToken = el._placesSessionToken;
+                        await place.fetchFields(fetchOpts);
+                        newPlacesSessionToken(el);
                         const endpoint = window.placeToRouteEndpoint?.(place, window.readAutocompleteText?.(el));
                         const nextAddr = endpoint?.address || window.readAutocompleteText?.(el) || '';
                         const ok = await window.guardRouteEndpointChange?.(el, nextAddr);
@@ -1298,19 +1661,18 @@ window.gMap = null;
                     window.updateOriginGPSButton();
                 }
 
-                // Fix: al cambiar la ruta (origen o destino), recalcular precios automáticamente
-                // con debounce para no spamear mientras el usuario escribe
+                // Solo estimar tarifa cuando ya hay coordenadas (Places/GPS). No Routes API al escribir.
                 clearTimeout(window._routeRecalcTimer);
                 window._routeRecalcTimer = setTimeout(() => {
                     const oEl2 = document.getElementById('origin-autocomplete');
                     const dEl2 = document.getElementById('destination-autocomplete');
                     if (!oEl2 || !dEl2) return;
-                    const hasO = !!(window.readAutocompleteText?.(oEl2) || oEl2._routeEndpoint?.address);
-                    const hasD = !!(window.readAutocompleteText?.(dEl2) || dEl2._routeEndpoint?.address);
-                    if (hasO && hasD) {
-                        window.calculateTripRoute?.({ silent: true });
+                    const oLl = oEl2._routeEndpoint?.latLng;
+                    const dLl = dEl2._routeEndpoint?.latLng;
+                    if (oLl?.lat != null && dLl?.lat != null) {
+                        window.calculateTripRoute?.({ silent: true, estimateOnly: true });
                     }
-                }, 650);
+                }, 450);
             };
 
             const attachAutocompleteInputWatch = (el) => {
@@ -1324,6 +1686,7 @@ window.gMap = null;
                     input.addEventListener('input', sync);
                     input.addEventListener('change', sync);
                     input.addEventListener('blur', sync);
+                    input.addEventListener('focus', () => { void newPlacesSessionToken(el); });
                     return true;
                 };
                 if (!hookInput()) {
@@ -1343,8 +1706,9 @@ window.gMap = null;
                 let blurTimer = null;
                 const setActive = (on) => {
                     wrap.classList.toggle('is-autocomplete-active', on);
+                    const native = typeof window.isHrNativeAndroid === 'function' && window.isHrNativeAndroid();
                     if (on) {
-                        setTripAutocompleteOpen(true, el);
+                        if (native) setTripAutocompleteOpen(true, el);
                     } else {
                         const still = document.querySelector(
                             '.trip-origin-wrap.is-autocomplete-active, .trip-dest-wrap.is-autocomplete-active, .trip-extra-stop-wrap.is-autocomplete-active'
@@ -2520,7 +2884,19 @@ window.gMap = null;
             document.body.classList.remove('panel-hidden', 'panel-minimized', 'panel-collapsed');
             panel?.classList.remove('panel-hidden', 'panel-collapsed', 'driver-offer-peek-hidden');
             try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
-            document.getElementById('active-trip-panel')?.classList.remove('hidden', 'panel-minimized');
+            const liveTrip = !!(window.currentActiveTripData
+                && ['accepted', 'in_progress'].includes(window.currentActiveTripData.status)
+                && (window.currentActiveTripData.driverId === window.currentUser?.uid
+                    || window.currentActiveTripData.driverId === window.userProfile?.uid));
+            if (liveTrip) {
+                document.getElementById('active-trip-panel')?.classList.remove('hidden', 'panel-minimized');
+            } else {
+                document.body.classList.remove('trip-active', 'is-navigating', 'driver-nav-mode');
+                document.getElementById('active-trip-panel')?.classList.add('hidden');
+                document.getElementById('driver-view')?.classList.remove('hidden');
+            }
+            try { window.syncDriverPanelMinHint?.(); } catch (_) {}
+            try { window.syncDriverIdleVsActiveTripUi?.(); } catch (_) {}
             // Preferencia del usuario: no volver a auto-minimizar mientras navegue
             if (document.body.classList.contains('is-navigating')
                 || document.body.classList.contains('driver-nav-mode')
@@ -2629,6 +3005,7 @@ window.gMap = null;
                 panel?.classList.remove('panel-collapsed', 'driver-offer-peek-hidden');
                 try { localStorage.setItem(PANEL_HIDDEN_KEY, '0'); } catch (_) {}
                 if (hasTrip) window.dockControlPanelForDriverTrip?.();
+                window.syncDriverIdleVsActiveTripUi?.();
                 window.syncDriverRadarFloatPanel?.();
                 window.updatePassengerPromoStripVisibility?.();
                 window.refreshPassengerCopaUI?.();
@@ -2715,6 +3092,11 @@ window.gMap = null;
                 }
                 if (panel) {
                     panel.classList.toggle('panel-collapsed');
+                    try {
+                        panel.style.height = '';
+                        panel.style.maxHeight = '';
+                        panel.style.minHeight = '';
+                    } catch (_) {}
                 }
                 const collapsed = panel ? panel.classList.contains('panel-collapsed') : document.body.classList.contains('panel-minimized');
                 document.body.classList.toggle('panel-minimized', collapsed);
@@ -2724,8 +3106,10 @@ window.gMap = null;
                 if (isDriver) {
                     window._driverNavUserKeptOpen = !collapsed;
                     if (!collapsed) window._driverNavPanelAutoMinDone = true;
+                    window.syncDriverIdleVsActiveTripUi?.();
                 }
                 window.syncPassengerPanelToggleLabel?.();
+                try { window.syncDriverPanelMinHint?.(); } catch (_) {}
                 try { window.syncPanelHideChevron?.(); } catch (_) {}
                 try { localStorage.setItem(PANEL_HIDDEN_KEY, collapsed ? '1' : '0'); } catch (_) {}
                 window.syncDriverRadarFloatPanel?.();
@@ -2846,6 +3230,22 @@ window.gMap = null;
         };
 
         /** Actualiza el chevron de esquina (v / ^) según min/max del panel */
+        window.syncDriverPanelMinHint = () => {
+            const panel = document.getElementById('control-panel');
+            const collapsed = !!panel?.classList.contains('panel-collapsed')
+                || document.body.classList.contains('panel-minimized')
+                || document.body.classList.contains('panel-collapsed')
+                || document.body.classList.contains('panel-hidden');
+            const minHint = document.querySelector('#control-panel .driver-panel-min-hint');
+            if (minHint) minHint.textContent = collapsed ? 'Maximizar' : 'Minimizar';
+            const minBtn = document.getElementById('driver-panel-min-btn');
+            if (minBtn) {
+                minBtn.setAttribute('aria-label', collapsed ? 'Maximizar panel' : 'Minimizar panel');
+                minBtn.setAttribute('title', collapsed ? 'Maximizar' : 'Minimizar');
+                minBtn.classList.toggle('is-collapsed', !!collapsed);
+            }
+        };
+
         window.syncPanelHideChevron = () => {
             const btn = document.getElementById('panel-hide-btn')
                 || document.querySelector('#control-panel > .panel-hide-btn')
@@ -3119,6 +3519,17 @@ window.gMap = null;
             document.body.classList.toggle('panel-collapsed', collapsed);
             document.body.classList.remove('panel-hidden');
             panel.classList.remove('panel-hidden');
+            // Quitar alturas inline residuales para que el CSS del colapsado gane
+            try {
+                panel.style.height = '';
+                panel.style.maxHeight = '';
+                panel.style.minHeight = '';
+                panel.style.top = collapsed ? '' : panel.style.top;
+                if (collapsed) {
+                    panel.style.top = '';
+                    panel.style.bottom = '';
+                }
+            } catch (_) {}
             // Al minimizar/maximizar a mano, quitar “peek” residual de ofertas
             if (collapsed) {
                 panel.classList.remove('driver-offer-peek-hidden');
@@ -3129,15 +3540,20 @@ window.gMap = null;
             window.syncPassengerPanelToggleLabel?.();
 
             // Conductor: preferencia del usuario (no auto-minimizar si lo abrió a mano)
-            if (document.body.classList.contains('driver-mode')) {
+            const roleIsDriver = document.body.classList.contains('driver-mode')
+                || window.userProfile?.role === 'driver'
+                || !!window.userProfile?.isTestDriver;
+            if (roleIsDriver) {
+                document.body.classList.add('driver-mode');
+                document.body.classList.remove('client-mode');
                 if (collapsed) {
                     window._driverNavUserKeptOpen = false;
                 } else {
                     window._driverNavUserKeptOpen = true;
                     window._driverNavPanelAutoMinDone = true;
                 }
-                // Rebind por si el DOM del sheet se re-renderizó
                 try { window.bindDriverPanelMinBtn?.(); } catch (_) {}
+                try { window.syncDriverIdleVsActiveTripUi?.(); } catch (_) {}
             }
 
             // Mini-barra: Abrir (minimizado) / etiqueta auxiliar
@@ -3149,18 +3565,11 @@ window.gMap = null;
             }
             const tpLabel = document.getElementById('tp-panel-toggle-label');
             if (tpLabel) tpLabel.textContent = collapsed ? 'Ver más' : 'Minimizar';
-            // Botón superior: Minimizar / Maximizar según estado
-            const minHint = document.querySelector('#control-panel .driver-panel-min-hint');
-            if (minHint) minHint.textContent = collapsed ? 'Maximizar' : 'Minimizar';
-            const minBtn = document.getElementById('driver-panel-min-btn');
-            if (minBtn) {
-                minBtn.setAttribute('aria-label', collapsed ? 'Maximizar panel' : 'Minimizar panel');
-                minBtn.setAttribute('title', collapsed ? 'Maximizar' : 'Minimizar');
-            }
+            try { window.syncDriverPanelMinHint?.(); } catch (_) {}
             try { window.syncPanelHideChevron?.(); } catch (_) {}
             try { window.bindPassengerPanelMinBtn?.(); } catch (_) {}
 
-            if (document.body.classList.contains('driver-mode')) {
+            if (document.body.classList.contains('driver-mode') || roleIsDriver) {
                 if (collapsed) window.syncDriverRadarFloatPanel?.();
                 else {
                     window.dockControlPanelForDriverTrip?.();
@@ -4441,13 +4850,26 @@ window.gMap = null;
                 return false;
             }
 
-            // Invalidar ruta rota / vacía
-            if (force || !window.hasActiveDriverNavRoute?.()) {
+            const remainingOnMap = window._progressRoutePolylines?.remaining?.getMap?.()
+                || window._progressRoutePolylines?.base?.getMap?.();
+            const hasPath = window.hasActiveDriverNavRoute?.();
+            if (hasPath && remainingOnMap) {
+                if (window.currentDriverPos) {
+                    window.updateRouteProgress?.(window.currentDriverPos, { driverNav: true });
+                }
+                return true;
+            }
+            if (hasPath && window.currentNavRoute) {
+                window.drawRouteOnMap?.(window.currentNavRoute, { driverNav: true, fitFullRoute: false });
+                return true;
+            }
+
+            // Solo vaciar memoria si realmente no hay path
+            if (!hasPath) {
                 try {
                     window.currentNavRoute = null;
                     window.currentRouteFullPath = null;
                     window._progressRoutePolylines = null;
-                    window._inProgressNavBootKey = null;
                 } catch (_) {}
             }
 
@@ -4458,7 +4880,7 @@ window.gMap = null;
             }
 
             try {
-                window.updateNavigation?.(target, true);
+                window.updateNavigation?.(target, !hasPath);
             } catch (e) {
                 console.warn('[NAV] recover updateNavigation:', e);
             }
@@ -4502,10 +4924,22 @@ window.gMap = null;
             const trip = window.currentActiveTripData;
             if (!trip) return;
 
+            const remainingOnMap = window._progressRoutePolylines?.remaining?.getMap?.()
+                || window._progressRoutePolylines?.base?.getMap?.();
+            const polyOnMap = remainingOnMap
+                || (Array.isArray(window.currentRoutePolyline)
+                    ? window.currentRoutePolyline.some?.((p) => p?.getMap?.())
+                    : window.currentRoutePolyline?.getMap?.());
             const hasRoute = window.hasActiveDriverNavRoute?.();
-            if (!hasRoute) {
-                // Recuperación completa (GPS + compute + draw)
-                window.recoverDriverNavRoute?.({ force: true, silent: true });
+
+            if (hasRoute && polyOnMap) {
+                const pos = window.currentDriverPos;
+                if (pos) window.updateRouteProgress?.(pos, { driverNav: true });
+                return;
+            }
+
+            if (hasRoute && !polyOnMap && window.currentNavRoute) {
+                window.drawRouteOnMap?.(window.currentNavRoute, { driverNav: true, fitFullRoute: false });
                 return;
             }
 
@@ -4513,26 +4947,12 @@ window.gMap = null;
             if (!pos) {
                 window.ensureDriverPosition?.().then((p) => {
                     if (p) window.ensureDriverNavRouteVisible?.();
-                    else window.recoverDriverNavRoute?.({ force: true, silent: true });
+                    else window.recoverDriverNavRoute?.({ force: false, silent: true });
                 });
                 return;
             }
 
-            const remainingOnMap = window._progressRoutePolylines?.remaining?.getMap?.();
-            const polyOnMap = remainingOnMap
-                || (Array.isArray(window.currentRoutePolyline)
-                    ? window.currentRoutePolyline.some?.((p) => p?.getMap?.())
-                    : window.currentRoutePolyline?.getMap?.());
-            if (!polyOnMap && window.currentNavRoute) {
-                window.drawRouteOnMap?.(window.currentNavRoute, { driverNav: true, fitFullRoute: true });
-            }
-            window.updateRouteProgress?.(pos, { driverNav: true, force: true });
-            // Primera vez / cada ~20s: encuadrar un tramo de la ruta restante (se ve el camino)
-            const now = Date.now();
-            if (!window._lastDriverRouteFitAt || now - window._lastDriverRouteFitAt > 20000) {
-                window._lastDriverRouteFitAt = now;
-                try { window.fitDriverActiveRouteOverview?.(); } catch (_) {}
-            }
+            window.recoverDriverNavRoute?.({ force: false, silent: true });
         };
 
         /**
@@ -4693,7 +5113,7 @@ window.gMap = null;
             const passedOpacity = driverLite ? 0.55 : (isPassenger ? 0.82 : 0.5);
             const reuse = window._progressRoutePolylines;
 
-            if (reuse?.remaining?.getMap?.() && (driverLite || reuse.base?.getMap?.() || reuse.passed?.getMap?.())) {
+            if (reuse && (reuse.remaining?.getMap?.() || reuse.base?.getMap?.() || reuse.passed?.getMap?.())) {
                 if (reuse.base) reuse.base.setPath(path);
                 // Actualizar tramo recorrido (gris) también en conductor
                 if (reuse.passed) {
@@ -4933,7 +5353,75 @@ window.gMap = null;
             return point;
         };
 
-        window.computeDrivingRoute = async (origin, destination) => {
+        window.latLngFromRoutePoint = (p) => {
+            if (!p) return null;
+            if (typeof p === 'string') return null;
+            let lat = p.lat;
+            let lng = p.lng;
+            if (p.latLng) {
+                lat = p.latLng.lat ?? lat;
+                lng = p.latLng.lng ?? lng;
+            }
+            if (p.location) {
+                const loc = p.location;
+                lat = loc.lat ?? loc.latitude ?? lat;
+                lng = loc.lng ?? loc.longitude ?? lng;
+            }
+            if (typeof lat === 'function') lat = lat();
+            if (typeof lng === 'function') lng = lng();
+            const nlat = Number(lat);
+            const nlng = Number(lng);
+            if (!Number.isFinite(nlat) || !Number.isFinite(nlng)) return null;
+            return { lat: nlat, lng: nlng };
+        };
+
+        /** Ruta barata (haversine × 1.25). Cero llamadas a Routes/Directions. */
+        window.estimateDrivingRoute = (from, to) => {
+            const o = window.latLngFromRoutePoint(from) || from;
+            const d = window.latLngFromRoutePoint(to) || to;
+            if (!o || !d || o.lat == null || d.lat == null) return null;
+            const toRad = (deg) => deg * Math.PI / 180;
+            const earthKm = 6371;
+            const dLat = toRad(d.lat - o.lat);
+            const dLng = toRad(d.lng - o.lng);
+            const a = Math.sin(dLat / 2) ** 2
+                + Math.cos(toRad(o.lat)) * Math.cos(toRad(d.lat)) * Math.sin(dLng / 2) ** 2;
+            const lineKm = earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distanceMeters = Math.round(lineKm * 1000 * 1.25);
+            const durationMillis = Math.round((lineKm * 1.25 / 35) * 3600 * 1000);
+            return {
+                distanceMeters,
+                durationMillis,
+                staticDurationMillis: durationMillis,
+                path: [o, d],
+                legs: [{ distanceMeters, durationMillis, staticDurationMillis: durationMillis }],
+                estimated: true
+            };
+        };
+
+        window.hydrateRouteFromStored = (trip) => {
+            const path = Array.isArray(trip?.routePath) ? trip.routePath.filter((p) => p && p.lat != null && p.lng != null) : [];
+            if (path.length < 2) return null;
+            const distanceMeters = Number(trip.routeDistanceMeters) || Math.round((Number(trip.tripDistanceKm) || 0) * 1000);
+            const durationMillis = Number(trip.routeDurationMs) || Number(trip.tripDurationMs) || 0;
+            return {
+                path,
+                distanceMeters,
+                durationMillis,
+                staticDurationMillis: durationMillis,
+                legs: [{ distanceMeters, durationMillis, staticDurationMillis: durationMillis }],
+                clientTripOnly: true,
+                fromStorage: true
+            };
+        };
+
+        /**
+         * @param {'estimate'|'once'|'nav'} [opts.mode]
+         * estimate = sin API (tarifa previa)
+         * once = 1 sola llamada Routes (aceptar viaje)
+         * nav = reintentos solo si el conductor se salió de la ruta
+         */
+        window.computeDrivingRoute = async (origin, destination, opts = {}) => {
             if (!window.mapLoaded) {
                 return null;
             }
@@ -5013,13 +5501,20 @@ window.gMap = null;
                 }
             };
 
+            const mode = opts.mode
+                || (window.isDriverNavigating?.() || window.driverNavMode === true ? 'nav' : 'once');
+
+            if (mode === 'estimate') {
+                return window.estimateDrivingRoute(o, d);
+            }
+
             const routeCacheKey = `${o.lat.toFixed(4)},${o.lng.toFixed(4)}->${d.lat.toFixed(4)},${d.lng.toFixed(4)}`;
             const cached = window._routeComputeCache?.get(routeCacheKey);
             const cachedRoute = cached?.route;
             const cacheOk = cachedRoute
                 && !cachedRoute.estimated
-                && cachedRoute.path?.length >= 8
-                && Date.now() - cached.ts < (window._routeCacheTtlMs || 90000);
+                && cachedRoute.path?.length >= 2
+                && Date.now() - cached.ts < (window._routeCacheTtlMs || 600000);
             if (cacheOk) return cachedRoute;
 
             const buildRouteResultFromApi = async (routeInstance) => {
@@ -5088,25 +5583,7 @@ window.gMap = null;
                 };
             };
 
-            const buildEstimatedDrivingRoute = (from, to) => {
-                const toRad = (deg) => deg * Math.PI / 180;
-                const earthKm = 6371;
-                const dLat = toRad(to.lat - from.lat);
-                const dLng = toRad(to.lng - from.lng);
-                const a = Math.sin(dLat / 2) ** 2
-                    + Math.cos(toRad(from.lat)) * Math.cos(toRad(to.lat)) * Math.sin(dLng / 2) ** 2;
-                const lineKm = earthKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                const distanceMeters = Math.round(lineKm * 1000 * 1.25);
-                const durationMillis = Math.round((lineKm * 1.25 / 35) * 3600 * 1000);
-                return {
-                    distanceMeters,
-                    durationMillis,
-                    staticDurationMillis: durationMillis,
-                    path: [from, to],
-                    legs: [{ distanceMeters, durationMillis, staticDurationMillis: durationMillis }],
-                    estimated: true
-                };
-            };
+            const buildEstimatedDrivingRoute = (from, to) => window.estimateDrivingRoute(from, to);
 
             // Primary: modern Routes API (Route.computeRoutes).
             const routesLib = await window.routesLibraryReady;
@@ -5140,26 +5617,18 @@ window.gMap = null;
             if (RouteCtor) {
                 const routeFields = ['path', 'distanceMeters', 'durationMillis', 'staticDurationMillis', 'legs'];
                 // Tráfico primero cuando se navega (mejor ETA / ruta viva)
-                const routingAttempts = navDriving
+                const routingAttempts = (mode === 'nav' && navDriving)
                     ? [
                         {
                             routingPreference: 'TRAFFIC_AWARE',
                             departureTime: new Date(Date.now() + 60 * 1000)
                         },
-                        {
-                            routingPreference: 'TRAFFIC_AWARE_OPTIMAL',
-                            departureTime: new Date(Date.now() + 60 * 1000)
-                        },
                         { routingPreference: 'TRAFFIC_UNAWARE' }
                     ]
                     : [
-                        { routingPreference: 'TRAFFIC_UNAWARE' },
-                        {
-                            routingPreference: 'TRAFFIC_AWARE',
-                            departureTime: new Date(Date.now() + 2 * 60 * 1000)
-                        }
+                        { routingPreference: 'TRAFFIC_UNAWARE' }
                     ];
-                const requestVariants = navDriving
+                const requestVariants = (mode === 'nav' && navDriving)
                     ? [
                         { withNavVoice: true },
                         { withNavVoice: false }
@@ -5971,25 +6440,48 @@ window.gMap = null;
             return Math.hypot(dLat, dLng);
         };
 
-        window.getNextNavStep = (route, pos) => {
+        window.getNextNavStepIndex = (route, pos) => {
             const steps = route?.steps;
-            if (!steps?.length || !pos) return null;
+            if (!steps?.length || !pos) return -1;
             for (let i = 0; i < steps.length; i++) {
                 const step = steps[i];
                 if (!step.endLocation) {
-                    // Sin punto: usar el paso si aún no se “consumió” por índice de voz
                     if (window._navVoiceState?.stepIndex == null || i >= window._navVoiceState.stepIndex) {
-                        return step;
+                        return i;
                     }
                     continue;
                 }
                 const distM = window.getDistanceToNavPoint(pos, step.endLocation);
-                // Pasado el final del step → siguiente. Umbral corto = más preciso
                 const isLast = i === steps.length - 1;
                 const threshold = isLast ? 55 : 28;
-                if (distM > threshold) return step;
+                if (distM > threshold) return i;
             }
-            return steps[steps.length - 1];
+            return steps.length - 1;
+        };
+
+        window.getNextNavStep = (route, pos) => {
+            const i = window.getNextNavStepIndex(route, pos);
+            return i >= 0 ? route.steps[i] : null;
+        };
+
+        window.getUpcomingNavStep = (route, pos) => {
+            const steps = route?.steps;
+            const i = window.getNextNavStepIndex(route, pos);
+            if (!steps?.length || i < 0 || i >= steps.length - 1) return null;
+            return steps[i + 1];
+        };
+
+        window.syncNavThenChip = (thenStep) => {
+            const chip = document.getElementById('nav-hud-then');
+            const icon = document.getElementById('nav-then-icon');
+            if (!chip) return;
+            if (!thenStep) {
+                chip.classList.add('hidden');
+                return;
+            }
+            const cls = window.getNavManeuverIcon?.(thenStep.maneuver) || 'fa-arrow-right';
+            if (icon) icon.className = `fas ${cls}`;
+            chip.classList.remove('hidden');
         };
 
         window.getNavStepIndex = (route, step) => {
@@ -6154,24 +6646,41 @@ window.gMap = null;
                 || !!panel?.classList.contains('panel-collapsed');
             const panelNav = document.getElementById('driver-panel-nav');
             if (panelNav) {
-                // En panel maximizado: nav dentro del sheet
-                panelNav.classList.toggle('hidden', !(isDriver && navigating && !panelMin));
+                // Panel abierto: ficha de giros también en el sheet
+                const showInPanel = !!(isDriver && navigating && !panelMin);
+                panelNav.classList.toggle('hidden', !showInPanel);
+                if (showInPanel) {
+                    panelNav.style.setProperty('display', 'flex', 'important');
+                    const step = document.getElementById('panel-nav-step-text');
+                    if (step && (!step.textContent || step.textContent === 'En camino…')) {
+                        step.textContent = destPhase ? 'En camino al destino' : 'En camino al pasajero';
+                    }
+                } else {
+                    panelNav.style.removeProperty('display');
+                }
             }
             if (isDriver) {
                 const top = document.getElementById('nav-hud-top');
                 const bottom = document.getElementById('nav-hud-bottom');
-                // HUD flotante si navega y el panel está abajo (mapa libre) — crítico tras PIN
-                const showFloatHud = navigating && panelMin;
+                // Panel abajo = banner tipo Google Maps arriba del mapa
+                const showFloatHud = !!(navigating && panelMin);
+                document.body.classList.toggle('gmaps-driver-nav', showFloatHud);
                 if (top) {
                     if (showFloatHud) {
                         top.classList.remove('hidden');
-                        // !important gana a body.driver-mode { display:none !important }
+                        top.classList.add('is-gmaps-visible');
                         top.style.setProperty('display', 'flex', 'important');
                         top.style.setProperty('visibility', 'visible', 'important');
                         top.style.setProperty('opacity', '1', 'important');
                         top.style.setProperty('pointer-events', 'auto', 'important');
                         top.style.setProperty('z-index', '2800', 'important');
+                        top.style.setProperty('max-height', 'none', 'important');
+                        const stepEl = document.getElementById('nav-step-text');
+                        if (stepEl && (!stepEl.textContent || stepEl.textContent === 'En camino…')) {
+                            stepEl.textContent = destPhase ? 'En camino al destino' : 'En camino al pasajero';
+                        }
                     } else {
+                        top.classList.remove('is-gmaps-visible');
                         top.style.setProperty('display', 'none', 'important');
                         top.classList.add('hidden');
                     }
@@ -6185,7 +6694,11 @@ window.gMap = null;
         };
 
         window.updateDriverNavTurnCard = (route, pos) => {
-            if (!window.isDriverNavigating?.()) return;
+            const liveNav = window.isDriverNavigating?.()
+                || document.body.classList.contains('driver-nav-mode')
+                || document.body.classList.contains('is-navigating')
+                || document.body.classList.contains('driver-trip-dest-phase');
+            if (!liveNav) return;
             window.syncDriverPanelNavVisibility?.();
             const step = window.getNextNavStep(route, pos);
             const hasPanel = !!document.getElementById('panel-nav-step-text');
@@ -6208,6 +6721,7 @@ window.gMap = null;
                             : 'Ya puedes presionar ¡HE LLEGADO!'
                     );
                     window.setNavHudIcon('fas fa-map-marker-alt');
+                    window.syncNavThenChip?.(null);
                     return;
                 }
             } else if (distToDest <= DESTINATION_ARRIVAL_RADIUS_M) {
@@ -6220,25 +6734,30 @@ window.gMap = null;
                     window.setNavHudText('stepDist', `Presiona LLEGUÉ AL PUNTO ${legLabel.routeNum} en el panel`);
                 }
                 window.setNavHudIcon('fas fa-map-marker-alt');
+                window.syncNavThenChip?.(null);
                 window.syncDriverDestinationArrivalUi?.(pos);
                 return;
             }
 
             if (step) {
-                const text = window.getNavInstructionText(step) || 'Continúa por la ruta';
+                const text = window.shortenNavInstruction?.(window.getNavInstructionText(step))
+                    || window.getNavInstructionText(step)
+                    || 'Continúa por la ruta';
                 const distM = step.endLocation
                     ? window.getDistanceToNavPoint(pos, step.endLocation)
                     : Number(step.distanceMeters) || 0;
-                window.setNavHudText('stepText', text.length > 72 ? `${text.slice(0, 69)}…` : text);
+                window.setNavHudText('stepText', text);
                 window.setNavHudText('stepDist', `En ${window.formatNavStepDistance(distM)}`);
                 window.setNavHudIcon(`fas ${window.getNavManeuverIcon(step.maneuver)}`);
+                window.syncNavThenChip?.(window.getUpcomingNavStep?.(route, pos));
             } else if (route) {
-                window.setNavHudText('stepText', 'Sigue la ruta azul');
+                window.setNavHudText('stepText', 'Sigue la ruta');
                 window.setNavHudText(
                     'stepDist',
                     `${window.getRouteDistanceKm(route).toFixed(1)} km · ${window.formatRouteDuration(route)}`
                 );
-                window.setNavHudIcon('fas fa-location-arrow');
+                window.setNavHudIcon('fas fa-arrow-up');
+                window.syncNavThenChip?.(null);
             }
 
             window.updateDriverVoiceNav?.(route, pos);
@@ -6287,9 +6806,12 @@ window.gMap = null;
             }
 
             const topMin = landscape ? 36 : 44;
-            // Conductor: no reservar espacio arriba por banners verdes
+            const hudVisible = navHudTop
+                && !navHudTop.classList.contains('hidden')
+                && navHudTop.style.display !== 'none';
+            const hudH = hudVisible ? Math.min(150, (navHudTop.offsetHeight || 88) + 18) : topMin;
             const topUi = driverNav
-                ? topMin
+                ? Math.max(topMin, hudH)
                 : ((navHudTop && navHudTop.offsetParent !== null
                     && !document.body.classList.contains('nav-hud-top-minimized'))
                     ? Math.max(topMin, Math.min(78, navHudTop.offsetHeight + 10))

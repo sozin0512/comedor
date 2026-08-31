@@ -174,6 +174,7 @@ service cloud.firestore {
           && request.resource.data.clientId.size() > 0
         );
 
+      // Cancelar: pasajero o conductor asignado en viaje activo (pending/accepted/in_progress/scheduled)
       // ACTUALIZAR / CANCELAR: dueño (pasajero), conductor asignado, ofertado, staff
       // Conductores pueden tocar pending (ofertas / visto / regateo / rechazar)
       // Invitado staff (sin cuenta): al registrarse reclama el viaje y se asigna clientId = uid
@@ -182,6 +183,13 @@ service cloud.firestore {
         isStaff(app)
         || isTripParticipant()
         || isAssignedDriver()
+        // Cancelar viaje (pasajero o conductor del viaje, no solo staff)
+        || (
+          isTripParticipant()
+          && resource.data.status in ['pending', 'accepted', 'in_progress', 'scheduled']
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.clientId == resource.data.clientId
+        )
         // Completar viaje explícitamente (conductor o pasajero del viaje)
         || (
           canCompleteTrip(app)
@@ -200,7 +208,7 @@ service cloud.firestore {
           && resource.data.status in ['accepted', 'in_progress']
           && request.resource.data.driverId == resource.data.driverId
           && request.resource.data.clientId == resource.data.clientId
-          && request.resource.data.status in ['accepted', 'in_progress', 'completed']
+          && request.resource.data.status in ['accepted', 'in_progress', 'completed', 'cancelled']
         )
         || (resource.data.status in ['pending', 'scheduled'] && isDriver(app))
         // Candidato de oferta (aunque no sea offeredToDriverId todavía): puede declinar
@@ -496,6 +504,37 @@ service cloud.firestore {
     match /artifacts/{app}/users/{userId}/claimed_promos/{claimId} {
       allow read: if isSignedIn() && (isOwner(userId) || isStaff(app));
       allow write: if false;
+    }
+
+    // Códigos de referido: el ID del doc es el CÓDIGO (no el uid).
+    // El catch-all exige isOwner(docId) y bloqueaba a conductores/pasajeros.
+    match /artifacts/{app}/public/data/referral_codes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == requestUid();
+      allow update: if isSignedIn() && (
+        isStaff(app)
+        || (resource.data.uid == requestUid() && request.resource.data.uid == requestUid())
+      );
+      allow delete: if isStaff(app)
+        || (isSignedIn() && resource.data.uid == requestUid());
+    }
+
+    // Eventos de referido: ID automático, no es el uid
+    match /artifacts/{app}/public/data/referral_events/{eventId} {
+      allow read: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.referrerUid == requestUid()
+        || resource.data.referredUid == requestUid()
+      );
+      allow create: if isSignedIn()
+        && request.resource.data.referredUid == requestUid();
+      allow update: if isSignedIn() && (
+        isStaff(app)
+        || resource.data.referredUid == requestUid()
+        || resource.data.referrerUid == requestUid()
+      );
+      allow delete: if isStaff(app);
     }
 
     // Catch-all para otras colecciones públicas

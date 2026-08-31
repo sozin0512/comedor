@@ -62,44 +62,83 @@ export function initReferrals(db) {
 }
 
 function generateCode(name) {
-    const prefix = (name || "USER").replace(/[^a-zA-Z]/g, "").substring(0, 4).toUpperCase() || "HOND";
+    const prefix = (name || "USER")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z]/g, "")
+        .substring(0, 4)
+        .toUpperCase() || "HOND";
     const suffix = Math.floor(1000 + Math.random() * 9000);
     return `${prefix}${suffix}`;
 }
 
+async function persistReferralCodeOnProfiles(appId, uid, code, extra = {}) {
+    const payload = { referralCode: code, ...extra };
+    try {
+        await setDoc(userPublicPath(appId, uid), payload, { merge: true });
+    } catch (e) {
+        console.warn("ensureReferralCode public write:", e);
+    }
+    try {
+        await setDoc(userPrivatePath(appId, uid), { referralCode: code }, { merge: true });
+    } catch (e) {
+        console.warn("ensureReferralCode private write:", e);
+    }
+}
+
+async function indexReferralCode(appId, uid, code, name, role) {
+    await setDoc(referralCodesPath(appId, code), {
+        uid,
+        name: name || "Usuario",
+        role: role || "client",
+        updatedAt: serverTimestamp()
+    }, { merge: true });
+}
+
 export async function ensureReferralCode(db, appId, uid, name, role) {
     initReferrals(db);
+    if (!uid) throw new Error("UID requerido para código de referido.");
 
     const publicRef = userPublicPath(appId, uid);
-    const publicSnap = await getDoc(publicRef);
-    const existing = publicSnap.data()?.referralCode;
+    const privateRef = userPrivatePath(appId, uid);
+    let publicSnap = null;
+    let privateSnap = null;
+    try { publicSnap = await getDoc(publicRef); } catch (_) {}
+    try { privateSnap = await getDoc(privateRef); } catch (_) {}
+
+    const existingRaw = publicSnap?.data?.()?.referralCode
+        || privateSnap?.data?.()?.referralCode
+        || "";
+    const existing = normalizeReferralCode(existingRaw);
 
     if (existing) {
-        await setDoc(referralCodesPath(appId, existing), {
-            uid, name: name || "Usuario", role: role || "client",
-            updatedAt: serverTimestamp()
-        }, { merge: true });
+        try { await indexReferralCode(appId, uid, existing, name, role); } catch (e) {
+            console.warn("ensureReferralCode index existing:", e);
+        }
+        await persistReferralCodeOnProfiles(appId, uid, existing);
         return existing;
     }
 
     for (let attempt = 0; attempt < 8; attempt++) {
         const code = generateCode(name);
         const codeRef = referralCodesPath(appId, code);
-        const codeSnap = await getDoc(codeRef);
-        if (codeSnap.exists()) continue;
+        try {
+            const codeSnap = await getDoc(codeRef);
+            if (codeSnap.exists() && codeSnap.data()?.uid && codeSnap.data().uid !== uid) {
+                continue;
+            }
+        } catch (_) {}
 
-        await setDoc(codeRef, { uid, name: name || "Usuario", role: role || "client", createdAt: serverTimestamp() });
-
-        if (publicSnap.exists()) {
-            const payload = {
-                referralCode: code,
-                totalReferrals: publicSnap.data()?.totalReferrals || 0,
-                referralEarnings: publicSnap.data()?.referralEarnings || 0
-            };
-            await setDoc(publicRef, payload, { merge: true });
-            await setDoc(userPrivatePath(appId, uid), { referralCode: code }, { merge: true });
+        try {
+            await indexReferralCode(appId, uid, code, name, role);
+        } catch (e) {
+            console.warn("ensureReferralCode index new:", e);
         }
 
+        await persistReferralCodeOnProfiles(appId, uid, code, {
+            totalReferrals: publicSnap?.data?.()?.totalReferrals || 0,
+            referralEarnings: publicSnap?.data?.()?.referralEarnings || 0
+        });
         return code;
     }
 

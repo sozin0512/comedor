@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.08.18.2">
+    <meta name="hr-app-version" content="2026.08.29.3">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.08.18.2">
+    <link rel="manifest" href="manifest.json?v=2026.08.29.3">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,13 +31,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.08.18.2">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.08.29.3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.08.18.2">
-    <script src="js/maps-init.js?v=2026.08.18.2"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.08.29.3">
+    <script src="js/maps-init.js?v=2026.08.29.3"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.08.18.2';
+        import { APP_CONFIG } from './js/config.js?v=2026.08.29.3';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -105,10 +105,10 @@
         }
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.08.18.2';
+        window.__HR_BUILD_VERSION__ = '2026.08.29.3';
         (function () {
             try {
-                var build = '2026.08.18.2';
+                var build = '2026.08.29.3';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -423,12 +423,12 @@
                         </div>
                         <div id="client-service-type-wrap" class="client-service-type-wrap trip-service-wrap">
                             <div id="service-type-picker" class="service-type-picker trip-service-picker" role="tablist" aria-label="Tipo de viaje">
-                                <button type="button" data-service-type="moto" id="svc-btn-moto" role="tab" aria-selected="true"
-                                        class="service-type-btn service-type-moto active trip-service-chip" title="Viajes de pasajeros en motocicleta">
+                                <button type="button" data-service-type="moto" id="svc-btn-moto" role="tab" aria-selected="false"
+                                        class="service-type-btn service-type-moto trip-service-chip" title="Viajes de pasajeros en motocicleta">
                                     <i class="fas fa-motorcycle pointer-events-none"></i><span class="pointer-events-none">Moto (pasajeros)</span>
                                 </button>
-                                <button type="button" data-service-type="auto" id="svc-btn-auto" role="tab" aria-selected="false"
-                                        class="service-type-btn trip-service-chip" title="Automóvil privado · tarifa premium">
+                                <button type="button" data-service-type="auto" id="svc-btn-auto" role="tab" aria-selected="true"
+                                        class="service-type-btn trip-service-chip active" title="Automóvil privado · tarifa premium">
                                     <i class="fas fa-car pointer-events-none"></i><span class="pointer-events-none">Taxi VIP</span>
                                 </button>
                                 <button type="button" data-service-type="taxi" id="svc-btn-taxi" role="tab" aria-selected="false"
@@ -634,6 +634,9 @@
                             <span class="pointer-events-none">Chat del viaje</span>
                         </button>
                     </div>
+                    <button type="button" data-trip-action="cancel" id="client-trip-cancel-btn" data-no-drag class="client-trip-cancel-btn trip-touch-btn w-full">
+                        <span class="pointer-events-none">Cancelar viaje</span>
+                    </button>
                     <div id="client-trip-vehicle-photos" class="client-trip-vehicle-photos hidden">
                         <p class="client-trip-vehicle-photos-label"><i class="fas fa-car"></i> Referencia del vehículo</p>
                         <div class="client-trip-vehicle-photos-grid">
@@ -1098,111 +1101,192 @@
             <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-50 flex items-center justify-center">
                 <i class="fas fa-clipboard-list text-2xl text-amber-600"></i>
             </div>
-            <h2 class="text-lg font-black mb-1 text-gray-900 text-center">Encuesta de cancelación</h2>
-            <p id="cancellation-survey-subtitle" class="text-gray-500 text-xs mb-5 font-medium text-center leading-snug">Este viaje ya estaba confirmado. Tu respuesta es obligatoria y confidencial.</p>
+            <h2 id="cancellation-survey-title" class="text-lg font-black mb-1 text-gray-900 text-center">Encuesta de cancelación</h2>
+            <p id="cancellation-survey-subtitle" class="text-gray-500 text-xs mb-5 font-medium text-center leading-snug">Este viaje ya estaba confirmado. Tu respuesta es obligatoria y se compara con la de la otra persona.</p>
 
-            <div class="space-y-5 text-left">
+            <div id="cancel-survey-passenger" class="space-y-5 text-left cancel-survey-role-form" data-survey-role="client">
+                <p class="text-[9px] font-black text-blue-500 uppercase tracking-widest text-center">Versión del pasajero</p>
                 <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Contexto del viaje</p>
-
                 <div>
                     <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">1. ¿En qué momento se canceló? *</p>
                     <div class="space-y-2">
-                        <label class="survey-option"><input type="radio" name="cancel-point" value="before_arrival" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Antes de que llegara el conductor</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-point" value="driver_en_route" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Conductor en camino</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-point" value="at_pickup" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">En el punto de encuentro</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-point" value="trip_started" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El viaje ya había comenzado</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-point" value="prefer_not" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Prefiero no decir</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-point" data-survey-field="cancel-point" value="before_arrival" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El conductor aún no había llegado</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-point" data-survey-field="cancel-point" value="driver_en_route" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El conductor iba en camino hacia mí</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-point" data-survey-field="cancel-point" value="at_pickup" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Ya estábamos en el punto de encuentro</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-point" data-survey-field="cancel-point" value="trip_started" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Ya habíamos iniciado el viaje</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-point" data-survey-field="cancel-point" value="prefer_not" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Prefiero no decir</span></label>
                     </div>
                 </div>
-
                 <div>
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">2. ¿Quién propuso cancelar en la app? *</p>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">2. ¿Quién canceló en la app? *</p>
                     <div class="grid grid-cols-2 gap-2">
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-who" value="me" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Yo</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-who" value="them" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">La otra persona</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-who" value="mutual" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Mutuo</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-who" value="unclear" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No quedó claro</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-who" data-survey-field="cancel-who" value="me" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Yo, el pasajero</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-who" data-survey-field="cancel-who" value="them" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">El conductor</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-who" data-survey-field="cancel-who" value="mutual" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Los dos</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-who" data-survey-field="cancel-who" value="unclear" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No quedó claro</span></label>
                     </div>
                 </div>
-
                 <div>
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">3. Motivo principal de la cancelación *</p>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">3. ¿Por qué cancelaste o se canceló? *</p>
                     <div class="space-y-2">
-                        <label class="survey-option"><input type="radio" name="cancel-reason" value="plans_changed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Cambié de planes o ya no lo necesitaba</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-reason" value="delay_no_show" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Demora, no llegó o no respondió</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-reason" value="location_issue" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Ubicación o dirección incorrecta</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-reason" value="misunderstanding" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Malentendido con la otra persona</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-reason" value="payment_issue" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Desacuerdo sobre tarifa o pago</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-reason" value="safety_concern" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Me sentí incómodo/a o inseguro/a</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-reason" value="other" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Otro motivo</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-reason" data-survey-field="cancel-reason" value="plans_changed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Cambié de planes o ya no lo necesitaba</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-reason" data-survey-field="cancel-reason" value="delay_no_show" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El conductor se tardó, no llegó o no respondió</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-reason" data-survey-field="cancel-reason" value="location_issue" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El punto de encuentro no coincidía</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-reason" data-survey-field="cancel-reason" value="misunderstanding" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Malentendido con el conductor</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-reason" data-survey-field="cancel-reason" value="payment_issue" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No estábamos de acuerdo en tarifa o pago</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-reason" data-survey-field="cancel-reason" value="safety_concern" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Me sentí incómodo/a o inseguro/a con el conductor</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-reason" data-survey-field="cancel-reason" value="other" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Otro motivo</span></label>
                     </div>
                 </div>
-
-                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center pt-1">Tu experiencia</p>
-
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center pt-1">Tu experiencia con el conductor</p>
                 <div>
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">4. ¿Cómo fue la comunicación? *</p>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">4. ¿Cómo te trató el conductor? *</p>
                     <div class="space-y-2">
-                        <label class="survey-option"><input type="radio" name="cancel-communication" value="good" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">Buena y respetuosa</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-communication" value="normal" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Normal, sin problemas</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-communication" value="cold" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Fría, poco clara o distante</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-communication" value="tense" class="mt-0.5 accent-orange-600"><span class="text-xs font-semibold text-gray-700">Tensa o incómoda</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-communication" value="uncomfortable" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Me hizo sentir incómodo/a o inseguro/a</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-communication" data-survey-field="cancel-communication" value="good" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">Bien, respetuoso</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-communication" data-survey-field="cancel-communication" value="normal" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Normal, sin problemas</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-communication" data-survey-field="cancel-communication" value="cold" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Frío, poco claro o distante</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-communication" data-survey-field="cancel-communication" value="tense" class="mt-0.5 accent-orange-600"><span class="text-xs font-semibold text-gray-700">Tenso o incómodo</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-communication" data-survey-field="cancel-communication" value="uncomfortable" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Me hizo sentir inseguro/a</span></label>
                     </div>
                 </div>
-
                 <div>
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">5. ¿Pasó algo durante el contacto que quieras reportar? *</p>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">5. ¿El conductor hizo algo que quieras reportar? *</p>
                     <div class="space-y-2">
-                        <label class="survey-option"><input type="radio" name="cancel-incident" value="nothing" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">No, todo normal</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-incident" value="misunderstanding" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Malentendido menor</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-incident" value="disrespect" class="mt-0.5 accent-orange-600"><span class="text-xs font-semibold text-gray-700">Actitud irrespetuosa o agresiva</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-incident" value="inappropriate" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Comentarios o conducta inapropiada</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-incident" value="unsafe" class="mt-0.5 accent-red-600"><span class="text-xs font-semibold text-red-800">Me sentí en riesgo o acosado/a</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-incident" value="vehicle" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Problema con el vehículo o conducción</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-incident" value="other" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Otro</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-incident" data-survey-field="cancel-incident" value="nothing" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">No, todo normal</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-incident" data-survey-field="cancel-incident" value="misunderstanding" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Malentendido menor</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-incident" data-survey-field="cancel-incident" value="disrespect" class="mt-0.5 accent-orange-600"><span class="text-xs font-semibold text-gray-700">Actitud irrespetuosa o agresiva</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-incident" data-survey-field="cancel-incident" value="inappropriate" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Comentarios o conducta inapropiada</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-incident" data-survey-field="cancel-incident" value="unsafe" class="mt-0.5 accent-red-600"><span class="text-xs font-semibold text-red-800">Me sentí en riesgo o acosado/a</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-incident" data-survey-field="cancel-incident" value="vehicle" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Problema con el vehículo o su conducción</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-incident" data-survey-field="cancel-incident" value="other" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Otro</span></label>
                     </div>
                 </div>
-
                 <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center pt-1">Detalles del servicio</p>
-
                 <div>
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">6. ¿Acordaron cómo seguir o terminar el servicio? *</p>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">6. ¿Acordaron hacer el viaje por fuera de la app? *</p>
                     <div class="space-y-2">
-                        <label class="survey-option"><input type="radio" name="cancel-agreement" value="app_only" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">Todo debía seguirse por la app</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-agreement" value="no_agreement" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No llegamos a acordar nada</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-agreement" value="alternative_discussed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Hablamos de otra forma de hacerlo</span></label>
-                        <label class="survey-option"><input type="radio" name="cancel-agreement" value="not_discussed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No hablamos de eso</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-agreement" data-survey-field="cancel-agreement" value="app_only" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">No. Todo debía seguirse por la app</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-agreement" data-survey-field="cancel-agreement" value="no_agreement" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No llegamos a acordar nada</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-agreement" data-survey-field="cancel-agreement" value="alternative_discussed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Sí, hablamos de hacerlo por fuera</span></label>
+                        <label class="survey-option"><input type="radio" name="pax-cancel-agreement" data-survey-field="cancel-agreement" value="not_discussed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No hablamos de eso</span></label>
                     </div>
                 </div>
-
                 <div>
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">7. ¿Compartieron teléfono, WhatsApp u otro contacto? *</p>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">7. ¿El conductor te pidió teléfono o WhatsApp? *</p>
                     <div class="grid grid-cols-2 gap-2">
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-contact" value="no" class="accent-emerald-600"><span class="text-xs font-bold text-gray-700">No</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-contact" value="yes_trip" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí, para este viaje</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-contact" value="yes_after" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí, para después</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-contact" value="unsure" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No estoy seguro/a</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-contact" data-survey-field="cancel-contact" value="no" class="accent-emerald-600"><span class="text-xs font-bold text-gray-700">No</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-contact" data-survey-field="cancel-contact" value="yes_trip" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí, para este viaje</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-contact" data-survey-field="cancel-contact" value="yes_after" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí, para después</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-contact" data-survey-field="cancel-contact" value="unsure" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No estoy seguro/a</span></label>
                     </div>
                 </div>
-
                 <div>
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">8. Después de cancelar, ¿creen que el viaje se hará igual? *</p>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">8. ¿Crees que el viaje se hará igual por fuera de HonduRaite? *</p>
                     <div class="grid grid-cols-2 gap-2">
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-continue" value="no" class="accent-emerald-600"><span class="text-xs font-bold text-gray-700">No</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-continue" value="maybe" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Tal vez</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-continue" value="yes" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí</span></label>
-                        <label class="survey-option justify-center"><input type="radio" name="cancel-continue" value="unknown" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No sé</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-continue" data-survey-field="cancel-continue" value="no" class="accent-emerald-600"><span class="text-xs font-bold text-gray-700">No</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-continue" data-survey-field="cancel-continue" value="maybe" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Tal vez</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-continue" data-survey-field="cancel-continue" value="yes" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="pax-cancel-continue" data-survey-field="cancel-continue" value="unknown" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No sé</span></label>
                     </div>
                 </div>
-
                 <div>
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">9. Cuéntanos más si lo deseas (opcional)</p>
-                    <textarea id="cancellation-survey-comments" placeholder="Describe con tus palabras lo que pasó. Tu relato puede ayudar en situaciones de seguridad." class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-xs outline-none focus:border-amber-500 h-20 resize-none"></textarea>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">9. Cuéntanos tu versión (opcional)</p>
+                    <textarea data-survey-field="comments" placeholder="Con tus palabras: qué pasó con el conductor. Supervisión compara tu relato con el de él." class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-xs outline-none focus:border-amber-500 h-20 resize-none"></textarea>
                 </div>
             </div>
 
-            <p class="text-[9px] text-gray-400 mt-4 mb-3 text-center leading-snug">Tus respuestas son confidenciales y las revisa el equipo de supervisión. Varias alertas pueden suspender una cuenta automáticamente.</p>
+            <div id="cancel-survey-driver" class="hidden space-y-5 text-left cancel-survey-role-form" data-survey-role="driver">
+                <p class="text-[9px] font-black text-emerald-600 uppercase tracking-widest text-center">Versión del conductor</p>
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Contexto del viaje</p>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">1. ¿En qué momento se canceló? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="drv-cancel-point" data-survey-field="cancel-point" value="before_arrival" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Yo aún no había llegado al pasajero</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-point" data-survey-field="cancel-point" value="driver_en_route" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Yo iba en camino al pasajero</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-point" data-survey-field="cancel-point" value="at_pickup" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Ya estaba en el punto de encuentro</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-point" data-survey-field="cancel-point" value="trip_started" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El viaje ya había iniciado</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-point" data-survey-field="cancel-point" value="prefer_not" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Prefiero no decir</span></label>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">2. ¿Quién canceló en la app? *</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-who" data-survey-field="cancel-who" value="me" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Yo, el conductor</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-who" data-survey-field="cancel-who" value="them" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">El pasajero</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-who" data-survey-field="cancel-who" value="mutual" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Los dos</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-who" data-survey-field="cancel-who" value="unclear" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No quedó claro</span></label>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">3. ¿Por qué se canceló, según tú? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="drv-cancel-reason" data-survey-field="cancel-reason" value="plans_changed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El pasajero cambió de planes</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-reason" data-survey-field="cancel-reason" value="delay_no_show" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El pasajero no apareció o no respondió</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-reason" data-survey-field="cancel-reason" value="location_issue" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No encontré al pasajero en el punto</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-reason" data-survey-field="cancel-reason" value="misunderstanding" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Malentendido con el pasajero</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-reason" data-survey-field="cancel-reason" value="payment_issue" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Desacuerdo sobre tarifa o forma de pago</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-reason" data-survey-field="cancel-reason" value="safety_concern" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Me sentí inseguro/a con el pasajero</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-reason" data-survey-field="cancel-reason" value="other" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Otro motivo</span></label>
+                    </div>
+                </div>
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center pt-1">Tu experiencia con el pasajero</p>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">4. ¿Cómo te trató el pasajero? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="drv-cancel-communication" data-survey-field="cancel-communication" value="good" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">Bien, respetuoso</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-communication" data-survey-field="cancel-communication" value="normal" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Normal, sin problemas</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-communication" data-survey-field="cancel-communication" value="cold" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Frío, poco claro o distante</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-communication" data-survey-field="cancel-communication" value="tense" class="mt-0.5 accent-orange-600"><span class="text-xs font-semibold text-gray-700">Tenso o incómodo</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-communication" data-survey-field="cancel-communication" value="uncomfortable" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Me hizo sentir inseguro/a</span></label>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">5. ¿El pasajero hizo algo que quieras reportar? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="drv-cancel-incident" data-survey-field="cancel-incident" value="nothing" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">No, todo normal</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-incident" data-survey-field="cancel-incident" value="misunderstanding" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Malentendido menor</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-incident" data-survey-field="cancel-incident" value="disrespect" class="mt-0.5 accent-orange-600"><span class="text-xs font-semibold text-gray-700">Actitud irrespetuosa o agresiva</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-incident" data-survey-field="cancel-incident" value="inappropriate" class="mt-0.5 accent-violet-600"><span class="text-xs font-semibold text-violet-800">Comentarios o conducta inapropiada</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-incident" data-survey-field="cancel-incident" value="unsafe" class="mt-0.5 accent-red-600"><span class="text-xs font-semibold text-red-800">Me sentí en riesgo o amenazado/a</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-incident" data-survey-field="cancel-incident" value="vehicle" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">El pasajero dañó, ensució o no respetó el vehículo</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-incident" data-survey-field="cancel-incident" value="other" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Otro</span></label>
+                    </div>
+                </div>
+                <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center pt-1">Detalles del servicio</p>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">6. ¿Acordaron hacer el viaje por fuera de la app? *</p>
+                    <div class="space-y-2">
+                        <label class="survey-option"><input type="radio" name="drv-cancel-agreement" data-survey-field="cancel-agreement" value="app_only" class="mt-0.5 accent-emerald-600"><span class="text-xs font-semibold text-gray-700">No. Todo debía seguirse por la app</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-agreement" data-survey-field="cancel-agreement" value="no_agreement" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No llegamos a acordar nada</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-agreement" data-survey-field="cancel-agreement" value="alternative_discussed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">Sí, hablamos de hacerlo por fuera</span></label>
+                        <label class="survey-option"><input type="radio" name="drv-cancel-agreement" data-survey-field="cancel-agreement" value="not_discussed" class="mt-0.5 accent-amber-600"><span class="text-xs font-semibold text-gray-700">No hablamos de eso</span></label>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">7. ¿El pasajero te pidió teléfono o WhatsApp? *</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-contact" data-survey-field="cancel-contact" value="no" class="accent-emerald-600"><span class="text-xs font-bold text-gray-700">No</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-contact" data-survey-field="cancel-contact" value="yes_trip" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí, para este viaje</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-contact" data-survey-field="cancel-contact" value="yes_after" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí, para después</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-contact" data-survey-field="cancel-contact" value="unsure" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No estoy seguro/a</span></label>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">8. ¿Crees que el viaje se hará igual por fuera de HonduRaite? *</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-continue" data-survey-field="cancel-continue" value="no" class="accent-emerald-600"><span class="text-xs font-bold text-gray-700">No</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-continue" data-survey-field="cancel-continue" value="maybe" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Tal vez</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-continue" data-survey-field="cancel-continue" value="yes" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">Sí</span></label>
+                        <label class="survey-option justify-center"><input type="radio" name="drv-cancel-continue" data-survey-field="cancel-continue" value="unknown" class="accent-amber-600"><span class="text-xs font-bold text-gray-700">No sé</span></label>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2">9. Cuéntanos tu versión (opcional)</p>
+                    <textarea data-survey-field="comments" placeholder="Con tus palabras: qué pasó con el pasajero. Supervisión compara tu relato con el de él." class="w-full p-3 rounded-xl border border-gray-200 bg-gray-50 text-xs outline-none focus:border-amber-500 h-20 resize-none"></textarea>
+                </div>
+            </div>
+
+            <p class="text-[9px] text-gray-400 mt-4 mb-3 text-center leading-snug">Pasajero y conductor responden formularios distintos. Supervisión cruza las dos versiones. Varias alertas pueden suspender una cuenta.</p>
             <button type="button" data-trip-action="submit-cancel-survey" class="w-full bg-amber-600 text-white font-black py-4 rounded-2xl shadow-lg uppercase tracking-widest text-xs trip-touch-btn"><span class="pointer-events-none">Enviar encuesta</span></button>
             <div data-sozin-copyright="light" class="mt-4"></div>
         </div>
@@ -1240,24 +1324,28 @@
         </div>
     </div>
 
-    <!-- HUD NAVEGACIÓN TOP: faja compacta (estilo Google Maps, no media pantalla) -->
+    <!-- HUD NAVEGACIÓN: banner tipo Google Maps (giro + Luego + ETA en mini-barra) -->
     <div id="nav-hud-top" class="nav-hud-top-card">
-        <div class="nav-hud-top-chrome">
-            <span class="nav-hud-top-drag-hint" aria-hidden="true"><i class="fas fa-grip-lines"></i></span>
-            <button type="button" data-trip-action="toggle-nav-hud-top" data-no-drag class="nav-hud-top-min-btn" aria-label="Minimizar instrucciones" title="Minimizar">
-                <i class="fas fa-minus nav-hud-top-min-icon" aria-hidden="true"></i>
-                <i class="fas fa-location-arrow nav-hud-top-expand-icon" aria-hidden="true"></i>
-            </button>
-        </div>
-        <div class="nav-hud-top-body">
-            <div class="nav-hud-step-icon-wrap">
-                <i class="fas fa-location-arrow" id="nav-step-icon"></i>
+        <div class="gmaps-nav-banner">
+            <div class="gmaps-nav-arrow" aria-hidden="true">
+                <i class="fas fa-arrow-up" id="nav-step-icon"></i>
             </div>
-            <div class="nav-hud-step-text-wrap min-w-0 flex-1">
+            <div class="gmaps-nav-copy min-w-0 flex-1">
                 <p id="nav-step-text" class="nav-hud-step-text">En camino…</p>
                 <p id="nav-step-dist" class="nav-hud-step-dist">Sigue la ruta</p>
             </div>
+            <button type="button" data-trip-action="toggle-nav-voice" data-no-drag class="gmaps-nav-voice-btn" aria-pressed="true" aria-label="Silenciar voz" title="Voz">
+                <i class="fas fa-volume-up pointer-events-none"></i>
+            </button>
         </div>
+        <div id="nav-hud-then" class="gmaps-nav-then hidden">
+            <span>Luego</span>
+            <i id="nav-then-icon" class="fas fa-arrow-right" aria-hidden="true"></i>
+        </div>
+        <button type="button" data-trip-action="toggle-nav-hud-top" data-no-drag class="nav-hud-top-min-btn hidden" aria-label="Minimizar instrucciones" title="Minimizar">
+            <i class="fas fa-minus nav-hud-top-min-icon" aria-hidden="true"></i>
+            <i class="fas fa-location-arrow nav-hud-top-expand-icon" aria-hidden="true"></i>
+        </button>
     </div>
 
     <!-- HUD NAVEGACIÓN BOTTOM: chip ETA compacto (no banner grande) -->
@@ -2210,7 +2298,7 @@
                 </div>
 
                 <!-- PANEL VIAJE ACTIVO — estilo Uber: mapa grande + faja inferior mínima -->
-                <div id="active-trip-panel" class="hidden mt-auto flex flex-col h-full min-h-0">
+                <div id="active-trip-panel" class="hidden mt-auto flex flex-col min-h-0">
                     <!-- Asa del sheet: se integra al panel (grabber + Minimizar) -->
                     <button type="button" id="driver-panel-min-btn" data-trip-action="toggle-panel" data-no-drag class="trip-drag-handle trip-drag-handle--passenger trip-min-label-btn trip-sheet-min-bar" aria-label="Minimizar panel" title="Minimizar panel">
                         <span class="trip-sheet-grabber" aria-hidden="true"></span>
@@ -2230,6 +2318,9 @@
                             <button type="button" data-trip-action="center-map" class="trip-mini-center-btn shrink-0 text-[10px] font-black text-teal-800 uppercase tracking-widest px-2.5 py-2 min-h-[44px] rounded-xl bg-teal-50 border border-teal-100" title="Centrar mapa" aria-label="Centrar mapa">
                                 <i class="fas fa-location-crosshairs pointer-events-none"></i>
                                 <span class="pointer-events-none hidden sm:inline">Centrar</span>
+                            </button>
+                            <button type="button" data-trip-action="cancel" id="driver-mini-cancel-btn" class="driver-mini-cancel-btn shrink-0 text-[10px] font-black text-red-500 uppercase tracking-widest px-2.5 py-2 min-h-[44px] rounded-xl border border-red-100 trip-touch-btn" aria-label="Cancelar viaje">
+                                <span class="pointer-events-none">Cancelar</span>
                             </button>
                             <button type="button" data-trip-action="toggle-panel" class="shrink-0 text-[10px] font-black text-emerald-700 uppercase tracking-widest px-3 py-2 min-h-[44px] rounded-xl bg-emerald-50 border border-emerald-100">
                                 <span id="trip-panel-toggle-label" class="pointer-events-none">Abrir</span>
@@ -2315,9 +2406,18 @@
                                 </div>
                             </div>
 
-                            <!-- Llegada a destino: botón flotante #driver-arrived-dest-float (no en panel) -->
+                            <!-- Llegada a destino: pastilla flotante + respaldo en el sheet (viaje iniciado) -->
                             <div id="driver-destination-controls" class="hidden driver-dest-hero mb-0 space-y-2" aria-hidden="true">
                                 <p id="driver-dest-distance-hint" class="driver-pin-hero-hint text-center hidden">Calculando distancia…</p>
+                            </div>
+
+                            <div id="driver-trip-actions" class="hidden driver-trip-actions space-y-2 mt-1">
+                                <button type="button" data-trip-action="driver-arrived-dest" id="driver-panel-arrived-dest-btn" data-no-drag class="hidden driver-panel-arrived-dest-btn trip-touch-btn w-full min-h-[48px] rounded-2xl bg-emerald-600 text-white font-black text-xs uppercase tracking-widest">
+                                    <span class="pointer-events-none"><i class="fas fa-flag-checkered mr-1"></i> Llegué al destino</span>
+                                </button>
+                                <button type="button" data-trip-action="cancel" id="driver-cancel-trip-btn" data-no-drag class="driver-cancel-trip-btn w-full py-3 text-[10px] font-black text-red-500 uppercase tracking-widest border border-red-100 rounded-xl hover:bg-red-50 active:scale-95 transition-all trip-touch-btn">
+                                    <span class="pointer-events-none">Cancelar viaje</span>
+                                </button>
                             </div>
 
                             <!-- PIN en ficha central (además del flotante) -->
@@ -2553,6 +2653,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.08.18.2"></script>
+    <script type="module" src="js/app.js?v=2026.08.29.3"></script>
 </body>
 </html>

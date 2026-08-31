@@ -1177,6 +1177,7 @@
             width: 100%;
             position: relative;
             z-index: 1;
+            overflow: visible;
         }
 
         .trip-origin-wrap,
@@ -1200,34 +1201,71 @@
             --vv-offset-top: 0px;
             --keyboard-inset: 0px;
             /* Piso mínimo bajo status bar (APK); JS puede subir --search-safe-top */
-            --search-safe-top: max(var(--safe-top, env(safe-area-inset-top, 0px)), 36px);
+            --search-safe-top: max(var(--safe-top, env(safe-area-inset-top, 0px)), 48px);
         }
 
-        /* Escudo sólido bajo reloj/batería: nada de UI se “mezcla” visualmente ahí */
-        #status-bar-shield {
+        /* Escudo sólido bajo reloj/batería. En APK siempre visible para que
+           chips/flotantes (Copa, etc.) no se mezclen con la barra de estado.
+           En búsqueda de destino se agranda a --search-safe-top. */
+        #status-bar-shield,
+        #status-bar-shield:popover-open {
             display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: var(--search-safe-top, 36px);
-            background: #f8fafc;
-            z-index: 50000;
-            pointer-events: none;
+            position: fixed !important;
+            inset: 0 auto auto 0 !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: auto !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: var(--native-safe-top, var(--safe-top, 28px)) !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            overflow: hidden !important;
+            background: #f8fafc !important;
+            color: transparent !important;
+            z-index: 2147483646;
+            pointer-events: none !important;
+            box-shadow: none !important;
         }
 
-        html[data-theme="dark"] #status-bar-shield {
-            background: #0f172a;
+        html[data-theme="dark"] #status-bar-shield,
+        html[data-theme="dark"] #status-bar-shield:popover-open {
+            background: #0f172a !important;
         }
 
-        body.trip-autocomplete-open #status-bar-shield {
+        body.capacitor-android #status-bar-shield,
+        body.capacitor-ios #status-bar-shield,
+        body.capacitor-native #status-bar-shield,
+        body.trip-autocomplete-open #status-bar-shield,
+        body.trip-autocomplete-open #status-bar-shield:popover-open,
+        #status-bar-shield:popover-open {
             display: block !important;
         }
 
-        body.trip-autocomplete-open,
-        body.trip-autocomplete-open #app-interface,
-        body.trip-autocomplete-open #map,
-        body.trip-autocomplete-open #map-container {
+        body.trip-autocomplete-open #status-bar-shield,
+        body.trip-autocomplete-open #status-bar-shield:popover-open {
+            height: var(--search-safe-top, 48px) !important;
+        }
+
+        /* Overlay interno de Places (si expone parts) — bajo el reloj, no encima */
+        body.trip-autocomplete-open gmp-place-autocomplete::part(overlay),
+        body.trip-autocomplete-open gmp-place-autocomplete::part(dialog),
+        body.capacitor-android gmp-place-autocomplete::part(overlay) {
+            top: var(--search-safe-top, 48px);
+            inset-block-start: var(--search-safe-top, 48px);
+            max-height: calc(100% - var(--search-safe-top, 48px) - var(--keyboard-inset, 0px));
+        }
+
+        body.capacitor-android.trip-autocomplete-open,
+        body.capacitor-native.trip-autocomplete-open,
+        body.capacitor-android.trip-autocomplete-open #app-interface,
+        body.capacitor-native.trip-autocomplete-open #app-interface,
+        body.capacitor-android.trip-autocomplete-open #map,
+        body.capacitor-native.trip-autocomplete-open #map,
+        body.capacitor-android.trip-autocomplete-open #map-container,
+        body.capacitor-native.trip-autocomplete-open #map-container {
             overflow: hidden !important;
             overscroll-behavior: none !important;
             touch-action: none;
@@ -1237,25 +1275,34 @@
             touch-action: manipulation;
         }
 
-        /* Header oculto mientras se busca: no compite con reloj ni con el input */
-        body.trip-autocomplete-open #app-header,
-        body.trip-autocomplete-open .hn-flag-stripe {
+        /* Header oculto solo en APK (en web tapa la página y deja el destino en blanco) */
+        body.capacitor-android.trip-autocomplete-open #app-header,
+        body.capacitor-native.trip-autocomplete-open #app-header,
+        body.capacitor-android.trip-autocomplete-open .hn-flag-stripe,
+        body.capacitor-native.trip-autocomplete-open .hn-flag-stripe {
             visibility: hidden !important;
             pointer-events: none !important;
             opacity: 0 !important;
         }
 
-        body.trip-autocomplete-open.client-mode #control-panel,
-        body.trip-autocomplete-open #control-panel {
+        body.capacitor-android.trip-autocomplete-open.client-mode #control-panel,
+        body.capacitor-native.trip-autocomplete-open.client-mode #control-panel,
+        body.capacitor-android.trip-autocomplete-open #control-panel,
+        body.capacitor-native.trip-autocomplete-open #control-panel,
+        body.capacitor-android.trip-autocomplete-open.booking-float-active.client-mode.panel-minimized #control-panel,
+        body.capacitor-native.trip-autocomplete-open.booking-float-active.client-mode.panel-minimized #control-panel,
+        body.capacitor-android.trip-autocomplete-open.booking-float-active.client-mode #control-panel.panel-collapsed,
+        body.capacitor-native.trip-autocomplete-open.booking-float-active.client-mode #control-panel.panel-collapsed,
+        body.capacitor-android.trip-autocomplete-open.client-mode.panel-minimized #control-panel,
+        body.capacitor-native.trip-autocomplete-open.client-mode.panel-minimized #control-panel {
             position: fixed !important;
             left: 0 !important;
             right: 0 !important;
-            /* JS escribe top/bottom en inline; fallback CSS: */
             top: var(--search-safe-top, 36px) !important;
             bottom: max(0px, var(--keyboard-inset, 0px)) !important;
             height: auto !important;
             max-height: none !important;
-            min-height: 0 !important;
+            min-height: min(52dvh, 22rem) !important;
             width: 100% !important;
             margin: 0 !important;
             border-radius: 1rem 1rem 0 0 !important;
@@ -1269,14 +1316,18 @@
             padding-top: 0.65rem !important;
             padding-bottom: max(0.5rem, var(--safe-bottom, 0px)) !important;
             background: #ffffff !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
         }
 
-        html[data-theme="dark"] body.trip-autocomplete-open #control-panel {
+        html[data-theme="dark"] body.capacitor-android.trip-autocomplete-open #control-panel,
+        html[data-theme="dark"] body.capacitor-native.trip-autocomplete-open #control-panel {
             background: #0f172a !important;
         }
 
-        body.trip-autocomplete-open #control-panel #panel-content,
-        body.trip-autocomplete-open #panel-content {
+        body.capacitor-android.trip-autocomplete-open #control-panel #panel-content,
+        body.capacitor-native.trip-autocomplete-open #control-panel #panel-content {
             flex: 1 1 auto !important;
             min-height: 0 !important;
             overflow-y: auto !important;
@@ -1284,8 +1335,18 @@
             overscroll-behavior: contain;
             max-height: none !important;
             touch-action: pan-y;
-            /* Empuja el bloque de ruta hacia abajo un poco más */
             padding-top: 0.35rem !important;
+        }
+
+        /* Web: lista de Places debajo del input, sin tapar la página */
+        body.trip-autocomplete-open .trip-dest-wrap,
+        body.trip-autocomplete-open .trip-origin-wrap,
+        body.trip-autocomplete-open .trip-step-card.trip-step-route {
+            overflow: visible !important;
+            z-index: 80;
+        }
+        body.trip-autocomplete-open gmp-place-autocomplete {
+            overflow: visible !important;
         }
 
         /* Prioridad al campo que se está editando */
@@ -1412,6 +1473,14 @@
         #active-trip-panel {
             position: relative;
             z-index: 5;
+        }
+
+        /* Tailwind `hidden` + `flex` en el mismo nodo: `flex` puede ganar.
+           Forzar que .hidden realmente oculte el sheet y el radar. */
+        #active-trip-panel.hidden,
+        #driver-view.hidden,
+        #client-view.hidden {
+            display: none !important;
         }
 
         .client-pin-hero {
@@ -3221,28 +3290,29 @@
             }
         }
 
-        /* --- INTERFAZ DE NAVEGACIÃ“N (compacta, no media pantalla) --- */
+        /* --- INTERFAZ DE NAVEGACIÃ“N tipo Google Maps --- */
         #nav-hud-top {
             position: fixed;
-            top: max(8px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 6px));
-            left: 50%;
-            transform: translateX(-50%);
-            width: min(340px, calc(100vw - 1.25rem));
-            max-width: min(340px, calc(100vw - 1.25rem));
+            top: max(10px, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 8px));
+            left: 0.7rem;
+            right: 0.7rem;
+            transform: none;
+            width: auto;
+            max-width: none;
             background: #0f766e;
             color: white;
-            border-radius: 0.85rem;
-            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-            z-index: 2100;
+            border-radius: 1.15rem;
+            box-shadow: 0 10px 28px rgba(15, 118, 110, 0.38);
+            z-index: 2800;
             display: none;
             flex-direction: column;
             align-items: stretch;
             gap: 0;
             padding: 0;
-            overflow: hidden;
+            overflow: visible;
             pointer-events: auto;
-            touch-action: none;
-            max-height: 4.75rem;
+            touch-action: manipulation;
+            max-height: none;
         }
 
         #nav-hud-top.is-drag-positioned {
@@ -3295,48 +3365,107 @@
             display: none;
         }
 
-        .nav-hud-top-body {
+        .nav-hud-top-body,
+        .gmaps-nav-banner {
             display: flex;
             align-items: center;
-            gap: 0.55rem;
-            padding: 0 0.6rem 0.45rem;
-            min-height: 0;
+            gap: 0.75rem;
+            padding: 0.85rem 0.9rem 0.95rem;
+            min-height: 4.5rem;
         }
 
-        .nav-hud-step-icon-wrap {
-            width: 1.85rem;
-            height: 1.85rem;
-            border-radius: 9999px;
-            background: rgba(255, 255, 255, 0.18);
+        .gmaps-nav-arrow {
+            width: 2.7rem;
+            height: 2.7rem;
+            border-radius: 0.85rem;
+            background: rgba(255, 255, 255, 0.16);
             display: flex;
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
         }
 
+        .gmaps-nav-arrow #nav-step-icon,
+        .gmaps-nav-arrow i,
         .nav-hud-step-icon-wrap #nav-step-icon,
         .nav-hud-step-icon-wrap i {
-            font-size: 0.85rem !important;
+            font-size: 1.45rem !important;
             color: #fff !important;
             line-height: 1;
         }
 
+        .gmaps-nav-voice-btn {
+            width: 2.4rem;
+            height: 2.4rem;
+            border: 0;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+            color: #fff;
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gmaps-nav-voice-btn[aria-pressed="false"] {
+            background: rgba(15, 23, 42, 0.28);
+            opacity: 0.85;
+        }
+
+        .gmaps-nav-then {
+            position: absolute;
+            left: 0.85rem;
+            top: calc(100% - 2px);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: #115e59;
+            color: #fff;
+            border-radius: 0 0 0.75rem 0.75rem;
+            padding: 0.28rem 0.7rem 0.38rem;
+            font-size: 0.78rem;
+            font-weight: 800;
+            box-shadow: 0 6px 14px rgba(15, 118, 110, 0.28);
+            z-index: 1;
+        }
+
+        .gmaps-nav-then.hidden {
+            display: none !important;
+        }
+
+        .gmaps-nav-then i {
+            font-size: 0.95rem;
+        }
+
+        .nav-hud-step-icon-wrap {
+            width: 2.7rem;
+            height: 2.7rem;
+            border-radius: 0.85rem;
+            background: rgba(255, 255, 255, 0.16);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
         .nav-hud-step-text {
             margin: 0;
-            font-size: 0.82rem !important;
+            font-size: 1.22rem !important;
             font-weight: 800 !important;
             line-height: 1.15 !important;
-            white-space: nowrap;
+            white-space: normal;
             overflow: hidden;
-            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
             max-width: 100%;
         }
 
         .nav-hud-step-dist {
-            margin: 0.1rem 0 0;
-            font-size: 0.65rem !important;
-            font-weight: 600 !important;
-            opacity: 0.85;
+            margin: 0.2rem 0 0;
+            font-size: 0.78rem !important;
+            font-weight: 700 !important;
+            opacity: 0.9;
             line-height: 1.15;
             white-space: nowrap;
             overflow: hidden;
@@ -3873,7 +4002,31 @@
             padding-bottom: max(0.85rem, calc(0.5rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)))) !important;
         }
 
-        body.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #driver-view {
+        body.trip-active #driver-view,
+        body.driver-mode.trip-active #driver-view,
+        body.driver-nav-mode #driver-view,
+        body.driver-trip-dest-phase #driver-view {
+            display: none !important;
+        }
+
+        body.trip-active.driver-mode #active-trip-panel:not(.hidden) {
+            display: flex !important;
+        }
+
+        body.driver-mode:not(.trip-active) #active-trip-panel {
+            display: none !important;
+        }
+
+        body.driver-mode:not(.trip-active) #driver-view:not(.hidden) {
+            display: flex !important;
+        }
+
+        body.driver-mode .trip-passenger-only,
+        body.driver-mode #trip-expanded-content {
+            display: none !important;
+        }
+
+        body.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #driver-view:not(.hidden) {
             flex: 1 1 auto !important;
             min-height: 0 !important;
             display: flex !important;
@@ -3910,11 +4063,12 @@
             display: none;
         }
 
-        body.driver-mode.panel-minimized #control-panel {
+        /* Sin viaje: minimizar oculta el sheet (FAB «Abrir panel»).
+           Con viaje: NO ocultar — el bloque final deja solo el asa Maximizar. */
+        body.driver-mode.panel-minimized:not(.trip-active) #control-panel {
             display: none !important;
         }
 
-        body.driver-mode:not(.panel-minimized) #driver-earnings-float,
         body.driver-mode:not(.panel-minimized) #driver-objectives-active {
             visibility: hidden !important;
             pointer-events: none !important;
@@ -3922,10 +4076,9 @@
         }
 
         /*
-         * Viaje activo (conductor): ocultar flotantes que tapan el mapa / HUD
-         * y bloquean la âœ• de copas o el minimizar de ganancias.
+         * Viaje activo: ocultar copas / objetivos que tapan el mapa.
+         * Ganancias se quedan como pastilla (no se esconden).
          */
-        body.trip-active.driver-mode #driver-earnings-float,
         body.trip-active.driver-mode #driver-objectives-active,
         body.trip-active.driver-mode #public-pcopa-strip,
         body.trip-active.driver-mode #public-copa-strip,
@@ -4258,6 +4411,56 @@
             text-transform: uppercase;
             color: #64748b;
             transition: border-color 0.15s, background 0.15s, transform 0.12s, box-shadow 0.15s;
+        }
+
+        /* .hidden de Tailwind pierde contra display:flex de .trip-service-chip */
+        .trip-service-chip.hidden,
+        .service-type-btn.hidden,
+        #svc-btn-stores.hidden {
+            display: none !important;
+        }
+
+        /* Menú Viaje (web + APK): solo moto / Taxi VIP / Taxi T- */
+        body.passenger-mode-trip #svc-btn-delivery,
+        body.passenger-mode-trip #svc-btn-stores,
+        body.passenger-mode-trip #svc-btn-flete_paila,
+        body.passenger-mode-trip #svc-btn-flete_camion,
+        body.passenger-mode-trip #svc-btn-grua,
+        body[data-passenger-mode="trip"] #svc-btn-delivery,
+        body[data-passenger-mode="trip"] #svc-btn-stores,
+        body[data-passenger-mode="trip"] #svc-btn-flete_paila,
+        body[data-passenger-mode="trip"] #svc-btn-flete_camion,
+        body[data-passenger-mode="trip"] #svc-btn-grua,
+        body.passenger-mode-trip #service-type-picker [data-service-type="delivery"],
+        body.passenger-mode-trip #service-type-picker [data-service-type="flete_paila"],
+        body.passenger-mode-trip #service-type-picker [data-service-type="flete_camion"],
+        body.passenger-mode-trip #service-type-picker [data-service-type="grua"],
+        body[data-passenger-mode="trip"] #service-type-picker [data-service-type="delivery"],
+        body[data-passenger-mode="trip"] #service-type-picker [data-service-type="flete_paila"],
+        body[data-passenger-mode="trip"] #service-type-picker [data-service-type="flete_camion"],
+        body[data-passenger-mode="trip"] #service-type-picker [data-service-type="grua"] {
+            display: none !important;
+        }
+
+        body.passenger-mode-delivery #service-type-picker [data-service-type]:not([data-service-type="delivery"]),
+        body.passenger-mode-delivery #svc-btn-stores,
+        body[data-passenger-mode="delivery"] #service-type-picker [data-service-type]:not([data-service-type="delivery"]),
+        body[data-passenger-mode="delivery"] #svc-btn-stores {
+            display: none !important;
+        }
+
+        body.passenger-mode-freight #service-type-picker [data-service-type]:not([data-service-type="flete_paila"]):not([data-service-type="flete_camion"]),
+        body.passenger-mode-freight #svc-btn-stores,
+        body[data-passenger-mode="freight"] #service-type-picker [data-service-type]:not([data-service-type="flete_paila"]):not([data-service-type="flete_camion"]),
+        body[data-passenger-mode="freight"] #svc-btn-stores {
+            display: none !important;
+        }
+
+        body.passenger-mode-tow #service-type-picker [data-service-type]:not([data-service-type="grua"]),
+        body.passenger-mode-tow #svc-btn-stores,
+        body[data-passenger-mode="tow"] #service-type-picker [data-service-type]:not([data-service-type="grua"]),
+        body[data-passenger-mode="tow"] #svc-btn-stores {
+            display: none !important;
         }
 
         .trip-service-chip i {
@@ -7115,7 +7318,7 @@
         /* nav-hud-bottom visibility is controlled explicitly by driver-nav and its own minimize button */
         body.trip-active:not(.driver-nav-mode) #nav-hud-bottom { display: none; }
 
-        /* Minimizado de verdad en Android/iOS: barra compacta, no media pantalla */
+        /* Minimizado de verdad: barra compacta, no media pantalla */
         body.trip-active #control-panel.panel-collapsed,
         body.trip-active.panel-minimized #control-panel {
             max-height: min(22dvh, 148px) !important;
@@ -7124,6 +7327,30 @@
             overflow: hidden !important;
             -webkit-overflow-scrolling: auto;
             padding-bottom: max(0.35rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+        }
+
+        /* Conductor minimizado: SOLO el asa Maximizar (nada de foto / ruta / scroll) */
+        body.trip-active.driver-mode #control-panel.panel-collapsed,
+        body.trip-active.driver-mode.panel-minimized #control-panel {
+            max-height: 3.4rem !important;
+            min-height: 3.4rem !important;
+            height: 3.4rem !important;
+            overflow: hidden !important;
+            padding-top: 0.15rem !important;
+            padding-bottom: max(0.2rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+        }
+
+        body.trip-active.driver-mode #control-panel.panel-collapsed #driver-active-body,
+        body.trip-active.driver-mode.panel-minimized #control-panel #driver-active-body,
+        body.trip-active.driver-mode #control-panel.panel-collapsed .driver-uber-sheet,
+        body.trip-active.driver-mode.panel-minimized #control-panel .driver-uber-sheet,
+        body.trip-active.driver-mode #control-panel.panel-collapsed #trip-mini-bar,
+        body.trip-active.driver-mode.panel-minimized #control-panel #trip-mini-bar,
+        body.trip-active.driver-mode #control-panel.panel-collapsed #active-trip-route-summary,
+        body.trip-active.driver-mode.panel-minimized #control-panel #active-trip-route-summary {
+            display: none !important;
+            overflow: hidden !important;
+            max-height: 0 !important;
         }
 
         body.trip-active #control-panel.panel-collapsed #trip-expanded-content,
@@ -7197,14 +7424,14 @@
          * Conductor con panel ABIERTO: nav vive en #driver-panel-nav (sheet).
          * HUD flotante oculto solo en ese caso.
          */
-        body.driver-mode:not(.panel-minimized) #nav-hud-top,
-        body.driver-mode:not(.panel-minimized) #nav-hud-bottom,
-        body.driver-nav-mode:not(.panel-minimized) #nav-hud-top,
-        body.driver-nav-mode:not(.panel-minimized) #nav-hud-bottom,
-        body.trip-active.driver-mode:not(.panel-minimized) #nav-hud-top,
-        body.trip-active.driver-mode:not(.panel-minimized) #nav-hud-bottom,
-        body.is-navigating.driver-mode:not(.panel-minimized) #nav-hud-top,
-        body.is-navigating.driver-mode:not(.panel-minimized) #nav-hud-bottom {
+        body.driver-mode:not(.panel-minimized):not(.panel-collapsed) #nav-hud-top,
+        body.driver-mode:not(.panel-minimized):not(.panel-collapsed) #nav-hud-bottom,
+        body.driver-nav-mode:not(.panel-minimized):not(.panel-collapsed) #nav-hud-top,
+        body.driver-nav-mode:not(.panel-minimized):not(.panel-collapsed) #nav-hud-bottom,
+        body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #nav-hud-top,
+        body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #nav-hud-bottom,
+        body.is-navigating.driver-mode:not(.panel-minimized):not(.panel-collapsed) #nav-hud-top,
+        body.is-navigating.driver-mode:not(.panel-minimized):not(.panel-collapsed) #nav-hud-bottom {
             display: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
@@ -7233,12 +7460,16 @@
         body.trip-active.driver-mode.panel-minimized.driver-trip-dest-phase #nav-hud-top,
         body.driver-mode.panel-collapsed.is-navigating #nav-hud-top,
         body.driver-mode.panel-collapsed.driver-nav-mode #nav-hud-top,
-        body.driver-mode.panel-collapsed.driver-trip-dest-phase #nav-hud-top {
+        body.driver-mode.panel-collapsed.driver-trip-dest-phase #nav-hud-top,
+        body.trip-active.driver-mode.panel-collapsed #nav-hud-top.is-gmaps-visible,
+        body.driver-mode.driver-nav-mode.panel-collapsed #nav-hud-top,
+        body.driver-mode.panel-minimized.trip-active #nav-hud-top {
             display: flex !important;
             visibility: visible !important;
             pointer-events: auto !important;
             opacity: 1 !important;
             z-index: 2800 !important;
+            max-height: none !important;
         }
 
         /* NavegaciÃ³n dentro del panel central del conductor */
@@ -7259,7 +7490,8 @@
         }
 
         body.trip-active.driver-mode.is-navigating #driver-panel-nav:not(.hidden),
-        body.trip-active.driver-mode.driver-nav-mode #driver-panel-nav:not(.hidden) {
+        body.trip-active.driver-mode.driver-nav-mode #driver-panel-nav:not(.hidden),
+        body.trip-active.driver-mode.driver-trip-dest-phase:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-panel-nav:not(.hidden) {
             display: flex !important;
         }
 
@@ -7386,12 +7618,11 @@
 
         /* Vista conductor: (legacy) fajas flotantes ya ocultas arriba */
         body.driver-nav-mode #nav-hud-top:not(.is-drag-positioned) {
-            /* no-op: oculto en driver */
-        }
-
-        body.driver-nav-mode #nav-hud-top:not(.is-drag-positioned) {
-            width: min(320px, calc(100vw - 1.25rem));
-            max-width: min(320px, calc(100vw - 1.25rem));
+            left: 0.7rem !important;
+            right: 0.7rem !important;
+            width: auto !important;
+            max-width: none !important;
+            transform: none !important;
         }
 
         /* Chip ETA inferior — layout legacy; conductor lo oculta (ETA en panel / mini-bar) */
@@ -7619,7 +7850,7 @@
         /* Evitar que reglas viejas de 70dvh vuelvan a empujar el chip al centro */
         body.trip-active.driver-mode.driver-nav-mode #nav-hud-top,
         body.trip-active.driver-mode.is-navigating #nav-hud-top {
-            max-height: 4.5rem !important;
+            max-height: none !important;
         }
 
         body.trip-active.driver-mode.driver-nav-mode #nav-hud-bottom {
@@ -13424,7 +13655,6 @@
         }
 
         #driver-objectives-active,
-        #driver-earnings-float,
         #driver-radar-float,
         #trip-floats-layer {
             position: fixed;
@@ -13438,7 +13668,13 @@
         }
 
         #driver-earnings-float {
-            z-index: 27950;
+            position: fixed;
+            inset: 0;
+            width: auto;
+            height: auto;
+            overflow: visible;
+            z-index: 40050;
+            pointer-events: none;
         }
 
         #driver-radar-float {
@@ -13574,6 +13810,17 @@
             background: transparent;
             border: none;
             box-shadow: none;
+            cursor: grab;
+            touch-action: none !important;
+            max-width: none;
+            overflow: visible;
+            width: auto;
+            height: auto;
+        }
+
+        .driver-earnings-float--min .driver-earnings-min-pill {
+            cursor: grab;
+            touch-action: none;
         }
 
         .driver-earnings-float.is-dragging {
@@ -13619,15 +13866,20 @@
         .driver-earnings-min-pill {
             display: inline-flex;
             align-items: center;
-            gap: 0.35rem;
-            padding: 0.45rem 0.75rem;
+            gap: 0.4rem;
+            padding: 0.55rem 0.95rem 0.55rem 0.75rem;
+            min-height: 2.4rem;
             border-radius: 999px;
             background: linear-gradient(135deg, #10b981, #059669);
             color: #fff;
-            font-size: 0.68rem;
+            font-size: 0.72rem;
             font-weight: 900;
             border: none;
             box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+            white-space: nowrap;
+            overflow: visible;
+            box-sizing: border-box;
+            line-height: 1;
         }
 
         .driver-earnings-link {
@@ -15173,8 +15425,37 @@
         /* HUD de giros: solo si navegando (no forzar siempre) */
         body.trip-active.driver-mode.driver-nav-mode #nav-hud-top,
         body.trip-active.driver-mode.is-navigating #nav-hud-top {
-            z-index: 2100;
+            z-index: 2800;
             pointer-events: auto;
+            max-height: none !important;
+        }
+
+        body.trip-active.driver-mode.driver-nav-mode #control-panel.panel-collapsed #trip-mini-bar,
+        body.trip-active.driver-mode.panel-minimized #control-panel #trip-mini-bar {
+            padding: 0.45rem 0.65rem 0.55rem !important;
+        }
+
+        body.trip-active.driver-mode.driver-nav-mode #trip-mini-time {
+            color: #ea580c !important;
+            font-size: 1.55rem !important;
+            letter-spacing: -0.03em;
+        }
+
+        body.trip-active.driver-mode.driver-nav-mode .driver-active-eta-label {
+            display: none !important;
+        }
+
+        body.trip-active.driver-mode #driver-mini-cancel-btn {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+        }
+
+        @media (max-width: 380px) {
+            body.trip-active.driver-mode #trip-mini-bar .trip-mini-center-btn span {
+                display: none !important;
+            }
         }
 
         body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-active-eta {
@@ -15186,16 +15467,21 @@
          * Minimizado â†’ mini-barra con Â«AbrirÂ» (sin asa).
          */
         body.trip-active.driver-mode #control-panel.panel-collapsed .trip-drag-handle,
-        body.trip-active.driver-mode.panel-minimized #control-panel .trip-drag-handle {
-            display: none !important;
-            visibility: hidden !important;
-            height: 0 !important;
-            min-height: 0 !important;
-            max-height: 0 !important;
-            padding: 0 !important;
+        body.trip-active.driver-mode.panel-minimized #control-panel .trip-drag-handle,
+        body.trip-active.driver-mode #control-panel.panel-collapsed #driver-panel-min-btn,
+        body.trip-active.driver-mode.panel-minimized #control-panel #driver-panel-min-btn {
+            display: flex !important;
+            visibility: visible !important;
+            height: auto !important;
+            min-height: 2.4rem !important;
+            max-height: none !important;
+            padding: 0.35rem 0.5rem !important;
             margin: 0 !important;
-            overflow: hidden !important;
-            pointer-events: none !important;
+            overflow: visible !important;
+            pointer-events: auto !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
 
         /* Asa del sheet: pastilla fina (estilo Uber / bottom sheet) */
@@ -15373,7 +15659,8 @@
             overflow-x: hidden !important;
             -webkit-overflow-scrolling: touch;
             pointer-events: auto !important;
-            max-height: none;
+            flex: 0 1 auto !important;
+            max-height: min(38dvh, 18rem);
             scrollbar-width: none !important;
             -ms-overflow-style: none !important;
         }
@@ -15417,7 +15704,6 @@
          * a body.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel
          * y a las reglas capacitor-native/android.
          */
-        body.trip-active.driver-mode #control-panel,
         body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel,
         body.capacitor-native.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel,
         body.capacitor-android.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
@@ -15429,8 +15715,7 @@
             width: 100% !important;
             margin: 0 !important;
             height: auto !important;
-            /* Faja corta (~1/3 pantalla): el resto se ve scrolleando */
-            max-height: min(36dvh, 16rem) !important;
+            max-height: min(48dvh, 22rem) !important;
             min-height: 0;
             padding: 0.1rem 0.65rem max(0.4rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
             cursor: default !important;
@@ -15476,15 +15761,45 @@
             touch-action: inherit;
         }
 
-        /* Ocultar basura en viaje; NO el chat (vive en #trip-floats-layer) */
+        /* Ocultar basura en viaje; NO el chat ni ganancias (pastilla) */
         body.trip-active.driver-mode #driver-objectives-active,
-        body.trip-active.driver-mode #driver-earnings-float,
         body.trip-active.driver-mode #driver-radar-float,
         body.trip-active.driver-mode #service-zone-map-chip {
             display: none !important;
             visibility: hidden !important;
             pointer-events: none !important;
             opacity: 0 !important;
+        }
+
+        body.driver-mode #driver-earnings-float {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: none !important;
+            z-index: 40050 !important;
+            inset: 0 !important;
+            width: auto !important;
+            height: auto !important;
+            overflow: visible !important;
+        }
+
+        body.driver-mode #driver-earnings-float .driver-earnings-float {
+            pointer-events: auto !important;
+        }
+
+        body.driver-mode #driver-earnings-float .driver-earnings-min-btn,
+        body.driver-mode #driver-earnings-float .driver-earnings-min-pill {
+            pointer-events: auto !important;
+            z-index: 2;
+            position: relative;
+        }
+
+        /* Pastilla de ganancias: en el mapa, NUNCA encima del sheet inferior */
+        body.driver-mode #driver-earnings-float .driver-earnings-float--min:not(.is-drag-positioned):not(.is-dragging) {
+            top: max(4.6rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 3.4rem)) !important;
+            left: 0.75rem !important;
+            bottom: auto !important;
+            right: auto !important;
         }
 
         /* Capa de flotantes: el contenedor no come toques; el chat sÃ­ es tocable */
@@ -15821,12 +16136,20 @@
             cursor: default !important;
         }
 
-        body.trip-active.driver-mode #active-trip-panel {
+        body.trip-active.driver-mode #active-trip-panel:not(.hidden) {
             display: flex !important;
             flex-direction: column;
             min-height: 0;
             gap: 0;
-            flex: 1 1 auto;
+            flex: 0 1 auto;
+        }
+
+        body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #active-trip-panel,
+        body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #panel-content,
+        body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #driver-view {
+            flex: 0 1 auto !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
         }
 
         body.trip-active.driver-mode #driver-route-hero:not(.hidden) {
@@ -15886,8 +16209,8 @@
         }
 
         body.trip-active.driver-mode.driver-trip-dest-phase #control-panel:not(.panel-collapsed) {
-            max-height: min(38%, 18rem) !important;
-            min-height: 11rem;
+            max-height: min(64%, 34rem) !important;
+            min-height: 16rem;
         }
 
         body.trip-active.driver-mode.driver-trip-dest-phase #control-panel.panel-collapsed,
@@ -16199,6 +16522,48 @@
             display: none !important;
         }
 
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #driver-trip-actions:not(.hidden) {
+            display: block !important;
+            pointer-events: auto !important;
+        }
+
+        body.trip-active.driver-mode #control-panel.panel-collapsed #driver-trip-actions,
+        body.trip-active.driver-mode.panel-minimized #control-panel #driver-trip-actions {
+            display: none !important;
+        }
+
+        body.trip-active.driver-mode #driver-panel-arrived-dest-btn:not(.hidden) {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto !important;
+        }
+
+        body.trip-active.driver-mode #driver-panel-arrived-dest-btn.is-disabled,
+        body.trip-active.driver-mode #driver-panel-arrived-dest-btn.is-arrival-blocked {
+            opacity: 0.55;
+            filter: grayscale(0.15);
+        }
+
+        body.trip-active.driver-mode #driver-cancel-trip-btn {
+            display: block !important;
+            pointer-events: auto !important;
+            background: #fff;
+        }
+
+        .client-trip-cancel-btn {
+            margin-top: 0.55rem;
+            min-height: 2.65rem;
+            border-radius: 0.9rem;
+            border: 1px solid #fecaca;
+            background: #fff;
+            color: #dc2626;
+            font-size: 0.68rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
         body.trip-active #trip-floats-layer:not(.hidden) {
             visibility: visible;
             pointer-events: none;
@@ -16283,7 +16648,8 @@
         }
 
         /* Mini-barra solo minimizado; maximizado usa el asa superior */
-        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #trip-mini-bar {
+        body.trip-active.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #trip-mini-bar,
+        body.driver-mode:not(.panel-minimized) #control-panel:not(.panel-collapsed) #trip-mini-bar {
             display: none !important;
         }
 
@@ -19124,8 +19490,16 @@
 #passenger-copa-active {
     position: fixed;
     inset: 0;
+    top: var(--native-safe-top, var(--safe-top, 0px));
     z-index: 27980;
     pointer-events: none;
+}
+
+body.capacitor-android #driver-copa-active,
+body.capacitor-android #passenger-copa-active,
+body.capacitor-native #driver-copa-active,
+body.capacitor-native #passenger-copa-active {
+    top: var(--native-safe-top, var(--safe-top, 32px));
 }
 
 /* Ocultar basura de versiones anteriores */
@@ -22299,4 +22673,160 @@ body.driver-offer-map-peek .driver-offer-peek-bar:not(.hidden) {
   background: #fff;
   border-color: #fca5a5;
   color: #b91c1c;
+}
+
+/* Mercado EE. UU.: sin taxi tradicional (placa T-) */
+body.market-us #svc-btn-taxi,
+body.market-us #drv-type-taxi {
+    display: none !important;
+}
+
+/* Conductor SIN viaje: nunca el sheet de Pasajero/Ruta */
+body.driver-mode:not(.trip-active) #active-trip-panel {
+    display: none !important;
+}
+body.driver-mode:not(.trip-active) #driver-view:not(.hidden) {
+    display: flex !important;
+}
+
+/*
+ * Viaje visible → ocultar radar + badge «Conductor de prueba».
+ * Si no, al minimizar el asa Maximizar queda EN MEDIO del banner y del sheet.
+ */
+html body #panel-content:has(#active-trip-panel:not(.hidden)) #driver-view,
+html body.trip-active #driver-view,
+html body.driver-mode.trip-active #driver-view {
+    display: none !important;
+}
+
+/* Texto / cancelar de pasajero: nunca en UI de conductor */
+html body.driver-mode .trip-passenger-only,
+html body.driver-mode #trip-expanded-content,
+html body:not(.client-mode) #control-panel:has(#driver-view) .trip-passenger-only,
+html body:not(.client-mode) #control-panel:has(#driver-view) #trip-expanded-content {
+    display: none !important;
+}
+
+/*
+ * Conductor minimizado: SOLO el asa Maximizar.
+ * Gana a reglas viejas que mostraban mini-barra + handle + contenido a la vez
+ * (p. ej. #trip-mini-bar.driver-active-eta { display:flex }).
+ * :not(.client-mode) cubre el caso en que falte body.driver-mode.
+ */
+html body.driver-mode.trip-active.panel-minimized.panel-collapsed #control-panel.panel-collapsed,
+html body.driver-mode.trip-active.panel-minimized #control-panel,
+html body.driver-mode.trip-active #control-panel.panel-collapsed,
+html body.driver-mode.panel-minimized #control-panel.panel-collapsed:has(#active-trip-panel:not(.hidden)),
+html body:not(.client-mode).panel-minimized #control-panel.panel-collapsed:has(#active-trip-panel:not(.hidden)),
+html body:not(.client-mode) #control-panel.panel-collapsed:has(#active-trip-panel:not(.hidden)) {
+    display: flex !important;
+    visibility: visible !important;
+    max-height: 3.35rem !important;
+    min-height: 3.35rem !important;
+    height: 3.35rem !important;
+    overflow: hidden !important;
+    padding-top: 0.1rem !important;
+    padding-bottom: max(0.15rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+}
+
+html body.driver-mode.trip-active.panel-minimized.panel-collapsed #control-panel.panel-collapsed #panel-content,
+html body.driver-mode.trip-active.panel-minimized #control-panel #panel-content,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #panel-content,
+html body:not(.client-mode) #control-panel.panel-collapsed:has(#active-trip-panel:not(.hidden)) #panel-content,
+html body.driver-mode.trip-active.panel-minimized.panel-collapsed #control-panel.panel-collapsed #active-trip-panel,
+html body.driver-mode.trip-active.panel-minimized #control-panel #active-trip-panel,
+html body:not(.client-mode) #control-panel.panel-collapsed:has(#active-trip-panel:not(.hidden)) #active-trip-panel {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 0 0 auto !important;
+    min-height: 0 !important;
+    max-height: 3.35rem !important;
+    height: auto !important;
+    overflow: hidden !important;
+}
+
+html body.driver-mode.trip-active.panel-minimized #control-panel #driver-view,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #driver-view,
+html body:not(.client-mode) #control-panel.panel-collapsed #driver-view,
+html body.driver-mode.trip-active.panel-minimized #control-panel #trip-mini-bar,
+html body.driver-mode.trip-active.panel-minimized #control-panel #trip-mini-bar.driver-active-eta,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #trip-mini-bar,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #trip-mini-bar.driver-active-eta,
+html body:not(.client-mode) #control-panel.panel-collapsed #trip-mini-bar,
+html body:not(.client-mode) #control-panel.panel-collapsed #trip-mini-bar.driver-active-eta,
+html body.driver-mode.trip-active.panel-minimized #control-panel #driver-active-body,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #driver-active-body,
+html body:not(.client-mode) #control-panel.panel-collapsed #driver-active-body,
+html body.driver-mode.trip-active.panel-minimized #control-panel .driver-uber-sheet,
+html body.driver-mode.trip-active #control-panel.panel-collapsed .driver-uber-sheet,
+html body.driver-mode.trip-active.panel-minimized #control-panel #trip-expanded-content,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #trip-expanded-content,
+html body:not(.client-mode) #control-panel.panel-collapsed #trip-expanded-content,
+html body.driver-mode.trip-active.panel-minimized #control-panel #trip-actions-sticky,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #trip-actions-sticky,
+html body.driver-mode.trip-active.panel-minimized #control-panel #active-trip-route-summary,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #active-trip-route-summary,
+html body.driver-mode.trip-active #active-trip-route-summary,
+html body.driver-mode.trip-active.panel-minimized #control-panel .control-panel-header,
+html body.driver-mode.trip-active #control-panel.panel-collapsed .control-panel-header {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    pointer-events: none !important;
+}
+
+html body.driver-mode.trip-active.panel-minimized #control-panel #driver-panel-min-btn,
+html body.driver-mode.trip-active.panel-minimized #control-panel #driver-panel-min-btn.trip-drag-handle,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #driver-panel-min-btn,
+html body.driver-mode.trip-active #control-panel.panel-collapsed #driver-panel-min-btn.trip-drag-handle,
+html body:not(.client-mode) #control-panel.panel-collapsed #driver-panel-min-btn,
+html body:not(.client-mode) #control-panel.panel-collapsed .trip-drag-handle {
+    display: flex !important;
+    flex-direction: column !important;
+    visibility: visible !important;
+    height: auto !important;
+    min-height: 2.4rem !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0.35rem 0.5rem !important;
+    margin: 0 !important;
+    pointer-events: auto !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    background: transparent !important;
+    border: none !important;
+    opacity: 1 !important;
+}
+
+html body.driver-mode.trip-active.panel-minimized #control-panel .driver-panel-min-hint,
+html body.driver-mode.trip-active #control-panel.panel-collapsed .driver-panel-min-hint,
+html body:not(.client-mode) #control-panel.panel-collapsed .driver-panel-min-hint {
+    display: block !important;
+    color: #0f766e !important;
+    font-size: 0.62rem !important;
+    font-weight: 900 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    line-height: 1 !important;
+}
+
+body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+    height: auto !important;
+    max-height: min(48dvh, 22rem) !important;
+    overflow: hidden !important;
+}
+body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #panel-content {
+    overflow: hidden !important;
+    flex: 0 1 auto !important;
+    min-height: 0 !important;
+}
+body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #active-trip-panel {
+    height: auto !important;
+    flex: 0 1 auto !important;
+    min-height: 0 !important;
 }
