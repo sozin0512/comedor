@@ -64,6 +64,9 @@ export function authErrorMessage(err, context = 'login') {
     if (code === 'auth/weak-password') return 'La contraseña debe tener al menos 6 caracteres.';
     if (code === 'auth/too-many-requests') return 'Demasiados intentos. Espera un momento e intenta de nuevo.';
     if (code === 'auth/network-request-failed') return 'Sin conexión. Revisa tu internet.';
+    if (code === 'auth/api-key-expired' || /api-key-expired|api key expired/i.test(String(err?.message || ''))) {
+        return 'Esta versión de HonduRaite está desactualizada. Actualiza la app e intenta de nuevo.';
+    }
     return err?.message || 'Error de autenticación.';
 }
 
