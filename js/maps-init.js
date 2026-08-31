@@ -523,7 +523,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             scrollwheel: true,
             disableDoubleClickZoom: false,
             keyboardShortcuts: !LOW,
-            isFractionalZoomEnabled: !LOW,
+            isFractionalZoomEnabled: true,
+            minZoom: 3,
+            maxZoom: 21,
         };
         if (LOW) {
             try { window.trafficLayer = null; } catch(_) {}
@@ -533,7 +535,21 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             mapOptions.mapId = cfg.mapId;
         }
 
+        window.unlockDriverMapZoom = () => {
+            try {
+                window.gMap?.setOptions?.({
+                    minZoom: 3,
+                    maxZoom: 21,
+                    isFractionalZoomEnabled: true,
+                    gestureHandling: 'greedy',
+                    scrollwheel: true,
+                    disableDoubleClickZoom: false
+                });
+            } catch (_) {}
+        };
+
         window.gMap = new google.maps.Map(document.getElementById("map"), mapOptions);
+        window.unlockDriverMapZoom?.();
         document.body?.classList.add('map-ready');
         document.body?.classList.remove('map-load-failed', 'map-billing-disabled');
         window.__mapsLoadError = false;
@@ -1160,7 +1176,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     scrollwheel: true,
                     disableDoubleClickZoom: false,
                     isFractionalZoomEnabled: true,
-                    // no bloquear tilt/rotate en mapas vector (mapId)
+                    minZoom: 3,
+                    maxZoom: 21,
                     headingInteractionEnabled: true,
                     tiltInteractionEnabled: true,
                 });
@@ -1195,10 +1212,12 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             // Pellizco / zoom manual (ignorar cambios programáticos de la nav)
             window.gMap.addListener('zoom_changed', () => {
                 if (window._mapCameraProgrammatic) return;
-                // Oferta: cualquier zoom manual del user se respeta (no re-fitBounds)
+                try {
+                    const z = window.gMap.getZoom?.();
+                    if (Number.isFinite(z)) window._driverPreferredZoom = z;
+                } catch (_) {}
                 markOfferPreviewUserCamera();
-                if (window.autoCenter === false) return; // ya en free-look
-                // Si el zoom cambió sin drag (pinch), pausar seguimiento
+                if (window.autoCenter === false) return;
                 onUserGesture();
             });
             window.gMap.addListener('tilt_changed', () => {
@@ -4761,22 +4780,13 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 };
                 try {
                     window._mapCameraProgrammatic = true;
-                    const prevMax = window.gMap.get('maxZoom');
                     window.gMap.setOptions({ maxZoom });
                     window.gMap.fitBounds(bounds, padding);
                     google.maps.event.addListenerOnce(window.gMap, 'idle', () => {
-                        try {
-                            window.gMap.setOptions({
-                                maxZoom: prevMax == null ? undefined : prevMax
-                            });
-                            const z = window.gMap.getZoom?.();
-                            if (Number.isFinite(z) && z > maxZoom) {
-                                window._mapCameraProgrammatic = true;
-                                window.gMap.setZoom(maxZoom);
-                            }
-                        } catch (_) {}
+                        try { window.unlockDriverMapZoom?.(); } catch (_) {}
                         clearProg();
                     });
+                    setTimeout(() => { try { window.unlockDriverMapZoom?.(); } catch (_) {} }, 700);
                 } catch (_) {
                     try {
                         window._mapCameraProgrammatic = true;
@@ -5038,6 +5048,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 } else {
                     window.gMap.fitBounds(bounds, padding);
                 }
+                setTimeout(() => window.unlockDriverMapZoom?.(), 400);
             } catch (_) {}
         };
 
@@ -6908,16 +6919,20 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 const hasMapId = !!(window.gMap && window.gMap.getMapId && window.gMap.getMapId());
                 const landscape = (window.visualViewport?.width || window.innerWidth || 360)
                     > (window.visualViewport?.height || window.innerHeight || 640);
-                // Zoom para VER la ruta (no tan pegado al carro que se pierda el trazo)
                 const tilt = lowPower ? 0 : (landscape ? 38 : 48);
                 const speed = Number(window._gpsSpeedMps);
                 const mps = Number.isFinite(speed) && speed >= 0 ? speed : 0;
-                // ~16.5–18.5: se ve tramo de ruta + calles; no 20–21 de “micro calle”
-                let zoom = lowPower ? 17.2 : 17.8;
-                if (mps >= 22) zoom = lowPower ? 16.2 : 16.6;      // ~80 km/h: más contexto
-                else if (mps >= 14) zoom = lowPower ? 16.6 : 17.2;  // ~50 km/h
-                else if (mps < 2) zoom = lowPower ? 17.6 : 18.2;    // lento: un poco más cerca
-                zoom = Math.min(18.5, Math.max(15.5, zoom));
+                const userZoom = Number(window._driverPreferredZoom);
+                let zoom;
+                if (Number.isFinite(userZoom) && userZoom >= 3) {
+                    zoom = Math.min(21, Math.max(3, userZoom));
+                } else {
+                    zoom = lowPower ? 17.2 : 17.8;
+                    if (mps >= 22) zoom = lowPower ? 16.2 : 16.6;
+                    else if (mps >= 14) zoom = lowPower ? 16.6 : 17.2;
+                    else if (mps < 2) zoom = lowPower ? 17.6 : 18.2;
+                    zoom = Math.min(21, Math.max(14, zoom));
+                }
 
                 // Centro un poco ADELANTE del carro → ves por dónde vas
                 const lookAheadM = mps < 2
