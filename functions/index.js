@@ -14,8 +14,41 @@ const ADMIN_EMAIL = 'josuesoza0513@gmail.com';
 const APP_ID = 'comayagua-vip-pro-v4';
 const TRIP_OFFER_TIMEOUT_MS = 120 * 1000;
 const TRIP_OFFER_NEGOTIATION_HOLD_MS = 180 * 1000;
-const SCHEDULED_TRIP_PREP_MINUTES = 10;
+const SCHEDULED_TRIP_PREP_MINUTES = 30;
 const SCHEDULED_TRIP_PREP_MS = SCHEDULED_TRIP_PREP_MINUTES * 60 * 1000;
+/** 30 min antes: el conductor no puede tomar otro viaje y debe ir al origen. */
+const SCHEDULED_TRIP_LOCK_MINUTES = 30;
+const SCHEDULED_TRIP_LOCK_MS = SCHEDULED_TRIP_LOCK_MINUTES * 60 * 1000;
+
+function isScheduledTripLockingDriver(trip) {
+    if (!trip?.driverId) return false;
+    if (!['scheduled', 'accepted', 'in_progress'].includes(trip.status)) return false;
+    const scheduledMs = getScheduledTripMs(trip);
+    if (!scheduledMs) return false;
+    return Date.now() >= scheduledMs - SCHEDULED_TRIP_LOCK_MS;
+}
+
+function collectScheduledLockedDriverIds(tripDocs = []) {
+    const ids = new Set();
+    tripDocs.forEach((d) => {
+        const t = d && typeof d.data === 'function' ? { id: d.id, ...d.data() } : d;
+        if (t && isScheduledTripLockingDriver(t)) ids.add(String(t.driverId));
+    });
+    return ids;
+}
+
+async function driverHasScheduledTripLock(uid) {
+    if (!uid) return false;
+    const col = db.collection(`artifacts/${APP_ID}/public/data/trips`);
+    const [schedSnap, liveSnap] = await Promise.all([
+        col.where('status', '==', 'scheduled').get(),
+        col.where('status', 'in', ['accepted', 'in_progress']).get()
+    ]);
+    return [...schedSnap.docs, ...liveSnap.docs].some((d) => {
+        const t = { id: d.id, ...d.data() };
+        return t.driverId === uid && isScheduledTripLockingDriver(t);
+    });
+}
 
 function formatScheduledTripWhen(iso) {
     if (!iso) return '';
@@ -37,7 +70,10 @@ function getScheduledTripMs(trip) {
     const ms = new Date(trip.scheduledFor).getTime();
     return Number.isFinite(ms) ? ms : 0;
 }
-const ZONE_DEPARTMENT = require('./zone-departments');
+const ZONE_DEPARTMENT = {
+    ...require('./zone-departments'),
+    ...require('./us-zone-departments')
+};
 
 const TRIP_OFFER_NEAR_RADIUS_KM = 8;
 // MÃ¡s de 1: se guardan candidates y se les manda push (web/iOS se enteran aunque no sean el â€œprimeroâ€)
@@ -95,6 +131,7 @@ const ONLINE_STALE_MS = 90 * 1000;
 
 function getCityCoverageKm(zoneId) {
     if (zoneId && CITY_COVERAGE_KM[zoneId] != null) return CITY_COVERAGE_KM[zoneId];
+    if (zoneId && String(zoneId).startsWith('us-')) return 32;
     return 14;
 }
 
@@ -163,22 +200,25 @@ async function collectRegisteredDriverZones(appId) {
  */
 function driverLocCanServeTripZone(loc, tripZone, distKm, { allowSpill = false, maxDistKm = null } = {}) {
     if (!tripZone) return true;
-    const dZone = loc?.serviceZoneId || null;
-    if (dZone && String(dZone) === String(tripZone)) return true;
+    const dZone = loc?.serviceZoneId || loc?.cityId || null;
+    if (dZone && String(dZone).toLowerCase() === String(tripZone).toLowerCase()) return true;
 
-    // Bloqueo duro entre departamentos
+    // Bloqueo duro entre departamentos (Comayagua ↮ Francisco Morazán). El GPS no lo salta.
     if (dZone && !sameDepartment(dZone, tripZone)) return false;
+
+    const coverage = getCityCoverageKm(tripZone);
+    // Sin ciudad de trabajo: el GPS dentro de esa ciudad sí cuenta
+    if (!dZone && Number.isFinite(distKm) && distKm <= coverage) return true;
 
     const limit = Number.isFinite(maxDistKm) && maxDistKm > 0
         ? maxDistKm
-        : (allowSpill ? NEARBY_CITY_SPILL_KM : getCityCoverageKm(tripZone));
+        : (allowSpill ? NEARBY_CITY_SPILL_KM : coverage);
 
     // Spill solo dentro del mismo departamento
     if (allowSpill && dZone && sameDepartment(dZone, tripZone)
         && Number.isFinite(distKm) && distKm <= limit) {
         return true;
     }
-    // Sin zona en loc pero mismo depto desconocido: solo por distancia si spill
     if (allowSpill && !dZone && Number.isFinite(distKm) && distKm <= limit) {
         return true;
     }
@@ -916,10 +956,16 @@ exports.acceptDriverTrip = onCall(async (request) => {
     if (declined.includes(uid)) {
         throw new HttpsError('failed-precondition', 'Ya rechazaste este viaje.');
     }
+    if (await driverHasScheduledTripLock(uid)) {
+        throw new HttpsError(
+            'failed-precondition',
+            'Ya estás a media hora de tu viaje programado. Ve al punto de recogida; no puedes tomar otro viaje.'
+        );
+    }
 
     const patch = sanitizeTripAcceptFields(request.data?.acceptFields);
     // Viaje programado a futuro: se RESERVA (status scheduled + driver), no arranca aÃºn.
-    // Se activa a accepted ~10 min antes (o si el conductor toca â€œIniciar yaâ€).
+    // Se activa a accepted ~30 min antes (o si el conductor toca â€œIniciar yaâ€).
     const scheduledMs = getScheduledTripMs(trip);
     const reserveScheduled = !!(scheduledMs
         && Date.now() < scheduledMs - SCHEDULED_TRIP_PREP_MS);
@@ -1228,6 +1274,101 @@ function driverHasApprovedVehicleType(userData, vehicleType) {
     return userData.approvalStatus === 'approved' && normalizeVehicleTypeForMatching(userData.vehicleType) === required;
 }
 
+function collectDriverVehicleTypes(userData, loc) {
+    const types = new Set();
+    const add = (t) => {
+        const n = normalizeVehicleTypeForMatching(t);
+        if (n) types.add(n);
+    };
+    add(userData?.vehicleType);
+    add(loc?.vehicleType);
+    const vehicles = Array.isArray(userData?.vehicles) ? userData.vehicles : [];
+    for (const v of vehicles) {
+        if (!v) continue;
+        if (v.approvalStatus === 'rejected' || v.approvalStatus === 'suspended') continue;
+        add(v.type);
+    }
+    return types;
+}
+
+/** Notificar: cuenta vehículos legacy (sin approvalStatus en cada uno) si la cuenta no está bloqueada. */
+function driverCanReceiveTripAlert(userData, loc, requiredType) {
+    if (!requiredType) return true;
+    const required = normalizeVehicleTypeForMatching(requiredType);
+    if (collectDriverVehicleTypes(userData, loc).has(required)) return true;
+    if (userData?.approvalStatus === 'approved' && normalizeVehicleTypeForMatching(userData?.vehicleType) === required) {
+        return true;
+    }
+    return false;
+}
+
+function collectDriverCityIds(userData, loc) {
+    return [userData?.serviceZoneId, userData?.cityId, loc?.serviceZoneId, loc?.cityId]
+        .filter(Boolean)
+        .map((z) => String(z).toLowerCase());
+}
+
+/**
+ * Elegible de ESA ciudad:
+ * - Ciudad de trabajo (perfil/loc) = ciudad del viaje → sí, aunque el GPS esté viejo o en otro lado.
+ * - Ciudad de trabajo de OTRO departamento (Comayagua vs Tegucigalpa) → nunca, aunque el GPS esté allá.
+ * - Sin ciudad de trabajo: sí si el GPS está dentro de la cobertura.
+ */
+function driverIsInTripCity(userData, loc, trip) {
+    const tripZone = trip?.serviceZoneId || trip?.cityId || null;
+    if (!tripZone) return true;
+    const tripCity = String(tripZone).toLowerCase();
+    if (collectDriverCityIds(userData, loc).includes(tripCity)) return true;
+
+    const declaredZone = userData?.serviceZoneId || loc?.serviceZoneId || userData?.cityId || loc?.cityId || null;
+    if (declaredZone && !sameDepartment(declaredZone, tripZone)) return false;
+    // Otra ciudad del mismo depto. no es "esta ciudad" (el spill se decide aparte).
+    if (declaredZone) return false;
+
+    const coverage = Math.max(getCityCoverageKm(tripZone), 16);
+    if (
+        loc?.lat != null && loc?.lng != null
+        && trip.originLat != null && trip.originLng != null
+    ) {
+        const d = haversineKm(
+            Number(trip.originLat), Number(trip.originLng),
+            Number(loc.lat), Number(loc.lng)
+        );
+        if (Number.isFinite(d) && d <= coverage) return true;
+    }
+    return false;
+}
+
+function looksLikeFcmToken(value) {
+    return typeof value === 'string' && value.length > 20;
+}
+
+function collectFcmTokenList(...maps) {
+    const out = new Set();
+    const add = (tok) => {
+        if (looksLikeFcmToken(tok)) out.add(tok);
+    };
+    for (const raw of maps) {
+        if (!raw) continue;
+        if (typeof raw === 'string') {
+            add(raw);
+            continue;
+        }
+        if (Array.isArray(raw)) {
+            raw.forEach((t) => add(typeof t === 'string' ? t : (t?.token || t?.value)));
+            continue;
+        }
+        if (typeof raw === 'object') {
+            Object.entries(raw).forEach(([k, entry]) => {
+                if (typeof entry === 'string') add(entry);
+                else if (entry && typeof entry === 'object') add(entry.token || entry.value);
+                else if (looksLikeFcmToken(k)) add(k);
+            });
+        }
+    }
+    return [...out];
+}
+
 function requiredRideVehicleType(tripServiceType) {
     const trip = String(tripServiceType || 'auto').toLowerCase();
     if (trip === 'taxi') return 'taxi';
@@ -1408,23 +1549,15 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
 
         const driverZone = u.serviceZoneId || loc?.serviceZoneId || null;
 
-        // BLOQUEO: solo mismo departamento
-        if (tripZone && driverZone && !sameDepartment(driverZone, tripZone)) continue;
-        // Si el viaje tiene depto. y el conductor no tiene zona, no notificar a ciegas a todo el paÃ­s
-        if (tripDept && !driverZone) {
-            // Permitir solo si su Ãºltima ubicaciÃ³n estÃ¡ cerca del origen
+        // Misma ciudad (perfil, loc o GPS) → siempre
+        if (driverIsInTripCity(u, loc, trip)) {
+            // ok
+        } else if (tripZone && driverZone && !sameDepartment(driverZone, tripZone)) {
+            continue;
+        } else if (tripDept && !driverZone) {
             if (!offlineDriverNearTrip(loc, trip, radius)) continue;
         } else if (tripZone && driverZone && String(tripZone) !== String(driverZone)) {
-            // Otra ciudad del mismo depto.: avisar siempre (ALWAYS) o solo spill
-            if (!ALWAYS_NOTIFY_OFFLINE_SAME_DEPARTMENT && !spillCtx.allowSpill) {
-                // misma depto. pero no spill: aÃºn asÃ­ notificar offline del depto. (pedido del producto)
-            }
-            // Distancia opcional: si hay GPS, limitar radio; si no hay GPS, igual avisar (mismo depto.)
-            if (loc?.lat && loc?.lng && trip.originLat != null && trip.originLng != null) {
-                if (!offlineDriverNearTrip(loc, trip, radius)) continue;
-            }
-        } else {
-            // misma ciudad
+            // Otra ciudad del mismo depto.: avisar si hay spill o flag ALWAYS
             if (loc?.lat && loc?.lng && trip.originLat != null && trip.originLng != null) {
                 if (!offlineDriverNearTrip(loc, trip, radius)) continue;
             }
@@ -1568,7 +1701,7 @@ async function fetchPendingTripDocs(appId) {
 
 async function fetchTripDocsForOffer(appId) {
     const snap = await db.collection(`artifacts/${appId}/public/data/trips`)
-        .where('status', 'in', ['pending', 'accepted', 'in_progress'])
+        .where('status', 'in', ['pending', 'accepted', 'in_progress', 'scheduled'])
         .get();
     return snap.docs;
 }
@@ -1586,6 +1719,7 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
     const tripZone = trip.serviceZoneId || null;
     const driversWithOffers = getDriversWithActiveOffers(tripDocs, trip.id);
     const activeByDriver = getActiveTripByDriver(tripDocs);
+    const lockedDrivers = collectScheduledLockedDriverIds(tripDocs);
     const limitKm = Number.isFinite(maxDistKm) && maxDistKm > 0
         ? maxDistKm
         : Math.max(
@@ -1600,6 +1734,7 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
     for (const d of driversSnap.docs) {
         const driverId = d.id;
         const isBusy = activeByDriver.has(driverId);
+        if (lockedDrivers.has(driverId)) continue;
         if (busyOnly && !isBusy) continue;
         if (!busyOnly && isBusy) continue;
         if (declined.includes(driverId)) continue;
@@ -1789,15 +1924,17 @@ async function assignNextTripOfferServer(appId, tripId) {
 
 async function getUserPushMeta(appId, uid) {
     if (!uid) return { tokens: [], pushSoundMode: 'temu' };
-    const snap = await db.doc(`artifacts/${appId}/public/data/users/${uid}`).get();
-    if (!snap.exists) return { tokens: [], pushSoundMode: 'temu' };
-    const u = snap.data() || {};
-    const raw = u.fcmTokens || {};
-    const tokens = Object.values(raw)
-        .map((entry) => (typeof entry === 'string' ? entry : entry?.token))
-        .filter(Boolean);
-    const mode = u.pushSoundMode === 'soft' || u.pushSoundMode === 'normal'
-        ? u.pushSoundMode
+    const pubRef = db.doc(`artifacts/${appId}/public/data/users/${uid}`);
+    const privRef = db.doc(`artifacts/${appId}/users/${uid}/profile/data`);
+    const [pubSnap, privSnap] = await Promise.all([
+        pubRef.get().catch(() => null),
+        privRef.get().catch(() => null)
+    ]);
+    const pub = pubSnap?.exists ? (pubSnap.data() || {}) : {};
+    const priv = privSnap?.exists ? (privSnap.data() || {}) : {};
+    const tokens = collectFcmTokenList(pub.fcmTokens, priv.fcmTokens, pub.fcmToken, priv.fcmToken);
+    const mode = pub.pushSoundMode === 'soft' || pub.pushSoundMode === 'normal'
+        ? pub.pushSoundMode
         : 'temu';
     return { tokens, pushSoundMode: mode };
 }
@@ -1823,7 +1960,10 @@ function resolveAndroidPushAudio() {
 
 async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true }) {
     const { tokens } = await getUserPushMeta(appId, uid);
-    if (!tokens.length) return;
+    if (!tokens.length) {
+        console.warn(`[push] sin token FCM (público ni privado) uid=${uid} type=${data.type || ''}`);
+        return { sent: 0, tokens: 0 };
+    }
 
     const type = String(data.type || '');
     const audio = resolveAndroidPushAudio();
@@ -1942,8 +2082,12 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         invalid.forEach((token) => {
             updates[`fcmTokens.${token.replace(/\./g, '_')}`] = FieldValue.delete();
         });
-        await db.doc(`artifacts/${appId}/public/data/users/${uid}`).update(updates).catch(() => {});
+        await Promise.all([
+            db.doc(`artifacts/${appId}/public/data/users/${uid}`).update(updates).catch(() => {}),
+            db.doc(`artifacts/${appId}/users/${uid}/profile/data`).update(updates).catch(() => {})
+        ]);
     }
+    return { sent: res.successCount || 0, tokens: tokens.length };
 }
 
 /**
@@ -1992,8 +2136,7 @@ async function notifyDriversTripPriceBoost(appId, tripId, after, before) {
                 if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
                 if (requiredType && !driverHasApprovedVehicleType(u, requiredType)) continue;
                 const loc = locByDriver.get(uid);
-                const driverZone = u.serviceZoneId || loc?.serviceZoneId || null;
-                if (tripZone && driverZone && tripZone !== driverZone) continue;
+                if (tripZone && !driverIsInTripCity(u, loc, after)) continue;
                 if (loc && isDriverOnline(loc)) {
                     recipients.add(uid);
                     continue;
@@ -2081,6 +2224,38 @@ async function notifyStaffNewTrip(appId, tripId, trip) {
  * con el mismo estilo fuerte que staff (superVibrate + push).
  * Marketplace abierto: no solo al offeredToDriverId.
  */
+async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = []) {
+    const ids = [...new Set((driverIds || []).map(String).filter(Boolean))].slice(0, 8);
+    if (!ids.length || !tripId) return;
+    const already = new Set((trip.waDriverOfferUids || []).map(String));
+    const pending = ids.filter((id) => !already.has(id));
+    if (!pending.length) return;
+    let wa;
+    try {
+        wa = require('./whatsapp-cloud');
+    } catch (_) {
+        return;
+    }
+    const sent = [];
+    for (const uid of pending) {
+        try {
+            const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${uid}`).get();
+            const phone = uSnap.exists ? (uSnap.data()?.phone || uSnap.data()?.driverPhone || null) : null;
+            if (!phone) continue;
+            const r = await wa.notifyDriverNewTripWa(trip, tripId, { phone, uid });
+            if (r?.ok) sent.push(uid);
+        } catch (e) {
+            console.warn('[wa] driver new trip', uid, e?.message || e);
+        }
+    }
+    if (sent.length) {
+        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
+            waDriverOfferUids: FieldValue.arrayUnion(...sent),
+            waDriverOfferAt: FieldValue.serverTimestamp()
+        }).catch(() => {});
+    }
+}
+
 async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
     if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
@@ -2102,6 +2277,11 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
         25
     );
     const declined = new Set((trip.declinedDriverIds || []).map(String));
+    let lockedDrivers = new Set();
+    try {
+        const tripDocs = await fetchTripDocsForOffer(appId);
+        lockedDrivers = collectScheduledLockedDriverIds(tripDocs);
+    } catch (_) {}
 
     const price = trip.price || 'Nuevo';
     const originShort = (trip.origin || '').slice(0, 42);
@@ -2119,42 +2299,65 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
     const locByDriver = new Map();
     driversLocSnap.docs.forEach((d) => locByDriver.set(d.id, d.data() || {}));
 
+    const userById = new Map();
+    usersSnap.docs.forEach((d) => userById.set(d.id, d.data() || {}));
+
+    const candidateUids = new Set([...userById.keys(), ...locByDriver.keys()]);
     const recipients = new Set();
-    for (const userDoc of usersSnap.docs) {
-        const uid = userDoc.id;
-        if (declined.has(uid)) continue;
-        const u = userDoc.data() || {};
-        if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
-        if (u.accountRestricted) continue;
-        if (requiredType && !driverHasApprovedVehicleType(u, requiredType)) continue;
+    let skipRestricted = 0;
+    let skipVehicle = 0;
+    let skipCity = 0;
+    let skipLocked = 0;
 
-        const loc = locByDriver.get(uid) || {};
-        const driverZone = u.serviceZoneId || loc.serviceZoneId || null;
-
-        // Respetar ciudades: misma ciudad del viaje; spill solo si no hay flota local
-        if (tripZone) {
-            if (driverZone && String(driverZone) === String(tripZone)) {
-                // ok
-            } else if (
-                driverZone
-                && tripDept
-                && sameDepartment(driverZone, tripZone)
-                && spillCtx.allowSpill
-            ) {
-                // spill departamento (solo si la ciudad del viaje no tiene flota)
-                if (loc.lat != null && loc.lng != null && trip.originLat != null && trip.originLng != null) {
-                    if (!offlineDriverNearTrip(loc, trip, radius)) continue;
-                }
-            } else if (!driverZone) {
-                // sin zona en perfil: solo si GPS cerca del origen
-                if (loc.lat == null || loc.lng == null || trip.originLat == null || trip.originLng == null) continue;
-                if (!offlineDriverNearTrip(loc, trip, radius)) continue;
-            } else {
-                continue; // otra ciudad / otro depto.
-            }
+    for (const uid of candidateUids) {
+        if (!uid) continue;
+        if (declined.has(String(uid))) continue;
+        if (lockedDrivers.has(String(uid))) {
+            skipLocked += 1;
+            continue;
+        }
+        const u = userById.get(uid) || {};
+        if (u.role && u.role !== 'driver') continue;
+        if (u.approvalStatus === 'suspended' || u.approvalStatus === 'rejected') continue;
+        if (u.approvalStatus && u.approvalStatus !== 'approved' && u.approvalStatus !== '') {
+            skipRestricted += 1;
+            continue;
+        }
+        if (u.accountRestricted) {
+            skipRestricted += 1;
+            continue;
         }
 
-        recipients.add(uid);
+        const loc = locByDriver.get(uid) || {};
+        if (requiredType && !driverCanReceiveTripAlert(u, loc, requiredType)) {
+            skipVehicle += 1;
+            continue;
+        }
+
+        const inCity = driverIsInTripCity(u, loc, trip);
+        if (inCity) {
+            recipients.add(String(uid));
+            continue;
+        }
+
+        const driverZone = u.serviceZoneId || u.cityId || loc.serviceZoneId || loc.cityId || null;
+        if (
+            driverZone
+            && tripDept
+            && sameDepartment(driverZone, tripZone)
+            && spillCtx.allowSpill
+        ) {
+            if (loc.lat != null && loc.lng != null && trip.originLat != null && trip.originLng != null) {
+                if (!offlineDriverNearTrip(loc, trip, radius)) {
+                    skipCity += 1;
+                    continue;
+                }
+            }
+            recipients.add(String(uid));
+            continue;
+        }
+
+        skipCity += 1;
     }
 
     // TambiÃ©n incluir candidatos del pool de oferta si ya se asignÃ³
@@ -2163,8 +2366,8 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
         if (id) recipients.add(String(id));
     });
 
-    const list = [...recipients].filter(Boolean).slice(0, 80);
-    await Promise.all(list.map((driverId) => sendPushToUser(appId, driverId, {
+    const list = [...recipients].filter((id) => id && !lockedDrivers.has(String(id))).slice(0, 400);
+    const pushResults = await Promise.all(list.map((driverId) => sendPushToUser(appId, driverId, {
         title,
         body,
         data: {
@@ -2176,12 +2379,31 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
             superVibrate: 'true'
         },
         highPriority: true
-    }).catch(() => {})));
+    }).catch(() => null)));
+    const skipNoToken = pushResults.filter((r) => r && r.tokens === 0).length;
+    const pushed = pushResults.filter((r) => r && r.sent > 0).length;
+    console.log(
+        `[notifyEligibleDriversNewTrip] ${tripId} zone=${tripZone || 'n/a'} ` +
+        `considered=${candidateUids.size} recipients=${list.length} pushed=${pushed} ` +
+        `skipCity=${skipCity} skipVehicle=${skipVehicle} skipRestricted=${skipRestricted} ` +
+        `skipLocked=${skipLocked} skipNoToken=${skipNoToken}`
+    );
+
+    const waTargets = [];
+    if (trip.offeredToDriverId && !lockedDrivers.has(String(trip.offeredToDriverId))) {
+        waTargets.push(String(trip.offeredToDriverId));
+    }
+    (trip.candidateDriverIds || []).forEach((id) => {
+        if (id && !lockedDrivers.has(String(id))) waTargets.push(String(id));
+    });
+    await notifyDriversNewTripWhatsApp(appId, tripId, trip, waTargets).catch(() => {});
 
     if (list.length) {
         await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
             eligibleDriverAlertSent: true,
             eligibleDriverAlertCount: list.length,
+            eligibleDriverAlertPushed: pushed,
+            eligibleDriverAlertNoToken: skipNoToken,
             eligibleDriverAlertAt: FieldValue.serverTimestamp(),
             eligibleDriverAlertZone: tripZone || null
         }).catch(() => {});
@@ -2657,6 +2879,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 },
                 highPriority: true
             }).catch(() => {})));
+            await notifyDriversNewTripWhatsApp(appId, tripId, after, [...pushRecipients]).catch(() => {});
         }
 
         // â€”â€” Oferta de precio del conductor â†’ push al pasajero (aunque estÃ© en otra app) â€”â€”
@@ -2792,6 +3015,10 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 },
                 highPriority: true
             });
+            try {
+                const wa = require('./whatsapp-cloud');
+                await wa.notifyTripConfirmedWa(after, tripId).catch(() => {});
+            } catch (_) {}
         }
 
         // Cliente se adueÃ±Ã³ del viaje creado por staff â†’ abrir mercado de conductores
@@ -2835,6 +3062,10 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 },
                 highPriority: true
             });
+            try {
+                const wa = require('./whatsapp-cloud');
+                await wa.notifyTripConfirmedWa(after, tripId).catch(() => {});
+            } catch (_) {}
         }
 
         if (!before.driverArrived && after.driverArrived && after.clientId) {
@@ -2851,6 +3082,10 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 },
                 highPriority: true
             });
+            try {
+                const wa = require('./whatsapp-cloud');
+                await wa.notifyDriverArrivedWa(after, tripId).catch(() => {});
+            } catch (_) {}
         }
 
         if (before.status !== 'in_progress' && after.status === 'in_progress' && after.driverId) {
@@ -2876,6 +3111,10 @@ exports.onTripUpdatePush = onDocumentUpdated(
             await creditCopaOnTripCompleted(appId, tripId, after).catch((e) => {
                 console.warn('creditCopaOnTripCompleted:', e?.message || e);
             });
+            try {
+                const wa = require('./whatsapp-cloud');
+                await wa.notifyTripCompletedWa(after, tripId).catch(() => {});
+            } catch (_) {}
         }
 
         if (
@@ -3169,9 +3408,78 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
 /**
  * Viajes programados YA RESERVADOS (con conductor):
  * - Alertas 60 / 30 / 10 / 5 min antes al conductor (y aviso al pasajero en 10 y 5)
- * - Activar a status=accepted ~10 min antes (listo para ir al origen)
+ * - Activar a status=accepted ~30 min antes (listo para ir al origen)
  * Legacy sin conductor: vuelve a pending y asigna oferta (compatibilidad)
  */
+async function sendScheduledPickupReminders(appId, docSnap, trip, now) {
+    if (!trip?.driverId) return trip;
+    const scheduledMs = getScheduledTripMs(trip);
+    if (!scheduledMs) return trip;
+    const minsLeft = Math.ceil((scheduledMs - now) / 60000);
+    if (minsLeft <= 0) return trip;
+
+    const whenLabel = formatScheduledTripWhen(trip.scheduledFor);
+    const sent = (trip.scheduledRemindersSent && typeof trip.scheduledRemindersSent === 'object')
+        ? { ...trip.scheduledRemindersSent }
+        : {};
+    const newlySent = {};
+    const originShort = (trip.origin || '').slice(0, 48) || 'punto de recogida';
+
+    for (const th of [60, 30, 10, 5]) {
+        if (minsLeft > th || sent[String(th)]) continue;
+        newlySent[String(th)] = true;
+        let title;
+        let body;
+        if (th >= 60) {
+            title = 'Viaje programado en 1 hora';
+            body = `Recogida ${whenLabel}. ${originShort}.`;
+        } else if (th >= 30) {
+            title = 'Salí al punto de recogida';
+            body = `Tu viaje es a las ${whenLabel}. Ya no puedes tomar otros viajes. Ve ahora: ${originShort}.`;
+        } else if (th >= 10) {
+            title = 'Viaje programado en 10 min';
+            body = `Recogida ${whenLabel}. ${originShort}.`;
+        } else {
+            title = 'Viaje programado en 5 min';
+            body = `Recogida ${whenLabel}. ${originShort}.`;
+        }
+        await sendPushToUser(appId, trip.driverId, {
+            title,
+            body,
+            data: {
+                type: 'scheduled_reminder',
+                tripId: docSnap.id,
+                minutesLeft: String(th),
+                tag: `sched-rem-${th}-${docSnap.id}`,
+                openDriver: 'true',
+                superVibrate: 'true'
+            },
+            highPriority: true
+        }).catch(() => {});
+        if (trip.clientId && (th === 10 || th === 5)) {
+            await sendPushToUser(appId, trip.clientId, {
+                title: th === 10 ? 'Tu viaje empieza pronto' : 'Tu viaje es en 5 minutos',
+                body: `${trip.driverName || 'Tu conductor'} te recogerá a las ${whenLabel}.`,
+                data: {
+                    type: 'scheduled_reminder',
+                    tripId: docSnap.id,
+                    minutesLeft: String(th),
+                    tag: `sched-rem-pax-${th}-${docSnap.id}`,
+                    openPassenger: 'true',
+                    superVibrate: 'true'
+                },
+                highPriority: true
+            }).catch(() => {});
+        }
+    }
+    if (Object.keys(newlySent).length) {
+        const merged = { ...sent, ...newlySent };
+        await docSnap.ref.update({ scheduledRemindersSent: merged }).catch(() => {});
+        trip.scheduledRemindersSent = merged;
+    }
+    return trip;
+}
+
 exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
     const appId = APP_ID;
     const now = Date.now();
@@ -3179,68 +3487,17 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
         .where('status', '==', 'scheduled')
         .get();
 
-    const REMINDER_THRESHOLDS = [60, 30, 10, 5];
-
     for (const docSnap of snap.docs) {
-        const trip = { id: docSnap.id, ...docSnap.data() };
+        let trip = { id: docSnap.id, ...docSnap.data() };
         const scheduledMs = getScheduledTripMs(trip);
         if (!scheduledMs) continue;
 
         const whenLabel = formatScheduledTripWhen(trip.scheduledFor);
-        const minsLeft = Math.ceil((scheduledMs - now) / 60000);
         const hasDriver = !!trip.driverId;
 
-        // â€”â€” Recordatorios al conductor reservado â€”â€”
-        if (hasDriver && minsLeft > 0) {
-            const sent = (trip.scheduledRemindersSent && typeof trip.scheduledRemindersSent === 'object')
-                ? { ...trip.scheduledRemindersSent }
-                : {};
-            const newlySent = {};
-            for (const th of REMINDER_THRESHOLDS) {
-                if (minsLeft <= th && !sent[String(th)]) {
-                    newlySent[String(th)] = true;
-                    const title = th >= 60
-                        ? 'ðŸ“… Viaje en 1 hora'
-                        : (th >= 30 ? 'ðŸ“… Viaje en 30 min' : (th >= 10 ? 'ðŸ“… Viaje en 10 min' : 'ðŸ“… Viaje en 5 min'));
-                    const body = `Recogida ${whenLabel}. ${(trip.origin || '').slice(0, 48) || 'Revisa la ruta'}.`;
-                    await sendPushToUser(appId, trip.driverId, {
-                        title,
-                        body,
-                        data: {
-                            type: 'scheduled_reminder',
-                            tripId: docSnap.id,
-                            minutesLeft: String(th),
-                            tag: `sched-rem-${th}-${docSnap.id}`,
-                            openDriver: 'true',
-                            superVibrate: 'true'
-                        },
-                        highPriority: true
-                    }).catch(() => {});
-                    if (trip.clientId && (th === 10 || th === 5)) {
-                        await sendPushToUser(appId, trip.clientId, {
-                            title: th === 10 ? 'Tu viaje empieza pronto' : 'Tu viaje es en 5 minutos',
-                            body: `${trip.driverName || 'Tu conductor'} te recogerÃ¡ a las ${whenLabel}.`,
-                            data: {
-                                type: 'scheduled_reminder',
-                                tripId: docSnap.id,
-                                minutesLeft: String(th),
-                                tag: `sched-rem-pax-${th}-${docSnap.id}`,
-                                openPassenger: 'true',
-                                superVibrate: 'true'
-                            },
-                            highPriority: true
-                        }).catch(() => {});
-                    }
-                }
-            }
-            if (Object.keys(newlySent).length) {
-                const merged = { ...sent, ...newlySent };
-                await docSnap.ref.update({ scheduledRemindersSent: merged }).catch(() => {});
-                trip.scheduledRemindersSent = merged;
-            }
-        }
+        trip = await sendScheduledPickupReminders(appId, docSnap, trip, now);
 
-        // â€”â€” Activar ~10 min antes â€”â€”
+        // Activar ~30 min antes
         const activateAt = scheduledMs - SCHEDULED_TRIP_PREP_MS;
         if (now < activateAt) continue;
 
@@ -3304,6 +3561,16 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
                 data: { type: 'scheduled_trip_active', tripId: docSnap.id, tag: `scheduled-${docSnap.id}` }
             });
         }
+    }
+
+    // Ya activo (accepted) pero sigue programado: avisos 10 / 5 min
+    const acceptedSnap = await db.collection(`artifacts/${appId}/public/data/trips`)
+        .where('status', '==', 'accepted')
+        .get();
+    for (const docSnap of acceptedSnap.docs) {
+        const trip = { id: docSnap.id, ...docSnap.data() };
+        if (!trip.driverId || !getScheduledTripMs(trip)) continue;
+        await sendScheduledPickupReminders(appId, docSnap, trip, now);
     }
 });
 

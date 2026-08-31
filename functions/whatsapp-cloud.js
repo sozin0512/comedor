@@ -44,7 +44,28 @@ const waPhoneNumberId = defineString('WHATSAPP_PHONE_NUMBER_ID', {
 /** Nombre exacto de la plantilla aprobada en Meta (minúsculas y guiones bajos) */
 const waTemplateTripReceived = defineString('WHATSAPP_TEMPLATE_TRIP_RECEIVED', {
     default: 'tu_viaje_esta_confirmado',
-    description: 'Plantilla: viaje confirmado / buscando conductor'
+    description: 'Plantilla existente: solicitud recibida. {{1}} nombre {{2}} ruta'
+});
+
+const waTemplateTripConfirmed = defineString('WHATSAPP_TEMPLATE_TRIP_CONFIRMED', {
+    default: 'viaje_confirmado',
+    description: 'Plantilla: conductor aceptó. {{1}} conductor {{2}} vehículo {{3}} placa {{4}} minutos'
+});
+
+const waTemplateDriverArrived = defineString('WHATSAPP_TEMPLATE_DRIVER_ARRIVED', {
+    default: 'conductor_llego',
+    description: 'Plantilla: conductor en el punto. {{1}} conductor {{2}} placa {{3}} teléfono'
+});
+
+const waTemplateTripCompleted = defineString('WHATSAPP_TEMPLATE_TRIP_COMPLETED', {
+    default: 'viaje_finalizado',
+    description: 'Plantilla: viaje cobrado. {{1}} monto {{2}} destino'
+});
+
+/** Aviso a CONDUCTORES de viaje nuevo. {{1}} origen {{2}} destino {{3}} distancia */
+const waTemplateDriverNewTrip = defineString('WHATSAPP_TEMPLATE_DRIVER_NEW_TRIP', {
+    default: 'nuevo_viaje',
+    description: 'Plantilla al conductor: {{1}} origen {{2}} destino {{3}} distancia'
 });
 
 const waTemplateLang = defineString('WHATSAPP_TEMPLATE_LANG', {
@@ -56,14 +77,17 @@ function db() {
     return getFirestore();
 }
 
-/** Normaliza a E.164 sin + (ej. 50498765432) */
+/** Normaliza a E.164 sin + (ej. 50498765432 o 13055551212) */
 function normalizeWaPhone(phone) {
     let d = String(phone || '').replace(/\D/g, '');
     if (!d) return null;
+    if (d.startsWith('00')) d = d.slice(2);
     // Honduras local 8 dígitos → 504
     if (d.length === 8) d = `504${d}`;
     // 9 dígitos empezando en 0 raro
     if (d.length === 9 && d.startsWith('0')) d = `504${d.slice(1)}`;
+    // NANP 10 dígitos → +1
+    if (d.length === 10 && d[0] >= '2' && d[0] <= '9') d = `1${d}`;
     if (d.length < 10 || d.length > 15) return null;
     return d;
 }
@@ -85,6 +109,69 @@ function shortRouteLabel(trip) {
         .slice(0, 48);
     if (dest) return `${origin} → ${dest}`.slice(0, 90);
     return origin.slice(0, 90);
+}
+
+function originLabel(trip) {
+    const origin = String(trip?.originPlaceName || trip?.origin || 'punto de recogida')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return (origin || 'punto de recogida').slice(0, 80);
+}
+
+function destLabel(trip) {
+    const dest = String(trip?.destinationPlaceName || trip?.destination || 'tu destino')
+        .replace(/\s+/g, ' ')
+        .trim();
+    return (dest || 'tu destino').slice(0, 80);
+}
+
+function distanceLabel(trip) {
+    const km = Number(trip?.tripDistanceKm)
+        || Number(trip?.routeDistanceMeters ? trip.routeDistanceMeters / 1000 : 0)
+        || Number(trip?.distanceKm)
+        || 0;
+    if (Number.isFinite(km) && km > 0) return `${km.toFixed(1)} km`;
+    return '1.0 km';
+}
+
+function vehicleLabel(trip) {
+    const v = trip?.driverVehicle || {};
+    const bits = [v.model, v.color, v.type].filter((s) => String(s || '').trim());
+    const label = bits.join(' ').replace(/\s+/g, ' ').trim();
+    return (label || 'Vehículo HonduRaite').slice(0, 60);
+}
+
+function plateLabel(trip) {
+    const v = trip?.driverVehicle || {};
+    const plate = String(v.plate || trip?.driverVehiclePlate || 'N/D').replace(/\s+/g, ' ').trim();
+    return (plate || 'N/D').slice(0, 20);
+}
+
+function etaMinutesLabel(trip) {
+    const ms = Number(trip?.pickupEtaMs) || 0;
+    if (ms > 0) return String(Math.max(1, Math.round(ms / 60000)));
+    const dur = Number(trip?.routeDurationMs) || Number(trip?.tripDurationMs) || 0;
+    if (dur > 0 && dur < 90 * 60 * 1000) return String(Math.max(1, Math.round(dur / 60000)));
+    return '10';
+}
+
+function amountLabel(trip) {
+    if (trip?.birthdayFree || trip?.paymentMethod === 'birthday_gift') return '0.00';
+    const n = Number(trip?.priceNum);
+    if (Number.isFinite(n)) return n.toFixed(2);
+    const raw = String(trip?.price || '').replace(/[^\d.,]/g, '').replace(',', '.');
+    const p = Number(raw);
+    return Number.isFinite(p) ? p.toFixed(2) : '0.00';
+}
+
+function tripPhone(trip) {
+    return trip?.clientPhone || trip?.phone || null;
+}
+
+function canNotifyPassengerWa(trip) {
+    if (!trip || trip.isDemandSimulation) return false;
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return false;
+    return !!tripPhone(trip);
 }
 
 async function graphSendMessage(payload) {
@@ -159,37 +246,137 @@ async function sendWhatsAppTemplate(toPhone, templateName, bodyParams = [], lang
     return res;
 }
 
+async function markTripWa(tripId, fields) {
+    if (!tripId) return;
+    try {
+        await db().doc(`artifacts/${APP_ID}/public/data/trips/${tripId}`).update(fields).catch(() => {});
+    } catch (_) {}
+}
+
 /**
- * Aviso al pasajero: “ya recibimos tu solicitud, un conductor la tomará en un momento”.
- * Plantilla Meta: tu_viaje_esta_confirmado (Spanish HND / es_HN)
+ * Plantilla que YA tenías: solicitud recibida / “tu viaje está confirmado”.
+ * {{1}} nombre · {{2}} ruta (Origen → Destino). No se toca.
  */
 async function notifyTripRequestReceivedWa(trip, tripId = null) {
-    if (!trip || trip.isDemandSimulation) return { ok: false, skipped: true, reason: 'no_trip' };
-    // Solo cuando el cliente ya “pidió” de verdad (no staff esperando claim)
-    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) {
-        return { ok: false, skipped: true, reason: 'staff_waiting_claim' };
+    if (!canNotifyPassengerWa(trip)) {
+        return { ok: false, skipped: true, reason: 'no_trip_or_phone' };
     }
-    const phone = trip.clientPhone || trip.phone || null;
-    if (!phone) return { ok: false, skipped: true, reason: 'no_phone' };
-
-    const name = firstNameFrom(trip.clientName);
-    const route = shortRouteLabel(trip);
+    if (trip.waTripRequestReceivedOk) return { ok: true, skipped: true, reason: 'already' };
+    const phone = tripPhone(trip);
     const template = (waTemplateTripReceived.value() || 'tu_viaje_esta_confirmado').trim();
-
-    const result = await sendWhatsAppTemplate(phone, template, [name, route]);
-    if (result.ok && tripId) {
-        try {
-            await db().doc(`artifacts/${APP_ID}/public/data/trips/${tripId}`).update({
-                waTripRequestReceivedAt: FieldValue.serverTimestamp(),
-                waTripRequestReceivedOk: true
-            }).catch(() => {});
-        } catch (_) {}
+    const result = await sendWhatsAppTemplate(phone, template, [
+        firstNameFrom(trip.clientName),
+        shortRouteLabel(trip)
+    ]);
+    if (result.ok) {
+        await markTripWa(tripId, {
+            waTripRequestReceivedAt: FieldValue.serverTimestamp(),
+            waTripRequestReceivedOk: true
+        });
     }
     return result;
 }
 
+/**
+ * 2) viaje_confirmado — conductor aceptó.
+ * {{1}} conductor {{2}} vehículo {{3}} placa {{4}} minutos
+ */
+async function notifyTripConfirmedWa(trip, tripId = null) {
+    if (!canNotifyPassengerWa(trip)) {
+        return { ok: false, skipped: true, reason: 'no_trip_or_phone' };
+    }
+    if (trip.waTripConfirmedOk) return { ok: true, skipped: true, reason: 'already' };
+    const template = (waTemplateTripConfirmed.value() || 'viaje_confirmado').trim();
+    const result = await sendWhatsAppTemplate(tripPhone(trip), template, [
+        firstNameFrom(trip.driverName || 'Conductor'),
+        vehicleLabel(trip),
+        plateLabel(trip),
+        etaMinutesLabel(trip)
+    ]);
+    if (result.ok) {
+        await markTripWa(tripId, {
+            waTripConfirmedAt: FieldValue.serverTimestamp(),
+            waTripConfirmedOk: true
+        });
+    }
+    return result;
+}
+
+/**
+ * 3) conductor_llego
+ * {{1}} conductor {{2}} placa {{3}} teléfono
+ */
+async function notifyDriverArrivedWa(trip, tripId = null) {
+    if (!canNotifyPassengerWa(trip)) {
+        return { ok: false, skipped: true, reason: 'no_trip_or_phone' };
+    }
+    if (trip.waDriverArrivedOk) return { ok: true, skipped: true, reason: 'already' };
+    const template = (waTemplateDriverArrived.value() || 'conductor_llego').trim();
+    const phoneTxt = String(trip.driverPhone || 'N/D').replace(/\s+/g, ' ').trim().slice(0, 20) || 'N/D';
+    const result = await sendWhatsAppTemplate(tripPhone(trip), template, [
+        firstNameFrom(trip.driverName || 'Conductor'),
+        plateLabel(trip),
+        phoneTxt
+    ]);
+    if (result.ok) {
+        await markTripWa(tripId, {
+            waDriverArrivedAt: FieldValue.serverTimestamp(),
+            waDriverArrivedOk: true
+        });
+    }
+    return result;
+}
+
+/**
+ * 4) viaje_finalizado — {{1}} monto {{2}} destino
+ * El cuerpo de Meta ya incluye “L. {{1}}”.
+ */
+async function notifyTripCompletedWa(trip, tripId = null) {
+    if (!canNotifyPassengerWa(trip)) {
+        return { ok: false, skipped: true, reason: 'no_trip_or_phone' };
+    }
+    if (trip.waTripCompletedOk) return { ok: true, skipped: true, reason: 'already' };
+    const template = (waTemplateTripCompleted.value() || 'viaje_finalizado').trim();
+    const result = await sendWhatsAppTemplate(tripPhone(trip), template, [
+        amountLabel(trip),
+        destLabel(trip)
+    ]);
+    if (result.ok) {
+        await markTripWa(tripId, {
+            waTripCompletedAt: FieldValue.serverTimestamp(),
+            waTripCompletedOk: true
+        });
+    }
+    return result;
+}
+
+/**
+ * Aviso al CONDUCTOR de un viaje nuevo (no al pasajero).
+ * {{1}} origen · {{2}} destino · {{3}} distancia (ej. 3.8 km)
+ */
+async function notifyDriverNewTripWa(trip, tripId, driver = {}) {
+    if (!trip || trip.isDemandSimulation) {
+        return { ok: false, skipped: true, reason: 'no_trip' };
+    }
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) {
+        return { ok: false, skipped: true, reason: 'staff_waiting_claim' };
+    }
+    const phone = driver.phone || driver.driverPhone || null;
+    if (!phone) return { ok: false, skipped: true, reason: 'no_phone' };
+    const template = (waTemplateDriverNewTrip.value() || 'nuevo_viaje').trim();
+    return sendWhatsAppTemplate(phone, template, [
+        originLabel(trip),
+        destLabel(trip),
+        distanceLabel(trip)
+    ]);
+}
+
 exports.sendWhatsAppTemplate = sendWhatsAppTemplate;
 exports.notifyTripRequestReceivedWa = notifyTripRequestReceivedWa;
+exports.notifyTripConfirmedWa = notifyTripConfirmedWa;
+exports.notifyDriverArrivedWa = notifyDriverArrivedWa;
+exports.notifyTripCompletedWa = notifyTripCompletedWa;
+exports.notifyDriverNewTripWa = notifyDriverNewTripWa;
 exports.normalizeWaPhone = normalizeWaPhone;
 
 function verifyMetaSignature(rawBody, signatureHeader, appSecret) {
@@ -441,15 +628,39 @@ exports.testWhatsAppTripTemplate = onCall(
         }
 
         const to = String(request.data?.to || '').trim();
+        const kind = String(request.data?.kind || 'received').trim();
         const name = String(request.data?.name || 'Cliente').trim().slice(0, 40);
-        const route = String(request.data?.route || 'Origen → Destino').trim().slice(0, 90);
-        const template = String(
-            request.data?.template
-            || waTemplateTripReceived.value()
-            || 'trip_request_received'
-        ).trim();
+        const dest = String(request.data?.dest || request.data?.route || 'Centro').trim().slice(0, 80);
+        const dist = String(request.data?.dist || '3.8 km').trim().slice(0, 20);
+        const driver = String(request.data?.driver || 'Carlos').trim().slice(0, 40);
+        const vehicle = String(request.data?.vehicle || 'Toyota Corolla blanco').trim().slice(0, 60);
+        const plate = String(request.data?.plate || 'T-1234').trim().slice(0, 20);
+        const mins = String(request.data?.mins || '8').trim().slice(0, 8);
+        const amount = String(request.data?.amount || '185.00').trim().slice(0, 16);
+        const driverPhone = String(request.data?.driverPhone || '50495733866').trim().slice(0, 20);
 
-        const result = await sendWhatsAppTemplate(to, template, [name, route]);
+        let template = String(request.data?.template || '').trim();
+        let params = [];
+        if (kind === 'confirmed' || template === 'viaje_confirmado') {
+            template = template || (waTemplateTripConfirmed.value() || 'viaje_confirmado');
+            params = [driver, vehicle, plate, mins];
+        } else if (kind === 'arrived' || template === 'conductor_llego') {
+            template = template || (waTemplateDriverArrived.value() || 'conductor_llego');
+            params = [driver, plate, driverPhone];
+        } else if (kind === 'completed' || template === 'viaje_finalizado') {
+            template = template || (waTemplateTripCompleted.value() || 'viaje_finalizado');
+            params = [amount, dest];
+        } else if (kind === 'driver' || kind === 'nuevo_viaje' || template === 'nuevo_viaje') {
+            template = template || (waTemplateDriverNewTrip.value() || 'nuevo_viaje');
+            const origin = String(request.data?.origin || 'Centro').trim().slice(0, 80);
+            params = [origin, dest, dist];
+        } else {
+            template = template || (waTemplateTripReceived.value() || 'tu_viaje_esta_confirmado');
+            const route = String(request.data?.route || `Origen → ${dest}`).trim().slice(0, 90);
+            params = [name, route];
+        }
+
+        const result = await sendWhatsAppTemplate(to, template, params);
         if (result.skipped) {
             throw new HttpsError('failed-precondition', result.reason || 'No se pudo enviar');
         }

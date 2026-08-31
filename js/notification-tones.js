@@ -367,6 +367,31 @@ function playSilentTick(ctx) {
     } catch (_) {}
 }
 
+function isAndroidWebView() {
+    try {
+        if (isCapacitorNative()) return true;
+    } catch (_) {}
+    try {
+        return /Android/i.test(navigator.userAgent || '');
+    } catch (_) {
+        return false;
+    }
+}
+
+function stopAllPooledAudio(exceptUrl = null) {
+    try {
+        unlockedAudioPool.forEach((audio, url) => {
+            if (exceptUrl && url === exceptUrl) return;
+            try {
+                audio.pause();
+                if (Number.isFinite(audio.currentTime)) audio.currentTime = 0;
+                audio.muted = true;
+                audio.volume = 0;
+            } catch (_) {}
+        });
+    } catch (_) {}
+}
+
 async function warmHtmlAudio(url) {
     if (!url) return null;
     // Ya precalentado: no volver a play() (eso es lo que hacía sonar TODOS los tonos en web)
@@ -383,6 +408,14 @@ async function warmHtmlAudio(url) {
             audio.setAttribute('webkit-playsinline', 'true');
             audio.src = url;
             unlockedAudioPool.set(url, audio);
+        }
+        // APK / Android WebView: muted play() IGUAL suena. Solo preload.
+        if (isAndroidWebView()) {
+            try { audio.load?.(); } catch (_) {}
+            audio.muted = true;
+            audio.volume = 0;
+            warmedAudioUrls.add(url);
+            return audio;
         }
         // Siempre silencioso durante warm — NUNCA subir volumen aquí
         audio.muted = true;
@@ -726,6 +759,7 @@ function playDecodedBuffer(buffer) {
 
 function playFileUrl(url) {
     if (!url) return false;
+    stopAllPooledAudio(url);
 
     // 1) Buffer Web Audio ya decodificado (más fiable que <audio> en Safari tras unlock)
     const cached = decodedBufferCache.get(url);
@@ -824,10 +858,26 @@ export function playToneById(toneId, opts = {}) {
     return false;
 }
 
+const lastPlayedEvent = { id: '', at: 0 };
+const EVENT_DEDUP_MS = {
+    driver_offer: 4500,
+    staff_trip: 2500,
+    ride_demand: 2500,
+    freight: 2500
+};
+
 export function playEventTone(eventId, { platform = platformKey(), _fromFlush = false } = {}) {
     try {
+        const id = String(eventId || 'general');
+        const now = Date.now();
+        const windowMs = EVENT_DEDUP_MS[id] || 1600;
+        if (!_fromFlush && lastPlayedEvent.id === id && now - lastPlayedEvent.at < windowMs) {
+            return true;
+        }
+        lastPlayedEvent.id = id;
+        lastPlayedEvent.at = now;
         if (!_fromFlush) unlockNotificationTones();
-        const toneId = getEventToneId(eventId, platform);
+        const toneId = getEventToneId(id, platform);
         const tone = getToneById(toneId);
         const ok = playToneById(toneId, { _fromFlush });
 

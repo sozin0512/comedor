@@ -6,11 +6,11 @@
  * - Marcar puntos caros (lat/lng + radio + precio + activar/desactivar)
  * - Definir rutas fijas entre dos puntos (ej. Golf ↔ Aeropuerto)
  */
-import { haversineKm, findZoneForCoords, findNearestZone, getZoneById } from './zones.js?v=2026.08.10.5';
+import { haversineKm, findZoneForCoords, findNearestZone, getZoneById } from './zones.js?v=2026.08.18.2';
 import {
     normalizeServiceType, isFreightService, isTowService,
     setServiceRateOverrides, getDefaultServiceRates,
-} from './service-types.js?v=2026.08.10.5';
+} from './service-types.js?v=2026.08.28.26';
 
 const HN_TZ = 'America/Tegucigalpa';
 
@@ -28,10 +28,10 @@ export const DEFAULT_FIXED_FARES_CONFIG = {
     nightPercent: 25,
     /** Base + L./km editables (auto, taxi, moto, delivery). */
     serviceRates: {
-        auto: { base: 37, perKm: 12 },
-        taxi: { base: 30, perKm: 10 },
-        moto: { base: 20, perKm: 8 },
-        delivery: { base: 15, perKm: 7 },
+        auto: { base: 37, perKm: 22 },
+        taxi: { base: 30, perKm: 20 },
+        moto: { base: 20, perKm: 18 },
+        delivery: { base: 15, perKm: 17 },
     },
     places: [
         {
@@ -262,13 +262,17 @@ export function normalizeFixedFaresConfig(raw) {
     const srcRates = (src.serviceRates && typeof src.serviceRates === 'object')
         ? src.serviceRates
         : {};
+    /** Si el admin aún tiene el km de fábrica viejo, aplicar el +10 LPS. */
+    const LEGACY_KM = { auto: 12, taxi: 10, moto: 8, delivery: 7 };
     const serviceRates = {};
     ['auto', 'taxi', 'moto', 'delivery'].forEach((id) => {
         const d = defRates[id] || { base: 0, perKm: 0 };
         const o = srcRates[id] || {};
+        let perKm = Math.max(0, toNum(o.perKm, d.perKm));
+        if (LEGACY_KM[id] != null && Number(o.perKm) === LEGACY_KM[id]) perKm = d.perKm;
         serviceRates[id] = {
             base: Math.max(0, toNum(o.base, d.base)),
-            perKm: Math.max(0, toNum(o.perKm, d.perKm)),
+            perKm,
         };
     });
 
@@ -401,6 +405,7 @@ function placeById(id, cfg = runtimeConfig) {
  * ¿El viaje cae en el hub del mínimo (Comayagua u otro configurado)?
  */
 export function isMinFareMarketTrip(ctx = {}, cfg = runtimeConfig) {
+    if (typeof window !== 'undefined' && window.isUsMarket?.()) return false;
     if (!cfg.minFareEnabled) return false;
     const hub = {
         lat: cfg.minFareHubLat,

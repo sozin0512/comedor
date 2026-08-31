@@ -6,8 +6,12 @@ import {
     isServiceTypeDisabledInCity,
     getCityServiceDisabledMessage,
     isCityServiceCategoryDisabled,
-} from './service-types.js?v=2026.08.08.1';
-import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.08.08.1';
+    isMalePassengerMotoRideBlocked,
+    firstAllowedPassengerTripType,
+    DECRETO_91_2012_MSG,
+} from './service-types.js?v=2026.08.28.26';
+import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.08.28.26';
+import { isUsMarket, isServiceAllowedInMarket, filterTypesForMarket } from './market.js';
 
 const BOOKING_SECTION_IDS = [
     'passenger-booking-route',
@@ -26,7 +30,7 @@ const MODE_META = {
         title: 'Viaje',
         subtitle: 'Moto · Taxi VIP · Taxi tradicional',
         serviceTypes: ['moto', 'auto', 'taxi'],
-        defaultService: 'moto',
+        defaultService: 'auto',
         showBooking: true,
         showStoresSection: false,
     },
@@ -195,8 +199,9 @@ function getActiveCityId() {
 /** Filtra tipos permitidos por lo que el admin desactivó en la ciudad. */
 function filterTypesByCity(types = []) {
     const zoneId = getActiveCityId();
-    if (!zoneId) return types.slice();
-    return types.filter((t) => !isServiceTypeDisabledInCity(t, zoneId));
+    const allowed = filterTypesForMarket(types);
+    if (!zoneId) return allowed;
+    return allowed.filter((t) => !isServiceTypeDisabledInCity(t, zoneId));
 }
 
 /** Oculta tarjetas del menú inicio si fletes/grúa/viaje están apagados en la ciudad. */
@@ -220,8 +225,19 @@ function syncHomeCardsForCity() {
         const parts = [];
         if (!isCityServiceCategoryDisabled('moto', zoneId)) parts.push('Moto');
         if (!isCityServiceCategoryDisabled('auto', zoneId)) parts.push('VIP');
-        if (!isCityServiceCategoryDisabled('taxi', zoneId)) parts.push('Taxi');
+        if (!isUsMarket() && !isCityServiceCategoryDisabled('taxi', zoneId)) parts.push('Taxi');
         tripCard.textContent = parts.length ? parts.join(' · ') : 'Viajes';
+    }
+}
+
+function setChipVisible(btn, show) {
+    if (!btn) return;
+    btn.classList.toggle('hidden', !show);
+    btn.hidden = !show;
+    if (show) {
+        btn.style.removeProperty('display');
+    } else {
+        btn.style.setProperty('display', 'none', 'important');
     }
 }
 
@@ -229,21 +245,35 @@ function setServicePickerFilter(allowedTypes) {
     const picker = document.getElementById('service-type-picker');
     if (!picker) return;
     const zoneId = getActiveCityId();
+    const maleMotoBlocked = isMalePassengerMotoRideBlocked(getUserProfile?.());
     const buttons = picker.querySelectorAll('[data-service-type], #svc-btn-stores');
     buttons.forEach((btn) => {
         const type = btn.getAttribute('data-service-type') || (btn.id === 'svc-btn-stores' ? 'stores' : '');
         if (!allowedTypes || !allowedTypes.length) {
-            // En modo home no importa; en stores ocultamos todo el wrap
-            btn.classList.add('hidden');
+            setChipVisible(btn, false);
             return;
         }
         const cityBlocked = type && type !== 'stores' && isServiceTypeDisabledInCity(type, zoneId);
-        const show = allowedTypes.includes(type) && !cityBlocked;
-        btn.classList.toggle('hidden', !show);
+        const marketBlocked = type && !isServiceAllowedInMarket(type);
+        const show = allowedTypes.includes(type) && !cityBlocked && !marketBlocked;
+        setChipVisible(btn, show);
+        if (type === 'moto' && show && maleMotoBlocked) {
+            btn.disabled = true;
+            btn.setAttribute('aria-disabled', 'true');
+            btn.style.opacity = '0.5';
+            btn.style.pointerEvents = 'none';
+            btn.title = DECRETO_91_2012_MSG;
+        } else if (type === 'moto' && show) {
+            btn.disabled = false;
+            btn.removeAttribute('aria-disabled');
+            btn.style.opacity = '';
+            btn.style.pointerEvents = '';
+            btn.removeAttribute('title');
+        }
     });
 }
 
-function setBookingVisible(show) {
+function setBookingVisible(show, { resetProgress = true } = {}) {
     BOOKING_SECTION_IDS.forEach((id) => {
         if (id === 'client-stores-section') return; // se maneja aparte
         const el = document.getElementById(id);
@@ -258,8 +288,10 @@ function setBookingVisible(show) {
             .forEach((id) => document.getElementById(id)?.classList.add('hidden'));
     } else {
         try {
-            window.whenStepConfirmed = false;
-            window.serviceTypeChosen = false;
+            if (resetProgress) {
+                window.whenStepConfirmed = false;
+                window.serviceTypeChosen = false;
+            }
             window.syncBookingProgression?.({ scroll: false });
         } catch (_) {}
     }
@@ -270,10 +302,15 @@ function applyMode(mode) {
     const hub = document.getElementById('passenger-home-hub');
     const bar = document.getElementById('passenger-mode-bar');
     const storesSec = document.getElementById('client-stores-section');
+    const reenter = (document.body.dataset.passengerMode === mode) && mode !== 'home';
 
     document.body.dataset.passengerMode = mode;
     document.body.classList.toggle('passenger-mode-home', mode === 'home');
     document.body.classList.toggle('passenger-mode-active', mode !== 'home');
+    document.body.classList.toggle('passenger-mode-trip', mode === 'trip');
+    document.body.classList.toggle('passenger-mode-delivery', mode === 'delivery');
+    document.body.classList.toggle('passenger-mode-freight', mode === 'freight');
+    document.body.classList.toggle('passenger-mode-tow', mode === 'tow');
 
     if (hub) hub.classList.toggle('hidden', mode !== 'home');
     if (bar) bar.classList.toggle('hidden', mode === 'home');
@@ -281,7 +318,10 @@ function applyMode(mode) {
     const titleEl = document.getElementById('passenger-mode-title');
     const subEl = document.getElementById('passenger-mode-sub');
     if (titleEl) titleEl.textContent = meta.title || '';
-    if (subEl) subEl.textContent = meta.subtitle || '';
+    if (subEl) {
+        if (mode === 'trip' && isUsMarket()) subEl.textContent = 'Moto · Auto';
+        else subEl.textContent = meta.subtitle || '';
+    }
 
     if (mode === 'home') {
         setBookingVisible(false);
@@ -294,7 +334,7 @@ function applyMode(mode) {
     }
 
     const showBooking = !!meta.showBooking;
-    setBookingVisible(showBooking);
+    setBookingVisible(showBooking, { resetProgress: !reenter });
 
     if (storesSec) {
         // La sección embebida de tiendas ya no se necesita si el menú redirige al marketplace;
@@ -310,18 +350,27 @@ function applyMode(mode) {
         if (wrap) {
             wrap.classList.toggle('hidden', allowed.length <= 1);
         }
+        const selectable = allowed.filter((t) => !(t === 'moto' && isMalePassengerMotoRideBlocked(getUserProfile?.())));
         let pick = meta.defaultService;
-        if (pick && isServiceTypeDisabledInCity(pick, getActiveCityId())) {
-            pick = allowed[0] || null;
+        if (pick === 'moto' && isMalePassengerMotoRideBlocked(getUserProfile?.())) {
+            pick = firstAllowedPassengerTripType(selectable);
         }
-        window.serviceTypeChosen = allowed.length <= 1;
-        if (pick && typeof window.selectServiceType === 'function') {
-            window.selectServiceType(pick, { keepFareVisible: false, skipCityCheck: true, confirmStep: false });
-        } else if (pick) {
-            window.currentServiceType = pick;
+        if (pick && isServiceTypeDisabledInCity(pick, getActiveCityId())) {
+            pick = selectable[0] || allowed[0] || null;
+        }
+        if (!reenter) {
+            window.serviceTypeChosen = selectable.length <= 1;
+        }
+        if (!reenter || !window.currentServiceType || !allowed.includes(window.currentServiceType)) {
+            if (pick && typeof window.selectServiceType === 'function') {
+                window.selectServiceType(pick, { keepFareVisible: false, skipCityCheck: true, confirmStep: false });
+            } else if (pick) {
+                window.currentServiceType = pick;
+            }
         }
         try { window.syncServiceCardSummary?.(); } catch (_) {}
         try { window.applyCityServiceAvailabilityToUI?.({ skipHomeRefresh: true }); } catch (_) {}
+        setServicePickerFilter(allowed);
         // Expandir panel de control
         window.showControlPanel?.();
         // Avanzados para delivery/flete/grúa
@@ -401,7 +450,11 @@ export function syncPassengerHomeForRole() {
         document.getElementById('passenger-home-hub')?.classList.add('hidden');
         document.getElementById('passenger-mode-bar')?.classList.add('hidden');
         setBookingVisible(true);
-        document.body.classList.remove('passenger-mode-home', 'passenger-mode-active');
+        document.body.classList.remove(
+            'passenger-mode-home', 'passenger-mode-active',
+            'passenger-mode-trip', 'passenger-mode-delivery',
+            'passenger-mode-freight', 'passenger-mode-tow'
+        );
         delete document.body.dataset.passengerMode;
         return;
     }
@@ -474,17 +527,20 @@ export function initPassengerHome(deps = {}) {
     window.showPassengerHomeMenu = showPassengerHomeMenu;
     window.getPassengerHomeMode = getPassengerHomeMode;
     window.syncPassengerHomeForRole = syncPassengerHomeForRole;
+    window.setServicePickerFilter = setServicePickerFilter;
 
     // Reintentos: en Capacitor/Android a veces client-view aún no está listo
     const boot = (why) => {
         try {
             ensureHomeUi();
             if (getUserProfile?.() && isClientLike()) {
+                // No pisar un flujo ya abierto (Viaje / envío / flete) con el menú inicio
+                if (currentMode && currentMode !== 'home') return;
                 syncPassengerHomeForRole();
             } else if (isClientLike()) {
                 // Perfil aún null → igual montar hub (rol default client)
                 ensureHomeUi();
-                if (!isBusyWithTripUi()) {
+                if (!isBusyWithTripUi() && (!currentMode || currentMode === 'home')) {
                     currentMode = 'home';
                     applyMode('home');
                 }

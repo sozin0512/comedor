@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getMessaging, getToken, isSupported, onMessage } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js';
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert } from './trip-notifications.js';
 import { isCapacitorNative, isCapacitorAndroid } from './capacitor-native.js';
 import { getMessagingSwUrl } from './pwa-update.js';
@@ -214,11 +214,11 @@ async function showAndroidForegroundLocalNotification(payload = {}, { forceSilen
 }
 
 /** API pública para alertas in-app (admin staff, etc.) en APK. */
-export async function showAndroidAlertNotification({ title, body, data = {} } = {}) {
+export async function showAndroidAlertNotification({ title, body, data = {}, silent = false } = {}) {
     return showAndroidForegroundLocalNotification({
         notification: { title, body },
         data: { ...data, title, body }
-    });
+    }, { forceSilent: !!silent });
 }
 
 // Exponer para app.js (staff alerts sin import circular)
@@ -250,7 +250,6 @@ async function registerMessagingServiceWorker() {
 
 export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     if (!uid || !token) return;
-    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
     const tokenPatch = {
         [`fcmTokens.${token.replace(/\./g, '_')}`]: {
             token,
@@ -259,25 +258,19 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
         },
         fcmTokenUpdatedAt: serverTimestamp()
     };
+    const pubRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
+    const privRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
+    // Siempre merge: si el público falla (reglas / doc incompleto) igual queda en privado.
     try {
-        await updateDoc(userRef, tokenPatch);
+        await setDoc(pubRef, { uid, ...tokenPatch }, { merge: true });
     } catch (e) {
-        if (e?.code === 'not-found') {
-            await setDoc(userRef, { uid, ...tokenPatch }, { merge: true });
-        } else {
-            throw e;
-        }
+        console.warn('saveFcmToken public', e?.code || e?.message || e);
     }
     try {
-        await updateDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data'), {
-            [`fcmTokens.${token.replace(/\./g, '_')}`]: {
-                token,
-                updatedAt: Date.now(),
-                platform
-            },
-            fcmTokenUpdatedAt: serverTimestamp()
-        });
-    } catch (_) {}
+        await setDoc(privRef, tokenPatch, { merge: true });
+    } catch (e) {
+        console.warn('saveFcmToken private', e?.code || e?.message || e);
+    }
 }
 
 function playConfiguredToneFromPush(data = {}) {
@@ -316,7 +309,7 @@ function routeForegroundPush(payload) {
     const type = data.type || '';
 
     // Tono de Personalización (Web Audio). En Android puede fallar si el AudioContext está bloqueado.
-    playConfiguredToneFromPush(data);
+    const playedJsTone = playConfiguredToneFromPush(data);
 
     // Android en PRIMER PLANO: banner local. En background el nativo HonduMessagingService
     // ya pinta el aviso tipo WhatsApp (evitar doble notificación).
@@ -326,7 +319,7 @@ function routeForegroundPush(payload) {
         if (appVisible) {
             showAndroidForegroundLocalNotification(
                 { notification: { title, body }, data },
-                { forceSilent: false }
+                { forceSilent: !!playedJsTone }
             ).catch(() => {});
             try {
                 navigator.vibrate?.([0, 500, 80, 500, 80, 600, 100, 800, 80, 1000]);
@@ -537,25 +530,25 @@ function handleNotificationNavigation(data = {}) {
     }
     if (isTripOffer || data.openDriver === 'true' || data.openDriver === true) {
         try { location.hash = 'driver'; } catch (_) {}
-        const wakeDriverOffer = () => {
+        const wakeDriverOffer = (playSound = false) => {
             try {
                 if (window.userProfile?.role !== 'driver') return;
                 document.body.classList.add('driver-mode');
                 document.getElementById('driver-view')?.classList.remove('hidden');
                 document.getElementById('client-view')?.classList.add('hidden');
-                window.HonduTones?.unlock?.();
-                window.playDriverTripOfferSound?.();
-                window.triggerSuperTripVibration?.();
+                if (playSound) {
+                    window.playDriverTripOfferSound?.();
+                    window.triggerSuperTripVibration?.();
+                }
                 const offers = window._lastDriverMyOffers;
                 if (Array.isArray(offers) && offers.length) {
                     window.syncDriverTripOfferPopup?.(offers, { forceShow: true });
                 }
             } catch (_) {}
         };
-        wakeDriverOffer();
-        setTimeout(wakeDriverOffer, 500);
-        setTimeout(wakeDriverOffer, 1500);
-        setTimeout(wakeDriverOffer, 3000);
+        wakeDriverOffer(true);
+        setTimeout(() => wakeDriverOffer(false), 500);
+        setTimeout(() => wakeDriverOffer(false), 1500);
         return;
     }
     if (isPassengerTrip) {

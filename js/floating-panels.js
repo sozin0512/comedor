@@ -12,15 +12,32 @@ function clamp(n, min, max) {
 /** Insets del sistema (MainActivity → --safe-* / --native-safe-*). Estilo WhatsApp. */
 function readSafeInsets() {
     try {
-        const s = getComputedStyle(document.documentElement);
-        const px = (name, fallback = 0) => {
-            const n = parseFloat(s.getPropertyValue(name));
-            return Number.isFinite(n) ? n : fallback;
+        const root = getComputedStyle(document.documentElement);
+        const body = document.body ? getComputedStyle(document.body) : root;
+        const px = (style, name) => {
+            const n = parseFloat(String(style.getPropertyValue(name) || '').trim());
+            return Number.isFinite(n) ? n : 0;
         };
-        const top = px('--safe-top', px('--native-safe-top', 0));
-        const bottom = px('--safe-bottom', px('--native-safe-bottom', 0));
-        const left = px('--safe-left', px('--native-safe-left', 0));
-        const right = px('--safe-right', px('--native-safe-right', 0));
+        // --safe-top en :root es env() (0 en WebView Android). El real está en
+        // --native-safe-top (html) o --safe-top de body.capacitor-android.
+        let top = Math.max(
+            px(root, '--native-safe-top'),
+            px(body, '--native-safe-top'),
+            px(body, '--safe-top'),
+            px(root, '--safe-top')
+        );
+        let bottom = Math.max(
+            px(root, '--native-safe-bottom'),
+            px(body, '--native-safe-bottom'),
+            px(body, '--safe-bottom'),
+            px(root, '--safe-bottom')
+        );
+        const left = Math.max(px(root, '--native-safe-left'), px(body, '--safe-left'), px(root, '--safe-left'));
+        const right = Math.max(px(root, '--native-safe-right'), px(body, '--safe-right'), px(root, '--safe-right'));
+        const android = document.body?.classList.contains('capacitor-android')
+            || document.documentElement.classList.contains('capacitor-android');
+        if (android && top < 32) top = 32;
+        if (android && bottom < 8) bottom = 8;
         return {
             top: Math.max(0, top),
             bottom: Math.max(0, bottom),
@@ -84,7 +101,7 @@ function isInteractiveTarget(el) {
     // Burbuja azul “tocar para maximizar”: no arrastrar, solo expandir
     if (el?.closest?.('[data-trip-float-expand], .client-trip-min-pill, .trip-float-min-view')) return true;
     // Botón minimizar del flotante
-    if (el?.closest?.('[data-trip-float-min], .trip-float-min-btn')) return true;
+    if (el?.closest?.('[data-trip-float-min], .trip-float-min-btn, .driver-earnings-min-btn')) return true;
     return !!el?.closest?.(
         'button, a, input, textarea, select, label, [data-no-drag], [data-trip-action], gmp-place-autocomplete, .panel-hide-btn, .wallet-compact-btn, .favorite-chip, .passenger-promo-card, [role="tab"], [role="button"], [role="slider"], [contenteditable="true"], .star-btn, .tip-btn'
     );
@@ -100,6 +117,7 @@ export function makeDraggable(element, options = {}) {
         storageKey = null,
         onActivate = null,
         minVisible = 56,
+        keepFullyVisible = false,
         enabled = () => true
     } = options;
 
@@ -126,10 +144,24 @@ export function makeDraggable(element, options = {}) {
         // No entrar bajo el reloj / notch / barra de gestos (como WhatsApp)
         const insets = readSafeInsets();
         const edge = 8;
+        const android = document.body?.classList.contains('capacitor-android')
+            || document.documentElement.classList.contains('capacitor-android');
+        const extraTop = android ? 6 : 0;
         const safeL = edge + insets.left;
-        const safeT = edge + insets.top;
+        const safeT = edge + insets.top + extraTop;
         const safeR = window.innerWidth - edge - insets.right;
-        const safeB = window.innerHeight - edge - insets.bottom;
+        let extraBottom = 0;
+        if (element.classList.contains('driver-earnings-float')) {
+            const panel = document.getElementById('control-panel');
+            if (panel && !panel.classList.contains('hidden')) {
+                try {
+                    const pr = panel.getBoundingClientRect();
+                    const vis = pr.height > 8 && getComputedStyle(panel).display !== 'none';
+                    if (vis) extraBottom = Math.max(0, (window.innerHeight || 0) - pr.top + 10);
+                } catch (_) {}
+            }
+        }
+        const safeB = window.innerHeight - edge - insets.bottom - extraBottom;
         const availH = Math.max(120, safeB - safeT);
 
         // Si el panel es más alto que la zona útil: acotar altura y scrollear dentro
@@ -142,7 +174,9 @@ export function makeDraggable(element, options = {}) {
             h = Math.min(element.offsetHeight || availH, availH);
         }
 
-        const cx = clamp(x, safeL - w + minVisible, safeR - minVisible);
+        const cx = keepFullyVisible
+            ? clamp(x, safeL, Math.max(safeL, safeR - w))
+            : clamp(x, safeL - w + minVisible, safeR - minVisible);
         // Mantener el panel ENTERO visible cuando quepa (no solo minVisible abajo)
         const cyMax = Math.max(safeT, safeB - h);
         const cy = clamp(y, safeT, cyMax);
@@ -387,23 +421,24 @@ export function dockControlPanelForClient() {
     panel.style.margin = '';
 
     const header = panel.querySelector('.control-panel-header');
-    if (header) header.title = 'Minimiza el panel con el botón inferior';
+    if (header) header.removeAttribute('title');
 }
 
 const DRIVER_EARNINGS_MIN_KEY = 'honduber_driver_earnings_minimized';
 
 export function isDriverEarningsMinimized() {
     try {
-        return localStorage.getItem(DRIVER_EARNINGS_MIN_KEY) === '1';
+        const v = localStorage.getItem(DRIVER_EARNINGS_MIN_KEY);
+        if (v === '0') return false;
+        return true;
     } catch (_) {
-        return false;
+        return true;
     }
 }
 
 export function setDriverEarningsMinimized(minimized) {
     try {
-        if (minimized) localStorage.setItem(DRIVER_EARNINGS_MIN_KEY, '1');
-        else localStorage.removeItem(DRIVER_EARNINGS_MIN_KEY);
+        localStorage.setItem(DRIVER_EARNINGS_MIN_KEY, minimized ? '1' : '0');
     } catch (_) {}
 }
 
@@ -504,6 +539,52 @@ export function syncDriverRadarFloatPanel() {
     bindFloatingRadarPanel();
 }
 
+function isEarningsOffScreen(el) {
+    if (!el) return true;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth || 360;
+    const vh = window.innerHeight || 640;
+    if (r.width < 8 || r.height < 8) return true;
+    if (r.right < 24 || r.left > vw - 24) return true;
+    if (r.bottom < 24 || r.top > vh - 24) return true;
+    return false;
+}
+
+function parkEarningsAtMapTop(el) {
+    if (!el) return;
+    const insets = readSafeInsets();
+    el.style.position = 'fixed';
+    el.style.left = '0.75rem';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+    el.style.top = `${Math.max(56, insets.top + 52)}px`;
+}
+
+function earningsOverlapsPanel(el) {
+    if (!el) return false;
+    const panel = document.getElementById('control-panel');
+    if (!panel) return false;
+    const cs = getComputedStyle(panel);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || panel.classList.contains('hidden')) return false;
+    const er = el.getBoundingClientRect();
+    const pr = panel.getBoundingClientRect();
+    if (pr.height < 8 || pr.width < 8) return false;
+    const pad = 6;
+    return er.bottom > pr.top - pad
+        && er.top < pr.bottom + pad
+        && er.right > pr.left - pad
+        && er.left < pr.right + pad;
+}
+
+function parkEarningsClearOfPanel(el) {
+    if (!el) return;
+    if (isEarningsOffScreen(el) || earningsOverlapsPanel(el)) {
+        el.classList.remove('is-drag-positioned', 'is-dragging');
+        parkEarningsAtMapTop(el);
+        try { localStorage.removeItem('honduber_panel_pos_driver-earnings-float'); } catch (_) {}
+    }
+}
+
 export function bindFloatingEarningsPanel() {
     const wrap = document.getElementById('driver-earnings-float');
     const el = wrap?.querySelector('.driver-earnings-float');
@@ -511,32 +592,56 @@ export function bindFloatingEarningsPanel() {
     el.dataset.floatDragBound = '1';
 
     const storageKey = 'driver-earnings-float';
+    const saved = loadPosition(storageKey);
+    if (saved && (saved.x < -40 || saved.y < -40 || saved.x > (window.innerWidth || 400) - 24 || saved.y > (window.innerHeight || 700) - 24)) {
+        clearSavedPosition(storageKey);
+    }
     if (!loadPosition(storageKey)) {
-        el.style.position = 'fixed';
-        el.style.left = '0.65rem';
-        el.style.bottom = cssSafeBottom('5.5rem');
-        el.style.right = 'auto';
-        el.style.top = 'auto';
+        parkEarningsAtMapTop(el);
     }
 
     makeDraggable(el, {
         handle: el,
         storageKey,
-        minVisible: 40,
+        minVisible: 80,
+        keepFullyVisible: true,
         onActivate: (node) => {
             node.style.right = 'auto';
             node.style.bottom = 'auto';
         },
-        enabled: () => !wrap?.classList.contains('hidden')
+        enabled: () => true
+    });
+
+    requestAnimationFrame(() => {
+        parkEarningsClearOfPanel(el);
+        if (!isEarningsOffScreen(el) && !earningsOverlapsPanel(el)) return;
+        clearSavedPosition(storageKey);
+        el.classList.remove('is-drag-positioned', 'is-dragging');
+        parkEarningsAtMapTop(el);
+    });
+
+    el.querySelectorAll('.driver-earnings-min-btn').forEach((btn) => {
+        btn.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+        }, { capture: true });
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDriverEarningsMinimized(true);
+            window.renderDriverEarningsToday?.();
+        });
     });
 
     if (el.dataset.earningsExpand === '1') {
-        el.addEventListener('pointerup', (e) => {
+        const expand = (e) => {
             if (wasRecentPanelDrag()) return;
-            if (isInteractiveTarget(e.target)) return;
+            e.preventDefault?.();
+            e.stopPropagation?.();
             setDriverEarningsMinimized(false);
             window.renderDriverEarningsToday?.();
-        });
+        };
+        el.addEventListener('pointerup', expand);
+        el.addEventListener('click', expand);
     }
 }
 
@@ -1182,8 +1287,39 @@ export function bindNavHudTopPanel() {
     });
 }
 
+/** Baja chips/flotantes que se metieron bajo el reloj (APK). */
+export function reclampTopFloats() {
+    try {
+        const insets = readSafeInsets();
+        const android = document.body?.classList.contains('capacitor-android')
+            || document.documentElement.classList.contains('capacitor-android');
+        const minTop = 8 + insets.top + (android ? 6 : 0);
+        document.querySelectorAll(
+            '.copa-float, .copa-chip--map, #public-copa-strip, #public-pcopa-strip, .driver-earnings-float, .is-drag-positioned'
+        ).forEach((el) => {
+            if (!el || el.classList.contains('hidden')) return;
+            const cs = getComputedStyle(el);
+            if (cs.position !== 'fixed' && cs.position !== 'absolute') return;
+            const r = el.getBoundingClientRect();
+            if (r.height < 8 || r.width < 8) return;
+            if (r.top >= minTop - 1) return;
+            el.style.top = `${minTop}px`;
+            el.style.bottom = 'auto';
+        });
+        const earn = document.querySelector('#driver-earnings-float .driver-earnings-float');
+        if (earn) parkEarningsClearOfPanel(earn);
+    } catch (_) {}
+}
+
 export function initFloatingPanels() {
     if (typeof window === 'undefined') return;
+
+    window.reclampTopFloats = reclampTopFloats;
+    window.addEventListener('hr-safe-insets', reclampTopFloats);
+    window.addEventListener('resize', reclampTopFloats);
+    setTimeout(reclampTopFloats, 200);
+    setTimeout(reclampTopFloats, 700);
+    setTimeout(reclampTopFloats, 1400);
 
     bindTripChatUi();
 
@@ -1197,6 +1333,7 @@ export function initFloatingPanels() {
     window.hideTripFloatPanels = hideTripFloatPanels;
     window.toggleTripFloatMinimized = toggleTripFloatMinimized;
     window.bindFloatingEarningsPanel = bindFloatingEarningsPanel;
+    window.parkEarningsClearOfPanel = parkEarningsClearOfPanel;
     window.bindFloatingRadarPanel = bindFloatingRadarPanel;
     window.syncDriverRadarFloatPanel = syncDriverRadarFloatPanel;
     window.isDriverEarningsMinimized = isDriverEarningsMinimized;

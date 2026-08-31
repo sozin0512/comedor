@@ -3,17 +3,7 @@
  */
 import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-function normalizeHondurasPhone(raw) {
-    if (!raw) return '';
-    let d = String(raw).replace(/\D/g, '');
-    if (d.startsWith('504')) d = d.slice(3);
-    if (d.startsWith('0')) d = d.slice(1);
-    if (d.length === 8) return '504' + d;
-    if (d.length === 11 && d.startsWith('504')) return d;
-    if (d.length > 8) return '504' + d.slice(-8);
-    if (d.length > 0) return '504' + d.padStart(8, '0').slice(-8);
-    return '';
-}
+import { normalizeHondurasPhone } from './phone-utils.js';
 
 export function isEmailLike(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());

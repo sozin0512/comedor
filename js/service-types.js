@@ -1,3 +1,12 @@
+import {
+    isUsMarket,
+    formatMoney,
+    US_SERVICE_RATES,
+    US_HOURLY_RATES,
+    US_EXTRA_PASSENGER_FEE,
+    US_FREIGHT_HELPER_FEE,
+} from './market.js';
+
 export const MOTO_CAMPAIGN = {
     title: 'Moto Segura HonduRaite',
     tagline: 'Casco verificado · conductores validados · la moto es reina en Honduras',
@@ -19,7 +28,7 @@ export const SERVICE_TYPE_META = {
         icon: 'fa-car',
         color: 'blue',
         base: 37,
-        perKm: 12,
+        perKm: 22,
         driverVehicleType: 'auto',
         originPlaceholder: 'Origen',
         destPlaceholder: 'Destino final',
@@ -34,7 +43,7 @@ export const SERVICE_TYPE_META = {
         icon: 'fa-taxi',
         color: 'yellow',
         base: 30,
-        perKm: 10,
+        perKm: 20,
         driverVehicleType: 'taxi',
         originPlaceholder: 'Origen',
         destPlaceholder: 'Destino final',
@@ -49,7 +58,7 @@ export const SERVICE_TYPE_META = {
         icon: 'fa-motorcycle',
         color: 'violet',
         base: 20,
-        perKm: 8,
+        perKm: 18,
         driverVehicleType: 'moto',
         originPlaceholder: 'Origen (recogida)',
         destPlaceholder: 'Destino final',
@@ -64,7 +73,7 @@ export const SERVICE_TYPE_META = {
         icon: 'fa-utensils',
         color: 'amber',
         base: 15,
-        perKm: 7,
+        perKm: 17,
         driverVehicleType: 'moto',
         originPlaceholder: 'Restaurante o punto de recogida',
         destPlaceholder: 'Dirección de entrega',
@@ -80,7 +89,7 @@ export const SERVICE_TYPE_META = {
         icon: 'fa-truck-pickup',
         color: 'emerald',
         base: 85,
-        perKm: 18,
+        perKm: 28,
         driverVehicleType: 'paila',
         originPlaceholder: 'Punto de carga (bodega, obra, finca...)',
         destPlaceholder: 'Destino de descarga',
@@ -95,7 +104,7 @@ export const SERVICE_TYPE_META = {
         icon: 'fa-truck',
         color: 'slate',
         base: 220,
-        perKm: 38,
+        perKm: 48,
         driverVehicleType: 'camion',
         originPlaceholder: 'Punto de carga (bodega, puerto, obra...)',
         destPlaceholder: 'Destino de descarga',
@@ -110,7 +119,7 @@ export const SERVICE_TYPE_META = {
         icon: 'icon-grua', // grúa con pluma y gancho (CSS), no troca
         color: 'rose',
         base: 1500,
-        perKm: 95,
+        perKm: 105,
         driverVehicleType: 'grua',
         originPlaceholder: 'Dónde está el vehículo varado',
         destPlaceholder: 'Taller, casa u otro destino del remolque',
@@ -170,6 +179,11 @@ export function getServiceMeta(type) {
     const id = normalizeServiceType(type);
     const meta = SERVICE_TYPE_META[id];
     if (!meta) return SERVICE_TYPE_META.auto;
+    if (isUsMarket()) {
+        const usd = US_SERVICE_RATES[id];
+        if (usd) return { ...meta, base: usd.base, perKm: usd.perKm };
+        return meta;
+    }
     const ov = runtimeServiceRates[id];
     if (!ov) return meta;
     return {
@@ -306,6 +320,7 @@ export function getMaxPassengers(type) {
 
 export function getExtraPassengerFee(type) {
     const t = normalizeServiceType(type);
+    if (isUsMarket()) return Number(US_EXTRA_PASSENGER_FEE[t]) || 0;
     return Number(EXTRA_PASSENGER_FEE[t]) || 0;
 }
 
@@ -378,13 +393,13 @@ export const FREIGHT_RATE_CONFIG = {
         minimum: 150,
         baseFee: 120,
         includedKm: 3,
-        perKmUrban: 22,
-        perKmLong: 18,
+        perKmUrban: 32,
+        perKmLong: 28,
         longTripFromKm: 25,
         intercity: {
             minimum: 280,
             dispatchFee: 80,
-            perKm: 28,
+            perKm: 38,
             hourlyRate: 250,
             trafficPerMinute: 10,
         },
@@ -402,13 +417,13 @@ export const FREIGHT_RATE_CONFIG = {
         minimum: 480,
         baseFee: 420,
         includedKm: 4,
-        perKmUrban: 48,
-        perKmLong: 38,
+        perKmUrban: 58,
+        perKmLong: 48,
         longTripFromKm: 35,
         intercity: {
             minimum: 650,
             dispatchFee: 150,
-            perKm: 52,
+            perKm: 62,
             hourlyRate: 580,
             trafficPerMinute: 15,
         },
@@ -421,6 +436,54 @@ export const FREIGHT_RATE_CONFIG = {
         maxRecommendedKg: 15000,
     },
 };
+
+const US_FREIGHT_RATE_CONFIG = {
+    flete_paila: {
+        label: 'Pickup / bed',
+        minimum: 38,
+        baseFee: 32,
+        includedKm: 3,
+        perKmUrban: 2.40,
+        perKmLong: 2.10,
+        longTripFromKm: 25,
+        intercity: {
+            minimum: 58,
+            dispatchFee: 18,
+            perKm: 2.80,
+            hourlyRate: 45,
+            trafficPerMinute: 1.20,
+        },
+        weightTiers: FREIGHT_RATE_CONFIG.flete_paila.weightTiers,
+        maxRecommendedKg: 3500,
+    },
+    flete_camion: {
+        label: 'Truck',
+        minimum: 88,
+        baseFee: 72,
+        includedKm: 4,
+        perKmUrban: 3.60,
+        perKmLong: 3.20,
+        longTripFromKm: 35,
+        intercity: {
+            minimum: 125,
+            dispatchFee: 28,
+            perKm: 3.90,
+            hourlyRate: 85,
+            trafficPerMinute: 1.80,
+        },
+        weightTiers: FREIGHT_RATE_CONFIG.flete_camion.weightTiers,
+        maxRecommendedKg: 15000,
+    },
+};
+
+function getFreightRateConfig(type) {
+    const map = isUsMarket() ? US_FREIGHT_RATE_CONFIG : FREIGHT_RATE_CONFIG;
+    return map[type] || FREIGHT_RATE_CONFIG[type];
+}
+
+function getFreightHelperFeePerPerson() {
+    return isUsMarket() ? US_FREIGHT_HELPER_FEE : FREIGHT_HELPER_FEE_PER_PERSON;
+}
 
 export function normalizeFreightHelperCount(details = {}) {
     if (details == null) return 0;
@@ -525,7 +588,7 @@ function calculateFreightIntercityExtras(config, distanceKm, conditions, routeMe
 
 export function calculateFreightFare(serviceType, km, freightDetails = {}, conditions = null, routeMeta = null) {
     const type = normalizeServiceType(serviceType);
-    const config = FREIGHT_RATE_CONFIG[type];
+    const config = getFreightRateConfig(type);
     if (!config) {
         return { total: 0, breakdown: {}, warnings: [] };
     }
@@ -536,7 +599,7 @@ export function calculateFreightFare(serviceType, km, freightDetails = {}, condi
     const urban = isFreightUrbanTrip(distanceKm);
 
     const weightTier = getFreightWeightTier(config, weightKg);
-    const helperFee = helperCount * FREIGHT_HELPER_FEE_PER_PERSON;
+    const helperFee = helperCount * getFreightHelperFeePerPerson();
 
     let baseFee;
     let distanceCharge;
@@ -610,7 +673,7 @@ export function calculateFreightFare(serviceType, km, freightDetails = {}, condi
             weightSurchargePercent: weightTier.percent,
             weightSurcharge,
             helperCount,
-            helperFeePerPerson: FREIGHT_HELPER_FEE_PER_PERSON,
+            helperFeePerPerson: getFreightHelperFeePerPerson(),
             helperFee,
             trafficSurchargePercent: urban ? 0 : (conditions?.trafficSurchargePercent || 0),
             weatherSurchargePercent: conditions?.weatherSurchargePercent || 0,
@@ -628,25 +691,25 @@ export function formatFreightFareBreakdown(serviceType, quote) {
     const parts = [];
 
     if (b.pricingMode === 'intercity') {
-        if (b.dispatchFee > 0) parts.push(`Despacho L. ${b.dispatchFee.toFixed(0)}`);
-        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → L. ${b.distanceCharge.toFixed(2)}`);
-        if (b.hoursCharge > 0) parts.push(`+ ${b.durationHours} h ruta → L. ${b.hoursCharge.toFixed(2)}`);
-        if (b.trafficCharge > 0) parts.push(`+ tráfico ${b.billableTrafficMinutes} min → L. ${b.trafficCharge.toFixed(2)}`);
+        if (b.dispatchFee > 0) parts.push(`Despacho ${formatMoney(b.dispatchFee)}`);
+        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → ${formatMoney(b.distanceCharge)}`);
+        if (b.hoursCharge > 0) parts.push(`+ ${b.durationHours} h ruta → ${formatMoney(b.hoursCharge)}`);
+        if (b.trafficCharge > 0) parts.push(`+ tráfico ${b.billableTrafficMinutes} min → ${formatMoney(b.trafficCharge)}`);
     } else {
-        parts.push(`Base L. ${b.baseFee.toFixed(0)} (incl. ${b.includedKm} km)`);
-        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → L. ${b.distanceCharge.toFixed(2)}`);
+        parts.push(`Base ${formatMoney(b.baseFee)} (incl. ${b.includedKm} km)`);
+        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → ${formatMoney(b.distanceCharge)}`);
     }
 
-    if (b.weightSurcharge > 0) parts.push(`+ carga ${b.weightTierLabel} (${b.weightSurchargePercent}%) L. ${b.weightSurcharge.toFixed(2)}`);
+    if (b.weightSurcharge > 0) parts.push(`+ carga ${b.weightTierLabel} (${b.weightSurchargePercent}%) ${formatMoney(b.weightSurcharge)}`);
     if (b.helperFee > 0) {
         const label = b.helperCount === 1 ? '1 ayudante' : `${b.helperCount} ayudantes`;
-        parts.push(`+ ${label} × L. ${(b.helperFeePerPerson || FREIGHT_HELPER_FEE_PER_PERSON).toFixed(0)} = L. ${b.helperFee.toFixed(2)}`);
+        parts.push(`+ ${label} × ${formatMoney(b.helperFeePerPerson || getFreightHelperFeePerPerson())} = ${formatMoney(b.helperFee)}`);
     }
     if (b.conditionsExtra > 0) {
         const bits = [];
         if (b.trafficSurchargePercent > 0) bits.push(`tráfico +${b.trafficSurchargePercent}%`);
         if (b.weatherSurchargePercent > 0) bits.push(`clima +${b.weatherSurchargePercent}%`);
-        parts.push(`+ ${bits.join(' y ') || 'ajuste ruta'} L. ${b.conditionsExtra.toFixed(2)}`);
+        parts.push(`+ ${bits.join(' y ') || 'ajuste ruta'} ${formatMoney(b.conditionsExtra)}`);
     }
     return parts.join(' · ');
 }
@@ -880,28 +943,58 @@ export const TOW_RATE_CONFIG = {
         minimum: 1800,
         baseFee: 1500,
         includedKm: 5,
-        perKmUrban: 95,
-        perKmLong: 85,
+        perKmUrban: 105,
+        perKmLong: 95,
         longTripFromKm: 25,
         nightPercent: 25,
         intercity: {
             minimum: 3500,
             dispatchFee: 1200,
-            perKm: 120,
+            perKm: 130,
             hourlyRate: 1100,
             trafficPerMinute: 25,
         },
     },
 };
 
+const US_TOW_RATE_CONFIG = {
+    grua: {
+        label: 'Tow / roadside',
+        minimum: 95,
+        baseFee: 85,
+        includedKm: 5,
+        perKmUrban: 4.50,
+        perKmLong: 4.10,
+        longTripFromKm: 25,
+        nightPercent: 25,
+        intercity: {
+            minimum: 175,
+            dispatchFee: 55,
+            perKm: 5.50,
+            hourlyRate: 95,
+            trafficPerMinute: 2.00,
+        },
+    },
+};
+
+function getTowRateConfig() {
+    return isUsMarket() ? US_TOW_RATE_CONFIG.grua : TOW_RATE_CONFIG.grua;
+}
+
+function usdFromHnlTow(n) {
+    return Math.round((Number(n) || 0) / 18 * 100) / 100;
+}
+
 function getTowSituationSurcharge(situationId) {
     const opt = TOW_SITUATION_OPTIONS.find((o) => o.id === situationId);
-    return opt ? Number(opt.surcharge) || 0 : 0;
+    const raw = opt ? Number(opt.surcharge) || 0 : 0;
+    return isUsMarket() ? usdFromHnlTow(raw) : raw;
 }
 
 function getTowVehicleClassSurcharge(classId) {
     const opt = TOW_VEHICLE_CLASS_OPTIONS.find((o) => o.id === classId);
-    return opt ? Number(opt.surcharge) || 0 : 0;
+    const raw = opt ? Number(opt.surcharge) || 0 : 0;
+    return isUsMarket() ? usdFromHnlTow(raw) : raw;
 }
 
 export function getTowSituationLabel(situationId) {
@@ -943,7 +1036,7 @@ function calculateTowUrbanDistanceCharge(config, km) {
  */
 export function calculateTowFare(serviceType, km, towDetails = {}, conditions = null, routeMeta = null) {
     const type = normalizeServiceType(serviceType);
-    const config = TOW_RATE_CONFIG[type] || TOW_RATE_CONFIG.grua;
+    const config = getTowRateConfig();
     const distanceKm = Math.max(0, parseFloat(km) || 0);
     const urban = isFreightUrbanTrip(distanceKm, TOW_URBAN_MAX_KM);
 
@@ -1059,31 +1152,31 @@ export function formatTowFareBreakdown(serviceType, quote) {
     const parts = [];
 
     if (b.pricingMode === 'intercity') {
-        if (b.dispatchFee > 0) parts.push(`Despacho L. ${b.dispatchFee.toFixed(0)}`);
-        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → L. ${b.distanceCharge.toFixed(2)}`);
-        if (b.hoursCharge > 0) parts.push(`+ ${b.durationHours} h ruta → L. ${b.hoursCharge.toFixed(2)}`);
-        if (b.trafficCharge > 0) parts.push(`+ tráfico ${b.billableTrafficMinutes} min → L. ${b.trafficCharge.toFixed(2)}`);
+        if (b.dispatchFee > 0) parts.push(`Despacho ${formatMoney(b.dispatchFee)}`);
+        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → ${formatMoney(b.distanceCharge)}`);
+        if (b.hoursCharge > 0) parts.push(`+ ${b.durationHours} h ruta → ${formatMoney(b.hoursCharge)}`);
+        if (b.trafficCharge > 0) parts.push(`+ tráfico ${b.billableTrafficMinutes} min → ${formatMoney(b.trafficCharge)}`);
     } else {
-        parts.push(`Salida L. ${b.baseFee.toFixed(0)} (incl. ${b.includedKm} km)`);
-        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → L. ${b.distanceCharge.toFixed(2)}`);
+        parts.push(`Salida ${formatMoney(b.baseFee)} (incl. ${b.includedKm} km)`);
+        if (b.distanceCharge > 0) parts.push(`+ ${b.distanceKm.toFixed(1)} km → ${formatMoney(b.distanceCharge)}`);
     }
 
     if (b.situationSurcharge > 0) {
-        parts.push(`+ ${b.situationLabel || 'dificultad'} L. ${b.situationSurcharge.toFixed(0)}`);
+        parts.push(`+ ${b.situationLabel || 'dificultad'} ${formatMoney(b.situationSurcharge)}`);
     }
     if (b.vehicleClassSurcharge > 0) {
-        parts.push(`+ ${b.vehicleClassLabel || 'clase'} L. ${b.vehicleClassSurcharge.toFixed(0)}`);
+        parts.push(`+ ${b.vehicleClassLabel || 'clase'} ${formatMoney(b.vehicleClassSurcharge)}`);
     }
     if (b.nightSurcharge > 0) {
-        parts.push(`+ noche +${b.nightPercent}% L. ${b.nightSurcharge.toFixed(2)}`);
+        parts.push(`+ noche +${b.nightPercent}% ${formatMoney(b.nightSurcharge)}`);
     }
     if (b.conditionsExtra > 0) {
         const bits = [];
         if (b.trafficSurchargePercent > 0) bits.push(`tráfico +${b.trafficSurchargePercent}%`);
         if (b.weatherSurchargePercent > 0) bits.push(`clima +${b.weatherSurchargePercent}%`);
-        parts.push(`+ ${bits.join(' y ') || 'ajuste ruta'} L. ${b.conditionsExtra.toFixed(2)}`);
+        parts.push(`+ ${bits.join(' y ') || 'ajuste ruta'} ${formatMoney(b.conditionsExtra)}`);
     }
-    parts.push(`mín. L. ${b.minimum.toFixed(0)}`);
+    parts.push(`mín. ${formatMoney(b.minimum)}`);
     return parts.join(' · ');
 }
 
@@ -1154,6 +1247,7 @@ export const HOURLY_BASE_RATES = {
 
 export function getHourlyRate(type) {
     const t = normalizeServiceType(type);
+    if (isUsMarket()) return US_HOURLY_RATES[t] || 35;
     return HOURLY_BASE_RATES[t] || 150;
 }
 
@@ -1349,6 +1443,31 @@ export function isServiceTypeDisabledInCity(serviceType, zoneId) {
         if (flags[cat.id] && cat.serviceTypes.includes(t)) return true;
     }
     return false;
+}
+
+/**
+ * Decreto 91-2012 (HN): 2 hombres no pueden circular en moto.
+ * Aplica a viajes de pasajeros (no a envíos/delivery). No aplica en EE. UU.
+ */
+export const DECRETO_91_2012_MSG =
+    'Decreto 91-2012 se aplica de forma estricta en 34 municipios que se refiere a que 2 hombres no pueden circular en moto';
+
+export function isMalePassengerMotoRideBlocked(profile) {
+    if (isUsMarket()) return false;
+    const p = profile || (typeof window !== 'undefined' ? window.userProfile : null);
+    if (!p) return false;
+    const g = String(p.gender || '').toLowerCase().trim();
+    const isMale = g === 'male' || g === 'hombre' || g === 'masculino' || g === 'm';
+    if (!isMale) return false;
+    const role = p.role || 'client';
+    return role === 'client';
+}
+
+/** Primer tipo de viaje permitido (salta moto si el decreto bloquea). */
+export function firstAllowedPassengerTripType(types = ['auto', 'taxi', 'moto'], profile) {
+    const blocked = isMalePassengerMotoRideBlocked(profile);
+    const list = Array.isArray(types) && types.length ? types : ['auto', 'taxi', 'moto'];
+    return list.find((t) => t !== 'moto' || !blocked) || 'auto';
 }
 
 /** Mensaje corto para toast/UI. */

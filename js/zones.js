@@ -3,6 +3,8 @@
  * Base: honduras-cities.js + customZones en config y appSettings (admin puede agregar).
  */
 import { HONDURAS_CITIES } from "./honduras-cities.js";
+import { US_CITIES, US_DEFAULT_ZONE_ID } from "./us-cities.js";
+import { getActiveMarket, isUsMarket, applyMarketFromCoords, getGeocodeRegion } from "./market.js";
 
 const ZONE_STORAGE_KEY = "honduber_service_zone";
 const RADIUS_CLIENT_KEY = "honduber_radius_client";
@@ -64,27 +66,51 @@ export function setRuntimeCustomZones(list) {
     return runtimeCustomZones;
 }
 
-/**
- * Todas las zonas: ciudades de Honduras + custom de config + custom de appSettings.
- * Si hay id duplicado, gana la custom (admin).
- */
-export function getServiceZones() {
-    const base = Array.isArray(HONDURAS_CITIES) ? HONDURAS_CITIES : [];
-    const custom = [...getConfigCustomZones(), ...runtimeCustomZones];
-    if (!custom.length) return base;
+function withCountry(list, country) {
+    return (Array.isArray(list) ? list : []).map((z) => (
+        z?.country ? z : { ...z, country }
+    ));
+}
+
+/** Honduras + EE. UU. + custom (para GPS / getZoneById). */
+export function getAllKnownZones() {
     const byId = new Map();
-    base.forEach((z) => {
+    withCountry(HONDURAS_CITIES, 'hn').forEach((z) => {
         if (z?.id) byId.set(z.id, z);
     });
-    custom.forEach((z) => {
+    withCountry(US_CITIES, 'us').forEach((z) => {
+        if (z?.id) byId.set(z.id, z);
+    });
+    [...getConfigCustomZones(), ...runtimeCustomZones].forEach((z) => {
         if (z?.id) byId.set(z.id, z);
     });
     return [...byId.values()];
 }
 
+/**
+ * Zonas del selector: Honduras o EE. UU. según el mercado activo, más custom.
+ */
+export function getServiceZones() {
+    const market = getActiveMarket();
+    const all = getAllKnownZones();
+    const custom = [...getConfigCustomZones(), ...runtimeCustomZones];
+    const customIds = new Set(custom.map((z) => z?.id).filter(Boolean));
+    return all.filter((z) => {
+        if (customIds.has(z.id)) return true;
+        if (market === 'us') return z.country === 'us';
+        return z.country !== 'us';
+    });
+}
+
 export function getZoneById(zoneId) {
     if (!zoneId) return null;
-    return getServiceZones().find((z) => z.id === zoneId) || null;
+    return getAllKnownZones().find((z) => z.id === zoneId) || null;
+}
+
+export function isUsZone(zoneOrId) {
+    const z = typeof zoneOrId === 'string' ? getZoneById(zoneOrId) : zoneOrId;
+    if (!z) return typeof zoneOrId === 'string' && String(zoneOrId).startsWith('us-');
+    return z.country === 'us' || String(z.id || '').startsWith('us-');
 }
 
 /** Opciones HTML para <select> de zona (agrupadas por departamento). */
@@ -211,12 +237,18 @@ export function pickDriversByProximityTier(sortedCandidates, zoneId = null) {
     return { candidates: pool, tier };
 }
 
-/** Ciudad más cercana al punto GPS. */
-export function findNearestZone(lat, lng) {
+/** Ciudad más cercana al punto GPS (Honduras y EE. UU.). */
+export function findNearestZone(lat, lng, { country = null } = {}) {
     if (lat == null || lng == null) return null;
     let best = null;
     let bestDist = Infinity;
-    for (const zone of getServiceZones()) {
+    const list = getAllKnownZones().filter((z) => {
+        if (!country) return true;
+        if (country === 'us') return z.country === 'us';
+        return z.country !== 'us';
+    });
+    for (const zone of list) {
+        if (!zone?.center) continue;
         const dist = haversineKm(lat, lng, zone.center.lat, zone.center.lng);
         if (dist < bestDist) {
             best = zone;
@@ -237,8 +269,21 @@ export function findZoneForCoords(lat, lng, radiusKm = null) {
 export function isInsideHondurasProximity(lat, lng) {
     const cfg = getZoneConfig();
     const limitKm = cfg.forceManualIfOutsideCountryKm ?? 200;
-    const nearest = findNearestZone(lat, lng);
+    const nearest = findNearestZone(lat, lng, { country: 'hn' });
     return nearest ? nearest.distanceKm <= limitKm : false;
+}
+
+export function isInsideUnitedStatesProximity(lat, lng) {
+    const nearest = findNearestZone(lat, lng, { country: 'us' });
+    return nearest ? nearest.distanceKm <= 250 : false;
+}
+
+/** ¿El punto está en el país operativo (HN o US)? */
+export function isInsideOperatingCountry(lat, lng) {
+    if (isUsMarket() || (Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) && isInsideUnitedStatesProximity(lat, lng))) {
+        return isInsideUnitedStatesProximity(lat, lng);
+    }
+    return isInsideHondurasProximity(lat, lng);
 }
 
 export function getStoredManualZoneId() {
@@ -258,7 +303,16 @@ export function setStoredManualZoneId(zoneId) {
 
 export function getDefaultZoneId() {
     const cfg = getZoneConfig();
-    return getStoredManualZoneId() || cfg.defaultZoneId || getServiceZones()[0]?.id || null;
+    const stored = getStoredManualZoneId();
+    const storedZone = stored ? getZoneById(stored) : null;
+    if (isUsMarket()) {
+        if (storedZone && isUsZone(storedZone)) return stored;
+        return US_DEFAULT_ZONE_ID;
+    }
+    if (storedZone && isUsZone(storedZone)) {
+        return cfg.defaultZoneId || getServiceZones()[0]?.id || null;
+    }
+    return stored || cfg.defaultZoneId || getServiceZones()[0]?.id || null;
 }
 
 export function resolveServiceZone(lat, lng) {
@@ -498,6 +552,10 @@ export function driverLocationMatchesTripCity(loc, tripZoneId, fallbackDriverZon
     if (loc?.serviceZoneId === tripZoneId) return true;
     if (fallbackDriverZoneId && fallbackDriverZoneId === tripZoneId) return true;
 
+    // Ciudad de trabajo de otro departamento (Comayagua ↮ Tegucigalpa): el GPS no cruza.
+    const declared = loc?.serviceZoneId || fallbackDriverZoneId || null;
+    if (declared && !sameDepartment(declared, tripZoneId)) return false;
+
     // GPS dentro de la cobertura de la ciudad del viaje → cuenta como local
     if (loc?.lat != null && loc?.lng != null) {
         const detected = findZoneForCoords(loc.lat, loc.lng, getCityCoverageKm(tripZoneId));
@@ -666,7 +724,9 @@ export async function detectAndSetCityFromGPS() {
             (pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
-                const nearest = findNearestZone(lat, lng);
+                applyMarketFromCoords(lat, lng, { silent: true });
+                const country = isUsMarket() ? 'us' : 'hn';
+                const nearest = findNearestZone(lat, lng, { country });
                 if (nearest && nearest.zone) {
                     const dist = Math.round(nearest.distanceKm * 10) / 10;
                     // Delegate to onServiceZoneChange so it handles set + persist for drivers + toast
@@ -679,7 +739,11 @@ export async function detectAndSetCityFromGPS() {
                     }
                     resolve(nearest.zone);
                 } else {
-                    window.showToast?.("No se detectó una ciudad cercana en Honduras.");
+                    window.showToast?.(
+                        isUsMarket()
+                            ? "No se detectó una ciudad cercana en Estados Unidos."
+                            : "No se detectó una ciudad cercana en Honduras."
+                    );
                     resolve(null);
                 }
             },
@@ -743,7 +807,7 @@ function writeZonePanelOpenPreference(open) {
 
 export function updateServiceZoneSummary() {
     const zone = getZoneById(window.activeServiceZoneId || getDefaultZoneId());
-    const place = zone ? zone.name : "Honduras";
+    const place = zone ? zone.name : (isUsMarket() ? "Estados Unidos" : "Honduras");
 
     const summary = document.getElementById("service-zone-summary");
     const chipText = document.getElementById("service-zone-map-chip-text");
@@ -955,7 +1019,9 @@ export function showCityPickerModal() {
 
     const currentId = window.activeServiceZoneId || getDefaultZoneId();
     const currentZone = getZoneById(currentId);
-    const deptLabel = currentZone?.department ? `${currentZone.department}` : "Honduras";
+    const deptLabel = currentZone?.department
+        ? `${currentZone.department}`
+        : (isUsMarket() ? "Estados Unidos" : "Honduras");
 
     const modal = document.createElement("div");
     modal.id = "city-picker-modal";
@@ -1141,7 +1207,7 @@ export async function ensureEndpointCoords(endpoint) {
     if (!window.geocoder) return null;
 
     return new Promise((resolve) => {
-        window.geocoder.geocode({ address, region: "HN" }, (results, status) => {
+        window.geocoder.geocode({ address, region: getGeocodeRegion() }, (results, status) => {
             if (status === "OK" && results?.[0]?.geometry?.location) {
                 const loc = results[0].geometry.location;
                 const coords = {
@@ -1240,7 +1306,11 @@ export function pointMatchesSelectedZone(coords, selectedZoneId) {
     const selected = getZoneById(selectedZoneId);
     if (!selected) return null;
 
-    if (!isInsideHondurasProximity(coords.lat, coords.lng)) return false;
+    if (isUsZone(selected)) {
+        if (!isInsideUnitedStatesProximity(coords.lat, coords.lng)) return false;
+    } else if (!isInsideHondurasProximity(coords.lat, coords.lng)) {
+        return false;
+    }
 
     const clusterIds = getZoneClusterIds(selectedZoneId);
     const hubCoverage = getCityCoverageKm(selectedZoneId);
@@ -1288,7 +1358,9 @@ export function resolveTripServiceZone(originCoords, zoneId = null, destCoords =
         return {
             zone: null,
             radiusKm: getCityCoverageKm(explicitId),
-            error: "Selecciona una ciudad de Honduras para tu viaje."
+            error: isUsMarket()
+                ? "Selecciona una ciudad de Estados Unidos para tu viaje."
+                : "Selecciona una ciudad de Honduras para tu viaje."
         };
     }
 
@@ -1298,8 +1370,9 @@ export function resolveTripServiceZone(originCoords, zoneId = null, destCoords =
 
     // Ruta ya calculada y visible en el mapa → no bloquear el pedido por ciudad
     if (routeValidated && routeKm > 0 && routeKm <= 200 && originCoords) {
-        const okOrigin = isInsideHondurasProximity(originCoords.lat, originCoords.lng);
-        const okDest = !destCoords || isInsideHondurasProximity(destCoords.lat, destCoords.lng);
+        const inCountry = isUsZone(zone) ? isInsideUnitedStatesProximity : isInsideHondurasProximity;
+        const okOrigin = inCountry(originCoords.lat, originCoords.lng);
+        const okDest = !destCoords || inCountry(destCoords.lat, destCoords.lng);
         if (okOrigin && okDest) {
             return { zone, radiusKm: coverage, error: null };
         }

@@ -37,6 +37,7 @@ export function markCapacitorBodyClasses() {
         }
         // Fallback de safe-area si el nativo aún no inyectó insets (evita botones bajo el reloj)
         ensureNativeSafeAreaFallback();
+        ensureStatusBarShield();
     } catch (_) {}
 }
 
@@ -49,7 +50,11 @@ export function ensureNativeSafeAreaFallback() {
         if (typeof document === 'undefined' || !isCapacitorNative()) return;
         const root = document.documentElement;
         const current = getComputedStyle(root).getPropertyValue('--native-safe-top').trim();
-        if (current && current !== '0px') return;
+        if (current && current !== '0px') {
+            ensureStatusBarShield();
+            try { window.dispatchEvent(new CustomEvent('hr-safe-insets')); } catch (_) {}
+            return;
+        }
 
         // Visual viewport / env() a veces sí reporta en WebViews nuevos
         let topPx = 0;
@@ -71,7 +76,31 @@ export function ensureNativeSafeAreaFallback() {
         }
         root.classList.add('native-insets-ready');
         document.body?.classList.add('native-insets-ready');
+        ensureStatusBarShield();
+        try { window.dispatchEvent(new CustomEvent('hr-safe-insets')); } catch (_) {}
     } catch (_) {}
+}
+
+/** Franja opaca bajo el reloj (APK): chips/flotantes no se mezclan con la status bar. */
+export function ensureStatusBarShield() {
+    try {
+        if (typeof document === 'undefined' || !document.body) return null;
+        if (!isCapacitorNative()
+            && !document.body.classList.contains('capacitor-android')
+            && !document.documentElement.classList.contains('capacitor-android')) {
+            return document.getElementById('status-bar-shield');
+        }
+        let el = document.getElementById('status-bar-shield');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'status-bar-shield';
+            el.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(el);
+        }
+        return el;
+    } catch (_) {
+        return null;
+    }
 }
 
 // Marcar lo antes posible (y de nuevo al cargar el body)

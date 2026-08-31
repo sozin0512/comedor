@@ -591,6 +591,19 @@ function injectServicePickerChip() {
     } else {
         picker.appendChild(btn);
     }
+    try {
+        const mode = window.getPassengerHomeMode?.() || document.body?.dataset?.passengerMode || '';
+        if (mode && mode !== 'home' && mode !== 'stores') {
+            btn.classList.add('hidden');
+        }
+        window.setServicePickerFilter?.(
+            mode === 'trip' ? ['moto', 'auto', 'taxi']
+                : mode === 'delivery' ? ['delivery']
+                : mode === 'freight' ? ['flete_paila', 'flete_camion']
+                : mode === 'tow' ? ['grua']
+                : null
+        );
+    } catch (_) {}
 }
 
 function injectProfileEntry() {
