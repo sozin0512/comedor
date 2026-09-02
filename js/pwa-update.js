@@ -23,8 +23,13 @@ export function getBuildVersion() {
 }
 
 export function getMessagingSwUrl(baseUrl = import.meta.url) {
-    const v = encodeURIComponent(getBuildVersion());
-    return new URL(`../firebase-messaging-sw.js?v=${v}`, baseUrl);
+    // URL estable: iOS Safari pierde la suscripción push si el SW cambia de ?v= en cada deploy.
+    try {
+        if (typeof location !== 'undefined' && location.origin) {
+            return new URL('/firebase-messaging-sw.js', location.origin).href;
+        }
+    } catch (_) {}
+    return new URL('../firebase-messaging-sw.js', baseUrl).href;
 }
 
 function isIOSDevice() {

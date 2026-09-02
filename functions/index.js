@@ -2022,8 +2022,6 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         openNotifications: openNotifications ? 'true' : String(data.openNotifications || 'false')
     };
 
-    const androidVibrate = audio.vibrate;
-
     // Importante: NO poner `notification` de nivel raÃ­z ni `android.notification`.
     // Si van, Android muestra un tray genÃ©rico y NO llama onMessageReceived en background
     // â†’ no podemos encender pantalla ni full-screen intent. Web/iOS van en webpush/apns.
@@ -2033,18 +2031,20 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
         ),
         webpush: {
-            // high = priorizar entrega (web/iOS PWA)
-            headers: { Urgency: 'high', TTL: '300' },
+            // high + TTL largo: iPhone bloqueado / sin red tira el aviso si TTL=300s
+            headers: {
+                Urgency: 'high',
+                TTL: String(
+                    type === 'trip_offer' || type === 'trip_price_boost' ? 180 : 86400
+                )
+            },
             notification: {
                 title,
                 body,
                 icon: PUSH_ICON,
                 badge: PUSH_ICON,
-                requireInteraction: true,
-                renotify: true,
-                tag: data.tag || undefined,
-                vibrate: androidVibrate,
-                // No marcar silent: el SO (Safari iOS / Chrome) debe sonar
+                tag: data.tag || undefined
+                // Safari iOS: sin vibrate/renotify/requireInteraction (puede descartar el push)
             },
             fcmOptions: { link }
         },

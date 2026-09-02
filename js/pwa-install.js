@@ -54,28 +54,67 @@ if (typeof window !== 'undefined' && !isCapacitorNative()) {
     });
 }
 
+function isStandaloneDisplay() {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true;
+}
+
 export function isPwaInstalled() {
     if (typeof window === 'undefined') return true;
     if (isCapacitorNative()) return true;
+    // iPhone/iPad: Safari y la PWA de inicio NO son lo mismo para push.
+    // Solo cuenta standalone real; el flag de localStorage engaña en pestaña Safari.
+    if (isIOS()) return isStandaloneDisplay();
     try {
         if (localStorage.getItem('honduber_pwa_installed') === '1') return true;
     } catch (_) {}
-    return window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true
+    return isStandaloneDisplay()
         || document.referrer.includes('android-app://');
 }
 
 export function isIOS() {
     if (typeof window === 'undefined') return false;
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const ua = navigator.userAgent || '';
+    if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return true;
+    // iPadOS 13+ a veces se reporta como Mac
+    return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
+}
+
+/** PWA abierta desde el icono de inicio (único contexto iOS con push en background). */
+export function isIosStandalonePwa() {
+    return isIOS() && isStandaloneDisplay();
+}
+
+function iosVersionParts() {
+    const ua = navigator.userAgent || '';
+    const m = ua.match(/OS (\d+)[._](\d+)/);
+    return {
+        major: m ? parseInt(m[1], 10) : 0,
+        minor: m ? parseInt(m[2], 10) : 0
+    };
+}
+
+/**
+ * En iPhone/iPad, Web Push fuera de la app SOLO funciona:
+ * iOS 16.4+ y HonduRaite abierto desde "Agregar a pantalla de inicio".
+ * Una pestaña de Safari no recibe viajes si cierras Safari o te desconectas.
+ */
+export function canReceiveBackgroundWebPush() {
+    if (typeof window === 'undefined') return false;
+    if (isCapacitorNative()) return true;
+    if (!isIOS()) return 'Notification' in window && 'serviceWorker' in navigator;
+    if (!isStandaloneDisplay()) return false;
+    const { major, minor } = iosVersionParts();
+    if (major && (major < 16 || (major === 16 && minor < 4))) return false;
+    return true;
 }
 
 export function isIOSSafari() {
     if (typeof window === 'undefined') return false;
-    const ua = navigator.userAgent;
-    const isIOSDevice = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
-    const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
-    return isIOSDevice && isSafari;
+    const ua = navigator.userAgent || '';
+    if (!isIOS()) return false;
+    return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|Chrome|Android/i.test(ua);
 }
 
 export function canTriggerNativeInstall() {
@@ -116,7 +155,7 @@ function installBannerHtml(roleLabel) {
             <p class="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">
                 <i class="fas fa-mobile-alt"></i> Instala HonduRaite
             </p>
-            <p class="text-xs text-amber-900 leading-snug mb-2">Como ${roleLabel}, agrega la app a tu pantalla de inicio y activa notificaciones para no perder mensajes del viaje aunque cierres el navegador.</p>
+            <p class="text-xs text-amber-900 leading-snug mb-2">Como ${roleLabel}, en iPhone los viajes no llegan si usas Safari. Agrega HonduRaite a inicio, ábrela desde el icono y activa avisos.</p>
             <button type="button" onclick="window.showInstallFlow()" class="text-[10px] font-black text-amber-700 underline uppercase">Ver cómo instalar</button>
         </div>
     `;

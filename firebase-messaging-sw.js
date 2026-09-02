@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.08.31.8';
+const HR_SW_VERSION = '2026.08.31.10';
 /* HonduRaite — Service Worker + FCM: TODAS las notificaciones emergentes tipo Temu */
 
 importScripts('https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js');
@@ -18,13 +18,19 @@ const ICON = '/icons/icon-192.png';
 
 // Vibración fuerte estilo Temu (todas las notificaciones)
 const HONDU_TEMU_VIBRATE = [0, 500, 80, 500, 80, 600, 100, 800, 80, 1000, 150, 500];
+const recentShownTags = new Set();
 
-messaging.onBackgroundMessage((payload) => {
-    const title = payload.notification?.title || payload.data?.title || 'HonduRaite';
-    const body = payload.notification?.body || payload.data?.body || '';
+function presentHonduNotification(payload) {
+    payload = payload || {};
     const data = payload.data || {};
+    const title = payload.notification?.title || data.title || payload.title || 'HonduRaite';
+    const body = payload.notification?.body || data.body || payload.body || '';
     const type = String(data.type || '');
     const tag = String(data.tag || `fcm-${type || 'alert'}`);
+    const dedupKey = `${tag}|${title}|${body}`;
+    if (recentShownTags.has(dedupKey)) return Promise.resolve();
+    recentShownTags.add(dedupKey);
+    setTimeout(() => recentShownTags.delete(dedupKey), 8000);
 
     const isPassengerTrip = type === 'driver_bid'
         || type === 'trip_accepted'
@@ -40,8 +46,6 @@ messaging.onBackgroundMessage((payload) => {
         || type === 'trip_started'
         || type === 'new_trip_staff';
 
-    // Si hay pestaña abierta (Safari/PWA), pedir que suene el tono HonduRaite custom
-    // (el SO en background solo permite ding del sistema; el custom va por Web Audio en la página)
     const notifyClientsPlayTone = self.clients.matchAll({ type: 'window', includeUncontrolled: true })
         .then((clients) => {
             clients.forEach((client) => {
@@ -59,43 +63,55 @@ messaging.onBackgroundMessage((payload) => {
         })
         .catch(() => {});
 
-    // Siempre emergente: requireInteraction + renotify + vibración fuerte
-    // silent:false → Safari suena (tono del sistema) aunque la pestaña esté en 2.º plano
+    const options = {
+        body,
+        icon: ICON,
+        badge: ICON,
+        tag,
+        renotify: true,
+        requireInteraction: true,
+        silent: false,
+        data: {
+            tripId: data.tripId || null,
+            openChat: data.openChat === 'true',
+            openDriver,
+            openPassenger: isPassengerTrip,
+            openClient: isPassengerTrip,
+            openAdmin: data.openAdmin === 'true' || type === 'new_trip_staff',
+            openDeposit: data.openDeposit === 'true' || type === 'deposit_reminder'
+                || String(tag || '').startsWith('deposit-reminder-'),
+            openNotifications: data.openNotifications === 'true'
+                || type === 'admin_notify'
+                || type === 'app_update'
+                || type === 'recurring_notify'
+                || type === 'promo_new',
+            type,
+            tag,
+            amount: data.amount || '',
+            serviceType: data.serviceType || '',
+            toneEvent: data.toneEvent || null
+        },
+        vibrate: HONDU_TEMU_VIBRATE
+    };
+
+    // Safari iOS REVOCA el push si el evento termina sin showNotification.
     return Promise.all([
         notifyClientsPlayTone,
-        self.registration.showNotification(title, {
-            body,
-            icon: ICON,
-            badge: ICON,
-            tag,
-            renotify: true,
-            requireInteraction: true,
-            silent: false,
-            data: {
-                tripId: data.tripId || null,
-                openChat: data.openChat === 'true',
-                openDriver,
-                openPassenger: isPassengerTrip,
-                openClient: isPassengerTrip,
-                openAdmin: data.openAdmin === 'true' || type === 'new_trip_staff',
-                openDeposit: data.openDeposit === 'true' || type === 'deposit_reminder'
-                    || String(tag || '').startsWith('deposit-reminder-'),
-                openNotifications: data.openNotifications === 'true'
-                    || type === 'admin_notify'
-                    || type === 'app_update'
-                    || type === 'recurring_notify'
-                    || type === 'promo_new',
-                type,
-                tag,
-                amount: data.amount || '',
-                serviceType: data.serviceType || '',
-                // Para que al abrir el aviso el cliente pueda tocar el tono Hondu
-                toneEvent: data.toneEvent || null
-            },
-            vibrate: HONDU_TEMU_VIBRATE
-        })
+        self.registration.showNotification(title, options)
     ]);
+}
+
+self.addEventListener('push', (event) => {
+    let payload = {};
+    try {
+        payload = event.data ? (event.data.json() || {}) : {};
+    } catch (_) {
+        payload = {};
+    }
+    event.waitUntil(presentHonduNotification(payload));
 });
+
+messaging.onBackgroundMessage((payload) => presentHonduNotification(payload || {}));
 
 self.addEventListener('install', () => self.skipWaiting());
 

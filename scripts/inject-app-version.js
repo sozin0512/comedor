@@ -162,8 +162,11 @@ function stripBom(text) {
 function patchManifest(version, filePath) {
     if (!fs.existsSync(filePath)) return;
     const manifest = JSON.parse(stripBom(fs.readFileSync(filePath, 'utf8')));
-    manifest.start_url = `/?v=${version}`;
-    manifest.id = `/?v=${version}`;
+    // id/start_url ESTABLES: si cambian con cada versión, iOS trata la PWA como otra app
+    // y pierde permiso + suscripción push (el conductor Safari deja de recibir viajes).
+    manifest.start_url = '/';
+    manifest.id = '/';
+    manifest.version = version;
     fs.writeFileSync(filePath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
 }
 

@@ -38,7 +38,7 @@ export async function initTripNotifications() {
 
     try {
         const swUrl = getMessagingSwUrl(import.meta.url);
-        swRegistration = await navigator.serviceWorker.register(swUrl);
+        swRegistration = await navigator.serviceWorker.register(swUrl, { scope: '/' });
         await navigator.serviceWorker.ready;
         return true;
     } catch (e) {

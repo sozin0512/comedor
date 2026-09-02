@@ -332,6 +332,9 @@ function applyMode(mode) {
         // Cerrar paneles de tiendas si estaban abiertos
         window.closeStoresMarketplace?.();
         window.closeMerchantPanel?.();
+        document.body.classList.remove('panel-minimized', 'panel-collapsed', 'panel-hidden');
+        document.getElementById('control-panel')?.classList.remove('panel-collapsed', 'panel-hidden');
+        try { window.showControlPanel?.({ forceExpand: true }); } catch (_) {}
         syncHomeCardsForCity();
         return;
     }

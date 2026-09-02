@@ -4,6 +4,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/fi
 import { notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert } from './trip-notifications.js';
 import { isCapacitorNative, isCapacitorAndroid } from './capacitor-native.js';
 import { getMessagingSwUrl } from './pwa-update.js';
+import { isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush } from './pwa-install.js';
 import { registerPlugin } from './vendor/capacitor-core.js';
 import { APP_CONFIG } from './config.js';
 
@@ -241,9 +242,26 @@ async function resolveVapidKey(db, appId, configVapid) {
     }
 }
 
+function detectWebPushPlatform() {
+    if (isIosStandalonePwa()) return 'ios-pwa';
+    if (isIOS()) return 'ios-safari';
+    return 'web';
+}
+
 async function registerMessagingServiceWorker() {
     const swUrl = getMessagingSwUrl(import.meta.url);
-    const reg = await navigator.serviceWorker.register(swUrl);
+    if ('serviceWorker' in navigator) {
+        try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((reg) => {
+                const url = String(reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '');
+                // Quitar SW viejos con ?v= (rompían la suscripción en iOS)
+                if (url.includes('firebase-messaging-sw.js?')) return reg.unregister().catch(() => false);
+                return Promise.resolve(false);
+            }));
+        } catch (_) {}
+    }
+    const reg = await navigator.serviceWorker.register(swUrl, { scope: '/' });
     await navigator.serviceWorker.ready;
     return reg;
 }
@@ -261,16 +279,23 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     const pubRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', uid);
     const privRef = doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data');
     // Siempre merge: si el público falla (reglas / doc incompleto) igual queda en privado.
+    let saved = false;
     try {
         await setDoc(pubRef, { uid, ...tokenPatch }, { merge: true });
+        saved = true;
     } catch (e) {
         console.warn('saveFcmToken public', e?.code || e?.message || e);
     }
     try {
         await setDoc(privRef, tokenPatch, { merge: true });
+        saved = true;
     } catch (e) {
         console.warn('saveFcmToken private', e?.code || e?.message || e);
     }
+    if (saved) {
+        try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
+    }
+    return saved;
 }
 
 function playConfiguredToneFromPush(data = {}) {
@@ -601,10 +626,21 @@ function handleNotificationNavigation(data = {}) {
     }
 }
 
+let onMessageBound = false;
+let tokenRefreshBound = false;
+let lastWebTokenSaveAt = 0;
+let lastWebTokenValue = '';
+
 /** Web/PWA: FCM con service worker y VAPID. No se ejecuta en APK Android. */
 export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) {
     if (isCapacitorNative()) return null;
     if (!uid || !(await isSupported())) return null;
+
+    // iPhone: en pestaña Safari el token NO entrega viajes con la app cerrada.
+    if (isIOS() && !canReceiveBackgroundWebPush()) {
+        console.warn('initFcmPush: iOS requiere PWA en pantalla de inicio (iOS 16.4+) para push fuera de Safari');
+        return null;
+    }
 
     const key = await resolveVapidKey(db, appId, vapidKey);
     if (!key) {
@@ -621,15 +657,46 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
             serviceWorkerRegistration: reg
         });
 
-        if (token) await saveFcmToken(db, appId, uid, token, 'web');
+        if (token) {
+            const platform = detectWebPushPlatform();
+            const now = Date.now();
+            if (token !== lastWebTokenValue || now - lastWebTokenSaveAt > 60 * 1000) {
+                lastWebTokenValue = token;
+                lastWebTokenSaveAt = now;
+                await saveFcmToken(db, appId, uid, token, platform);
+            }
+        }
 
-        onMessage(messagingInstance, (payload) => routeForegroundPush(payload));
+        if (!onMessageBound) {
+            onMessageBound = true;
+            onMessage(messagingInstance, (payload) => routeForegroundPush(payload));
+        }
 
-        return token;
+        bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid });
+
+        return token || null;
     } catch (e) {
         console.warn('initFcmPush:', e);
         return null;
     }
+}
+
+function bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid }) {
+    if (tokenRefreshBound || !uid || isCapacitorNative()) return;
+    tokenRefreshBound = true;
+    let lastAttempt = 0;
+    const refresh = () => {
+        if (document.visibilityState === 'hidden') return;
+        const now = Date.now();
+        if (now - lastAttempt < 45 * 1000) return;
+        lastAttempt = now;
+        initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') refresh();
+    });
+    window.addEventListener('pageshow', refresh);
+    window.addEventListener('focus', () => refresh());
 }
 
 /**
