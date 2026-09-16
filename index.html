@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.08.31.10">
+    <meta name="hr-app-version" content="2026.09.15.4">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.08.31.10">
+    <link rel="manifest" href="manifest.json?v=2026.09.15.4">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,13 +31,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.08.31.10">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.15.4">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.08.31.10">
-    <script src="js/maps-init.js?v=2026.08.31.10"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.09.15.4">
+    <script src="js/maps-init.js?v=2026.09.15.4"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.08.31.10';
+        import { APP_CONFIG } from './js/config.js?v=2026.09.15.4';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -115,10 +115,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.08.31.10';
+        window.__HR_BUILD_VERSION__ = '2026.09.15.4';
         (function () {
             try {
-                var build = '2026.08.31.10';
+                var build = '2026.09.15.4';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -1023,15 +1023,15 @@
                 </button>
 
                 <button type="button" id="btn-passenger-tutorial"
-                        class="hidden w-full flex items-center justify-center gap-3 py-3 border border-blue-200 bg-blue-50 rounded-2xl text-sm font-bold text-blue-800 active:bg-blue-100">
-                    <i class="fas fa-graduation-cap text-blue-600"></i>
-                    <span>Guía: cómo pedir un viaje</span>
+                        class="hidden w-full flex items-center justify-center gap-3 py-3 border border-red-200 bg-red-50 rounded-2xl text-sm font-bold text-red-800 active:bg-red-100">
+                    <i class="fab fa-youtube text-red-600"></i>
+                    <span>Tutorial en YouTube: pedir un viaje</span>
                 </button>
 
                 <button type="button" id="btn-driver-tutorial"
-                        class="hidden w-full flex items-center justify-center gap-3 py-3 border border-emerald-200 bg-emerald-50 rounded-2xl text-sm font-bold text-emerald-800 active:bg-emerald-100">
-                    <i class="fas fa-graduation-cap text-emerald-600"></i>
-                    <span>Guía: cómo recibir viajes</span>
+                        class="hidden w-full flex items-center justify-center gap-3 py-3 border border-red-200 bg-red-50 rounded-2xl text-sm font-bold text-red-800 active:bg-red-100">
+                    <i class="fab fa-youtube text-red-600"></i>
+                    <span>Tutorial en YouTube: recibir viajes</span>
                 </button>
 
                 <button onclick="window.showSuggestionModal()" 
@@ -1471,7 +1471,17 @@
             <button onclick="window.updateRole('client')" id="role-client" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all bg-white shadow-sm text-blue-600 uppercase">Pasajero</button>
             <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase">Conductor</button>
         </div>
-        <p id="login-role-hint" class="text-[10px] text-center text-gray-500 mb-4 leading-snug px-1">Pasajero: viajes, envíos, fletes o grúa. Eliges el servicio dentro de la app.</p>
+        <p id="login-role-hint" class="text-[10px] text-center text-gray-500 mb-3 leading-snug px-1">Pasajero: viajes, envíos, fletes o grúa. Eliges el servicio dentro de la app.</p>
+
+        <div class="login-wa-cta login-wa-cta--top">
+            <p class="login-wa-slogan">¿Apurado? Pide un viaje por WhatsApp</p>
+            <a class="login-wa-btn" href="https://wa.me/14693876894?text=Hola" target="_blank" rel="noopener">
+                <i class="fab fa-whatsapp"></i>
+                <span>Pedir viaje por WhatsApp</span>
+            </a>
+            <img class="login-wa-qr" src="images/qr-honduraite-whatsapp.png" width="128" height="128" alt="QR WhatsApp HonduRaite">
+            <p class="login-wa-cap">Escanea el QR · sin cuenta · 24/7</p>
+        </div>
 
         <!-- Tabs Login / Registro -->
         <div class="flex border-b border-gray-100 mb-6 text-xs font-bold uppercase tracking-wider">
@@ -1507,12 +1517,15 @@
                 <p id="driver-setup-subtitle" class="text-blue-200 text-[9px] font-bold uppercase tracking-wide">Fotos + documentos</p>
             </div>
         </div>
+        <button type="button" id="driver-register-guide-btn" class="driver-setup-guide-btn" title="Guía de registro" aria-label="Guía de registro">
+            <i class="fas fa-book-open"></i><span>Guía</span>
+        </button>
         <button type="button" onclick="window.cancelSetupAndLogout()" class="driver-setup-close-btn w-11 h-11 text-white/80 hover:text-red-300 text-2xl font-light rounded-xl" title="Cerrar" aria-label="Cerrar">×</button>
     </header>
 
     <div id="setup-form-scroll" class="driver-setup-body">
         <!-- TIPO: AUTO O MOTO -->
-        <div class="setup-step">
+        <div class="setup-step" data-setup-section="type">
             <p class="setup-step-title text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">¿Qué vas a manejar?</p>
             <div class="grid grid-cols-3 gap-2 mb-2">
                 <button type="button" id="drv-type-auto" data-type="auto" onclick="window.selectDriverVehicleType('auto')"
@@ -1542,35 +1555,33 @@
         </div>
 
         <!-- PASO 1: FOTO REAL DEL CONDUCTOR -->
-        <div class="setup-step">
+        <div class="setup-step" data-setup-section="face">
             <div class="setup-step-head">
                 <span class="setup-step-num bg-red-600">1</span>
                 <h3 class="setup-step-title">Foto de tu rostro <span class="text-red-600">*</span></h3>
             </div>
-            <p class="setup-step-desc">Selfie clara, sin gorra ni gafas de sol. El supervisor la verificará.</p>
-            <div onclick="document.getElementById('photo-input').click()" class="setup-photo-face" id="photo-preview">
+            <p class="setup-step-desc">Selfie clara, sin gorra ni gafas de sol. El supervisor la verificará. <button type="button" class="setup-guide-inline" data-open-driver-register-guide data-guide-step="face">Cómo tomarla</button></p>
+            <div data-setup-photo="face" onclick="window.pickSetupPhoto?.('face')" class="setup-photo-face" id="photo-preview" role="button" tabindex="0">
                 <i class="fas fa-user text-2xl text-blue-400"></i>
                 <span class="text-[8px] font-black text-blue-600 mt-0.5">SUBIR FOTO</span>
             </div>
-            <input type="file" id="photo-input" accept="image/*" class="hidden" onchange="window.previewPhoto(this)">
         </div>
 
         <!-- MOTO SEGURA: CASCO -->
-        <div id="helmet-photo-step" class="setup-step hidden border-violet-200 bg-violet-50/50">
+        <div id="helmet-photo-step" class="setup-step hidden border-violet-200 bg-violet-50/50" data-setup-section="helmet">
             <div class="setup-step-head">
                 <span class="setup-step-num bg-violet-600">1B</span>
                 <h3 class="setup-step-title text-violet-800">Moto Segura — Casco <span class="text-red-600">*</span></h3>
             </div>
             <p class="setup-step-desc text-violet-700">Foto tuya con casco puesto. Luego subirás 3 fotos del casco del conductor + 2 fotos del casco para pasajeros (incluyendo por dentro).</p>
-            <div onclick="document.getElementById('helmet-photo-input').click()" class="setup-photo-face border-violet-300" id="helmet-photo-preview">
+            <div data-setup-photo="helmet" onclick="window.pickSetupPhoto?.('helmet')" class="setup-photo-face border-violet-300" id="helmet-photo-preview" role="button" tabindex="0">
                 <i class="fas fa-hard-hat text-2xl text-violet-500"></i>
                 <span class="text-[8px] font-black text-violet-700 mt-0.5">FOTO CON CASCO PUESTO</span>
             </div>
-            <input type="file" id="helmet-photo-input" accept="image/*" capture="user" class="hidden" onchange="window.previewHelmetPhoto(this)">
         </div>
 
         <!-- DATOS PERSONALES -->
-        <div class="setup-step">
+        <div class="setup-step" data-setup-section="personal">
             <div class="setup-step-head">
                 <span class="setup-step-num bg-blue-600">2</span>
                 <h3 class="setup-step-title">Datos personales</h3>
@@ -1597,7 +1608,7 @@
         </div>
 
         <!-- INFORMACIÓN DEL VEHÍCULO -->
-        <div class="setup-step">
+        <div class="setup-step" data-setup-section="vehicle">
             <div class="setup-step-head">
                 <span class="setup-step-num bg-emerald-600">3</span>
                 <h3 class="setup-step-title">Datos del vehículo</h3>
@@ -1613,73 +1624,60 @@
         </div>
 
         <!-- FOTOS DEL VEHÍCULO -->
-        <div class="setup-step">
+        <div class="setup-step" data-setup-section="photos">
             <div class="setup-step-head">
                 <span class="setup-step-num bg-orange-600">4</span>
                 <h3 class="setup-step-title"><span id="vehicle-photos-title">Fotos del vehículo</span> <span class="text-red-600">*</span></h3>
             </div>
-            <p class="setup-step-desc"><b>Fotos obligatorias.</b> Para moto: casco del conductor + casco para pasajeros (en vez de interior de carro) + revisión vehicular de Honduras. El supervisor las verificará.</p>
+            <p class="setup-step-desc"><b>Fotos obligatorias.</b> Para moto: casco del conductor + casco para pasajeros (en vez de interior de carro) + revisión vehicular de Honduras. El supervisor las verificará. <button type="button" class="setup-guide-inline" data-open-driver-register-guide data-guide-step="photos">Ver ejemplos</button></p>
             <p id="vehicle-interior-label" class="text-[9px] font-black text-orange-700 mb-1.5"><i class="fas fa-car"></i> INTERIOR (3 fotos)</p>
             <div class="grid grid-cols-3 gap-1.5 mb-3">
-                <div id="int1-preview" onclick="document.getElementById('int1-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Asientos</span></div>
-                <input type="file" id="int1-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'int1')">
-                <div id="int2-preview" onclick="document.getElementById('int2-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Tablero</span></div>
-                <input type="file" id="int2-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'int2')">
-                <div id="int3-preview" onclick="document.getElementById('int3-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Maletero</span></div>
-                <input type="file" id="int3-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'int3')">
+                <div id="int1-preview" data-setup-photo="int1" onclick="window.pickSetupPhoto?.('int1')" class="setup-photo-slot" role="button" tabindex="0"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Asientos</span></div>
+                <div id="int2-preview" data-setup-photo="int2" onclick="window.pickSetupPhoto?.('int2')" class="setup-photo-slot" role="button" tabindex="0"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Tablero</span></div>
+                <div id="int3-preview" data-setup-photo="int3" onclick="window.pickSetupPhoto?.('int3')" class="setup-photo-slot" role="button" tabindex="0"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Maletero</span></div>
             </div>
 
             <!-- CASCO PASAJERO (solo para moto) -->
             <p id="passenger-casco-label" class="text-[9px] font-black text-violet-700 mb-1.5 hidden"><i class="fas fa-hard-hat"></i> CASCO PARA PASAJEROS (2 fotos) *</p>
             <div id="passenger-casco-grid" class="grid grid-cols-2 gap-1.5 mb-3 hidden">
-                <div id="pcasco1-preview" onclick="document.getElementById('pcasco1-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Casco pasajero</span></div>
-                <input type="file" id="pcasco1-input" accept="image/*" class="hidden" onchange="window.previewPassengerCascoPhoto(this, 'pc1')">
-                <div id="pcasco2-preview" onclick="document.getElementById('pcasco2-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Casco pasajero por dentro</span></div>
-                <input type="file" id="pcasco2-input" accept="image/*" class="hidden" onchange="window.previewPassengerCascoPhoto(this, 'pc2')">
+                <div id="pcasco1-preview" data-setup-photo="pc1" onclick="window.pickSetupPhoto?.('pc1')" class="setup-photo-slot" role="button" tabindex="0"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Casco pasajero</span></div>
+                <div id="pcasco2-preview" data-setup-photo="pc2" onclick="window.pickSetupPhoto?.('pc2')" class="setup-photo-slot" role="button" tabindex="0"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Casco pasajero por dentro</span></div>
             </div>
 
             <p id="vehicle-exterior-label" class="text-[9px] font-black text-orange-700 mb-1.5"><i class="fas fa-car-side"></i> EXTERIOR (2 fotos)</p>
             <div class="grid grid-cols-2 gap-1.5 mb-3">
-                <div id="ext-front-preview" onclick="document.getElementById('ext-front-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Frontal</span></div>
-                <input type="file" id="ext-front-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'extFront')">
-                <div id="ext-rear-preview" onclick="document.getElementById('ext-rear-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Trasero</span></div>
-                <input type="file" id="ext-rear-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'extRear')">
+                <div id="ext-front-preview" data-setup-photo="extFront" onclick="window.pickSetupPhoto?.('extFront')" class="setup-photo-slot" role="button" tabindex="0"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Frontal</span></div>
+                <div id="ext-rear-preview" data-setup-photo="extRear" onclick="window.pickSetupPhoto?.('extRear')" class="setup-photo-slot" role="button" tabindex="0"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Trasero</span></div>
             </div>
             <p class="text-[9px] font-black text-orange-700 mb-1.5"><i class="fas fa-id-card"></i> PLACA *</p>
-            <div id="plate-preview" onclick="document.getElementById('plate-input').click()" class="setup-photo-slot"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Foto de placa legible</span></div>
-            <input type="file" id="plate-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'plate')">
+            <div id="plate-preview" data-setup-photo="plate" onclick="window.pickSetupPhoto?.('plate')" class="setup-photo-slot" role="button" tabindex="0"><i class="fas fa-image text-gray-400 text-sm"></i><span class="text-[7px] font-bold text-gray-500">Foto de placa legible</span></div>
         </div>
 
         <!-- DOCUMENTOS Y ANTECEDENTES -->
-        <div class="setup-step border-red-200">
+        <div class="setup-step border-red-200" data-setup-section="docs">
             <div class="setup-step-head">
                 <span class="setup-step-num bg-red-600">5</span>
                 <h3 class="setup-step-title text-red-700">Documentos <span class="text-red-600">*</span></h3>
             </div>
-            <p class="setup-step-desc text-red-600">Licencia, revisión vehicular de Honduras y antecedentes penales/policiales.</p>
+            <p class="setup-step-desc text-red-600">Licencia, revisión vehicular de Honduras y antecedentes penales/policiales. <button type="button" class="setup-guide-inline" data-open-driver-register-guide data-guide-step="docs">Qué fotos piden</button></p>
             <p class="text-[9px] font-black text-gray-600 mb-1">LICENCIA DE CONDUCIR (2 fotos: FRENTE y REVÉS) *</p>
             <div class="grid grid-cols-2 gap-1.5 mb-2">
-                <div id="license-front-preview" onclick="document.getElementById('license-front-input').click()" class="setup-photo-slot setup-photo-doc"><i class="fas fa-id-card text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Frente (Anverso)</span></div>
-                <input type="file" id="license-front-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'licenseFront')">
-                <div id="license-back-preview" onclick="document.getElementById('license-back-input').click()" class="setup-photo-slot setup-photo-doc"><i class="fas fa-id-card text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Revés (Reverso)</span></div>
-                <input type="file" id="license-back-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'licenseBack')">
+                <div id="license-front-preview" data-setup-photo="licenseFront" onclick="window.pickSetupPhoto?.('licenseFront')" class="setup-photo-slot setup-photo-doc" role="button" tabindex="0"><i class="fas fa-id-card text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Frente (Anverso)</span></div>
+                <div id="license-back-preview" data-setup-photo="licenseBack" onclick="window.pickSetupPhoto?.('licenseBack')" class="setup-photo-slot setup-photo-doc" role="button" tabindex="0"><i class="fas fa-id-card text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Revés (Reverso)</span></div>
             </div>
             <p class="text-[9px] font-black text-gray-600 mb-1">REVISIÓN VEHICULAR DE HONDURAS</p>
-            <div id="inspection-preview" onclick="document.getElementById('inspection-input').click()" class="setup-photo-slot setup-photo-doc mb-3"><i class="fas fa-clipboard-check text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Subir revisión vehicular</span></div>
-            <input type="file" id="inspection-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'inspection')">
+            <div id="inspection-preview" data-setup-photo="inspection" onclick="window.pickSetupPhoto?.('inspection')" class="setup-photo-slot setup-photo-doc mb-3" role="button" tabindex="0"><i class="fas fa-clipboard-check text-gray-400"></i><span class="text-[7px] font-bold text-gray-500">Subir revisión vehicular</span></div>
             <div class="p-2.5 bg-red-50 border border-red-200 rounded-xl space-y-2">
                 <p class="text-[9px] font-black text-red-700"><i class="fas fa-shield-alt"></i> ANTECEDENTES PENALES (PEN)</p>
                 <input id="pen-code" placeholder="Código PEN" class="setup-input border-red-200">
-                <div id="antecedentes-preview" onclick="document.getElementById('antecedentes-input').click()" class="setup-photo-slot setup-photo-doc"><i class="fas fa-file-alt text-red-400"></i><span class="text-[7px] font-bold text-red-500">Foto certificado PEN</span></div>
-                <input type="file" id="antecedentes-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'antecedentes')">
+                <div id="antecedentes-preview" data-setup-photo="antecedentes" onclick="window.pickSetupPhoto?.('antecedentes')" class="setup-photo-slot setup-photo-doc" role="button" tabindex="0"><i class="fas fa-file-alt text-red-400"></i><span class="text-[7px] font-bold text-red-500">Foto certificado PEN</span></div>
                 <p class="text-[9px] font-black text-red-700 pt-1">ANTECEDENTES POLICIALES</p>
                 <input id="policiales-code" placeholder="Código policial" class="setup-input border-red-200">
-                <div id="policiales-preview" onclick="document.getElementById('policiales-input').click()" class="setup-photo-slot setup-photo-doc"><i class="fas fa-file-alt text-red-400"></i><span class="text-[7px] font-bold text-red-500">Foto certificado policial</span></div>
-                <input type="file" id="policiales-input" accept="image/*" class="hidden" onchange="window.previewVehiclePhoto(this, 'policiales')">
+                <div id="policiales-preview" data-setup-photo="policiales" onclick="window.pickSetupPhoto?.('policiales')" class="setup-photo-slot setup-photo-doc" role="button" tabindex="0"><i class="fas fa-file-alt text-red-400"></i><span class="text-[7px] font-bold text-red-500">Foto certificado policial</span></div>
             </div>
         </div>
 
-        <button id="driver-setup-submit-btn" onclick="window.saveProfile()" class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-wider shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
+        <button id="driver-setup-submit-btn" data-setup-section="submit" onclick="window.saveProfile()" class="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-black py-3.5 rounded-2xl text-xs uppercase tracking-wider shadow-lg active:scale-[0.98] flex items-center justify-center gap-2">
             <i class="fas fa-paper-plane"></i> <span id="driver-setup-submit-label">ENVIAR PARA APROBACIÓN</span>
         </button>
         <p class="text-center text-[9px] text-white/70 mt-2 mb-1 leading-snug">Un supervisor verificará tus fotos. Vigencia documentos: 6 meses.</p>
@@ -1777,10 +1775,10 @@
             <i class="fab fa-whatsapp text-emerald-600"></i><span>Soporte WhatsApp</span>
         </button>
         <button type="button" id="header-menu-tutorial" data-header-menu-action="tutorial" class="hidden header-more-item" role="menuitem">
-            <i class="fas fa-graduation-cap text-blue-600"></i><span>Guía: cómo pedir un viaje</span>
+            <i class="fab fa-youtube text-red-600"></i><span>Tutorial en YouTube</span>
         </button>
         <button type="button" id="header-menu-driver-tutorial" data-header-menu-action="driver-tutorial" class="hidden header-more-item" role="menuitem">
-            <i class="fas fa-graduation-cap text-emerald-600"></i><span>Guía: cómo recibir viajes</span>
+            <i class="fab fa-youtube text-red-600"></i><span>Tutorial en YouTube</span>
         </button>
         <button type="button" id="header-menu-copa" data-header-menu-action="copa" class="hidden header-more-item header-more-item-copa" role="menuitem">
             <span class="header-copa-icon" aria-hidden="true"><i class="fas fa-trophy"></i></span>
@@ -2678,6 +2676,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.08.31.10"></script>
+    <script type="module" src="js/app.js?v=2026.09.15.4"></script>
 </body>
 </html>

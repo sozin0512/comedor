@@ -2992,6 +2992,66 @@
             border-top: 1px solid rgba(255, 255, 255, 0.6);
         }
 
+        .login-wa-cta {
+            margin-top: 1.15rem;
+            padding-top: 1rem;
+            border-top: 1px dashed #dbeafe;
+            text-align: center;
+        }
+        .login-wa-cta--top {
+            margin-top: 0;
+            margin-bottom: 1rem;
+            padding-top: 0;
+            padding-bottom: 1rem;
+            border-top: 0;
+            border-bottom: 1px dashed #dbeafe;
+        }
+        .login-wa-slogan {
+            margin: 0 0 0.7rem;
+            font-size: 0.82rem;
+            font-weight: 900;
+            color: #0f172a;
+            letter-spacing: -0.01em;
+            line-height: 1.25;
+        }
+        .login-wa-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+            width: 100%;
+            padding: 0.85rem 1rem;
+            border-radius: 1rem;
+            background: #25D366;
+            color: #fff;
+            font-weight: 900;
+            font-size: 0.78rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            text-decoration: none;
+            box-shadow: 0 8px 18px rgba(37, 211, 102, 0.28);
+        }
+        .login-wa-btn i { font-size: 1.05rem; }
+        .login-wa-qr {
+            display: block;
+            width: 7.5rem;
+            height: 7.5rem;
+            margin: 0.85rem auto 0.35rem;
+            border-radius: 0.85rem;
+            background: #fff;
+            border: 1px solid #e2e8f0;
+        }
+        .login-wa-cap {
+            margin: 0;
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: #64748b;
+        }
+        html[data-theme="dark"] .login-wa-slogan { color: #f8fafc; }
+        html[data-theme="dark"] .login-wa-cap { color: #94a3b8; }
+        html[data-theme="dark"] .login-wa-cta { border-top-color: #334155; }
+        html[data-theme="dark"] .login-wa-cta--top { border-bottom-color: #334155; }
+
         .auth-form-scroll {
             scrollbar-width: thin;
             scrollbar-color: #cbd5e1 transparent;
@@ -3095,6 +3155,303 @@
             gap: 0.5rem;
             min-width: 0;
         }
+
+        .driver-setup-guide-btn {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.28rem;
+            min-width: 2.75rem;
+            min-height: 2.5rem;
+            padding: 0 0.7rem;
+            border-radius: 0.7rem;
+            border: 1px solid rgba(255, 255, 255, 0.28);
+            background: rgba(255, 255, 255, 0.14);
+            color: #fff;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            touch-action: manipulation;
+        }
+        .driver-setup-guide-btn i { font-size: 0.78rem; }
+        .driver-setup-guide-btn:active { transform: scale(0.97); background: rgba(255,255,255,0.22); }
+        @media (max-width: 360px) {
+            .driver-setup-guide-btn span { display: none; }
+            .driver-setup-guide-btn { padding: 0; width: 2.6rem; }
+        }
+
+        .setup-guide-inline {
+            display: inline;
+            margin-left: 0.15rem;
+            padding: 0;
+            border: 0;
+            background: none;
+            color: #1d4ed8;
+            font-size: inherit;
+            font-weight: 800;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .setup-step-guide-pulse {
+            outline: 2px solid #2563eb;
+            box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.22);
+            animation: drvGuidePulse 1.4s ease-out 1;
+        }
+        @keyframes drvGuidePulse {
+            0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+            100% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+        }
+
+        .drv-guide-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 26000;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            background: rgba(4, 30, 66, 0.72);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            animation: cityModalFadeIn 0.2s ease-out;
+        }
+        .drv-guide-overlay.is-out { opacity: 0; transition: opacity 0.16s ease; }
+        @media (min-width: 640px) {
+            .drv-guide-overlay { align-items: center; padding: 1.25rem; }
+        }
+        .drv-guide-sheet {
+            width: 100%;
+            max-width: 26.5rem;
+            max-height: min(92vh, 42rem);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 1.05rem 1.05rem calc(0.85rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+            border-radius: 1.35rem 1.35rem 0 0;
+            background: #fff;
+            box-shadow: 0 -16px 40px rgba(4, 30, 66, 0.28);
+            position: relative;
+            animation: cityModalSlideUp 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @media (min-width: 640px) {
+            .drv-guide-sheet { border-radius: 1.35rem; }
+        }
+        .drv-guide-x {
+            position: absolute;
+            top: 0.55rem;
+            right: 0.55rem;
+            width: 2.1rem;
+            height: 2.1rem;
+            border: none;
+            border-radius: 0.65rem;
+            background: #e2e8f0;
+            color: #0f172a;
+            font-size: 1.35rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .drv-guide-progress {
+            padding-right: 2.2rem;
+            margin-bottom: 0.65rem;
+        }
+        .drv-guide-progress span {
+            display: block;
+            font-size: 0.65rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #2563eb;
+            margin-bottom: 0.3rem;
+        }
+        .drv-guide-bar {
+            height: 0.28rem;
+            border-radius: 99px;
+            background: #e2e8f0;
+            overflow: hidden;
+        }
+        .drv-guide-bar i {
+            display: block;
+            height: 100%;
+            background: linear-gradient(90deg, #1d4ed8, #0ea5e9);
+            border-radius: 99px;
+        }
+        .drv-guide-hero { text-align: center; margin-bottom: 0.7rem; }
+        .drv-guide-hero-icon {
+            width: 3rem;
+            height: 3rem;
+            margin: 0 auto 0.5rem;
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            color: #fff;
+            background: linear-gradient(135deg, #1d4ed8, #0369a1);
+            box-shadow: 0 8px 18px rgba(29, 78, 216, 0.35);
+        }
+        .drv-guide-hero h2 {
+            margin: 0;
+            font-size: 1.12rem;
+            font-weight: 900;
+            color: #0f172a;
+            letter-spacing: -0.02em;
+            line-height: 1.25;
+        }
+        .drv-guide-body {
+            font-size: 0.86rem;
+            color: #334155;
+            line-height: 1.45;
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-right: 0.1rem;
+        }
+        .drv-guide-body p { margin: 0 0 0.55rem; }
+        .drv-guide-list {
+            margin: 0 0 0.65rem;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 0.35rem;
+        }
+        .drv-guide-list li {
+            position: relative;
+            padding: 0.45rem 0.55rem 0.45rem 1.7rem;
+            border-radius: 0.7rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            font-size: 0.8rem;
+            font-weight: 650;
+            color: #1e293b;
+        }
+        .drv-guide-list li::before {
+            content: "✓";
+            position: absolute;
+            left: 0.5rem;
+            top: 0.42rem;
+            color: #2563eb;
+            font-weight: 900;
+        }
+        .drv-guide-note {
+            margin: 0.15rem 0 0 !important;
+            font-size: 0.75rem !important;
+            color: #64748b !important;
+            font-weight: 650;
+        }
+        .drv-guide-types {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.4rem;
+            margin: 0.35rem 0 0.55rem;
+        }
+        .drv-guide-type {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.2rem;
+            padding: 0.5rem 0.2rem;
+            border-radius: 0.75rem;
+            border: 1.5px solid #e2e8f0;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 0.68rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .drv-guide-type i { font-size: 0.95rem; color: #2563eb; }
+        .drv-guide-type.is-on {
+            border-color: #2563eb;
+            background: #eff6ff;
+            color: #1e3a8a;
+        }
+        .drv-guide-yn {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.45rem;
+            margin-bottom: 0.5rem;
+        }
+        .drv-guide-yn-col {
+            border-radius: 0.8rem;
+            padding: 0.5rem 0.5rem 0.4rem;
+            border: 1px solid #e2e8f0;
+        }
+        .drv-guide-yn-col p {
+            margin: 0 0 0.3rem !important;
+            font-size: 0.68rem;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .drv-guide-yn-col ul {
+            margin: 0;
+            padding-left: 0.95rem;
+            font-size: 0.72rem;
+            font-weight: 650;
+            line-height: 1.35;
+        }
+        .drv-guide-yn-yes { background: #ecfdf5; border-color: #a7f3d0; }
+        .drv-guide-yn-yes p { color: #047857; }
+        .drv-guide-yn-no { background: #fef2f2; border-color: #fecaca; }
+        .drv-guide-yn-no p { color: #b91c1c; }
+        .drv-guide-actions {
+            display: grid;
+            grid-template-columns: 1fr 1.4fr;
+            gap: 0.45rem;
+            margin-top: 0.75rem;
+            flex-shrink: 0;
+        }
+        .drv-guide-btn {
+            min-height: 2.7rem;
+            border-radius: 0.85rem;
+            border: none;
+            font-size: 0.78rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+        .drv-guide-btn:disabled { opacity: 0.4; cursor: default; }
+        .drv-guide-btn-ghost { background: #e2e8f0; color: #0f172a; }
+        .drv-guide-btn-primary {
+            background: linear-gradient(135deg, #1d4ed8, #0369a1);
+            color: #fff;
+        }
+        .drv-guide-foot {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.15rem;
+            margin-top: 0.45rem;
+            flex-shrink: 0;
+        }
+        .drv-guide-link {
+            border: none;
+            background: none;
+            color: #2563eb;
+            font-size: 0.72rem;
+            font-weight: 800;
+            cursor: pointer;
+            padding: 0.2rem;
+        }
+
+        html[data-theme="dark"] .drv-guide-sheet { background: #0f172a; }
+        html[data-theme="dark"] .drv-guide-hero h2 { color: #f8fafc; }
+        html[data-theme="dark"] .drv-guide-body { color: #cbd5e1; }
+        html[data-theme="dark"] .drv-guide-list li {
+            background: #1e293b;
+            border-color: #334155;
+            color: #e2e8f0;
+        }
+        html[data-theme="dark"] .drv-guide-note { color: #94a3b8 !important; }
+        html[data-theme="dark"] .drv-guide-type { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+        html[data-theme="dark"] .drv-guide-type.is-on { background: #1e3a8a; border-color: #60a5fa; color: #dbeafe; }
+        html[data-theme="dark"] .drv-guide-bar { background: #334155; }
+        html[data-theme="dark"] .drv-guide-x { background: #334155; color: #f8fafc; }
+        html[data-theme="dark"] .drv-guide-btn-ghost { background: #334155; color: #f8fafc; }
+        html[data-theme="dark"] .drv-guide-yn-yes { background: #064e3b; border-color: #047857; }
+        html[data-theme="dark"] .drv-guide-yn-no { background: #7f1d1d; border-color: #b91c1c; }
+        html[data-theme="dark"] .setup-guide-inline { color: #93c5fd; }
 
         .driver-setup-mini-logo {
             width: 2rem;
@@ -3278,7 +3635,25 @@
             }
         }
 
+        /* No display:none: Android WebView suelta el archivo al confirmar Subir. */
+        .setup-file-input {
+            position: fixed !important;
+            left: 0;
+            bottom: 0;
+            width: 1px !important;
+            height: 1px !important;
+            opacity: 0.01;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+
         .setup-photo-slot {
+            position: relative;
+            z-index: 2;
             min-height: 3.75rem;
             background: #f1f5f9;
             border: 1px dashed #cbd5e1;
@@ -3292,6 +3667,8 @@
             padding: 0.25rem;
             overflow: hidden;
             touch-action: manipulation;
+            pointer-events: auto;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .setup-photo-slot img {
@@ -3302,6 +3679,8 @@
         }
 
         .setup-photo-face {
+            position: relative;
+            z-index: 2;
             width: 6rem;
             height: 6rem;
             margin: 0 auto;
@@ -3315,6 +3694,8 @@
             cursor: pointer;
             overflow: hidden;
             touch-action: manipulation;
+            pointer-events: auto;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .setup-photo-face img {
@@ -17167,271 +17548,6 @@
             color: #f1f5f9;
         }
 
-        /* --- Tutorial pasajero (tour guiado) --- */
-        body.passenger-tutorial-active {
-            overflow: hidden;
-        }
-
-        .passenger-tutorial-root {
-            position: fixed;
-            inset: 0;
-            z-index: 55000;
-            pointer-events: none;
-        }
-
-        .passenger-tutorial-backdrop {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.45);
-            pointer-events: auto;
-        }
-
-        .passenger-tutorial-spotlight {
-            position: fixed;
-            z-index: 55001;
-            border-radius: 14px;
-            box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.72);
-            pointer-events: none;
-            transition: top 0.22s ease, left 0.22s ease, width 0.22s ease, height 0.22s ease;
-        }
-
-        .passenger-tutorial-card {
-            position: fixed;
-            z-index: 55002;
-            width: min(92vw, 22rem);
-            max-height: min(78dvh, 28rem);
-            overflow-y: auto;
-            background: #fff;
-            border-radius: 1.25rem;
-            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
-            padding: 1rem 1rem 0.85rem;
-            pointer-events: auto;
-            border: 1px solid rgba(148, 163, 184, 0.35);
-            transition: top 0.2s ease, left 0.2s ease;
-        }
-
-        html[data-theme="dark"] .passenger-tutorial-card {
-            background: #1e293b;
-            border-color: rgba(71, 85, 105, 0.6);
-            color: #e2e8f0;
-        }
-
-        .passenger-tutorial-card-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 0.65rem;
-        }
-
-        .passenger-tutorial-step-badge {
-            font-size: 0.65rem;
-            font-weight: 900;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: #2563eb;
-            background: #eff6ff;
-            padding: 0.2rem 0.55rem;
-            border-radius: 999px;
-        }
-
-        html[data-theme="dark"] .passenger-tutorial-step-badge {
-            background: rgba(37, 99, 235, 0.2);
-            color: #93c5fd;
-        }
-
-        .passenger-tutorial-close {
-            width: 2rem;
-            height: 2rem;
-            border: none;
-            border-radius: 0.65rem;
-            background: #f1f5f9;
-            color: #64748b;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-
-        html[data-theme="dark"] .passenger-tutorial-close {
-            background: #334155;
-            color: #cbd5e1;
-        }
-
-        .passenger-tutorial-card-icon {
-            width: 2.75rem;
-            height: 2.75rem;
-            border-radius: 1rem;
-            background: linear-gradient(135deg, #2563eb, #1d4ed8);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.15rem;
-            margin-bottom: 0.65rem;
-        }
-
-        .passenger-tutorial-card-title {
-            font-size: 1rem;
-            font-weight: 900;
-            color: #0f172a;
-            line-height: 1.25;
-            margin-bottom: 0.45rem;
-        }
-
-        html[data-theme="dark"] .passenger-tutorial-card-title {
-            color: #f8fafc;
-        }
-
-        .passenger-tutorial-card-body {
-            font-size: 0.8rem;
-            line-height: 1.45;
-            color: #475569;
-            margin-bottom: 0.85rem;
-        }
-
-        html[data-theme="dark"] .passenger-tutorial-card-body {
-            color: #cbd5e1;
-        }
-
-        .passenger-tutorial-card-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            padding-top: 0.25rem;
-            border-top: 1px solid #e2e8f0;
-        }
-
-        html[data-theme="dark"] .passenger-tutorial-card-actions {
-            border-top-color: #334155;
-        }
-
-        .passenger-tutorial-card-nav {
-            display: flex;
-            gap: 0.5rem;
-            justify-content: flex-end;
-            flex-wrap: wrap;
-        }
-
-        .passenger-tutorial-btn {
-            border: none;
-            border-radius: 0.75rem;
-            padding: 0.55rem 0.85rem;
-            font-size: 0.72rem;
-            font-weight: 800;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            transition: transform 0.12s ease, opacity 0.12s ease;
-        }
-
-        .passenger-tutorial-btn:active {
-            transform: scale(0.97);
-        }
-
-        .passenger-tutorial-btn--ghost {
-            background: #f8fafc;
-            color: #64748b;
-        }
-
-        html[data-theme="dark"] .passenger-tutorial-btn--ghost {
-            background: #334155;
-            color: #e2e8f0;
-        }
-
-        .passenger-tutorial-btn--primary {
-            background: #2563eb;
-            color: #fff;
-            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-        }
-
-        @media (max-width: 639px) {
-            .passenger-tutorial-card {
-                width: calc(100vw - 1rem);
-                max-width: none;
-                padding: 0.7rem 0.8rem 0.6rem;
-                max-height: min(36dvh, 13.5rem);
-                -webkit-overflow-scrolling: touch;
-            }
-
-            .passenger-tutorial-card--docked-top {
-                top: max(0.45rem, var(--safe-top, env(safe-area-inset-top, 0px))) !important;
-                left: 0.5rem !important;
-                right: 0.5rem !important;
-                bottom: auto !important;
-                transform: none !important;
-            }
-
-            .passenger-tutorial-card--docked-bottom {
-                bottom: max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
-                left: 0.5rem !important;
-                right: 0.5rem !important;
-                top: auto !important;
-                transform: none !important;
-            }
-
-            .passenger-tutorial-card--center {
-                top: 50% !important;
-                left: 50% !important;
-                right: auto !important;
-                bottom: auto !important;
-                transform: translate(-50%, -50%) !important;
-                max-height: min(72dvh, 22rem);
-            }
-
-            .passenger-tutorial-card-icon {
-                width: 2.15rem;
-                height: 2.15rem;
-                font-size: 0.95rem;
-                margin-bottom: 0.45rem;
-            }
-
-            .passenger-tutorial-card-title {
-                font-size: 0.88rem;
-                margin-bottom: 0.35rem;
-            }
-
-            .passenger-tutorial-card-body {
-                font-size: 0.74rem;
-                line-height: 1.4;
-                margin-bottom: 0.6rem;
-            }
-
-            .passenger-tutorial-btn {
-                padding: 0.48rem 0.7rem;
-                font-size: 0.68rem;
-            }
-
-            .passenger-tutorial-card-nav {
-                gap: 0.35rem;
-            }
-
-            .passenger-tutorial-spotlight {
-                box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.55);
-                border: 2px solid rgba(37, 99, 235, 0.9);
-                border-radius: 12px;
-            }
-
-            .passenger-tutorial-backdrop {
-                background: rgba(15, 23, 42, 0.35);
-            }
-
-            body.passenger-tutorial-active.client-mode #control-panel:not(.panel-collapsed):not(.panel-hidden) {
-                max-height: min(46dvh, 50%) !important;
-            }
-
-            body.passenger-tutorial-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel {
-                max-height: min(54dvh, 58%) !important;
-                height: auto !important;
-                top: auto !important;
-                bottom: 0 !important;
-            }
-
-            body.passenger-tutorial-active #panel-content {
-                -webkit-overflow-scrolling: touch;
-            }
-        }
-
         /* â€”â€” Promociones pasajero (compactas + arrastrables) â€”â€” */
         /* fixed por defecto: en WebView Android absolute dentro del mapa a menudo no se ve */
         .passenger-promo-strip {
@@ -19453,7 +19569,19 @@
         body.driver-offer-popup-open #driver-incoming-offer,
         body.driver-offer-popup-open #app-header,
         body.driver-offer-popup-open #driver-radar-float,
-        body.driver-offer-popup-open .driver-city-bar {
+        body.driver-offer-popup-open .driver-city-bar,
+        body.driver-offer-popup-open #public-copa-strip,
+        body.driver-offer-popup-open #public-pcopa-strip,
+        body.driver-offer-popup-open #driver-copa-active,
+        body.driver-offer-popup-open #passenger-copa-active,
+        body.driver-offer-popup-open #driver-copa-map-strip,
+        body.driver-offer-popup-open #test-driver-mode-badge,
+        body.driver-offer-popup-open .header-copa-live,
+        body.guest-trip-follow #public-copa-strip,
+        body.guest-trip-follow #public-pcopa-strip,
+        body.guest-trip-follow #driver-copa-active,
+        body.guest-trip-follow #driver-view,
+        body.guest-trip-follow #test-driver-mode-badge {
             opacity: 0 !important;
             pointer-events: none !important;
             visibility: hidden !important;
