@@ -3032,6 +3032,24 @@
             box-shadow: 0 8px 18px rgba(37, 211, 102, 0.28);
         }
         .login-wa-btn i { font-size: 1.05rem; }
+        .login-wa-share {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            width: 100%;
+            margin-top: 0.5rem;
+            padding: 0.72rem 1rem;
+            border-radius: 1rem;
+            border: 2px solid #25D366;
+            background: #fff;
+            color: #128C7E;
+            font-weight: 900;
+            font-size: 0.72rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            cursor: pointer;
+        }
         .login-wa-qr {
             display: block;
             width: 7.5rem;
