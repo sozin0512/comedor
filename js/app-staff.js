@@ -1,6 +1,7 @@
 /** Runtime staff: estadísticas, depósitos y personalización. Tras login admin/supervisor. */
 import { collection, getDocs, doc, setDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { getCustomTones, saveTonePrefs, listTones } from './notification-tones.js';
+import { isCapacitorNative } from './capacitor-native.js';
 
 export function installStaffRuntime() {
     if (window.__hrStaffRuntime) return;
@@ -627,117 +628,6 @@ setTimeout(() => {
             `;
             document.body.appendChild(modal);
         };
-
-        // ================================================
-// GUÍA DE INSTALACIÓN EN EL CELULAR (PWA)
-// ================================================
-window.showInstallFlow = async () => {
-    if (isCapacitorNative()) return;
-    if (!isPwaInstalled() && canTriggerNativeInstall()) {
-        const installed = await tryNativeInstall();
-        if (installed) return;
-    }
-    window.showInstallGuide();
-};
-
-window.showInstallGuide = () => {
-    if (isCapacitorNative()) return;
-    const modal = document.createElement('div');
-    modal.className = `fixed inset-0 bg-black/70 z-[40000] flex items-end md:items-center justify-center p-4`;
-
-    const isIOSUser = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
-    modal.innerHTML = `
-        <div class="bg-white w-full md:w-[420px] md:rounded-3xl rounded-t-3xl p-6 max-h-[92vh] overflow-auto">
-            <div class="flex justify-between items-center mb-3">
-                <h3 class="font-black text-xl">Instalar HonduRaite</h3>
-                <button onclick="this.closest('.fixed').remove()" class="text-2xl text-gray-400 hover:text-gray-600">×</button>
-            </div>
-
-            <p class="text-sm text-gray-600 mb-5">Instala la app en tu pantalla de inicio para usarla como una aplicación nativa (recibes notificaciones aunque cierres Safari/Chrome).</p>
-
-            ${isIOSUser ? `
-            <!-- iOS PROMINENT -->
-            <div class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-                <div class="flex items-center gap-2 mb-2">
-                    <i class="fab fa-apple text-2xl text-gray-900"></i>
-                    <div>
-                        <div class="font-black text-base">iPhone / iPad (Safari)</div>
-                        <div class="text-[10px] text-blue-700">Sigue estos pasos (es rápido):</div>
-                    </div>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">1</div>
-                        <div>Toca el botón <strong>compartir</strong> <span class="text-blue-600">⎋</span> (abajo, en el centro de Safari).</div>
-                    </div>
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">2</div>
-                        <div>Desplaza hacia abajo y toca <strong>"Agregar a pantalla de inicio"</strong>.</div>
-                    </div>
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">3</div>
-                        <div>En la esquina superior toca <strong>"Agregar"</strong>.</div>
-                    </div>
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">4</div>
-                        <div>Cierra Safari y abre <strong>HonduRaite desde el icono nuevo</strong> (si entras por Safari, los viajes no te caen fuera de la app).</div>
-                    </div>
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">5</div>
-                        <div>Toca <strong>Activar avisos</strong>. Sin eso, en iPhone no llegan push si cierras la app o estás desconectado.</div>
-                    </div>
-                </div>
-                <p class="text-[10px] text-amber-700 mt-3">⚠️ Importante: Usa <strong>Safari</strong> (no Chrome, Firefox ni otro). iOS 16.4 o superior.</p>
-            </div>
-            ` : ''}
-
-            <!-- ANDROID -->
-            <div class="mb-4 ${isIOSUser ? 'opacity-70' : ''}">
-                <div class="flex items-center gap-2 mb-2">
-                    <i class="fab fa-android text-xl text-emerald-600"></i>
-                    <span class="font-black">Android (Chrome / Edge)</span>
-                </div>
-                <ol class="list-decimal pl-5 text-sm space-y-1 text-gray-700">
-                    <li>Toca el menú ⋮ (arriba derecha)</li>
-                    <li>Elige <strong>"Instalar app"</strong> o <strong>"Agregar a la pantalla de inicio"</strong></li>
-                    <li>Confirma con <strong>Instalar</strong></li>
-                </ol>
-            </div>
-
-            ${!isIOSUser ? `
-            <!-- iPhone section for non-iOS -->
-            <div class="mb-4">
-                <div class="flex items-center gap-2 mb-2">
-                    <i class="fab fa-apple text-xl text-gray-800"></i>
-                    <span class="font-black">iPhone / iPad</span>
-                </div>
-                <ol class="list-decimal pl-5 text-sm space-y-1 text-gray-700">
-                    <li>Abre en <strong>Safari</strong></li>
-                    <li>Toca el botón compartir (cuadro con flecha ↑)</li>
-                    <li>Busca y toca <strong>"Agregar a pantalla de inicio"</strong></li>
-                    <li>Toca <strong>Agregar</strong></li>
-                </ol>
-            </div>
-            ` : ''}
-
-            <div class="pt-4 border-t flex gap-2">
-                <button onclick="this.closest('.fixed').remove()" 
-                        class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 rounded-2xl text-sm">
-                    Cerrar
-                </button>
-                <button onclick="window.enableTripNotifications?.(); this.closest('.fixed').remove();" 
-                        class="flex-1 bg-emerald-600 text-white font-black py-3 rounded-2xl text-sm">
-                    ${isIOSUser && !(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)
-                        ? 'Ya la instalé · abrir desde el icono'
-                        : 'Activar notificaciones'}
-                </button>
-            </div>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-};
 
       // === PERSONALIZACIÓN DEL LOGIN (Admin) ===
 window.loadCurrentLoginCustomization = async () => {

@@ -6,7 +6,17 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**",
-      "functions/**"
+      "functions/**",
+      "android/**",
+      "whatsapp-bot/**",
+      "www/**",
+      "scripts/**",
+      "cors.json",
+      "debug_app_section.txt",
+      "package.json",
+      "package-lock.json",
+      "capacitor.config.json",
+      "tailwind.config.js"
     ],
     "rewrites": [
       { "source": "/eliminar-cuenta", "destination": "/eliminar-cuenta.html" },

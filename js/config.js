@@ -4,7 +4,7 @@
  */
 export const APP_CONFIG = {
     /** Sube este número cada vez que publicas cambios (y el mismo valor en version.json). */
-    appVersion: '2026.08.31.10',
+    appVersion: '2026.09.18.3',
     /** Push nativo Android (auto: google-services.json + paquete APK) */
     androidFcmEnabled: true,
     firebase: {
@@ -37,14 +37,13 @@ export const APP_CONFIG = {
         alwaysShowZonePicker: true,
         forceManualIfOutsideCountryKm: 200,
         /**
-         * Desborde a ciudades cercanas SOLO si no hay conductores REGISTRADOS
-         * en la ciudad del viaje (da igual si están offline).
-         * Ej.: Comayagüela sin conductores → viajes a Tegucigalpa (cercana).
-         * Si ya hay conductores registrados en esa ciudad, solo ellos reciben el viaje.
+         * Desborde a ciudades cercanas del MISMO departamento.
+         * Al pedir: solo la ciudad. A los 15s: ciudades cercanas (Tegucigalpa ↔ Talanga).
+         * Nunca cruza departamento (Francisco Morazán ↮ Comayagua).
          * nearbyCitySpillKm = distancia máx. entre centros de ciudad.
          */
         enableNearbyCitySpill: true,
-        nearbyCitySpillKm: 45,
+        nearbyCitySpillKm: 80,
         /** Radio inicial para ofertas: solo conductores en línea MUY cerca del pasajero. */
         tripOfferNearRadiusKm: 8,
         /** Cobertura fija por ciudad (km desde el centro). No configurable por el usuario. */
@@ -80,5 +79,13 @@ export const APP_CONFIG = {
         whatsapp: '50495733866',
         label: 'Soporte HonduRaite',
         hours: '24/7',
+    },
+    /**
+     * Tutoriales en YouTube (se abren desde Perfil y el menú).
+     * Pega el link completo, p. ej. https://youtu.be/XXXX o https://www.youtube.com/watch?v=XXXX
+     */
+    tutorials: {
+        passengerYoutube: '',
+        driverYoutube: '',
     },
 };
