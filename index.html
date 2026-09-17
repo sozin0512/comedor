@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.09.17.5">
+    <meta name="hr-app-version" content="2026.09.17.6">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.09.17.5">
+    <link rel="manifest" href="manifest.json?v=2026.09.17.6">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,32 +31,56 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.17.5">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.17.6">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.09.17.5">
+    <link rel="stylesheet" href="css/app.css?v=2026.09.17.6">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
-    </script>
-    <script defer src="js/maps-init.js?v=2026.09.17.5"></script>
-    <script type="module" src="js/auth-boot.js?v=2026.09.17.3"></script>
-    <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.09.17.5';
-        window.APP_CONFIG = APP_CONFIG;
-        const mapsScript = document.createElement('script');
-        mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
-        mapsScript.async = true;
-        // Permite ver el stack real si Maps falla (en vez del genérico "Script error.")
-        mapsScript.crossOrigin = 'anonymous';
-        mapsScript.onerror = () => {
-            window.__mapsLoadError = true;
-            setTimeout(function () {
-                if (window.gMap || document.body?.classList.contains('map-ready')) return;
-                document.body?.classList.add('map-load-failed');
-            }, 8000);
+        window.ensureMapsLoaded = function () {
+            if (window.__mapsLoadPromise) return window.__mapsLoadPromise;
+            window.__mapsLoadPromise = new Promise(function (resolve) {
+                function injectGoogle() {
+                    if (window.google && window.google.maps) {
+                        try { window.initMap(); } catch (e) {}
+                        resolve();
+                        return;
+                    }
+                    var key = (window.APP_CONFIG && window.APP_CONFIG.googleMaps && window.APP_CONFIG.googleMaps.apiKey) || '';
+                    if (!key) { resolve(); return; }
+                    var s2 = document.createElement('script');
+                    s2.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key)
+                        + '&libraries=places,marker,routes&callback=initMap&loading=async';
+                    s2.async = true;
+                    s2.crossOrigin = 'anonymous';
+                    s2.onerror = function () { window.__mapsLoadError = true; resolve(); };
+                    document.head.appendChild(s2);
+                    var n = 0;
+                    var t = setInterval(function () {
+                        n += 1;
+                        if (window.gMap || window.mapLoaded || (window.google && window.google.maps)) {
+                            clearInterval(t);
+                            resolve();
+                        } else if (n > 80) {
+                            clearInterval(t);
+                            resolve();
+                        }
+                    }, 250);
+                }
+                if (window.__mapsInitJsLoaded) {
+                    injectGoogle();
+                    return;
+                }
+                var s1 = document.createElement('script');
+                s1.src = 'js/maps-init.js?v=' + (window.__HR_BUILD_VERSION__ || '');
+                s1.onload = function () { window.__mapsInitJsLoaded = true; injectGoogle(); };
+                s1.onerror = function () { resolve(); };
+                document.head.appendChild(s1);
+            });
+            return window.__mapsLoadPromise;
         };
-        document.head.appendChild(mapsScript);
     </script>
+    <script type="module" src="js/auth-boot.js?v=2026.09.17.5"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -119,10 +143,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.09.17.5';
+        window.__HR_BUILD_VERSION__ = '2026.09.17.6';
         (function () {
             try {
-                var build = '2026.09.17.5';
+                var build = '2026.09.17.6';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -2763,6 +2787,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.09.17.5"></script>
+    <script type="module" src="js/app.js?v=2026.09.17.6"></script>
 </body>
 </html>

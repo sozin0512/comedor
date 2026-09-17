@@ -11,6 +11,7 @@ import {
     browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
 import { APP_CONFIG } from './config.js';
+window.APP_CONFIG = APP_CONFIG;
 
 function isEmailLike(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -142,6 +143,7 @@ async function runAuth() {
                 'auth/network-request-failed'
             );
             showEnteringShell('Sesión iniciada. Abriendo tu cuenta…');
+            try { window.ensureMapsLoaded?.(); } catch (_) {}
             return;
         }
         if (!isEmailLike(identifier)) {
@@ -159,6 +161,7 @@ async function runAuth() {
             'auth/network-request-failed'
         );
         showEnteringShell('Cuenta creada. Abriendo tu perfil…');
+        try { window.ensureMapsLoaded?.(); } catch (_) {}
     } catch (err) {
         window._authEntering = false;
         resetSubmit();
