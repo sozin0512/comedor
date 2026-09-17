@@ -70,6 +70,30 @@ function resetSubmit() {
     submitBtn.innerText = getAuthMode() === 'register' ? 'CREAR NUEVA CUENTA' : 'INICIAR SESIÓN';
 }
 
+function withTimeout(promise, ms, label) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(label || 'timeout')), ms))
+    ]);
+}
+
+function showEnteringShell(text) {
+    const login = document.getElementById('login-screen');
+    if (login) login.style.display = 'none';
+    let el = document.getElementById('hr-entering-shell');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'hr-entering-shell';
+        el.style.cssText = 'position:fixed;inset:0;z-index:40000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#e8e6e0;padding:1.5rem;text-align:center';
+        el.innerHTML = '<div style="width:2rem;height:2rem;border:3px solid rgba(30,41,59,.15);border-top-color:#2563eb;border-radius:50%;animation:hr-spin .8s linear infinite"></div>'
+            + '<p style="margin-top:1rem;font-weight:800;color:#0f172a" id="hr-entering-text"></p>'
+            + '<p style="margin-top:.4rem;font-size:.75rem;color:#64748b;font-weight:600">El mapa y el resto siguen cargando atrás</p>';
+        document.body.appendChild(el);
+    }
+    const t = document.getElementById('hr-entering-text');
+    if (t) t.textContent = text || 'Sesión iniciada. Abriendo tu cuenta…';
+}
+
 async function runAuth() {
     if (typeof window.__hrFullExecuteAuth === 'function' && window.__hrFullExecuteAuth !== runAuth) {
         return window.__hrFullExecuteAuth();
@@ -93,7 +117,7 @@ async function runAuth() {
             if (typeof window.__hrFullExecuteAuth === 'function') {
                 clearInterval(wait);
                 window.__hrFullExecuteAuth();
-            } else if (Date.now() - started > 25000) {
+            } else if (Date.now() - started > 20000) {
                 clearInterval(wait);
                 resetSubmit();
                 toast('Usa tu correo para entrar, o espera un momento y vuelve a tocar Ingresar.');
@@ -109,11 +133,15 @@ async function runAuth() {
     try {
         const app = getApps()[0] || initializeApp(APP_CONFIG.firebase);
         const auth = getAuth(app);
-        try { await setPersistence(auth, browserLocalPersistence); } catch (_) {}
+        try { await withTimeout(setPersistence(auth, browserLocalPersistence), 4000, 'persist'); } catch (_) {}
         window._authEntering = true;
         if (mode === 'login') {
-            await signInWithEmailAndPassword(auth, identifier.toLowerCase(), pass);
-            toast('¡Sesión iniciada con éxito!', 'success');
+            await withTimeout(
+                signInWithEmailAndPassword(auth, identifier.toLowerCase(), pass),
+                15000,
+                'auth/network-request-failed'
+            );
+            showEnteringShell('Sesión iniciada. Abriendo tu cuenta…');
             return;
         }
         if (!isEmailLike(identifier)) {
@@ -125,11 +153,18 @@ async function runAuth() {
             ? 'driver'
             : 'client';
         try { localStorage.setItem('lastUserRole', selectedRole); } catch (_) {}
-        await createUserWithEmailAndPassword(auth, identifier.toLowerCase(), pass);
-        toast('Cuenta creada. Completa tu perfil.', 'success');
+        await withTimeout(
+            createUserWithEmailAndPassword(auth, identifier.toLowerCase(), pass),
+            15000,
+            'auth/network-request-failed'
+        );
+        showEnteringShell('Cuenta creada. Abriendo tu perfil…');
     } catch (err) {
         window._authEntering = false;
         resetSubmit();
+        const login = document.getElementById('login-screen');
+        if (login) login.style.display = '';
+        document.getElementById('hr-entering-shell')?.remove();
         toast(authErrorMessage(err, mode));
     }
 }
