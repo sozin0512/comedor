@@ -1066,6 +1066,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         });
 
         window.mapLoaded = true;
+        window._drainMapReadyQueue?.();
         window.refreshDemandHeatmapFromCache?.();
         window.refreshOpsFleetMapFromCache?.();
         if (window._pendingPassengerTrackFlush) {
@@ -3759,6 +3760,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             if (window.chatOpen) {
                 window.bindFloatingTripPanels?.();
+                window.markTripChatSeen?.(true);
                 ['chat-badge', 'chat-badge-driver', 'driver-tools-chat-badge', 'driver-pin-chat-badge'].forEach((id) => {
                     const badge = document.getElementById(id);
                     if (!badge) return;
@@ -3776,6 +3778,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         document.getElementById('chat-input')?.focus?.({ preventScroll: true });
                     }
                 }, 100);
+            } else {
+                window.markTripChatSeen?.(false);
             }
         };
         
@@ -5564,6 +5568,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             const mode = opts.mode
                 || (window.isDriverNavigating?.() || window.driverNavMode === true ? 'nav' : 'once');
+            window._sparseRouteCandidate = null;
 
             if (mode === 'estimate') {
                 return window.estimateDrivingRoute(o, d);
@@ -5655,7 +5660,6 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             const isSparseStreetPath = (built) => {
                 if (!built?.path?.length) return true;
-                // Menos estricto: muchos tramos cortos en ciudad traen pocos puntos en overview
                 if (built.path.length < 2) return true;
                 if (built.path.length < 3 && (built.distanceMeters || 0) > 400) return true;
                 if (built.path.length < 5 && (built.distanceMeters || 0) > 2500) return true;
@@ -5677,16 +5681,14 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             if (RouteCtor) {
                 const routeFields = ['path', 'distanceMeters', 'durationMillis', 'staticDurationMillis', 'legs'];
-                // Tráfico primero cuando se navega (mejor ETA / ruta viva)
-                const routingAttempts = (mode === 'nav' && navDriving)
-                    ? [
+                // Tráfico siempre (excepto estimate): km/ETA reales, no línea recta.
+                const routingAttempts = (mode === 'estimate')
+                    ? []
+                    : [
                         {
                             routingPreference: 'TRAFFIC_AWARE',
-                            departureTime: new Date(Date.now() + 60 * 1000)
+                            departureTime: new Date()
                         },
-                        { routingPreference: 'TRAFFIC_UNAWARE' }
-                    ]
-                    : [
                         { routingPreference: 'TRAFFIC_UNAWARE' }
                     ];
                 const requestVariants = (mode === 'nav' && navDriving)
@@ -5696,6 +5698,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     ]
                     : [{ withNavVoice: false }];
 
+                let sparseKeep = null;
                 for (const variant of requestVariants) {
                     for (const attempt of routingAttempts) {
                         try {
@@ -5712,15 +5715,18 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                                 routeRequest.extraComputations = ['HTML_FORMATTED_NAVIGATION_INSTRUCTIONS'];
                             }
                             try {
-                                const quality = navDriving
-                                    ? google.maps?.PolylineQuality?.HIGH_QUALITY
-                                    : google.maps?.PolylineQuality?.OVERVIEW;
+                                const quality = google.maps?.PolylineQuality?.HIGH_QUALITY;
                                 if (quality) routeRequest.polylineQuality = quality;
                             } catch (_) {}
 
                             const response = await RouteCtor.computeRoutes(routeRequest);
                             const built = await buildRouteResultFromApi(response?.routes?.[0]);
-                            if (built && isSparseStreetPath(built)) continue;
+                            if (built && isSparseStreetPath(built)) {
+                                if (!sparseKeep || (built.path?.length || 0) > (sparseKeep.path?.length || 0)) {
+                                    sparseKeep = built;
+                                }
+                                continue;
+                            }
                             if (built) {
                                 window._routesApiWorked = true;
                                 return cacheRoute(built);
@@ -5731,18 +5737,26 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                                 window._routesWarned = true;
                                 console.warn('[ROUTE] Intento de ruta falló:', msg);
                             }
-                            // Seguir con el siguiente intento (no abortar todo el bucle)
                             continue;
                         }
                     }
                 }
+                window._sparseRouteCandidate = sparseKeep;
             }
 
-            // Fallback: Directions Service clásico (más compatible / a menudo ya habilitado)
+            // Fallback: Directions Service clásico (calles + tráfico si el billing lo permite)
             try {
-                const dirResult = await window.computeDrivingRouteViaDirectionsService?.(o, d, { navDriving });
+                const dirResult = await window.computeDrivingRouteViaDirectionsService?.(o, d, {
+                    navDriving,
+                    traffic: mode !== 'estimate'
+                });
                 if (dirResult && dirResult.path?.length >= 2) {
                     window._directionsFallbackWorked = true;
+                    const sparse = window._sparseRouteCandidate;
+                    if (sparse && (sparse.durationMillis || 0) > (dirResult.durationMillis || 0)) {
+                        dirResult.durationMillis = sparse.durationMillis;
+                        dirResult.staticDurationMillis = sparse.staticDurationMillis || sparse.durationMillis;
+                    }
                     return cacheRoute(dirResult);
                 }
             } catch (dirErr) {
@@ -5752,14 +5766,16 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 }
             }
 
+            if (window._sparseRouteCandidate?.path?.length >= 2) {
+                return cacheRoute(window._sparseRouteCandidate);
+            }
+
             // Último recurso: línea estimada (mejor que dejar el mapa vacío hacia el cliente)
             if (!window._routeEstimateWarned) {
                 window._routeEstimateWarned = true;
                 console.info('[ROUTE] Ruta estimada activa. Habilita "Routes API" o "Directions API" en Google Cloud.');
             }
             const estimated = buildEstimatedDrivingRoute(o, d);
-            // En navegación activa preferimos calles; si no hay, igual dibujamos estimado
-            // para no dejar al conductor sin orientación.
             return estimated;
         };
 
@@ -5775,18 +5791,21 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         return;
                     }
                     const service = new google.maps.DirectionsService();
-                    // Sin drivingOptions de tráfico: más compatible (no requiere billing extra)
-                    service.route(
-                        {
+                    const baseReq = {
                             origin,
                             destination,
                             travelMode: google.maps.TravelMode.DRIVING,
                             region: 'HN',
                             language: 'es',
                             provideRouteAlternatives: false
-                        },
-                        (result, status) => {
+                    };
+                    const finish = (result, status) => {
                             if (status !== 'OK' || !result?.routes?.[0]) {
+                                if (baseReq.drivingOptions) {
+                                    delete baseReq.drivingOptions;
+                                    service.route(baseReq, finish);
+                                    return;
+                                }
                                 resolve(null);
                                 return;
                             }
@@ -5861,13 +5880,40 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                                 }],
                                 source: 'directions'
                             });
-                        }
-                    );
+                    };
+                    if (options.traffic !== false && google.maps.TrafficModel) {
+                        baseReq.drivingOptions = {
+                            departureTime: new Date(),
+                            trafficModel: google.maps.TrafficModel.BEST_GUESS
+                        };
+                    }
+                    service.route(baseReq, finish);
                 } catch (e) {
                     console.warn('[ROUTE] DirectionsService error:', e);
                     resolve(null);
                 }
             });
+
+        window.ensureTripRoadRouteOnMap = async (trip, options = {}) => {
+            if (!trip || trip.originLat == null || trip.originLng == null) return null;
+            if (trip.destinationLat == null || trip.destinationLng == null) return null;
+            const o = { lat: Number(trip.originLat), lng: Number(trip.originLng) };
+            const d = { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng) };
+            const key = `${trip.id || ''}:${o.lat}:${d.lat}:${(trip.additionalStops || []).length}`;
+            if (window._tripRoadRouteKey === key && window._tripRoadRouteOk) return window._tripRoadRouteOk;
+            window._tripRoadRouteKey = key;
+            try {
+                const route = await window.computeDrivingRoute(o, d, { mode: 'once' });
+                if (route?.path?.length >= 2) {
+                    window._tripRoadRouteOk = route;
+                    window.drawRouteOnMap(route, { fitRoute: options.fitRoute === true });
+                    return route;
+                }
+            } catch (e) {
+                console.warn('[ROUTE] ensureTripRoadRouteOnMap', e);
+            }
+            return null;
+        };
 
         window.isDriverNavigating = () =>
             document.body.classList.contains('driver-nav-mode')
@@ -7713,7 +7759,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 } else if (path.length) {
                     window.currentRoutePolyline = new google.maps.Polyline({
                         path,
-                        geodesic: true,
+                        geodesic: path.length < 3,
                         strokeColor: driverNav ? '#1a73e8' : (driverOfferPreview ? '#059669' : '#2563eb'),
                         strokeOpacity: driverOfferPreview ? 0.88 : 0.95,
                         strokeWeight: driverNav ? 10 : (driverOfferPreview ? 7 : 8),

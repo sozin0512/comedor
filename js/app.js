@@ -4,28 +4,28 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.08.31.10";
+} from "./auth-credentials.js?v=2026.09.17.1";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.08.31.10";
+import { APP_CONFIG } from "./config.js?v=2026.09.17.1";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.08.31.10";
+} from "./market.js?v=2026.09.17.1";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.08.31.10";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.08.31.10";
+} from "./phone-utils.js?v=2026.09.17.1";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.09.17.1";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.08.31.10";
+} from "./referrals.js?v=2026.09.17.1";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -40,12 +40,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.08.31.10";
+} from "./zones.js?v=2026.09.17.1";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.08.31.10";
+} from "./trip-notifications.js?v=2026.09.17.1";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -66,7 +66,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.08.31.10";
+} from "./notification-tones.js?v=2026.09.17.1";
 
 installNotificationTonesApi();
 
@@ -97,34 +97,34 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.08.31.10";
+} from "./passenger-alerts.js?v=2026.09.17.1";
 import {
     syncPassengerVerificationBanner, showPassengerVerificationSetup,
     bindOptionalRegistrationPhotoPick, needsPassengerVerificationCTA,
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.08.31.10";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice } from "./camera-capture.js?v=2026.08.31.10";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.08.31.10";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.08.31.10";
-import { initOpsPanels } from "./ops-panels.js?v=2026.08.31.10";
-import { initOpsUi } from "./ops-ui.js?v=2026.08.31.10";
-import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.08.31.10";
-import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.08.31.10";
-import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.08.31.10";
-import { initFloatingPanels } from "./floating-panels.js?v=2026.08.31.10";
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.08.31.10";
+} from "./passenger-verification.js?v=2026.09.17.1";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.09.17.1";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp } from "./pwa-install.js?v=2026.09.17.1";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.09.17.1";
+import { initOpsPanels } from "./ops-panels.js?v=2026.09.17.1";
+import { initOpsUi } from "./ops-ui.js?v=2026.09.17.1";
+import { initDriverObjectives } from "./ops-driver-objectives.js?v=2026.09.17.1";
+import { initDriverGlobalChallenges } from "./driver-global-challenges.js?v=2026.09.17.1";
+import { initPassengerGlobalChallenges } from "./passenger-global-challenges.js?v=2026.09.17.1";
+import { initFloatingPanels } from "./floating-panels.js?v=2026.09.17.1";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.09.17.1";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.08.31.10";
+} from "./feedback.js?v=2026.09.17.1";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.08.31.10";
+} from "./greetings.js?v=2026.09.17.1";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -136,66 +136,62 @@ import {
     getDriverVehicleBadgeHtml, getDriverVehicleEmoji, getDriverVehicleTypeColorClass, getDriverVehicleNoun,
     getHourlyRate, calculateHourlyFare, getHourlyLabel,
     getMaxPassengers, getExtraPassengerFee, getPassengerSurcharge, normalizePassengerCount,
-    formatPassengersLabel, applyPassengerSurcharge,
+    formatPassengersLabel, applyPassengerSurcharge, extraStopsSurcharge,
     CITY_SERVICE_DISABLE_CATEGORIES, setDisabledServicesByCity, getDisabledServicesByCity,
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.08.31.10";
+} from "./service-types.js?v=2026.09.17.1";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
+    getApprovedVehicleTypes, getRegisteredVehicleTypes,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles.js?v=2026.08.31.10";
+} from "./driver-vehicles.js?v=2026.09.17.1";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.08.31.10";
+} from "./route-fixed-fares.js?v=2026.09.17.1";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.08.31.10";
+} from "./commission-free-day.js?v=2026.09.17.1";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.08.31.10";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.08.31.10";
+} from "./route-conditions.js?v=2026.09.17.1";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.09.17.1";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.08.31.10";
+} from "./demand-heatmap.js?v=2026.09.17.1";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.08.31.10";
+} from "./ops-fleet-map.js?v=2026.09.17.1";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.08.31.10";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.08.31.10";
+} from "./live-trip-keepalive.js?v=2026.09.17.1";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.09.17.1";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.08.31.10";
+} from "./session-keepalive.js?v=2026.09.17.1";
 import {
-    initPassengerTutorial,
-    maybeAutoStartPassengerTutorial,
-    syncPassengerTutorialMenuVisibility
-} from "./passenger-tutorial.js?v=2026.08.31.10";
-import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.08.31.10";
-import {
-    initDriverTutorial,
-    maybeAutoStartDriverTutorial,
-    syncDriverTutorialMenuVisibility
-} from "./driver-tutorial.js?v=2026.08.31.10";
+    initYoutubeTutorials,
+    syncYoutubeTutorialMenuVisibility
+} from "./youtube-tutorials.js?v=2026.09.17.1";
+import { initDriverRegisterGuide } from "./driver-register-guide.js?v=2026.09.17.1";
+import { installStaffCreateClientTrip } from "./staff-create-client-trip.js?v=2026.09.17.1";
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
 const HR_BOOT_STARTED_AT = Date.now();
@@ -279,29 +275,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.08.31.10";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.09.17.1";
 import {
     AUTH_ROLE_HINTS, getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos
-} from "./auth-ui.js?v=2026.08.31.10";
+} from "./auth-ui.js?v=2026.09.17.1";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.08.31.10";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.08.31.10";
+} from "./age-verification.js?v=2026.09.17.1";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.09.17.1";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.08.31.10";
+} from "./trip-experience.js?v=2026.09.17.1";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.08.31.10";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.08.31.10";
-import { initAppDownload } from "./app-download.js?v=2026.08.31.10";
-import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.08.31.10";
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.08.31.10";
+} from "./support-tickets.js?v=2026.09.17.1";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.09.17.1";
+import { initAppDownload } from "./app-download.js?v=2026.09.17.1";
+import { initMerchantStores, onMerchantAuthReady } from "./merchant-stores.js?v=2026.09.17.1";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.09.17.1";
 
 
 let app;
@@ -351,6 +347,247 @@ try {
 const storage = initStorage(app);
 window.storage = storage;
 const appId = APP_CONFIG.appId;
+
+function peekTripFollowIdFromUrl() {
+    try {
+        const q = new URLSearchParams(location.search || '');
+        let id = q.get('staffTrip') || q.get('staff_trip') || q.get('trip') || '';
+        if (id) {
+            try { id = decodeURIComponent(String(id)); } catch (_) {}
+            id = String(id).trim().replace(/[^\w-].*$/, '');
+        }
+        if (!id && location.hash) {
+            const h = String(location.hash).replace(/^#/, '');
+            if (h.startsWith('staffTrip=')) {
+                try { id = decodeURIComponent(h.slice('staffTrip='.length)); } catch (_) { id = h.slice('staffTrip='.length); }
+            }
+        }
+        if (!id) {
+            try { id = sessionStorage.getItem('honduraite_pending_staff_trip') || ''; } catch (_) {}
+        }
+        if (!id) {
+            try { id = localStorage.getItem('honduraite_pending_staff_trip') || ''; } catch (_) {}
+        }
+        return String(id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    } catch (_) {
+        return '';
+    }
+}
+
+function isGuestTripDoc(t) {
+    return !!(
+        t?.guestClient === true
+        || t?.guestInvitePending === true
+        || t?.createdVia === 'whatsapp'
+        || String(t?.clientId || '').startsWith('guest_')
+    );
+}
+
+function guestFollowStatusLabel(t) {
+    const s = String(t?.status || '');
+    if (s === 'pending') return 'Buscando conductor…';
+    if (s === 'scheduled') return 'Viaje programado';
+    if (s === 'accepted') return t.driverArrived ? 'Tu conductor ya llegó' : 'Conductor en camino';
+    if (s === 'in_progress') return 'Viaje en curso';
+    if (s === 'completed') return 'Viaje terminado';
+    if (s === 'cancelled') return 'Viaje cancelado';
+    return 'Siguiendo el viaje';
+}
+
+function enterGuestFollowShell() {
+    window._guestFollowTripId = window._guestFollowTripId || peekTripFollowIdFromUrl();
+    window.hideAuthSetupScreen?.();
+    const login = document.getElementById('login-screen');
+    if (login) login.style.display = 'none';
+    const setup = document.getElementById('setup-screen');
+    if (setup) {
+        setup.classList.add('hidden');
+        setup.classList.remove('auth-screen-open');
+        setup.style.display = 'none';
+    }
+    const appInterface = document.getElementById('app-interface');
+    if (appInterface) appInterface.style.display = 'flex';
+    document.getElementById('client-view')?.classList.add('hidden');
+    document.getElementById('driver-view')?.classList.add('hidden');
+    document.body.classList.add('guest-trip-follow');
+    if (!document.getElementById('guest-follow-banner')) {
+        const bar = document.createElement('div');
+        bar.id = 'guest-follow-banner';
+        bar.className = 'fixed top-0 inset-x-0 z-[21000] px-3 py-2 bg-emerald-700 text-white text-center text-[11px] font-bold shadow-md';
+        bar.style.paddingTop = 'calc(8px + env(safe-area-inset-top, 0px))';
+        bar.innerHTML = 'Sigues el viaje <b>sin cuenta</b>. Al terminar te invitamos a registrarte.';
+        document.body.appendChild(bar);
+    }
+}
+
+function paintGuestTripOnMap(t) {
+    const run = () => {
+        try {
+            if (t.originLat != null && t.originLng != null) {
+                window.placePickupMarker?.(
+                    { lat: Number(t.originLat), lng: Number(t.originLng) },
+                    t.status === 'in_progress' ? 'A - Origen' : 'Origen',
+                    { style: t.status === 'in_progress' ? 'simple' : 'client' }
+                );
+            }
+            if (t.destinationLat != null && t.destinationLng != null) {
+                window.placeDestinationMarker?.(
+                    { lat: Number(t.destinationLat), lng: Number(t.destinationLng) },
+                    t.status === 'in_progress' ? 'B - Destino' : 'Destino'
+                );
+            }
+            const lat = Number(t.driverLiveLat);
+            const lng = Number(t.driverLiveLng);
+            if (t.driverId && Number.isFinite(lat) && Number.isFinite(lng)) {
+                window.updateDriverMarker?.(t.driverId, lat, lng, false, {
+                    variant: 'assigned',
+                    heading: Number(t.driverLiveHeading) || 0,
+                    vehicleType: t.vehicleType || t.serviceType || 'auto'
+                });
+            }
+            const map = window.gMap;
+            if (map && t.originLat != null && t.originLng != null) {
+                const pts = [{ lat: Number(t.originLat), lng: Number(t.originLng) }];
+                if (t.destinationLat != null) pts.push({ lat: Number(t.destinationLat), lng: Number(t.destinationLng) });
+                if (Number.isFinite(lat)) pts.push({ lat, lng });
+                if (window.google?.maps?.LatLngBounds) {
+                    const b = new window.google.maps.LatLngBounds();
+                    pts.forEach((p) => b.extend(p));
+                    map.fitBounds(b, 64);
+                }
+                window.ensureTripRoadRouteOnMap?.(t, { fitRoute: true });
+            }
+        } catch (e) {
+            console.warn('[guest-follow] map', e);
+        }
+    };
+    if (window.gMap || window.mapLoaded) {
+        run();
+        return;
+    }
+    let n = 0;
+    const iv = setInterval(() => {
+        n += 1;
+        if (window.gMap || window.mapLoaded || n > 40) {
+            clearInterval(iv);
+            if (window.gMap || window.mapLoaded) run();
+        }
+    }, 250);
+}
+
+function renderGuestFollowPanel(t) {
+    enterGuestFollowShell();
+    let panel = document.getElementById('guest-follow-panel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'guest-follow-panel';
+        panel.className = 'fixed bottom-0 inset-x-0 z-[20500] p-3';
+        panel.style.paddingBottom = 'calc(12px + env(safe-area-inset-bottom, 0px))';
+        document.body.appendChild(panel);
+    }
+    const driver = t.driverName || t.offeredToDriverName || '';
+    const vehicle = [t.vehicleType, t.vehiclePlate || t.driverPlate].filter(Boolean).join(' · ');
+    const pin = t.pin ? String(t.pin) : '';
+    const price = t.price || (t.priceNum != null ? `L. ${Number(t.priceNum).toFixed(2)}` : '');
+    panel.innerHTML = `
+        <div class="rounded-3xl bg-white shadow-2xl border border-slate-200 p-4 max-w-lg mx-auto">
+            <p class="text-[10px] font-black uppercase tracking-widest text-emerald-700 m-0">${guestFollowStatusLabel(t)}</p>
+            <p class="text-sm font-black text-slate-900 mt-1 leading-snug">${String(t.origin || 'Origen').slice(0, 80)}</p>
+            <p class="text-xs font-bold text-slate-500">→ ${String(t.destination || 'Destino').slice(0, 80)}</p>
+            ${driver ? `<p class="text-sm font-bold text-slate-800 mt-2"><i class="fas fa-user-circle text-emerald-600"></i> ${driver}${vehicle ? ` · ${vehicle}` : ''}</p>` : ''}
+            ${price ? `<p class="text-sm font-black text-emerald-700 mt-1">${price}</p>` : ''}
+            ${pin && t.status === 'accepted' ? `<p class="mt-2 text-center text-lg font-black tracking-[0.3em] text-blue-700 bg-blue-50 rounded-2xl py-2">PIN ${pin}</p>` : ''}
+            <p class="text-[10px] text-slate-400 font-bold mt-2 m-0">Al terminar el viaje te pedimos crear cuenta. Ahora solo sigue el mapa.</p>
+        </div>
+    `;
+    paintGuestTripOnMap(t);
+}
+
+function promptGuestRegisterAfterTrip(t) {
+    if (window._guestRegisterPrompted) return;
+    window._guestRegisterPrompted = true;
+    try {
+        const name = String(t?.waProfileName || t?.pendingClientName || t?.clientName || '').trim();
+        const phone = String(t?.clientPhone || t?.pendingClientPhone || '').replace(/\D/g, '');
+        if (name && name !== 'Cliente WhatsApp') sessionStorage.setItem('hr_wa_name', name);
+        if (phone) sessionStorage.setItem('hr_wa_phone', phone);
+    } catch (_) {}
+    try { document.getElementById('guest-follow-banner')?.remove(); } catch (_) {}
+    try { document.getElementById('guest-follow-panel')?.remove(); } catch (_) {}
+    window.showToast?.('Viaje terminado. Crea tu cuenta para el próximo (nombre y WhatsApp ya van listos).', 'success');
+    setTimeout(() => {
+        if (typeof showSimplePassengerSetup === 'function') showSimplePassengerSetup();
+        else window.showSimplePassengerSetup?.();
+    }, 700);
+}
+
+async function startGuestTripFollow(tripId) {
+    const id = String(tripId || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!id || id.length < 8 || !db) return false;
+    window._guestFollowTripId = id;
+    enterGuestFollowShell();
+    try {
+        const ref = doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+            window.showToast?.('No encontramos ese viaje. Pide el link otra vez por WhatsApp.', 'error');
+            return false;
+        }
+        const t0 = { id: snap.id, ...snap.data() };
+        if (!isGuestTripDoc(t0)) return false;
+        if (t0.status === 'cancelled') {
+            window.showToast?.('Esta solicitud fue cancelada.', 'warning');
+            return false;
+        }
+        if (t0.status === 'completed') {
+            promptGuestRegisterAfterTrip(t0);
+            return true;
+        }
+        renderGuestFollowPanel(t0);
+        if (window._guestFollowUnsub) {
+            try { window._guestFollowUnsub(); } catch (_) {}
+        }
+        window._guestFollowUnsub = onSnapshot(ref, (s) => {
+            if (!s.exists()) return;
+            const t = { id: s.id, ...s.data() };
+            if (t.status === 'completed') {
+                promptGuestRegisterAfterTrip(t);
+                return;
+            }
+            if (t.status === 'cancelled') {
+                window.showToast?.('El viaje se canceló.', 'warning');
+                return;
+            }
+            renderGuestFollowPanel(t);
+            if (typeof window.presentTripAcceptedUi === 'function' && ['accepted', 'in_progress'].includes(t.status)) {
+                try { window.presentTripAcceptedUi(t, { role: 'client', skipAcceptSound: true, silentToast: true }); } catch (_) {}
+            }
+        }, (err) => console.warn('[guest-follow] snapshot', err));
+        return true;
+    } catch (e) {
+        console.warn('[guest-follow] start', e);
+        window.showToast?.('No se pudo abrir el viaje sin cuenta. Intenta de nuevo.', 'error');
+        return false;
+    }
+}
+
+window.startGuestTripFollow = startGuestTripFollow;
+window.openGuestTripFollowFromLink = startGuestTripFollow;
+
+(() => {
+    const boot = () => {
+        const id = peekTripFollowIdFromUrl();
+        if (!id || id.length < 8) return;
+        try {
+            sessionStorage.setItem('honduraite_pending_staff_trip', id);
+            localStorage.setItem('honduraite_pending_staff_trip', id);
+        } catch (_) {}
+        enterGuestFollowShell();
+        startGuestTripFollow(id);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true });
+    else boot();
+})();
 
 try {
     initPromotions({
@@ -580,8 +817,8 @@ document.addEventListener('click', (e) => {
         window.alert(err?.message || 'Error al abrir el formulario');
     }
 }, true);
-initPassengerTutorial();
-initDriverTutorial();
+initYoutubeTutorials();
+initDriverRegisterGuide();
 window.updatePassengerProximityAlerts = updatePassengerProximityAlerts;
 window.triggerPassengerArrivedAlert = triggerPassengerArrivedAlert;
 initPassengerAlertSettings();
@@ -783,8 +1020,8 @@ window.refreshAdminNegotiationButtons = () => {
         state = readStoredAdminNegotiationState();
         if (state != null) window.currentAdminNegotiationEnabled = state;
     }
-    // Si aún no hay valor, mostrar ON por defecto (no “cargando” eterno)
-    if (state == null) state = true;
+    // Si aún no hay valor, mostrar OFF (conductor acepta o pasa)
+    if (state == null) state = false;
 
     const on = state === true;
     toggleBtn.textContent = `Regateo global: ${on ? 'ON' : 'OFF'}`;
@@ -796,14 +1033,14 @@ window.refreshAdminNegotiationButtons = () => {
         : 'Regateo apagado en viajes nuevos. Toca para activar.';
 };
 
-/** Lee regateo global: true por defecto si el campo no existe (mismo criterio que Cloud Functions). */
+/** Lee regateo global: OFF por defecto (conductor acepta o pasa). */
 function resolveGlobalNegotiationEnabled(settingsOrFlag) {
     if (typeof settingsOrFlag === 'boolean') return settingsOrFlag;
     if (settingsOrFlag && typeof settingsOrFlag === 'object') {
-        if (settingsOrFlag.negotiationEnabled == null) return true;
+        if (settingsOrFlag.negotiationEnabled == null) return false;
         return !!settingsOrFlag.negotiationEnabled;
     }
-    return true;
+    return false;
 }
 
 /** Aplica zonas personalizadas (admin) desde appSettings a la lista de ciudades. */
@@ -2322,6 +2559,9 @@ window.showDriverSetupScreen = () => {
     if (window.driverVehicleSetupMode !== 'add') {
         window.configureDriverVehicleSetupUI?.('register');
     }
+    window.consumeWhatsAppRegisterPrefill?.();
+    window.bindDriverSetupPhotoPickers?.();
+    window.maybeShowDriverRegisterGuide?.();
 };
 
 function prefillDriverSetupFromProfile(profile) {
@@ -2339,13 +2579,7 @@ function prefillDriverSetupFromProfile(profile) {
 }
 
 function resetDriverVehiclePhotoGlobals() {
-    profilePhotoBase64 = null;
-    helmetPhotoBase64 = null;
-    vehiclePhotoInt1 = vehiclePhotoInt2 = vehiclePhotoInt3 = null;
-    vehiclePhotoPlate = vehiclePhotoExtFront = vehiclePhotoExtRear = null;
-    licenseFrontPhoto = licenseBackPhoto = inspectionPhoto = null;
-    antecedentesPenalesPhoto = policialesPhoto = null;
-    passengerCascoPhoto1 = passengerCascoPhoto2 = null;
+    window.resetDriverSetupPhotos?.();
 }
 
 window.configureDriverVehicleSetupUI = (mode = 'register') => {
@@ -2353,8 +2587,8 @@ window.configureDriverVehicleSetupUI = (mode = 'register') => {
     const title = document.getElementById('driver-setup-title');
     const subtitle = document.getElementById('driver-setup-subtitle');
     const submitLabel = document.getElementById('driver-setup-submit-label');
-    const personalBlock = document.querySelector('#setup-form-scroll .setup-step:nth-child(3)');
-    const faceBlock = document.querySelector('#setup-form-scroll .setup-step:nth-child(2)');
+    const personalBlock = document.querySelector('#setup-form-scroll [data-setup-section="personal"]');
+    const faceBlock = document.querySelector('#setup-form-scroll [data-setup-section="face"]');
     if (mode === 'add') {
         if (title) title.textContent = 'Agregar vehículo';
         if (subtitle) subtitle.textContent = 'Placa, revisión y fotos';
@@ -2531,26 +2765,39 @@ window.setActiveDriverVehicle = async (vehicleId) => {
             vehicleType: updated.vehicleType,
             vehiclePlate: updated.vehicle?.plate || null,
             hasOfficialTaxiPlate: updated.vehicleType === 'taxi' && isValidTaxiPlate(updated.vehicle?.plate),
+            ...(() => {
+                const approved = getApprovedVehicleTypes(updated);
+                const registered = getRegisteredVehicleTypes(updated);
+                return {
+                    approvedVehicleTypes: approved,
+                    registeredVehicleTypes: registered,
+                    freightCapable: registered.includes('paila') || registered.includes('camion') || !!updated.freightEnabled
+                };
+            })(),
             updatedAt: Date.now()
         }, { merge: true });
         localStorage.setItem('lastVehicleType', updated.vehicleType);
         window.renderDriverVehicleSelector();
         window.renderProfileVehiclesList();
         window.updateDriverServiceUI?.();
+        const extraFreight = getRegisteredVehicleTypes(updated).some((t) => t === 'paila' || t === 'camion')
+            && updated.vehicleType !== 'paila'
+            && updated.vehicleType !== 'camion';
         const modeHint = updated.vehicleType === 'moto'
-            ? ' Solo recibirás viajes en moto (y envíos/comida al seleccionar "Envío").'
+            ? ' Recibirás moto y envíos.'
             : updated.vehicleType === 'taxi'
                 ? (isValidTaxiPlate(updated.vehicle?.plate)
-                    ? ' Solo recibirás viajes de taxi tradicional (placa T-).'
-                    : ' Tu placa no es T- oficial: no recibirás ofertas de taxi tradicional.')
+                    ? ' Recibirás taxi tradicional (placa T-).'
+                    : ' Tu placa no es T- oficial: no recibirás taxi tradicional.')
                 : updated.vehicleType === 'paila'
-                    ? ' Solo recibirás fletes en paila/pickup.'
+                    ? ' Recibirás fletes en paila/pickup.'
                     : updated.vehicleType === 'camion'
-                        ? ' Solo recibirás fletes en camión.'
+                        ? ' Recibirás fletes en camión.'
                         : updated.vehicleType === 'grua'
-                            ? ' Solo recibirás solicitudes de grúa / remolque.'
-                            : ' Solo recibirás solicitudes Taxi VIP (automóvil).';
-        window.showToast(`Operando con: ${buildVehicleLabel(updated.vehicleType, updated.vehicle)}.${modeHint}`, 'success');
+                            ? ' Recibirás solicitudes de grúa / remolque.'
+                            : ' Recibirás Taxi VIP.';
+        const freightHint = extraFreight ? ' También te avisamos fletes por tu paila/camión extra.' : '';
+        window.showToast(`Operando con: ${buildVehicleLabel(updated.vehicleType, updated.vehicle)}.${modeHint}${freightHint}`, 'success');
         window.releaseIncompatibleDriverOffers?.(updated.vehicleType);
     } catch (e) {
         console.error('setActiveDriverVehicle:', e);
@@ -3753,6 +4000,29 @@ if (document.readyState === 'loading') {
             }, 2000);
         }
 
+        function peekOpenTripChatFlag() {
+            try {
+                const q = new URLSearchParams(location.search || '');
+                if (q.get('openChat') === '1' || q.get('openChat') === 'true') return true;
+                if (sessionStorage.getItem('honduraite_open_trip_chat') === '1') return true;
+            } catch (_) {}
+            return false;
+        }
+
+        function storeOpenTripChatFlag() {
+            try {
+                if (peekOpenTripChatFlag()) sessionStorage.setItem('honduraite_open_trip_chat', '1');
+            } catch (_) {}
+        }
+
+        window.maybeOpenTripChatFromLink = () => {
+            if (!peekOpenTripChatFlag()) return;
+            try { sessionStorage.removeItem('honduraite_open_trip_chat'); } catch (_) {}
+            setTimeout(() => {
+                if (!window.chatOpen) window.toggleChat?.();
+            }, 700);
+        };
+
         /** Link compartido por WhatsApp: ?staffTrip=ID o #staffTrip=ID */
         function peekStaffTripShareId() {
             try {
@@ -3793,18 +4063,122 @@ if (document.readyState === 'loading') {
             } catch (_) {}
             try {
                 const url = new URL(location.href);
-                if (url.searchParams.has('staffTrip') || url.searchParams.has('staff_trip') || url.searchParams.has('trip')) {
+                if (url.searchParams.has('staffTrip') || url.searchParams.has('staff_trip') || url.searchParams.has('trip') || url.searchParams.has('openChat')) {
                     url.searchParams.delete('staffTrip');
                     url.searchParams.delete('staff_trip');
                     url.searchParams.delete('trip');
+                    url.searchParams.delete('openChat');
                     history.replaceState({}, '', url.pathname + url.search + url.hash);
                 }
             } catch (_) {}
         }
 
+        function enterGuestTripFollowShell() {
+            window.hideAuthSetupScreen?.();
+            setElementDisplay('login-screen', 'none');
+            setElementDisplay('setup-screen', 'none');
+            const setup = document.getElementById('setup-screen');
+            if (setup) {
+                setup.classList.add('hidden');
+                setup.classList.remove('auth-screen-open');
+            }
+            setElementDisplay('app-interface', 'flex');
+            document.getElementById('client-view')?.classList.remove('hidden');
+            document.getElementById('driver-view')?.classList.add('hidden');
+            document.body.classList.add('guest-trip-follow');
+            document.body.classList.remove('driver-mode');
+            if (!document.getElementById('guest-follow-banner')) {
+                const bar = document.createElement('div');
+                bar.id = 'guest-follow-banner';
+                bar.className = 'fixed top-0 inset-x-0 z-[21000] px-3 py-2 bg-emerald-700 text-white text-center text-[11px] font-bold shadow-md';
+                bar.innerHTML = 'Sigues el viaje <b>sin cuenta</b>. Al terminar te invitamos a registrarte.';
+                document.body.appendChild(bar);
+            }
+        }
+
+        function showGuestRegisterAfterTrip(trip) {
+            if (window._guestRegisterPrompted) return;
+            window._guestRegisterPrompted = true;
+            try {
+                const name = String(trip?.waProfileName || trip?.pendingClientName || trip?.clientName || '').trim();
+                const phone = String(trip?.clientPhone || trip?.pendingClientPhone || '').replace(/\D/g, '');
+                if (name && name !== 'Cliente WhatsApp') sessionStorage.setItem('hr_wa_name', name);
+                if (phone) sessionStorage.setItem('hr_wa_phone', phone);
+            } catch (_) {}
+            window.showToast?.('Viaje terminado. Crea tu cuenta para el próximo (nombre y WhatsApp ya van listos).', 'success');
+            setTimeout(() => {
+                try { document.getElementById('guest-follow-banner')?.remove(); } catch (_) {}
+                showSimplePassengerSetup?.();
+            }, 900);
+        }
+
+        window.openGuestTripFollowFromLink = async (tripId) => {
+            let id = String(tripId || '').trim();
+            try { id = decodeURIComponent(id); } catch (_) {}
+            id = id.replace(/^staffTrip=/i, '').split(/[?#&\s]/)[0].replace(/[^a-zA-Z0-9_-]/g, '');
+            if (!id || id.length < 8) return false;
+            try {
+                const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', id));
+                if (!snap.exists()) {
+                    window.showToast?.('No encontramos ese viaje. Pide el link otra vez por WhatsApp.', 'error');
+                    return false;
+                }
+                const t = { id: snap.id, ...snap.data() };
+                const isGuest = !!(
+                    t.guestClient === true
+                    || t.guestInvitePending === true
+                    || t.createdVia === 'whatsapp'
+                    || String(t.clientId || '').startsWith('guest_')
+                );
+                if (!isGuest) return false;
+                if (t.status === 'cancelled') {
+                    window.showToast?.('Esta solicitud fue cancelada.', 'warning');
+                    return false;
+                }
+                window._guestFollowTripId = t.id;
+                enterGuestTripFollowShell();
+                if (t.status === 'completed') {
+                    showGuestRegisterAfterTrip(t);
+                    return true;
+                }
+                subscribeToTripDocument(t.id);
+                if (t.status === 'pending') {
+                    restorePendingTripUI?.(t);
+                    window.showToast?.('Buscando conductor. Puedes seguir el viaje aquí, sin cuenta.', 'success');
+                } else if (t.status === 'scheduled' && t.driverId) {
+                    window.presentScheduledReservedUi?.(t, { role: 'client' });
+                } else if (['accepted', 'in_progress'].includes(t.status)) {
+                    window.presentTripAcceptedUi?.(t, { role: 'client', skipAcceptSound: true });
+                    window.showToast?.('Viaje activo. Sigue a tu conductor en el mapa, sin cuenta.', 'success');
+                } else {
+                    restorePendingTripUI?.(t);
+                }
+                return true;
+            } catch (e) {
+                console.warn('[guest-follow] open', e);
+                window.showToast?.('No se pudo abrir el viaje sin cuenta. Intenta de nuevo.', 'error');
+                return false;
+            }
+        };
+
         window.consumeStaffTripShareLink = async () => {
             const id = peekStaffTripShareId();
-            if (!id || !currentUser) return;
+            if (!id) return;
+            if (!currentUser) {
+                if (window._staffTripShareOpenedOk === id) return;
+                if (window._staffTripShareInFlight === id) return;
+                window._staffTripShareInFlight = id;
+                try {
+                    const opened = await window.openGuestTripFollowFromLink?.(id);
+                    if (opened) {
+                        window._staffTripShareOpenedOk = id;
+                        window.maybeOpenTripChatFromLink?.();
+                    }
+                } finally {
+                    if (window._staffTripShareInFlight === id) window._staffTripShareInFlight = null;
+                }
+                return;
+            }
             // No marcar “consumido” hasta abrir bien (si fallaba antes, ya no reintentaba)
             if (window._staffTripShareOpenedOk === id) return;
             if (window._staffTripShareInFlight === id) return;
@@ -3815,9 +4189,19 @@ if (document.readyState === 'loading') {
                 localStorage.setItem('honduraite_pending_staff_trip_at', String(Date.now()));
             } catch (_) {}
             try {
+                const guestOpened = await window.startGuestTripFollow?.(id);
+                if (guestOpened) {
+                    window._staffTripShareOpenedOk = id;
+                    window._guestFollowTripId = id;
+                    document.getElementById('driver-view')?.classList.add('hidden');
+                    try { window.hideDriverTripOfferPopup?.(); } catch (_) {}
+                    window.maybeOpenTripChatFromLink?.();
+                    return;
+                }
                 const opened = await window.openStaffTripFromShareLink?.(id);
                 if (opened) {
                     window._staffTripShareOpenedOk = id;
+                    window.maybeOpenTripChatFromLink?.();
                     clearStaffTripShareFromUrl(id);
                 }
             } finally {
@@ -3825,8 +4209,42 @@ if (document.readyState === 'loading') {
             }
         };
 
+        function consumeWhatsAppRegisterPrefill() {
+            try {
+                const q = new URLSearchParams(location.search || '');
+                const name = (q.get('waName') || '').trim();
+                const phone = (q.get('waPhone') || '').trim();
+                if (!name && !phone) return;
+                try {
+                    if (name) sessionStorage.setItem('hr_wa_name', name);
+                    if (phone) sessionStorage.setItem('hr_wa_phone', phone);
+                } catch (_) {}
+                const storedName = name || (sessionStorage.getItem('hr_wa_name') || '').trim();
+                const storedPhone = phone || (sessionStorage.getItem('hr_wa_phone') || '').trim();
+                const fill = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el && val && !String(el.value || '').trim()) el.value = val;
+                };
+                const phoneFmt = storedPhone
+                    ? (storedPhone.startsWith('+') ? storedPhone : `+${storedPhone.replace(/\D/g, '')}`)
+                    : '';
+                fill('full-name', storedName);
+                fill('phone-number', phoneFmt);
+                fill('passenger-name', storedName);
+                fill('passenger-phone', phoneFmt);
+                const url = new URL(location.href);
+                url.searchParams.delete('waName');
+                url.searchParams.delete('waPhone');
+                history.replaceState({}, '', url.pathname + url.search + url.hash);
+            } catch (_) {}
+        }
+        window.consumeWhatsAppRegisterPrefill = consumeWhatsAppRegisterPrefill;
+        consumeWhatsAppRegisterPrefill();
+        document.addEventListener('DOMContentLoaded', consumeWhatsAppRegisterPrefill);
+
         // Guardar link de WA antes de login (si abrió sin sesión)
         (() => {
+            storeOpenTripChatFlag();
             const early = peekStaffTripShareId();
             if (early) {
                 try {
@@ -3834,6 +4252,7 @@ if (document.readyState === 'loading') {
                     localStorage.setItem('honduraite_pending_staff_trip', early);
                     localStorage.setItem('honduraite_pending_staff_trip_at', String(Date.now()));
                 } catch (_) {}
+                setElementDisplay('login-screen', 'none');
             }
         })();
 
@@ -4127,6 +4546,31 @@ if (document.readyState === 'loading') {
             || t?.guestInvitePending === true
             || String(t?.clientId || '').startsWith('guest_')
         );
+
+        /** Viaje WhatsApp/guest: pasar clientId guest_… a la cuenta logueada para ver mapa y chat. */
+        window.attachGuestTripToCurrentUser = async (trip) => {
+            if (!trip?.id || !currentUser?.uid) return trip;
+            if (!isStaffGuestInviteTrip(trip)) return trip;
+            if (trip.clientId === currentUser.uid) return trip;
+            if (trip.clientId && !String(trip.clientId).startsWith('guest_')) return trip;
+            if (!['pending', 'accepted', 'in_progress', 'scheduled'].includes(trip.status)) return trip;
+            const prof = window.userProfile || {};
+            const patch = {
+                clientId: currentUser.uid,
+                guestClient: false,
+                guestInvitePending: false,
+                clientClaimedFromGuest: true,
+                staffCreatedClientClaimed: true,
+                attachedFromWhatsAppAt: serverTimestamp(),
+                attachedFromWhatsAppBy: currentUser.uid
+            };
+            if (prof.name) patch.clientName = prof.name;
+            const pPhone = prof.phone || trip.clientPhone;
+            if (pPhone) patch.clientPhone = pPhone;
+            if (prof.photo) patch.clientPhoto = prof.photo;
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), patch);
+            return { ...trip, ...patch, clientId: currentUser.uid };
+        };
 
         /** Modal: cliente acepta adueñarse del viaje armado por staff (puede ajustar personas y hora). */
         window.showStaffCreatedTripClaimModal = (trip, { force = false } = {}) => {
@@ -4507,7 +4951,8 @@ if (document.readyState === 'loading') {
             if (!guestTrip && t.clientId !== currentUser.uid) {
                 throw new Error('Este viaje no es de tu cuenta. Entra con el usuario del pasajero.');
             }
-            if (guestTrip && t.staffCreatedClientClaimed === true && t.clientId !== currentUser.uid) {
+            if (guestTrip && t.staffCreatedClientClaimed === true && t.clientId !== currentUser.uid
+                && !String(t.clientId || '').startsWith('guest_')) {
                 throw new Error('Este viaje ya lo reclamó otra cuenta.');
             }
             if (t.status === 'cancelled') throw new Error('Este viaje fue cancelado. Pide uno nuevo a soporte.');
@@ -5797,8 +6242,8 @@ if (document.readyState === 'loading') {
             else if (action === 'push') { window.enableTripNotifications?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'admin') { window.openAdminPanel?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'supervisor') { window.openSupervisorPanel?.(); window.closeHeaderMoreMenu?.(); }
-            else if (action === 'tutorial') { window.startPassengerTutorial?.({ force: true }); window.closeHeaderMoreMenu?.(); }
-            else if (action === 'driver-tutorial') { window.startDriverTutorial?.({ force: true }); window.closeHeaderMoreMenu?.(); }
+            else if (action === 'tutorial') { window.openPassengerTutorial?.(); window.closeHeaderMoreMenu?.(); }
+            else if (action === 'driver-tutorial') { window.openDriverTutorial?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'copa') {
                 window.closeHeaderMoreMenu?.();
                 window.openDriverCopaFromMenu?.();
@@ -7226,22 +7671,22 @@ if (document.readyState === 'loading') {
 
             if (!negotiationEnabled) {
                 statusLabel = 'Precio fijo de la app';
-                statusSub = 'Regateo desactivado: acepta o rechaza';
+                statusSub = 'Acepta esta tarifa o pasa';
             }
 
-            if (hasPassengerCounter) {
+            if (negotiationEnabled && hasPassengerCounter) {
                 statusLabel = 'El pasajero ofrece';
                 statusSub = 'Acepta o toca «Pedir más»';
                 modeClass = 'driver-offer-decision--counter';
-            } else if (passengerRejectedMyPrice) {
+            } else if (negotiationEnabled && passengerRejectedMyPrice) {
                 statusLabel = 'Rechazó tu precio';
                 statusSub = 'Toca un precio más alto';
                 modeClass = 'driver-offer-decision--rejected';
-            } else if (waitingOnPax) {
+            } else if (negotiationEnabled && waitingOnPax) {
                 statusLabel = 'Esperando al pasajero';
                 statusSub = `Enviaste L. ${parseFloat(myBid.price).toFixed(0)}`;
                 modeClass = 'driver-offer-decision--waiting';
-            } else if (!priceFair) {
+            } else if (negotiationEnabled && !priceFair) {
                 statusLabel = 'Precio del viaje';
                 statusSub = 'Acepta o pide más con los botones';
                 modeClass = 'driver-offer-decision--low';
@@ -7278,13 +7723,8 @@ if (document.readyState === 'loading') {
                 : (distSummary?.suggestPrice ? Math.round(distSummary.suggestPrice) : '');
 
             const acceptDisplay = `L. ${Math.round(acceptPriceNum)}`;
-            const offerDisplay = t.price || `L. ${Math.round(listedPriceNum)}`;
-            const primaryBtn = (!negotiationEnabled || showDirectAccept)
-                ? `<button type="button" data-accept-trip="${tripId}" class="driver-offer-decision-accept driver-offer-decision-accept--go trip-touch-btn" title="Aceptar viaje a este precio">
+            const primaryBtn = `<button type="button" data-accept-trip="${tripId}" class="driver-offer-decision-accept driver-offer-decision-accept--go trip-touch-btn" title="Aceptar viaje a este precio">
                         <span class="pointer-events-none driver-offer-decision-accept-big"><i class="fas fa-check"></i> ACEPTAR · ${acceptDisplay}</span>
-                   </button>`
-                : `<button type="button" data-submit-listed-bid="${tripId}" data-bid-price="${listedPriceNum}" class="driver-offer-decision-accept trip-touch-btn" title="Enviar oferta al pasajero">
-                        <span class="pointer-events-none driver-offer-decision-accept-big"><i class="fas fa-paper-plane"></i> OFERTAR · ${offerDisplay}</span>
                    </button>`;
 
             const keyboardHtml = (negotiationEnabled && !waitingOnPax)
@@ -7319,9 +7759,41 @@ if (document.readyState === 'loading') {
                     ${primaryBtn}
                     ${quickBidsHtml}
                     ${keyboardHtml}
-                    <button type="button" data-decline-trip="${tripId}" class="driver-offer-decision-skip driver-offer-decision-skip--solo trip-touch-btn">No gracias</button>
+                    <button type="button" data-decline-trip="${tripId}" class="driver-offer-decision-skip driver-offer-decision-skip--solo trip-touch-btn">Pasar</button>
                 </div>
             `;
+        }
+
+        function locApprovedVehicleTypes(loc, profile = null) {
+            const fromLoc = [
+                ...(Array.isArray(loc?.approvedVehicleTypes) ? loc.approvedVehicleTypes : []),
+                ...(Array.isArray(loc?.registeredVehicleTypes) ? loc.registeredVehicleTypes : [])
+            ];
+            const fromProfile = profile
+                ? [...getApprovedVehicleTypes(profile), ...getRegisteredVehicleTypes(profile)]
+                : [];
+            const types = [...fromLoc, ...fromProfile, loc?.vehicleType, profile?.vehicleType]
+                .map((t) => String(t || '').toLowerCase())
+                .filter(Boolean);
+            return [...new Set(types)];
+        }
+
+        function locCanServePassengerService(loc, serviceType, profile = null) {
+            const svc = serviceType || window.currentServiceType || 'auto';
+            const plate = loc?.vehiclePlate || null;
+            if (driverCanServeTrip(loc?.vehicleType || 'auto', svc, plate)) return true;
+            return locApprovedVehicleTypes(loc, profile).some((t) => driverCanServeTrip(t, svc, plate));
+        }
+
+        function driverLocationCapabilityPatch(profile) {
+            const approved = getApprovedVehicleTypes(profile);
+            const registered = getRegisteredVehicleTypes(profile);
+            const freightTypes = registered.filter((t) => t === 'paila' || t === 'camion');
+            return {
+                approvedVehicleTypes: approved,
+                registeredVehicleTypes: registered,
+                freightCapable: freightTypes.length > 0 || !!(profile?.freightEnabled || profile?.canDoFreight)
+            };
         }
 
         function driverCanSeeOpenPendingTrip(t, {
@@ -7382,8 +7854,17 @@ if (document.readyState === 'loading') {
             return pickupKm <= farKm;
         }
 
-        function isTripNegotiationEnabled(trip) {
-            return trip?.negotiationEnabled !== false;
+        function isGuestPassengerTrip(trip) {
+            return !!(
+                trip?.guestClient === true
+                || trip?.guestInvitePending === true
+                || String(trip?.clientId || '').startsWith('guest_')
+            );
+        }
+
+        function isTripNegotiationEnabled(_trip) {
+            // Conductor solo acepta la tarifa o pasa. Sin ofertar/regatear precio.
+            return false;
         }
 
         function canDriverNegotiateTrip(trip, driverId) {
@@ -7464,7 +7945,7 @@ if (document.readyState === 'loading') {
             driversSnap.forEach((d) => {
                 const loc = d.data();
                 if (!isDriverOnline(loc)) return;
-                if (!driverCanServeTrip(loc.vehicleType || 'auto', trip.serviceType || 'auto', loc.vehiclePlate, trip)) return;
+                if (!locCanServePassengerService(loc, trip.serviceType || 'auto')) return;
                 if (!driverLocationMatchesTripCity(loc, tZone, null, {
                     tripCityHasLocalDrivers: hasLocalFleet
                 })) return;
@@ -8028,12 +8509,19 @@ if (document.readyState === 'loading') {
             const active = getActiveVehicle(window.userProfile);
             const vType = driverVehicleType || getActiveVehicleType(window.userProfile);
             const plate = active?.vehicle?.plate || window.userProfile?.vehicle?.plate || null;
+            const approved = getApprovedVehicles(window.userProfile);
+            const canServeWithAnyVehicle = (t) => {
+                if (driverCanServeTrip(vType, t.serviceType || 'auto', plate, t)) return true;
+                return approved.some((v) =>
+                    driverCanServeTrip(v.type, t.serviceType || 'auto', v.vehicle?.plate || null, t)
+                );
+            };
             try {
                 const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
                 for (const d of snap.docs) {
                     const t = d.data();
                     if (t.status !== 'pending' || t.offeredToDriverId !== currentUser.uid) continue;
-                    if (driverCanServeTrip(vType, t.serviceType || 'auto', plate, t)) continue;
+                    if (canServeWithAnyVehicle(t)) continue;
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', d.id), {
                         declinedDriverIds: arrayUnion(currentUser.uid),
                         offeredToDriverId: null,
@@ -8109,8 +8597,7 @@ if (document.readyState === 'loading') {
                 const loc = d.data();
                 if (!isDriverOnline(loc)) continue;
 
-                const driverVehicleType = loc.vehicleType || 'auto';
-                if (!driverCanServeTrip(driverVehicleType, trip.serviceType || 'auto', loc.vehiclePlate, trip)) continue;
+                if (!locCanServePassengerService(loc, trip.serviceType || 'auto')) continue;
                 if (!tripZoneId || !driverLocationMatchesTripCity(loc, tripZoneId, null, {
                     tripCityHasLocalDrivers: hasLocalFleet
                 })) continue;
@@ -9139,7 +9626,10 @@ if (document.readyState === 'loading') {
                 ? `<span class="driver-offer-direct-badge" style="background:#fef3c7;color:#92400e;border-color:#fcd34d;" title="Personas en el viaje"><i class="fas fa-users"></i> ${paxNBadge === 1 ? '1 persona' : `${paxNBadge} personas`}</span>`
                 : '';
             const myBid = getMyDriverBid(t);
-            const listedPriceNum = parseTripPrice(t);
+            let listedPriceNum = parseTripPrice(t);
+            if (!(listedPriceNum > 0)) {
+                listedPriceNum = estimateTripPriceFromPoints(t) || 0;
+            }
             const priceFair = isDriverListedPriceFair(t, distSummary);
             const passengerCounterPrice = getDriverPassengerCounterPrice(t, myBid);
             const hasPassengerCounter = passengerCounterPrice != null;
@@ -9153,7 +9643,9 @@ if (document.readyState === 'loading') {
                 ? `L. ${passengerCounterPrice.toFixed(2)}`
                 : (t.negotiatedPrice != null
                     ? `L. ${parseFloat(t.negotiatedPrice).toFixed(2)}`
-                    : (t.price || '—'));
+                    : (listedPriceNum > 0
+                        ? `L. ${listedPriceNum.toFixed(2)}`
+                        : (t.price && t.price !== 'Por confirmar' ? t.price : '—')));
             const isUnverified = t.clientVerified === false || t.clientApprovalStatus === 'pending';
             const isFirstTrip = isClientFirstTripFlag(t);
             const unverifiedAlert = isUnverified
@@ -9313,18 +9805,10 @@ if (document.readyState === 'loading') {
                 const paxChipHtml = showPaxCompact
                     ? `<span class="uber-vert-pax" title="Personas en el viaje"><i class="fas fa-users"></i> ${paxNCompact === 1 ? '1 pers.' : `${paxNCompact} pers.`}</span>`
                     : '';
-                const negotiationEnabled = isTripNegotiationEnabled(t);
                 const acceptDisplay = `L. ${Math.round(acceptPriceNum)}`;
-                const offerDisplay = t.price || `L. ${Math.round(listedPriceNum)}`;
-                const primaryIsAccept = !negotiationEnabled || showDirectAccept;
-                const primaryBtn = primaryIsAccept
-                    ? `<button type="button" data-accept-trip="${tripId}" class="uber-vert-btn uber-vert-btn--go trip-touch-btn">
+                const primaryBtn = `<button type="button" data-accept-trip="${tripId}" class="uber-vert-btn uber-vert-btn--go trip-touch-btn">
                             <i class="fas fa-check pointer-events-none"></i>
                             <span class="pointer-events-none">Aceptar ${acceptDisplay}</span>
-                       </button>`
-                    : `<button type="button" data-submit-listed-bid="${tripId}" data-bid-price="${listedPriceNum}" class="uber-vert-btn uber-vert-btn--go trip-touch-btn">
-                            <i class="fas fa-paper-plane pointer-events-none"></i>
-                            <span class="pointer-events-none">Ofertar ${offerDisplay}</span>
                        </button>`;
                 const fullRouteHtml = buildDriverOfferRouteHtml(t, { compact: true });
                 return `
@@ -9360,7 +9844,7 @@ if (document.readyState === 'loading') {
                     </div>
                     <div class="uber-vert-actions">
                         ${primaryBtn}
-                        <button type="button" data-decline-trip="${tripId}" class="uber-vert-btn uber-vert-btn--skip trip-touch-btn">No</button>
+                        <button type="button" data-decline-trip="${tripId}" class="uber-vert-btn uber-vert-btn--skip trip-touch-btn">Pasar</button>
                     </div>
                 </div>
                 `;
@@ -9494,7 +9978,7 @@ if (document.readyState === 'loading') {
                 );
                 if (btnEl) {
                     btnEl.disabled = false;
-                    btnEl.textContent = 'No gracias';
+                    btnEl.textContent = 'Pasar';
                 }
             }
         };
@@ -9936,6 +10420,10 @@ if (document.readyState === 'loading') {
             window._lastDriverMyOffers = Array.isArray(myOffers) ? myOffers : [];
 
             const isDriver = window.userProfile?.role === 'driver' || isTestDriverProfile();
+            if (window._guestFollowTripId) {
+                hideDriverTripOfferPopup();
+                return;
+            }
             if (!isDriver || document.body.classList.contains('driver-rating-active')) {
                 _driverOfferPopupMapPeek = false;
                 setDriverOfferMapPeekUi(false);
@@ -10062,7 +10550,9 @@ if (document.readyState === 'loading') {
 
             popup.classList.remove('hidden');
             popup.setAttribute('aria-hidden', 'false');
-            document.body.classList.add('driver-offer-popup-open', 'driver-offer-preview-active');
+            document.body.classList.add('driver-offer-popup-open', 'driver-offer-preview-active', 'panel-minimized', 'panel-collapsed');
+            document.getElementById('control-panel')?.classList.add('panel-collapsed');
+            document.getElementById('test-driver-mode-badge')?.classList.add('hidden');
             // Mapa usable arriba de la hoja (no bloquear gestos del mapa)
             document.body.classList.remove('driver-offer-map-peek');
             startDriverOfferPopupTimer(trip);
@@ -10099,6 +10589,10 @@ if (document.readyState === 'loading') {
                 window.driverTripsUnsub();
                 window.driverTripsUnsub = null;
             }
+            if (window._driverNearbyExpandTimer) {
+                clearInterval(window._driverNearbyExpandTimer);
+                window._driverNearbyExpandTimer = null;
+            }
 
             const container = document.getElementById('requests-list');
             const offerBanner = document.getElementById('driver-incoming-offer');
@@ -10126,11 +10620,13 @@ if (document.readyState === 'loading') {
                 }
             } catch (_) {}
 
-            window.driverTripsUnsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), async (snap) => {
+            const handleDriverTripSnap = async (snap) => {
+                window._driverLastTripSnap = snap;
                 const driverZoneId = window.activeServiceZoneId
                     || window.userProfile?.serviceZoneId
                     || getDefaultZoneId();
                 const testDriverMode = isTestDriverProfile();
+                if (window._guestFollowTripId) return;
                 const onActiveTrip = activeTrip && CONFIRMED_TRIP_STATUSES.includes(activeTrip.status);
                 const lockTrip = findScheduledLockTripForDriver(snap.docs, currentUser.uid);
                 window._driverScheduledLockTrip = lockTrip || null;
@@ -10167,8 +10663,6 @@ if (document.readyState === 'loading') {
                     window.scanDueScheduledTrips?.(scheduledDue).catch(() => {});
                 }
 
-                if (!container) return;
-
                 const activeForOffers = getActiveVehicle(window.userProfile);
                 const driverVehicleType = activeForOffers?.type || getActiveVehicleType(window.userProfile);
                 const driverPlate = activeForOffers?.vehicle?.plate || window.userProfile?.vehicle?.plate || null;
@@ -10198,6 +10692,7 @@ if (document.readyState === 'loading') {
                         return getTripCreatedAtMs(a) - getTripCreatedAtMs(b);
                     });
 
+                // Aviso al conductor aunque el panel de solicitudes no esté montado
                 if (lockTrip) {
                     myOffers.length = 0;
                     hideDriverTripOfferPopup?.({ soft: true });
@@ -10206,9 +10701,12 @@ if (document.readyState === 'loading') {
                     }
                 } else {
                     alertDriverNewTripOffers(myOffers);
-                    // Pantalla emergente tipo Uber: siempre que haya viaje disponible
-                    syncDriverTripOfferPopup(myOffers, { onActiveTrip });
+                    if (container) {
+                        syncDriverTripOfferPopup(myOffers, { onActiveTrip });
+                    }
                 }
+
+                if (!container) return;
 
                 const renderOffers = (targetEl, compact) => {
                     if (!targetEl) return;
@@ -10334,7 +10832,26 @@ if (document.readyState === 'loading') {
                 });
                 hydrateDriverOfferDistances(myOffers);
                 syncDriverOfferRoutePreview(myOffers);
-            });
+            };
+            window.driverTripsUnsub = onSnapshot(
+                collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
+                handleDriverTripSnap
+            );
+            window._driverNearbyExpandTimer = setInterval(() => {
+                if (!currentUser || window.userProfile?.role !== 'driver') return;
+                const snap = window._driverLastTripSnap;
+                if (!snap) return;
+                const now = Date.now();
+                const justExpanded = snap.docs.some((d) => {
+                    const t = d.data();
+                    if (t.status !== 'pending' || t.driverId || t.isDemandSimulation) return false;
+                    const created = getTripCreatedAtMs(t);
+                    if (!created) return false;
+                    const age = now - created;
+                    return age >= 15000 && age < 23000;
+                });
+                if (justExpanded) handleDriverTripSnap(snap);
+            }, 5000);
         };
 
         function compactRoutePath(path, maxPts = 180) {
@@ -12175,7 +12692,7 @@ if (document.readyState === 'loading') {
             // Estado visible al pintar (los snapshots en vivo rehacen el HTML)
             let negState = window.currentAdminNegotiationEnabled;
             if (negState == null) negState = readStoredAdminNegotiationState();
-            if (negState == null) negState = true;
+            if (negState == null) negState = false;
             const negOn = negState === true;
             const negBtnLabel = `Regateo global: ${negOn ? 'ON' : 'OFF'}`;
             const negBtnClass = negOn
@@ -12215,7 +12732,7 @@ if (document.readyState === 'loading') {
                         </button>
                         ${canToggleNegotiation ? `<button id="admin-global-negotiation-toggle" type="button" onclick="window.adminToggleGlobalNegotiation()" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-white text-xs font-black shadow-lg ${negBtnClass}" aria-pressed="${negOn ? 'true' : 'false'}" title="${negOn ? 'Toca para desactivar regateo' : 'Toca para activar regateo'}">${negBtnLabel}</button>` : ''}
                     </div>
-                    ${canToggleNegotiation ? `<p class="text-[11px] text-slate-300 mt-2">Regateo global se guarda en el servidor. <b>ON</b> = conductores pueden ofertar precio. <b>OFF</b> = solo tarifa fija de la app (viajes nuevos). El listado se actualiza en vivo; el botón debe seguir en ON/OFF (no en “cargando”).</p>` : ''}
+                    ${canToggleNegotiation ? `<p class="text-[11px] text-slate-300 mt-2">Los conductores <b>aceptan o pasan</b> a la tarifa de la app. El regateo de precio está desactivado.</p>` : ''}
                 </div>
                 <div class="ops-trips-page-kpis" role="toolbar" aria-label="Filtrar viajes">
                     ${U.kpi(unanswered.length, 'Sin atención', unanswered.length ? 'red' : 'default', { filterKey: 'unanswered', title: 'Solicitudes vivas sin vistas u ofertas' })}
@@ -21066,6 +21583,38 @@ if (document.readyState === 'loading') {
             return Number.isFinite(num) ? num : 0;
         }
 
+        function estimateTripPriceFromPoints(trip) {
+            if (!trip) return 0;
+            const pts = [
+                (trip.originLat != null && trip.originLng != null) ? { lat: Number(trip.originLat), lng: Number(trip.originLng) } : null,
+                ...((Array.isArray(trip.additionalStops) ? trip.additionalStops : []).map((s) => {
+                    const lat = Number(s?.lat ?? s?.latLng?.lat);
+                    const lng = Number(s?.lng ?? s?.latLng?.lng);
+                    return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+                })),
+                (trip.destinationLat != null && trip.destinationLng != null)
+                    ? { lat: Number(trip.destinationLat), lng: Number(trip.destinationLng) }
+                    : null
+            ].filter(Boolean);
+            if (pts.length < 2) return 0;
+            let km = 0;
+            for (let i = 1; i < pts.length; i++) {
+                km += haversineKm(pts[i - 1].lat, pts[i - 1].lng, pts[i].lat, pts[i].lng);
+            }
+            km = Math.round(km * 1.3 * 10) / 10;
+            const originPt = pts[0];
+            const destPt = pts[pts.length - 1];
+            const directKm = Math.round(haversineKm(originPt.lat, originPt.lng, destPt.lat, destPt.lng) * 1.3 * 10) / 10;
+            if (!(directKm > 0) && !(km > 0)) return 0;
+            try {
+                const perKm = getServiceMeta(trip.serviceType || 'auto')?.perKm || 22;
+                const extras = extraStopsSurcharge(originPt, destPt, trip.additionalStops || [], perKm).extra;
+                return Math.round((calculateServiceFare(trip.serviceType || 'auto', directKm || km, null, trip.passengers || 1) + extras) * 100) / 100;
+            } catch (_) {
+                return 0;
+            }
+        }
+
         function parseTripPrice(trip) {
             if (trip == null) return 0;
             if (typeof trip === 'number') return parsePriceText(trip);
@@ -21078,7 +21627,8 @@ if (document.readyState === 'loading') {
                 if (fromText > 1 && trip.priceNum < 1 && fromText / trip.priceNum > 50) return fromText;
                 return trip.priceNum;
             }
-            return fromText;
+            if (fromText > 0) return fromText;
+            return estimateTripPriceFromPoints(trip);
         }
 
         function getBirthdayBannerDismissKey() {
@@ -25967,152 +26517,145 @@ window.saveProfileChanges = async () => {
             }
         };
 
-        // Función de compresión de foto de perfil
-        window.previewPhoto = (input) => {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
-                        if (width > height) {
-                            if (width > 256) { height *= 256 / width; width = 256; }
-                        } else {
-                            if (height > 256) { width *= 256 / height; height = 256; }
-                        }
-                        canvas.width = width; canvas.height = height;
-                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                        
-                        profilePhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                        document.getElementById('photo-preview').innerHTML = `<img src="${profilePhotoBase64}" alt="Foto de perfil" class="profile-photo-img">`;
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(input.files[0]);
+        const SETUP_PHOTO_SLOTS = {
+            face: { preview: 'photo-preview', title: 'Foto de tu rostro', facing: 'user', imgClass: 'profile-photo-img' },
+            helmet: { preview: 'helmet-photo-preview', title: 'Foto con casco puesto', facing: 'user', imgClass: 'w-full h-full object-cover rounded-xl' },
+            pc1: { preview: 'pcasco1-preview', title: 'Casco del pasajero', facing: 'environment' },
+            pc2: { preview: 'pcasco2-preview', title: 'Casco del pasajero por dentro', facing: 'environment' },
+            int1: { preview: 'int1-preview', title: 'Foto interior 1', facing: 'environment' },
+            int2: { preview: 'int2-preview', title: 'Foto interior 2', facing: 'environment' },
+            int3: { preview: 'int3-preview', title: 'Foto interior 3', facing: 'environment' },
+            plate: { preview: 'plate-preview', title: 'Foto de la placa', facing: 'environment' },
+            extFront: { preview: 'ext-front-preview', title: 'Exterior frontal', facing: 'environment' },
+            extRear: { preview: 'ext-rear-preview', title: 'Exterior trasero', facing: 'environment' },
+            licenseFront: { preview: 'license-front-preview', title: 'Licencia frente', facing: 'environment', doc: true },
+            licenseBack: { preview: 'license-back-preview', title: 'Licencia revés', facing: 'environment', doc: true },
+            inspection: { preview: 'inspection-preview', title: 'Revisión vehicular', facing: 'environment', doc: true },
+            antecedentes: { preview: 'antecedentes-preview', title: 'Certificado PEN', facing: 'environment', doc: true },
+            policiales: { preview: 'policiales-preview', title: 'Certificado policial', facing: 'environment', doc: true }
+        };
+
+        function applySetupPhoto(slot, dataUrl) {
+            if (!dataUrl) return;
+            const meta = SETUP_PHOTO_SLOTS[slot];
+            if (slot === 'face') profilePhotoBase64 = dataUrl;
+            else if (slot === 'helmet') helmetPhotoBase64 = dataUrl;
+            else if (slot === 'pc1') passengerCascoPhoto1 = dataUrl;
+            else if (slot === 'pc2') passengerCascoPhoto2 = dataUrl;
+            else if (slot === 'int1') vehiclePhotoInt1 = dataUrl;
+            else if (slot === 'int2') vehiclePhotoInt2 = dataUrl;
+            else if (slot === 'int3') vehiclePhotoInt3 = dataUrl;
+            else if (slot === 'plate') vehiclePhotoPlate = dataUrl;
+            else if (slot === 'extFront') vehiclePhotoExtFront = dataUrl;
+            else if (slot === 'extRear') vehiclePhotoExtRear = dataUrl;
+            else if (slot === 'licenseFront') licenseFrontPhoto = dataUrl;
+            else if (slot === 'licenseBack') licenseBackPhoto = dataUrl;
+            else if (slot === 'inspection') inspectionPhoto = dataUrl;
+            else if (slot === 'antecedentes') antecedentesPenalesPhoto = dataUrl;
+            else if (slot === 'policiales') policialesPhoto = dataUrl;
+            const el = meta?.preview ? document.getElementById(meta.preview) : null;
+            if (el) {
+                const cls = meta.imgClass || 'w-full h-full object-cover';
+                el.innerHTML = `<img src="${dataUrl}" alt="" class="${cls}">`;
+            }
+            window.showToast?.('Foto lista', 'success');
+        }
+
+        window.resetDriverSetupPhotos = () => {
+            profilePhotoBase64 = helmetPhotoBase64 = null;
+            vehiclePhotoInt1 = vehiclePhotoInt2 = vehiclePhotoInt3 = null;
+            vehiclePhotoPlate = vehiclePhotoExtFront = vehiclePhotoExtRear = null;
+            licenseFrontPhoto = licenseBackPhoto = inspectionPhoto = null;
+            antecedentesPenalesPhoto = policialesPhoto = null;
+            passengerCascoPhoto1 = passengerCascoPhoto2 = null;
+        };
+
+        let _pickSetupPhotoLockUntil = 0;
+        let _pickSetupPhotoLastSlot = '';
+        window.pickSetupPhoto = (slot) => {
+            const meta = SETUP_PHOTO_SLOTS[slot];
+            if (!meta) return;
+            const now = Date.now();
+            if (slot === _pickSetupPhotoLastSlot && now < _pickSetupPhotoLockUntil) return;
+            _pickSetupPhotoLastSlot = slot;
+            _pickSetupPhotoLockUntil = now + 700;
+            try {
+                pickPhotoWithSourceChoice({
+                    facing: meta.facing || 'environment',
+                    maxSize: meta.doc ? 1400 : (slot === 'face' ? 640 : 900),
+                    title: meta.title || 'Subir foto',
+                    cameraLabel: 'Tomar foto',
+                    galleryLabel: 'Elegir de galería',
+                    onCapture: (dataUrl) => applySetupPhoto(slot, dataUrl),
+                    onError: (msg) => window.showToast?.(msg || 'No se pudo tomar o subir la foto. Prueba de nuevo.', 'warning')
+                });
+            } catch (e) {
+                console.warn('pickSetupPhoto', e);
+                window.showToast?.('No se pudo abrir cámara o galería. Toca de nuevo.', 'warning');
             }
         };
 
-        window.previewHelmetPhoto = (input) => {
-            if (!input.files?.[0]) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width, height = img.height;
-                    if (width > height) { if (width > 400) { height *= 400 / width; width = 400; } }
-                    else { if (height > 400) { width *= 400 / height; height = 400; } }
-                    canvas.width = width; canvas.height = height;
-                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                    helmetPhotoBase64 = canvas.toDataURL('image/jpeg', 0.7);
-                    const el = document.getElementById('helmet-photo-preview');
-                    if (el) el.innerHTML = `<img src="${helmetPhotoBase64}" class="w-full h-full object-cover rounded-xl">`;
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(input.files[0]);
+        window.bindDriverSetupPhotoPickers = () => {
+            if (window._setupPhotoClickBound) return;
+            window._setupPhotoClickBound = true;
+            const previewToSlot = Object.fromEntries(
+                Object.entries(SETUP_PHOTO_SLOTS).map(([slot, m]) => [m.preview, slot])
+            );
+            document.addEventListener('click', (e) => {
+                const setup = document.getElementById('setup-screen');
+                if (!setup || setup.classList.contains('hidden')) return;
+                if (!setup.classList.contains('auth-screen-open') && setup.style.display === 'none') return;
+                const preview = e.target.closest?.('[data-setup-photo], #photo-preview, #helmet-photo-preview, .setup-photo-slot, .setup-photo-face');
+                if (!preview || !setup.contains(preview)) return;
+                const slot = preview.getAttribute('data-setup-photo') || previewToSlot[preview.id];
+                if (!slot) return;
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                window.pickSetupPhoto(slot);
+            }, true);
+        };
+        window.bindDriverSetupPhotoPickers();
+
+        window.previewPhoto = async (input) => {
+            const file = input?.files?.[0];
+            if (!file) return;
+            try {
+                applySetupPhoto('face', await compressDataUrlFromFile(file, 640));
+            } catch (e) {
+                window.showToast?.(e?.message || 'No se pudo leer la foto');
+            }
         };
 
-        // Previsualizar fotos del CASCO DEL PASAJERO (solo para moto)
-        window.previewPassengerCascoPhoto = (input, slot) => {
-            if (!input.files || !input.files[0]) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    const maxSize = 380;
-                    if (width > height) {
-                        if (width > maxSize) { height *= maxSize / width; width = maxSize; }
-                    } else {
-                        if (height > maxSize) { width *= maxSize / height; height = maxSize; }
-                    }
-                    canvas.width = width; canvas.height = height;
-                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                    const b64 = canvas.toDataURL('image/jpeg', 0.65);
-
-                    if (slot === 'pc1') {
-                        passengerCascoPhoto1 = b64;
-                        document.getElementById('pcasco1-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'pc2') {
-                        passengerCascoPhoto2 = b64;
-                        document.getElementById('pcasco2-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    }
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(input.files[0]);
+        window.previewHelmetPhoto = async (input) => {
+            const file = input?.files?.[0];
+            if (!file) return;
+            try {
+                applySetupPhoto('helmet', await compressDataUrlFromFile(file, 800));
+            } catch (e) {
+                window.showToast?.(e?.message || 'No se pudo leer la foto');
+            }
         };
 
-        // Previsualizar fotos del vehículo + documentos (incluyendo casco para motos y revisión vehicular)
-        window.previewVehiclePhoto = (input, slot) => {
-            if (!input.files || !input.files[0]) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    
-                    // Higher quality + larger size for critical documents so downloads are HD
-                    const isDocument = ['license', 'inspection', 'antecedentes', 'policiales'].includes(slot);
-                    const maxSize = isDocument ? 1400 : 700;
-                    const quality = isDocument ? 0.93 : 0.75;
-                    
-                    if (width > height) {
-                        if (width > maxSize) { height *= maxSize / width; width = maxSize; }
-                    } else {
-                        if (height > maxSize) { width *= maxSize / height; height = maxSize; }
-                    }
-                    canvas.width = width; canvas.height = height;
-                    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                    const b64 = canvas.toDataURL('image/jpeg', quality);
+        window.previewPassengerCascoPhoto = async (input, slot) => {
+            const file = input?.files?.[0];
+            if (!file) return;
+            try {
+                applySetupPhoto(slot === 'pc2' ? 'pc2' : 'pc1', await compressDataUrlFromFile(file, 800));
+            } catch (e) {
+                window.showToast?.(e?.message || 'No se pudo leer la foto');
+            }
+        };
 
-                    if (slot === 'int1') {
-                        vehiclePhotoInt1 = b64;
-                        document.getElementById('int1-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'int2') {
-                        vehiclePhotoInt2 = b64;
-                        document.getElementById('int2-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'int3') {
-                        vehiclePhotoInt3 = b64;
-                        document.getElementById('int3-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'plate') {
-                        vehiclePhotoPlate = b64;
-                        document.getElementById('plate-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'extFront') {
-                        vehiclePhotoExtFront = b64;
-                        document.getElementById('ext-front-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'extRear') {
-                        vehiclePhotoExtRear = b64;
-                        document.getElementById('ext-rear-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'licenseFront') {
-                        licenseFrontPhoto = b64;
-                        document.getElementById('license-front-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'licenseBack') {
-                        licenseBackPhoto = b64;
-                        document.getElementById('license-back-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'inspection') {
-                        inspectionPhoto = b64;
-                        document.getElementById('inspection-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    }
-                    else if (slot === 'antecedentes') {
-                        antecedentesPenalesPhoto = b64;
-                        document.getElementById('antecedentes-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    } else if (slot === 'policiales') {
-                        policialesPhoto = b64;
-                        document.getElementById('policiales-preview').innerHTML = `<img src="${b64}" class="w-full h-full object-cover">`;
-                    }
-                };
-                img.src = e.target.result;
-            };
-            reader.readAsDataURL(input.files[0]);
-            
+        window.previewVehiclePhoto = async (input, slot) => {
+            const file = input?.files?.[0];
+            if (!file || !SETUP_PHOTO_SLOTS[slot]) return;
+            try {
+                const max = SETUP_PHOTO_SLOTS[slot].doc ? 1400 : 900;
+                applySetupPhoto(slot, await compressDataUrlFromFile(file, max));
+            } catch (e) {
+                window.showToast?.(e?.message || 'No se pudo leer la foto');
+            }
         };
 
         // NUEVAS FUNCIONES PARA RENOVACIÓN DE DOCUMENTOS CADA 6 MESES
@@ -26378,6 +26921,22 @@ window.saveProfileChanges = async () => {
 
                 window.userProfile.vehicles = vehicles;
                 window.userProfile.hasPendingVehicle = true;
+                try {
+                    const cap = (() => {
+                        const approved = getApprovedVehicleTypes(window.userProfile);
+                        const registered = getRegisteredVehicleTypes(window.userProfile);
+                        return {
+                            approvedVehicleTypes: approved,
+                            registeredVehicleTypes: registered,
+                            freightCapable: registered.includes('paila') || registered.includes('camion')
+                        };
+                    })();
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), cap, { merge: true });
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid), {
+                        ...cap,
+                        updatedAt: Date.now()
+                    }, { merge: true });
+                } catch (_) {}
                 window.driverVehicleSetupMode = null;
                 window.configureDriverVehicleSetupUI('register');
                 window.hideAuthSetupScreen?.();
@@ -26459,6 +27018,7 @@ window.saveProfileChanges = async () => {
                 }
 
                 if (userRole === 'driver') {
+                    window.showToast?.('Subiendo fotos… no cierres la app.', 'info');
                     const vehicleId = createVehicleId();
                     const assets = await uploadVehicleAssetsFromForm(uid, vehicleId, data.vehicleType);
                     Object.assign(data, assets);
@@ -27323,10 +27883,16 @@ window.saveProfileChanges = async () => {
         }
 
         function startClientPickupTracking(trip) {
-            window.resolveTripPickupNavTarget(trip).then((target) => {
-                if (!target || (activeTrip?.id && activeTrip.id !== trip.id)) return;
-                updateETA(trip.driverId, target, trip);
-                window.trackDriverRoute?.(trip.driverId, target, { phase: 'pickup', tripData: trip });
+            whenMapReady(() => {
+                window.resolveTripPickupNavTarget(trip).then((target) => {
+                    if (!target) return;
+                    const live = activeTrip || window.currentActiveTripData;
+                    if (live?.id && live.id !== trip.id && ['accepted', 'in_progress'].includes(live.status)) {
+                        return;
+                    }
+                    updateETA(trip.driverId, target, trip);
+                    window.trackDriverRoute?.(trip.driverId, target, { phase: 'pickup', tripData: trip });
+                });
             });
         }
 
@@ -27419,9 +27985,40 @@ window.saveProfileChanges = async () => {
             window.startDriverLocationTracking?.().catch(() => {});
         }
 
+        function paintAssignedDriverFromTripLive(data) {
+            if (!data?.driverId || window.userProfile?.role === 'driver') return;
+            const lat = Number(data.driverLiveLat);
+            const lng = Number(data.driverLiveLng);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+            const liveAt = Number(data.driverLiveUpdatedAt) || 0;
+            const lastAt = Number(window._lastDriverFirebasePos?.updatedAt) || 0;
+            if (lastAt && liveAt && lastAt > liveAt + 2500) return;
+            window.currentDriverTrackPos = { lat, lng };
+            if (!lastAt || liveAt >= lastAt) {
+                window._lastDriverFirebasePos = {
+                    lat,
+                    lng,
+                    heading: Number(data.driverLiveHeading) || 0,
+                    updatedAt: liveAt || Date.now()
+                };
+            }
+            window.updateDriverMarker?.(data.driverId, lat, lng, false, {
+                variant: 'assigned',
+                heading: Number(data.driverLiveHeading) || 0,
+                vehicleType: data.vehicleType || data.serviceType || 'auto',
+                forceReposition: true
+            });
+        }
+
         function ensurePassengerTrackingForTrip(data) {
-            if (window.userProfile?.role !== 'client') return;
-            if (!data?.id || data.clientId !== currentUser.uid || !data.driverId) return;
+            if (window.userProfile?.role === 'driver') return;
+            const guestFollow = window._guestFollowTripId === data?.id;
+            if (!data?.id || !data.driverId) return;
+            if (!guestFollow && data.clientId !== currentUser?.uid) return;
+            if (!activeTrip || activeTrip.id === data.id) {
+                activeTrip = { id: data.id, ...(activeTrip || {}), ...data };
+                window.currentActiveTripData = activeTrip;
+            }
 
             if (data.status === 'in_progress') {
                 window.startPassengerLiveLocationSharing?.(data.id);
@@ -27812,6 +28409,10 @@ onAuthStateChanged(auth, async (user) => {
         setTimeout(() => window.showLoginLogo?.(), 300);
         setTimeout(() => window.showLoginLogo?.(), 800);
         setTimeout(() => window.showLoginLogo?.(), 1500);
+        // Link de seguimiento WhatsApp: entrar al viaje SIN cuenta
+        setTimeout(() => window.consumeStaffTripShareLink?.(), 400);
+        setTimeout(() => window.consumeStaffTripShareLink?.(), 1400);
+        setTimeout(() => window.consumeStaffTripShareLink?.(), 3200);
     }
 
     if (user) {
@@ -28333,8 +28934,7 @@ onAuthStateChanged(auth, async (user) => {
                 // =============================================
                 document.body.classList.remove('driver-mode', 'client-mode');
                 document.body.classList.add(profile.role === 'driver' ? 'driver-mode' : 'client-mode');
-                syncPassengerTutorialMenuVisibility(profile.role);
-                syncDriverTutorialMenuVisibility(profile.role);
+                syncYoutubeTutorialMenuVisibility(profile.role);
                 window.syncDriverCopaMenuVisibility?.(profile.role);
                 window.syncPassengerCopaMenuVisibility?.(profile.role);
                 // Ranking público: pasajeros, staff y conductores
@@ -28403,7 +29003,6 @@ onAuthStateChanged(auth, async (user) => {
                     setActiveServiceZone(initialZoneId, { biasMap: true });
                     ensurePassengerCityPickerVisible();
                     promptCityConfirmationIfNeeded();
-                    maybeAutoStartPassengerTutorial();
                     window.startPassengerPromoListeners?.();
                     window.refreshClaimedPromosUI?.();
                     syncPromoUi();
@@ -28664,9 +29263,6 @@ onAuthStateChanged(auth, async (user) => {
                             }
                             })();
                         }
-                    }
-                    if (!activeTrip || !['accepted', 'in_progress'].includes(activeTrip.status)) {
-                        maybeAutoStartDriverTutorial();
                     }
                 } else if (profile.role !== 'driver') {
                     // Non-drivers (clients, and legacy profiles without explicit role) get the passenger UI
@@ -31409,7 +32005,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const waitingForOffer = !data.offeredToDriverId && !data.driverId && offers.length === 0;
 
             let statusLine = 'Buscando conductores';
-            let subLine = 'Cuando aceptes un conductor, te daremos tu PIN de seguridad';
+            let subLine = 'Cuando un conductor acepte, te daremos tu PIN de seguridad';
             let showNotifyCountdown = false;
 
             const scheduledMins = getScheduledTripMinutesUntil(data);
@@ -31441,19 +32037,23 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 subLine = `Tu contraoferta: L. ${parseFloat(data.negotiatedPrice).toFixed(2)} — debe aceptarla el conductor`;
             } else if (waitingForOffer) {
                 // “Estos N conductores están siendo notificados” + mensajes volando a fotos
-                if (regN > 0) {
+                if (isGuestPassengerTrip(data)) {
+                    statusLine = 'Buscando conductor';
+                    subLine = 'Un conductor puede aceptar tu tarifa. Te avisamos cuando alguien tome el viaje.';
+                } else if (regN > 0) {
                     statusLine = regN === 1
                         ? '1 conductor está siendo notificado'
                         : `Estos ${regN} conductores están siendo notificados`;
                     subLine = 'Enviando tu mensaje a cada conductor de tu zona';
+                    showNotifyCountdown = true;
                 } else {
                     statusLine = 'Notificando conductores';
                     subLine = 'Estamos enviando tu mensaje a la flota';
+                    showNotifyCountdown = true;
                 }
-                showNotifyCountdown = true;
             } else if (onlineN > 0) {
                 statusLine = `${onlineN} conductor${onlineN === 1 ? '' : 'es'} cerca`;
-                subLine = 'En tu ciudad — esperando ofertas';
+                subLine = 'En tu ciudad — esperando que un conductor acepte';
             }
 
             if (headline) headline.innerText = statusLine;
@@ -31883,7 +32483,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         };
 
         window.syncPassengerBookingForm = (data) => {
-            const isClient = window.userProfile?.role === 'client';
+            const isClient = window.userProfile?.role === 'client' || window._guestFollowTripId === data?.id;
             const clientActiveTrip = isClient
                 && data
                 && ['accepted', 'in_progress'].includes(data.status)
@@ -32142,7 +32742,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             const toastKey = `${data.id}:${role}`;
 
-            if (role === 'client' || data.clientId === currentUser?.uid) {
+            if (role === 'client' || data.clientId === currentUser?.uid || window._guestFollowTripId === data.id) {
                 try { stopPassengerWaitingLoop(); } catch (_) {}
                 // Tono de aceptado (una vez por viaje; evita doble con processActiveTripUpdate)
                 if (!options.skipAcceptSound && window._passengerAcceptSoundKey !== data.id) {
@@ -32212,8 +32812,11 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     window._driverNavPanelAutoMinDone = true;
                 }, 1800);
             }
-            if (role === 'client' && data.clientId === currentUser?.uid) {
+            if (role === 'client' && (data.clientId === currentUser?.uid || window._guestFollowTripId === data.id)) {
+                activeTrip = { id: data.id, ...(activeTrip || {}), ...data };
+                window.currentActiveTripData = activeTrip;
                 window.syncClientPinDisplay?.(data);
+                ensurePassengerTrackingForTrip?.(data);
             }
             window.syncTripFloatPanels?.(data);
         };
@@ -32227,7 +32830,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const pinPanelHint = document.getElementById('client-pin-panel-hint');
             const acceptedKicker = document.getElementById('client-trip-accepted-kicker');
             const routeSummary = document.getElementById('active-trip-route-summary');
-            const isClient = window.userProfile?.role === 'client';
+            const isClient = window.userProfile?.role === 'client' || window._guestFollowTripId === data?.id;
             const clientActiveTrip = isClient
                 && data
                 && ['accepted', 'in_progress'].includes(data.status)
@@ -32498,7 +33101,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         }
 
         function subscribeToTripDocument(tripId) {
-            if (!tripId || !currentUser) return;
+            if (!tripId) return;
+            const guestFollow = window._guestFollowTripId === tripId;
+            if (!currentUser && !guestFollow) return;
             if (window.myTripDocUnsubTripId === tripId && window.myTripDocUnsub) return;
 
             unsubscribeTripDocument();
@@ -32508,17 +33113,20 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             window.myTripDocUnsub = onSnapshot(tripRef, (snap) => {
                 if (!snap.exists()) return;
                 const data = { id: snap.id, ...snap.data() };
-                const isMine = data.clientId === currentUser.uid || data.driverId === currentUser.uid;
-                if (!isMine) return;
+                const isMine = !!(currentUser && (data.clientId === currentUser.uid || data.driverId === currentUser.uid));
+                const isGuestFollow = window._guestFollowTripId === tripId;
+                if (!isMine && !isGuestFollow) return;
                 processActiveTripUpdate(data);
             }, (err) => console.error('subscribeToTripDocument:', err));
         }
 
         function processActiveTripUpdate(data) {
-            if (!data?.id || !currentUser) return;
+            if (!data?.id) return;
+            const guestFollow = !!(window._guestFollowTripId && data.id === window._guestFollowTripId);
+            if (!currentUser && !guestFollow) return;
 
-            const isParticipant = data.clientId === currentUser.uid || data.driverId === currentUser.uid;
-            if (isParticipant) {
+            const isParticipant = guestFollow || !!(currentUser && (data.clientId === currentUser.uid || data.driverId === currentUser.uid));
+            if (isParticipant && currentUser) {
                 syncLiveTripKeepalive(data);
                 if (['accepted', 'in_progress'].includes(data.status)) {
                     ensureInProgressLiveTracking(data);
@@ -32530,10 +33138,12 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
             }
 
-            if (data.clientId === currentUser.uid) {
+            if (guestFollow || data.clientId === currentUser?.uid) {
                 if (['accepted', 'in_progress'].includes(data.status) && data.driverId) {
                     ensurePassengerTrackingForTrip(data);
-                    // Conductor marcó “llegué”: centrar mapa del pasajero en su posición exacta
+                    paintAssignedDriverFromTripLive(data);
+                    // Conductor marcó “llegué”: centrar UNA vez. No reclavar el carro
+                    // en cada snapshot (clientLive* cada ~2s congelaba el movimiento).
                     if (
                         data.status === 'accepted'
                         && data.driverArrived
@@ -32541,41 +33151,44 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         && data.driverArrivedLng != null
                         && data.driverId
                     ) {
-                        const arrPos = {
-                            lat: Number(data.driverArrivedLat),
-                            lng: Number(data.driverArrivedLng)
-                        };
-                        window.currentDriverTrackPos = arrPos;
-                        window._lastDriverFirebasePos = {
-                            ...arrPos,
-                            accuracy: data.driverArrivedAccuracy,
-                            updatedAt: Date.now()
-                        };
-                        try {
-                            window.updateDriverMarker?.(
-                                data.driverId,
-                                arrPos.lat,
-                                arrPos.lng,
-                                false,
-                                {
-                                    variant: 'assigned',
-                                    heading: data.driverArrivedHeading || 0,
-                                    vehicleType: data.vehicleType || data.serviceType || 'auto',
-                                    forceReposition: true
+                        const arrivedKey = `${data.id}:arrived`;
+                        if (window._passengerArrivedPanKey !== arrivedKey) {
+                            window._passengerArrivedPanKey = arrivedKey;
+                            const arrPos = {
+                                lat: Number(data.driverArrivedLat),
+                                lng: Number(data.driverArrivedLng)
+                            };
+                            window.currentDriverTrackPos = arrPos;
+                            window._lastDriverFirebasePos = {
+                                ...arrPos,
+                                accuracy: data.driverArrivedAccuracy,
+                                updatedAt: Date.now()
+                            };
+                            try {
+                                window.updateDriverMarker?.(
+                                    data.driverId,
+                                    arrPos.lat,
+                                    arrPos.lng,
+                                    false,
+                                    {
+                                        variant: 'assigned',
+                                        heading: data.driverArrivedHeading || 0,
+                                        vehicleType: data.vehicleType || data.serviceType || 'auto',
+                                        forceReposition: true
+                                    }
+                                );
+                                if (window.gMap) {
+                                    window.gMap.panTo(arrPos);
+                                    if ((window.gMap.getZoom?.() || 0) < 17) window.gMap.setZoom(17);
                                 }
-                            );
-                            if (window.gMap && !window._passengerArrivedPanKey) {
-                                window._passengerArrivedPanKey = `${data.id}:arrived`;
-                                window.gMap.panTo(arrPos);
-                                if ((window.gMap.getZoom?.() || 0) < 17) window.gMap.setZoom(17);
+                            } catch (_) {}
+                            if (window._lastNotifiedDriverArrived !== data.id) {
+                                window._lastNotifiedDriverArrived = data.id;
+                                window.showToast?.(
+                                    'Tu conductor llegó. Búscalo en el mapa (ubicación actualizada).',
+                                    'success'
+                                );
                             }
-                        } catch (_) {}
-                        if (window._lastNotifiedDriverArrived !== data.id) {
-                            window._lastNotifiedDriverArrived = data.id;
-                            window.showToast?.(
-                                'Tu conductor llegó. Búscalo en el mapa (ubicación actualizada).',
-                                'success'
-                            );
                         }
                     }
                     if (data.status === 'in_progress' && data.driverArrivedDestination) {
@@ -32594,8 +33207,11 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     window._passengerArrivedPanKey = null;
                     window.stopPassengerLiveLocationSharing?.();
                     if (data.status === 'completed') {
+                    if (guestFollow) {
+                        showGuestRegisterAfterTrip(data);
+                    }
                     // Mostrar al conductor el pago en efectivo
-                    if (data.driverId === currentUser.uid && (data.paymentMethod === 'efectivo' || !data.paymentMethod)) {
+                    if (currentUser && data.driverId === currentUser.uid && (data.paymentMethod === 'efectivo' || !data.paymentMethod)) {
                         const p = parseFloat(data.priceNum || 0);
                         setTimeout(() => {
                             window.showToast?.(`¡Viaje finalizado! Recibe L. ${p.toFixed(2)} en EFECTIVO del pasajero ahora.`);
@@ -32613,11 +33229,11 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
             }
 
-            if (data.driverId === currentUser.uid && ['accepted', 'in_progress'].includes(data.status)) {
+            if (currentUser && data.driverId === currentUser.uid && ['accepted', 'in_progress'].includes(data.status)) {
                 ensureDriverLocationForActiveTrip(data);
             }
 
-            if (data.status === 'in_progress' && data.driverId === currentUser.uid) {
+            if (data.status === 'in_progress' && currentUser && data.driverId === currentUser.uid) {
                 ensureInProgressLiveTracking(data);
             }
 
@@ -32625,7 +33241,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 window.stopPassengerLiveLocationSharing?.();
             }
 
-            if (data.status === 'pending' && data.clientId === currentUser.uid) {
+            if (data.status === 'pending' && (guestFollow || data.clientId === currentUser?.uid)) {
                 activeTrip = { id: data.id, ...data };
 
                 // Viaje creado por staff: el cliente debe adueñarse antes de ver ofertas
@@ -32671,7 +33287,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (isScheduledTripDueForActivation(data)) {
                     window.activateScheduledTripIfDue?.(data.id).catch(() => {});
                 } else {
-                    const role = data.driverId === currentUser?.uid ? 'driver' : 'client';
+                    const role = (!guestFollow && data.driverId === currentUser?.uid) ? 'driver' : 'client';
                     window.presentScheduledReservedUi?.(data, { role });
                 }
                 window._lastNotifiedTripStatus = 'scheduled';
@@ -32690,8 +33306,10 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (wasQueued && window.userProfile?.role === 'driver') {
                     window.driverQueuedTripId = null;
                     window.userProfile.queuedTripId = null;
+                    if (currentUser?.uid) {
                     setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), { queuedTripId: null }, { merge: true }).catch(() => {});
                     setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), { queuedTripId: null }, { merge: true }).catch(() => {});
+                    }
                     if (activeTrip?.id !== data.id) {
                         window.showToast('El pasajero en cola canceló su viaje.', 'warning');
                     }
@@ -32728,9 +33346,10 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         data.status === 'in_progress' ? 'B - Destino' : 'Destino'
                     );
                 }
+                window.ensureTripRoadRouteOnMap?.(data);
             }
 
-            if (prevStatus !== null && window.userProfile?.role === 'client') {
+            if (prevStatus !== null && (guestFollow || window.userProfile?.role === 'client')) {
                 if (prevStatus === 'pending' && data.status === 'scheduled' && data.driverId) {
                     try { stopPassengerWaitingLoop(); } catch (_) {}
                     if (window._passengerAcceptSoundKey !== data.id) {
@@ -33510,7 +34129,7 @@ function showSimplePassengerSetup() {
                         <i class="fas fa-camera text-xl text-blue-400"></i>
                     </div>
                 </div>
-                <p class="text-[8px] text-gray-500 mt-1">Puedes saltarla y agregarla luego al verificar</p>
+                <p class="text-[8px] text-gray-500 mt-1">Toca para tomar o subir foto. Puedes saltarla y agregarla luego</p>
             </div>
         </div>
         <div class="space-y-3">
@@ -33561,6 +34180,19 @@ function showSimplePassengerSetup() {
             <span>CREAR CUENTA</span>
             <i class="fas fa-arrow-right text-xs"></i>
         </button>
+        <div class="login-wa-cta">
+            <p class="login-wa-slogan">¿Apurado? Pide un viaje por WhatsApp</p>
+            <a class="login-wa-btn" href="https://wa.me/14693876894?text=Hola%2C%20quiero%20pedir%20un%20viaje" onclick="return window.openHonduWhatsApp(event)">
+                <i class="fab fa-whatsapp"></i>
+                <span>Pedir viaje por WhatsApp</span>
+            </a>
+            <button type="button" class="login-wa-share" onclick="window.shareHonduWhatsAppInvite()">
+                <i class="fas fa-share-alt"></i>
+                <span>Compartir WhatsApp</span>
+            </button>
+            <img class="login-wa-qr" src="images/qr-honduraite-whatsapp.png" width="128" height="128" alt="QR WhatsApp HonduRaite">
+            <p class="login-wa-cap">Escanea el QR · sin cuenta · 24/7</p>
+        </div>
     `;
 
     setupScreen.className = 'login-screen flex flex-col min-h-[100dvh] z-[20000] auth-screen-open';
@@ -33580,6 +34212,7 @@ function showSimplePassengerSetup() {
     setTimeout(() => bindOptionalRegistrationPhotoPick(), 60);
     requestAnimationFrame(() => setupScreen.scrollTop = 0);
 
+    window.consumeWhatsAppRegisterPrefill?.();
     const pendingRef = getPendingReferralCode();
     if (pendingRef) {
         setTimeout(() => {
@@ -34290,6 +34923,26 @@ window.saveSimplePassengerProfile = async () => {
 
         // Chat: window.playChatSound viene de notification-tones.js
         let lastChatMessageTime = 0;
+        let chatSeenWriteTimer = 0;
+
+        window.markTripChatSeen = (open) => {
+            const trip = window.currentActiveTripData || activeTrip;
+            const uid = currentUser?.uid;
+            if (!trip?.id || !uid) return;
+            clearTimeout(chatSeenWriteTimer);
+            chatSeenWriteTimer = setTimeout(async () => {
+                const patch = {
+                    [`chatSeenBy.${uid}`]: { open: !!open, at: Date.now() }
+                };
+                if (open) {
+                    if (uid === trip.clientId) patch.unreadChatWaClientDueAt = deleteField();
+                    if (uid === trip.driverId) patch.unreadChatWaDriverDueAt = deleteField();
+                }
+                try {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), patch);
+                } catch (_) {}
+            }, 400);
+        };
 
         window.driverApplyStaffRouteChange = async (opts = {}) => {
             const trip = activeTrip || window.currentActiveTripData;
@@ -35084,6 +35737,7 @@ window.saveSimplePassengerProfile = async () => {
         };
         // Nueva función para cancelar el setup con confirmación
 window.cancelSetupAndLogout = () => {
+    window.closeDriverRegisterGuide?.();
     if (confirm("¿Estás seguro de que quieres cancelar el proceso de configuración?\n\nSe cerrará tu sesión actual y volverás a la pantalla de inicio de sesión.")) {
         window.processLogout();
     }
@@ -37502,9 +38156,7 @@ window.cancelSetupAndLogout = () => {
                     offeredToDriverId: null,
                     preferredDriverId: preferredDriverId || null,
                     // Siempre sellar regateo en el viaje (no depender solo de la cloud)
-                    negotiationEnabled: resolveGlobalNegotiationEnabled(
-                        window.currentAdminNegotiationEnabled ?? readStoredAdminNegotiationState()
-                    )
+                    negotiationEnabled: false
                 };
                 // Validate via Cloud Function before creating the trip (hardening server-side checks)
                 // No enviar FieldValue.serverTimestamp() al callable (no se serializa bien)
@@ -37515,10 +38167,7 @@ window.cancelSetupAndLogout = () => {
                     if (vfData?.warning === 'terms_not_accepted') {
                         window.showToast('Tu cuenta no aceptó términos. Viaje permitido pero se recomienda aceptar términos.', 'info');
                     }
-                    if (vfData && typeof vfData.negotiationEnabled !== 'undefined') {
-                        // Fuente de verdad del servidor (appSettings)
-                        tripPayload.negotiationEnabled = !!vfData.negotiationEnabled;
-                    }
+                    tripPayload.negotiationEnabled = false;
                     // Sincronizar saldo real del servidor
                     if (vfData && Number.isFinite(Number(vfData.balance)) && window.userProfile) {
                         window.userProfile.balance = Number(vfData.balance);
@@ -37547,7 +38196,7 @@ window.cancelSetupAndLogout = () => {
                             const sSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main'));
                             tripPayload.negotiationEnabled = resolveGlobalNegotiationEnabled(sSnap.exists() ? sSnap.data() : {});
                         } catch (_) {
-                            tripPayload.negotiationEnabled = true;
+                            tripPayload.negotiationEnabled = false;
                         }
                     }
                 }
@@ -39131,26 +39780,33 @@ window.cancelSetupAndLogout = () => {
 
                 let markerPos = vehiclePos;
                 let markerHeading = vehicleHeading;
-                // Si el conductor YA marcó llegada: mostrar GPS exacto (no pegar a la calle)
+                // Si el conductor acaba de marcar llegada: 20 s de pin exacto, luego GPS en vivo
                 const driverJustArrived = !!(liveTrip?.driverArrived || tripData?.driverArrived);
+                const arrivedAtMs = (() => {
+                    const raw = liveTrip?.driverArrivedAt;
+                    if (raw?.toMillis) return raw.toMillis();
+                    if (raw?.seconds) return Number(raw.seconds) * 1000;
+                    const n = Number(raw);
+                    return Number.isFinite(n) && n > 0 ? n : 0;
+                })();
                 const arrivedFix = (liveTrip?.driverArrivedLat != null && liveTrip?.driverArrivedLng != null)
                     ? {
                         lat: Number(liveTrip.driverArrivedLat),
                         lng: Number(liveTrip.driverArrivedLng),
-                        age: liveTrip.driverLiveUpdatedAt
-                            ? Date.now() - Number(liveTrip.driverLiveUpdatedAt)
-                            : 0
+                        age: arrivedAtMs ? (now - arrivedAtMs) : Infinity
                     }
                     : null;
-                // Priorizar el punto de llegada reciente del viaje (hasta ~90 s) o el GPS en vivo
+                const liveGpsNewer = Number(meta.driverUpdatedAt) > 0
+                    && arrivedAtMs > 0
+                    && Number(meta.driverUpdatedAt) > arrivedAtMs + 8000;
                 if (
                     driverJustArrived
                     && arrivedFix
-                    && arrivedFix.age < 90000
+                    && arrivedFix.age < 20000
+                    && !liveGpsNewer
                     && Number.isFinite(arrivedFix.lat)
                     && Number.isFinite(arrivedFix.lng)
                 ) {
-                    // Mezcla: si el live está a <40 m del “llegué”, usar live; si no, el punto de llegada
                     const dLive = window.getDistanceMetersBetween?.(vehiclePos, arrivedFix);
                     if (!Number.isFinite(dLive) || dLive > 40) {
                         markerPos = { lat: arrivedFix.lat, lng: arrivedFix.lng };
@@ -39366,6 +40022,8 @@ window.cancelSetupAndLogout = () => {
                     const data = d.data();
                     if (!isDriverOnline(data)) return;
                     if (data.approvalStatus && data.approvalStatus !== 'approved') return;
+                    const passengerSvc = window.currentServiceType || 'auto';
+                    if (isFreightService(passengerSvc) && !locCanServePassengerService(data, passengerSvc)) return;
 
                     const dz = data.serviceZoneId;
                     const hasLocation = !!(data.lat && data.lng);
@@ -39580,6 +40238,7 @@ window.cancelSetupAndLogout = () => {
                     approvalStatus: window.userProfile?.approvalStatus || 'approved',
                     vehicleType: activeVehicle.type || getActiveVehicleType(window.userProfile),
                     vehiclePlate: activeVehicle.vehicle?.plate || window.userProfile?.vehicle?.plate || null,
+                    ...driverLocationCapabilityPatch(window.userProfile),
                     serviceZoneId: window.activeServiceZoneId || getDefaultZoneId(),
                     searchRadiusKm: getActiveRadiusKm(),
                     updatedAt: Date.now()
@@ -39635,6 +40294,7 @@ window.cancelSetupAndLogout = () => {
                             approvalStatus: window.userProfile?.approvalStatus || 'approved',
                             vehicleType: locVehicle?.type || window.userProfile?.vehicleType || 'auto',
                             vehiclePlate: locVehicle?.vehicle?.plate || window.userProfile?.vehicle?.plate || null,
+                            ...driverLocationCapabilityPatch(window.userProfile),
                             serviceZoneId: driverZoneId,
                             serviceZoneName: driverZone?.name || null,
                             searchRadiusKm: getActiveRadiusKm(),
@@ -39662,8 +40322,24 @@ window.cancelSetupAndLogout = () => {
                 } else if (activeTrip?.status === 'in_progress') {
                     window.syncDriverDestinationArrivalUi?.({ lat, lng });
                 }
+                try { window.__mirrorDriverLiveToTrip?.(lat, lng, heading, accuracy); } catch (_) {}
             };
             window.__publishDriverGpsPulse = publishDriverGps;
+            window.__mirrorDriverLiveToTrip = (lat, lng, heading = null, accuracy = null) => {
+                const trip = activeTrip || window.currentActiveTripData;
+                if (!trip?.id || trip.driverId !== currentUser?.uid) return;
+                if (!['accepted', 'in_progress'].includes(trip.status)) return;
+                const nowMs = Date.now();
+                if (window._lastDriverLiveTripWrite && nowMs - window._lastDriverLiveTripWrite < 2000) return;
+                window._lastDriverLiveTripWrite = nowMs;
+                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), {
+                    driverLiveLat: lat,
+                    driverLiveLng: lng,
+                    driverLiveHeading: Number.isFinite(heading) ? heading : null,
+                    driverLiveAccuracy: accuracy != null ? Number(accuracy) : null,
+                    driverLiveUpdatedAt: nowMs
+                }).catch(() => {});
+            };
 
             if (navigator.geolocation.getCurrentPosition) {
                 navigator.geolocation.getCurrentPosition(
@@ -39909,6 +40585,7 @@ window.cancelSetupAndLogout = () => {
                                 approvalStatus: window.userProfile?.approvalStatus || 'approved',
                                 vehicleType: locVehicle?.type || window.userProfile?.vehicleType || 'auto',
                                 vehiclePlate: locVehicle?.vehicle?.plate || window.userProfile?.vehicle?.plate || null,
+                                ...driverLocationCapabilityPatch(window.userProfile),
                                 serviceZoneId: driverZoneId,
                                 serviceZoneName: driverZone?.name || null,
                                 searchRadiusKm: getActiveRadiusKm(),
@@ -39916,6 +40593,7 @@ window.cancelSetupAndLogout = () => {
                             },
                             { merge: true }
                         );
+                        try { window.__mirrorDriverLiveToTrip?.(lat, lng, heading, accuracy); } catch (_) {}
                     } catch (e) {}
                 },
                 (err) => {
@@ -40702,7 +41380,7 @@ window.calculateTripRoute = async (options = {}) => {
                 origin,
                 destination,
                 stopsList,
-                { hourlyMulti: false, estimateOnly }
+                { hourlyMulti: false, estimateOnly: true }
             );
             if (metrics?.totalKm > 0 && metrics.combinedRoute) {
                 km = metrics.totalKm;
@@ -40733,17 +41411,31 @@ window.calculateTripRoute = async (options = {}) => {
                     }
                 });
             } else {
-                // fallback direct if multi failed
-                route = estimateOnly
-                    ? window.estimateDrivingRoute?.(origin, destination)
-                    : await window.computeDrivingRoute(origin, destination, { mode: routeMode });
-                if (route) {
-                    window.drawRouteOnMap(route);
-                    window.placeRouteMarkers?.(origin?.latLng, destination?.latLng);
-                    window.currentRouteData = route;
-                    km = (typeof window.getRouteDistanceKm === 'function')
-                        ? window.getRouteDistanceKm(route)
-                        : ((route.distanceMeters || route?.legs?.[0]?.distanceMeters || 0) / 1000);
+                // fallback: suma de tramos (haversine) para no dejar el precio en 0
+                const chainPts = [origin, ...stopsList, destination]
+                    .map((p) => window.pointToLatLng?.(p) || p?.latLng || null)
+                    .filter((p) => p && p.lat != null && p.lng != null);
+                let chainKm = 0;
+                for (let i = 1; i < chainPts.length; i++) {
+                    const est = window.estimateDrivingRoute?.(chainPts[i - 1], chainPts[i]);
+                    chainKm += (est?.distanceMeters || 0) / 1000;
+                }
+                if (chainKm > 0) {
+                    km = Math.round(chainKm * 100) / 100;
+                    route = window.estimateDrivingRoute?.(origin, destination) || null;
+                    if (route) {
+                        window.drawRouteOnMap(route);
+                        window.placeRouteMarkers?.(origin?.latLng, destination?.latLng);
+                        window.currentRouteData = route;
+                    }
+                } else {
+                    route = window.estimateDrivingRoute?.(origin, destination);
+                    if (route) {
+                        window.drawRouteOnMap(route);
+                        window.placeRouteMarkers?.(origin?.latLng, destination?.latLng);
+                        window.currentRouteData = route;
+                        km = (route.distanceMeters || 0) / 1000;
+                    }
                 }
             }
         } else if (!isHourlyCalc) {
@@ -40830,7 +41522,8 @@ window.calculateTripRoute = async (options = {}) => {
 
         // === NUEVA LÓGICA: si el viaje dura más de 1 hora (mínimo para reserva de conductor), forzar modo por horas ===
         const routeDurationMin = (route && route.durationMillis) ? Math.round(route.durationMillis / 60000) : 0;
-        if (routeDurationMin > 60) {
+        // Paradas extra: no forzar “por horas” (eso dejaba el precio en blanco).
+        if (routeDurationMin > 60 && !hasStandardExtraStops) {
             const wasAlreadyHourly = window.currentBookingMode === 'hourly';
             if (!wasAlreadyHourly) {
                 window.showToast('Este viaje dura más de 1 hora. Debes reservar un conductor por horas para este viaje.', 'warning');
@@ -40950,11 +41643,26 @@ window.calculateTripRoute = async (options = {}) => {
         const calcPaxSurcharge = getPassengerSurcharge(serviceType, calcPassengers, km);
 
         let freightFareQuote = null;
+        let fareKm = km;
+        if (!isHourlyCalc && hasStandardExtraStops && origin?.latLng && destination?.latLng) {
+            const directEst = window.estimateDrivingRoute?.(origin.latLng, destination.latLng);
+            const directKm = directEst?.distanceMeters ? (directEst.distanceMeters / 1000) : 0;
+            if (directKm > 0) fareKm = directKm;
+        }
         let price = isHourlyCalc
             ? calculateHourlyFare(serviceType, hoursForCalc, hourlyOpts, routeConditions)
             : isFreightService(serviceType)
                 ? (freightFareQuote = calculateFreightFare(serviceType, km, freightDetails, routeConditions, freightRouteMeta)).total
-                : calculateServiceFare(serviceType, km, routeConditions, calcPassengers);
+                : calculateServiceFare(serviceType, fareKm, routeConditions, calcPassengers);
+        if (!isHourlyCalc && hasStandardExtraStops) {
+            const perKm = getServiceMeta(serviceType)?.perKm || 22;
+            price += extraStopsSurcharge(
+                origin?.latLng || origin,
+                destination?.latLng || destination,
+                window.tripAdditionalStops || [],
+                perKm
+            ).extra;
+        }
 
         // Zona / ruta cara: precio fijo del admin (NO recalcular por km).
         // Si no hay match, se conserva el price por km (o min fare si aplica).
