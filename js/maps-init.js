@@ -8416,3 +8416,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         };
 
         console.log('%c[init] testDriverNavMovement() disponible. Prueba el efecto "ruta comiéndose" + movimientos en viaje.', 'color:#64748b');
+
+if (window.__mapsInitQueued && window.google && window.google.maps) {
+    window.__mapsInitQueued = false;
+    try { window.initMap(); } catch (e) { console.warn('[maps] queued initMap', e); }
+}

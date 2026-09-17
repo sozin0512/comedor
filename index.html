@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.09.17.3">
+    <meta name="hr-app-version" content="2026.09.17.4">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.09.17.3">
+    <link rel="manifest" href="manifest.json?v=2026.09.17.4">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,13 +31,17 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.17.3">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.17.4">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.09.17.3">
-    <script src="js/maps-init.js?v=2026.09.17.3"></script>
+    <link rel="stylesheet" href="css/app.css?v=2026.09.17.4">
+    <script>
+        window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
+    </script>
+    <script defer src="js/maps-init.js?v=2026.09.17.4"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.09.17.3"></script>
     <script type="module">
-        import { APP_CONFIG } from './js/config.js?v=2026.09.17.3';
+        import { APP_CONFIG } from './js/config.js?v=2026.09.17.4';
         window.APP_CONFIG = APP_CONFIG;
         const mapsScript = document.createElement('script');
         mapsScript.src = 'https://maps.googleapis.com/maps/api/js?key=' + APP_CONFIG.googleMaps.apiKey + '&libraries=places,marker,routes&callback=initMap&loading=async';
@@ -115,10 +119,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.09.17.3';
+        window.__HR_BUILD_VERSION__ = '2026.09.17.4';
         (function () {
             try {
-                var build = '2026.09.17.3';
+                var build = '2026.09.17.4';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -1506,6 +1510,7 @@
             <input id="pass-field" type="password" autocomplete="current-password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
             <button type="button" id="auth-forgot-link" onclick="window.showForgotPassword?.()" class="w-full text-right text-[11px] font-bold text-blue-600 hover:text-blue-700 -mt-1 mb-1">¿Olvidaste tu contraseña?</button>
             <button id="auth-submit-btn" onclick="window.executeAuth()" class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all uppercase tracking-widest text-xs">INGRESAR AL SISTEMA</button>
+            <p id="auth-load-hint" class="text-[10px] text-center text-slate-400 font-bold m-0">Preparando sesión… el mapa carga en segundo plano</p>
         </div>
         <div data-sozin-copyright="light" class="mt-6 px-1"></div>
     </div>
@@ -1520,6 +1525,36 @@
             el.classList.add('hr-boot-hide');
             setTimeout(function () { try { el.remove(); } catch (e) {} }, 400);
         }
+        window.__hrAuthMode = window.__hrAuthMode || 'login';
+        window.executeAuth = window.executeAuth || function () {
+            if (typeof window.__hrRunAuth === 'function') {
+                window.__hrRunAuth();
+                return;
+            }
+            window.__hrPendingAuth = true;
+            var btn = document.getElementById('auth-submit-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = 'CARGANDO…';
+            }
+            var started = Date.now();
+            var t = setInterval(function () {
+                if (typeof window.__hrRunAuth === 'function') {
+                    clearInterval(t);
+                    window.__hrPendingAuth = false;
+                    window.__hrRunAuth();
+                    return;
+                }
+                if (Date.now() - started > 25000) {
+                    clearInterval(t);
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerText = 'INGRESAR AL SISTEMA';
+                    }
+                    alert('Sigue cargando. Revisa el internet y toca Ingresar otra vez.');
+                }
+            }, 150);
+        };
     })();
 </script>
 <script>
@@ -2728,6 +2763,6 @@
             window.__openStaffCreateTripForClient = openStaffCreate;
         })();
     </script>
-    <script type="module" src="js/app.js?v=2026.09.17.3"></script>
+    <script type="module" src="js/app.js?v=2026.09.17.4"></script>
 </body>
 </html>

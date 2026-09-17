@@ -1,0 +1,147 @@
+/**
+ * Login ligero: se carga antes que app.js para poder ingresar
+ * mientras el resto de la app baja en segundo plano.
+ */
+import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    setPersistence,
+    browserLocalPersistence
+} from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+import { APP_CONFIG } from './config.js';
+
+function isEmailLike(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+function authErrorMessage(err, context = 'login') {
+    const code = err?.code || '';
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+        return 'Correo/teléfono o contraseña incorrectos.';
+    }
+    if (code === 'auth/invalid-email') return 'Correo electrónico no válido.';
+    if (code === 'auth/email-already-in-use') return 'Este correo ya está registrado.';
+    if (code === 'auth/weak-password') return 'La contraseña debe tener al menos 6 caracteres.';
+    if (code === 'auth/too-many-requests') return 'Demasiados intentos. Espera un momento e intenta de nuevo.';
+    if (code === 'auth/network-request-failed') return 'Sin conexión. Revisa tu internet.';
+    return err?.message || 'Error de autenticación.';
+}
+
+function toast(msg, type) {
+    if (typeof window.showToast === 'function') {
+        window.showToast(msg, type);
+        return;
+    }
+    try { alert(msg); } catch (_) {}
+}
+
+function getAuthMode() {
+    return window.__hrAuthMode === 'register' ? 'register' : 'login';
+}
+
+window.setAuthMode = function (mode) {
+    window.__hrAuthMode = mode === 'register' ? 'register' : 'login';
+    const loginBtn = document.getElementById('btn-auth-login');
+    const registerBtn = document.getElementById('btn-auth-register');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    const forgotLink = document.getElementById('auth-forgot-link');
+    const identifierField = document.getElementById('email-field');
+    if (mode === 'login') {
+        if (loginBtn) loginBtn.className = 'flex-1 py-2 text-center text-blue-600 border-b-2 border-blue-600 transition-all';
+        if (registerBtn) registerBtn.className = 'flex-1 py-2 text-center text-gray-400 border-b-2 border-transparent transition-all';
+        if (submitBtn && !submitBtn.disabled) submitBtn.innerText = 'INICIAR SESIÓN';
+        forgotLink?.classList.remove('hidden');
+        if (identifierField) identifierField.placeholder = 'Correo o teléfono (+504…)';
+    } else {
+        if (loginBtn) loginBtn.className = 'flex-1 py-2 text-center text-gray-400 border-b-2 border-transparent transition-all';
+        if (registerBtn) registerBtn.className = 'flex-1 py-2 text-center text-blue-600 border-b-2 border-blue-600 transition-all';
+        if (submitBtn && !submitBtn.disabled) submitBtn.innerText = 'CREAR NUEVA CUENTA';
+        forgotLink?.classList.add('hidden');
+        if (identifierField) identifierField.placeholder = 'Correo electrónico';
+    }
+};
+
+function resetSubmit() {
+    const submitBtn = document.getElementById('auth-submit-btn');
+    if (!submitBtn) return;
+    submitBtn.disabled = false;
+    submitBtn.innerText = getAuthMode() === 'register' ? 'CREAR NUEVA CUENTA' : 'INICIAR SESIÓN';
+}
+
+async function runAuth() {
+    if (typeof window.__hrFullExecuteAuth === 'function' && window.__hrFullExecuteAuth !== runAuth) {
+        return window.__hrFullExecuteAuth();
+    }
+    const identifier = document.getElementById('email-field')?.value?.trim() || '';
+    const pass = document.getElementById('pass-field')?.value?.trim() || '';
+    if (!identifier || !pass) {
+        toast('Ingresa tus credenciales completas.');
+        return;
+    }
+    const mode = getAuthMode();
+    if (mode === 'login' && !isEmailLike(identifier) && typeof window.__hrFullExecuteAuth !== 'function') {
+        const submitBtn = document.getElementById('auth-submit-btn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerText = 'CARGANDO…';
+        }
+        toast('Un segundo, estamos abriendo tu cuenta…');
+        const started = Date.now();
+        const wait = setInterval(() => {
+            if (typeof window.__hrFullExecuteAuth === 'function') {
+                clearInterval(wait);
+                window.__hrFullExecuteAuth();
+            } else if (Date.now() - started > 25000) {
+                clearInterval(wait);
+                resetSubmit();
+                toast('Usa tu correo para entrar, o espera un momento y vuelve a tocar Ingresar.');
+            }
+        }, 200);
+        return;
+    }
+    const submitBtn = document.getElementById('auth-submit-btn');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = mode === 'login' ? 'ENTRANDO…' : 'CREANDO CUENTA…';
+    }
+    try {
+        const app = getApps()[0] || initializeApp(APP_CONFIG.firebase);
+        const auth = getAuth(app);
+        try { await setPersistence(auth, browserLocalPersistence); } catch (_) {}
+        window._authEntering = true;
+        if (mode === 'login') {
+            await signInWithEmailAndPassword(auth, identifier.toLowerCase(), pass);
+            toast('¡Sesión iniciada con éxito!', 'success');
+            return;
+        }
+        if (!isEmailLike(identifier)) {
+            resetSubmit();
+            toast('Para crear cuenta necesitas un correo electrónico válido.');
+            return;
+        }
+        const selectedRole = document.getElementById('role-driver')?.classList.contains('bg-white')
+            ? 'driver'
+            : 'client';
+        try { localStorage.setItem('lastUserRole', selectedRole); } catch (_) {}
+        await createUserWithEmailAndPassword(auth, identifier.toLowerCase(), pass);
+        toast('Cuenta creada. Completa tu perfil.', 'success');
+    } catch (err) {
+        window._authEntering = false;
+        resetSubmit();
+        toast(authErrorMessage(err, mode));
+    }
+}
+
+window.__hrRunAuth = runAuth;
+window.executeAuth = runAuth;
+window.__hrAuthBootReady = true;
+
+if (window.__hrPendingAuth) {
+    window.__hrPendingAuth = false;
+    runAuth();
+}
+
+const hint = document.getElementById('auth-load-hint');
+if (hint) hint.classList.add('hidden');
