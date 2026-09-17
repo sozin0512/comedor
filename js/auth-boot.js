@@ -5,6 +5,7 @@
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import {
     getAuth,
+    onAuthStateChanged,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     setPersistence,
@@ -144,6 +145,7 @@ async function runAuth() {
             );
             showEnteringShell('Sesión iniciada. Abriendo tu cuenta…');
             try { window.ensureMapsLoaded?.(); } catch (_) {}
+            loadAppRuntime();
             return;
         }
         if (!isEmailLike(identifier)) {
@@ -162,6 +164,7 @@ async function runAuth() {
         );
         showEnteringShell('Cuenta creada. Abriendo tu perfil…');
         try { window.ensureMapsLoaded?.(); } catch (_) {}
+        loadAppRuntime();
     } catch (err) {
         window._authEntering = false;
         resetSubmit();
@@ -171,6 +174,33 @@ async function runAuth() {
         toast(authErrorMessage(err, mode));
     }
 }
+
+function loadAppRuntime() {
+    if (window.__hrAppJsPromise) return window.__hrAppJsPromise;
+    const v = APP_CONFIG.appVersion || window.__HR_BUILD_VERSION__ || '';
+    window.__hrAppJsPromise = import(`./app.js?v=${v}`).catch((err) => {
+        console.error('[auth-boot] app.js', err);
+        toast('No se pudo abrir HonduRaite. Revisa internet y recarga.');
+        throw err;
+    });
+    return window.__hrAppJsPromise;
+}
+window.loadAppRuntime = loadAppRuntime;
+
+try {
+    const bootApp = getApps()[0] || initializeApp(APP_CONFIG.firebase);
+    const bootAuth = getAuth(bootApp);
+    onAuthStateChanged(bootAuth, (user) => {
+        if (user) loadAppRuntime();
+    });
+} catch (e) {
+    console.warn('[auth-boot] auth listener', e);
+}
+
+try {
+    const q = String(location.search || '') + String(location.hash || '');
+    if (/[?&]trip=/.test(q) || /staffTrip=/.test(q)) loadAppRuntime();
+} catch (_) {}
 
 window.__hrRunAuth = runAuth;
 window.executeAuth = runAuth;
