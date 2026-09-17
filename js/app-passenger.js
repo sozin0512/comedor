@@ -4,11 +4,12 @@ import { normalizeHondurasPhone } from './phone-utils.js';
 import { ensureEndpointCoords } from './zones.js';
 import { canUseBirthdayFreeTrip } from './greetings.js';
 import {
-    normalizeServiceType, extraStopsSurcharge, calculateServiceFare, calculateFreightFare,
+    normalizeServiceType, calculateServiceFare, calculateFreightFare,
     calculateTowFare, isFreightService, isTowService, getHourlyLabel, calculateHourlyFare,
     collectFreightDetailsFromUI, validateFreightDetails, collectTowDetailsFromUI,
     getServiceMeta, applyPassengerSurcharge, getHourlyRate
 } from './service-types.js';
+import { extraStopsSurcharge } from './extra-stops-fare.js';
 
 export function installPassengerRuntime() {
     if (window.__hrPassengerRuntime) return;

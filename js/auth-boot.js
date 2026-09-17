@@ -188,10 +188,11 @@ async function runAuth() {
 
 function loadAppRuntime() {
     if (window.__hrAppJsPromise) return window.__hrAppJsPromise;
-    const v = APP_CONFIG.appVersion || window.__HR_BUILD_VERSION__ || '';
+    const v = window.__HR_BUILD_VERSION__ || APP_CONFIG.appVersion || '';
     window.__hrAppJsPromise = import(`./app.js?v=${v}`).catch((err) => {
         console.error('[auth-boot] app.js', err);
-        toast('No se pudo abrir HonduRaite. Revisa internet y recarga.');
+        window.__hrAppJsPromise = null;
+        toast('No se pudo abrir HonduRaite. Recarga con Ctrl+Shift+R o ventana de incógnito.');
         throw err;
     });
     return window.__hrAppJsPromise;
