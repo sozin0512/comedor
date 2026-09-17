@@ -6,39 +6,134 @@ let _activePickerInput = null;
 let _cameraStream = null;
 let _cameraOverlay = null;
 
+/** Android rompe el selector si se mezclan MIME + extensiones en accept. */
+const IMAGE_ACCEPT = 'image/*';
+
+function drawToJpegDataUrl(source, sw, sh, maxSize = 640, quality = 0.82) {
+    let width = sw;
+    let height = sh;
+    if (width > height) {
+        if (width > maxSize) {
+            height *= maxSize / width;
+            width = maxSize;
+        }
+    } else if (height > maxSize) {
+        width *= maxSize / height;
+        height = maxSize;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width));
+    canvas.height = Math.max(1, Math.round(height));
+    canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', quality);
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsDataURL(file);
+    });
+}
+
 export function compressDataUrlFromFile(file, maxSize = 640) {
     return new Promise((resolve, reject) => {
         if (!file) {
             reject(new Error('Sin archivo'));
             return;
         }
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onerror = () => reject(new Error('Imagen inválida'));
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                if (width > height) {
-                    if (width > maxSize) {
-                        height *= maxSize / width;
-                        width = maxSize;
-                    }
-                } else if (height > maxSize) {
-                    width *= maxSize / height;
-                    height = maxSize;
-                }
-                canvas.width = width;
-                canvas.height = height;
-                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.82));
-            };
-            img.src = e.target.result;
+
+        const finishRaw = () => {
+            readFileAsDataUrl(file).then(resolve).catch(reject);
         };
-        reader.readAsDataURL(file);
+
+        const fromImageSrc = (src, revoke) => {
+            const img = new Image();
+            img.onload = () => {
+                try {
+                    if (!img.width || !img.height) {
+                        if (revoke) URL.revokeObjectURL(src);
+                        finishRaw();
+                        return;
+                    }
+                    const out = drawToJpegDataUrl(img, img.width, img.height, maxSize);
+                    if (revoke) URL.revokeObjectURL(src);
+                    resolve(out);
+                } catch (_) {
+                    if (revoke) URL.revokeObjectURL(src);
+                    finishRaw();
+                }
+            };
+            img.onerror = () => {
+                if (revoke) URL.revokeObjectURL(src);
+                finishRaw();
+            };
+            img.src = src;
+        };
+
+        const fromBlobUrl = () => {
+            try {
+                const url = URL.createObjectURL(file);
+                fromImageSrc(url, true);
+            } catch (_) {
+                fromReader();
+            }
+        };
+
+        const fromReader = () => {
+            readFileAsDataUrl(file).then((src) => fromImageSrc(src, false)).catch(reject);
+        };
+
+        const tooBig = (file.size || 0) > 12 * 1024 * 1024;
+        if (!tooBig && typeof createImageBitmap === 'function') {
+            const bmpPromise = createImageBitmap(file).catch(() => createImageBitmap(file, { imageOrientation: 'from-image' }));
+            const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500));
+            Promise.race([bmpPromise, timeout]).then((bmp) => {
+                try {
+                    if (!bmp?.width || !bmp?.height) {
+                        try { bmp.close?.(); } catch (_) {}
+                        fromBlobUrl();
+                        return;
+                    }
+                    const out = drawToJpegDataUrl(bmp, bmp.width, bmp.height, maxSize);
+                    bmp.close?.();
+                    resolve(out);
+                } catch (_) {
+                    try { bmp.close?.(); } catch (__) {}
+                    fromBlobUrl();
+                }
+            }).catch(() => fromBlobUrl());
+            return;
+        }
+
+        fromBlobUrl();
     });
+}
+
+async function clonePickedFile(file) {
+    if (!file) return null;
+    const name = file.name || 'foto.jpg';
+    const type = file.type || 'image/jpeg';
+    try {
+        const buf = await file.arrayBuffer();
+        if (!buf || buf.byteLength === 0) return file;
+        return new File([buf], name, { type: type || 'image/jpeg', lastModified: Date.now() });
+    } catch (_) {
+        try {
+            const blob = file.slice(0, file.size, type);
+            return new File([blob], name, { type: blob.type || type, lastModified: Date.now() });
+        } catch {
+            return file;
+        }
+    }
+}
+
+function cleanupPickerInput(input) {
+    if (!input) return;
+    try { input.value = ''; } catch (_) {}
+    try { input.remove(); } catch (_) {}
+    if (_activePickerInput === input) _activePickerInput = null;
 }
 
 function dataUrlFromVideoFrame(video, maxSize = 640) {
@@ -82,6 +177,12 @@ function isMobileDevice() {
     return !!window.matchMedia?.('(pointer: coarse)')?.matches;
 }
 
+function isAppleMobile() {
+    const ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod/i.test(ua)) return true;
+    return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+}
+
 /** Móvil (web o APK): input con capture → cámara nativa y diálogo de permiso del sistema/navegador. */
 function shouldUseNativeFileCapture() {
     if (isCapacitorNative()) return true;
@@ -110,8 +211,14 @@ function insecureContextHint() {
     return 'La cámara en vivo requiere HTTPS. Usa la opción de tomar o subir foto que se abrirá ahora.';
 }
 
+function styleLiveFileInput(input) {
+    // No usar display:none: iOS/Android cancelan el picker. Tamano tocable, casi invisible.
+    input.style.cssText = 'position:fixed;left:50%;top:50%;width:64px;height:64px;opacity:0.011;z-index:2147483645;margin:0;padding:0;border:0;transform:translate(-50%,-50%);';
+    input.setAttribute('aria-hidden', 'true');
+}
+
 /**
- * @param {{ facing?: 'user'|'environment', maxSize?: number, source?: 'camera'|'gallery'|'any', onCapture?: Function, onError?: Function, onFile?: Function }} opts
+ * @param {{ facing?: 'user'|'environment', maxSize?: number, source?: 'camera'|'gallery'|'any', onCapture?: Function, onError?: Function, onFile?: Function, onCancel?: Function }} opts
  * source:
  *  - camera  → atributo capture (solo cámara en la mayoría de móviles)
  *  - gallery → sin capture (abre galería / archivos)
@@ -124,6 +231,8 @@ function openFilePickerSync({
     onCapture,
     onError,
     onFile,
+    onCancel,
+    onOpened,
 } = {}) {
     if (_activePickerInput) {
         try { _activePickerInput.remove(); } catch (_) {}
@@ -132,46 +241,87 @@ function openFilePickerSync({
 
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = 'image/*';
-    // Solo forzar cámara si se pide explícitamente. Galería / any NO llevan capture.
-    if (source === 'camera') {
-        if (facing === 'environment') {
-            input.setAttribute('capture', 'environment');
-        } else {
-            input.setAttribute('capture', 'user');
-        }
+    input.accept = IMAGE_ACCEPT;
+    // iPhone ignora o rompe capture= en PWA/Safari; sin capture ofrece Cámara o Galería.
+    if (source === 'camera' && !isAppleMobile()) {
+        input.setAttribute('capture', facing === 'environment' ? 'environment' : 'user');
     }
-    input.className = 'sr-only';
-    input.setAttribute('aria-hidden', 'true');
+    styleLiveFileInput(input);
     document.body.appendChild(input);
     _activePickerInput = input;
 
+    let settled = false;
+    const finishCancel = () => {
+        if (settled) return;
+        settled = true;
+        cleanupPickerInput(input);
+        onCancel?.();
+    };
+
     input.addEventListener('change', async () => {
-        const file = input.files?.[0];
-        try { input.remove(); } catch (_) {}
-        _activePickerInput = null;
-        if (!file) return;
+        if (settled) return;
+        const raw = input.files && input.files[0];
+        if (!raw) {
+            finishCancel();
+            onError?.('No se recibió la foto. Vuelve a elegirla y toca Subir/Abrir.');
+            return;
+        }
+        settled = true;
+        let file = raw;
         try {
-            if (typeof onFile === 'function') {
-                onFile(file);
+            file = await clonePickedFile(raw) || raw;
+        } catch (_) {
+            file = raw;
+        }
+        try {
+            if (typeof onFile === 'function') onFile(file);
+            let dataUrl = null;
+            try {
+                dataUrl = await compressDataUrlFromFile(file, maxSize);
+            } catch (_) {
+                dataUrl = await readFileAsDataUrl(file);
             }
-            const dataUrl = await compressDataUrlFromFile(file, maxSize);
+            if (!dataUrl) throw new Error('La foto quedó vacía');
+            cleanupPickerInput(input);
             onCapture?.(dataUrl, file);
         } catch (e) {
-            onError?.(e?.message || 'No se pudo procesar la foto');
+            cleanupPickerInput(input);
+            onError?.(e?.message || 'No se pudo procesar la foto. Prueba otra o tómala con la cámara.');
         }
     }, { once: true });
 
+    input.addEventListener('cancel', () => {
+        finishCancel();
+    }, { once: true });
+
+    // Si el SO no dispara "cancel" (Android), no dejar el input huérfano para siempre.
+    window.setTimeout(() => {
+        if (settled || _activePickerInput !== input) return;
+        // El picker puede seguir abierto; no lo borramos. Solo si el usuario ya eligió otra foto.
+    }, 120000);
+
     try {
-        input.click();
+        if (typeof input.showPicker === 'function') input.showPicker();
+        else input.click();
+        onOpened?.();
     } catch (_) {
-        onError?.(source === 'gallery'
-            ? 'No se pudo abrir la galería. Toca de nuevo o revisa los permisos.'
-            : 'No se pudo abrir la cámara. Toca de nuevo o revisa los permisos del navegador.');
+        try {
+            input.removeAttribute('capture');
+            if (typeof input.showPicker === 'function') input.showPicker();
+            else input.click();
+            onOpened?.();
+        } catch (err2) {
+            settled = true;
+            cleanupPickerInput(input);
+            onError?.(source === 'gallery'
+                ? 'No se pudo abrir la galería. Toca de nuevo o revisa los permisos.'
+                : 'No se pudo abrir la cámara. Toca de nuevo o revisa los permisos del celular.');
+            onCancel?.();
+        }
     }
 }
 
-function openInlineCameraCapture({ facing = 'user', maxSize = 640, onCapture, onError } = {}) {
+function openInlineCameraCapture({ facing = 'user', maxSize = 640, onCapture, onError, onCancel } = {}) {
     removeCameraOverlay();
 
     const overlay = document.createElement('div');
@@ -196,10 +346,13 @@ function openInlineCameraCapture({ facing = 'user', maxSize = 640, onCapture, on
     const fallbackNative = (msg) => {
         removeCameraOverlay();
         if (msg) onError?.(msg);
-        openFilePickerSync({ facing, maxSize, onCapture, onError });
+        openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onCancel });
     };
 
-    cancelBtn?.addEventListener('click', () => removeCameraOverlay());
+    cancelBtn?.addEventListener('click', () => {
+        removeCameraOverlay();
+        onCancel?.();
+    });
 
     const constraints = {
         audio: false,
@@ -269,27 +422,30 @@ export function pickPhotoFromCamera(opts = {}) {
         onCapture,
         onError,
         onFile,
+        onCancel,
+        onOpened,
     } = opts;
 
     if (typeof onCapture !== 'function' && typeof onFile !== 'function') return;
 
     if (shouldUseNativeFileCapture()) {
-        openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile });
+        openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile, onCancel, onOpened });
         return;
     }
 
     if (!window.isSecureContext) {
         onError?.(insecureContextHint());
-        openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile });
+        openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile, onCancel, onOpened });
         return;
     }
 
     if (canUseInlineCamera()) {
-        openInlineCameraCapture({ facing, maxSize, onCapture, onError });
+        onOpened?.();
+        openInlineCameraCapture({ facing, maxSize, onCapture, onError, onCancel });
         return;
     }
 
-    openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile });
+    openFilePickerSync({ facing, maxSize, source: 'camera', onCapture, onError, onFile, onCancel, onOpened });
 }
 
 /**
@@ -302,6 +458,8 @@ export function pickPhotoFromGallery(opts = {}) {
         onCapture,
         onError,
         onFile,
+        onCancel,
+        onOpened,
     } = opts;
 
     if (typeof onCapture !== 'function' && typeof onFile !== 'function') return;
@@ -313,12 +471,21 @@ export function pickPhotoFromGallery(opts = {}) {
         onCapture,
         onError,
         onFile,
+        onCancel,
+        onOpened,
     });
+}
+
+function hidePhotoSourceSheet(sheet) {
+    if (!sheet) return;
+    sheet.style.opacity = '0';
+    sheet.style.pointerEvents = 'none';
 }
 
 /**
  * Hoja con dos opciones: Tomar foto o Galería.
- * Ideal para depósitos / comprobantes en la app de conductores.
+ * No se quita del DOM hasta que el picker termina: si se borra en el mismo gesto,
+ * Android/iOS cancelan la cámara o pierden el archivo al dar Subir.
  */
 export function pickPhotoWithSourceChoice(opts = {}) {
     const {
@@ -334,7 +501,6 @@ export function pickPhotoWithSourceChoice(opts = {}) {
 
     if (typeof onCapture !== 'function' && typeof onFile !== 'function') return;
 
-    // Quitar hoja previa si quedó abierta
     document.querySelectorAll('[data-photo-source-sheet="1"]').forEach((el) => el.remove());
 
     const sheet = document.createElement('div');
@@ -369,24 +535,48 @@ export function pickPhotoWithSourceChoice(opts = {}) {
         try { sheet.remove(); } catch (_) {}
     };
 
+    const restore = () => {
+        if (!sheet.isConnected) return;
+        sheet.style.opacity = '';
+        sheet.style.pointerEvents = '';
+    };
+
+    const wrapDone = {
+        onCapture: (...args) => {
+            close();
+            onCapture?.(...args);
+        },
+        onError: (msg) => {
+            restore();
+            if (msg) onError?.(msg);
+        },
+        onCancel: restore,
+        onFile,
+    };
+
     sheet.addEventListener('click', (e) => {
         if (e.target === sheet) close();
     });
 
     sheet.querySelector('[data-action="cancel"]')?.addEventListener('click', close);
-    sheet.querySelector('[data-action="camera"]')?.addEventListener('click', () => {
-        close();
-        // El click debe seguir siendo síncrono en el mismo gesto de usuario en la mayoría de browsers;
-        // al cerrar y reabrir el picker en el siguiente tick suele funcionar en Android/WebView.
-        setTimeout(() => {
-            pickPhotoFromCamera({ facing, maxSize, onCapture, onError, onFile });
-        }, 50);
+    sheet.querySelector('[data-action="camera"]')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        pickPhotoFromCamera({
+            facing,
+            maxSize,
+            ...wrapDone,
+            onOpened: () => hidePhotoSourceSheet(sheet),
+        });
     });
-    sheet.querySelector('[data-action="gallery"]')?.addEventListener('click', () => {
-        close();
-        setTimeout(() => {
-            pickPhotoFromGallery({ maxSize, onCapture, onError, onFile });
-        }, 50);
+    sheet.querySelector('[data-action="gallery"]')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        pickPhotoFromGallery({
+            maxSize,
+            ...wrapDone,
+            onOpened: () => hidePhotoSourceSheet(sheet),
+        });
     });
 }
 
