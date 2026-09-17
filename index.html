@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.09.18.3">
+    <meta name="hr-app-version" content="2026.09.18.4">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.09.18.3">
+    <link rel="manifest" href="manifest.json?v=2026.09.18.4">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,10 +31,10 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.18.3">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.18.4">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.09.18.3">
+    <link rel="stylesheet" href="css/app.css?v=2026.09.18.4">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -80,7 +80,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.09.17.5"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.09.18.4"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -143,10 +143,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.09.18.3';
+        window.__HR_BUILD_VERSION__ = '2026.09.18.4';
         (function () {
             try {
-                var build = '2026.09.18.3';
+                var build = '2026.09.18.4';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -1532,6 +1532,7 @@
         <div class="space-y-4">
             <input id="email-field" type="text" inputmode="email" autocomplete="username" placeholder="Correo o teléfono (+504…)" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
             <input id="pass-field" type="password" autocomplete="current-password" placeholder="Contraseña" class="w-full px-5 py-4 rounded-2xl border border-gray-100 bg-gray-50 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm">
+            <p id="driver-session-hint" class="hidden text-[10px] text-center text-emerald-700 font-bold m-0">Sesión de conductor guardada en este teléfono. Toca Ingresar si no entra solo.</p>
             <button type="button" id="auth-forgot-link" onclick="window.showForgotPassword?.()" class="w-full text-right text-[11px] font-bold text-blue-600 hover:text-blue-700 -mt-1 mb-1">¿Olvidaste tu contraseña?</button>
             <button id="auth-submit-btn" onclick="window.executeAuth()" class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all uppercase tracking-widest text-xs">INGRESAR AL SISTEMA</button>
             <p id="auth-load-hint" class="text-[10px] text-center text-slate-400 font-bold m-0">Preparando sesión… el mapa carga en segundo plano</p>

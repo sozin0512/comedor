@@ -63,6 +63,7 @@ function patchIndexHtml(version, filePath) {
     html = html.replace(/href="css\/tailwind\.css(\?v=[^"]*)?"/, `href="css/tailwind.css${q}"`);
     html = html.replace(/href="css\/app\.css(\?v=[^"]*)?"/, `href="css/app.css${q}"`);
     html = html.replace(/src="js\/maps-init\.js(\?v=[^"]*)?"/, `src="js/maps-init.js${q}"`);
+    html = html.replace(/src="js\/auth-boot\.js(\?v=[^"]*)?"/, `src="js/auth-boot.js${q}"`);
     html = html.replace(/src="js\/app\.js(\?v=[^"]*)?"/, `src="js/app.js${q}"`);
     html = html.replace(/href="manifest\.json(\?v=[^"]*)?"/, `href="manifest.json${q}"`);
     html = html.replace(/from '\.\/js\/config\.js(\?v=[^']*)?'/, `from './js/config.js${q}'`);
@@ -204,6 +205,7 @@ function run(targetRoot = ROOT) {
     patchManifest(version, path.join(ROOT, 'manifest.json'));
     patchFirebaseMessagingSw(version, path.join(ROOT, 'firebase-messaging-sw.js'));
     patchAppJsModuleImports(version, path.join(ROOT, 'js', 'app.js'));
+    patchAppJsModuleImports(version, path.join(ROOT, 'js', 'auth-boot.js'));
     // Y la copia www/ si se invoca desde sync
     if (path.resolve(targetRoot) !== path.resolve(ROOT)) {
         patchIndexHtml(version, path.join(targetRoot, 'index.html'));
@@ -211,6 +213,8 @@ function run(targetRoot = ROOT) {
         patchFirebaseMessagingSw(version, path.join(targetRoot, 'firebase-messaging-sw.js'));
         const wwwApp = path.join(targetRoot, 'js', 'app.js');
         if (fs.existsSync(wwwApp)) patchAppJsModuleImports(version, wwwApp);
+        const wwwBoot = path.join(targetRoot, 'js', 'auth-boot.js');
+        if (fs.existsSync(wwwBoot)) patchAppJsModuleImports(version, wwwBoot);
     }
     console.log(`Versión inyectada: ${version}`);
     return version;

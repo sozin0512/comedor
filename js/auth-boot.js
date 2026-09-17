@@ -5,14 +5,32 @@
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import {
     getAuth,
+    initializeAuth,
+    indexedDBLocalPersistence,
     onAuthStateChanged,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     setPersistence,
     browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { APP_CONFIG } from './config.js';
+import { APP_CONFIG } from './config.js?v=2026.09.18.4';
+import {
+    saveDriverLogin,
+    restoreDriverLoginForm,
+    shouldSkipDriverAutoLogin,
+    clearSkipDriverAutoLogin
+} from './driver-session.js?v=2026.09.18.4';
 window.APP_CONFIG = APP_CONFIG;
+
+function getPersistentAuth(app) {
+    try {
+        return initializeAuth(app, {
+            persistence: [indexedDBLocalPersistence, browserLocalPersistence]
+        });
+    } catch (_) {
+        return getAuth(app);
+    }
+}
 
 function isEmailLike(value) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
@@ -145,7 +163,7 @@ async function runAuth() {
     }
     try {
         const app = getApps()[0] || initializeApp(APP_CONFIG.firebase);
-        const auth = getAuth(app);
+        const auth = getPersistentAuth(app);
         try { await withTimeout(setPersistence(auth, browserLocalPersistence), 4000, 'persist'); } catch (_) {}
         window._authEntering = true;
         if (mode === 'login') {
@@ -154,6 +172,9 @@ async function runAuth() {
                 15000,
                 'auth/network-request-failed'
             );
+            const driverSelected = document.getElementById('role-driver')?.classList.contains('bg-white')
+                || localStorage.getItem('lastUserRole') === 'driver';
+            if (driverSelected) saveDriverLogin(identifier, pass).catch(() => {});
             showEnteringShell('Sesión iniciada. Abriendo tu cuenta…');
             try { window.ensureMapsLoaded?.(); } catch (_) {}
             loadAppRuntime();
@@ -173,6 +194,7 @@ async function runAuth() {
             15000,
             'auth/network-request-failed'
         );
+        if (selectedRole === 'driver') saveDriverLogin(identifier, pass).catch(() => {});
         showEnteringShell('Cuenta creada. Abriendo tu perfil…');
         try { window.ensureMapsLoaded?.(); } catch (_) {}
         loadAppRuntime();
@@ -201,13 +223,34 @@ window.loadAppRuntime = loadAppRuntime;
 
 try {
     const bootApp = getApps()[0] || initializeApp(APP_CONFIG.firebase);
-    const bootAuth = getAuth(bootApp);
+    const bootAuth = getPersistentAuth(bootApp);
+    try { setPersistence(bootAuth, browserLocalPersistence).catch(() => {}); } catch (_) {}
     onAuthStateChanged(bootAuth, (user) => {
         if (user) loadAppRuntime();
     });
 } catch (e) {
     console.warn('[auth-boot] auth listener', e);
 }
+
+restoreDriverLoginForm().then((creds) => {
+    if (!creds) return;
+    if (shouldSkipDriverAutoLogin()) {
+        clearSkipDriverAutoLogin();
+        return;
+    }
+    setTimeout(() => {
+        try {
+            if (window.currentUser || window._authEntering) return;
+            try {
+                const existing = getApps()[0] ? getAuth(getApps()[0]).currentUser : null;
+                if (existing) return;
+            } catch (_) {}
+            if (!document.getElementById('email-field')?.value || !document.getElementById('pass-field')?.value) return;
+            if (document.getElementById('login-screen')?.style.display === 'none') return;
+            window.executeAuth?.();
+        } catch (_) {}
+    }, 1600);
+}).catch(() => {});
 
 try {
     const q = String(location.search || '') + String(location.hash || '');

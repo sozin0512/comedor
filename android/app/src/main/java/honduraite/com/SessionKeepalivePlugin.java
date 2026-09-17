@@ -179,6 +179,54 @@ public class SessionKeepalivePlugin extends Plugin {
         call.resolve();
     }
 
+    private static final String DRIVER_LOGIN_PREFS = "hr_driver_session";
+    private static final String DRIVER_LOGIN_ID = "identifier";
+    private static final String DRIVER_LOGIN_PW = "password";
+
+    /** Guarda correo/teléfono y contraseña del conductor fuera del WebView. */
+    @PluginMethod
+    public void saveDriverLogin(PluginCall call) {
+        String identifier = call.getString("identifier", "");
+        String password = call.getString("password", "");
+        try {
+            getContext()
+                .getSharedPreferences(DRIVER_LOGIN_PREFS, android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putString(DRIVER_LOGIN_ID, identifier != null ? identifier : "")
+                .putString(DRIVER_LOGIN_PW, password != null ? password : "")
+                .apply();
+        } catch (Exception ignored) {}
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void loadDriverLogin(PluginCall call) {
+        JSObject ret = new JSObject();
+        String identifier = "";
+        String password = "";
+        try {
+            android.content.SharedPreferences prefs = getContext()
+                .getSharedPreferences(DRIVER_LOGIN_PREFS, android.content.Context.MODE_PRIVATE);
+            identifier = prefs.getString(DRIVER_LOGIN_ID, "");
+            password = prefs.getString(DRIVER_LOGIN_PW, "");
+        } catch (Exception ignored) {}
+        ret.put("identifier", identifier != null ? identifier : "");
+        ret.put("password", password != null ? password : "");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void clearDriverLogin(PluginCall call) {
+        try {
+            getContext()
+                .getSharedPreferences(DRIVER_LOGIN_PREFS, android.content.Context.MODE_PRIVATE)
+                .edit()
+                .clear()
+                .apply();
+        } catch (Exception ignored) {}
+        call.resolve();
+    }
+
     /** Estado de notificaciones del sistema (canales / bloqueo total). */
     @PluginMethod
     public void areNotificationsEnabled(PluginCall call) {
