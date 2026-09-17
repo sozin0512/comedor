@@ -89,8 +89,19 @@ function showEnteringShell(text) {
         el.style.cssText = 'position:fixed;inset:0;z-index:40000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#e8e6e0;padding:1.5rem;text-align:center';
         el.innerHTML = '<div style="width:2rem;height:2rem;border:3px solid rgba(30,41,59,.15);border-top-color:#2563eb;border-radius:50%;animation:hr-spin .8s linear infinite"></div>'
             + '<p style="margin-top:1rem;font-weight:800;color:#0f172a" id="hr-entering-text"></p>'
-            + '<p style="margin-top:.4rem;font-size:.75rem;color:#64748b;font-weight:600">El mapa y el resto siguen cargando atrás</p>';
+            + '<p style="margin-top:.4rem;font-size:.75rem;color:#64748b;font-weight:600">El mapa y el resto siguen cargando atrás</p>'
+            + '<button type="button" id="hr-entering-reload" style="display:none;margin-top:1.1rem;padding:.55rem 1.1rem;border:0;border-radius:.75rem;background:#2563eb;color:#fff;font-weight:800;cursor:pointer">Recargar</button>';
         document.body.appendChild(el);
+        setTimeout(function () {
+            var btn = document.getElementById('hr-entering-reload');
+            var t = document.getElementById('hr-entering-text');
+            if (!document.getElementById('hr-entering-shell')) return;
+            if (t) t.textContent = 'Está tardando más de lo normal.';
+            if (btn) {
+                btn.style.display = 'inline-block';
+                btn.onclick = function () { location.reload(); };
+            }
+        }, 20000);
     }
     const t = document.getElementById('hr-entering-text');
     if (t) t.textContent = text || 'Sesión iniciada. Abriendo tu cuenta…';
