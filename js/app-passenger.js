@@ -65,7 +65,7 @@ async function resolveRouteEndpoint(el) {
 
     return null;
 }
-window.resolveRouteEndpoint = resolveRouteEndpoint;
+window.resolveRouteEndpoint = window.resolveRouteEndpoint || resolveRouteEndpoint;
 
 function getAutocompleteAddress(el) {
     return el?._routeEndpoint?.placeName
