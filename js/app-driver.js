@@ -8,8 +8,10 @@ export function installDriverRuntime() {
     const appId = window.appId;
 
 // ==================== LLEGADA AL ORIGEN (1 km) / DESTINO (1 km) — CONDUCTOR → PASAJERO ====================
-const TRIP_PICKUP_ARRIVAL_RADIUS_M = 1000;
-const TRIP_DEST_CONFIRM_RADIUS_M = 1000;
+const TRIP_PICKUP_ARRIVAL_RADIUS_M = Number(window.TRIP_PICKUP_ARRIVAL_RADIUS_M) || 1000;
+const TRIP_DEST_CONFIRM_RADIUS_M = Number(window.TRIP_DEST_CONFIRM_RADIUS_M) || 1000;
+window.TRIP_PICKUP_ARRIVAL_RADIUS_M = TRIP_PICKUP_ARRIVAL_RADIUS_M;
+window.TRIP_DEST_CONFIRM_RADIUS_M = TRIP_DEST_CONFIRM_RADIUS_M;
 /** Si la distancia real es menor que la suma de precisiones GPS, se considera “mismo punto”. */
 const GPS_COLOCATED_PAD_M = 18;
 

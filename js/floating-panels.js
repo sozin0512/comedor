@@ -736,6 +736,9 @@ function getTripFloatDragHandle(el, key) {
     if (key === 'client-trip') {
         return el.querySelector('.trip-float-grip') || el.querySelector('.trip-float-head') || el;
     }
+    if (key === 'driver-arrived' || key === 'driver-arrived-dest') {
+        return el.querySelector('.trip-float-grip') || el;
+    }
     if (key === 'chat' || key === 'client-pin' || key === 'driver-pin') {
         return el.querySelector('.trip-float-head') || el;
     }
@@ -753,7 +756,13 @@ function runTripFloatTapAction(action) {
         window.markArrival?.();
     } else if (action === 'arrived-dest') {
         // Toast de distancia / GPS lo maneja driverSignalDestinationArrival
-        window.driverSignalDestinationArrival?.();
+        const fireDest = async () => {
+            if (typeof window.driverSignalDestinationArrival !== 'function') {
+                await window.loadRoleDriverRuntime?.();
+            }
+            await window.driverSignalDestinationArrival?.();
+        };
+        fireDest();
     }
 }
 
@@ -849,12 +858,18 @@ export function bindFloatingTripPanels() {
     layer.querySelectorAll('[data-trip-float-tap]').forEach((el) => {
         if (el.dataset.tapBound === '1') return;
         el.dataset.tapBound = '1';
-        el.addEventListener('pointerup', (e) => {
+        let lastTapAt = 0;
+        const fireTap = (e) => {
+            if (e.target.closest?.('.trip-float-grip')) return;
             if (wasRecentPanelDrag()) return;
-            if (isInteractiveTarget(e.target)) return;
+            const now = Date.now();
+            if (now - lastTapAt < 500) return;
+            lastTapAt = now;
             const action = el.dataset.tripFloatTap;
             if (action) runTripFloatTapAction(action);
-        });
+        };
+        el.addEventListener('pointerup', fireTap);
+        el.addEventListener('click', fireTap);
     });
 
     layer.querySelectorAll('[data-trip-float-min]').forEach((btn) => {
