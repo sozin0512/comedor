@@ -10,6 +10,7 @@ import {
     getServiceMeta, applyPassengerSurcharge, getHourlyRate
 } from './service-types.js';
 import { extraStopsSurcharge } from './extra-stops-fare.js';
+import { getRouteConditions, getAdjustedDurationMinutes } from './route-conditions.js';
 
 export function installPassengerRuntime() {
     if (window.__hrPassengerRuntime) return;
@@ -64,6 +65,7 @@ async function resolveRouteEndpoint(el) {
 
     return null;
 }
+window.resolveRouteEndpoint = resolveRouteEndpoint;
 
 function getAutocompleteAddress(el) {
     return el?._routeEndpoint?.placeName
@@ -500,7 +502,7 @@ async function maybePromptExtraStopsBeforeCalc(origin, destination) {
 
 window.calculateTripRoute = async (options = {}) => {
     const silent = options.silent === true;
-    const estimateOnly = options.estimateOnly !== false && options.useRoutesApi !== true;
+    const estimateOnly = options.estimateOnly === true && options.useRoutesApi !== true;
     const routeMode = estimateOnly ? 'estimate' : 'once';
     window._tripRouteCalcGen = (window._tripRouteCalcGen || 0) + 1;
     const calcGen = window._tripRouteCalcGen;
@@ -841,7 +843,16 @@ window.calculateTripRoute = async (options = {}) => {
                 lat: (origin.latLng.lat + destination.latLng.lat) / 2,
                 lng: (origin.latLng.lng + destination.latLng.lng) / 2
             };
-            routeConditions = await getRouteConditions(route, mid);
+            try {
+                const getter = typeof getRouteConditions === 'function'
+                    ? getRouteConditions
+                    : window.getRouteConditions;
+                if (typeof getter === 'function') {
+                    routeConditions = await getter(route, mid);
+                }
+            } catch (condErr) {
+                console.warn('getRouteConditions', condErr);
+            }
         }
 
         // re-evaluar después de posible forzado a hourly para viajes >1h

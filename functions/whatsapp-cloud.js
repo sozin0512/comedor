@@ -228,7 +228,7 @@ async function sendWhatsAppTemplate(toPhone, templateName, bodyParams = [], lang
             type: 'body',
             parameters: bodyParams.map((text) => ({
                 type: 'text',
-                text: String(text || '—').slice(0, 100)
+                text: String(text || '—').slice(0, 250)
             }))
         });
     }
@@ -351,6 +351,28 @@ async function notifyDriverArrivedWa(trip, tripId = null) {
  * Aviso al CONDUCTOR de un viaje nuevo (no al pasajero).
  * {{1}} origen · {{2}} destino · {{3}} distancia (ej. 3.8 km)
  */
+async function notifyPassengerDriverDroppedWa(trip, tripId) {
+    if (!canNotifyPassengerWa(trip)) {
+        return { ok: false, skipped: true, reason: 'no_trip_or_phone' };
+    }
+    const phone = tripPhone(trip);
+    const link = tripId ? `${APP_SITE}/?trip=${encodeURIComponent(tripId)}` : APP_SITE;
+    const name = firstNameFrom(trip.clientName);
+    const route = shortRouteLabel(trip);
+    const body = (
+        `HonduRaite: ${name}, el conductor canceló tu viaje (${route}).\n` +
+        `Ya estamos buscando otro conductor.\n` +
+        `Sigue aquí: ${link}`
+    );
+    let result = await sendCloudText(phone, body);
+    if (!result?.ok) {
+        const template = (waTemplateTripReceived.value() || 'tu_viaje_esta_confirmado').trim();
+        result = await sendWhatsAppTemplate(phone, template, [name, route]);
+        await sendCloudText(phone, `El conductor canceló. Buscamos otro. Entra aquí:\n${link}`).catch(() => {});
+    }
+    return result;
+}
+
 async function notifyDriverNewTripWa(trip, tripId, driver = {}) {
     if (!trip || trip.isDemandSimulation) {
         return { ok: false, skipped: true, reason: 'no_trip' };
@@ -361,11 +383,18 @@ async function notifyDriverNewTripWa(trip, tripId, driver = {}) {
     const phone = driver.phone || driver.driverPhone || null;
     if (!phone) return { ok: false, skipped: true, reason: 'no_phone' };
     const template = (waTemplateDriverNewTrip.value() || 'nuevo_viaje').trim();
-    return sendWhatsAppTemplate(phone, template, [
-        originLabel(trip),
-        destLabel(trip),
-        distanceLabel(trip)
-    ]);
+    const link = driverTripOpenLink(tripId);
+    const base = [originLabel(trip), destLabel(trip), distanceLabel(trip)];
+    let result = await sendWhatsAppTemplate(phone, template, [...base, link]);
+    if (!result?.ok && templateParamMismatch(result)) {
+        result = await sendWhatsAppTemplate(phone, template, base);
+    }
+    // Si hay ventana de 24 h con el bot, el link va también en texto (se puede tocar).
+    await sendCloudText(
+        phone,
+        `HonduRaite: hay un viaje. Entra a la plataforma y acéptalo aquí:\n${link}`
+    ).catch(() => {});
+    return result;
 }
 
 function mapsPinUrl(lat, lng) {
@@ -644,6 +673,7 @@ exports.notifyTripRequestReceivedWa = notifyTripRequestReceivedWa;
 exports.notifyTripConfirmedWa = notifyTripConfirmedWa;
 exports.notifyDriverArrivedWa = notifyDriverArrivedWa;
 exports.notifyDriverNewTripWa = notifyDriverNewTripWa;
+exports.notifyPassengerDriverDroppedWa = notifyPassengerDriverDroppedWa;
 exports.notifyDriverAcceptedRouteWa = notifyDriverAcceptedRouteWa;
 exports.notifyPassengerUnreadChatWa = notifyPassengerUnreadChatWa;
 exports.notifyDriverUnreadChatWa = notifyDriverUnreadChatWa;
@@ -1616,6 +1646,16 @@ function tripShareLink(tripId) {
 function tripLiveChatLink(tripId) {
     if (!tripId) return APP_SITE;
     return `${APP_SITE}/?trip=${encodeURIComponent(tripId)}&openChat=1`;
+}
+
+function driverTripOpenLink() {
+    // Nunca ?trip= : eso abre el seguimiento de PASAJERO (sin cuenta).
+    return `${APP_SITE}/?openDriver=1#driver`;
+}
+
+function templateParamMismatch(res) {
+    const blob = JSON.stringify(res?.error || res || '');
+    return /132000|number of param|parameter count|unexpected number|missing required/i.test(blob);
 }
 
 async function createWhatsAppTrip({ phone, name, origin, dest, scheduledFor, clientChoosesSchedule, clientChoosesRoute, serviceType, stops }) {
@@ -2683,7 +2723,8 @@ exports.testWhatsAppTripTemplate = onCall(
         } else if (kind === 'driver' || kind === 'nuevo_viaje' || template === 'nuevo_viaje') {
             template = template || (waTemplateDriverNewTrip.value() || 'nuevo_viaje');
             const origin = String(request.data?.origin || 'Centro').trim().slice(0, 80);
-            params = [origin, dest, dist];
+            const tripId = String(request.data?.tripId || '').trim();
+            params = [origin, dest, dist, driverTripOpenLink(tripId || 'demo')];
         } else {
             template = template || (waTemplateTripReceived.value() || 'tu_viaje_esta_confirmado');
             const route = String(request.data?.route || `Origen → ${dest}`).trim().slice(0, 90);

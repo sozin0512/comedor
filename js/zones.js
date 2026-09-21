@@ -577,7 +577,19 @@ export function tripVisibleToDriver(trip, options = {}) {
     // Viaje armado por staff: oculto a conductores hasta que el cliente lo reclame
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return false;
     if (!zoneId) return false;
-    return driverZoneCanServeTrip(zoneId, trip, options);
+    if (driverZoneCanServeTrip(zoneId, trip, options)) return true;
+    const lat = options.driverLat;
+    const lng = options.driverLng;
+    const tripZoneId = getTripCityId(trip);
+    if (
+        lat != null && lng != null
+        && trip.originLat != null && trip.originLng != null
+        && tripZoneId
+        && sameDepartment(zoneId, tripZoneId)
+    ) {
+        return haversineKm(lat, lng, trip.originLat, trip.originLng) <= 1.5;
+    }
+    return false;
 }
 
 /**

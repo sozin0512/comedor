@@ -4,7 +4,7 @@
  */
 export const APP_CONFIG = {
     /** Sube este número cada vez que publicas cambios (y el mismo valor en version.json). */
-    appVersion: '2026.09.20.1',
+    appVersion: '2026.09.21.1',
     /** Push nativo Android (auto: google-services.json + paquete APK) */
     androidFcmEnabled: true,
     firebase: {

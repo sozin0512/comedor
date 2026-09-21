@@ -1006,8 +1006,13 @@ export function syncTripFloatPanels(data) {
     const chatPill = document.getElementById('trip-chat-float-pill');
     const chatFloat = document.getElementById('chat-float');
 
-    // Un solo flotante pasajero: datos del conductor + PIN (si aplica)
+    // Un solo flotante pasajero: datos del conductor + PIN (si aplica).
+    // Nunca al conductor del viaje (ni si el perfil se mezcla con client-mode).
+    const amTheDriver = !!data.driverId && data.driverId === window.currentUser?.uid;
     const showClientTrip = isClient
+        && !isDriver
+        && !amTheDriver
+        && !document.body.classList.contains('driver-mode')
         && !!data.driverId
         && ['accepted', 'in_progress'].includes(data.status);
     const showClientPin = showClientTrip

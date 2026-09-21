@@ -2,53 +2,6 @@
 export function installDriverRuntime() {
     if (window.__hrDriverRuntime) return;
     window.__hrDriverRuntime = true;
-window.stopClientTracking = () => {
-    if (window.clientTrackingInterval) {
-        clearInterval(window.clientTrackingInterval);
-        window.clientTrackingInterval = null;
-    }
-    if (window.clientTrackingUnsub) {
-        window.clientTrackingUnsub();
-        window.clientTrackingUnsub = null;
-    }
-    if (window.passengerLiveRepaintInterval) {
-        clearInterval(window.passengerLiveRepaintInterval);
-        window.passengerLiveRepaintInterval = null;
-    }
-    window._repaintPassengerTrackFrame = null;
-    window._lastDriverFirebasePos = null;
-    window._lastPassengerTrackMeta = null;
-
-    resetPassengerAlertSession(window.activeTrip?.id || window.currentActiveTripData?.id || null);
-    syncPassengerAlertSettingsVisibility(false);
-
-    const trackedDriverId = window._passengerTrackDriverId;
-    window.currentTrackTarget = null;
-    window._passengerTrackRouteSession = null;
-    window.clearRoutePolylines?.({ force: true });
-    window.clearOriginDestinationMarkers?.();
-    if (trackedDriverId) {
-        window.removeDriverMarker?.(trackedDriverId);
-    }
-
-    const navTop = document.getElementById('nav-hud-top');
-    const navBottom = document.getElementById('nav-hud-bottom');
-    if (navTop) navTop.style.display = 'none';
-    if (navBottom) navBottom.style.display = 'none';
-
-    document.body.classList.remove('is-navigating');
-    window.resetDriverNavCamera?.();
-    window.resetPassengerNavCamera?.();
-    window.exitPassengerTrackMode?.();
-    window.hideCenterMapFab?.();
-    window.syncNavigationMapFabs?.();
-
-    // Ocultar panel / pastilla de llegada al destino
-    const pArrival = document.getElementById('passenger-destination-arrival-panel');
-    if (pArrival) pArrival.style.display = 'none';
-    document.getElementById('driver-destination-controls')?.classList.add('hidden');
-    document.getElementById('driver-arrived-dest-float')?.classList.add('hidden');
-};
 
 // ==================== LLEGADA AL ORIGEN (1 km) / DESTINO (1 km) — CONDUCTOR → PASAJERO ====================
 const TRIP_PICKUP_ARRIVAL_RADIUS_M = 1000;
@@ -201,7 +154,9 @@ window.syncDriverPickupArrivalUi = (driverPos = null) => {
     const trip = window.activeTrip || window.currentActiveTripData;
     const float = document.getElementById('driver-arrived-float');
     const btn = document.getElementById('btn-driver-arrived');
-    if (!float || !btn) return;
+    const panelBtn = document.getElementById('driver-panel-arrived-btn');
+    const btns = [btn, panelBtn].filter(Boolean);
+    if (!float && !panelBtn) return;
 
     const isDriver = window.userProfile?.role === 'driver';
     const pickupPhase = trip?.status === 'accepted'
@@ -209,9 +164,11 @@ window.syncDriverPickupArrivalUi = (driverPos = null) => {
         && trip?.driverId === window.currentUser?.uid;
 
     if (!isDriver || !pickupPhase) {
-        btn.classList.remove('is-disabled');
-        btn.removeAttribute('aria-disabled');
-        float.title = 'Toca para marcar llegada · arrastra para mover';
+        btns.forEach((el) => {
+            el.classList.remove('is-disabled');
+            el.removeAttribute('aria-disabled');
+        });
+        if (float) float.title = 'Toca para marcar llegada · arrastra para mover';
         return;
     }
 
@@ -227,20 +184,22 @@ window.syncDriverPickupArrivalUi = (driverPos = null) => {
         : Infinity;
     const within = Number.isFinite(dist) && dist <= TRIP_PICKUP_ARRIVAL_RADIUS_M;
 
-    btn.classList.toggle('is-disabled', !within);
-    btn.setAttribute('aria-disabled', within ? 'false' : 'true');
+    btns.forEach((el) => {
+        el.classList.toggle('is-disabled', !within);
+        el.setAttribute('aria-disabled', within ? 'false' : 'true');
+    });
 
     if (!pickup) {
-        float.title = 'Ubicando punto de recogida…';
+        if (float) float.title = 'Ubicando punto de recogida…';
     } else if (!pos) {
-        float.title = 'Obteniendo GPS… botón activo a ≤ 1 km del pasajero';
+        if (float) float.title = 'Obteniendo GPS… botón activo a ≤ 1 km del pasajero';
     } else if (within) {
-        float.title = 'Toca para marcar llegada · arrastra para mover';
+        if (float) float.title = 'Toca para marcar llegada · arrastra para mover';
     } else {
         const distLabel = dist >= 1000
             ? `${(dist / 1000).toFixed(1)} km`
             : `${Math.round(dist)} m`;
-        float.title = `A ${distLabel} del pasajero · botón activo a ≤ 1 km`;
+        if (float) float.title = `A ${distLabel} del pasajero · botón activo a ≤ 1 km`;
     }
 };
 

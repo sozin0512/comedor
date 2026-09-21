@@ -6,10 +6,10 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const VERSION = '2026.08.03.4';
+const VERSION = '2026.09.20.6';
 const TITLE = 'HonduRaite · Nueva versión disponible';
 const BODY =
-    `Actualización ${VERSION}: navegación post-PIN, mapa del pasajero más estable, y rutas de ofertas limpias. Toca Actualizar o cierra y abre la app. ¡Gracias!`;
+    `Actualización ${VERSION}: recarga la app. Viajes al conductor más cercano, ruta por calles, avisos con la app cerrada y más. Toca Actualizar o cierra y abre HonduRaite.`;
 const APP_ID = 'comayagua-vip-pro-v4';
 const PROJECT = 'comedor-86278';
 const CFG_PATH = path.join(
@@ -106,6 +106,8 @@ async function main() {
             message: { stringValue: `${TITLE} — ${BODY}` },
             broadcast: { booleanValue: true },
             broadcastPush: { booleanValue: true },
+            sendPush: { booleanValue: true },
+            forceUpdate: { booleanValue: true },
             type: { stringValue: 'app_update' },
             version: { stringValue: VERSION },
             tag: { stringValue: `app-update-${VERSION}` },

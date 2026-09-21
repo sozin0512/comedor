@@ -13,6 +13,8 @@ const PUSH_ICON = `https://${process.env.GCLOUD_PROJECT || 'comedor-86278'}.web.
 const ADMIN_EMAIL = 'josuesoza0513@gmail.com';
 const APP_ID = 'comayagua-vip-pro-v4';
 const TRIP_OFFER_TIMEOUT_MS = 120 * 1000;
+/** Primer tramo: solo el conductor más cercano. Luego se abre a toda la ciudad. */
+const TRIP_OFFER_EXCLUSIVE_MS = 18 * 1000;
 const TRIP_OFFER_NEGOTIATION_HOLD_MS = 180 * 1000;
 const SCHEDULED_TRIP_PREP_MINUTES = 30;
 const SCHEDULED_TRIP_PREP_MS = SCHEDULED_TRIP_PREP_MINUTES * 60 * 1000;
@@ -307,6 +309,10 @@ function driverLocCanServeTripZone(loc, tripZone, distKm, { allowSpill = false, 
     if (dZone && !sameDepartment(dZone, tripZone)) return false;
 
     const coverage = getCityCoverageKm(tripZone);
+    // Al lado del pasajero: cuenta aunque el perfil tenga otra ciudad del mismo depto.
+    if (Number.isFinite(distKm) && distKm <= 1.5) {
+        if (!dZone || sameDepartment(dZone, tripZone)) return true;
+    }
     // Sin ciudad de trabajo: el GPS dentro de esa ciudad sí cuenta
     if (!dZone && Number.isFinite(distKm) && distKm <= coverage) return true;
 
@@ -1050,8 +1056,13 @@ exports.acceptDriverTrip = onCall(async (request) => {
             'El pasajero aÃºn no confirmÃ³ este viaje armado por staff.'
         );
     }
-    // Marketplace abierto (UI muestra a todos los elegibles): offeredToDriverId solo prioriza push/aviso,
-    // NO bloquea aceptar. Antes: "Esta oferta ya fue para otro conductor" aunque el viaje se veÃ­a en lista.
+    // Hibrido: 18s exclusivos al mas cercano. Despues se abre a toda la ciudad.
+    if (isExclusiveWindowOpen(trip) && trip.offeredToDriverId && trip.offeredToDriverId !== uid) {
+        throw new HttpsError(
+            'failed-precondition',
+            'Este viaje se está ofreciendo al conductor más cercano. En unos segundos se abre a todos en la ciudad.'
+        );
+    }
     const declined = Array.isArray(trip.declinedDriverIds) ? trip.declinedDriverIds : [];
     if (declined.includes(uid)) {
         throw new HttpsError('failed-precondition', 'Ya rechazaste este viaje.');
@@ -1168,6 +1179,84 @@ exports.cancelTrip = onCall(async (request) => {
     }
 
     const previousStatus = trip.status;
+    const chatbotTrip = !!(
+        trip.createdVia === 'whatsapp'
+        || trip.staffCreatedBy === 'whatsapp-assistant'
+        || trip.guestClient === true
+        || trip.guestInvitePending === true
+        || String(trip.clientId || '').startsWith('guest_')
+    );
+    const driverDrop = isDriver && !isClient && ['accepted', 'in_progress', 'scheduled'].includes(previousStatus);
+
+    if (driverDrop && chatbotTrip) {
+        const declined = Array.isArray(trip.declinedDriverIds) ? trip.declinedDriverIds.map(String) : [];
+        if (!declined.includes(uid)) declined.push(uid);
+        await tripRef.update({
+            status: 'pending',
+            driverId: null,
+            driverName: null,
+            driverPhone: null,
+            driverPhoto: null,
+            driverVehicle: FieldValue.delete(),
+            driverVehicleType: FieldValue.delete(),
+            driverArrived: false,
+            driverArrivedDestination: false,
+            driverLiveLat: FieldValue.delete(),
+            driverLiveLng: FieldValue.delete(),
+            driverLiveHeading: FieldValue.delete(),
+            acceptedAt: FieldValue.delete(),
+            pinVerified: false,
+            declinedDriverIds: declined,
+            lastDroppedDriverId: uid,
+            lastDroppedDriverAt: FieldValue.serverTimestamp(),
+            requeuedFromDriverCancel: true,
+            requeuedCount: (Number(trip.requeuedCount) || 0) + 1,
+            offeredToDriverId: null,
+            offeredToDriverName: null,
+            candidateDriverIds: [],
+            offerSentAt: null,
+            offerDistanceKm: null,
+            offerToBusyDriver: false,
+            offerSearchTier: null,
+            offerPhase: FieldValue.delete(),
+            eligibleDriverAlertSent: false,
+            eligibleDriverDeptAlertSent: false,
+            waDriverOfferUids: [],
+            waTripConfirmedOk: false
+        });
+        const fresh = { ...trip, status: 'pending', driverId: null, declinedDriverIds: declined };
+        try {
+            const wa = require('./whatsapp-cloud');
+            await wa.notifyPassengerDriverDroppedWa(fresh, tripId);
+        } catch (e) {
+            console.warn('cancelTrip wa requeue', e?.message || e);
+        }
+        if (trip.clientId && !String(trip.clientId).startsWith('guest_')) {
+            await sendPushToUser(APP_ID, trip.clientId, {
+                title: 'El conductor canceló',
+                body: 'Ya estamos buscando otro conductor para tu viaje.',
+                data: {
+                    type: 'trip_requeued',
+                    tripId,
+                    openPassenger: 'true',
+                    superVibrate: 'true',
+                    tag: `trip-requeued-${tripId}`
+                },
+                highPriority: true
+            }).catch(() => {});
+        }
+        await alertDriversForPendingTrip(APP_ID, tripId, fresh).catch((e) => {
+            console.warn('cancelTrip requeue offer', e?.message || e);
+        });
+        return {
+            ok: true,
+            tripId,
+            requeued: true,
+            cancelledFromStatus: previousStatus,
+            cancelledBy: uid
+        };
+    }
+
     await tripRef.update({
         status: 'cancelled',
         cancelledBy: uid,
@@ -1533,6 +1622,94 @@ function collectFcmTokenList(...maps) {
     return [...out];
 }
 
+const FCM_TOKEN_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
+const FCM_TOKEN_MAX_KEEP = 24;
+
+function fcmTokenMapEntries(raw) {
+    if (!raw) return [];
+    if (typeof raw === 'string') {
+        return looksLikeFcmToken(raw) ? [{ key: raw.replace(/\./g, '_'), token: raw, updatedAt: 0 }] : [];
+    }
+    if (Array.isArray(raw)) {
+        return raw.map((t, i) => {
+            const token = typeof t === 'string' ? t : (t?.token || t?.value || '');
+            const updatedAt = (t && typeof t === 'object') ? (Number(t.updatedAt) || 0) : 0;
+            return { key: String(i), token, updatedAt };
+        }).filter((e) => looksLikeFcmToken(e.token));
+    }
+    if (typeof raw !== 'object') return [];
+    return Object.entries(raw).map(([key, entry]) => {
+        const token = typeof entry === 'string'
+            ? entry
+            : (entry?.token || entry?.value || (looksLikeFcmToken(key) ? key.replace(/_/g, '.') : ''));
+        const updatedAt = (entry && typeof entry === 'object') ? (Number(entry.updatedAt) || 0) : 0;
+        return { key, token, updatedAt };
+    }).filter((e) => e.key);
+}
+
+function liveFcmTokensFromMaps(maps, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, maxKeep = FCM_TOKEN_MAX_KEEP } = {}) {
+    const byToken = new Map();
+    for (const raw of maps) {
+        for (const e of fcmTokenMapEntries(raw)) {
+            if (!looksLikeFcmToken(e.token)) continue;
+            const prev = byToken.get(e.token);
+            if (!prev || (e.updatedAt || 0) > (prev.updatedAt || 0)) byToken.set(e.token, e);
+        }
+    }
+    const cutoff = Date.now() - maxAgeMs;
+    const ranked = [...byToken.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const fresh = ranked.filter((e) => e.updatedAt >= cutoff);
+    const pick = (fresh.length ? fresh : ranked).slice(0, maxKeep);
+    return pick.map((e) => e.token);
+}
+
+function staleFcmTokenDeletePatch(raw, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, maxKeep = FCM_TOKEN_MAX_KEEP } = {}) {
+    const entries = fcmTokenMapEntries(raw);
+    if (entries.length <= maxKeep) {
+        const cutoff = Date.now() - maxAgeMs;
+        const patch = {};
+        let n = 0;
+        for (const e of entries) {
+            if (e.updatedAt > 0 && e.updatedAt < cutoff) {
+                patch[`fcmTokens.${e.key}`] = FieldValue.delete();
+                n += 1;
+            }
+        }
+        return n ? patch : null;
+    }
+    const cutoff = Date.now() - maxAgeMs;
+    const ranked = [...entries].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const keep = new Set();
+    for (const e of ranked) {
+        if (e.updatedAt > 0 && e.updatedAt < cutoff) continue;
+        if (keep.size >= maxKeep) continue;
+        keep.add(e.key);
+    }
+    const patch = {};
+    let n = 0;
+    for (const e of entries) {
+        if (!keep.has(e.key)) {
+            patch[`fcmTokens.${e.key}`] = FieldValue.delete();
+            n += 1;
+        }
+    }
+    return n ? patch : null;
+}
+
+async function pruneUserFcmTokenMaps(appId, uid, pubTokens, privTokens) {
+    const jobs = [];
+    const pubPatch = staleFcmTokenDeletePatch(pubTokens);
+    const privPatch = staleFcmTokenDeletePatch(privTokens);
+    if (pubPatch) {
+        jobs.push(db.doc(`artifacts/${appId}/public/data/users/${uid}`).update(pubPatch).catch(() => {}));
+    }
+    if (privPatch) {
+        jobs.push(db.doc(`artifacts/${appId}/users/${uid}/profile/data`).update(privPatch).catch(() => {}));
+    }
+    if (jobs.length) await Promise.all(jobs);
+    return jobs.length;
+}
+
 function requiredRideVehicleType(tripServiceType) {
     const trip = String(tripServiceType || 'auto').toLowerCase();
     if (trip === 'taxi') return 'taxi';
@@ -1808,14 +1985,40 @@ async function notifyOfflineFreightDrivers(appId, tripId, trip) {
     }
 }
 
+function getOfferSentMs(trip) {
+    const sent = trip?.offerSentAt;
+    if (!sent) return 0;
+    if (typeof sent.toMillis === 'function') return sent.toMillis();
+    if (typeof sent.seconds === 'number') return sent.seconds * 1000;
+    if (typeof sent === 'number') return sent;
+    return 0;
+}
+
+function isExclusiveWindowOpen(trip) {
+    if (!trip || trip.status !== 'pending' || trip.driverId) return false;
+    if (trip.offerPhase === 'city') return false;
+    if (trip.offerPhase !== 'exclusive' || !trip.offeredToDriverId) return false;
+    const sentMs = getOfferSentMs(trip);
+    if (!sentMs) return true;
+    return Date.now() - sentMs < TRIP_OFFER_EXCLUSIVE_MS;
+}
+
+function isExclusiveWindowExpired(trip) {
+    if (!trip || trip.offerPhase === 'city') return true;
+    if (trip.offerPhase !== 'exclusive' || !trip.offeredToDriverId) return false;
+    const sentMs = getOfferSentMs(trip);
+    return sentMs > 0 && Date.now() - sentMs >= TRIP_OFFER_EXCLUSIVE_MS;
+}
+
 function getDriversWithActiveOffers(tripDocs, excludeTripId = null) {
     const set = new Set();
     tripDocs.forEach((d) => {
         if (excludeTripId && d.id === excludeTripId) return;
         const t = d.data();
-        if (t.status === 'pending') {
-            if (t.offeredToDriverId) set.add(t.offeredToDriverId);
-            if (Array.isArray(t.candidateDriverIds)) t.candidateDriverIds.forEach(id => set.add(id));
+        // Solo bloquear al que tiene la ventana exclusiva viva. El pool de candidatos
+        // ya no saca al conductor de al lado de otros viajes.
+        if (t.status === 'pending' && isExclusiveWindowOpen(t) && t.offeredToDriverId) {
+            set.add(t.offeredToDriverId);
         }
     });
     return set;
@@ -1831,7 +2034,7 @@ function isOfferExpired(trip) {
         ? trip.passengerDeclinedNegotiationAt.toMillis()
         : 0;
     if (declinedAt && Date.now() - declinedAt < TRIP_OFFER_NEGOTIATION_HOLD_MS) return false;
-    const sentMs = trip.offerSentAt.toMillis ? trip.offerSentAt.toMillis() : 0;
+    const sentMs = getOfferSentMs(trip);
     return sentMs > 0 && Date.now() - sentMs > TRIP_OFFER_TIMEOUT_MS;
 }
 
@@ -1852,7 +2055,8 @@ async function fetchTripDocsForOffer(appId) {
 async function collectDriversForTripOffer(appId, trip, tripDocs, {
     busyOnly = false,
     allowSpill = false,
-    maxDistKm = null
+    maxDistKm = null,
+    includeStaleIfVeryClose = false
 } = {}) {
     const declined = trip.declinedDriverIds || [];
     const originLat = trip.originLat;
@@ -1890,12 +2094,20 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
         if (busyOnly && driverAlreadyReservedAnotherPassenger(tripDocs, driverId, trip.id)) continue;
 
         const loc = d.data();
-        if (!loc.lat || !loc.lng || !isDriverOnline(loc)) continue;
+        if (!loc.lat || !loc.lng) continue;
+
+        const dist = haversineKm(originLat, originLng, loc.lat, loc.lng);
+        if (!isDriverOnline(loc)) {
+            const locAge = Date.now() - (loc.updatedAt || 0);
+            const recentlyClose = includeStaleIfVeryClose
+                && loc.online !== false
+                && dist <= 0.5
+                && locAge <= 3 * 60 * 1000;
+            if (!recentlyClose) continue;
+        }
 
         const userData = userById.get(driverId) || {};
         if (!locOrProfileCanServeTrip(loc, userData, trip.serviceType || 'auto')) continue;
-
-        const dist = haversineKm(originLat, originLng, loc.lat, loc.lng);
         if (!driverLocCanServeTripZone(loc, tripZone, dist, { allowSpill, maxDistKm: limitKm })) {
             continue;
         }
@@ -1964,6 +2176,31 @@ async function findDriversForTripOffer(appId, trip, tripDocs) {
     };
 }
 
+/** El más cercano en la ciudad (GPS al punto de recogida). Sin desborde depto. */
+async function findClosestDriverForExclusive(appId, trip, tripDocs) {
+    const tripZone = resolveTripZoneId(trip);
+    const cityKm = getCityCoverageKm(tripZone);
+    const sorted = await collectDriversForTripOffer(appId, trip, tripDocs, {
+        busyOnly: false,
+        allowSpill: false,
+        maxDistKm: cityKm,
+        includeStaleIfVeryClose: true
+    });
+    if (sorted.length) {
+        return { candidates: [sorted[0]], tier: 'near', busy: false };
+    }
+    const busy = await collectDriversForTripOffer(appId, trip, tripDocs, {
+        busyOnly: true,
+        allowSpill: false,
+        maxDistKm: cityKm,
+        includeStaleIfVeryClose: true
+    });
+    if (busy.length) {
+        return { candidates: [busy[0]], tier: 'busy_near', busy: true };
+    }
+    return { candidates: [], tier: null, busy: false };
+}
+
 async function findBusyDriversForTripOffer(appId, trip, tripDocs) {
     const spillCtx = await resolveTripOfferSpillContext(appId, trip);
     const sorted = await collectDriversForTripOffer(appId, trip, tripDocs, {
@@ -1991,11 +2228,11 @@ async function findBusyDriversForTripOffer(appId, trip, tripDocs) {
 async function assignNextTripOfferServer(appId, tripId) {
     const tripRef = db.doc(`artifacts/${appId}/public/data/trips/${tripId}`);
     const tripSnap = await tripRef.get();
-    if (!tripSnap.exists) return;
+    if (!tripSnap.exists) return false;
 
     const trip = { id: tripSnap.id, ...tripSnap.data() };
-    if (trip.isDemandSimulation) return;
-    if (trip.status !== 'pending' || trip.driverId) return;
+    if (trip.isDemandSimulation) return false;
+    if (trip.status !== 'pending' || trip.driverId) return false;
     const zoneMeta = resolveTripZoneMeta(trip);
     if (zoneMeta.id && zoneMeta.id !== trip.serviceZoneId) {
         trip.serviceZoneId = zoneMeta.id;
@@ -2011,77 +2248,77 @@ async function assignNextTripOfferServer(appId, tripId) {
             serviceDepartment: zoneMeta.department || null
         }).catch(() => {});
     }
-    // Staff armÃ³ el viaje: NO ofertar a conductores hasta que el cliente toque Â«Quiero este viajeÂ»
-    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
+    // Staff armó el viaje: NO ofertar a conductores hasta que el cliente toque «Quiero este viaje»
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return false;
     const bidCount = trip.driverBids && typeof trip.driverBids === 'object'
         ? Object.keys(trip.driverBids).length
         : 0;
-    if (bidCount > 0) return;
-    if (trip.offeredToDriverId && !isOfferExpired(trip)) return;
+    if (bidCount > 0) return false;
+    if (trip.offerPhase === 'city') return false;
+    if (isExclusiveWindowOpen(trip)) return true;
+    if (trip.offerPhase === 'exclusive' && isExclusiveWindowExpired(trip)) return false;
 
     const tripDocs = await fetchTripDocsForOffer(appId);
+    const offerResult = await findClosestDriverForExclusive(appId, trip, tripDocs);
+    const next = offerResult.candidates[0];
 
-    let offerResult = await findDriversForTripOffer(appId, trip, tripDocs);
-    let candidates = offerResult.candidates;
-    let offerTier = offerResult.tier;
-    let offerToBusyDriver = false;
-    let spillMeta = {
-        allowSpill: !!offerResult.allowSpill,
-        hasLocalFleet: offerResult.hasLocalFleet
-    };
-
-    if (!candidates.length) {
-        const busyResult = await findBusyDriversForTripOffer(appId, trip, tripDocs);
-        candidates = busyResult.candidates;
-        offerTier = busyResult.tier;
-        offerToBusyDriver = busyResult.busy && candidates.length > 0;
-        offerResult = { ...busyResult, allowSpill: spillMeta.allowSpill || busyResult.allowSpill, hasLocalFleet: spillMeta.hasLocalFleet };
-        spillMeta.allowSpill = !!offerResult.allowSpill;
-    }
-
-    if (!candidates.length) {
+    if (!next) {
         console.warn(
-            `[assignNextTripOfferServer] No candidates for trip ${tripId}. zone ${resolveTripZoneId(trip) || 'N/A'} ` +
-            `spill=${!!offerResult.allowSpill} localFleet=${offerResult.hasLocalFleet}`
+            `[assignNextTripOfferServer] No exclusive candidate for trip ${tripId}. zone ${resolveTripZoneId(trip) || 'N/A'}`
         );
-        // Marcar para diagnÃ³stico en consola staff / cliente
         await tripRef.update({
             offerNoCandidatesAt: FieldValue.serverTimestamp(),
             offerNoCandidatesZone: resolveTripZoneId(trip) || null,
-            offerTriedSpill: !!offerResult.allowSpill,
-            offerLocalFleet: offerResult.hasLocalFleet === true
+            offerTriedSpill: false,
+            offerLocalFleet: null
         }).catch(() => {});
-        return;
+        return false;
     }
-
-    const topN = candidates.slice(0, TRIP_OFFER_POOL_SIZE);
-    const next = topN[0];
 
     await db.runTransaction(async (tx) => {
         const fresh = await tx.get(tripRef);
         if (!fresh.exists) return;
         const d = fresh.data();
         if (d.status !== 'pending' || d.driverId) return;
-        const liveBidCount = d.driverBids && typeof d.driverBids === 'object'
-            ? Object.keys(d.driverBids).length
-            : 0;
-        if (liveBidCount > 0) return;
-        if (d.offeredToDriverId && d.offerSentAt) {
-            const sentMs = d.offerSentAt.toMillis ? d.offerSentAt.toMillis() : 0;
-            if (sentMs && Date.now() - sentMs <= TRIP_OFFER_TIMEOUT_MS) return;
-        }
+        if (d.offerPhase === 'city') return;
+        if (isExclusiveWindowOpen(d)) return;
         tx.update(tripRef, {
             offeredToDriverId: next.driverId,
             offeredToDriverName: next.name,
             offerSentAt: FieldValue.serverTimestamp(),
             offerDistanceKm: next.distanceKm,
-            offerToBusyDriver: offerToBusyDriver || !!next.busy,
-            offerSearchTier: offerTier || null,
-            offerUsedNearbySpill: !!offerResult.allowSpill || !!next.spill,
-            offerLocalFleet: offerResult.hasLocalFleet === true,
+            offerToBusyDriver: !!offerResult.busy || !!next.busy,
+            offerSearchTier: offerResult.tier || 'near',
+            offerPhase: 'exclusive',
+            offerUsedNearbySpill: false,
             declinedDriverIds: d.declinedDriverIds || [],
-            candidateDriverIds: topN.map((c) => c.driverId)
+            candidateDriverIds: [next.driverId]
         });
+    });
+    const afterSnap = await tripRef.get();
+    return isExclusiveWindowOpen({ id: tripId, ...(afterSnap.data() || {}) });
+}
+
+async function openTripOfferToCity(appId, tripId) {
+    const tripRef = db.doc(`artifacts/${appId}/public/data/trips/${tripId}`);
+    const tripSnap = await tripRef.get();
+    if (!tripSnap.exists) return;
+    const trip = { id: tripSnap.id, ...tripSnap.data() };
+    if (trip.status !== 'pending' || trip.driverId || trip.isDemandSimulation) return;
+    if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
+    if (trip.offerPhase === 'city') {
+        if (!trip.eligibleDriverAlertSent) {
+            await notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment: false }).catch(() => {});
+        }
+        return;
+    }
+    await tripRef.update({
+        offerPhase: 'city',
+        offerOpenedToCityAt: FieldValue.serverTimestamp()
+    }).catch(() => {});
+    const opened = { ...trip, offerPhase: 'city' };
+    await notifyEligibleDriversNewTrip(appId, tripId, opened, { expandDepartment: false }).catch((e) => {
+        console.warn('openTripOfferToCity notify', e?.message || e);
     });
 }
 
@@ -2095,7 +2332,12 @@ async function getUserPushMeta(appId, uid) {
     ]);
     const pub = pubSnap?.exists ? (pubSnap.data() || {}) : {};
     const priv = privSnap?.exists ? (privSnap.data() || {}) : {};
-    const tokens = collectFcmTokenList(pub.fcmTokens, priv.fcmTokens, pub.fcmToken, priv.fcmToken);
+    const tokens = liveFcmTokensFromMaps([pub.fcmTokens, priv.fcmTokens, pub.fcmToken, priv.fcmToken]);
+    const bloated = fcmTokenMapEntries(pub.fcmTokens).length > FCM_TOKEN_MAX_KEEP
+        || fcmTokenMapEntries(priv.fcmTokens).length > FCM_TOKEN_MAX_KEEP;
+    if (bloated) {
+        pruneUserFcmTokenMaps(appId, uid, pub.fcmTokens, priv.fcmTokens).catch(() => {});
+    }
     const mode = pub.pushSoundMode === 'soft' || pub.pushSoundMode === 'normal'
         ? pub.pushSoundMode
         : 'temu';
@@ -2237,13 +2479,20 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         }
     };
 
-    const res = await getMessaging().sendEachForMulticast(payload);
+    const uniqueTokens = [...new Set(tokens.filter(Boolean))];
+    const CHUNK = 500;
+    let sent = 0;
     const invalid = [];
-    res.responses.forEach((r, i) => {
-        if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
-            invalid.push(tokens[i]);
-        }
-    });
+    for (let i = 0; i < uniqueTokens.length; i += CHUNK) {
+        const chunk = uniqueTokens.slice(i, i + CHUNK);
+        const res = await getMessaging().sendEachForMulticast({ ...payload, tokens: chunk });
+        sent += res.successCount || 0;
+        res.responses.forEach((r, idx) => {
+            if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
+                invalid.push(chunk[idx]);
+            }
+        });
+    }
 
     if (invalid.length) {
         const updates = {};
@@ -2255,7 +2504,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             db.doc(`artifacts/${appId}/users/${uid}/profile/data`).update(updates).catch(() => {})
         ]);
     }
-    return { sent: res.successCount || 0, tokens: tokens.length };
+    return { sent, tokens: uniqueTokens.length };
 }
 
 /**
@@ -2393,7 +2642,7 @@ async function notifyStaffNewTrip(appId, tripId, trip) {
  * Marketplace abierto: no solo al offeredToDriverId.
  */
 async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = []) {
-    const ids = [...new Set((driverIds || []).map(String).filter(Boolean))].slice(0, 8);
+    const ids = [...new Set((driverIds || []).map(String).filter(Boolean))].slice(0, 30);
     if (!ids.length || !tripId) return;
     const already = new Set((trip.waDriverOfferUids || []).map(String));
     const pending = ids.filter((id) => !already.has(id));
@@ -2410,7 +2659,7 @@ async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = [])
             const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${uid}`).get();
             const phone = uSnap.exists ? (uSnap.data()?.phone || uSnap.data()?.driverPhone || null) : null;
             if (!phone) continue;
-            const r = await wa.notifyDriverNewTripWa(trip, tripId, { phone, uid });
+            const r = await wa.notifyDriverNewTripWa(trip, tripId, { phone, uid, tripId });
             if (r?.ok) sent.push(uid);
         } catch (e) {
             console.warn('[wa] driver new trip', uid, e?.message || e);
@@ -2427,6 +2676,7 @@ async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = [])
 async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment = false } = {}) {
     if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
+    if (isExclusiveWindowOpen(trip) && !expandDepartment) return;
     if (!expandDepartment && trip.eligibleDriverAlertSent) return;
     if (expandDepartment && trip.eligibleDriverDeptAlertSent) return;
 
@@ -2551,11 +2801,20 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
     );
 
     const waTargets = [];
-    if (trip.offeredToDriverId && !lockedDrivers.has(String(trip.offeredToDriverId))) {
-        waTargets.push(String(trip.offeredToDriverId));
-    }
-    (trip.candidateDriverIds || []).forEach((id) => {
+    const addWa = (id) => {
         if (id && !lockedDrivers.has(String(id))) waTargets.push(String(id));
+    };
+    if (trip.offeredToDriverId) addWa(trip.offeredToDriverId);
+    (trip.candidateDriverIds || []).forEach(addWa);
+    // App cerrada / sin GPS fresco: el push a veces no llega; WhatsApp sí.
+    const orderedPushIds = [
+        ...cityList.slice(0, 400),
+        ...nearbyList.slice(0, Math.max(0, 400 - cityList.length))
+    ];
+    orderedPushIds.forEach((id, i) => {
+        const loc = locByDriver.get(id) || {};
+        const noToken = pushResults[i] && pushResults[i].tokens === 0;
+        if (!isDriverOnline(loc) || noToken) addWa(id);
     });
     await notifyDriversNewTripWhatsApp(appId, tripId, trip, waTargets).catch(() => {});
 
@@ -2586,6 +2845,7 @@ async function expandPendingTripToDepartment(appId, tripId, tripLike = null) {
     if (!trip) return;
     if (trip.status !== 'pending' || trip.driverId || trip.isDemandSimulation) return;
     if (isStaffTripWaitingClientClaim(trip)) return;
+    if (isExclusiveWindowOpen(trip) || (trip.offerPhase && trip.offerPhase !== 'city')) return;
     await notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment: true }).catch((e) => {
         console.warn('expandPendingTripToDepartment', e?.message || e);
     });
@@ -2594,11 +2854,14 @@ async function expandPendingTripToDepartment(appId, tripId, tripLike = null) {
 }
 
 async function alertDriversForPendingTrip(appId, tripId, trip) {
-    await assignNextTripOfferServer(appId, tripId).catch(() => {});
-    await notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment: false }).catch((e) => {
-        console.warn('notifyEligibleDriversNewTrip', e?.message || e);
-    });
+    const assignedExclusive = await assignNextTripOfferServer(appId, tripId).catch(() => false);
     await notifyStaffNewTrip(appId, tripId, trip).catch(() => {});
+    if (assignedExclusive) {
+        await sleep(TRIP_OFFER_EXCLUSIVE_MS);
+    }
+    await openTripOfferToCity(appId, tripId).catch((e) => {
+        console.warn('openTripOfferToCity', e?.message || e);
+    });
     await sleep(TRIP_DEPT_EXPAND_MS);
     await expandPendingTripToDepartment(appId, tripId);
 }
@@ -2675,32 +2938,18 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
     const tripDocs = await fetchPendingTripDocs(APP_ID);
     for (const d of tripDocs) {
         const t = d.data();
-        // No rotar ofertas de viajes que el cliente aÃºn no reclamÃ³
         if (isStaffTripWaitingClientClaim(t)) continue;
-        if (!t.offeredToDriverId || !isOfferExpired(t)) continue;
-        try {
-            await db.doc(`artifacts/${APP_ID}/public/data/trips/${d.id}`).update({
-                offeredToDriverId: null,
-                offeredToDriverName: null,
-                candidateDriverIds: [],
-                offerSentAt: null,
-                offerDistanceKm: null,
-                offerToBusyDriver: false,
-                offerSearchTier: null
-            });
-            await assignNextTripOfferServer(APP_ID, d.id);
-        } catch (_) {}
-    }
-
-    for (const d of tripDocs) {
-        const t = d.data();
-        if (isStaffTripWaitingClientClaim(t)) continue;
-        if (t.offeredToDriverId || t.driverId || t.isDemandSimulation) continue;
-        const bidCount = t.driverBids && typeof t.driverBids === 'object'
-            ? Object.keys(t.driverBids).length
-            : 0;
-        if (bidCount > 0) continue;
-        await assignNextTripOfferServer(APP_ID, d.id).catch(() => {});
+        if (t.driverId || t.isDemandSimulation) continue;
+        // Respaldo si el create se cayó: abrir a la ciudad al vencer los 18s
+        if (t.offerPhase !== 'city' && (isExclusiveWindowExpired(t) || !t.offeredToDriverId)) {
+            if (!t.offeredToDriverId && t.offerPhase !== 'exclusive') {
+                const got = await assignNextTripOfferServer(APP_ID, d.id).catch(() => false);
+                if (got) continue;
+            }
+            if (!isExclusiveWindowOpen(t)) {
+                await openTripOfferToCity(APP_ID, d.id).catch(() => {});
+            }
+        }
     }
 
     // Respaldo: si el viaje lleva 15s+ y no se expandió al departamento
@@ -2708,6 +2957,7 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
         const t = d.data();
         if (isStaffTripWaitingClientClaim(t)) continue;
         if (t.status !== 'pending' || t.driverId || t.isDemandSimulation) continue;
+        if (isExclusiveWindowOpen(t) || t.offerPhase !== 'city') continue;
         if (t.eligibleDriverDeptAlertSent) continue;
         if (!tripIsOldEnoughForDepartmentSpill(t)) continue;
         await expandPendingTripToDepartment(APP_ID, d.id, t).catch(() => {});
@@ -3182,6 +3432,17 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 highPriority: true
             }).catch(() => {})));
             await notifyDriversNewTripWhatsApp(appId, tripId, after, [...pushRecipients]).catch(() => {});
+        }
+
+        // El más cercano pasó / rechazó: abrir a la ciudad de inmediato
+        if (
+            after.status === 'pending'
+            && !after.driverId
+            && before.offeredToDriverId
+            && !after.offeredToDriverId
+            && (before.offerPhase === 'exclusive' || after.offerPhase === 'exclusive')
+        ) {
+            await openTripOfferToCity(appId, tripId).catch(() => {});
         }
 
         // â€”â€” Oferta de precio del conductor â†’ push al pasajero (aunque estÃ© en otra app) â€”â€”
@@ -4063,6 +4324,35 @@ async function expireDriverObjectivesForApp(appId) {
     }
     return processed;
 }
+
+exports.pruneStaleFcmTokens = onSchedule(
+    {
+        schedule: '20 3 * * *',
+        timeZone: 'America/Tegucigalpa',
+        timeoutSeconds: 540,
+        memory: '512MiB'
+    },
+    async () => {
+        const snap = await db.collection(`artifacts/${APP_ID}/public/data/users`).get();
+        let scanned = 0;
+        let pruned = 0;
+        for (const userDoc of snap.docs) {
+            scanned += 1;
+            const pub = userDoc.data() || {};
+            const entries = fcmTokenMapEntries(pub.fcmTokens);
+            if (entries.length <= FCM_TOKEN_MAX_KEEP) continue;
+            let privTokens = null;
+            try {
+                const privSnap = await db.doc(`artifacts/${APP_ID}/users/${userDoc.id}/profile/data`).get();
+                privTokens = privSnap.exists ? (privSnap.data()?.fcmTokens || null) : null;
+            } catch (_) {}
+            const n = await pruneUserFcmTokenMaps(APP_ID, userDoc.id, pub.fcmTokens, privTokens);
+            if (n) pruned += 1;
+        }
+        console.log(`[pruneStaleFcmTokens] scanned=${scanned} prunedUsers=${pruned}`);
+        return { scanned, pruned };
+    }
+);
 
 exports.expireDriverObjectives = onSchedule('every 15 minutes', async () => {
     try {

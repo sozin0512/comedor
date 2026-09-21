@@ -18,9 +18,26 @@ Sigue `tu_viaje_esta_confirmado`: `{{1}}` nombre · `{{2}}` ruta Origen → Dest
 | Campo | Valor |
 |--------|--------|
 | **Nombre en código** | `nuevo_viaje` (`WHATSAPP_TEMPLATE_DRIVER_NEW_TRIP`) |
-| **Variables** | `{{1}}` origen · `{{2}}` destino · `{{3}}` distancia (`3.8 km`) |
+| **Variables** | `{{1}}` origen · `{{2}}` destino · `{{3}}` distancia · `{{4}}` link (`https://honduraite.com/?trip=ID#driver`) |
 
-Se envía al conductor ofertado (y candidatos del pool), no al pasajero.
+**Cuerpo en Meta (actualizar y enviar a revisión):**
+
+```
+Hay un viaje nuevo en HonduRaite.
+
+Origen: {{1}}
+Destino: {{2}}
+Distancia: {{3}}
+
+Entra a la plataforma y acéptalo aquí:
+{{4}}
+```
+
+Botón opcional (CTA URL): `https://honduraite.com/?trip=` + sufijo dinámico.
+
+Hasta que Meta apruebe las 4 variables, el código manda las 3 actuales y, si el conductor ya escribió al bot (ventana 24 h), un texto extra con el link.
+
+Se envía a conductores de la ciudad (app cerrada / sin push) y al ofertado.
 
 ---
 

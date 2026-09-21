@@ -13273,7 +13273,7 @@
             display: flex;
             flex-direction: column;
             gap: 0.3rem;
-            max-height: 7.5rem;
+            max-height: min(42vh, 22rem);
             overflow-y: auto;
         }
 
@@ -13344,6 +13344,24 @@
             font-size: 0.56rem;
             font-weight: 700;
             color: #94a3b8;
+        }
+
+        .ops-trip-viewer-num {
+            color: #93c5fd;
+            font-weight: 900;
+            margin-right: 0.15rem;
+        }
+
+        .ops-trip-viewer-time {
+            font-size: 0.58rem;
+            font-weight: 800;
+            color: #e2e8f0;
+            letter-spacing: 0.01em;
+        }
+
+        .ops-trip-viewer-time i {
+            margin-right: 0.25rem;
+            color: #38bdf8;
         }
 
         .ops-trip-viewer-tag {
@@ -14610,7 +14628,7 @@
         }
 
         /* Pasajero · tarjeta del conductor: cabecera fija + Minimizar siempre visible */
-        #client-trip-float.trip-float:not(.trip-float--min) {
+        #client-trip-float.trip-float:not(.trip-float--min):not(.hidden) {
             display: flex;
             flex-direction: column;
             max-height: min(78dvh, calc(100dvh - var(--safe-top, 28px) - var(--safe-bottom, 12px) - 4.25rem));
@@ -14706,6 +14724,12 @@
         }
 
         /* â€”â€” Flotante unificado pasajero: conductor + PIN (1 sola tarjeta) â€”â€” */
+        body.driver-mode #client-trip-float,
+        body.trip-active.driver-mode #client-trip-float,
+        #client-trip-float.hidden {
+            display: none !important;
+        }
+
         #client-trip-float.trip-float {
             max-width: min(320px, calc(100vw - 1.3rem));
             padding: 0.55rem 0.6rem 0.65rem;
@@ -15374,6 +15398,52 @@
 
         #driver-arrived-dest-float.hidden {
             display: none !important;
+        }
+
+        /* HE LLEGADO: por encima del chat; no se mete detrás de Maps/Chat */
+        #driver-arrived-float:not(.hidden),
+        #trip-floats-layer #driver-arrived-float:not(.hidden),
+        body.trip-active.driver-mode #driver-arrived-float:not(.hidden) {
+            display: block !important;
+            pointer-events: auto !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            z-index: 28560 !important;
+        }
+
+        #driver-arrived-float.hidden {
+            display: none !important;
+        }
+
+        /*
+         * Panel abierto: el CTA vive DENTRO del sheet.
+         * La pastilla flotante no debe tapar ni meterse detrás de Maps / Chat / Mapa.
+         */
+        body.trip-active.driver-mode:not(.panel-minimized) #driver-arrived-float:not(.is-dragging),
+        body.trip-active.driver-mode:not(.panel-minimized) #trip-floats-layer #driver-arrived-float:not(.is-dragging),
+        body.trip-active.driver-mode:not(.panel-minimized) #driver-arrived-dest-float:not(.is-dragging),
+        body.trip-active.driver-mode:not(.panel-minimized) #trip-floats-layer #driver-arrived-dest-float:not(.is-dragging) {
+            display: none !important;
+        }
+
+        /* Minimizado: pastilla a la izquierda, chat a la derecha — no se solapan */
+        body.trip-active.driver-mode.panel-minimized #driver-arrived-float:not(.hidden):not(.is-drag-positioned),
+        body.trip-active.driver-mode.panel-minimized #driver-arrived-dest-float:not(.hidden):not(.is-drag-positioned) {
+            left: 0.65rem !important;
+            right: auto !important;
+        }
+
+        body.trip-active.driver-mode #driver-panel-arrived-btn {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+            box-shadow: 0 8px 22px rgba(37, 99, 235, 0.32);
+            min-height: 3.25rem !important;
+            border-radius: 1rem !important;
+            letter-spacing: 0.1em;
+        }
+
+        body.trip-active.driver-mode #driver-panel-arrived-btn.is-disabled {
+            opacity: 0.55;
+            filter: grayscale(0.15);
         }
 
         .trip-chat-pill {
@@ -17043,6 +17113,7 @@
             display: none !important;
         }
 
+        body.trip-active.driver-mode #driver-panel-arrived-btn:not(.hidden),
         body.trip-active.driver-mode #driver-panel-arrived-dest-btn:not(.hidden) {
             display: flex !important;
             align-items: center;
@@ -19595,10 +19666,25 @@
         body.driver-offer-popup-open #driver-copa-map-strip,
         body.driver-offer-popup-open #test-driver-mode-badge,
         body.driver-offer-popup-open .header-copa-live,
+        #guest-follow-banner {
+            display: none !important;
+        }
+        body.guest-trip-follow:not(.driver-mode) #guest-follow-banner {
+            display: block !important;
+        }
+
+        body.driver-mode #guest-follow-banner,
+        body.driver-mode #guest-follow-panel,
+        body.driver-mode.guest-trip-follow #guest-follow-banner,
+        body.driver-mode.guest-trip-follow #guest-follow-panel {
+            display: none !important;
+        }
+
         body.guest-trip-follow #public-copa-strip,
         body.guest-trip-follow #public-pcopa-strip,
         body.guest-trip-follow #driver-copa-active,
         body.guest-trip-follow #driver-view,
+        body.guest-trip-follow #driver-earnings-float,
         body.guest-trip-follow #test-driver-mode-badge {
             opacity: 0 !important;
             pointer-events: none !important;

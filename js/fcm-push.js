@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getMessaging, getToken, isSupported, onMessage } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js';
-import { doc, getDoc, setDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert } from './trip-notifications.js';
 import { isCapacitorNative, isCapacitorAndroid } from './capacitor-native.js';
 import { getMessagingSwUrl } from './pwa-update.js';
@@ -266,6 +266,70 @@ async function registerMessagingServiceWorker() {
     return reg;
 }
 
+const FCM_TOKEN_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
+const FCM_TOKEN_MAX_KEEP = 24;
+
+function fcmTokenMapEntries(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+    return Object.entries(raw).map(([key, entry]) => {
+        const token = typeof entry === 'string'
+            ? entry
+            : (entry?.token || entry?.value || '');
+        const updatedAt = (entry && typeof entry === 'object')
+            ? (Number(entry.updatedAt) || 0)
+            : 0;
+        return { key, token, updatedAt };
+    }).filter((e) => e.key);
+}
+
+function staleFcmTokenDeletePatch(raw, { keepToken = null } = {}) {
+    const entries = fcmTokenMapEntries(raw);
+    if (!entries.length) return null;
+    const cutoff = Date.now() - FCM_TOKEN_MAX_AGE_MS;
+    const ranked = [...entries].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    const keep = new Set();
+    for (const e of ranked) {
+        if (keepToken && e.token === keepToken) {
+            keep.add(e.key);
+            continue;
+        }
+        if (e.updatedAt > 0 && e.updatedAt < cutoff) continue;
+        if (keep.size >= FCM_TOKEN_MAX_KEEP) continue;
+        if (e.updatedAt > 0 || entries.length <= FCM_TOKEN_MAX_KEEP) keep.add(e.key);
+    }
+    if (keepToken) {
+        const current = entries.find((e) => e.token === keepToken || e.key === keepToken.replace(/\./g, '_'));
+        if (current) keep.add(current.key);
+    }
+    const patch = {};
+    let n = 0;
+    for (const e of entries) {
+        if (!keep.has(e.key)) {
+            patch[`fcmTokens.${e.key}`] = deleteField();
+            n += 1;
+        }
+    }
+    return n ? patch : null;
+}
+
+async function pruneStaleFcmTokens(db, appId, uid, keepToken = null) {
+    if (!uid) return;
+    const refs = [
+        doc(db, 'artifacts', appId, 'public', 'data', 'users', uid),
+        doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data')
+    ];
+    for (const ref of refs) {
+        try {
+            const snap = await getDoc(ref);
+            if (!snap.exists()) continue;
+            const patch = staleFcmTokenDeletePatch(snap.data()?.fcmTokens, { keepToken });
+            if (patch) await setDoc(ref, patch, { merge: true });
+        } catch (e) {
+            console.warn('pruneStaleFcmTokens', e?.code || e?.message || e);
+        }
+    }
+}
+
 export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     if (!uid || !token) return;
     const tokenPatch = {
@@ -294,6 +358,7 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     }
     if (saved) {
         try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
+        pruneStaleFcmTokens(db, appId, uid, token).catch(() => {});
     }
     return saved;
 }
