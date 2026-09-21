@@ -1,7 +1,11 @@
 /** Runtime conductor: llegada a origen/destino. Se carga tras el login de conductor. */
+import { doc, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
 export function installDriverRuntime() {
     if (window.__hrDriverRuntime) return;
     window.__hrDriverRuntime = true;
+    const db = window.db;
+    const appId = window.appId;
 
 // ==================== LLEGADA AL ORIGEN (1 km) / DESTINO (1 km) — CONDUCTOR → PASAJERO ====================
 const TRIP_PICKUP_ARRIVAL_RADIUS_M = 1000;
