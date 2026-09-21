@@ -16,7 +16,7 @@ import { haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId } fro
 import { resolvePhotoUrl } from './storage.js?v=2026.08.04.3';
 import { APP_CONFIG } from './config.js?v=2026.08.04.3';
 import { calculateAge } from './age-verification.js?v=2026.08.04.3';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.08.04.3';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.09.10.2';
 
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
@@ -3038,7 +3038,7 @@ async function createDeliveryTripForOrder(order) {
         declinedDriverIds: [],
         offeredToDriverId: null,
         preferredDriverId: null,
-        negotiationEnabled: true,
+        negotiationEnabled: false,
         createdByMerchant: true,
         merchantName: profile.name || myStore?.name || '',
     };

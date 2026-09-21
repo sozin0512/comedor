@@ -13,13 +13,14 @@ import {
     setPersistence,
     browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { APP_CONFIG } from './config.js?v=2026.09.18.4';
+import { APP_CONFIG } from './config.js?v=2026.09.20.1';
 import {
     saveDriverLogin,
     restoreDriverLoginForm,
     shouldSkipDriverAutoLogin,
     clearSkipDriverAutoLogin
-} from './driver-session.js?v=2026.09.18.4';
+} from './driver-session.js?v=2026.09.20.1';
+import { applyAuthRoleUi } from './auth-ui.js?v=2026.09.20.1';
 window.APP_CONFIG = APP_CONFIG;
 
 function getPersistentAuth(app) {
@@ -60,6 +61,16 @@ function toast(msg, type) {
 function getAuthMode() {
     return window.__hrAuthMode === 'register' ? 'register' : 'login';
 }
+
+window.updateRole = function (role) {
+    applyAuthRoleUi(role);
+};
+
+window.restoreLastRoleSelection = function () {
+    let saved = 'client';
+    try { saved = localStorage.getItem('lastUserRole') || 'client'; } catch (_) {}
+    applyAuthRoleUi(saved);
+};
 
 window.setAuthMode = function (mode) {
     window.__hrAuthMode = mode === 'register' ? 'register' : 'login';
@@ -268,3 +279,5 @@ if (window.__hrPendingAuth) {
 
 const hint = document.getElementById('auth-load-hint');
 if (hint) hint.classList.add('hidden');
+
+try { window.restoreLastRoleSelection(); } catch (_) {}

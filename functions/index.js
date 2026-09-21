@@ -54,11 +54,13 @@ function formatScheduledTripWhen(iso) {
     if (!iso) return '';
     try {
         return new Date(iso).toLocaleString('es-HN', {
+            timeZone: 'America/Tegucigalpa',
             weekday: 'short',
             day: 'numeric',
             month: 'short',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            hourCycle: 'h12'
         });
     } catch (_) {
         return '';
@@ -74,6 +76,7 @@ const ZONE_DEPARTMENT = {
     ...require('./zone-departments'),
     ...require('./us-zone-departments')
 };
+const HN_CITY_CENTERS = require('./hn-city-centers');
 
 const TRIP_OFFER_NEAR_RADIUS_KM = 8;
 // MÃ¡s de 1: se guardan candidates y se les manda push (web/iOS se enteran aunque no sean el â€œprimeroâ€)
@@ -82,8 +85,31 @@ const TRIP_OFFER_POOL_SIZE = 8;
 const ENABLE_NEARBY_CITY_SPILL = true;
 /** Radio km dentro del mismo departamento (no se usa para cruzar depto.). */
 const NEARBY_CITY_SPILL_KM = 80;
+/** A los 15s: la oferta exclusiva también se desborda a ciudades cercanas del mismo departamento.
+ *  El PUSH a conductores (misma ciudad + cercanas del depto.) sale de inmediato, como al admin. */
+const TRIP_DEPT_EXPAND_MS = 15000;
 /** Offline: siempre avisar (aunque haya online), solo mismo departamento. */
 const ALWAYS_NOTIFY_OFFLINE_SAME_DEPARTMENT = true;
+
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function tripCreatedAtMs(trip) {
+    const c = trip?.createdAt;
+    if (c && typeof c.toMillis === 'function') return c.toMillis();
+    if (c && typeof c.toDate === 'function') return c.toDate().getTime();
+    if (c && typeof c.seconds === 'number') return c.seconds * 1000;
+    if (typeof c === 'number') return c;
+    if (typeof trip?.createdAtMs === 'number') return trip.createdAtMs;
+    return 0;
+}
+
+function tripIsOldEnoughForDepartmentSpill(trip) {
+    const ms = tripCreatedAtMs(trip);
+    if (!ms) return false;
+    return Date.now() - ms >= TRIP_DEPT_EXPAND_MS;
+}
 
 function getDepartmentForZone(zoneId) {
     if (!zoneId) return null;
@@ -97,11 +123,85 @@ function sameDepartment(zoneA, zoneB) {
     return a === b;
 }
 
+/** Distrito Central: Tegucigalpa y Comayagüela se alertan de inmediato. */
+const SAME_METRO_GROUPS = [
+    ['tegucigalpa', 'comayaguela']
+];
+
+function getMetroTwinIds(zoneId) {
+    const z = String(zoneId || '').toLowerCase();
+    if (!z) return [];
+    const group = SAME_METRO_GROUPS.find((g) => g.includes(z));
+    return group ? group.slice() : [z];
+}
+
+function zonesAreSameMetro(zoneA, zoneB) {
+    const a = String(zoneA || '').toLowerCase();
+    const b = String(zoneB || '').toLowerCase();
+    if (!a || !b) return false;
+    if (a === b) return true;
+    return SAME_METRO_GROUPS.some((g) => g.includes(a) && g.includes(b));
+}
+
 /** true si el conductor puede recibir notificaciones de este viaje (mismo depto.). */
 function driverZoneInTripDepartment(driverZoneId, tripZoneId) {
     if (!tripZoneId) return true;
     if (!driverZoneId) return true; // sin zona en perfil: se valida por distancia si hay
     return sameDepartment(driverZoneId, tripZoneId);
+}
+
+function getHnCityCenter(zoneId) {
+    if (!zoneId) return null;
+    const id = String(zoneId).toLowerCase();
+    return HN_CITY_CENTERS.find((c) => String(c.id).toLowerCase() === id) || null;
+}
+
+function cityCenterDistanceKm(zoneA, zoneB) {
+    const a = getHnCityCenter(zoneA);
+    const b = getHnCityCenter(zoneB);
+    if (!a || !b || a.lat == null || b.lat == null) return Infinity;
+    return haversineKm(Number(a.lat), Number(a.lng), Number(b.lat), Number(b.lng));
+}
+
+/**
+ * ¿Debe caerle el aviso de viaje nuevo a este conductor? (mismo criterio que el admin, recortado al depto.)
+ * - Misma ciudad / metro (Tegucigalpa–Comayagüela): sí.
+ * - Ciudad cercana del MISMO departamento (centros ≤ 80 km): sí, al instante, sin GPS.
+ * - Otro departamento: nunca.
+ * - Sin ciudad en el perfil: GPS cerca del origen, sin cruzar depto. si se detecta.
+ * @returns {'city'|'nearby'|null}
+ */
+function driverNewTripAlertTier(userData, loc, trip) {
+    const tripZone = resolveTripZoneId(trip);
+    if (!tripZone) return 'city';
+    if (driverIsInTripCity(userData, loc, trip)) return 'city';
+
+    const driverZone = userData?.serviceZoneId || userData?.cityId
+        || loc?.serviceZoneId || loc?.cityId || null;
+    if (driverZone) {
+        if (!sameDepartment(driverZone, tripZone)) return null;
+        const dist = cityCenterDistanceKm(driverZone, tripZone);
+        if (!Number.isFinite(dist) || dist === Infinity) return 'nearby';
+        if (dist <= NEARBY_CITY_SPILL_KM) return 'nearby';
+        return null;
+    }
+
+    if (
+        loc?.lat != null && loc?.lng != null
+        && trip.originLat != null && trip.originLng != null
+    ) {
+        const d = haversineKm(
+            Number(trip.originLat), Number(trip.originLng),
+            Number(loc.lat), Number(loc.lng)
+        );
+        const cityKm = getCityCoverageKm(tripZone);
+        const limit = Math.max(cityKm, NEARBY_CITY_SPILL_KM);
+        if (!Number.isFinite(d) || d > limit) return null;
+        const gpsCity = findNearestHnCity(loc.lat, loc.lng);
+        if (gpsCity?.id && gpsCity.department && !sameDepartment(gpsCity.id, tripZone)) return null;
+        return d <= cityKm ? 'city' : 'nearby';
+    }
+    return null;
 }
 const CITY_COVERAGE_KM = {
     comayagua: 18,
@@ -689,7 +789,7 @@ exports.validateTripCreation = onCall(async (request) => {
     const settingsRef = db.doc(`artifacts/${APP_ID}/public/data/appSettings/main`);
     const settingsSnap = await settingsRef.get();
     const settings = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
-    const globalNegotiationEnabled = settings.negotiationEnabled == null ? true : !!settings.negotiationEnabled;
+    const globalNegotiationEnabled = settings.negotiationEnabled == null ? false : !!settings.negotiationEnabled;
 
     // Revalidar saldo en servidor al CREAR el viaje (no solo al aceptar)
     const paymentMethod = String(trip.paymentMethod || 'efectivo').toLowerCase().trim();
@@ -1231,6 +1331,40 @@ function haversineKm(lat1, lng1, lat2, lng2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function findNearestHnCity(lat, lng) {
+    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return null;
+    let best = null;
+    let bestDist = Infinity;
+    for (const c of HN_CITY_CENTERS) {
+        const d = haversineKm(Number(lat), Number(lng), c.lat, c.lng);
+        if (d < bestDist) {
+            best = c;
+            bestDist = d;
+        }
+    }
+    return best ? { ...best, distanceKm: bestDist } : null;
+}
+
+/** Ciudad efectiva del viaje. WhatsApp infiere por GPS del origen (ya no queda pegado a Comayagua). */
+function resolveTripZoneId(trip) {
+    const declared = trip?.serviceZoneId || trip?.cityId || null;
+    const fromWa = trip?.createdVia === 'whatsapp' || trip?.staffCreatedBy === 'whatsapp-assistant';
+    if (!fromWa) return declared;
+    const nearest = findNearestHnCity(trip.originLat, trip.originLng);
+    return nearest?.id || declared;
+}
+
+function resolveTripZoneMeta(trip) {
+    const id = resolveTripZoneId(trip);
+    if (!id) return { id: null, name: trip?.serviceZoneName || null, department: null };
+    const city = HN_CITY_CENTERS.find((c) => c.id === id) || null;
+    return {
+        id,
+        name: city?.name || trip?.serviceZoneName || id,
+        department: city?.department || getDepartmentForZone(id) || null
+    };
+}
+
 function driverCanServeTrip(driverVehicleType, tripServiceType) {
     const driverRaw = (driverVehicleType || 'auto').toLowerCase();
     const trip = tripServiceType || 'auto';
@@ -1240,8 +1374,35 @@ function driverCanServeTrip(driverVehicleType, tripServiceType) {
     if (isVipTrip) return isVipDriver;
     if (trip === 'flete_paila') return driverRaw === 'paila';
     if (trip === 'flete_camion') return driverRaw === 'camion';
+    if (trip === 'grua') return driverRaw === 'grua';
     if (trip === 'moto' || trip === 'delivery') return driverRaw === 'moto';
     return false;
+}
+
+function requiredVehicleTypeForTrip(tripServiceType) {
+    const trip = tripServiceType || 'auto';
+    if (isFreightService(trip)) return requiredFreightVehicleType(trip);
+    if (trip === 'grua') return 'grua';
+    return requiredRideVehicleType(trip);
+}
+
+/** Activo + vehículos registrados (paila/camión de flete aunque hoy opere en auto). */
+function locOrProfileCanServeTrip(loc, userData, tripServiceType) {
+    const trip = tripServiceType || 'auto';
+    if (driverCanServeTrip(loc?.vehicleType || userData?.vehicleType, trip)) return true;
+    const required = requiredVehicleTypeForTrip(trip);
+    if (!required) return false;
+    const locTypes = [
+        ...(Array.isArray(loc?.approvedVehicleTypes) ? loc.approvedVehicleTypes : []),
+        ...(Array.isArray(loc?.registeredVehicleTypes) ? loc.registeredVehicleTypes : [])
+    ];
+    if (locTypes.some((t) => normalizeVehicleTypeForMatching(t) === required)) return true;
+    if (driverHasApprovedVehicleType(userData, required)) return true;
+    const vehicles = Array.isArray(userData?.vehicles) ? userData.vehicles : [];
+    return vehicles.some((v) => {
+        if (!v || v.approvalStatus === 'rejected' || v.approvalStatus === 'suspended') return false;
+        return normalizeVehicleTypeForMatching(v.type) === required;
+    });
 }
 
 function isDriverOnline(loc) {
@@ -1315,13 +1476,16 @@ function collectDriverCityIds(userData, loc) {
  * - Sin ciudad de trabajo: sí si el GPS está dentro de la cobertura.
  */
 function driverIsInTripCity(userData, loc, trip) {
-    const tripZone = trip?.serviceZoneId || trip?.cityId || null;
+    const tripZone = resolveTripZoneId(trip);
     if (!tripZone) return true;
     const tripCity = String(tripZone).toLowerCase();
-    if (collectDriverCityIds(userData, loc).includes(tripCity)) return true;
+    const driverCities = collectDriverCityIds(userData, loc);
+    if (driverCities.includes(tripCity)) return true;
+    if (driverCities.some((id) => zonesAreSameMetro(id, tripCity))) return true;
 
     const declaredZone = userData?.serviceZoneId || loc?.serviceZoneId || userData?.cityId || loc?.cityId || null;
     if (declaredZone && !sameDepartment(declaredZone, tripZone)) return false;
+    if (declaredZone && zonesAreSameMetro(declaredZone, tripZone)) return true;
     // Otra ciudad del mismo depto. no es "esta ciudad" (el spill se decide aparte).
     if (declaredZone) return false;
 
@@ -1508,16 +1672,8 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
         // Aun asÃ­ avisar offline del depto. (comportamiento pedido: SIEMPRE)
     }
 
-    const tripZone = trip.serviceZoneId || null;
+    const tripZone = resolveTripZoneId(trip);
     const tripDept = getDepartmentForZone(tripZone);
-    const spillCtx = await resolveTripOfferSpillContext(appId, trip);
-    // Radio amplio dentro del departamento (sin cruzar depto.)
-    const radius = Math.max(
-        NEARBY_CITY_SPILL_KM,
-        parseFloat(trip.searchRadiusKm) || 0,
-        getCityCoverageKm(tripZone),
-        40
-    );
     const price = trip.price || 'Nuevo viaje';
     const originShort = (trip.origin || '').slice(0, 48);
     const deptLabel = tripDept ? ` Â· ${tripDept}` : '';
@@ -1547,21 +1703,8 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
         if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
         if (!driverHasApprovedVehicleType(u, requiredType)) continue;
 
-        const driverZone = u.serviceZoneId || loc?.serviceZoneId || null;
-
-        // Misma ciudad (perfil, loc o GPS) → siempre
-        if (driverIsInTripCity(u, loc, trip)) {
-            // ok
-        } else if (tripZone && driverZone && !sameDepartment(driverZone, tripZone)) {
-            continue;
-        } else if (tripDept && !driverZone) {
-            if (!offlineDriverNearTrip(loc, trip, radius)) continue;
-        } else if (tripZone && driverZone && String(tripZone) !== String(driverZone)) {
-            // Otra ciudad del mismo depto.: avisar si hay spill o flag ALWAYS
-            if (loc?.lat && loc?.lng && trip.originLat != null && trip.originLng != null) {
-                if (!offlineDriverNearTrip(loc, trip, radius)) continue;
-            }
-        }
+        // Misma ciudad o cercana del mismo departamento (sin filtrar por GPS viejo)
+        if (!driverNewTripAlertTier(u, loc, trip)) continue;
 
         notified.add(uid);
         await sendPushToUser(appId, uid, {
@@ -1601,7 +1744,7 @@ async function notifyOfflineFreightDrivers(appId, tripId, trip) {
     const requiredType = requiredFreightVehicleType(serviceType);
     if (!requiredType) return;
 
-    const tripZone = trip.serviceZoneId || null;
+    const tripZone = resolveTripZoneId(trip);
     const modeLabel = serviceType === 'flete_paila' ? 'Paila' : 'CamiÃ³n';
     const price = trip.price || 'Nuevo flete';
     const originShort = (trip.origin || '').slice(0, 48);
@@ -1716,7 +1859,7 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
     const originLng = trip.originLng;
     if (originLat == null || originLng == null) return [];
 
-    const tripZone = trip.serviceZoneId || null;
+    const tripZone = resolveTripZoneId(trip);
     const driversWithOffers = getDriversWithActiveOffers(tripDocs, trip.id);
     const activeByDriver = getActiveTripByDriver(tripDocs);
     const lockedDrivers = collectScheduledLockedDriverIds(tripDocs);
@@ -1728,7 +1871,12 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
             allowSpill ? NEARBY_CITY_SPILL_KM : 0
         );
 
-    const driversSnap = await db.collection(`artifacts/${appId}/public/data/drivers_location`).get();
+    const [driversSnap, usersSnap] = await Promise.all([
+        db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
+        db.collection(`artifacts/${appId}/public/data/users`).where('role', '==', 'driver').get()
+    ]);
+    const userById = new Map();
+    usersSnap.docs.forEach((docSnap) => userById.set(docSnap.id, docSnap.data() || {}));
     const candidates = [];
 
     for (const d of driversSnap.docs) {
@@ -1744,8 +1892,8 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
         const loc = d.data();
         if (!loc.lat || !loc.lng || !isDriverOnline(loc)) continue;
 
-        const driverVehicleType = loc.vehicleType || 'auto';
-        if (!driverCanServeTrip(driverVehicleType, trip.serviceType || 'auto')) continue;
+        const userData = userById.get(driverId) || {};
+        if (!locOrProfileCanServeTrip(loc, userData, trip.serviceType || 'auto')) continue;
 
         const dist = haversineKm(originLat, originLng, loc.lat, loc.lng);
         if (!driverLocCanServeTripZone(loc, tripZone, dist, { allowSpill, maxDistKm: limitKm })) {
@@ -1775,7 +1923,7 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
  * Ej: Lepaterique sin conductores â†’ ofertar a Comayagua/cercanos en lÃ­nea.
  */
 async function resolveTripOfferSpillContext(appId, trip) {
-    const tripZone = trip.serviceZoneId || null;
+    const tripZone = resolveTripZoneId(trip);
     if (!tripZone || !ENABLE_NEARBY_CITY_SPILL) {
         return {
             tripZone,
@@ -1786,8 +1934,8 @@ async function resolveTripOfferSpillContext(appId, trip) {
         };
     }
     const registeredZones = await collectRegisteredDriverZones(appId);
-    const hasLocalFleet = registeredZones.has(String(tripZone));
-    const allowSpill = hasLocalFleet === false;
+    const hasLocalFleet = getMetroTwinIds(tripZone).some((id) => registeredZones.has(String(id)));
+    const allowSpill = hasLocalFleet === false || tripIsOldEnoughForDepartmentSpill(trip);
     const spillKm = allowSpill ? NEARBY_CITY_SPILL_KM : null;
     const maxFarKm = allowSpill
         ? Math.max(NEARBY_CITY_SPILL_KM, getCityCoverageKm(tripZone), parseFloat(trip.searchRadiusKm) || 0)
@@ -1848,6 +1996,21 @@ async function assignNextTripOfferServer(appId, tripId) {
     const trip = { id: tripSnap.id, ...tripSnap.data() };
     if (trip.isDemandSimulation) return;
     if (trip.status !== 'pending' || trip.driverId) return;
+    const zoneMeta = resolveTripZoneMeta(trip);
+    if (zoneMeta.id && zoneMeta.id !== trip.serviceZoneId) {
+        trip.serviceZoneId = zoneMeta.id;
+        trip.serviceZoneName = zoneMeta.name;
+        trip.cityId = zoneMeta.id;
+        trip.cityName = zoneMeta.name;
+        trip.serviceDepartment = zoneMeta.department;
+        await tripRef.update({
+            serviceZoneId: zoneMeta.id,
+            serviceZoneName: zoneMeta.name,
+            cityId: zoneMeta.id,
+            cityName: zoneMeta.name,
+            serviceDepartment: zoneMeta.department || null
+        }).catch(() => {});
+    }
     // Staff armÃ³ el viaje: NO ofertar a conductores hasta que el cliente toque Â«Quiero este viajeÂ»
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
     const bidCount = trip.driverBids && typeof trip.driverBids === 'object'
@@ -1878,13 +2041,13 @@ async function assignNextTripOfferServer(appId, tripId) {
 
     if (!candidates.length) {
         console.warn(
-            `[assignNextTripOfferServer] No candidates for trip ${tripId}. zone ${trip.serviceZoneId || 'N/A'} ` +
+            `[assignNextTripOfferServer] No candidates for trip ${tripId}. zone ${resolveTripZoneId(trip) || 'N/A'} ` +
             `spill=${!!offerResult.allowSpill} localFleet=${offerResult.hasLocalFleet}`
         );
         // Marcar para diagnÃ³stico en consola staff / cliente
         await tripRef.update({
             offerNoCandidatesAt: FieldValue.serverTimestamp(),
-            offerNoCandidatesZone: trip.serviceZoneId || null,
+            offerNoCandidatesZone: resolveTripZoneId(trip) || null,
             offerTriedSpill: !!offerResult.allowSpill,
             offerLocalFleet: offerResult.hasLocalFleet === true
         }).catch(() => {});
@@ -1967,6 +2130,11 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
 
     const type = String(data.type || '');
     const audio = resolveAndroidPushAudio();
+    const isTripWake = type === 'trip_offer'
+        || type === 'ride_demand_alert'
+        || type === 'freight_trip_alert'
+        || type === 'new_trip_staff'
+        || type === 'trip_price_boost';
 
     // Click del push: viajes â†’ conductor; ofertas â†’ pasajero; resto â†’ centro de notificaciones
     const openNotifications = data.openNotifications === 'true'
@@ -2031,12 +2199,11 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
         ),
         webpush: {
-            // high + TTL largo: iPhone bloqueado / sin red tira el aviso si TTL=300s
+            // high + TTL largo: iPhone bloqueado / sin red tira el aviso si TTL es corto.
+            // trip_offer iba a 180s y los conductores perdían el aviso; ahora igual que staff.
             headers: {
                 Urgency: 'high',
-                TTL: String(
-                    type === 'trip_offer' || type === 'trip_price_boost' ? 180 : 86400
-                )
+                TTL: '86400'
             },
             notification: {
                 title,
@@ -2050,8 +2217,9 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         },
         android: {
             // data-only + high priority: HonduMessagingService pinta el aviso tipo WhatsApp
+            // 1h en viajes (antes 5 min: Doze/sin red se comía el aviso del conductor)
             priority: 'high',
-            ttl: 300 * 1000
+            ttl: (isTripWake ? 3600 : 300) * 1000
         },
         apns: {
             headers: {
@@ -2122,7 +2290,7 @@ async function notifyDriversTripPriceBoost(appId, tripId, after, before) {
         const serviceType = after.serviceType || 'auto';
         if (isRideService(serviceType)) {
             const requiredType = requiredRideVehicleType(serviceType);
-            const tripZone = after.serviceZoneId || null;
+            const tripZone = resolveTripZoneId(after);
             const radius = after.searchRadiusKm || 25;
             const [driversLocSnap, usersSnap] = await Promise.all([
                 db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
@@ -2256,10 +2424,11 @@ async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = [])
     }
 }
 
-async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
+async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment = false } = {}) {
     if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
-    if (trip.eligibleDriverAlertSent) return;
+    if (!expandDepartment && trip.eligibleDriverAlertSent) return;
+    if (expandDepartment && trip.eligibleDriverDeptAlertSent) return;
 
     const serviceType = trip.serviceType || 'auto';
     const freight = isFreightService(serviceType);
@@ -2267,15 +2436,8 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
         ? requiredFreightVehicleType(serviceType)
         : requiredRideVehicleType(serviceType);
 
-    const tripZone = trip.serviceZoneId || null;
+    const tripZone = resolveTripZoneId(trip);
     const tripDept = getDepartmentForZone(tripZone);
-    const spillCtx = await resolveTripOfferSpillContext(appId, trip);
-    const radius = Math.max(
-        getCityCoverageKm(tripZone),
-        parseFloat(trip.searchRadiusKm) || 0,
-        spillCtx.allowSpill ? NEARBY_CITY_SPILL_KM : 0,
-        25
-    );
     const declined = new Set((trip.declinedDriverIds || []).map(String));
     let lockedDrivers = new Set();
     try {
@@ -2286,11 +2448,11 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
     const price = trip.price || 'Nuevo';
     const originShort = (trip.origin || '').slice(0, 42);
     const svcLabel = staffTripNotificationLabel(serviceType);
-    // Mismo formato que staff, orientado al conductor
-    const title = freight
-        ? `ðŸ†• ${svcLabel} en tu zona`
-        : `ðŸ†• ${svcLabel} en tu ciudad`;
-    const body = `${price} Â· ${originShort || 'UbicaciÃ³n'} â€” Â¡EntrÃ¡ a aceptar!`;
+    const titleCity = `🆕 ${svcLabel} en tu ciudad`;
+    const titleNearby = freight
+        ? `🆕 ${svcLabel} en tu zona`
+        : `🆕 ${svcLabel} cerca, en tu departamento`;
+    const body = `${price} · ${originShort || 'Ubicación'} — ¡Entrá a aceptar!`;
 
     const [driversLocSnap, usersSnap] = await Promise.all([
         db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
@@ -2303,7 +2465,8 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
     usersSnap.docs.forEach((d) => userById.set(d.id, d.data() || {}));
 
     const candidateUids = new Set([...userById.keys(), ...locByDriver.keys()]);
-    const recipients = new Set();
+    const cityRecipients = new Set();
+    const nearbyRecipients = new Set();
     let skipRestricted = 0;
     let skipVehicle = 0;
     let skipCity = 0;
@@ -2334,40 +2497,33 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
             continue;
         }
 
-        const inCity = driverIsInTripCity(u, loc, trip);
-        if (inCity) {
-            recipients.add(String(uid));
-            continue;
-        }
-
-        const driverZone = u.serviceZoneId || u.cityId || loc.serviceZoneId || loc.cityId || null;
-        if (
-            driverZone
-            && tripDept
-            && sameDepartment(driverZone, tripZone)
-            && spillCtx.allowSpill
-        ) {
-            if (loc.lat != null && loc.lng != null && trip.originLat != null && trip.originLng != null) {
-                if (!offlineDriverNearTrip(loc, trip, radius)) {
-                    skipCity += 1;
-                    continue;
-                }
+        const tier = driverNewTripAlertTier(u, loc, trip);
+        if (tier === 'city') {
+            if (expandDepartment && trip.eligibleDriverAlertSent) {
+                skipCity += 1;
+                continue;
             }
-            recipients.add(String(uid));
+            cityRecipients.add(String(uid));
             continue;
         }
-
+        if (tier === 'nearby') {
+            nearbyRecipients.add(String(uid));
+            continue;
+        }
         skipCity += 1;
     }
 
-    // TambiÃ©n incluir candidatos del pool de oferta si ya se asignÃ³
-    if (trip.offeredToDriverId) recipients.add(String(trip.offeredToDriverId));
+    // También incluir candidatos del pool de oferta si ya se asignó
+    if (trip.offeredToDriverId) cityRecipients.add(String(trip.offeredToDriverId));
     (trip.candidateDriverIds || []).forEach((id) => {
-        if (id) recipients.add(String(id));
+        if (id) cityRecipients.add(String(id));
     });
 
-    const list = [...recipients].filter((id) => id && !lockedDrivers.has(String(id))).slice(0, 400);
-    const pushResults = await Promise.all(list.map((driverId) => sendPushToUser(appId, driverId, {
+    const cityList = [...cityRecipients].filter((id) => id && !lockedDrivers.has(String(id)));
+    const nearbyList = [...nearbyRecipients].filter((id) => id && !lockedDrivers.has(String(id)) && !cityRecipients.has(id));
+    const list = [...cityList, ...nearbyList].slice(0, 400);
+
+    const pushOne = (driverId, title) => sendPushToUser(appId, driverId, {
         title,
         body,
         data: {
@@ -2379,14 +2535,19 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
             superVibrate: 'true'
         },
         highPriority: true
-    }).catch(() => null)));
+    }).catch(() => null);
+
+    const pushResults = await Promise.all([
+        ...cityList.slice(0, 400).map((id) => pushOne(id, titleCity)),
+        ...nearbyList.slice(0, Math.max(0, 400 - cityList.length)).map((id) => pushOne(id, titleNearby))
+    ]);
     const skipNoToken = pushResults.filter((r) => r && r.tokens === 0).length;
     const pushed = pushResults.filter((r) => r && r.sent > 0).length;
     console.log(
-        `[notifyEligibleDriversNewTrip] ${tripId} zone=${tripZone || 'n/a'} ` +
-        `considered=${candidateUids.size} recipients=${list.length} pushed=${pushed} ` +
-        `skipCity=${skipCity} skipVehicle=${skipVehicle} skipRestricted=${skipRestricted} ` +
-        `skipLocked=${skipLocked} skipNoToken=${skipNoToken}`
+        `[notifyEligibleDriversNewTrip] ${tripId} zone=${tripZone || 'n/a'} dept=${tripDept || 'n/a'} ` +
+        `considered=${candidateUids.size} city=${cityList.length} nearby=${nearbyList.length} ` +
+        `pushed=${pushed} skipCity=${skipCity} skipVehicle=${skipVehicle} ` +
+        `skipRestricted=${skipRestricted} skipLocked=${skipLocked} skipNoToken=${skipNoToken}`
     );
 
     const waTargets = [];
@@ -2398,20 +2559,57 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip) {
     });
     await notifyDriversNewTripWhatsApp(appId, tripId, trip, waTargets).catch(() => {});
 
-    if (list.length) {
-        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
+    if (list.length || expandDepartment) {
+        const patch = {
             eligibleDriverAlertSent: true,
             eligibleDriverAlertCount: list.length,
             eligibleDriverAlertPushed: pushed,
             eligibleDriverAlertNoToken: skipNoToken,
             eligibleDriverAlertAt: FieldValue.serverTimestamp(),
-            eligibleDriverAlertZone: tripZone || null
-        }).catch(() => {});
+            eligibleDriverAlertZone: tripZone || null,
+            // Cercanas del mismo depto. ya van en la 1ª oleada (como el aviso del admin).
+            eligibleDriverDeptAlertSent: true,
+            eligibleDriverDeptAlertCount: nearbyList.length,
+            eligibleDriverDeptAlertPushed: pushed,
+            eligibleDriverDeptAlertAt: FieldValue.serverTimestamp(),
+            eligibleDriverDeptAlertZone: tripZone || null,
+            eligibleDriverDeptAlertDepartment: tripDept || null
+        };
+        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update(patch).catch(() => {});
     }
 }
 
+async function expandPendingTripToDepartment(appId, tripId, tripLike = null) {
+    const ref = db.doc(`artifacts/${appId}/public/data/trips/${tripId}`);
+    const snap = tripLike ? null : await ref.get();
+    const trip = tripLike || (snap && snap.exists ? snap.data() : null);
+    if (!trip) return;
+    if (trip.status !== 'pending' || trip.driverId || trip.isDemandSimulation) return;
+    if (isStaffTripWaitingClientClaim(trip)) return;
+    await notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment: true }).catch((e) => {
+        console.warn('expandPendingTripToDepartment', e?.message || e);
+    });
+    await notifyOfflineFreightDrivers(appId, tripId, trip).catch(() => {});
+    await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip).catch(() => {});
+}
+
+async function alertDriversForPendingTrip(appId, tripId, trip) {
+    await assignNextTripOfferServer(appId, tripId).catch(() => {});
+    await notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment: false }).catch((e) => {
+        console.warn('notifyEligibleDriversNewTrip', e?.message || e);
+    });
+    await notifyStaffNewTrip(appId, tripId, trip).catch(() => {});
+    await sleep(TRIP_DEPT_EXPAND_MS);
+    await expandPendingTripToDepartment(appId, tripId);
+}
+
 exports.onTripCreatedAssignOffer = onDocumentCreated(
-    'artifacts/{appId}/public/data/trips/{tripId}',
+    {
+        document: 'artifacts/{appId}/public/data/trips/{tripId}',
+        region: 'us-central1',
+        timeoutSeconds: 120,
+        memory: '512MiB'
+    },
     async (event) => {
         const trip = event.data.data() || {};
         const { appId, tripId } = event.params;
@@ -2465,14 +2663,7 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
             console.warn('[wa] module', e?.message || e);
         }
 
-        await assignNextTripOfferServer(appId, tripId);
-        // Conductores de la ciudad (mismo estilo fuerte que staff), respetando zona/vehÃ­culo
-        await notifyEligibleDriversNewTrip(appId, tripId, trip).catch((e) => {
-            console.warn('notifyEligibleDriversNewTrip', e?.message || e);
-        });
-        await notifyOfflineFreightDrivers(appId, tripId, trip).catch(() => {});
-        await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip).catch(() => {});
-        await notifyStaffNewTrip(appId, tripId, trip).catch(() => {});
+        await alertDriversForPendingTrip(appId, tripId, trip);
     }
 );
 
@@ -2510,6 +2701,93 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
             : 0;
         if (bidCount > 0) continue;
         await assignNextTripOfferServer(APP_ID, d.id).catch(() => {});
+    }
+
+    // Respaldo: si el viaje lleva 15s+ y no se expandió al departamento
+    for (const d of tripDocs) {
+        const t = d.data();
+        if (isStaffTripWaitingClientClaim(t)) continue;
+        if (t.status !== 'pending' || t.driverId || t.isDemandSimulation) continue;
+        if (t.eligibleDriverDeptAlertSent) continue;
+        if (!tripIsOldEnoughForDepartmentSpill(t)) continue;
+        await expandPendingTripToDepartment(APP_ID, d.id, t).catch(() => {});
+    }
+});
+
+/** Si el cliente no abrió el chat del viaje activo, avisar por WhatsApp. */
+exports.nudgeUnseenTripChats = onSchedule('every 1 minutes', async () => {
+    const now = Date.now();
+    let snap;
+    try {
+        snap = await db.collection(`artifacts/${APP_ID}/public/data/trips`)
+            .where('unreadChatWaDueAt', '<=', now)
+            .limit(40)
+            .get();
+    } catch (e) {
+        console.warn('[nudgeUnseenTripChats] query', e?.message || e);
+        return;
+    }
+    if (!snap?.docs?.length) return;
+    let wa = null;
+    try {
+        wa = require('./whatsapp-cloud');
+    } catch (e) {
+        console.warn('[nudgeUnseenTripChats] wa module', e?.message || e);
+        return;
+    }
+    for (const d of snap.docs) {
+        const trip = d.data() || {};
+        const last = Array.isArray(trip.chat) ? trip.chat[trip.chat.length - 1] : null;
+        const stillActive = ['accepted', 'in_progress', 'scheduled'].includes(trip.status);
+        const preview = trip.unreadChatWaPreview || last?.text || '';
+        const clientDue = Number(trip.unreadChatWaClientDueAt)
+            || (!trip.unreadChatWaDriverDueAt ? (Number(trip.unreadChatWaDueAt) || 0) : 0);
+        const driverDue = Number(trip.unreadChatWaDriverDueAt) || 0;
+        const clientOpen = wa.clientHasTripChatOpen?.(trip, now) === true;
+        const driverOpen = wa.driverHasTripChatOpen?.(trip, now) === true;
+        const lastFromClient = !!(last && trip.clientId && last.sender === trip.clientId);
+        const lastFromDriver = !!(last && trip.driverId && last.sender === trip.driverId);
+
+        if (!stillActive || !last) {
+            await d.ref.update({
+                unreadChatWaDueAt: FieldValue.delete(),
+                unreadChatWaClientDueAt: FieldValue.delete(),
+                unreadChatWaDriverDueAt: FieldValue.delete(),
+                unreadChatWaPreview: FieldValue.delete()
+            }).catch(() => {});
+            continue;
+        }
+
+        const clear = {};
+        if (clientDue > 0 && clientDue <= now) {
+            if (clientOpen || lastFromClient) {
+                clear.unreadChatWaClientDueAt = FieldValue.delete();
+            } else {
+                await wa.notifyPassengerUnreadChatWa(trip, d.id, preview)
+                    .catch((e) => console.warn('[nudgeUnseenTripChats] client', d.id, e?.message || e));
+                clear.unreadChatWaClientDueAt = FieldValue.delete();
+            }
+        }
+        if (driverDue > 0 && driverDue <= now) {
+            if (driverOpen || lastFromDriver) {
+                clear.unreadChatWaDriverDueAt = FieldValue.delete();
+            } else {
+                await wa.notifyDriverUnreadChatWa(trip, d.id, preview)
+                    .catch((e) => console.warn('[nudgeUnseenTripChats] driver', d.id, e?.message || e));
+                clear.unreadChatWaDriverDueAt = FieldValue.delete();
+            }
+        }
+
+        const nextClient = clear.unreadChatWaClientDueAt ? 0 : clientDue;
+        const nextDriver = clear.unreadChatWaDriverDueAt ? 0 : driverDue;
+        const remaining = [nextClient, nextDriver].filter((n) => n > now);
+        if (remaining.length) {
+            clear.unreadChatWaDueAt = Math.min(...remaining);
+        } else {
+            clear.unreadChatWaDueAt = FieldValue.delete();
+            clear.unreadChatWaPreview = FieldValue.delete();
+        }
+        await d.ref.update(clear).catch(() => {});
     }
 });
 
@@ -2779,7 +3057,12 @@ exports.repairCopaCredits = onCall(async (request) => {
 });
 
 exports.onTripUpdatePush = onDocumentUpdated(
-    'artifacts/{appId}/public/data/trips/{tripId}',
+    {
+        document: 'artifacts/{appId}/public/data/trips/{tripId}',
+        region: 'us-central1',
+        timeoutSeconds: 120,
+        memory: '512MiB'
+    },
     async (event) => {
         const before = event.data.before.data();
         const after = event.data.after.data();
@@ -2798,11 +3081,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
                     await wa.notifyTripRequestReceivedWa(after, tripId).catch(() => {});
                 } catch (_) {}
             }
-            await assignNextTripOfferServer(appId, tripId).catch(() => {});
-            await notifyEligibleDriversNewTrip(appId, tripId, after).catch(() => {});
-            await notifyOfflineFreightDrivers(appId, tripId, after).catch(() => {});
-            await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, after).catch(() => {});
-            await notifyStaffNewTrip(appId, tripId, after).catch(() => {});
+            await alertDriversForPendingTrip(appId, tripId, after).catch(() => {});
         }
 
         const beforeChat = before.chat || [];
@@ -2821,6 +3100,29 @@ exports.onTripUpdatePush = onDocumentUpdated(
                         tag: `chat-${tripId}`
                     }
                 });
+            }
+            // Viaje activo: si el destinatario no tiene el chat abierto, WhatsApp a los 25 s
+            const activeChat = ['accepted', 'in_progress', 'scheduled'].includes(after.status);
+            if (activeChat && msg?.sender) {
+                let waMod = null;
+                try { waMod = require('./whatsapp-cloud'); } catch (_) {}
+                const due = Date.now() + 25000;
+                const preview = String(msg.text || '').slice(0, 80);
+                const patch = { unreadChatWaPreview: preview };
+                const toClient = !!(after.clientId && msg.sender !== after.clientId);
+                const toDriver = !!(after.driverId && msg.sender !== after.driverId);
+                if (toClient && waMod?.clientHasTripChatOpen?.(after) !== true) {
+                    patch.unreadChatWaClientDueAt = due;
+                }
+                if (toDriver && waMod?.driverHasTripChatOpen?.(after) !== true) {
+                    patch.unreadChatWaDriverDueAt = due;
+                }
+                const soonest = [patch.unreadChatWaClientDueAt, patch.unreadChatWaDriverDueAt]
+                    .filter((n) => Number.isFinite(n));
+                if (soonest.length) {
+                    patch.unreadChatWaDueAt = Math.min(...soonest);
+                    await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update(patch).catch(() => {});
+                }
             }
         }
 
@@ -3018,21 +3320,9 @@ exports.onTripUpdatePush = onDocumentUpdated(
             try {
                 const wa = require('./whatsapp-cloud');
                 await wa.notifyTripConfirmedWa(after, tripId).catch(() => {});
+                const waPhase = after.scheduledFor ? 'reserved' : 'accepted';
+                await wa.notifyDriverAcceptedRouteWa(after, tripId, { phase: waPhase }).catch(() => {});
             } catch (_) {}
-        }
-
-        // Cliente se adueÃ±Ã³ del viaje creado por staff â†’ abrir mercado de conductores
-        if (
-            after.status === 'pending'
-            && after.staffCreatedBy
-            && after.staffCreatedClientClaimed === true
-            && before.staffCreatedClientClaimed !== true
-            && !after.driverId
-        ) {
-            await assignNextTripOfferServer(appId, tripId).catch(() => {});
-            await notifyOfflineFreightDrivers(appId, tripId, after).catch(() => {});
-            await notifyOfflineRideDriversWhenNoCoverage(appId, tripId, after).catch(() => {});
-            await notifyStaffNewTrip(appId, tripId, after).catch(() => {});
         }
 
         // Conductor reservÃ³ viaje PROGRAMADO (status scheduled con driver)
@@ -3065,6 +3355,14 @@ exports.onTripUpdatePush = onDocumentUpdated(
             try {
                 const wa = require('./whatsapp-cloud');
                 await wa.notifyTripConfirmedWa(after, tripId).catch(() => {});
+                await wa.notifyDriverAcceptedRouteWa(after, tripId, { phase: 'reserved' }).catch(() => {});
+            } catch (_) {}
+        }
+
+        if (before.status === 'scheduled' && after.status === 'accepted' && after.driverId) {
+            try {
+                const wa = require('./whatsapp-cloud');
+                await wa.notifyDriverAcceptedRouteWa(after, tripId, { phase: 'active' }).catch(() => {});
             } catch (_) {}
         }
 
@@ -3113,8 +3411,10 @@ exports.onTripUpdatePush = onDocumentUpdated(
             });
             try {
                 const wa = require('./whatsapp-cloud');
-                await wa.notifyTripCompletedWa(after, tripId).catch(() => {});
-            } catch (_) {}
+                await wa.notifyWhatsAppGuestRegister?.(after, tripId);
+            } catch (e) {
+                console.warn('notifyWhatsAppGuestRegister:', e?.message || e);
+            }
         }
 
         if (

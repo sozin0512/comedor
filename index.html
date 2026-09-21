@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.09.18.4">
+    <meta name="hr-app-version" content="2026.09.20.1">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -21,7 +21,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.09.18.4">
+    <link rel="manifest" href="manifest.json?v=2026.09.20.1">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -31,10 +31,10 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.18.4">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.09.20.1">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.09.18.4">
+    <link rel="stylesheet" href="css/app.css?v=2026.09.20.1">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -80,7 +80,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.09.18.4"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.09.20.1"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -143,10 +143,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.09.18.4';
+        window.__HR_BUILD_VERSION__ = '2026.09.20.1';
         (function () {
             try {
-                var build = '2026.09.18.4';
+                var build = '2026.09.20.1';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -1543,6 +1543,36 @@
 </div>
 <script>
     (function () {
+        var ROLE_HINTS = {
+            client: 'Pasajero: viajes, envíos, fletes o grúa. Eliges el servicio dentro de la app.',
+            driver: 'Conductor: registra auto, moto, taxi, paila, camión o grúa. Cada vehículo recibe solo el tipo de solicitud que corresponde.'
+        };
+        window.updateRole = function (role) {
+            var next = role === 'driver' ? 'driver' : 'client';
+            try { localStorage.setItem('lastUserRole', next); } catch (e) {}
+            document.querySelectorAll('.role-btn').forEach(function (b) {
+                b.classList.remove('bg-white', 'text-blue-600', 'shadow-sm');
+                b.classList.add('text-gray-400');
+            });
+            var btn = document.getElementById('role-' + next);
+            if (btn) {
+                btn.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+                btn.classList.remove('text-gray-400');
+            }
+            var roleHint = document.getElementById('login-role-hint');
+            if (roleHint) roleHint.textContent = ROLE_HINTS[next] || ROLE_HINTS.client;
+            var fields = document.getElementById('driver-fields');
+            if (fields) fields.classList.toggle('hidden', next !== 'driver');
+            var photo = document.getElementById('photo-req-label');
+            if (photo) photo.classList.toggle('hidden', next !== 'driver');
+        };
+        window.restoreLastRoleSelection = function () {
+            var saved = 'client';
+            try { saved = localStorage.getItem('lastUserRole') || 'client'; } catch (e) {}
+            window.updateRole(saved === 'driver' ? 'driver' : 'client');
+        };
+        try { window.restoreLastRoleSelection(); } catch (e) {}
+
         window.__hrBootDismissed = true;
         window.__hrAppReady = true;
         var el = document.getElementById('hr-boot-loading');

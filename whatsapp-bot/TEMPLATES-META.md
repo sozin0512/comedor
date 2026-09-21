@@ -46,19 +46,20 @@ Se dispara al marcar **llegó**.
 
 ---
 
-## 4) Viaje finalizado
+## 4) Cliente — chats sin ver (viaje activo)
 
 | Campo | Valor |
 |--------|--------|
-| **Nombre** | `viaje_finalizado` |
-| **Variables** | `{{1}}` monto (`185.00`, el cuerpo de Meta ya pone `L.`) · `{{2}}` destino |
+| **Nombre** | `chats_sin_ver` (`WHATSAPP_TEMPLATE_CHAT_UNREAD`) |
+| **Variables** | `{{1}}` nombre · `{{2}}` link del viaje (`https://honduraite.com/?trip=ID&openChat=1`) |
+| **Cuerpo (referencia)** | `{{1}}, tienes mensajes sin ver en tu viaje HonduRaite. Responde aquí: {{2}}` |
 
-Se dispara al **completar**.
+Se dispara si hay mensajes sin abrir en ~25 s: al **cliente** (escribe el conductor) o al **conductor** (escribe el pasajero). Si ya hay ventana de 24 h con el bot, se manda texto de sesión; esta plantilla es respaldo.
 
 ---
 
 Despliegue:
 
 ```bash
-firebase deploy --only functions:onTripCreatedAssignOffer,functions:onTripUpdatePush,functions:testWhatsAppTripTemplate,functions:whatsappWebhook
+firebase deploy --only functions:onTripCreatedAssignOffer,functions:onTripUpdatePush,functions:nudgeUnseenTripChats,functions:testWhatsAppTripTemplate,functions:whatsappWebhook
 ```

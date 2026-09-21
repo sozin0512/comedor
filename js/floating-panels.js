@@ -1129,6 +1129,7 @@ export function syncTripFloatPanels(data) {
 export function hideTripFloatPanels() {
     syncTripFloatPanels(null);
     window.chatOpen = false;
+    try { window.markTripChatSeen?.(false); } catch (_) {}
 }
 
 export function bindFloatingObjectivePanels() {

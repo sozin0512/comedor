@@ -5,6 +5,33 @@ export const AUTH_ROLE_HINTS = {
     driver: 'Conductor: registra auto, moto, taxi, paila, camión o grúa. Cada vehículo recibe solo el tipo de solicitud que corresponde.',
 };
 
+/** Pinta Pasajero/Conductor en el login. No depende de app.js. */
+export function applyAuthRoleUi(role) {
+    const next = role === 'driver' ? 'driver' : 'client';
+    try { localStorage.setItem('lastUserRole', next); } catch (_) {}
+    document.querySelectorAll('.role-btn').forEach((b) => {
+        b.classList.remove('bg-white', 'text-blue-600', 'shadow-sm');
+        b.classList.add('text-gray-400');
+    });
+    const btn = document.getElementById(`role-${next}`);
+    if (btn) {
+        btn.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+        btn.classList.remove('text-gray-400');
+    }
+    const hint = document.getElementById('login-role-hint');
+    if (hint) hint.textContent = AUTH_ROLE_HINTS[next] || AUTH_ROLE_HINTS.client;
+    document.getElementById('driver-fields')?.classList.toggle('hidden', next !== 'driver');
+    document.getElementById('photo-req-label')?.classList.toggle('hidden', next !== 'driver');
+    if (next === 'driver') {
+        try {
+            const lastV = localStorage.getItem('lastVehicleType');
+            const sel = document.getElementById('driver-vehicle-type');
+            if (lastV && sel) sel.value = lastV;
+        } catch (_) {}
+    }
+    return next;
+}
+
 export function getAuthHeroHtml({
     sub = '🇭🇳 Movilidad en Honduras',
     tagline = 'Hecho con orgullo catracho',

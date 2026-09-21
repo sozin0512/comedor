@@ -103,6 +103,12 @@ service cloud.firestore {
         || resource.data.offeredToDriverId == requestUid();
     }
 
+    function isGuestClientTrip() {
+      return resource.data.guestClient == true
+        || resource.data.guestInvitePending == true
+        || (resource.data.clientId is string && resource.data.clientId.matches('guest_.*'));
+    }
+
     // Conductor asignado al viaje (puede actualizar y completar)
     function isAssignedDriver() {
       return isSignedIn()
@@ -138,8 +144,24 @@ service cloud.firestore {
     // ============================================================
 
     match /artifacts/{app}/public/data/trips/{tripId} {
-      // Lectura: staff, participantes, o viajes pending (ofertas a conductores)
-      allow read: if isSignedIn() && (
+      // get: también viajes guest/WhatsApp por el link (ID), incluso SIN cuenta.
+      // list: no enumerar todos los guest.
+      allow get: if (
+        isGuestClientTrip()
+        && resource.data.status in ['pending', 'accepted', 'in_progress', 'scheduled', 'completed']
+      ) || (isSignedIn() && (
+        isStaff(app) ||
+        resource.data.clientId == requestUid() ||
+        resource.data.driverId == requestUid() ||
+        resource.data.offeredToDriverId == requestUid() ||
+        resource.data.status == 'pending' ||
+        resource.data.status == 'scheduled' ||
+        (
+          isGuestClientTrip()
+          && resource.data.status in ['pending', 'accepted', 'in_progress', 'scheduled']
+        )
+      ));
+      allow list: if isSignedIn() && (
         isStaff(app) ||
         resource.data.clientId == requestUid() ||
         resource.data.driverId == requestUid() ||
@@ -223,14 +245,21 @@ service cloud.firestore {
           resource.data.status == 'pending'
           && resource.data.staffAssistedClient == true
           && resource.data.staffCreatedClientClaimed != true
-          && (
-            resource.data.guestClient == true
-            || resource.data.guestInvitePending == true
-            || (resource.data.clientId is string && resource.data.clientId.matches('guest_.*'))
-          )
+          && isGuestClientTrip()
           && request.resource.data.clientId == requestUid()
           && request.resource.data.staffCreatedClientClaimed == true
           && request.resource.data.staffAssistedClient == true
+        )
+        // WhatsApp/guest ya confirmado: al abrir el link, el pasajero se adueña para ver mapa y viaje activo
+        || (
+          isGuestClientTrip()
+          && resource.data.status in ['pending', 'accepted', 'in_progress', 'scheduled']
+          && request.resource.data.clientId == requestUid()
+          && request.resource.data.status == resource.data.status
+          && (
+            !resource.data.keys().hasAll(['driverId'])
+            || request.resource.data.driverId == resource.data.driverId
+          )
         )
       );
 

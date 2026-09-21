@@ -67,6 +67,35 @@ export function getApprovedVehicles(profile) {
     return (normalized.vehicles || []).filter((v) => v.approvalStatus === 'approved');
 }
 
+export function getApprovedVehicleTypes(profile) {
+    const types = getApprovedVehicles(profile).map((v) => String(v?.type || '').toLowerCase()).filter(Boolean);
+    const legacy = String(profile?.vehicleType || '').toLowerCase();
+    if (legacy && !types.includes(legacy) && (!profile?.vehicles?.length || profile.approvalStatus === 'approved')) {
+        types.push(legacy);
+    }
+    return [...new Set(types)];
+}
+
+/** Tipos registrados (aprobados o pendientes), p. ej. paila secundaria. */
+export function getRegisteredVehicleTypes(profile) {
+    const normalized = normalizeDriverProfileVehicles(profile || {});
+    const types = [];
+    for (const v of normalized.vehicles || []) {
+        if (!v) continue;
+        if (v.approvalStatus === 'rejected' || v.approvalStatus === 'suspended') continue;
+        const t = String(v.type || '').toLowerCase();
+        if (t) types.push(t);
+    }
+    const legacy = String(normalized.vehicleType || '').toLowerCase();
+    if (legacy) types.push(legacy);
+    return [...new Set(types)];
+}
+
+export function profileHasFreightVehicle(profile) {
+    const types = getApprovedVehicleTypes(profile);
+    return types.includes('paila') || types.includes('camion') || !!(profile?.freightEnabled || profile?.canDoFreight);
+}
+
 export function getPendingVehicles(profile) {
     const normalized = normalizeDriverProfileVehicles(profile || {});
     return (normalized.vehicles || []).filter((v) => v.approvalStatus === 'pending');

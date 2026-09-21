@@ -1,7 +1,7 @@
 /** Verificación de identidad para pasajeros — obligatoria antes de aprobación por staff. */
 
 import { getAuthHeroHtml, getAuthCardShell } from './auth-ui.js';
-import { pickPhotoFromCamera } from './camera-capture.js';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.09.10.2';
 import { calculateAge } from './age-verification.js';
 
 const BANNER_ID = 'passenger-verify-banner';
@@ -148,7 +148,7 @@ function setPreviewImage(previewId, placeholderId, dataUrl) {
     if (placeholder) placeholder.classList.add('hidden');
 }
 
-function bindVerificationPhotoPick(previewId, placeholderId, storageKey, facing, maxSize) {
+function bindVerificationPhotoPick(previewId, placeholderId, storageKey, facing, maxSize, title) {
     const wrap = document.getElementById(previewId)?.closest('[data-camera-pick]')
         || document.querySelector(`[data-camera-target="${previewId}"]`);
     const target = wrap || document.getElementById(previewId)?.parentElement;
@@ -157,14 +157,17 @@ function bindVerificationPhotoPick(previewId, placeholderId, storageKey, facing,
     target.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        pickPhotoFromCamera({
+        pickPhotoWithSourceChoice({
             facing,
             maxSize,
+            title: title || 'Subir foto',
+            cameraLabel: 'Tomar foto',
+            galleryLabel: 'Elegir de galería',
             onCapture: (dataUrl) => {
                 window[storageKey] = dataUrl;
                 setPreviewImage(previewId, placeholderId, dataUrl);
             },
-            onError: (msg) => window.showToast?.(msg || 'No se pudo tomar la foto', 'warning'),
+            onError: (msg) => window.showToast?.(msg || 'No se pudo tomar o subir la foto', 'warning'),
         });
     });
 }
@@ -233,7 +236,7 @@ export function buildPassengerVerificationFormHtml({
                         <i class="fas fa-camera text-xl text-blue-400"></i>
                     </div>
                 </div>
-                <p class="text-[8px] text-blue-600 mt-1">Toca para abrir la cámara</p>
+                <p class="text-[8px] text-blue-600 mt-1">Toca para tomar o subir foto</p>
             </div>
             ${idDocsBlock}
         </div>
@@ -253,12 +256,12 @@ export function buildPassengerVerificationFormHtml({
 
 export function bindPassengerVerificationPhotoPicks(profile = null) {
     const minor = isMinorProfile(profile || window.userProfile);
-    bindVerificationPhotoPick('passenger-photo-preview', 'passenger-photo-placeholder', 'passengerPhotoBase64', 'user', 512);
+    bindVerificationPhotoPick('passenger-photo-preview', 'passenger-photo-placeholder', 'passengerPhotoBase64', 'user', 512, 'Foto de tu rostro');
     if (minor) {
-        bindVerificationPhotoPick('passenger-birth-cert-preview', 'passenger-birth-cert-placeholder', 'passengerBirthCertBase64', 'environment', 900);
+        bindVerificationPhotoPick('passenger-birth-cert-preview', 'passenger-birth-cert-placeholder', 'passengerBirthCertBase64', 'environment', 900, 'Partida de nacimiento');
     } else {
-        bindVerificationPhotoPick('passenger-id-front-preview', 'passenger-id-front-placeholder', 'passengerIdFrontBase64', 'environment', 720);
-        bindVerificationPhotoPick('passenger-id-back-preview', 'passenger-id-back-placeholder', 'passengerIdBackBase64', 'environment', 720);
+        bindVerificationPhotoPick('passenger-id-front-preview', 'passenger-id-front-placeholder', 'passengerIdFrontBase64', 'environment', 720, 'Identidad — frente');
+        bindVerificationPhotoPick('passenger-id-back-preview', 'passenger-id-back-placeholder', 'passengerIdBackBase64', 'environment', 720, 'Identidad — revés');
     }
 }
 
@@ -410,14 +413,17 @@ export function bindOptionalRegistrationPhotoPick() {
     target.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        pickPhotoFromCamera({
+        pickPhotoWithSourceChoice({
             facing: 'user',
             maxSize: 384,
+            title: 'Foto de perfil',
+            cameraLabel: 'Tomar foto',
+            galleryLabel: 'Elegir de galería',
             onCapture: (dataUrl) => {
                 window.passengerPhotoBase64 = dataUrl;
                 setPreviewImage('passenger-reg-photo-preview', 'passenger-reg-photo-placeholder', dataUrl);
             },
-            onError: (msg) => window.showToast?.(msg || 'No se pudo abrir la cámara', 'warning'),
+            onError: (msg) => window.showToast?.(msg || 'No se pudo tomar o subir la foto', 'warning'),
         });
     });
 }

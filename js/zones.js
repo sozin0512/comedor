@@ -344,7 +344,48 @@ export function isNearbyCitySpillEnabled() {
 export function getNearbyCitySpillKm() {
     const cfg = getZoneConfig();
     const n = Number(cfg.nearbyCitySpillKm);
-    return Number.isFinite(n) && n > 0 ? n : 45;
+    return Number.isFinite(n) && n > 0 ? n : 80;
+}
+
+/** Tras este tiempo, ciudades cercanas del MISMO departamento también ven el viaje. */
+export const NEARBY_CITY_SPILL_AFTER_MS = 15000;
+
+/** Ciudades que son la misma área urbana: se alertan de inmediato (no esperan 15s). */
+const SAME_METRO_GROUPS = [
+    ['tegucigalpa', 'comayaguela']
+];
+
+export function getMetroTwinIds(zoneId) {
+    const z = String(zoneId || '').toLowerCase();
+    if (!z) return [];
+    const group = SAME_METRO_GROUPS.find((g) => g.includes(z));
+    return group ? group.slice() : [z];
+}
+
+export function zonesAreSameMetro(zoneIdA, zoneIdB) {
+    const a = String(zoneIdA || '').toLowerCase();
+    const b = String(zoneIdB || '').toLowerCase();
+    if (!a || !b) return false;
+    if (a === b) return true;
+    return SAME_METRO_GROUPS.some((g) => g.includes(a) && g.includes(b));
+}
+
+function zoneTripCreatedAtMs(trip) {
+    if (!trip) return 0;
+    const c = trip.createdAt;
+    if (c && typeof c.toMillis === 'function') return c.toMillis();
+    if (c && typeof c.seconds === 'number') return c.seconds * 1000;
+    if (typeof c === 'number') return c;
+    if (typeof trip.createdAtMs === 'number') return trip.createdAtMs;
+    return 0;
+}
+
+/** ¿Ya pasaron 15s y puede entrar el desborde del mismo departamento? */
+export function tripAllowsNearbyDepartmentSpill(trip) {
+    if (!isNearbyCitySpillEnabled()) return false;
+    const ms = zoneTripCreatedAtMs(trip);
+    if (!ms) return false;
+    return (Date.now() - ms) >= NEARBY_CITY_SPILL_AFTER_MS;
 }
 
 /** Distancia entre centros de dos ciudades. */
@@ -430,12 +471,16 @@ export function collectRegisteredDriverZoneIds(usersSnapOrDocs) {
     return zones;
 }
 
-/** ¿Hay flota (registrada o en línea) exactamente en esa ciudad? */
+/** ¿Hay flota (registrada o en línea) en esa ciudad o su metro (Tegucigalpa/Comayagüela)? */
 export function tripCityHasLocalDrivers(tripZoneId, zoneIds) {
     if (!tripZoneId || zoneIds == null) return null;
-    if (zoneIds instanceof Set) return zoneIds.has(tripZoneId);
-    if (Array.isArray(zoneIds)) return zoneIds.includes(tripZoneId);
-    return !!zoneIds[tripZoneId];
+    const ids = getMetroTwinIds(tripZoneId);
+    const has = (id) => {
+        if (zoneIds instanceof Set) return zoneIds.has(id);
+        if (Array.isArray(zoneIds)) return zoneIds.includes(id);
+        return !!zoneIds[id];
+    };
+    return ids.some((id) => has(id));
 }
 
 /** @deprecated Usar tripCityHasLocalDrivers */
@@ -444,31 +489,22 @@ export function tripCityHasLocalOnlineDrivers(tripZoneId, onlineZoneIds) {
 }
 
 /**
- * ¿Se permite desborde a ciudades cercanas?
- * Solo si el spill está activo Y NO hay conductores REGISTRADOS en la ciudad del viaje
- * (aunque estén offline). Si hay registrados locales → spill NO entra en vigencia.
- * Si no sabemos (null) → false (seguro: solo misma ciudad).
+ * ¿Se permite desborde a ciudades cercanas del MISMO departamento?
+ * Inmediato (igual que el aviso al admin): no espera 15s ni “sin flota local”.
+ * Nunca cruza departamento (eso se bloquea en driverZoneCanServeTrip).
  */
-export function canSpillTripToNearbyCities(trip, options = {}) {
+export function canSpillTripToNearbyCities(trip, _options = {}) {
     if (!isNearbyCitySpillEnabled()) return false;
     const tripZoneId = getTripCityId(trip);
     if (!tripZoneId) return false;
-
-    let hasLocal = options.tripCityHasLocalDrivers;
-    if (hasLocal == null && options.registeredDriverZones != null) {
-        hasLocal = tripCityHasLocalDrivers(tripZoneId, options.registeredDriverZones);
-    }
-    // Compat: onlineDriverZones solo si no hay datos de registrados
-    if (hasLocal == null && options.onlineDriverZones != null) {
-        hasLocal = tripCityHasLocalDrivers(tripZoneId, options.onlineDriverZones);
-    }
-    return hasLocal === false;
+    return true;
 }
 
 /**
  * ¿La ciudad operativa del conductor puede atender este viaje?
  * - Siempre: misma ciudad.
- * - Ciudad cercana: SOLO si no hay conductores registrados en la ciudad del viaje.
+ * - Ciudad cercana del MISMO departamento (centros ≤ 80 km): de inmediato.
+ * - Nunca otro departamento (Comayagua ↮ Francisco Morazán).
  */
 export function driverZoneCanServeTrip(driverZoneId, trip, options = {}) {
     if (!driverZoneId || !trip) return false;
@@ -500,11 +536,12 @@ export function driverZoneCanServeTrip(driverZoneId, trip, options = {}) {
     return false;
 }
 
-/** ¿Misma ciudad operativa? La ciudad elegida en la app es la regla principal. */
+/** ¿Misma ciudad operativa? Tegucigalpa y Comayagüela cuentan como la misma. */
 export function tripSameCity(trip, zoneId) {
     if (!zoneId) return false;
     const tripZone = getTripCityId(trip);
-    return !!tripZone && tripZone === zoneId;
+    if (!tripZone) return false;
+    return tripZone === zoneId || zonesAreSameMetro(tripZone, zoneId);
 }
 
 /** Viaje en zona para heatmaps/filtros: por defecto solo misma ciudad. */
@@ -528,8 +565,8 @@ export function tripMatchesZone(trip, zoneId, radiusKm = null) {
 
 /**
  * ¿Un viaje pendiente debe mostrarse a este conductor?
- * Misma ciudad siempre. Ciudad cercana solo si NO hay conductores REGISTRADOS
- * en la ciudad del viaje (offline también cuenta como flota local).
+ * Misma ciudad siempre. Ciudad cercana del mismo departamento: de inmediato
+ * (mismo criterio que el push; no cruza departamento).
  *
  * options.registeredDriverZones — Set/Array de ciudades con conductores registrados
  * options.tripCityHasLocalDrivers — boolean explícito (tiene prioridad)
@@ -551,6 +588,8 @@ export function driverLocationMatchesTripCity(loc, tripZoneId, fallbackDriverZon
     if (!tripZoneId) return true;
     if (loc?.serviceZoneId === tripZoneId) return true;
     if (fallbackDriverZoneId && fallbackDriverZoneId === tripZoneId) return true;
+    if (zonesAreSameMetro(loc?.serviceZoneId, tripZoneId)) return true;
+    if (fallbackDriverZoneId && zonesAreSameMetro(fallbackDriverZoneId, tripZoneId)) return true;
 
     // Ciudad de trabajo de otro departamento (Comayagua ↮ Tegucigalpa): el GPS no cruza.
     const declared = loc?.serviceZoneId || fallbackDriverZoneId || null;
@@ -1248,8 +1287,8 @@ export function isDriverVisibleToClient(driverData, zoneId, radiusOrOpts = null)
     const dist = haversineKm(driverData.lat, driverData.lng, zone.center.lat, zone.center.lng);
     const dZone = driverData.serviceZoneId || null;
 
-    // Local: misma ciudad operativa o GPS dentro de cobertura municipal
-    if (!dZone || dZone === zoneId || dist <= coverage) {
+    // Local: misma ciudad operativa, metro (Tegucigalpa/Comayagüela) o GPS en cobertura
+    if (!dZone || dZone === zoneId || zonesAreSameMetro(dZone, zoneId) || dist <= coverage) {
         return dist <= Math.max(coverage, getNearbyCitySpillKm());
     }
 

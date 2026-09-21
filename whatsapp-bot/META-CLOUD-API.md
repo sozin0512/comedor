@@ -8,7 +8,7 @@ Guía para configurar en **Meta for Developers** la **URL de devolución de llam
 
 | Campo en Meta | Valor |
 |---------------|--------|
-| **Token de verificación** | `honduraite_wa_verify_2026_secure` |
+| **Token de verificación** | `honduraite_verify_2026` |
 | **URL de devolución de llamada** | `https://us-central1-comedor-86278.cloudfunctions.net/whatsappWebhook` |
 
 > Si tu proyecto de Firebase **no** es `comedor-86278`, cambia solo el ID del proyecto en la URL.  
@@ -22,7 +22,7 @@ Guía para configurar en **Meta for Developers** la **URL de devolución de llam
 1. Entra a [developers.facebook.com](https://developers.facebook.com) → tu app → **WhatsApp** → **Configuración** (o **API Setup** / **Webhooks**).
 2. En **Webhooks** / **Configurar webhooks**:
    - **URL de devolución de llamada**: pega la URL de arriba.
-   - **Token de verificación**: pega `honduraite_wa_verify_2026_secure` (exacto, sin espacios).
+   - **Token de verificación**: pega `honduraite_verify_2026` (exacto, sin espacios).
 3. Pulsa **Verificar y guardar**.
 4. Suscríbete al campo **`messages`** (y si quieres: `message_template_status_update`).
 
@@ -115,7 +115,7 @@ Colecciones (app `comayagua-vip-pro-v4`):
 ## 4) Probar la verificación a mano
 
 ```bash
-curl "https://us-central1-comedor-86278.cloudfunctions.net/whatsappWebhook?hub.mode=subscribe&hub.verify_token=honduraite_wa_verify_2026_secure&hub.challenge=12345"
+curl "https://us-central1-comedor-86278.cloudfunctions.net/whatsappWebhook?hub.mode=subscribe&hub.verify_token=honduraite_verify_2026&hub.challenge=12345"
 ```
 
 Debe responder exactamente:
@@ -142,7 +142,7 @@ El bot Baileys de `whatsapp-bot/` es temporal y **no oficial**. Cuando Cloud API
 
 - [ ] `firebase deploy --only functions:whatsappWebhook`
 - [ ] URL en Meta = `https://us-central1-comedor-86278.cloudfunctions.net/whatsappWebhook`
-- [ ] Token en Meta = `honduraite_wa_verify_2026_secure`
+- [ ] Token en Meta = `honduraite_verify_2026`
 - [ ] **Verificar y guardar** OK
 - [ ] Suscripción a `messages`
 - [ ] (Opcional) `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` para enviar

@@ -721,7 +721,11 @@ export function installStaffCreateClientTrip({
                 if (oWrap) oWrap.style.display = hideRoute ? 'none' : 'block';
                 if (dWrap) dWrap.style.display = hideRoute ? 'none' : 'block';
                 if (routeBox && hideRoute) routeBox.style.display = 'none';
-                if (flete) loadFleteDrivers();
+                if (flete) {
+                    const svc = String(serviceSelect?.value || '');
+                    driverListFilter = svc === 'flete_camion' ? 'camion' : 'paila';
+                    loadFleteDrivers();
+                }
             };
 
             const syncDriverFilterButtons = () => {
@@ -795,11 +799,17 @@ export function installStaffCreateClientTrip({
                 if (listEl) listEl.innerHTML = '<p style="font-size:11px;color:#94a3b8;font-weight:700;padding:0.4rem;margin:0;">Cargando…</p>';
                 try {
                     // TODOS los conductores registrados: staff designa a quien quiera (normal o flete)
-                    const snap = await getDocs(query(
-                        collection(db, 'artifacts', appId, 'public', 'data', 'users'),
-                        where('role', '==', 'driver'),
-                        limit(300)
-                    ));
+                    const [snap, locSnap] = await Promise.all([
+                        getDocs(query(
+                            collection(db, 'artifacts', appId, 'public', 'data', 'users'),
+                            where('role', '==', 'driver'),
+                            limit(400)
+                        )),
+                        getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'drivers_location'))
+                    ]);
+                    const locById = new Map();
+                    locSnap.forEach((d) => locById.set(d.id, d.data() || {}));
+                    const now = Date.now();
                     fleteDriverCache = snap.docs.map((d) => {
                         const u = d.data() || {};
                         // No listar suspendidos / rechazados si el campo existe
@@ -823,14 +833,24 @@ export function installStaffCreateClientTrip({
                             || vehicles.find((v) => v?.plate)?.plate
                             || u.plate
                             || '';
+                        const loc = locById.get(d.id) || {};
+                        const locOnline = loc.online !== false
+                            && Number(loc.updatedAt) > 0
+                            && (now - Number(loc.updatedAt) <= 90000);
+                        const locTypes = Array.isArray(loc.approvedVehicleTypes) ? loc.approvedVehicleTypes : [];
+                        locTypes.forEach((t) => types.push(String(t).toLowerCase()));
+                        if (loc.vehicleType) types.push(String(loc.vehicleType).toLowerCase());
+                        const uniqTypes = [...new Set(types.filter(Boolean))];
+                        const hasFreightCar = uniqTypes.some((t) => t === 'paila' || t === 'camion')
+                            || !!(u.freightEnabled || u.canDoFreight || loc.freightCapable);
                         return {
                             uid: d.id,
                             name: u.name || 'Conductor',
                             phone: formatHondurasPhone(u.phone) || u.phone || '',
                             plate: String(plate || ''),
-                            types: [...new Set(types.filter(Boolean))],
-                            online: u.isOnline === true || u.online === true,
-                            freightEnabled: !!(u.freightEnabled || u.canDoFreight)
+                            types: uniqTypes,
+                            online: locOnline || u.isOnline === true || u.online === true,
+                            freightEnabled: hasFreightCar
                         };
                     }).filter(Boolean);
                     syncDriverFilterButtons();
@@ -2007,18 +2027,7 @@ export function installStaffCreateClientTrip({
                 staffCreatedAt: serverTimestamp(),
                 staffAssistedClient: true,
                 staffCreatedClientClaimed: false,
-                // Mismo criterio que pedidos normales (appSettings.negotiationEnabled; default ON)
-                negotiationEnabled: (() => {
-                    try {
-                        if (typeof window.currentAdminNegotiationEnabled === 'boolean') {
-                            return window.currentAdminNegotiationEnabled;
-                        }
-                        const raw = window.localStorage?.getItem('honduber_admin_global_negotiation_enabled');
-                        if (raw === '1') return true;
-                        if (raw === '0') return false;
-                    } catch (_) {}
-                    return true;
-                })()
+                negotiationEnabled: false
             };
 
             const createdRef = await addDoc(
@@ -2089,9 +2098,11 @@ export function installStaffCreateClientTrip({
 
         const user = getCurrentUser?.() || window.currentUser || null;
         if (!user?.uid) {
+            const guestOpened = await window.openGuestTripFollowFromLink?.(id);
+            if (guestOpened) return true;
             toast(
                 showToast,
-                'Regístrate o inicia sesión como pasajero. Luego se te abrirá el viaje del link.',
+                'Abriendo el viaje… si no carga, pide el link otra vez por WhatsApp.',
                 'warning'
             );
             return false;
@@ -2150,7 +2161,8 @@ export function installStaffCreateClientTrip({
                 );
                 return false;
             }
-            if (isGuestTrip(t) && t.staffCreatedClientClaimed === true && t.clientId !== user.uid) {
+            if (isGuestTrip(t) && t.staffCreatedClientClaimed === true && t.clientId !== user.uid
+                && !String(t.clientId || '').startsWith('guest_')) {
                 toast(showToast, 'Este viaje ya lo tomó otra cuenta.', 'warning');
                 return false;
             }
@@ -2176,17 +2188,40 @@ export function installStaffCreateClientTrip({
                 toast(showToast, 'Abre HonduRaite como pasajero para confirmar el viaje.', 'info');
                 return false;
             }
-            // Ya reclamado o en curso
-            if (t.clientId === user.uid) {
+            // Viaje WhatsApp/guest: al abrir el link, el pasajero se adueña y ve el mapa
+            if (isGuestTrip(t) && String(t.clientId || '').startsWith('guest_') && t.driverId !== user.uid) {
+                if (window.userProfile?.role === 'driver') {
+                    toast(showToast, 'Entra como pasajero para ver el viaje y al conductor en el mapa.', 'warning');
+                    return false;
+                }
+                try {
+                    t = await window.attachGuestTripToCurrentUser?.(t) || t;
+                } catch (bindErr) {
+                    console.warn('[staff] attach guest trip', bindErr);
+                    toast(showToast, bindErr?.message || 'No se pudo abrir el viaje. Intenta de nuevo.', 'error');
+                    return false;
+                }
+            }
+
+            // Ya reclamado o en curso: cliente o conductor del viaje
+            if (t.clientId === user.uid || t.driverId === user.uid) {
                 try {
                     window.subscribeToTripDocument?.(id);
-                    window.setStoredClientTripId?.(id);
+                    if (t.clientId === user.uid) window.setStoredClientTripId?.(id);
                     if (t.status === 'pending' || t.status === 'scheduled') {
                         window.restorePendingTripUI?.(t);
                     }
+                    if (t.clientId === user.uid && ['accepted', 'in_progress'].includes(t.status)) {
+                        window.presentTripAcceptedUi?.(t, { role: 'client', skipAcceptSound: true });
+                    }
+                    window.maybeOpenTripChatFromLink?.();
                 } catch (_) {}
                 clearPendingStaffTripId();
-                toast(showToast, 'Ya tienes este viaje activo.', 'success');
+                toast(showToast, t.driverId === user.uid
+                    ? 'Viaje activo. Puedes responder el chat.'
+                    : (['accepted', 'in_progress'].includes(t.status)
+                        ? 'Viaje activo. Sigue a tu conductor en el mapa.'
+                        : 'Ya tienes este viaje activo.'), 'success');
                 return true;
             }
             toast(showToast, 'No se pudo abrir el viaje con esta cuenta.', 'warning');
