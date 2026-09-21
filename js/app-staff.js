@@ -1,6 +1,8 @@
 /** Runtime staff: estadísticas, depósitos y personalización. Tras login admin/supervisor. */
-import { collection, getDocs, doc, setDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { getCustomTones, saveTonePrefs, listTones } from './notification-tones.js';
+import { collection, getDocs, getDoc, doc, setDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { APP_CONFIG } from './config.js';
+import { getCustomTones, saveTonePrefs, listTones, getMaxCustomBytes, getPlatformToneLabel } from './notification-tones.js';
+import { storeReferralFromURL, showReferralInviteModal, getPendingReferralCode } from './referrals.js';
 import { isCapacitorNative } from './capacitor-native.js';
 
 export function installStaffRuntime() {
@@ -63,7 +65,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                 const tripDate = t.createdAt.toDate ? t.createdAt.toDate() : new Date(t.createdAt);
 
                 if (tripDate >= startDate) {
-                    const price = parseTripPrice(t);
+                    const price = window.parseTripPrice?.(t) || parseFloat(t.priceNum) || 0;
                     const completedAt = t.completedAt?.toDate?.() || null;
                     const startedAt = t.startedAt?.toDate?.() || null;
                     let durationMin = null;
@@ -113,7 +115,9 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
         // % real de Cuentas bancarias / platformConfig (ej. 18%). Antes estaba hardcodeado 30%.
         let platformPct = 25;
         try {
-            platformPct = await getPlatformCommission();
+            platformPct = typeof window.getPlatformCommission === 'function'
+                ? await window.getPlatformCommission()
+                : (Number(APP_CONFIG.commissionPercent) || 25);
         } catch (_) {
             platformPct = Number(APP_CONFIG.commissionPercent) || 25;
         }
@@ -186,7 +190,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                 || (t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null));
             if (!tripDate || tripDate < depositSince) return;
             const id = t.driverId;
-            const price = parseTripPrice(t);
+            const price = window.parseTripPrice?.(t) || parseFloat(t.priceNum) || 0;
             const pct = (typeof resolveDepositCommissionPercent === 'function')
                 ? resolveDepositCommissionPercent(t, platformPct)
                 : ((t.commissionWaivedBirthday || t.birthdayFree || t.paymentMethod === 'birthday_gift')
@@ -749,18 +753,18 @@ window.saveLoginCustomization = async (btn) => {
         await window.loadAppCustomization();
         window.showLoginLogo?.();
 
-        const uid = auth.window.currentUser?.uid;
-        if (uid && getNotificationPermission() === 'granted') {
+        const uid = window.currentUser?.uid;
+        if (uid && window.getNotificationPermission?.() === 'granted') {
             if (isCapacitorNative()) {
-                await initAndroidFcmPush({ db, appId, uid }).catch(() => {});
+                await window.initAndroidFcmPush?.({ db, appId, uid })?.catch?.(() => {});
             } else if (vapidKey) {
-                await initFcmPush({
+                await window.initFcmPush?.({
                     firebaseConfig: APP_CONFIG.firebase,
                     vapidKey,
                     db,
                     appId,
                     uid
-                }).catch(() => {});
+                })?.catch?.(() => {});
             }
         }
     } catch(e) {
