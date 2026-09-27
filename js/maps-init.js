@@ -3768,16 +3768,18 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     badge.innerText = '0';
                     badge.classList.remove('animate-bounce');
                 });
-                setTimeout(() => {
+                const pinOpen = !document.getElementById('driver-pin-float')?.classList.contains('hidden')
+                    && !document.getElementById('pin-input-group')?.classList.contains('hidden');
+                const canFocusChat = !(window.userProfile?.role === 'driver' && pinOpen);
+                const focusChatInput = () => {
                     const chatMsgs = document.getElementById('chat-messages');
                     if (chatMsgs) chatMsgs.scrollTop = chatMsgs.scrollHeight;
-                    // En conductor no forzar focus al teclado del chat si está en PIN (evita pelear con el input del PIN)
-                    const pinOpen = !document.getElementById('driver-pin-float')?.classList.contains('hidden')
-                        && !document.getElementById('pin-input-group')?.classList.contains('hidden');
-                    if (!(window.userProfile?.role === 'driver' && pinOpen)) {
-                        document.getElementById('chat-input')?.focus?.({ preventScroll: true });
-                    }
-                }, 100);
+                    if (!canFocusChat) return;
+                    document.getElementById('chat-input')?.focus?.({ preventScroll: true });
+                };
+                // Mismo gesto del toque: si se espera 100 ms, iOS/Android sueltan el teclado.
+                focusChatInput();
+                requestAnimationFrame(focusChatInput);
             } else {
                 window.markTripChatSeen?.(false);
             }

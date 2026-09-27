@@ -770,24 +770,25 @@ function bindTripChatUi() {
     const form = document.getElementById('chat-compose-form');
     const input = document.getElementById('chat-input');
     const sendBtn = document.getElementById('chat-send-btn');
-    const chatFloat = document.getElementById('chat-float');
 
     const fireSend = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        window.sendChatMessage?.();
+        if (typeof window.sendChatMessage === 'function') {
+            window.sendChatMessage();
+        } else {
+            window.showToast?.('El chat aún se está cargando. Intenta de nuevo.', 'warning');
+        }
     };
 
     if (form && form.dataset.chatBound !== '1') {
         form.dataset.chatBound = '1';
         form.addEventListener('submit', fireSend, { passive: false });
-        form.addEventListener('pointerdown', (e) => e.stopPropagation(), { passive: true });
     }
 
     if (sendBtn && sendBtn.dataset.chatBound !== '1') {
         sendBtn.dataset.chatBound = '1';
-        sendBtn.addEventListener('touchend', fireSend, { passive: false });
-        sendBtn.addEventListener('pointerup', fireSend, { passive: false });
+        sendBtn.addEventListener('click', fireSend, { passive: false });
     }
 
     if (input && input.dataset.chatBound !== '1') {
@@ -798,21 +799,11 @@ function bindTripChatUi() {
                 window.sendChatMessage?.();
             }
         });
-        input.addEventListener('pointerdown', (e) => e.stopPropagation(), { passive: true });
         input.addEventListener('focus', () => {
             window.setTimeout(() => {
                 input.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
             }, 280);
         });
-    }
-
-    if (chatFloat && chatFloat.dataset.chatStopDrag !== '1') {
-        chatFloat.dataset.chatStopDrag = '1';
-        chatFloat.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('#chat-compose-form, #chat-input, #chat-send-btn, #chat-messages, .trip-chat-compose')) {
-                e.stopPropagation();
-            }
-        }, true);
     }
 }
 

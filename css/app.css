@@ -15518,6 +15518,14 @@
             font-size: 16px;
             -webkit-appearance: none;
             appearance: none;
+            pointer-events: auto !important;
+            user-select: text !important;
+            -webkit-user-select: text !important;
+        }
+
+        #chat-float .trip-chat-compose,
+        #chat-float .trip-chat-send {
+            pointer-events: auto !important;
         }
 
         #chat-float .trip-chat-send {
