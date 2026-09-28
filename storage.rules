@@ -50,6 +50,13 @@ service firebase.storage {
              || request.resource.contentType == '';
     }
 
+    function isAudio() {
+      return request.resource.contentType.matches('audio/.*')
+             || request.resource.contentType == 'application/octet-stream'
+             || request.resource.contentType == 'application/x-octet-stream'
+             || request.resource.contentType == '';
+    }
+
     function maxSize(mb) {
       return request.resource.size < mb * 1024 * 1024;
     }
@@ -57,6 +64,15 @@ service firebase.storage {
     // ============================================================
     // ARCHIVOS DE USUARIOS (perfil, verificación, vehículos)
     // ============================================================
+
+    // Audios de encuesta de cancelación
+    match /artifacts/{appId}/users/{userId}/surveys/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId)
+                   && maxSize(8)
+                   && isAudio();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
 
     // Carpeta general de cada usuario
     match /artifacts/{appId}/users/{userId}/{allPaths=**} {

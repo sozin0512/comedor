@@ -4,28 +4,28 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.09.27.1";
+} from "./auth-credentials.js?v=2026.09.28.1";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.09.27.1";
+import { APP_CONFIG } from "./config.js?v=2026.09.28.1";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.09.27.1";
+} from "./market.js?v=2026.09.28.1";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.09.27.1";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.09.27.1";
+} from "./phone-utils.js?v=2026.09.28.1";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.09.28.1";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.09.27.1";
+} from "./referrals.js?v=2026.09.28.1";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -40,12 +40,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.09.27.1";
+} from "./zones.js?v=2026.09.28.1";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.09.27.1";
+} from "./trip-notifications.js?v=2026.09.28.1";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -66,7 +66,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.09.27.1";
+} from "./notification-tones.js?v=2026.09.28.1";
 
 installNotificationTonesApi();
 
@@ -102,7 +102,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.09.27.1";
+} from "./passenger-alerts.js?v=2026.09.28.1";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -111,22 +111,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.09.27.1";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.09.27.1";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide } from "./pwa-install.js?v=2026.09.27.1";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.09.27.1";
+} from "./passenger-verification.js?v=2026.09.28.1";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.09.28.1";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide } from "./pwa-install.js?v=2026.09.28.1";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.09.28.1";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.09.27.1";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.09.28.1";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.09.27.1";
+} from "./feedback.js?v=2026.09.28.1";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.09.27.1";
+} from "./greetings.js?v=2026.09.28.1";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -143,55 +143,55 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.09.27.1";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.09.27.1";
+} from "./service-types.js?v=2026.09.28.1";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.09.28.1";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getApprovedVehicleTypes, getRegisteredVehicleTypes,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles-v2.js?v=2026.09.27.1";
+} from "./driver-vehicles-v2.js?v=2026.09.28.1";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.09.27.1";
+} from "./route-fixed-fares.js?v=2026.09.28.1";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.09.27.1";
+} from "./commission-free-day.js?v=2026.09.28.1";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.09.27.1";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.09.27.1";
+} from "./route-conditions.js?v=2026.09.28.1";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.09.28.1";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.09.27.1";
+} from "./demand-heatmap.js?v=2026.09.28.1";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.09.27.1";
+} from "./ops-fleet-map.js?v=2026.09.28.1";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.09.27.1";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.09.27.1";
+} from "./live-trip-keepalive.js?v=2026.09.28.1";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.09.28.1";
 import {
     saveDriverLogin, clearDriverLogin, markSkipDriverAutoLogin, restoreDriverLoginForm
-} from "./driver-session.js?v=2026.09.27.1";
+} from "./driver-session.js?v=2026.09.28.1";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.09.27.1";
+} from "./session-keepalive.js?v=2026.09.28.1";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -276,28 +276,28 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.09.27.1";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.09.28.1";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.09.27.1";
+} from "./auth-ui.js?v=2026.09.28.1";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.09.27.1";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.09.27.1";
+} from "./age-verification.js?v=2026.09.28.1";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.09.28.1";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.09.27.1";
+} from "./trip-experience.js?v=2026.09.28.1";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.09.27.1";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.09.27.1";
+} from "./support-tickets.js?v=2026.09.28.1";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.09.28.1";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.09.27.1";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.09.28.1";
 
 
 let app;
@@ -30156,18 +30156,270 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         }
 
         function getCancellationSurveyScope() {
-            const role = cancellationSurveyRole();
-            return document.getElementById(role === 'driver' ? 'cancel-survey-driver' : 'cancel-survey-passenger');
+            return document.getElementById('cancellation-survey-screen');
+        }
+
+        const SURVEY_AUDIO_MAX_MS = 60000;
+        let surveyAudio = {
+            recorder: null,
+            stream: null,
+            chunks: [],
+            blob: null,
+            url: null,
+            startedAt: 0,
+            timer: 0,
+            durationMs: 0,
+            recording: false
+        };
+
+        function pickSurveyAudioMime() {
+            if (typeof MediaRecorder === 'undefined') return '';
+            const cands = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus', 'audio/ogg'];
+            return cands.find((t) => {
+                try { return MediaRecorder.isTypeSupported(t); } catch (_) { return false; }
+            }) || '';
+        }
+
+        function surveyAudioExt(mime) {
+            const t = String(mime || '').toLowerCase();
+            if (t.includes('mp4') || t.includes('m4a') || t.includes('aac')) return 'm4a';
+            if (t.includes('mpeg') || t.includes('mp3')) return 'mp3';
+            if (t.includes('ogg')) return 'ogg';
+            if (t.includes('wav')) return 'wav';
+            return 'webm';
+        }
+
+        function formatSurveyAudioClock(ms) {
+            const s = Math.max(0, Math.floor(Number(ms) / 1000));
+            return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+        }
+
+        function stopSurveyAudioTracks() {
+            try {
+                surveyAudio.stream?.getTracks?.().forEach((t) => t.stop());
+            } catch (_) {}
+            surveyAudio.stream = null;
+        }
+
+        function revokeSurveyAudioUrl() {
+            if (surveyAudio.url) {
+                try { URL.revokeObjectURL(surveyAudio.url); } catch (_) {}
+            }
+            surveyAudio.url = null;
+        }
+
+        function setSurveyAudioUi(state) {
+            const btn = document.getElementById('survey-audio-main-btn');
+            const label = document.getElementById('survey-audio-main-label');
+            const status = document.getElementById('survey-audio-status');
+            const retry = document.getElementById('survey-audio-retry-btn');
+            const preview = document.getElementById('survey-audio-preview');
+            const timer = document.getElementById('survey-audio-timer');
+            btn?.classList.toggle('is-recording', state === 'recording');
+            btn?.classList.toggle('is-ready', state === 'ready');
+            if (label) {
+                label.textContent = state === 'recording'
+                    ? 'Detener'
+                    : (state === 'ready' ? 'Audio listo' : 'Grabar audio');
+            }
+            const icon = btn?.querySelector('i');
+            if (icon) {
+                icon.className = `fas ${state === 'recording' ? 'fa-stop' : (state === 'ready' ? 'fa-check' : 'fa-microphone')} pointer-events-none`;
+            }
+            if (status) {
+                status.textContent = state === 'recording'
+                    ? 'Grabando… toca Detener cuando termines.'
+                    : (state === 'ready'
+                        ? 'Escúchalo abajo. Puedes grabar de nuevo si quieres.'
+                        : 'Toca el micrófono y habla con naturalidad.');
+            }
+            retry?.classList.toggle('hidden', state !== 'ready');
+            if (preview) {
+                preview.classList.toggle('hidden', state !== 'ready' || !surveyAudio.url);
+                if (state === 'ready' && surveyAudio.url) preview.src = surveyAudio.url;
+                if (state !== 'ready') {
+                    try { preview.pause(); } catch (_) {}
+                    preview.removeAttribute('src');
+                }
+            }
+            if (timer && state === 'idle') timer.textContent = '0:00';
+            if (timer && state === 'ready') timer.textContent = formatSurveyAudioClock(surveyAudio.durationMs);
+        }
+
+        function clearSurveyAudioBlob() {
+            if (surveyAudio.timer) {
+                clearInterval(surveyAudio.timer);
+                surveyAudio.timer = 0;
+            }
+            try { surveyAudio.recorder?.stop?.(); } catch (_) {}
+            surveyAudio.recorder = null;
+            surveyAudio.chunks = [];
+            surveyAudio.blob = null;
+            surveyAudio.durationMs = 0;
+            surveyAudio.recording = false;
+            surveyAudio.startedAt = 0;
+            stopSurveyAudioTracks();
+            revokeSurveyAudioUrl();
+            const file = document.getElementById('survey-audio-file');
+            if (file) file.value = '';
+            setSurveyAudioUi('idle');
+        }
+
+        async function startSurveyAudioRecording() {
+            if (surveyAudio.recording) return;
+            if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+                window.showToast?.('Este teléfono no deja grabar. Sube un audio o escribe qué pasó.', 'warning');
+                document.getElementById('survey-audio-file')?.click();
+                return;
+            }
+            let stream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            } catch (e) {
+                console.warn('survey audio permission:', e);
+                window.showToast?.('Activa el micrófono o sube un audio.', 'warning');
+                return;
+            }
+            const mime = pickSurveyAudioMime();
+            let recorder;
+            try {
+                recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+            } catch (e) {
+                stopSurveyAudioTracks();
+                try { stream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+                window.showToast?.('No se pudo iniciar la grabación. Sube un audio.', 'warning');
+                return;
+            }
+            revokeSurveyAudioUrl();
+            surveyAudio.stream = stream;
+            surveyAudio.recorder = recorder;
+            surveyAudio.chunks = [];
+            surveyAudio.blob = null;
+            surveyAudio.durationMs = 0;
+            surveyAudio.startedAt = Date.now();
+            surveyAudio.recording = true;
+            recorder.ondataavailable = (ev) => {
+                if (ev.data && ev.data.size) surveyAudio.chunks.push(ev.data);
+            };
+            recorder.onstop = () => {
+                surveyAudio.recording = false;
+                if (surveyAudio.timer) {
+                    clearInterval(surveyAudio.timer);
+                    surveyAudio.timer = 0;
+                }
+                stopSurveyAudioTracks();
+                const type = recorder.mimeType || mime || 'audio/webm';
+                const blob = new Blob(surveyAudio.chunks, { type });
+                surveyAudio.blob = blob.size > 0 ? blob : null;
+                if (!surveyAudio.blob) {
+                    setSurveyAudioUi('idle');
+                    window.showToast?.('No se grabó audio. Intenta de nuevo.', 'warning');
+                    return;
+                }
+                if (surveyAudio.durationMs < 800) {
+                    surveyAudio.durationMs = Math.max(800, Date.now() - (surveyAudio.startedAt || Date.now()));
+                }
+                revokeSurveyAudioUrl();
+                surveyAudio.url = URL.createObjectURL(surveyAudio.blob);
+                setSurveyAudioUi('ready');
+            };
+            try { recorder.start(250); } catch (_) { recorder.start(); }
+            setSurveyAudioUi('recording');
+            const timerEl = document.getElementById('survey-audio-timer');
+            surveyAudio.timer = setInterval(() => {
+                const elapsed = Date.now() - surveyAudio.startedAt;
+                surveyAudio.durationMs = elapsed;
+                if (timerEl) timerEl.textContent = formatSurveyAudioClock(elapsed);
+                if (elapsed >= SURVEY_AUDIO_MAX_MS) stopSurveyAudioRecording();
+            }, 200);
+        }
+
+        function stopSurveyAudioRecording() {
+            if (!surveyAudio.recording) return;
+            surveyAudio.durationMs = Date.now() - (surveyAudio.startedAt || Date.now());
+            try {
+                if (surveyAudio.recorder && surveyAudio.recorder.state === 'recording') {
+                    surveyAudio.recorder.stop();
+                }
+            } catch (_) {
+                surveyAudio.recording = false;
+                setSurveyAudioUi('idle');
+            }
+        }
+
+        function useSurveyAudioFile(file) {
+            if (!file) return;
+            if (!String(file.type || '').startsWith('audio/') && !/\.(webm|m4a|mp3|ogg|wav|aac)$/i.test(file.name || '')) {
+                window.showToast?.('Elige un archivo de audio.', 'warning');
+                return;
+            }
+            if (file.size > 8 * 1024 * 1024) {
+                window.showToast?.('El audio debe pesar menos de 8 MB.', 'warning');
+                return;
+            }
+            try { surveyAudio.recorder?.stop?.(); } catch (_) {}
+            stopSurveyAudioTracks();
+            surveyAudio.recording = false;
+            if (surveyAudio.timer) {
+                clearInterval(surveyAudio.timer);
+                surveyAudio.timer = 0;
+            }
+            surveyAudio.blob = file;
+            surveyAudio.durationMs = 0;
+            revokeSurveyAudioUrl();
+            surveyAudio.url = URL.createObjectURL(file);
+            const preview = document.getElementById('survey-audio-preview');
+            const onMeta = () => {
+                const d = Number(preview?.duration);
+                if (Number.isFinite(d) && d > 0) {
+                    surveyAudio.durationMs = Math.round(d * 1000);
+                    const timer = document.getElementById('survey-audio-timer');
+                    if (timer) timer.textContent = formatSurveyAudioClock(surveyAudio.durationMs);
+                }
+            };
+            preview?.addEventListener('loadedmetadata', onMeta, { once: true });
+            setSurveyAudioUi('ready');
+        }
+
+        function bindCancellationSurveyAudioUi() {
+            const screen = document.getElementById('cancellation-survey-screen');
+            if (!screen || screen.dataset.audioBound === '1') return;
+            screen.dataset.audioBound = '1';
+            screen.addEventListener('click', (e) => {
+                const btn = e.target.closest?.('[data-survey-audio]');
+                if (!btn) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const action = btn.dataset.surveyAudio;
+                if (action === 'toggle') {
+                    if (surveyAudio.recording) stopSurveyAudioRecording();
+                    else startSurveyAudioRecording();
+                } else if (action === 'retry') {
+                    clearSurveyAudioBlob();
+                    startSurveyAudioRecording();
+                } else if (action === 'file') {
+                    document.getElementById('survey-audio-file')?.click();
+                }
+            });
+            document.getElementById('survey-audio-file')?.addEventListener('change', (e) => {
+                useSurveyAudioFile(e.target.files?.[0] || null);
+            });
         }
 
         function applyCancellationSurveyRoleUi(role) {
             const isDriver = role === 'driver';
-            const pax = document.getElementById('cancel-survey-passenger');
-            const drv = document.getElementById('cancel-survey-driver');
-            pax?.classList.toggle('hidden', isDriver);
-            drv?.classList.toggle('hidden', !isDriver);
-            pax?.querySelectorAll('input, textarea').forEach((el) => { el.disabled = isDriver; });
-            drv?.querySelectorAll('input, textarea').forEach((el) => { el.disabled = !isDriver; });
+            const kicker = document.getElementById('cancel-survey-role-kicker');
+            if (kicker) {
+                kicker.textContent = isDriver ? 'Versión del conductor' : 'Versión del pasajero';
+                kicker.classList.toggle('text-emerald-600', isDriver);
+                kicker.classList.toggle('text-blue-500', !isDriver);
+            }
+            const hint = document.getElementById('cancel-survey-audio-hint');
+            if (hint) {
+                hint.textContent = isDriver
+                    ? 'Hasta 1 minuto. Cuéntanos qué pasó con el pasajero. Supervisión lo compara con su audio.'
+                    : 'Hasta 1 minuto. Cuéntanos qué pasó con el conductor. Supervisión lo compara con su audio.';
+            }
             const title = document.getElementById('cancellation-survey-title');
             if (title) {
                 title.textContent = isDriver
@@ -30177,12 +30429,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         }
 
         function resetCancellationSurveyForm() {
-            document.querySelectorAll('#cancellation-survey-screen input[type="radio"]').forEach((el) => {
-                el.checked = false;
-            });
-            document.querySelectorAll('#cancellation-survey-screen textarea[data-survey-field="comments"]').forEach((el) => {
-                el.value = '';
-            });
+            clearSurveyAudioBlob();
+            const comments = document.getElementById('survey-audio-comments');
+            if (comments) comments.value = '';
         }
 
         function getCheckedSurveyValue(name) {
@@ -30332,8 +30581,29 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             return 'N/D';
         }
 
+        function surveyAudioPlayerHtml(s, label) {
+            if (!s?.audioUrl) return '';
+            const dur = Number(s.audioDurationMs) > 0
+                ? ` · ${Math.max(1, Math.round(Number(s.audioDurationMs) / 1000))}s`
+                : '';
+            const src = String(s.audioUrl).replace(/"/g, '&quot;');
+            return `<div class="w-full mt-1">
+                <p class="text-[10px] font-bold text-amber-200 mb-1">${label || 'Audio'}${dur}</p>
+                <audio controls preload="none" src="${src}" class="w-full h-10"></audio>
+            </div>`;
+        }
+
         function compareCancellationStories(clientS, driverS) {
             if (!clientS || !driverS) return '';
+            if (clientS.audioUrl || driverS.audioUrl || clientS.surveyVariant === 'audio' || driverS.surveyVariant === 'audio') {
+                return `<div class="w-full mt-2 rounded-xl bg-black/30 border border-white/10 p-3 space-y-2">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-amber-300">Audios de ambas partes</p>
+                    ${surveyAudioPlayerHtml(clientS, 'Pasajero')}
+                    ${surveyAudioPlayerHtml(driverS, 'Conductor')}
+                    ${clientS.comments ? `<p class="text-[11px] text-blue-100 italic mt-2">Pasajero: “${clientS.comments}”</p>` : ''}
+                    ${driverS.comments ? `<p class="text-[11px] text-emerald-100 italic mt-1">Conductor: “${driverS.comments}”</p>` : ''}
+                </div>`;
+            }
             const rows = [
                 ['Momento', clientS.cancelPoint, driverS.cancelPoint, CANCEL_POINT_LABELS],
                 ['Quién canceló', whoProposedCanonical(clientS), whoProposedCanonical(driverS), null],
@@ -30408,12 +30678,14 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         <p class="text-white text-xs"><b class="text-blue-300">Pasajero:</b> ${parties.clientName}</p>
                         <p class="text-white text-xs"><b class="text-emerald-300">Conductor:</b> ${parties.driverName}</p>
                     </div>
-                    <p class="text-white text-xs"><b class="text-gray-300">Respondió:</b> ${s.respondentName} (${roleLabel}${s.surveyVariant ? ` · ${s.surveyVariant === 'driver' ? 'formulario conductor' : 'formulario pasajero'}` : ''})</p>
+                    <p class="text-white text-xs"><b class="text-gray-300">Respondió:</b> ${s.respondentName} (${roleLabel}${s.surveyVariant === 'audio' ? ' · audio' : (s.surveyVariant ? ` · ${s.surveyVariant === 'driver' ? 'formulario conductor' : 'formulario pasajero'}` : '')})</p>
+                    ${s.audioUrl ? surveyAudioPlayerHtml(s, 'Audio de la encuesta') : `
                     <p class="text-white text-xs"><b class="text-gray-300">Quién canceló:</b> ${whoProposedDisplay(s)}</p>
                     <p class="text-white text-xs"><b class="text-gray-300">Motivo:</b> ${s.reasonLabel || s.reason || 'N/D'}</p>
                     <p class="text-white text-xs"><b class="text-gray-300">Momento:</b> ${CANCEL_POINT_LABELS[s.cancelPoint] || s.cancelPoint || 'N/D'}</p>
                     <p class="text-white text-xs"><b class="text-gray-300">Comunicación:</b> ${CANCEL_COMMUNICATION_LABELS[s.communication] || s.communication || 'N/D'}</p>
                     <p class="text-white text-xs"><b class="text-gray-300">Incidente:</b> ${CANCEL_INCIDENT_LABELS[s.incident] || s.incident || 'N/D'}</p>
+                    `}
                     ${s.fraudSignals?.length ? `<p class="text-red-200 text-[10px]"><b>Señales:</b> ${s.fraudSignals.join(', ')}</p>` : ''}
                     <p class="text-gray-300 text-[10px]">${s.origin || ''} → ${s.destination || ''}</p>
                     ${s.comments ? `<p class="text-gray-200 text-xs italic">"${s.comments}"</p>` : ''}
@@ -31107,10 +31379,11 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             if (subtitle) {
                 const other = role === 'driver' ? 'el pasajero' : 'el conductor';
                 subtitle.innerText = iCancelled
-                    ? `Cancelaste un viaje confirmado. Cuéntanos tu versión. Supervisión la compara con la de ${other}.`
-                    : `Se canceló un viaje confirmado. Cuéntanos tu versión. Supervisión la compara con la de ${other}.`;
+                    ? `Cancelaste un viaje confirmado. Graba un audio con tu versión. Supervisión lo compara con el de ${other}.`
+                    : `Se canceló un viaje confirmado. Graba un audio con tu versión. Supervisión lo compara con el de ${other}.`;
             }
 
+            bindCancellationSurveyAudioUi();
             resetCancellationSurveyForm();
             applyCancellationSurveyRoleUi(role);
             const appInterface = document.getElementById('app-interface');
@@ -31164,8 +31437,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const iCancelled = data.cancelledBy === currentUser.uid;
             const msg = needsSurvey
                 ? (iCancelled
-                    ? 'Viaje cancelado. Completa la encuesta para continuar.'
-                    : 'Viaje cancelado. Debes completar la encuesta de seguridad.')
+                    ? 'Viaje cancelado. Graba un audio corto para continuar.'
+                    : 'Viaje cancelado. Graba un audio con tu versión.')
                 : (iCancelled
                     ? 'Viaje cancelado correctamente.'
                     : 'El otro participante canceló el viaje.');
@@ -31194,6 +31467,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const tripId = window.cancellationSurveyTripId;
 
             if (screen) screen.style.display = 'none';
+            try { resetCancellationSurveyForm(); } catch (_) {}
 
             const appInt = document.getElementById('app-interface');
             if (appInt) appInt.style.display = 'flex';
@@ -31251,40 +31525,37 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const trip = cancelledTripSnapshot;
             if (!trip?.id || !currentUser) return location.reload();
 
-            const answers = {
-                cancelPoint: getCheckedSurveyValue('cancel-point'),
-                whoProposed: getCheckedSurveyValue('cancel-who'),
-                reason: getCheckedSurveyValue('cancel-reason'),
-                communication: getCheckedSurveyValue('cancel-communication'),
-                incident: getCheckedSurveyValue('cancel-incident'),
-                serviceAgreement: getCheckedSurveyValue('cancel-agreement'),
-                contactShared: getCheckedSurveyValue('cancel-contact'),
-                tripWillContinue: getCheckedSurveyValue('cancel-continue')
-            };
-            const comments = getCancellationSurveyScope()
-                ?.querySelector('textarea[data-survey-field="comments"]')?.value?.trim() || '';
-
-            const required = Object.values(answers);
-            if (required.some((v) => !v)) {
-                return window.showToast('Responde todas las preguntas obligatorias de la encuesta.');
+            if (surveyAudio.recording) {
+                return window.showToast('Detén la grabación antes de enviar.', 'warning');
             }
 
-            const flags = computeCancellationSurveyFlags(answers);
+            const comments = document.getElementById('survey-audio-comments')?.value?.trim() || '';
+            const blob = surveyAudio.blob;
+            if (!blob && comments.length < 12) {
+                return window.showToast('Graba un audio (o escribe qué pasó si el micrófono no funciona).', 'warning');
+            }
+
             const role = window.userProfile?.role === 'driver' ? 'driver' : 'client';
             const partnerId = role === 'client' ? trip.driverId : trip.clientId;
             const partnerName = role === 'client' ? trip.driverName : trip.clientName;
             const partnerRole = role === 'client' ? 'driver' : 'client';
             const surveyField = role === 'client' ? 'cancellationSurveyByClient' : 'cancellationSurveyByDriver';
-            const partnerAtFault = flags.fraudFlag
-                || answers.incident !== 'nothing'
-                || answers.communication === 'uncomfortable'
-                || answers.communication === 'tense';
-            const shouldModeratePartner = partnerId
-                && partnerId !== currentUser.uid
-                && partnerAtFault
-                && (flags.fraudFlag || flags.safetySerious || flags.safetyConcern);
 
             try {
+                let audioUrl = null;
+                let audioPath = null;
+                let audioMime = '';
+                let audioDurationMs = Number(surveyAudio.durationMs) || 0;
+                if (blob) {
+                    audioMime = blob.type || 'audio/webm';
+                    const ext = surveyAudioExt(audioMime);
+                    audioPath = `artifacts/${appId}/users/${currentUser.uid}/surveys/${trip.id}-${Date.now()}.${ext}`;
+                    const file = blob instanceof File
+                        ? blob
+                        : new File([blob], `survey.${ext}`, { type: audioMime });
+                    audioUrl = await uploadFile(storage, file, audioPath);
+                }
+
                 const surveyRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'cancellation_surveys'), {
                     tripId: trip.id,
                     respondentId: currentUser.uid,
@@ -31296,22 +31567,26 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     driverName: trip.driverName || null,
                     cancelledBy: trip.cancelledBy || null,
                     cancelledFromStatus: trip.cancelledFromStatus || null,
-                    cancelPoint: answers.cancelPoint,
-                    whoProposed: answers.whoProposed,
-                    reason: answers.reason,
-                    reasonLabel: CANCEL_REASON_LABELS[answers.reason] || answers.reason,
-                    communication: answers.communication,
-                    incident: answers.incident,
-                    incidentLabel: CANCEL_INCIDENT_LABELS[answers.incident] || answers.incident,
-                    serviceAgreement: answers.serviceAgreement,
-                    contactShared: answers.contactShared,
-                    tripWillContinue: answers.tripWillContinue,
-                    surveyVariant: role === 'driver' ? 'driver' : 'passenger',
+                    cancelPoint: null,
+                    whoProposed: null,
+                    reason: 'audio',
+                    reasonLabel: audioUrl ? 'Audio del usuario' : 'Texto del usuario',
+                    communication: null,
+                    incident: null,
+                    incidentLabel: null,
+                    serviceAgreement: null,
+                    contactShared: null,
+                    tripWillContinue: null,
+                    surveyVariant: 'audio',
                     comments,
-                    fraudFlag: flags.fraudFlag,
-                    fraudSignals: flags.fraudSignals,
-                    safetyFlag: flags.safetyFlag,
-                    safetySerious: flags.safetySerious,
+                    audioUrl,
+                    audioPath,
+                    audioMime: audioMime || null,
+                    audioDurationMs: audioDurationMs || null,
+                    fraudFlag: false,
+                    fraudSignals: [],
+                    safetyFlag: false,
+                    safetySerious: false,
                     partnerId: partnerId || null,
                     partnerName: partnerName || null,
                     origin: trip.origin || null,
@@ -31328,50 +31603,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     console.error('survey trip flag:', tripErr);
                 }
 
-                let moderation = { actionTaken: false, suspended: false };
-                if (shouldModeratePartner) {
-                    try {
-                        moderation = await applyPartnerModeration(partnerId, partnerRole, flags);
-                    } catch (modErr) {
-                        console.error('partner moderation:', modErr);
-                    }
-                }
-
-                if (flags.fraudFlag || flags.safetySerious) {
-                    const alertType = flags.fraudFlag ? 'FRAUDE' : 'SEGURIDAD';
-                    try {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'reports'), {
-                            type: flags.fraudFlag ? 'cancellation_fraud' : 'cancellation_safety',
-                            tripId: trip.id,
-                            surveyId: surveyRef.id,
-                            stars: 1,
-                            text: `[${alertType}] ${CANCEL_REASON_LABELS[answers.reason] || answers.reason}. ${CANCEL_INCIDENT_LABELS[answers.incident] || ''}. Señales: ${flags.fraudSignals.join(', ') || 'ninguna'}. ${comments}`.trim(),
-                            reportedRole: partnerRole,
-                            reportedUserId: partnerId || null,
-                            reportedUserName: partnerName || null,
-                            clientId: trip.clientId || null,
-                            driverId: trip.driverId || null,
-                            clientName: trip.clientName || null,
-                            driverName: trip.driverName || null,
-                            reportedByName: window.userProfile?.name || 'Usuario',
-                            reportedBy: currentUser.uid,
-                            createdAt: serverTimestamp()
-                        });
-                    } catch (repErr) {
-                        console.error('survey report:', repErr);
-                    }
-                }
-
-                if (moderation.suspended) {
-                    window.showToast(
-                        partnerRole === 'driver'
-                            ? 'Encuesta enviada. El conductor acumuló alertas y fue suspendido automáticamente.'
-                            : 'Encuesta enviada. La cuenta del pasajero fue restringida automáticamente.',
-                        'warning'
-                    );
-                } else {
-                    window.showToast('Encuesta enviada. Gracias por ayudar a proteger la plataforma.', 'success');
-                }
+                window.showToast('Audio enviado. Supervisión lo va a escuchar.', 'success');
 
                 finishCancelledTrip(trip.id, trip);
                 location.reload();

@@ -9329,6 +9329,57 @@
             border-color: #f59e0b;
             background: #fffbeb;
         }
+
+        .survey-audio-card {
+            text-align: left;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: 1.25rem;
+            padding: 1rem 0.9rem 1.05rem;
+        }
+        .survey-audio-stage {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .survey-audio-main-btn {
+            width: 100%;
+            min-height: 3.25rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.55rem;
+            border: 0;
+            border-radius: 1rem;
+            background: #d97706;
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            box-shadow: 0 8px 20px rgba(217, 119, 6, 0.28);
+        }
+        .survey-audio-main-btn.is-recording {
+            background: #dc2626;
+            box-shadow: 0 8px 20px rgba(220, 38, 38, 0.32);
+            animation: survey-audio-pulse 1.1s ease-in-out infinite;
+        }
+        .survey-audio-main-btn.is-ready {
+            background: #059669;
+            box-shadow: 0 8px 20px rgba(5, 150, 105, 0.28);
+        }
+        .survey-audio-timer {
+            margin-top: 0.55rem;
+            font-size: 1.15rem;
+            font-weight: 900;
+            color: #92400e;
+            letter-spacing: 0.08em;
+            font-variant-numeric: tabular-nums;
+        }
+        @keyframes survey-audio-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(0.98); }
+        }
         
         #app-interface, #rating-screen, #cancellation-survey-screen { display: none; }
 
