@@ -1,5 +1,6 @@
 package honduraite.com;
 
+import android.Manifest;
 import android.app.NotificationManager;
 import android.content.Intent;
 import android.net.Uri;
@@ -7,12 +8,23 @@ import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
-@CapacitorPlugin(name = "SessionKeepalive")
+@CapacitorPlugin(
+    name = "SessionKeepalive",
+    permissions = {
+        @Permission(
+            alias = "microphone",
+            strings = { Manifest.permission.RECORD_AUDIO }
+        )
+    }
+)
 public class SessionKeepalivePlugin extends Plugin {
 
     @PluginMethod
@@ -243,5 +255,46 @@ public class SessionKeepalivePlugin extends Plugin {
         }
         ret.put("enabled", enabled);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void hasMicrophone(PluginCall call) {
+        JSObject ret = new JSObject();
+        boolean granted = getPermissionState("microphone") == PermissionState.GRANTED;
+        ret.put("granted", granted);
+        ret.put("state", granted ? "granted" : String.valueOf(getPermissionState("microphone")));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void requestMicrophone(PluginCall call) {
+        if (getPermissionState("microphone") == PermissionState.GRANTED) {
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            ret.put("state", "granted");
+            call.resolve(ret);
+            return;
+        }
+        requestPermissionForAlias("microphone", call, "onMicrophonePermission");
+    }
+
+    @PermissionCallback
+    private void onMicrophonePermission(PluginCall call) {
+        JSObject ret = new JSObject();
+        boolean granted = getPermissionState("microphone") == PermissionState.GRANTED;
+        ret.put("granted", granted);
+        ret.put("state", granted ? "granted" : "denied");
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void openAppSettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(intent);
+        } catch (Exception ignored) {}
+        call.resolve();
     }
 }

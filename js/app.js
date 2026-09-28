@@ -4,28 +4,28 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.09.28.1";
+} from "./auth-credentials.js?v=2026.09.28.2";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.09.28.1";
+import { APP_CONFIG } from "./config.js?v=2026.09.28.2";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.09.28.1";
+} from "./market.js?v=2026.09.28.2";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.09.28.1";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.09.28.1";
+} from "./phone-utils.js?v=2026.09.28.2";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.09.28.2";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.09.28.1";
+} from "./referrals.js?v=2026.09.28.2";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -40,12 +40,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.09.28.1";
+} from "./zones.js?v=2026.09.28.2";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.09.28.1";
+} from "./trip-notifications.js?v=2026.09.28.2";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -66,7 +66,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.09.28.1";
+} from "./notification-tones.js?v=2026.09.28.2";
 
 installNotificationTonesApi();
 
@@ -102,7 +102,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.09.28.1";
+} from "./passenger-alerts.js?v=2026.09.28.2";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -111,22 +111,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.09.28.1";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.09.28.1";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide } from "./pwa-install.js?v=2026.09.28.1";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.09.28.1";
+} from "./passenger-verification.js?v=2026.09.28.2";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.09.28.2";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide } from "./pwa-install.js?v=2026.09.28.2";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.09.28.2";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.09.28.1";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.09.28.2";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.09.28.1";
+} from "./feedback.js?v=2026.09.28.2";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.09.28.1";
+} from "./greetings.js?v=2026.09.28.2";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -143,55 +143,55 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.09.28.1";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.09.28.1";
+} from "./service-types.js?v=2026.09.28.2";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.09.28.2";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getApprovedVehicleTypes, getRegisteredVehicleTypes,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles-v2.js?v=2026.09.28.1";
+} from "./driver-vehicles-v2.js?v=2026.09.28.2";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.09.28.1";
+} from "./route-fixed-fares.js?v=2026.09.28.2";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.09.28.1";
+} from "./commission-free-day.js?v=2026.09.28.2";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.09.28.1";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.09.28.1";
+} from "./route-conditions.js?v=2026.09.28.2";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.09.28.2";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.09.28.1";
+} from "./demand-heatmap.js?v=2026.09.28.2";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.09.28.1";
+} from "./ops-fleet-map.js?v=2026.09.28.2";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.09.28.1";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.09.28.1";
+} from "./live-trip-keepalive.js?v=2026.09.28.2";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.09.28.2";
 import {
     saveDriverLogin, clearDriverLogin, markSkipDriverAutoLogin, restoreDriverLoginForm
-} from "./driver-session.js?v=2026.09.28.1";
+} from "./driver-session.js?v=2026.09.28.2";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.09.28.1";
+} from "./session-keepalive.js?v=2026.09.28.2";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -276,28 +276,28 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.09.28.1";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.09.28.2";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.09.28.1";
+} from "./auth-ui.js?v=2026.09.28.2";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.09.28.1";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.09.28.1";
+} from "./age-verification.js?v=2026.09.28.2";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.09.28.2";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.09.28.1";
+} from "./trip-experience.js?v=2026.09.28.2";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.09.28.1";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.09.28.1";
+} from "./support-tickets.js?v=2026.09.28.2";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.09.28.2";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.09.28.1";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.09.28.2";
 
 
 let app;
@@ -30265,21 +30265,79 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             setSurveyAudioUi('idle');
         }
 
-        async function startSurveyAudioRecording() {
+        function surveyAudioNativePlugin() {
+            try {
+                return window.Capacitor?.Plugins?.SessionKeepalive || null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        async function ensureSurveyMicrophonePermission() {
+            const plugin = surveyAudioNativePlugin();
+            if (!plugin?.requestMicrophone) return { ok: true, via: 'web' };
+            try {
+                const already = await plugin.hasMicrophone?.();
+                if (already?.granted) return { ok: true, via: 'native' };
+                const asked = await plugin.requestMicrophone();
+                if (asked?.granted) return { ok: true, via: 'native' };
+                return { ok: false, via: 'native', denied: true };
+            } catch (e) {
+                console.warn('survey native mic:', e);
+                return { ok: true, via: 'web' };
+            }
+        }
+
+        async function openSurveyMicrophoneSettings() {
+            try {
+                await surveyAudioNativePlugin()?.openAppSettings?.();
+            } catch (_) {}
+        }
+
+        function handleSurveyMicError(e) {
+            console.warn('survey audio permission:', e);
+            const name = String(e?.name || e?.message || '');
+            if (/NotAllowed|Permission|Denied/i.test(name)) {
+                window.showToast?.('Toca Permitir cuando el teléfono pida el micrófono. Si no sale el aviso, actívalo en Ajustes → HonduRaite → Permisos.', 'warning');
+                openSurveyMicrophoneSettings();
+            } else if (/NotFound|DevicesNotFound/i.test(name)) {
+                window.showToast?.('No hay micrófono. Sube un audio o escribe qué pasó.', 'warning');
+            } else {
+                window.showToast?.('No se pudo abrir el micrófono. Sube un audio o escribe qué pasó.', 'warning');
+            }
+        }
+
+        function openSurveyMicrophoneStream() {
+            const gum = navigator.mediaDevices.getUserMedia({
+                audio: { echoCancellation: true, noiseSuppression: true }
+            }).catch(() => navigator.mediaDevices.getUserMedia({ audio: true }));
+            gum.then((stream) => beginSurveyMediaRecorder(stream)).catch(handleSurveyMicError);
+        }
+
+        function startSurveyAudioRecording() {
             if (surveyAudio.recording) return;
             if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
                 window.showToast?.('Este teléfono no deja grabar. Sube un audio o escribe qué pasó.', 'warning');
                 document.getElementById('survey-audio-file')?.click();
                 return;
             }
-            let stream;
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            } catch (e) {
-                console.warn('survey audio permission:', e);
-                window.showToast?.('Activa el micrófono o sube un audio.', 'warning');
+            const plugin = surveyAudioNativePlugin();
+            const native = !!(window.Capacitor?.isNativePlatform?.() && plugin?.requestMicrophone);
+            if (native) {
+                ensureSurveyMicrophonePermission().then((p) => {
+                    if (p.denied) {
+                        window.showToast?.('Toca Permitir en el aviso del teléfono. Si no sale, actívalo en Ajustes → HonduRaite → Micrófono.', 'warning');
+                        openSurveyMicrophoneSettings();
+                        return;
+                    }
+                    openSurveyMicrophoneStream();
+                });
                 return;
             }
+            openSurveyMicrophoneStream();
+        }
+
+        function beginSurveyMediaRecorder(stream) {
             const mime = pickSurveyAudioMime();
             let recorder;
             try {
@@ -30385,21 +30443,22 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const screen = document.getElementById('cancellation-survey-screen');
             if (!screen || screen.dataset.audioBound === '1') return;
             screen.dataset.audioBound = '1';
-            screen.addEventListener('click', (e) => {
-                const btn = e.target.closest?.('[data-survey-audio]');
-                if (!btn) return;
-                e.preventDefault();
+            window.startSurveyAudioRecording = startSurveyAudioRecording;
+            const onToggle = (e) => {
                 e.stopPropagation();
-                const action = btn.dataset.surveyAudio;
-                if (action === 'toggle') {
-                    if (surveyAudio.recording) stopSurveyAudioRecording();
-                    else startSurveyAudioRecording();
-                } else if (action === 'retry') {
-                    clearSurveyAudioBlob();
-                    startSurveyAudioRecording();
-                } else if (action === 'file') {
-                    document.getElementById('survey-audio-file')?.click();
-                }
+                if (surveyAudio.recording) stopSurveyAudioRecording();
+                else startSurveyAudioRecording();
+            };
+            const main = document.getElementById('survey-audio-main-btn');
+            main?.addEventListener('click', onToggle);
+            document.getElementById('survey-audio-retry-btn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                clearSurveyAudioBlob();
+                startSurveyAudioRecording();
+            });
+            document.getElementById('survey-audio-file-btn')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.getElementById('survey-audio-file')?.click();
             });
             document.getElementById('survey-audio-file')?.addEventListener('change', (e) => {
                 useSurveyAudioFile(e.target.files?.[0] || null);
