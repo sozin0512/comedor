@@ -286,15 +286,4 @@ public class SessionKeepalivePlugin extends Plugin {
         ret.put("state", granted ? "granted" : "denied");
         call.resolve(ret);
     }
-
-    @PluginMethod
-    public void openAppSettings(PluginCall call) {
-        try {
-            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-            intent.setData(Uri.parse("package:" + getContext().getPackageName()));
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            getActivity().startActivity(intent);
-        } catch (Exception ignored) {}
-        call.resolve();
-    }
 }
