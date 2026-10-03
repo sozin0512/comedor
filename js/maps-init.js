@@ -186,12 +186,22 @@
     `;
 
     const overlayFullWindowCss = `
+        :host {
+            overflow: hidden !important;
+            height: 3rem !important;
+            max-height: 3rem !important;
+        }
         .input-container,
         .widget-container {
             display: block !important;
             visibility: visible !important;
             pointer-events: auto !important;
-            overflow: visible !important;
+            overflow: hidden !important;
+            height: 3rem !important;
+            max-height: 3rem !important;
+        }
+        dialog:not([open]) {
+            display: none !important;
         }
         dialog[open],
         .full-window-autocomplete-dialog[open],
@@ -352,12 +362,47 @@
         }
     };
 
+    const PLACES_OVERLAY_INLINE_PROPS = [
+        'position', 'inset', 'top', 'left', 'right', 'bottom', 'margin', 'width', 'max-width',
+        'height', 'max-height', 'transform', 'z-index', 'background', 'color', 'color-scheme',
+        'border', 'border-radius', 'overflow', 'display', 'flex-direction', 'visibility',
+        'pointer-events', 'box-sizing', 'padding'
+    ];
+
+    const unpinPlacesOverlay = (el) => {
+        if (!el || el.nodeType !== 1) return;
+        PLACES_OVERLAY_INLINE_PROPS.forEach((p) => {
+            try { el.style.removeProperty(p); } catch (_) {}
+        });
+        try { delete el.dataset.hrSafeTopPinned; } catch (_) {}
+    };
+
+    const forEachPlacesOverlay = (fn) => {
+        document.querySelectorAll('gmp-place-autocomplete, gmp-basic-place-autocomplete').forEach((host) => {
+            const root = host.shadowRoot || host._hrShadow;
+            if (!root) return;
+            try {
+                root.querySelectorAll(
+                    'dialog, [popover], .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, .place-autocomplete-element-full-window'
+                ).forEach(fn);
+            } catch (_) {}
+        });
+        try {
+            document.querySelectorAll('dialog, .pac-container').forEach((el) => {
+                if (isPlacesDialog(el) || String(el.className || '').includes('pac-container')) fn(el);
+            });
+        } catch (_) {}
+    };
+
     const pinOverlayBelowStatusBar = (el, force = false) => {
         if (!el || el.id === 'status-bar-shield' || el.id === 'control-panel') return;
         if (el.localName === 'gmp-place-autocomplete' || el.localName === 'gmp-basic-place-autocomplete') return;
         const placesDlg = isPlacesDialog(el);
         if (!placesDlg && !looksLikePlacesOverlay(el) && !force) return;
-        if (el.localName === 'dialog' && !el.open) return;
+        if (el.localName === 'dialog' && !el.open) {
+            unpinPlacesOverlay(el);
+            return;
+        }
         const top = readSearchSafeTopPx();
         const kb = (() => {
             try {
@@ -386,8 +431,6 @@
             el.style.setProperty('border', 'none', 'important');
             el.style.setProperty('border-radius', '1rem 1rem 0 0', 'important');
             el.style.setProperty('overflow', 'auto', 'important');
-            el.style.setProperty('display', 'flex', 'important');
-            el.style.setProperty('flex-direction', 'column', 'important');
             el.style.setProperty('visibility', 'visible', 'important');
             el.style.setProperty('pointer-events', 'auto', 'important');
             try { el.dataset.hrSafeTopPinned = '1'; } catch (_) {}
@@ -438,12 +481,100 @@
             injectStyleIntoRoot(root);
             try {
                 root.querySelectorAll(
-                    'dialog[open], [popover]:popover-open, .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, .place-autocomplete-element-full-window'
-                ).forEach(stylePlacesOverlayEl);
+                    'dialog, [popover], .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, .place-autocomplete-element-full-window'
+                ).forEach((el) => {
+                    if (el.localName === 'dialog' && !el.open) {
+                        unpinPlacesOverlay(el);
+                        return;
+                    }
+                    stylePlacesOverlayEl(el);
+                });
             } catch (_) {}
         });
     };
     window.applyPlacesOverlaySafeTop = applyPlacesOverlaySafeTop;
+
+    const closePlacesDialogs = () => {
+        if (window._hrPlacesDismissing) return;
+        window._hrPlacesDismissing = true;
+        try {
+            forEachPlacesOverlay((el) => {
+                try {
+                    if (el.localName === 'dialog' && el.open) el.close();
+                } catch (_) {}
+                try {
+                    if (el.hasAttribute?.('popover')) el.hidePopover?.();
+                } catch (_) {}
+                unpinPlacesOverlay(el);
+            });
+        } finally {
+            window._hrPlacesDismissing = false;
+        }
+    };
+    window.closePlacesDialogs = closePlacesDialogs;
+
+    window.dismissTripPlacesSearch = (el = null) => {
+        const searching = !!(
+            document.body?.classList.contains('trip-autocomplete-open')
+            || document.querySelector('.is-autocomplete-active')
+        );
+        let dialogOpen = false;
+        forEachPlacesOverlay((node) => {
+            if (node.localName === 'dialog' && node.open) dialogOpen = true;
+            try { if (node.matches?.(':popover-open')) dialogOpen = true; } catch (_) {}
+        });
+        if (!searching && !dialogOpen) return false;
+        window._hrPlacesDismissLockUntil = Date.now() + 800;
+        closePlacesDialogs();
+        try { window.hideTripKeyboard?.(el); } catch (_) {}
+        try {
+            document.querySelectorAll(
+                '.trip-origin-wrap.is-autocomplete-active, .trip-dest-wrap.is-autocomplete-active, .trip-extra-stop-wrap.is-autocomplete-active'
+            ).forEach((w) => w.classList.remove('is-autocomplete-active'));
+            document.body?.classList.remove('trip-autocomplete-open');
+            document.getElementById('control-panel')?.classList.remove('trip-autocomplete-open');
+        } catch (_) {}
+        return true;
+    };
+
+    if (!window._hrPlacesDismissBound) {
+        window._hrPlacesDismissBound = true;
+        const onPlacesDialogGone = (e) => {
+            if (!isPlacesDialog(e.target)) return;
+            unpinPlacesOverlay(e.target);
+            window._hrPlacesDismissLockUntil = Date.now() + 800;
+            try { window.hideTripKeyboard?.(e.target); } catch (_) {}
+        };
+        document.addEventListener('cancel', onPlacesDialogGone, true);
+        document.addEventListener('close', onPlacesDialogGone, true);
+        window.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if (window.dismissTripPlacesSearch?.()) {
+                try { e.preventDefault(); } catch (_) {}
+            }
+        }, true);
+        const bindPlacesBackButton = () => {
+            if (window._hrPlacesBackBound) return true;
+            try {
+                const App = window.Capacitor?.Plugins?.App;
+                if (!App?.addListener) return false;
+                App.addListener('backButton', (ev) => {
+                    if (window.dismissTripPlacesSearch?.()) return;
+                    if (ev?.canGoBack) {
+                        try { window.history.back(); } catch (_) {}
+                        return;
+                    }
+                    try { App.exitApp?.(); } catch (_) {}
+                });
+                window._hrPlacesBackBound = true;
+                return true;
+            } catch (_) {
+                return false;
+            }
+        };
+        bindPlacesBackButton();
+        [400, 1200, 3000].forEach((ms) => setTimeout(bindPlacesBackButton, ms));
+    }
 
     const origAttachShadow = Element.prototype.attachShadow;
     if (typeof origAttachShadow === 'function') {
@@ -455,12 +586,28 @@
                     syncPlacesHostColorScheme(this);
                     injectStyleIntoRoot(shadow);
                     try {
+                        shadow.addEventListener('cancel', (e) => {
+                            if (!isPlacesDialog(e.target)) return;
+                            unpinPlacesOverlay(e.target);
+                            window._hrPlacesDismissLockUntil = Date.now() + 800;
+                            try { window.hideTripKeyboard?.(e.target); } catch (_) {}
+                        });
+                        shadow.addEventListener('close', (e) => {
+                            if (!isPlacesDialog(e.target)) return;
+                            unpinPlacesOverlay(e.target);
+                            window._hrPlacesDismissLockUntil = Date.now() + 800;
+                            try { window.hideTripKeyboard?.(e.target); } catch (_) {}
+                        });
                         const mo = new MutationObserver(() => {
                             try {
-                                shadow.querySelectorAll('dialog[open], [popover]:popover-open, .full-window-autocomplete-dialog, .place-autocomplete-element-overlay').forEach(stylePlacesOverlayEl);
+                                shadow.querySelectorAll('dialog').forEach((d) => {
+                                    if (d.open) stylePlacesOverlayEl(d);
+                                    else unpinPlacesOverlay(d);
+                                });
+                                shadow.querySelectorAll('[popover]:popover-open, .full-window-autocomplete-dialog, .place-autocomplete-element-overlay').forEach(stylePlacesOverlayEl);
                             } catch (_) {}
                         });
-                        mo.observe(shadow, { childList: true, subtree: true });
+                        mo.observe(shadow, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
                     } catch (_) {}
                 }
             } catch (_) {}
@@ -486,6 +633,20 @@
             return origShowModal.apply(this, arguments);
         };
         protoDlg.showModal._hrDropdown = true;
+    }
+    if (protoDlg && typeof protoDlg.close === 'function' && !protoDlg.close._hrPlaces) {
+        const origClose = protoDlg.close;
+        protoDlg.close = function hrPlacesClose() {
+            const places = isPlacesDialog(this);
+            const result = origClose.apply(this, arguments);
+            if (places && !window._hrPlacesDismissing) {
+                unpinPlacesOverlay(this);
+                window._hrPlacesDismissLockUntil = Date.now() + 800;
+                try { window.hideTripKeyboard?.(this); } catch (_) {}
+            }
+            return result;
+        };
+        protoDlg.close._hrPlaces = true;
     }
     if (window.HTMLElement && typeof HTMLElement.prototype.showPopover === 'function' && !HTMLElement.prototype.showPopover._hrDropdown) {
         const origShowPopover = HTMLElement.prototype.showPopover;
@@ -630,6 +791,17 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         App?.addListener?.('appStateChange', (s) => {
             if (s && s.isActive) setTimeout(() => window.recoverGoogleMapAfterResume?.('app-active'), 80);
         });
+        if (!window._hrPlacesBackBound) {
+            App?.addListener?.('backButton', (ev) => {
+                if (window.dismissTripPlacesSearch?.()) return;
+                if (ev?.canGoBack) {
+                    try { window.history.back(); } catch (_) {}
+                    return;
+                }
+                try { App.exitApp?.(); } catch (_) {}
+            });
+            if (App?.addListener) window._hrPlacesBackBound = true;
+        }
     } catch (_) {}
 })();
 
@@ -1804,6 +1976,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
              * Google a veces re-enfoca el input; por eso se reintenta en frames cortos.
              */
             window.hideTripKeyboard = (preferredEl = null) => {
+                try { window.closePlacesDialogs?.(); } catch (_) {}
                 const ids = ['origin-autocomplete', 'destination-autocomplete', 'extra-stop-autocomplete'];
                 if (preferredEl) blurAutocompleteEl(preferredEl);
                 ids.forEach((id) => blurAutocompleteEl(document.getElementById(id)));
@@ -2049,6 +2222,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 if (!wrap) return;
                 let blurTimer = null;
                 const setActive = (on) => {
+                    if (on && Date.now() < (window._hrPlacesDismissLockUntil || 0)) return;
                     wrap.classList.toggle('is-autocomplete-active', on);
                     const full = typeof window.usePlacesFullWindowOverlay === 'function'
                         ? window.usePlacesFullWindowOverlay()

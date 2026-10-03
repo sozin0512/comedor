@@ -1222,6 +1222,7 @@
             position: relative;
             z-index: 1;
             overflow: visible;
+            box-sizing: border-box;
             color-scheme: light;
             color: var(--hr-places-text);
             --gmp-mat-color-surface: var(--hr-places-bg);
@@ -1368,10 +1369,25 @@
             max-height: calc(100dvh - var(--search-safe-top, 48px) - var(--keyboard-inset, 0px));
         }
 
-        html.hr-places-fullwindow gmp-place-autocomplete::part(prediction-list),
-        html.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list),
-        body.hr-places-fullwindow gmp-place-autocomplete::part(prediction-list),
-        body.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list) {
+        html.hr-places-fullwindow gmp-place-autocomplete,
+        html.hr-places-fullwindow gmp-basic-place-autocomplete,
+        body.hr-places-fullwindow gmp-place-autocomplete,
+        body.hr-places-fullwindow gmp-basic-place-autocomplete {
+            height: 3rem;
+            min-height: 3rem;
+            max-height: 3rem;
+            overflow: hidden;
+        }
+        html.hr-places-fullwindow gmp-place-autocomplete::part(input),
+        html.hr-places-fullwindow gmp-basic-place-autocomplete::part(input),
+        body.hr-places-fullwindow gmp-place-autocomplete::part(input),
+        body.hr-places-fullwindow gmp-basic-place-autocomplete::part(input) {
+            min-height: 3rem;
+            max-height: 3rem;
+            box-sizing: border-box;
+        }
+        body.trip-autocomplete-open.hr-places-fullwindow gmp-place-autocomplete::part(prediction-list),
+        body.trip-autocomplete-open.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list) {
             max-height: none;
             margin-top: 0.35rem;
             border-radius: 0.85rem;
@@ -5579,6 +5595,9 @@
             border: 1.5px solid #e2e8f0 !important;
             background: #f8fafc !important;
             min-height: 2.75rem;
+            height: 3rem;
+            max-height: 3rem;
+            box-sizing: border-box;
         }
 
         .camera-capture-overlay {
