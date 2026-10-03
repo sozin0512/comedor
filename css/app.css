@@ -1295,7 +1295,8 @@
         .trip-origin-wrap.is-autocomplete-active,
         .trip-dest-wrap.is-autocomplete-active,
         .trip-extra-stop-wrap.is-autocomplete-active {
-            z-index: 30;
+            z-index: 90;
+            overflow: visible;
         }
 
         /*
@@ -1373,10 +1374,10 @@
         html.hr-places-fullwindow gmp-basic-place-autocomplete,
         body.hr-places-fullwindow gmp-place-autocomplete,
         body.hr-places-fullwindow gmp-basic-place-autocomplete {
-            height: 3rem;
             min-height: 3rem;
-            max-height: 3rem;
-            overflow: hidden;
+            height: auto;
+            max-height: none;
+            overflow: visible;
         }
         html.hr-places-fullwindow gmp-place-autocomplete::part(input),
         html.hr-places-fullwindow gmp-basic-place-autocomplete::part(input),
@@ -1386,12 +1387,27 @@
             max-height: 3rem;
             box-sizing: border-box;
         }
-        body.trip-autocomplete-open.hr-places-fullwindow gmp-place-autocomplete::part(prediction-list),
-        body.trip-autocomplete-open.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list) {
-            max-height: none;
+        html.hr-places-fullwindow gmp-place-autocomplete::part(prediction-list),
+        html.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list),
+        body.hr-places-fullwindow gmp-place-autocomplete::part(prediction-list),
+        body.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list),
+        body.trip-autocomplete-open gmp-place-autocomplete::part(prediction-list),
+        body:has(.is-autocomplete-active) gmp-place-autocomplete::part(prediction-list) {
+            display: block;
+            visibility: visible;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 100%;
+            width: 100%;
+            max-height: min(48dvh, 16rem);
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            z-index: 80;
             margin-top: 0.35rem;
-            border-radius: 0.85rem;
-            box-shadow: none;
+            border-radius: 1rem;
+            box-shadow: var(--hr-places-shadow);
         }
 
         body.capacitor-android.trip-autocomplete-open,
@@ -1448,7 +1464,7 @@
             box-shadow: 0 -10px 36px rgba(15, 23, 42, 0.22) !important;
             display: flex !important;
             flex-direction: column !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             padding-top: 0.65rem !important;
             padding-bottom: max(0.5rem, var(--safe-bottom, 0px)) !important;
             background: #ffffff !important;
@@ -1466,7 +1482,7 @@
         body.capacitor-native.trip-autocomplete-open #control-panel #panel-content {
             flex: 1 1 auto !important;
             min-height: 0 !important;
-            overflow-y: auto !important;
+            overflow: visible !important;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
             max-height: none !important;
@@ -5594,9 +5610,7 @@
             border-radius: 0.9rem !important;
             border: 1.5px solid #e2e8f0 !important;
             background: #f8fafc !important;
-            min-height: 2.75rem;
-            height: 3rem;
-            max-height: 3rem;
+            min-height: 3rem;
             box-sizing: border-box;
         }
 

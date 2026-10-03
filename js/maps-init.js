@@ -187,12 +187,12 @@
 
     const overlayFullWindowCss = `
         :host {
-            overflow: hidden !important;
-            height: 3rem !important;
-            max-height: 3rem !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            min-height: 3rem;
         }
-        .input-container,
-        .widget-container {
+        .input-container {
             display: block !important;
             visibility: visible !important;
             pointer-events: auto !important;
@@ -200,8 +200,21 @@
             height: 3rem !important;
             max-height: 3rem !important;
         }
+        .widget-container {
+            display: block !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+        }
         dialog:not([open]) {
             display: none !important;
+            height: 0 !important;
+            max-height: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
         }
         dialog[open],
         .full-window-autocomplete-dialog[open],
@@ -253,9 +266,39 @@
             visibility: visible !important;
             width: 100% !important;
             height: auto !important;
+            max-height: none !important;
             pointer-events: auto !important;
         }
-        dialog [role="listbox"],
+        [part="prediction-list"],
+        [role="listbox"],
+        .dropdown {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            background: var(--hr-places-bg, #ffffff) !important;
+            color: var(--hr-places-text, #0f172a) !important;
+        }
+        :host > [part="prediction-list"],
+        :host > .dropdown,
+        .widget-container > [role="listbox"],
+        .widget-container > [part="prediction-list"] {
+            position: absolute !important;
+            top: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            max-height: min(48dvh, 16rem) !important;
+            margin: 0.35rem 0 0 !important;
+            z-index: 2147483000 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid var(--hr-places-border, #e2e8f0) !important;
+            border-radius: 1rem !important;
+            box-shadow: var(--hr-places-shadow, 0 12px 32px rgba(15, 23, 42, 0.18)) !important;
+        }
+        dialog[open] [role="listbox"],
+        dialog[open] [part="prediction-list"],
         .place-autocomplete-element-overlay [role="listbox"],
         .place-autocomplete-element-full-window [role="listbox"] {
             position: relative !important;
