@@ -67,14 +67,14 @@ async function resolveRouteEndpoint(el) {
 }
 window.resolveRouteEndpoint = window.resolveRouteEndpoint || resolveRouteEndpoint;
 
-function getAutocompleteAddress(el) {
+window.getAutocompleteAddress = window.getAutocompleteAddress || function getAutocompleteAddress(el) {
     return el?._routeEndpoint?.placeName
         || el?._routeEndpoint?.address
         || window.placeDisplayName?.(el?._selectedPlace)
         || el?._selectedPlace?.formattedAddress
         || window.readAutocompleteText?.(el)
         || null;
-}
+};
 
 function routeWaypoint(endpoint) {
     if (!endpoint) return null;

@@ -491,6 +491,15 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 || '';
         };
 
+        window.getAutocompleteAddress = window.getAutocompleteAddress || function getAutocompleteAddress(el) {
+            return el?._routeEndpoint?.placeName
+                || el?._routeEndpoint?.address
+                || window.placeDisplayName?.(el?._selectedPlace)
+                || el?._selectedPlace?.formattedAddress
+                || window.readAutocompleteText?.(el)
+                || null;
+        };
+
         window._geocodeCache = window._geocodeCache || new Map();
         window.geocodeAddressString = (address) => new Promise((resolve) => {
             const text = String(address || '').trim();
