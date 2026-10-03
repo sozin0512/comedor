@@ -48,14 +48,29 @@
     window.isHrNativeAndroid = isHrNativeAndroid;
 
     const overlayCssText = () => `
-        :host { position: relative; overflow: visible !important; }
+        :host {
+            position: relative;
+            overflow: visible !important;
+            color-scheme: light;
+            --gmp-mat-color-surface: var(--hr-places-bg, #ffffff);
+            --gmp-mat-color-on-surface: var(--hr-places-text, #0f172a);
+            --gmp-mat-color-on-surface-variant: var(--hr-places-muted, #64748b);
+            --gmp-mat-color-outline-decorative: var(--hr-places-border, #e2e8f0);
+            --gmp-mat-color-neutral-container: var(--hr-places-icon-bg, #e2e8f0);
+            --gmp-mat-color-on-neutral-container: var(--hr-places-icon, #475569);
+            --gmp-mat-color-primary: #2563eb;
+        }
+        :host-context(html[data-theme="dark"]) {
+            color-scheme: dark;
+        }
         dialog,
         dialog[open],
         [popover],
         .full-window-autocomplete-dialog,
         .place-autocomplete-element-overlay,
         .place-autocomplete-element-full-window,
-        .overlay-container {
+        .overlay-container,
+        .dropdown {
             position: absolute !important;
             inset: auto !important;
             top: 100% !important;
@@ -64,21 +79,68 @@
             width: 100% !important;
             max-width: 100% !important;
             height: auto !important;
-            max-height: min(50vh, 18rem) !important;
-            margin: 0 !important;
+            max-height: min(42dvh, 16rem) !important;
+            margin: 0.35rem 0 0 !important;
             transform: none !important;
             z-index: 99999 !important;
             box-sizing: border-box !important;
+            background: var(--hr-places-bg, #ffffff) !important;
+            color: var(--hr-places-text, #0f172a) !important;
+            border: 1px solid var(--hr-places-border, #e2e8f0) !important;
+            border-radius: 1rem !important;
+            box-shadow: var(--hr-places-shadow, 0 12px 32px rgba(15, 23, 42, 0.18)) !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
         }
         dialog::backdrop {
             display: none !important;
             opacity: 0 !important;
             background: transparent !important;
         }
+        [role="option"],
+        [part="prediction-item"],
+        .place-autocomplete-element-prediction {
+            color: var(--hr-places-text, #0f172a) !important;
+            background: transparent !important;
+            border-color: var(--hr-places-border, #e2e8f0) !important;
+            min-height: 48px;
+        }
+        [part="prediction-item-main-text"],
+        .place-autocomplete-element-text-div {
+            color: var(--hr-places-text, #0f172a) !important;
+        }
+        [part="prediction-item-secondary-text"] {
+            color: var(--hr-places-muted, #64748b) !important;
+        }
+        [part="prediction-item-icon"],
+        .place-autocomplete-element-place-icon {
+            background: var(--hr-places-icon-bg, #e2e8f0) !important;
+            color: var(--hr-places-icon, #475569) !important;
+        }
+        [part="prediction-item-selected"],
+        [aria-selected="true"] {
+            background: var(--hr-places-selected, #eff6ff) !important;
+        }
     `;
+
+    const placesThemeIsDark = () => {
+        try {
+            return document.documentElement.getAttribute('data-theme') === 'dark';
+        } catch (_) {
+            return false;
+        }
+    };
+
+    const syncPlacesHostColorScheme = (host) => {
+        if (!host || host.nodeType !== 1) return;
+        const scheme = placesThemeIsDark() ? 'dark' : 'light';
+        try { host.style.setProperty('color-scheme', scheme); } catch (_) {}
+    };
 
     const stylePlacesDropdown = (el) => {
         if (!el || el.nodeType !== 1) return;
+        const dark = placesThemeIsDark();
         try {
             el.style.setProperty('position', 'absolute', 'important');
             el.style.setProperty('inset', 'auto', 'important');
@@ -89,9 +151,19 @@
             el.style.setProperty('width', '100%', 'important');
             el.style.setProperty('max-width', '100%', 'important');
             el.style.setProperty('height', 'auto', 'important');
-            el.style.setProperty('max-height', 'min(50vh, 18rem)', 'important');
-            el.style.setProperty('margin', '0px', 'important');
+            el.style.setProperty('max-height', 'min(42dvh, 16rem)', 'important');
+            el.style.setProperty('margin', '0.35rem 0 0', 'important');
             el.style.setProperty('transform', 'none', 'important');
+            el.style.setProperty('background', dark ? '#1e293b' : '#ffffff', 'important');
+            el.style.setProperty('color', dark ? '#f8fafc' : '#0f172a', 'important');
+            el.style.setProperty('border', dark ? '1px solid #334155' : '1px solid #e2e8f0', 'important');
+            el.style.setProperty('border-radius', '1rem', 'important');
+            el.style.setProperty('box-shadow', dark
+                ? '0 12px 32px rgba(0, 0, 0, 0.45)'
+                : '0 12px 32px rgba(15, 23, 42, 0.18)', 'important');
+            el.style.setProperty('overflow-x', 'hidden', 'important');
+            el.style.setProperty('overflow-y', 'auto', 'important');
+            el.style.setProperty('color-scheme', dark ? 'dark' : 'light');
         } catch (_) {}
     };
 
@@ -189,6 +261,7 @@
             });
         } catch (_) {}
         document.querySelectorAll('gmp-place-autocomplete, gmp-basic-place-autocomplete').forEach((host) => {
+            syncPlacesHostColorScheme(host);
             const root = host.shadowRoot || host._hrShadow;
             if (!root) return;
             injectStyleIntoRoot(root);
@@ -208,6 +281,7 @@
             try {
                 if (isPlacesHostName(this.localName)) {
                     this._hrShadow = shadow;
+                    syncPlacesHostColorScheme(this);
                     injectStyleIntoRoot(shadow);
                     try {
                         const mo = new MutationObserver(() => {
@@ -277,7 +351,12 @@
         if (window._hrPlacesOverlayMo) return;
         try {
             const mo = new MutationObserver(scheduleApplyPlacesOverlaySafeTop);
-            mo.observe(document.documentElement, { childList: true, subtree: true });
+            mo.observe(document.documentElement, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['data-theme']
+            });
             window._hrPlacesOverlayMo = mo;
         } catch (_) {}
     };

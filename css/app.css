@@ -1187,12 +1187,102 @@
             isolation: isolate;
         }
 
-        gmp-place-autocomplete {
+        /*
+         * Places Autocomplete (gmp-place-autocomplete) usa color-scheme: light dark
+         * y sigue el modo del sistema. Si el celular está en oscuro y la app en claro,
+         * el menú sale negro sobre el formulario blanco. Forzamos el tema de la app.
+         */
+        :root {
+            --hr-places-bg: #ffffff;
+            --hr-places-text: #0f172a;
+            --hr-places-muted: #64748b;
+            --hr-places-border: #e2e8f0;
+            --hr-places-hover: #f1f5f9;
+            --hr-places-selected: #eff6ff;
+            --hr-places-icon-bg: #e2e8f0;
+            --hr-places-icon: #475569;
+            --hr-places-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+        }
+        html[data-theme="dark"] {
+            --hr-places-bg: #1e293b;
+            --hr-places-text: #f8fafc;
+            --hr-places-muted: #94a3b8;
+            --hr-places-border: #334155;
+            --hr-places-hover: #334155;
+            --hr-places-selected: #1e3a5f;
+            --hr-places-icon-bg: #334155;
+            --hr-places-icon: #cbd5e1;
+            --hr-places-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+        }
+
+        gmp-place-autocomplete,
+        gmp-basic-place-autocomplete {
             display: block;
             width: 100%;
             position: relative;
             z-index: 1;
             overflow: visible;
+            color-scheme: light;
+            color: var(--hr-places-text);
+            --gmp-mat-color-surface: var(--hr-places-bg);
+            --gmp-mat-color-on-surface: var(--hr-places-text);
+            --gmp-mat-color-on-surface-variant: var(--hr-places-muted);
+            --gmp-mat-color-outline-decorative: var(--hr-places-border);
+            --gmp-mat-color-neutral-container: var(--hr-places-icon-bg);
+            --gmp-mat-color-on-neutral-container: var(--hr-places-icon);
+            --gmp-mat-color-primary: #2563eb;
+            --gmp-mat-color-secondary-container: var(--hr-places-hover);
+            --gmp-mat-color-on-secondary-container: var(--hr-places-text);
+        }
+        html[data-theme="dark"] gmp-place-autocomplete,
+        html[data-theme="dark"] gmp-basic-place-autocomplete {
+            color-scheme: dark;
+        }
+
+        gmp-place-autocomplete::part(prediction-list),
+        gmp-basic-place-autocomplete::part(prediction-list) {
+            background: var(--hr-places-bg) !important;
+            color: var(--hr-places-text) !important;
+            border: 1px solid var(--hr-places-border) !important;
+            border-radius: 1rem !important;
+            box-shadow: var(--hr-places-shadow) !important;
+            margin-top: 0.35rem;
+            max-height: min(42dvh, 16rem);
+            overflow-x: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        gmp-place-autocomplete::part(prediction-item),
+        gmp-basic-place-autocomplete::part(prediction-item) {
+            color: var(--hr-places-text) !important;
+            background: transparent !important;
+            min-height: 48px;
+            padding: 0.7rem 0.85rem;
+            border-color: var(--hr-places-border) !important;
+        }
+        gmp-place-autocomplete::part(prediction-item-selected),
+        gmp-basic-place-autocomplete::part(prediction-item-selected) {
+            background: var(--hr-places-selected) !important;
+        }
+        gmp-place-autocomplete::part(prediction-item-main-text),
+        gmp-basic-place-autocomplete::part(prediction-item-main-text) {
+            color: var(--hr-places-text) !important;
+            font-weight: 700;
+        }
+        gmp-place-autocomplete::part(prediction-item-secondary-text),
+        gmp-basic-place-autocomplete::part(prediction-item-secondary-text) {
+            color: var(--hr-places-muted) !important;
+        }
+        gmp-place-autocomplete::part(prediction-item-icon),
+        gmp-basic-place-autocomplete::part(prediction-item-icon) {
+            background: var(--hr-places-icon-bg) !important;
+            color: var(--hr-places-icon) !important;
+            border-radius: 999px;
+        }
+        gmp-place-autocomplete::part(prediction-item-match),
+        gmp-basic-place-autocomplete::part(prediction-item-match) {
+            color: var(--hr-places-text) !important;
+            font-weight: 800;
         }
 
         .trip-origin-wrap,
@@ -1202,7 +1292,8 @@
         }
 
         .trip-origin-wrap.is-autocomplete-active,
-        .trip-dest-wrap.is-autocomplete-active {
+        .trip-dest-wrap.is-autocomplete-active,
+        .trip-extra-stop-wrap.is-autocomplete-active {
             z-index: 30;
         }
 
@@ -1356,11 +1447,17 @@
         /* Web: lista de Places debajo del input, sin tapar la página */
         body.trip-autocomplete-open .trip-dest-wrap,
         body.trip-autocomplete-open .trip-origin-wrap,
-        body.trip-autocomplete-open .trip-step-card.trip-step-route {
+        body.trip-autocomplete-open .trip-extra-stop-wrap,
+        body.trip-autocomplete-open .trip-step-card.trip-step-route,
+        body:has(.is-autocomplete-active) .trip-dest-wrap,
+        body:has(.is-autocomplete-active) .trip-origin-wrap,
+        body:has(.is-autocomplete-active) .trip-extra-stop-wrap,
+        body:has(.is-autocomplete-active) .trip-step-card.trip-step-route {
             overflow: visible !important;
             z-index: 80;
         }
-        body.trip-autocomplete-open gmp-place-autocomplete {
+        body.trip-autocomplete-open gmp-place-autocomplete,
+        body:has(.is-autocomplete-active) gmp-place-autocomplete {
             overflow: visible !important;
         }
 
@@ -8628,7 +8725,34 @@
         #chat-section { transition: max-height 0.4s ease, opacity 0.3s ease; overflow: hidden; }
         #chat-section.collapsed { max-height: 0; opacity: 0; padding: 0; }
 
-        .pac-container { z-index: 100000 !important; border-radius: 1rem !important; border: none !important; }
+        .pac-container {
+            z-index: 100000 !important;
+            border-radius: 1rem !important;
+            border: 1px solid var(--hr-places-border, #e2e8f0) !important;
+            background: var(--hr-places-bg, #ffffff) !important;
+            color: var(--hr-places-text, #0f172a) !important;
+            box-shadow: var(--hr-places-shadow, 0 12px 32px rgba(15, 23, 42, 0.18)) !important;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .pac-item {
+            color: var(--hr-places-muted, #64748b) !important;
+            border-top: 1px solid var(--hr-places-border, #e2e8f0) !important;
+            min-height: 48px;
+            padding: 0.65rem 0.85rem !important;
+            cursor: pointer;
+        }
+        .pac-item:hover,
+        .pac-item-selected {
+            background: var(--hr-places-hover, #f1f5f9) !important;
+        }
+        .pac-item-query {
+            color: var(--hr-places-text, #0f172a) !important;
+            font-weight: 700;
+        }
+        .pac-icon {
+            filter: none;
+        }
         
         @keyframes pulse-blue {
             0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
@@ -9965,6 +10089,35 @@
                 padding: 0.2rem 0 0;
                 padding-bottom: max(0.5rem, calc(0.3rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
                 max-height: min(44dvh, 20rem);
+            }
+
+            /* Buscar origen/destino: panel más alto y lista clara, sin recortar el menú */
+            body.client-mode:has(.is-autocomplete-active) #control-panel,
+            body.trip-autocomplete-open.client-mode #control-panel,
+            body:has(.trip-origin-wrap.is-autocomplete-active) #control-panel,
+            body:has(.trip-dest-wrap.is-autocomplete-active) #control-panel,
+            body:has(.trip-extra-stop-wrap.is-autocomplete-active) #control-panel {
+                max-height: min(78dvh, 36rem) !important;
+                overflow: visible !important;
+            }
+            body:has(.is-autocomplete-active) #panel-content,
+            body.trip-autocomplete-open #panel-content {
+                overflow: visible !important;
+            }
+            body.client-mode:has(.is-autocomplete-active) #favorites-bar,
+            body.client-mode:has(.is-autocomplete-active) .trip-step-advanced,
+            body.client-mode:has(.is-autocomplete-active) .trip-step-service,
+            body.client-mode:has(.is-autocomplete-active) .trip-step-passengers,
+            body.client-mode:has(.is-autocomplete-active) .trip-step-when,
+            body.client-mode:has(.is-autocomplete-active) .trip-step-request,
+            body.client-mode:has(.is-autocomplete-active) #ride-options,
+            body.client-mode:has(.is-autocomplete-active) #fare-card {
+                display: none !important;
+            }
+            body.client-mode:has(.trip-origin-wrap.is-autocomplete-active) .trip-dest-wrap,
+            body.client-mode:has(.trip-origin-wrap.is-autocomplete-active) #standard-extra-stops-wrap,
+            body.client-mode:has(.trip-dest-wrap.is-autocomplete-active) #standard-extra-stops-wrap {
+                display: none !important;
             }
 
             body.driver-mode:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel {
