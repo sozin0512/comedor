@@ -7,10 +7,13 @@ import {
     normalizeServiceType, calculateServiceFare, calculateFreightFare,
     calculateTowFare, isFreightService, isTowService, getHourlyLabel, calculateHourlyFare,
     collectFreightDetailsFromUI, validateFreightDetails, collectTowDetailsFromUI,
-    getServiceMeta, applyPassengerSurcharge, getHourlyRate
+    getServiceMeta, applyPassengerSurcharge, getHourlyRate,
+    formatPassengersLabel, formatFreightFareBreakdown, normalizePassengerCount,
+    getPassengerSurcharge
 } from './service-types.js';
 import { extraStopsSurcharge } from './extra-stops-fare.js';
-import { getRouteConditions, getAdjustedDurationMinutes } from './route-conditions.js';
+import { getRouteConditions, getAdjustedDurationMinutes, formatConditionsSummary, formatConditionsNote } from './route-conditions.js';
+import { getDeliverySlaText } from './trip-experience.js';
 
 export function installPassengerRuntime() {
     if (window.__hrPassengerRuntime) return;
@@ -834,7 +837,15 @@ window.calculateTripRoute = async (options = {}) => {
             window.updateHourlyOneHourAlert?.();
         }
 
-        const hourlyOpts = (window.currentBookingMode === 'hourly') ? getCurrentHourlyOptions() : {};
+        const hourlyOpts = (window.currentBookingMode === 'hourly')
+            ? (window.getCurrentHourlyOptions?.() || {
+                isNight: (() => {
+                    const hour = parseInt(String(document.getElementById('hourly-start-time')?.value || '').split(':')[0], 10);
+                    return Number.isFinite(hour) && (hour >= 22 || hour < 6);
+                })(),
+                multipleStops: window.currentHourlyStopType === 'multi',
+            })
+            : {};
         if (window.currentBookingMode === 'hourly' && km > 0) hourlyOpts.distanceKm = km;
 
         let routeConditions = null;
@@ -1115,7 +1126,7 @@ window.calculateTripRoute = async (options = {}) => {
                 if (onlineCount > 0) {
                     fleetLabel = onlineCount === 1 ? '1 conductor cerca' : `${onlineCount} conductores cerca`;
                 } else if (regCount > 0) {
-                    fleetLabel = (window.formatRegisteredDriversFleetLabel || formatRegisteredDriversFleetLabel)(regCount);
+                    fleetLabel = window.formatRegisteredDriversFleetLabel?.(regCount) || '';
                 } else {
                     window.prefetchRegisteredDriversCount?.();
                 }
