@@ -1358,10 +1358,24 @@
         /* Overlay interno de Places (si expone parts) — bajo el reloj, no encima */
         body.trip-autocomplete-open gmp-place-autocomplete::part(overlay),
         body.trip-autocomplete-open gmp-place-autocomplete::part(dialog),
-        body.capacitor-android gmp-place-autocomplete::part(overlay) {
+        body.capacitor-android gmp-place-autocomplete::part(overlay),
+        html.hr-places-fullwindow gmp-place-autocomplete::part(overlay),
+        html.hr-places-fullwindow gmp-place-autocomplete::part(dialog),
+        body.hr-places-fullwindow gmp-place-autocomplete::part(overlay),
+        body.hr-places-fullwindow gmp-place-autocomplete::part(dialog) {
             top: var(--search-safe-top, 48px);
             inset-block-start: var(--search-safe-top, 48px);
-            max-height: calc(100% - var(--search-safe-top, 48px) - var(--keyboard-inset, 0px));
+            max-height: calc(100dvh - var(--search-safe-top, 48px) - var(--keyboard-inset, 0px));
+        }
+
+        html.hr-places-fullwindow gmp-place-autocomplete::part(prediction-list),
+        html.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list),
+        body.hr-places-fullwindow gmp-place-autocomplete::part(prediction-list),
+        body.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list) {
+            max-height: none;
+            margin-top: 0.35rem;
+            border-radius: 0.85rem;
+            box-shadow: none;
         }
 
         body.capacitor-android.trip-autocomplete-open,
@@ -10114,12 +10128,7 @@
             body.client-mode:has(.is-autocomplete-active) #fare-card {
                 display: none !important;
             }
-            body.client-mode:has(.trip-origin-wrap.is-autocomplete-active) .trip-dest-wrap,
-            body.client-mode:has(.trip-origin-wrap.is-autocomplete-active) #standard-extra-stops-wrap,
-            body.client-mode:has(.trip-dest-wrap.is-autocomplete-active) .trip-origin-wrap,
-            body.client-mode:has(.trip-dest-wrap.is-autocomplete-active) #standard-extra-stops-wrap,
-            body.client-mode:has(.trip-extra-stop-wrap.is-autocomplete-active) .trip-origin-wrap,
-            body.client-mode:has(.trip-extra-stop-wrap.is-autocomplete-active) .trip-dest-wrap {
+            body.client-mode:has(.is-autocomplete-active) #standard-extra-stops-wrap {
                 display: none !important;
             }
             .trip-origin-wrap.is-autocomplete-active #btn-use-location,

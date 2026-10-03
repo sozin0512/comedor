@@ -47,7 +47,28 @@
     };
     window.isHrNativeAndroid = isHrNativeAndroid;
 
-    const overlayCssText = () => `
+    /** En celular Places usa overlay a pantalla completa; el dropdown solo va en escritorio. */
+    const usePlacesFullWindowOverlay = () => {
+        try {
+            if (isHrNativeAndroid()) return true;
+        } catch (_) {}
+        try {
+            if (window.matchMedia?.('(max-width: 639px)')?.matches) return true;
+            if (window.matchMedia?.('(pointer: coarse)')?.matches && (window.innerWidth || 0) < 900) {
+                return true;
+            }
+        } catch (_) {}
+        return false;
+    };
+    window.usePlacesFullWindowOverlay = usePlacesFullWindowOverlay;
+
+    const syncPlacesOverlayModeClass = () => {
+        const full = usePlacesFullWindowOverlay();
+        try { document.documentElement.classList.toggle('hr-places-fullwindow', full); } catch (_) {}
+        try { document.body?.classList.toggle('hr-places-fullwindow', full); } catch (_) {}
+    };
+
+    const overlayThemeCss = `
         :host {
             position: relative;
             overflow: visible !important;
@@ -63,7 +84,41 @@
         :host-context(html[data-theme="dark"]) {
             color-scheme: dark;
         }
-        /* El input real vive en .input-container / .overlay-container. No moverlo. */
+        :host input,
+        .input-container input {
+            display: block !important;
+            visibility: visible !important;
+            width: 100% !important;
+            height: auto !important;
+            pointer-events: auto !important;
+        }
+        [role="option"],
+        [part="prediction-item"],
+        .place-autocomplete-element-prediction {
+            color: var(--hr-places-text, #0f172a) !important;
+            background: transparent !important;
+            border-color: var(--hr-places-border, #e2e8f0) !important;
+            min-height: 48px;
+        }
+        [part="prediction-item-main-text"],
+        .place-autocomplete-element-text-div {
+            color: var(--hr-places-text, #0f172a) !important;
+        }
+        [part="prediction-item-secondary-text"] {
+            color: var(--hr-places-muted, #64748b) !important;
+        }
+        [part="prediction-item-icon"],
+        .place-autocomplete-element-place-icon {
+            background: var(--hr-places-icon-bg, #e2e8f0) !important;
+            color: var(--hr-places-icon, #475569) !important;
+        }
+        [part="prediction-item-selected"],
+        [aria-selected="true"] {
+            background: var(--hr-places-selected, #eff6ff) !important;
+        }
+    `;
+
+    const overlayDropdownCss = `
         .input-container,
         .widget-container,
         .overlay-container {
@@ -74,14 +129,6 @@
             visibility: visible !important;
             height: auto !important;
             overflow: visible !important;
-            pointer-events: auto !important;
-        }
-        :host input,
-        .input-container input {
-            display: block !important;
-            visibility: visible !important;
-            width: 100% !important;
-            height: auto !important;
             pointer-events: auto !important;
         }
         dialog,
@@ -117,7 +164,6 @@
             opacity: 0 !important;
             background: transparent !important;
         }
-        /* Solo el input duplicado DENTRO del menú, no el campo donde se escribe */
         dialog input,
         dialog .input-container,
         dialog .focus-ring,
@@ -137,31 +183,83 @@
             box-shadow: none !important;
             border: none !important;
         }
-        [role="option"],
-        [part="prediction-item"],
-        .place-autocomplete-element-prediction {
+    `;
+
+    const overlayFullWindowCss = `
+        .input-container,
+        .widget-container {
+            display: block !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+            overflow: visible !important;
+        }
+        dialog[open],
+        .full-window-autocomplete-dialog[open],
+        .full-window-autocomplete-dialog:popover-open,
+        .place-autocomplete-element-overlay:popover-open,
+        .place-autocomplete-element-full-window:popover-open,
+        .place-autocomplete-element-overlay[open],
+        .place-autocomplete-element-full-window[open] {
+            position: fixed !important;
+            inset: var(--search-safe-top, 48px) 0 var(--keyboard-inset, 0px) 0 !important;
+            top: var(--search-safe-top, 48px) !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: var(--keyboard-inset, 0px) !important;
+            width: 100% !important;
+            max-width: none !important;
+            height: auto !important;
+            max-height: none !important;
+            margin: 0 !important;
+            transform: none !important;
+            z-index: 2147483000 !important;
+            box-sizing: border-box !important;
+            background: var(--hr-places-bg, #ffffff) !important;
             color: var(--hr-places-text, #0f172a) !important;
-            background: transparent !important;
-            border-color: var(--hr-places-border, #e2e8f0) !important;
-            min-height: 48px;
+            border: none !important;
+            border-radius: 1rem 1rem 0 0 !important;
+            box-shadow: 0 -8px 28px rgba(15, 23, 42, 0.18) !important;
+            overflow: auto !important;
+            -webkit-overflow-scrolling: touch;
+            display: flex !important;
+            flex-direction: column !important;
+            visibility: visible !important;
+            pointer-events: auto !important;
+            padding: 0.75rem 0.85rem 1rem !important;
         }
-        [part="prediction-item-main-text"],
-        .place-autocomplete-element-text-div {
-            color: var(--hr-places-text, #0f172a) !important;
+        dialog::backdrop {
+            display: block !important;
+            opacity: 1 !important;
+            background: rgba(15, 23, 42, 0.4) !important;
         }
-        [part="prediction-item-secondary-text"] {
-            color: var(--hr-places-muted, #64748b) !important;
+        dialog input,
+        dialog .input-container,
+        dialog .focus-ring,
+        .full-window-autocomplete-dialog input,
+        .full-window-autocomplete-dialog .input-container,
+        .place-autocomplete-element-overlay input,
+        .place-autocomplete-element-full-window input {
+            display: block !important;
+            visibility: visible !important;
+            width: 100% !important;
+            height: auto !important;
+            pointer-events: auto !important;
         }
-        [part="prediction-item-icon"],
-        .place-autocomplete-element-place-icon {
-            background: var(--hr-places-icon-bg, #e2e8f0) !important;
-            color: var(--hr-places-icon, #475569) !important;
-        }
-        [part="prediction-item-selected"],
-        [aria-selected="true"] {
-            background: var(--hr-places-selected, #eff6ff) !important;
+        dialog [role="listbox"],
+        .place-autocomplete-element-overlay [role="listbox"],
+        .place-autocomplete-element-full-window [role="listbox"] {
+            position: relative !important;
+            top: auto !important;
+            max-height: none !important;
+            flex: 1 1 auto !important;
+            overflow-y: auto !important;
+            margin: 0.35rem 0 0 !important;
+            box-shadow: none !important;
+            border: none !important;
         }
     `;
+
+    const overlayCssText = () => overlayThemeCss + (usePlacesFullWindowOverlay() ? overlayFullWindowCss : overlayDropdownCss);
 
     const placesThemeIsDark = () => {
         try {
@@ -257,15 +355,18 @@
     const pinOverlayBelowStatusBar = (el, force = false) => {
         if (!el || el.id === 'status-bar-shield' || el.id === 'control-panel') return;
         if (el.localName === 'gmp-place-autocomplete' || el.localName === 'gmp-basic-place-autocomplete') return;
-        if (!looksLikePlacesOverlay(el) && !force) return;
-        if (force && !looksLikePlacesOverlay(el)) return;
+        const placesDlg = isPlacesDialog(el);
+        if (!placesDlg && !looksLikePlacesOverlay(el) && !force) return;
+        if (el.localName === 'dialog' && !el.open) return;
         const top = readSearchSafeTopPx();
         const kb = (() => {
             try {
                 return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--keyboard-inset')) || 0;
             } catch (_) { return 0; }
         })();
+        const dark = placesThemeIsDark();
         try {
+            el.style.setProperty('position', 'fixed', 'important');
             el.style.setProperty('inset', `${top}px 0 ${Math.round(kb)}px 0`, 'important');
             el.style.setProperty('top', `${top}px`, 'important');
             el.style.setProperty('left', '0px', 'important');
@@ -276,12 +377,43 @@
             el.style.setProperty('max-width', 'none', 'important');
             el.style.setProperty('height', 'auto', 'important');
             el.style.setProperty('max-height', 'none', 'important');
+            el.style.setProperty('transform', 'none', 'important');
             el.style.setProperty('box-sizing', 'border-box', 'important');
+            el.style.setProperty('z-index', '2147483000', 'important');
+            el.style.setProperty('background', dark ? '#1e293b' : '#ffffff', 'important');
+            el.style.setProperty('color', dark ? '#f8fafc' : '#0f172a', 'important');
+            el.style.setProperty('color-scheme', dark ? 'dark' : 'light');
+            el.style.setProperty('border', 'none', 'important');
+            el.style.setProperty('border-radius', '1rem 1rem 0 0', 'important');
+            el.style.setProperty('overflow', 'auto', 'important');
+            el.style.setProperty('display', 'flex', 'important');
+            el.style.setProperty('flex-direction', 'column', 'important');
+            el.style.setProperty('visibility', 'visible', 'important');
+            el.style.setProperty('pointer-events', 'auto', 'important');
             try { el.dataset.hrSafeTopPinned = '1'; } catch (_) {}
         } catch (_) {}
     };
 
+    const stylePlacesOverlayEl = (el) => {
+        if (!el || el.nodeType !== 1) return;
+        if (!usePlacesFullWindowOverlay()) {
+            stylePlacesDropdown(el);
+            return;
+        }
+        if (el.localName === 'dialog' && !el.open) return;
+        try {
+            if (el.hasAttribute?.('popover') && !el.matches?.(':popover-open')) return;
+        } catch (_) {}
+        if (el.localName !== 'dialog') {
+            let popoverOpen = false;
+            try { popoverOpen = el.matches?.(':popover-open') === true; } catch (_) {}
+            if (!popoverOpen && !looksLikePlacesOverlay(el)) return;
+        }
+        pinOverlayBelowStatusBar(el, true);
+    };
+
     const applyPlacesOverlaySafeTop = () => {
+        syncPlacesOverlayModeClass();
         try {
             const top = readSearchSafeTopPx();
             document.documentElement.style.setProperty('--search-safe-top', `${top}px`);
@@ -289,14 +421,14 @@
         try {
             document.querySelectorAll('dialog[open], .pac-container').forEach((el) => {
                 if (isPlacesDialog(el) || String(el.className || '').includes('pac-container')) {
-                    stylePlacesDropdown(el);
+                    stylePlacesOverlayEl(el);
                 }
             });
         } catch (_) {}
         try {
             document.querySelectorAll('[popover]').forEach((el) => {
                 if (el.id === 'status-bar-shield') return;
-                if (isPlacesDialog(el)) stylePlacesDropdown(el);
+                if (isPlacesDialog(el)) stylePlacesOverlayEl(el);
             });
         } catch (_) {}
         document.querySelectorAll('gmp-place-autocomplete, gmp-basic-place-autocomplete').forEach((host) => {
@@ -306,8 +438,8 @@
             injectStyleIntoRoot(root);
             try {
                 root.querySelectorAll(
-                    'dialog, [popover], .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, .place-autocomplete-element-full-window'
-                ).forEach(stylePlacesDropdown);
+                    'dialog[open], [popover]:popover-open, .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, .place-autocomplete-element-full-window'
+                ).forEach(stylePlacesOverlayEl);
             } catch (_) {}
         });
     };
@@ -325,7 +457,7 @@
                     try {
                         const mo = new MutationObserver(() => {
                             try {
-                                shadow.querySelectorAll('dialog, [popover], .full-window-autocomplete-dialog, .place-autocomplete-element-overlay').forEach(stylePlacesDropdown);
+                                shadow.querySelectorAll('dialog[open], [popover]:popover-open, .full-window-autocomplete-dialog, .place-autocomplete-element-overlay').forEach(stylePlacesOverlayEl);
                             } catch (_) {}
                         });
                         mo.observe(shadow, { childList: true, subtree: true });
@@ -341,6 +473,13 @@
         const origShowModal = protoDlg.showModal;
         protoDlg.showModal = function hrPlacesShowModal() {
             if (isPlacesDialog(this)) {
+                if (usePlacesFullWindowOverlay()) {
+                    const result = origShowModal.apply(this, arguments);
+                    pinOverlayBelowStatusBar(this, true);
+                    requestAnimationFrame(() => pinOverlayBelowStatusBar(this, true));
+                    setTimeout(() => pinOverlayBelowStatusBar(this, true), 40);
+                    return result;
+                }
                 stylePlacesDropdown(this);
                 if (typeof this.show === 'function') return this.show();
             }
@@ -351,13 +490,12 @@
     if (window.HTMLElement && typeof HTMLElement.prototype.showPopover === 'function' && !HTMLElement.prototype.showPopover._hrDropdown) {
         const origShowPopover = HTMLElement.prototype.showPopover;
         HTMLElement.prototype.showPopover = function hrPlacesShowPopover() {
-            if (isPlacesDialog(this) || (this.id === 'status-bar-shield')) {
-                if (this.id === 'status-bar-shield') {
-                    try { return origShowPopover.apply(this, arguments); } catch (_) { return undefined; }
-                }
-                stylePlacesDropdown(this);
+            if (this.id === 'status-bar-shield') {
+                try { return origShowPopover.apply(this, arguments); } catch (_) { return undefined; }
             }
-            return origShowPopover.apply(this, arguments);
+            const result = origShowPopover.apply(this, arguments);
+            if (isPlacesDialog(this)) stylePlacesOverlayEl(this);
+            return result;
         };
         HTMLElement.prototype.showPopover._hrDropdown = true;
     }
@@ -386,7 +524,17 @@
 
     const onReady = () => {
         ensurePersistentShield();
+        syncPlacesOverlayModeClass();
         applyPlacesOverlaySafeTop();
+        if (!window._hrPlacesOverlayModeBound) {
+            window._hrPlacesOverlayModeBound = true;
+            const onMode = () => {
+                syncPlacesOverlayModeClass();
+                scheduleApplyPlacesOverlaySafeTop();
+            };
+            try { window.matchMedia('(max-width: 639px)')?.addEventListener?.('change', onMode); } catch (_) {}
+            window.addEventListener('resize', onMode, { passive: true });
+        }
         if (window._hrPlacesOverlayMo) return;
         try {
             const mo = new MutationObserver(scheduleApplyPlacesOverlaySafeTop);
@@ -1902,9 +2050,11 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 let blurTimer = null;
                 const setActive = (on) => {
                     wrap.classList.toggle('is-autocomplete-active', on);
-                    const native = typeof window.isHrNativeAndroid === 'function' && window.isHrNativeAndroid();
+                    const full = typeof window.usePlacesFullWindowOverlay === 'function'
+                        ? window.usePlacesFullWindowOverlay()
+                        : (typeof window.isHrNativeAndroid === 'function' && window.isHrNativeAndroid());
                     if (on) {
-                        if (native) setTripAutocompleteOpen(true, el);
+                        if (full) setTripAutocompleteOpen(true, el);
                     } else {
                         const still = document.querySelector(
                             '.trip-origin-wrap.is-autocomplete-active, .trip-dest-wrap.is-autocomplete-active, .trip-extra-stop-wrap.is-autocomplete-active'
