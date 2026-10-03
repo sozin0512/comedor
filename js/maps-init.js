@@ -63,13 +63,32 @@
         :host-context(html[data-theme="dark"]) {
             color-scheme: dark;
         }
+        /* El input real vive en .input-container / .overlay-container. No moverlo. */
+        .input-container,
+        .widget-container,
+        .overlay-container {
+            position: relative !important;
+            inset: auto !important;
+            top: auto !important;
+            display: block !important;
+            visibility: visible !important;
+            height: auto !important;
+            overflow: visible !important;
+            pointer-events: auto !important;
+        }
+        :host input,
+        .input-container input {
+            display: block !important;
+            visibility: visible !important;
+            width: 100% !important;
+            height: auto !important;
+            pointer-events: auto !important;
+        }
         dialog,
         dialog[open],
-        [popover],
         .full-window-autocomplete-dialog,
         .place-autocomplete-element-overlay,
         .place-autocomplete-element-full-window,
-        .overlay-container,
         .dropdown {
             position: absolute !important;
             inset: auto !important;
@@ -98,27 +117,17 @@
             opacity: 0 !important;
             background: transparent !important;
         }
-        /* El overlay de Places trae su propio input; el de la app ya está visible.
-           Si se deja, tapa la primera sugerencia (Destino final encima de la lista). */
+        /* Solo el input duplicado DENTRO del menú, no el campo donde se escribe */
         dialog input,
         dialog .input-container,
         dialog .focus-ring,
-        [popover] input,
-        [popover] .input-container,
-        .place-autocomplete-element-overlay input,
-        .place-autocomplete-element-overlay .input-container,
         .full-window-autocomplete-dialog input,
         .full-window-autocomplete-dialog .input-container,
-        .overlay-container > input,
-        .overlay-container .input-container {
+        .place-autocomplete-element-overlay > input,
+        .place-autocomplete-element-full-window > input {
             display: none !important;
-            height: 0 !important;
-            overflow: hidden !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
         }
         dialog [role="listbox"],
-        [popover] [role="listbox"],
         .dropdown [role="listbox"],
         .place-autocomplete-element-overlay [role="listbox"] {
             position: relative !important;

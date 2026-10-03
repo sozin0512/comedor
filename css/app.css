@@ -1241,17 +1241,12 @@
 
         gmp-place-autocomplete::part(prediction-list),
         gmp-basic-place-autocomplete::part(prediction-list) {
-            position: absolute !important;
-            top: calc(100% + 0.35rem) !important;
-            left: 0 !important;
-            right: 0 !important;
-            z-index: 80 !important;
             background: var(--hr-places-bg) !important;
             color: var(--hr-places-text) !important;
             border: 1px solid var(--hr-places-border) !important;
             border-radius: 1rem !important;
             box-shadow: var(--hr-places-shadow) !important;
-            margin: 0 !important;
+            margin-top: 0.35rem;
             max-height: min(38dvh, 14.5rem);
             overflow-x: hidden;
             overflow-y: auto;
@@ -1516,16 +1511,6 @@
         body.trip-autocomplete-open #favorites-bar,
         body.trip-autocomplete-open #client-stores-section {
             display: none !important;
-        }
-        body:has(.trip-dest-wrap.is-autocomplete-active) .trip-origin-wrap,
-        body:has(.trip-origin-wrap.is-autocomplete-active) .trip-dest-wrap {
-            display: none !important;
-        }
-        .trip-dest-wrap.is-autocomplete-active #btn-dest-map,
-        .trip-origin-wrap.is-autocomplete-active #btn-use-location,
-        .trip-origin-wrap.is-autocomplete-active #btn-origin-map {
-            visibility: hidden !important;
-            pointer-events: none !important;
         }
 
         .trip-step-card.trip-step-route {
