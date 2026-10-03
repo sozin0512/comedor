@@ -153,6 +153,27 @@
             flex: 0 0 auto !important;
             align-self: center !important;
         }
+        /* Cabecera "Google Maps (i)": tapa la primera sugerencia. En celular no ocultar si trae el input. */
+        header:not(:has(input)):not(:has(.input-container)),
+        [part="logo"],
+        [part="attribution"],
+        [class*="gmd-logo"],
+        [class*="google-logo"],
+        [class*="maps-logo"],
+        [class*="attribution-bar"],
+        [class*="attribution-container"],
+        .place-autocomplete-element-logo,
+        .place-autocomplete-element-header {
+            display: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
         [role="option"],
         [part="prediction-item"],
         .place-autocomplete-element-prediction {
@@ -202,6 +223,33 @@
             overflow: visible !important;
             pointer-events: auto !important;
             z-index: 99999 !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+        }
+        /* Overlay que solo trae el título Google Maps, sin lista: no pintarlo. */
+        .place-autocomplete-element-overlay:not(:has([role="listbox"])):not(:has(ul)):not(:has(.dropdown)):not(:has([part="prediction-list"])) {
+            display: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .overlay-container > :not([role="listbox"]):not(ul):not(.dropdown):not([part="prediction-list"]):not(dialog):not(:has([role="listbox"])):not(:has(ul)):not(:has(.dropdown)) {
+            display: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
         }
         dialog,
         dialog[open],
@@ -359,6 +407,16 @@
             max-height: 3rem !important;
             pointer-events: auto !important;
         }
+        dialog[open] header:not(:has(input)):not(:has(.input-container)),
+        .full-window-autocomplete-dialog header:not(:has(input)):not(:has(.input-container)),
+        .place-autocomplete-element-overlay > header:not(:has(input)),
+        .place-autocomplete-element-full-window > header:not(:has(input)) {
+            display: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+        }
         [part="prediction-list"],
         [role="listbox"],
         .dropdown {
@@ -418,8 +476,44 @@
         try { host.style.setProperty('color-scheme', scheme); } catch (_) {}
     };
 
+    const isGoogleMapsHeaderEl = (el) => {
+        if (!el || el.nodeType !== 1) return false;
+        try {
+            if (el.matches?.('[role="listbox"], [role="option"], [part="prediction-list"], [part="prediction-item"], input, .dropdown, .input-container')) {
+                return false;
+            }
+        } catch (_) {}
+        if (el.querySelector?.('input, .input-container, [role="listbox"], [role="option"], [part="prediction-list"], .dropdown')) {
+            return false;
+        }
+        const cls = `${el.className || ''} ${el.getAttribute?.('part') || ''}`.toLowerCase();
+        if (cls.includes('logo') || cls.includes('attribution')) return true;
+        const text = String(el.textContent || '').replace(/\s+/g, ' ').trim();
+        return /^Google Maps\b/i.test(text) && text.length < 40;
+    };
+
+    const hideGoogleMapsHeaderInRoot = (root) => {
+        if (!root || !root.querySelectorAll) return;
+        try {
+            root.querySelectorAll('header, [class*="logo"], [class*="attribution"], [class*="header"], [part="logo"], [part="attribution"]').forEach((el) => {
+                if (!isGoogleMapsHeaderEl(el) && !/^Google Maps\b/i.test(String(el.textContent || '').trim())) return;
+                if (el.closest?.('[role="listbox"], [role="option"]')) return;
+                try { el.style.setProperty('display', 'none', 'important'); } catch (_) {}
+            });
+            root.querySelectorAll('.place-autocomplete-element-overlay, .overlay-container > *').forEach((el) => {
+                if (isGoogleMapsHeaderEl(el)) {
+                    try { el.style.setProperty('display', 'none', 'important'); } catch (_) {}
+                }
+            });
+        } catch (_) {}
+    };
+
     const stylePlacesDropdown = (el) => {
         if (!el || el.nodeType !== 1) return;
+        if (isGoogleMapsHeaderEl(el)) {
+            try { el.style.setProperty('display', 'none', 'important'); } catch (_) {}
+            return;
+        }
         const dark = placesThemeIsDark();
         try {
             el.style.setProperty('position', 'absolute', 'important');
@@ -470,6 +564,7 @@
             root.appendChild(style);
         }
         style.textContent = overlayCssText();
+        hideGoogleMapsHeaderInRoot(root);
     };
 
     const looksLikePlacesOverlay = (el) => {
@@ -733,6 +828,7 @@
                         });
                         const mo = new MutationObserver(() => {
                             try {
+                                hideGoogleMapsHeaderInRoot(shadow);
                                 shadow.querySelectorAll('dialog').forEach((d) => {
                                     if (d.open) stylePlacesOverlayEl(d);
                                     else unpinPlacesOverlay(d);

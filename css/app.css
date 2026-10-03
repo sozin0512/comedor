@@ -1289,6 +1289,13 @@
             font-weight: 800;
         }
 
+        gmp-place-autocomplete::part(logo),
+        gmp-basic-place-autocomplete::part(logo),
+        gmp-place-autocomplete::part(attribution),
+        gmp-basic-place-autocomplete::part(attribution) {
+            display: none !important;
+        }
+
         gmp-place-autocomplete::part(input),
         gmp-basic-place-autocomplete::part(input) {
             min-height: 3rem;
@@ -10160,6 +10167,23 @@
                 padding: 0.2rem 0 0;
                 padding-bottom: max(0.5rem, calc(0.3rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
                 max-height: min(44dvh, 20rem);
+            }
+
+            .trip-origin-wrap,
+            .trip-dest-wrap,
+            .trip-input-field,
+            gmp-place-autocomplete.trip-input-field,
+            gmp-basic-place-autocomplete.trip-input-field {
+                min-height: 3rem;
+                height: auto;
+                max-height: none;
+                overflow: visible;
+            }
+            gmp-place-autocomplete::part(input),
+            gmp-basic-place-autocomplete::part(input) {
+                min-height: 3rem;
+                height: 3rem;
+                max-height: 3rem;
             }
 
             /* Buscar origen/destino: panel más alto y lista clara, sin recortar el menú */
