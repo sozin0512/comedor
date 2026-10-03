@@ -1223,6 +1223,9 @@
             z-index: 1;
             overflow: visible;
             box-sizing: border-box;
+            min-height: 3rem;
+            height: auto;
+            max-height: none;
             color-scheme: light;
             color: var(--hr-places-text);
             --gmp-mat-color-surface: var(--hr-places-bg);
@@ -1286,10 +1289,29 @@
             font-weight: 800;
         }
 
+        gmp-place-autocomplete::part(input),
+        gmp-basic-place-autocomplete::part(input) {
+            min-height: 3rem;
+            height: 3rem;
+            max-height: 3rem;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            line-height: 1.25;
+            padding-block: 0;
+        }
+
         .trip-origin-wrap,
         .trip-dest-wrap {
             position: relative;
             z-index: 6;
+            min-height: 3rem;
+        }
+
+        .trip-origin-wrap #btn-use-location,
+        .trip-origin-wrap #btn-origin-map,
+        .trip-dest-wrap #btn-dest-map {
+            top: 50%;
+            transform: translateY(-50%);
         }
 
         .trip-origin-wrap.is-autocomplete-active,
@@ -5611,6 +5633,8 @@
             border: 1.5px solid #e2e8f0 !important;
             background: #f8fafc !important;
             min-height: 3rem;
+            height: auto;
+            overflow: visible;
             box-sizing: border-box;
         }
 

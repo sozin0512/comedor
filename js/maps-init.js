@@ -71,7 +71,11 @@
     const overlayThemeCss = `
         :host {
             position: relative;
+            display: block !important;
             overflow: visible !important;
+            height: auto !important;
+            min-height: 3rem;
+            max-height: none !important;
             color-scheme: light;
             --gmp-mat-color-surface: var(--hr-places-bg, #ffffff);
             --gmp-mat-color-on-surface: var(--hr-places-text, #0f172a);
@@ -84,13 +88,70 @@
         :host-context(html[data-theme="dark"]) {
             color-scheme: dark;
         }
+        .widget-container {
+            display: block !important;
+            position: relative !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+        }
+        /* Fila única: lupa + texto + borrar. display:block apila los iconos y infla el campo. */
+        .input-container {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            box-sizing: border-box !important;
+            height: 3rem !important;
+            min-height: 3rem !important;
+            max-height: 3rem !important;
+            padding: 0 0.55rem !important;
+            overflow: hidden !important;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            gap: 0.35rem !important;
+        }
+        .focus-ring {
+            position: absolute !important;
+            inset: 0 !important;
+            pointer-events: none !important;
+            box-shadow: none !important;
+            border: none !important;
+            background: transparent !important;
+            height: auto !important;
+            min-height: 0 !important;
+        }
         :host input,
         .input-container input {
             display: block !important;
             visibility: visible !important;
+            flex: 1 1 auto !important;
+            min-width: 0 !important;
             width: 100% !important;
-            height: auto !important;
+            height: 3rem !important;
+            min-height: 0 !important;
+            max-height: 3rem !important;
+            line-height: 1.25 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            font-size: 0.95rem !important;
             pointer-events: auto !important;
+        }
+        .input-container > button,
+        .input-container svg,
+        .input-container .leading-icon,
+        .input-container .trailing-icon,
+        .input-container .autocomplete-icon {
+            flex: 0 0 auto !important;
+            align-self: center !important;
         }
         [role="option"],
         [part="prediction-item"],
@@ -119,9 +180,7 @@
     `;
 
     const overlayDropdownCss = `
-        .input-container,
-        .widget-container,
-        .overlay-container {
+        .widget-container {
             position: relative !important;
             inset: auto !important;
             top: auto !important;
@@ -130,6 +189,19 @@
             height: auto !important;
             overflow: visible !important;
             pointer-events: auto !important;
+        }
+        .overlay-container {
+            position: absolute !important;
+            inset: auto !important;
+            top: 100% !important;
+            left: 0 !important;
+            right: 0 !important;
+            display: block !important;
+            visibility: visible !important;
+            height: auto !important;
+            overflow: visible !important;
+            pointer-events: auto !important;
+            z-index: 99999 !important;
         }
         dialog,
         dialog[open],
@@ -193,11 +265,15 @@
             min-height: 3rem;
         }
         .input-container {
-            display: block !important;
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
             visibility: visible !important;
             pointer-events: auto !important;
             overflow: hidden !important;
             height: 3rem !important;
+            min-height: 3rem !important;
             max-height: 3rem !important;
         }
         .widget-container {
@@ -255,18 +331,32 @@
             opacity: 1 !important;
             background: rgba(15, 23, 42, 0.4) !important;
         }
-        dialog input,
-        dialog .input-container,
-        dialog .focus-ring,
-        .full-window-autocomplete-dialog input,
+        dialog[open] .input-container,
         .full-window-autocomplete-dialog .input-container,
+        .place-autocomplete-element-overlay .input-container,
+        .place-autocomplete-element-full-window .input-container {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            visibility: visible !important;
+            width: 100% !important;
+            height: 3rem !important;
+            min-height: 3rem !important;
+            max-height: 3rem !important;
+            overflow: hidden !important;
+            padding-right: 0.55rem !important;
+            pointer-events: auto !important;
+        }
+        dialog input,
+        .full-window-autocomplete-dialog input,
         .place-autocomplete-element-overlay input,
         .place-autocomplete-element-full-window input {
             display: block !important;
             visibility: visible !important;
             width: 100% !important;
-            height: auto !important;
-            max-height: none !important;
+            height: 3rem !important;
+            max-height: 3rem !important;
             pointer-events: auto !important;
         }
         [part="prediction-list"],

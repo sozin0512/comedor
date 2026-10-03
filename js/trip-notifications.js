@@ -15,6 +15,22 @@ export const HONDU_RIDE_DEMAND_VIBRATE = [0, 450, 100, 450, 100, 550, 120, 750, 
 
 let swRegistration = null;
 
+function settleWithTimeout(promise, ms, fallback) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const finish = (value) => {
+            if (settled) return;
+            settled = true;
+            resolve(value);
+        };
+        const timer = setTimeout(() => finish(fallback), ms);
+        Promise.resolve(promise).then(
+            (value) => { clearTimeout(timer); finish(value); },
+            () => { clearTimeout(timer); finish(fallback); }
+        );
+    });
+}
+
 export function isNotificationSupported() {
     if (typeof window === 'undefined') return false;
     if (isCapacitorAndroid()) return true;
@@ -39,7 +55,9 @@ export async function initTripNotifications() {
     try {
         const swUrl = getMessagingSwUrl(import.meta.url);
         swRegistration = await navigator.serviceWorker.register(swUrl, { scope: '/' });
-        await navigator.serviceWorker.ready;
+        try { swRegistration.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
+        try { swRegistration.installing?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
+        await settleWithTimeout(navigator.serviceWorker.ready, 4000, swRegistration);
         return true;
     } catch (e) {
         console.warn('initTripNotifications:', e);
@@ -80,7 +98,12 @@ export async function requestTripNotificationPermission() {
 
     if (Notification.permission === 'granted') return 'granted';
     if (Notification.permission === 'denied') return 'denied';
-    return Notification.requestPermission();
+    const perm = await settleWithTimeout(
+        Notification.requestPermission(),
+        45000,
+        Notification.permission || 'default'
+    );
+    return perm || Notification.permission || 'default';
 }
 
 export function shouldNotifyInBackground() {

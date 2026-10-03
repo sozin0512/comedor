@@ -262,7 +262,18 @@ async function registerMessagingServiceWorker() {
         } catch (_) {}
     }
     const reg = await navigator.serviceWorker.register(swUrl, { scope: '/' });
-    await navigator.serviceWorker.ready;
+    try { reg.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
+    try { reg.installing?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
+    await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(reg), 4000);
+        navigator.serviceWorker.ready.then((readyReg) => {
+            clearTimeout(timer);
+            resolve(readyReg || reg);
+        }).catch(() => {
+            clearTimeout(timer);
+            resolve(reg);
+        });
+    });
     return reg;
 }
 
@@ -717,10 +728,15 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
         const app = ensureFirebaseApp(firebaseConfig);
         const reg = await registerMessagingServiceWorker();
         messagingInstance = getMessaging(app);
-        const token = await getToken(messagingInstance, {
-            vapidKey: key,
-            serviceWorkerRegistration: reg
-        });
+        const token = await Promise.race([
+            getToken(messagingInstance, {
+                vapidKey: key,
+                serviceWorkerRegistration: reg
+            }),
+            new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('getToken-timeout')), 8000);
+            })
+        ]);
 
         if (token) {
             const platform = detectWebPushPlatform();

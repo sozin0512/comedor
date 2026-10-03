@@ -4,28 +4,28 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.02.8";
+} from "./auth-credentials.js?v=2026.10.03.1";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.02.8";
+import { APP_CONFIG } from "./config.js?v=2026.10.03.1";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.02.8";
+} from "./market.js?v=2026.10.03.1";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.02.8";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.02.8";
+} from "./phone-utils.js?v=2026.10.03.1";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.03.1";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.02.8";
+} from "./referrals.js?v=2026.10.03.1";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -40,12 +40,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.02.8";
+} from "./zones.js?v=2026.10.03.1";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.02.8";
+} from "./trip-notifications.js?v=2026.10.03.1";
 import {
     installNotificationTonesApi,
     loadTonePrefs,
@@ -66,7 +66,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.02.8";
+} from "./notification-tones.js?v=2026.10.03.1";
 
 installNotificationTonesApi();
 
@@ -102,7 +102,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.02.8";
+} from "./passenger-alerts.js?v=2026.10.03.1";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -111,22 +111,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.02.8";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.02.8";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide } from "./pwa-install.js?v=2026.10.02.8";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.02.8";
+} from "./passenger-verification.js?v=2026.10.03.1";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.03.1";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide } from "./pwa-install.js?v=2026.10.03.1";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.03.1";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.10.02.8";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions } from "./fcm-push.js?v=2026.10.03.1";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.02.8";
+} from "./feedback.js?v=2026.10.03.1";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.02.8";
+} from "./greetings.js?v=2026.10.03.1";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -143,55 +143,55 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.02.8";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.02.8";
+} from "./service-types.js?v=2026.10.03.1";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.03.1";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getApprovedVehicleTypes, getRegisteredVehicleTypes,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles-v2.js?v=2026.10.02.8";
+} from "./driver-vehicles-v2.js?v=2026.10.03.1";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.02.8";
+} from "./route-fixed-fares.js?v=2026.10.03.1";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.02.8";
+} from "./commission-free-day.js?v=2026.10.03.1";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.02.8";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.02.8";
+} from "./route-conditions.js?v=2026.10.03.1";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.03.1";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.02.8";
+} from "./demand-heatmap.js?v=2026.10.03.1";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.02.8";
+} from "./ops-fleet-map.js?v=2026.10.03.1";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.02.8";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.02.8";
+} from "./live-trip-keepalive.js?v=2026.10.03.1";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.03.1";
 import {
     saveDriverLogin, clearDriverLogin, markSkipDriverAutoLogin, restoreDriverLoginForm
-} from "./driver-session.js?v=2026.10.02.8";
+} from "./driver-session.js?v=2026.10.03.1";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
     syncDriverSessionKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.02.8";
+} from "./session-keepalive.js?v=2026.10.03.1";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -276,28 +276,28 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.02.8";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.03.1";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.02.8";
+} from "./auth-ui.js?v=2026.10.03.1";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.02.8";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.02.8";
+} from "./age-verification.js?v=2026.10.03.1";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.03.1";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.02.8";
+} from "./trip-experience.js?v=2026.10.03.1";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.02.8";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.02.8";
+} from "./support-tickets.js?v=2026.10.03.1";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.03.1";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.02.8";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.03.1";
 
 
 let app;
@@ -4393,18 +4393,34 @@ if (document.readyState === 'loading') {
                     'warning'
                 );
             }
-            const result = await requestTripNotificationPermission();
+            const modal = document.getElementById('notif-prompt-modal');
+            if (modal) {
+                modal.style.visibility = 'hidden';
+                modal.style.pointerEvents = 'none';
+            }
+            let result = 'default';
+            try {
+                result = await requestTripNotificationPermission();
+            } catch (_) {
+                result = (typeof Notification !== 'undefined' && Notification.permission) || 'default';
+            }
             if (result === 'granted') {
+                document.getElementById('notif-prompt-modal')?.remove();
+                try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
+                updatePushEnableButton();
                 if (isCapacitorAndroid() && !isAndroidFcmConfigured()) {
                     window.showToast(
                         'Permiso guardado. Para recibir avisos falta google-services.json de honduraite.com en Firebase.',
                         'warning'
                     );
-                    updatePushEnableButton();
-                    document.getElementById('notif-prompt-modal')?.remove();
                     return;
                 }
-                const registered = await registerPushServices();
+                const registerPromise = registerPushServices();
+                const registered = await Promise.race([
+                    registerPromise,
+                    new Promise((resolve) => setTimeout(() => resolve(null), 8000))
+                ]).catch(() => null);
+                if (!registered) registerPromise.catch(() => {});
                 // Conductor / Android: full-screen + batería para que el viaje encienda la pantalla
                 if (isCapacitorAndroid()) {
                     const isDriverRole = window.userProfile?.role === 'driver';
@@ -4421,9 +4437,9 @@ if (document.readyState === 'loading') {
                 } else if (!isCapacitorNative() && !registered) {
                     window.showToast(
                         isIOS()
-                            ? 'Permiso dado, pero iPhone no registró el push. Cierra Safari, abre HonduRaite desde el icono de inicio y vuelve a Activar avisos.'
-                            : 'Permiso dado, pero no se pudo registrar el aviso. Recarga e inténtalo de nuevo.',
-                        'warning'
+                            ? 'Permiso dado. Si no llegan avisos, cierra Safari, abre HonduRaite desde el icono de inicio y vuelve a Activar avisos.'
+                            : 'Permiso activado. El aviso se está registrando…',
+                        'success'
                     );
                 } else {
                     window.showToast(
@@ -4437,15 +4453,22 @@ if (document.readyState === 'loading') {
                     localStorage.setItem('honduber_push_enabled', '1');
                     setHeaderTwinVisible('push-enable-btn', false);
                 }
-                const modal = document.getElementById('notif-prompt-modal');
-                if (modal) modal.remove();
+                document.getElementById('notif-prompt-modal')?.remove();
             } else if (result === 'denied') {
+                if (modal && document.body.contains(modal)) {
+                    modal.style.visibility = 'visible';
+                    modal.style.pointerEvents = 'auto';
+                }
                 const hint = isCapacitorAndroid()
                     ? 'Bloqueaste las notificaciones. Actívalas en Ajustes → HonduRaite → Notificaciones (y “emergente / pantalla completa” si aparece).'
                     : 'Bloqueaste las notificaciones. Actívalas manualmente en los ajustes de tu navegador.';
                 window.showToast(hint);
+            } else if (modal && document.body.contains(modal)) {
+                modal.style.visibility = 'visible';
+                modal.style.pointerEvents = 'auto';
             }
             updatePushEnableButton();
+            return result;
         };
 
         // Prompt persistente: pregunta cada vez que inicia sesión hasta que active notificaciones
@@ -4526,6 +4549,7 @@ if (document.readyState === 'loading') {
                         overlay.remove();
                         return;
                     }
+                    if (!document.body.contains(overlay)) return;
                     if (isPushReadyForThisContext()) {
                         overlay.remove();
                     } else {
@@ -4535,6 +4559,13 @@ if (document.readyState === 'loading') {
                     }
                 } catch (e) {
                     overlay.remove();
+                } finally {
+                    if (document.body.contains(overlay) && enableBtn.isConnected && enableBtn.disabled) {
+                        enableBtn.disabled = false;
+                        enableBtn.textContent = iosNeedsInstall
+                            ? '📲 CÓMO INSTALAR EN IPHONE'
+                            : '🔔 ACTIVAR AVISOS EMERGENTES';
+                    }
                 }
             };
 
