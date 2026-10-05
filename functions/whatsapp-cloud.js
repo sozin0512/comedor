@@ -1333,8 +1333,10 @@ function parseDeA(raw) {
 }
 
 /** iPhone: el botón nativo se retrasa o desaparece si el texto es largo o lleva markdown. */
-function iosLocationBody(_prompt) {
-    return 'Enviar ubicacion';
+function iosLocationBody(kind) {
+    if (kind === 'dest') return 'Destino: enviar pin';
+    if (kind === 'stop') return 'Parada: enviar pin';
+    return 'Recogida: enviar pin';
 }
 
 function locationKindFromPrompt(prompt, opts = {}) {
@@ -1343,20 +1345,51 @@ function locationKindFromPrompt(prompt, opts = {}) {
     }
     const raw = fold(prompt);
     if (/\b(parada|paso por|pasar por)\b/.test(raw)) return 'stop';
-    if (/\b(destino|vas|a donde)\b/.test(raw)) return 'dest';
+    if (/\b(destino|vas|a donde|dejar|dejamos)\b/.test(raw)) return 'dest';
+    if (/\b(recog|origen|buscarte|te busca)\b/.test(raw)) return 'origin';
     return 'origin';
+}
+
+function placeShortLabel(p) {
+    const raw = String(p?.placeName || p?.formattedAddress || p?.address || '').replace(/\s+/g, ' ').trim();
+    if (!raw || raw === 'Por definir') return '';
+    return raw.length > 90 ? `${raw.slice(0, 87)}…` : raw;
+}
+
+function locationAskIntro(kind, opts = {}) {
+    const originLabel = placeShortLabel(opts.origin);
+    if (kind === 'dest') {
+        const rec = originLabel ? `Recogida anotada: *${originLabel}*.\n\n` : '';
+        return (
+            `${rec}*¿A dónde te dejamos?*\n` +
+            'Este pin es el *destino* (donde te vamos a dejar), no el punto de recogida.\n\n' +
+            'Toca *Destino: enviar pin*, mueve el mapa y envía.\n' +
+            'En iPhone el mapa tarda unos segundos: espera el pin verde y luego Enviar.'
+        );
+    }
+    if (kind === 'stop') {
+        return (
+            '*¿Por dónde pasamos?*\n' +
+            'Este pin es una *parada* (un punto extra *antes* de dejarte en el destino).\n\n' +
+            'Toca *Parada: enviar pin*, mueve el mapa y envía.\n' +
+            'En iPhone el mapa tarda unos segundos: espera el pin verde y luego Enviar.'
+        );
+    }
+    return (
+        '*¿Dónde te recogemos?*\n' +
+        'Este pin es la *recogida* (donde te busca el conductor), no el destino.\n\n' +
+        'Toca *Recogida: enviar pin*, mueve el mapa y envía.\n' +
+        'En iPhone el mapa tarda unos segundos: espera el pin verde y luego Enviar.'
+    );
 }
 
 async function sendLocationRequest(to, prompt, opts = {}) {
     const dest = normalizeWaPhone(to);
     if (!dest) return { ok: false };
     const kind = locationKindFromPrompt(prompt, opts);
-    // Aviso corto ANTES del botón. El body del pin se queda mínimo: si es largo, iPhone oculta Enviar ubicación.
-    await sendCloudText(
-        dest,
-        'En iPhone el mapa tarda unos segundos. Espera el pin verde y luego Enviar.'
-    );
-    const bodyText = iosLocationBody(prompt);
+    // Aviso claro ANTES del botón. El body del pin se queda corto: si es largo, iPhone oculta Enviar ubicación.
+    await sendCloudText(dest, locationAskIntro(kind, opts));
+    const bodyText = iosLocationBody(kind);
     const res = await graphSendMessage({
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
@@ -1373,10 +1406,10 @@ async function sendLocationRequest(to, prompt, opts = {}) {
     return sendCloudText(
         dest,
         kind === 'dest'
-            ? 'Destino: clip 📎 → Ubicación → mueve el pin → Enviar.'
+            ? 'Destino (donde te dejamos): clip 📎 → Ubicación → mueve el pin → Enviar.'
             : (kind === 'stop'
-                ? 'Parada: clip 📎 → Ubicación → mueve el pin → Enviar.'
-                : 'Origen: clip 📎 → Ubicación → mueve el pin → Enviar.')
+                ? 'Parada (punto extra): clip 📎 → Ubicación → mueve el pin → Enviar.'
+                : 'Recogida (donde te buscamos): clip 📎 → Ubicación → mueve el pin → Enviar.')
     );
 }
 
@@ -1591,9 +1624,9 @@ function formatRouteLine(session) {
     const origin = session?.origin?.address || 'Origen';
     const dest = session?.dest?.address || 'Destino';
     const stops = normalizeStops(session);
-    if (!stops.length) return `📍 ${origin}\n➡️ ${dest}`;
-    const mid = stops.map((s, i) => `${i + 2}. ${s.address}`).join('\n');
-    return `📍 ${origin}\n${mid}\n➡️ ${dest}`;
+    if (!stops.length) return `📍 Recogida: ${origin}\n➡️ Destino: ${dest}`;
+    const mid = stops.map((s, i) => `${i + 2}. Parada: ${s.address}`).join('\n');
+    return `📍 Recogida: ${origin}\n${mid}\n➡️ Destino: ${dest}`;
 }
 
 function tripDistanceKm(origin, dest, clientChoosesRoute, stops = []) {
@@ -1828,7 +1861,7 @@ function hasPlace(p) {
 }
 
 async function askDest(from, origin, replyToId) {
-    return sendLocationRequest(from, 'Enviar ubicacion', { kind: 'dest' });
+    return sendLocationRequest(from, 'Enviar ubicacion', { kind: 'dest', origin });
 }
 
 async function askConfirm(from, session) {
@@ -2015,7 +2048,7 @@ function faqAnswer(t) {
             'Así funciona:\n' +
             '1. Eliges *Taxi VIP*, *moto*, *flete* o *grúa*\n' +
             '2. Me dices *ahora* o *programar*\n' +
-            '3. Origen y destino con el pin de WhatsApp\n' +
+            '3. Pin de *recogida* (donde te buscan) y pin de *destino* (donde te dejan)\n' +
             '4. Si quieres, agregas *paradas* (más puntos antes del destino)\n' +
             '5. Te digo la tarifa estimada, confirmas y avisamos a los conductores\n\nEscribe *viaje* para empezar.'
         );
@@ -2030,8 +2063,11 @@ function faqAnswer(t) {
     }
     if (/\b(donde estoy|como saben donde|ubicacion|gps|de donde a donde|no sale|no aparece|el pin|marcar en el mapa)\b/.test(t)) {
         return (
-            'Si el lugar *no sale* al escribirlo, márcalo con el pin:\n\n' +
-            '1. En este chat toca el clip 📎 o *Enviar ubicación*\n' +
+            'Pedimos *dos pines* distintos:\n' +
+            '• *Recogida* = donde te busca el conductor\n' +
+            '• *Destino* = donde te vamos a dejar\n\n' +
+            'Si el lugar *no sale* al escribirlo, márcalo con el pin:\n' +
+            '1. En este chat toca el clip 📎 o el botón de enviar pin\n' +
             '2. Elige *Ubicación* (no “ubicación actual” si vas a otro punto)\n' +
             '3. Mueve el mapa y deja el *pin* exacto\n' +
             '4. Toca enviar\n\n' +
