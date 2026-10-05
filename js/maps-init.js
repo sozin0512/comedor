@@ -285,10 +285,10 @@
         .widget-container > [part="prediction-list"] {
             position: fixed !important;
             inset: auto !important;
-            top: auto !important;
+            top: var(--hr-places-list-top, 10px) !important;
             left: var(--hr-places-list-left, 8px) !important;
             right: auto !important;
-            bottom: var(--hr-places-list-bottom, 8px) !important;
+            bottom: var(--hr-places-list-bottom, auto) !important;
             width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
             max-width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
             height: auto !important;
@@ -607,10 +607,13 @@
 
     const computePlacesDropdownBox = (host, { hasOwnInput } = {}) => {
         const vv = readVisualViewportBox();
-        const gap = 6;
+        const gap = 10;
         const layoutH = window.innerHeight || vv.bottom || 640;
-        let left = Math.round(vv.left + 10);
-        let width = Math.max(160, Math.round(vv.width - 20));
+        const compact = typeof window.isCompactPlacesUi === 'function'
+            ? window.isCompactPlacesUi()
+            : (window.matchMedia?.('(max-width: 639px)')?.matches === true);
+        let left = Math.round(vv.left + 12);
+        let width = Math.max(160, Math.round(vv.width - 24));
         let fieldTop = Math.max(vv.top + 48, vv.bottom - 56);
         let fieldBottom = fieldTop + 48;
         try {
@@ -623,11 +626,27 @@
                 fieldBottom = rect.bottom;
             }
         } catch (_) {}
+        if (compact) {
+            // Arriba del área visible: el teclado no cubre el input ni las sugerencias.
+            left = Math.round(vv.left + 12);
+            width = Math.max(160, Math.round(vv.width - 24));
+            const top = Math.round(vv.top + gap);
+            const maxH = Math.max(180, Math.round(vv.height - gap * 2));
+            return {
+                top,
+                bottom: null,
+                left,
+                width,
+                maxH,
+                hasOwnInput: !!hasOwnInput,
+                pinTop: true
+            };
+        }
         const attachBottom = hasOwnInput ? fieldBottom : fieldTop;
         const spaceAbove = Math.max(96, attachBottom - vv.top - gap);
         const maxH = Math.max(96, Math.min(Math.round(vv.height * 0.46), spaceAbove, 280));
         const bottom = Math.max(0, Math.round(layoutH - attachBottom + (hasOwnInput ? 0 : gap)));
-        return { bottom, left, width, maxH, hasOwnInput: !!hasOwnInput };
+        return { top: null, bottom, left, width, maxH, hasOwnInput: !!hasOwnInput, pinTop: false };
     };
 
     const getPlacesHostEl = (el) => {
@@ -660,10 +679,15 @@
         try {
             el.style.setProperty('position', 'fixed', 'important');
             el.style.setProperty('inset', 'auto', 'important');
-            el.style.setProperty('top', 'auto', 'important');
+            if (box.pinTop) {
+                el.style.setProperty('top', `${box.top}px`, 'important');
+                el.style.setProperty('bottom', 'auto', 'important');
+            } else {
+                el.style.setProperty('top', 'auto', 'important');
+                el.style.setProperty('bottom', `${box.bottom}px`, 'important');
+            }
             el.style.setProperty('left', `${box.left}px`, 'important');
             el.style.setProperty('right', 'auto', 'important');
-            el.style.setProperty('bottom', `${box.bottom}px`, 'important');
             el.style.setProperty('width', `${box.width}px`, 'important');
             el.style.setProperty('max-width', `${box.width}px`, 'important');
             el.style.setProperty('height', 'auto', 'important');
@@ -686,7 +710,7 @@
             el.style.setProperty('opacity', '1', 'important');
             if (hasOwnInput) {
                 el.style.setProperty('display', 'flex', 'important');
-                el.style.setProperty('flex-direction', 'column-reverse', 'important');
+                el.style.setProperty('flex-direction', box.pinTop ? 'column' : 'column-reverse', 'important');
             } else {
                 el.style.setProperty('display', 'block', 'important');
             }
@@ -757,16 +781,18 @@
         const run = (el) => {
             if (!el) return;
             const box = computePlacesDropdownBox(el, { hasOwnInput: false });
+            const topVal = box.pinTop ? `${box.top}px` : 'auto';
+            const bottomVal = box.pinTop ? 'auto' : `${box.bottom}px`;
             try {
-                el.style.setProperty('--hr-places-list-top', 'auto');
-                el.style.setProperty('--hr-places-list-bottom', `${box.bottom}px`);
+                el.style.setProperty('--hr-places-list-top', topVal);
+                el.style.setProperty('--hr-places-list-bottom', bottomVal);
                 el.style.setProperty('--hr-places-list-left', `${box.left}px`);
                 el.style.setProperty('--hr-places-list-width', `${box.width}px`);
                 el.style.setProperty('--hr-places-list-max-h', `${box.maxH}px`);
             } catch (_) {}
             try {
-                document.documentElement.style.setProperty('--hr-places-list-top', 'auto');
-                document.documentElement.style.setProperty('--hr-places-list-bottom', `${box.bottom}px`);
+                document.documentElement.style.setProperty('--hr-places-list-top', topVal);
+                document.documentElement.style.setProperty('--hr-places-list-bottom', bottomVal);
                 document.documentElement.style.setProperty('--hr-places-list-left', `${box.left}px`);
                 document.documentElement.style.setProperty('--hr-places-list-width', `${box.width}px`);
                 document.documentElement.style.setProperty('--hr-places-list-max-h', `${box.maxH}px`);
@@ -2397,22 +2423,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         panel.style.setProperty('pointer-events', 'auto', 'important');
                         panel.style.setProperty('visibility', 'visible', 'important');
                     } else if (panel && compactWeb) {
-                        // Web celular: sheet corto pegado al teclado (origen + destino visibles)
-                        panel.style.setProperty('position', 'fixed', 'important');
-                        panel.style.setProperty('left', '0px', 'important');
-                        panel.style.setProperty('right', '0px', 'important');
-                        panel.style.setProperty('width', '100%', 'important');
-                        panel.style.setProperty('margin', '0px', 'important');
-                        panel.style.setProperty('transform', 'none', 'important');
-                        panel.style.setProperty('z-index', '40000', 'important');
-                        panel.style.setProperty('top', 'auto', 'important');
-                        panel.style.setProperty('bottom', `${Math.round(keyboard)}px`, 'important');
-                        panel.style.setProperty('height', 'auto', 'important');
-                        panel.style.setProperty('max-height', 'min(42dvh, 16rem)', 'important');
-                        panel.style.setProperty('min-height', '0px', 'important');
-                        panel.style.setProperty('opacity', '1', 'important');
-                        panel.style.setProperty('pointer-events', 'auto', 'important');
-                        panel.style.setProperty('visibility', 'visible', 'important');
+                        // Web celular: la búsqueda va arriba; el sheet no se sube al teclado.
+                        clearControlPanelSearchInline(panel);
                     }
                     try { window.applyPlacesListPlacement?.(); } catch (_) {}
                 } catch (_) {}

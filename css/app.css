@@ -1427,8 +1427,8 @@
             position: fixed !important;
             left: var(--hr-places-list-left, 8px) !important;
             right: auto !important;
-            top: auto !important;
-            bottom: var(--hr-places-list-bottom, 8px) !important;
+            top: var(--hr-places-list-top, 10px) !important;
+            bottom: var(--hr-places-list-bottom, auto) !important;
             width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
             max-width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
             max-height: var(--hr-places-list-max-h, min(42dvh, 16rem)) !important;
@@ -10220,12 +10220,6 @@
             }
             body.trip-autocomplete-open:not(.capacitor-android):not(.capacitor-native) #control-panel,
             body:has(.is-autocomplete-active):not(.capacitor-android):not(.capacitor-native) #control-panel {
-                position: fixed !important;
-                top: auto !important;
-                bottom: var(--keyboard-inset, 0px) !important;
-                max-height: min(42dvh, 16rem) !important;
-                min-height: 0 !important;
-                height: auto !important;
                 overflow: visible !important;
             }
             body:has(.is-autocomplete-active) #panel-content,
