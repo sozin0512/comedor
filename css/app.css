@@ -1427,7 +1427,8 @@
             position: fixed !important;
             left: var(--hr-places-list-left, 8px) !important;
             right: auto !important;
-            top: var(--hr-places-list-top, 8px) !important;
+            top: auto !important;
+            bottom: var(--hr-places-list-bottom, 8px) !important;
             width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
             max-width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
             max-height: var(--hr-places-list-max-h, min(42dvh, 16rem)) !important;
@@ -10209,13 +10210,22 @@
                 max-height: 3rem;
             }
 
-            /* Buscar origen/destino: panel más alto y lista clara, sin recortar el menú */
-            body.client-mode:has(.is-autocomplete-active) #control-panel,
-            body.trip-autocomplete-open.client-mode #control-panel,
-            body:has(.trip-origin-wrap.is-autocomplete-active) #control-panel,
-            body:has(.trip-dest-wrap.is-autocomplete-active) #control-panel,
-            body:has(.trip-extra-stop-wrap.is-autocomplete-active) #control-panel {
+            /* APK: panel más alto al buscar. En web el sheet se queda corto, pegado al teclado. */
+            body.capacitor-android.client-mode:has(.is-autocomplete-active) #control-panel,
+            body.capacitor-android.trip-autocomplete-open.client-mode #control-panel,
+            body.capacitor-native.client-mode:has(.is-autocomplete-active) #control-panel,
+            body.capacitor-native.trip-autocomplete-open.client-mode #control-panel {
                 max-height: min(78dvh, 36rem) !important;
+                overflow: visible !important;
+            }
+            body.trip-autocomplete-open:not(.capacitor-android):not(.capacitor-native) #control-panel,
+            body:has(.is-autocomplete-active):not(.capacitor-android):not(.capacitor-native) #control-panel {
+                position: fixed !important;
+                top: auto !important;
+                bottom: var(--keyboard-inset, 0px) !important;
+                max-height: min(42dvh, 16rem) !important;
+                min-height: 0 !important;
+                height: auto !important;
                 overflow: visible !important;
             }
             body:has(.is-autocomplete-active) #panel-content,
