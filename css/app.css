@@ -1386,9 +1386,8 @@
             height: var(--search-safe-top, 48px) !important;
         }
 
-        /* Overlay interno de Places (si expone parts) — bajo el reloj, no encima */
-        body.trip-autocomplete-open gmp-place-autocomplete::part(overlay),
-        body.trip-autocomplete-open gmp-place-autocomplete::part(dialog),
+        /* Overlay interno de Places (si expone parts) — bajo el reloj, no encima.
+           Solo APK / full-window: en web el overlay se ancla al campo con JS. */
         body.capacitor-android gmp-place-autocomplete::part(overlay),
         html.hr-places-fullwindow gmp-place-autocomplete::part(overlay),
         html.hr-places-fullwindow gmp-place-autocomplete::part(dialog),
@@ -1520,6 +1519,12 @@
         }
 
         /* Web: lista de Places debajo del input, sin tapar la página */
+        body.trip-autocomplete-open #control-panel,
+        body:has(.is-autocomplete-active) #control-panel,
+        body.trip-autocomplete-open #control-panel #panel-content,
+        body:has(.is-autocomplete-active) #control-panel #panel-content {
+            overflow: visible !important;
+        }
         body.trip-autocomplete-open .trip-dest-wrap,
         body.trip-autocomplete-open .trip-origin-wrap,
         body.trip-autocomplete-open .trip-extra-stop-wrap,
