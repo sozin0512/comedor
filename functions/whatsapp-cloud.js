@@ -1356,32 +1356,40 @@ function placeShortLabel(p) {
     return raw.length > 90 ? `${raw.slice(0, 87)}…` : raw;
 }
 
+function locationHelpFooter() {
+    return (
+        'En *iPhone* el pin a veces tarda: espera el pin verde y luego Enviar.\n' +
+        'Para buscar el lugar, toca la *lupa* 🔍 y escribe el nombre (mall, colonia, etc.).'
+    );
+}
+
 function locationAskIntro(kind, opts = {}) {
     const originLabel = placeShortLabel(opts.origin);
+    const help = locationHelpFooter();
     if (kind === 'dest') {
         const rec = originLabel ? `Recogida anotada: *${originLabel}*.\n\n` : '';
         return (
             `${rec}*¿A dónde te dejamos?*\n` +
             'Este pin es el *destino* (donde te vamos a dejar), no el punto de recogida.\n\n' +
             'Toca *Destino: enviar pin*, mueve el mapa y envía.\n' +
-            'Si te equivocaste en la recogida, escribe *cambiar recogida*.\n' +
-            'En iPhone el mapa tarda unos segundos: espera el pin verde y luego Enviar.'
+            'Si te equivocaste en la recogida, escribe *cambiar recogida*.\n\n' +
+            help
         );
     }
     if (kind === 'stop') {
         return (
             '*¿Por dónde pasamos?*\n' +
             'Este pin es una *parada* (un punto extra *antes* de dejarte en el destino).\n\n' +
-            'Toca *Parada: enviar pin*, mueve el mapa y envía.\n' +
-            'En iPhone el mapa tarda unos segundos: espera el pin verde y luego Enviar.'
+            'Toca *Parada: enviar pin*, mueve el mapa y envía.\n\n' +
+            help
         );
     }
     return (
         '*¿Dónde te recogemos?*\n' +
         'Este pin es la *recogida* (donde te busca el conductor), no el destino.\n\n' +
         'Toca *Recogida: enviar pin*, mueve el mapa y envía.\n' +
-        'Si te equivocas, luego escribe *cambiar recogida*.\n' +
-        'En iPhone el mapa tarda unos segundos: espera el pin verde y luego Enviar.'
+        'Si te equivocas, luego escribe *cambiar recogida*.\n\n' +
+        help
     );
 }
 
@@ -1408,10 +1416,10 @@ async function sendLocationRequest(to, prompt, opts = {}) {
     return sendCloudText(
         dest,
         kind === 'dest'
-            ? 'Destino (donde te dejamos): clip 📎 → Ubicación → mueve el pin → Enviar.'
+            ? 'Destino (donde te dejamos): clip 📎 → Ubicación → lupa 🔍 o mueve el pin → Enviar. En iPhone el pin a veces tarda.'
             : (kind === 'stop'
-                ? 'Parada (punto extra): clip 📎 → Ubicación → mueve el pin → Enviar.'
-                : 'Recogida (donde te buscamos): clip 📎 → Ubicación → mueve el pin → Enviar.')
+                ? 'Parada (punto extra): clip 📎 → Ubicación → lupa 🔍 o mueve el pin → Enviar. En iPhone el pin a veces tarda.'
+                : 'Recogida (donde te buscamos): clip 📎 → Ubicación → lupa 🔍 o mueve el pin → Enviar. En iPhone el pin a veces tarda.')
     );
 }
 
@@ -2166,8 +2174,9 @@ function faqAnswer(t) {
             'Si el lugar *no sale* al escribirlo, márcalo con el pin:\n' +
             '1. En este chat toca el clip 📎 o el botón de enviar pin\n' +
             '2. Elige *Ubicación* (no “ubicación actual” si vas a otro punto)\n' +
-            '3. Mueve el mapa y deja el *pin* exacto\n' +
-            '4. Toca enviar\n\n' +
+            '3. Usa la *lupa* 🔍 para buscar el lugar, o mueve el mapa y deja el *pin* exacto\n' +
+            '4. Toca enviar\n' +
+            'En iPhone el pin a veces tarda: espera el pin verde y luego Enviar.\n\n' +
             'También puedes decir *en el link* y lo marcas en el mapa de HonduRaite al abrir el viaje.\n\nEscribe *viaje* para empezar.'
         );
     }
