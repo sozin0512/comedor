@@ -193,6 +193,7 @@ if (typeof window !== 'undefined') {
     window.loadDriverLogin = loadDriverLogin;
     window.restoreDriverLoginForm = restoreDriverLoginForm;
     window.markSkipDriverAutoLogin = markSkipDriverAutoLogin;
+    window.shouldSkipDriverAutoLogin = shouldSkipDriverAutoLogin;
     window.markKeepSession = markKeepSession;
     window.clearKeepSession = clearKeepSession;
     window.shouldKeepSession = shouldKeepSession;
