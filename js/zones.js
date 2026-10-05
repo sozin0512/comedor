@@ -1274,7 +1274,7 @@ export async function ensureEndpointCoords(endpoint) {
     });
 }
 
-const ONLINE_STALE_MS = 300000; // 5 minutos — más tolerante con móviles en background / PWA
+const ONLINE_STALE_MS = 60 * 60 * 1000; // 1 h — el conductor sigue en línea si minimiza la app
 
 export function isDriverOnline(driverData) {
     if (!driverData || driverData.online === false) return false;

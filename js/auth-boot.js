@@ -13,14 +13,17 @@ import {
     setPersistence,
     browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { APP_CONFIG } from './config.js?v=2026.10.03.2';
+import { APP_CONFIG } from './config.js?v=2026.10.05.1';
 import {
-    saveDriverLogin,
+    saveUserLogin,
+    loadDriverLogin,
     restoreDriverLoginForm,
+    fillDriverLoginForm,
     shouldSkipDriverAutoLogin,
-    clearSkipDriverAutoLogin
-} from './driver-session.js?v=2026.10.03.2';
-import { applyAuthRoleUi } from './auth-ui.js?v=2026.10.03.2';
+    clearSkipDriverAutoLogin,
+    shouldKeepSession
+} from './driver-session.js?v=2026.10.05.1';
+import { applyAuthRoleUi } from './auth-ui.js?v=2026.10.05.1';
 window.APP_CONFIG = APP_CONFIG;
 
 function getPersistentAuth(app) {
@@ -108,9 +111,38 @@ function withTimeout(promise, ms, label) {
     ]);
 }
 
-function showEnteringShell(text) {
+function isGuestTripLink() {
+    try {
+        const q = String(location.search || '') + String(location.hash || '');
+        return /[?&]trip=/.test(q) || /staffTrip=/.test(q);
+    } catch (_) {
+        return false;
+    }
+}
+
+function hideLoginScreen() {
     const login = document.getElementById('login-screen');
     if (login) login.style.display = 'none';
+    try { document.documentElement.setAttribute('data-hr-restore-session', '1'); } catch (_) {}
+}
+
+function revealLoginScreen() {
+    window.__hrAuthReady = true;
+    try { document.documentElement.removeAttribute('data-hr-restore-session'); } catch (_) {}
+    document.getElementById('hr-entering-shell')?.remove();
+    const login = document.getElementById('login-screen');
+    if (login) login.style.display = '';
+    const boot = document.getElementById('hr-boot-loading');
+    if (boot) {
+        window.__hrBootDismissed = true;
+        window.__hrAppReady = true;
+        boot.classList.add('hr-boot-hide');
+        setTimeout(() => { try { boot.remove(); } catch (_) {} }, 400);
+    }
+}
+
+function showEnteringShell(text) {
+    hideLoginScreen();
     let el = document.getElementById('hr-entering-shell');
     if (!el) {
         el = document.createElement('div');
@@ -132,8 +164,17 @@ function showEnteringShell(text) {
             }
         }, 20000);
     }
+    el.hidden = false;
+    el.style.display = 'flex';
     const t = document.getElementById('hr-entering-text');
     if (t) t.textContent = text || 'Sesión iniciada. Abriendo tu cuenta…';
+}
+
+function selectedAuthRole() {
+    return document.getElementById('role-driver')?.classList.contains('bg-white')
+        || localStorage.getItem('lastUserRole') === 'driver'
+        ? 'driver'
+        : 'client';
 }
 
 async function runAuth() {
@@ -183,9 +224,7 @@ async function runAuth() {
                 15000,
                 'auth/network-request-failed'
             );
-            const driverSelected = document.getElementById('role-driver')?.classList.contains('bg-white')
-                || localStorage.getItem('lastUserRole') === 'driver';
-            if (driverSelected) saveDriverLogin(identifier, pass).catch(() => {});
+            saveUserLogin(identifier, pass, selectedAuthRole()).catch(() => {});
             showEnteringShell('Sesión iniciada. Abriendo tu cuenta…');
             try { window.ensureMapsLoaded?.(); } catch (_) {}
             loadAppRuntime();
@@ -205,16 +244,14 @@ async function runAuth() {
             15000,
             'auth/network-request-failed'
         );
-        if (selectedRole === 'driver') saveDriverLogin(identifier, pass).catch(() => {});
+        saveUserLogin(identifier, pass, selectedRole).catch(() => {});
         showEnteringShell('Cuenta creada. Abriendo tu perfil…');
         try { window.ensureMapsLoaded?.(); } catch (_) {}
         loadAppRuntime();
     } catch (err) {
         window._authEntering = false;
         resetSubmit();
-        const login = document.getElementById('login-screen');
-        if (login) login.style.display = '';
-        document.getElementById('hr-entering-shell')?.remove();
+        revealLoginScreen();
         toast(authErrorMessage(err, mode));
     }
 }
@@ -231,37 +268,72 @@ function loadAppRuntime() {
     return window.__hrAppJsPromise;
 }
 window.loadAppRuntime = loadAppRuntime;
+window.revealLoginScreen = revealLoginScreen;
+
+let bootAuthSettled = false;
+let silentReloginTried = false;
+
+async function attemptSilentRelogin() {
+    if (silentReloginTried || window._authEntering || window.currentUser) return;
+    silentReloginTried = true;
+
+    if (shouldSkipDriverAutoLogin()) {
+        clearSkipDriverAutoLogin();
+        if (isGuestTripLink()) {
+            loadAppRuntime();
+            return;
+        }
+        revealLoginScreen();
+        restoreDriverLoginForm().catch(() => {});
+        return;
+    }
+
+    if (isGuestTripLink()) {
+        loadAppRuntime();
+        return;
+    }
+
+    const creds = await loadDriverLogin().catch(() => null);
+    if (!creds?.identifier || !creds?.password) {
+        revealLoginScreen();
+        return;
+    }
+
+    fillDriverLoginForm(creds);
+    showEnteringShell('Restaurando tu sesión…');
+    window._authEntering = true;
+    try {
+        loadAppRuntime();
+        window.executeAuth?.();
+    } catch (_) {
+        window._authEntering = false;
+        revealLoginScreen();
+    }
+}
+
+if (shouldKeepSession() && !shouldSkipDriverAutoLogin()) {
+    showEnteringShell('Restaurando tu sesión…');
+}
 
 try {
     const bootApp = getApps()[0] || initializeApp(APP_CONFIG.firebase);
     const bootAuth = getPersistentAuth(bootApp);
     try { setPersistence(bootAuth, browserLocalPersistence).catch(() => {}); } catch (_) {}
     onAuthStateChanged(bootAuth, (user) => {
-        if (user) loadAppRuntime();
+        if (user) {
+            bootAuthSettled = true;
+            window.__hrAuthReady = true;
+            loadAppRuntime();
+            return;
+        }
+        if (bootAuthSettled) return;
+        bootAuthSettled = true;
+        attemptSilentRelogin().catch(() => revealLoginScreen());
     });
 } catch (e) {
     console.warn('[auth-boot] auth listener', e);
+    attemptSilentRelogin().catch(() => revealLoginScreen());
 }
-
-restoreDriverLoginForm().then((creds) => {
-    if (!creds) return;
-    if (shouldSkipDriverAutoLogin()) {
-        clearSkipDriverAutoLogin();
-        return;
-    }
-    setTimeout(() => {
-        try {
-            if (window.currentUser || window._authEntering) return;
-            try {
-                const existing = getApps()[0] ? getAuth(getApps()[0]).currentUser : null;
-                if (existing) return;
-            } catch (_) {}
-            if (!document.getElementById('email-field')?.value || !document.getElementById('pass-field')?.value) return;
-            if (document.getElementById('login-screen')?.style.display === 'none') return;
-            window.executeAuth?.();
-        } catch (_) {}
-    }, 1600);
-}).catch(() => {});
 
 try {
     const q = String(location.search || '') + String(location.hash || '');

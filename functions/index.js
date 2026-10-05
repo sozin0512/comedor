@@ -229,7 +229,7 @@ const CITY_COVERAGE_KM = {
     lejamani: 12,
     'san-sebastian': 12
 };
-const ONLINE_STALE_MS = 90 * 1000;
+const ONLINE_STALE_MS = 45 * 60 * 1000; // 45 min — no sacar de ofertas si minimizan WhatsApp/otra app
 
 function getCityCoverageKm(zoneId) {
     if (zoneId && CITY_COVERAGE_KM[zoneId] != null) return CITY_COVERAGE_KM[zoneId];

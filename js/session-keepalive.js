@@ -108,10 +108,11 @@ export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
     const isPassenger = role === 'client' || trip?.clientId === window.currentUser?.uid;
 
     if (!live || (!isDriver && !isPassenger)) {
-        // Volver a keepalive normal si el conductor sigue en línea
         const online = window.driverLocationWatchId != null && role === 'driver';
         if (online) {
             await startAndroidSessionKeepalive({ driverMode: true, tripMode: false });
+        } else if (window.currentUser) {
+            await startAndroidSessionKeepalive({ driverMode: false, tripMode: false });
         }
         return false;
     }
@@ -129,11 +130,13 @@ export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
             : `${phaseLabel}. Toca para volver al mapa.`,
     });
 
-    // Conductor: asegurar tracking GPS
     if (isDriver && typeof window.startDriverLocationTracking === 'function') {
         try {
             await window.startDriverLocationTracking();
         } catch (_) {}
+    }
+    if (isPassenger && trip?.id) {
+        try { window.startPassengerLiveLocationSharing?.(trip.id); } catch (_) {}
     }
     return true;
 }
@@ -166,11 +169,12 @@ export async function stopAndroidSessionKeepalive() {
 
 export async function syncDriverSessionKeepalive(isDriverOnline) {
     if (!isCapacitorAndroid()) return;
-    // Si hay viaje vivo, no bajar de tripMode
     const trip = window.currentActiveTripData;
+    const uid = window.currentUser?.uid;
+    const role = window.userProfile?.role;
     if (trip?.id && ['accepted', 'in_progress'].includes(trip.status)
-        && (trip.driverId === window.currentUser?.uid || window.userProfile?.role === 'driver')) {
-        await syncAndroidLiveTripKeepalive(trip, 'driver');
+        && (trip.driverId === uid || role === 'driver' || trip.clientId === uid || role === 'client')) {
+        await syncAndroidLiveTripKeepalive(trip, role === 'client' ? 'client' : 'driver');
         return;
     }
     if (isDriverOnline) {
@@ -178,6 +182,23 @@ export async function syncDriverSessionKeepalive(isDriverOnline) {
     } else {
         await startAndroidSessionKeepalive({ driverMode: false, tripMode: false });
     }
+}
+
+export async function syncPassengerSessionKeepalive() {
+    if (!isCapacitorAndroid()) return;
+    const trip = window.currentActiveTripData;
+    const uid = window.currentUser?.uid;
+    if (trip?.id && ['accepted', 'in_progress'].includes(trip.status)
+        && (trip.clientId === uid || window.userProfile?.role === 'client')) {
+        await syncAndroidLiveTripKeepalive(trip, 'client');
+        return;
+    }
+    await startAndroidSessionKeepalive({
+        driverMode: false,
+        tripMode: false,
+        title: 'HonduRaite activo',
+        body: 'Pasajero: tu sesión sigue abierta. Toca para volver.',
+    });
 }
 
 function statusBadge(ok) {
@@ -475,8 +496,16 @@ export async function showDriverBackgroundModeModal() {
 }
 
 export function bindSessionKeepaliveResume(isLoggedIn = () => false, getOptions = () => ({})) {
-    if (!isCapacitorAndroid() || window._sessionKeepaliveResumeBound) return;
+    if (window._sessionKeepaliveResumeBound) return;
     window._sessionKeepaliveResumeBound = true;
+
+    const onResume = () => {
+        if (!isLoggedIn()) return;
+        if (isCapacitorAndroid()) {
+            ensureAndroidSessionKeepalive(getOptions()).catch(() => {});
+        }
+        try { window.resumePersistentSession?.(); } catch (_) {}
+    };
 
     document.addEventListener('visibilitychange', () => {
         if (!isLoggedIn()) return;
@@ -492,6 +521,8 @@ export function bindSessionKeepaliveResume(isLoggedIn = () => false, getOptions 
             return;
         }
 
-        ensureAndroidSessionKeepalive(getOptions()).catch(() => {});
+        onResume();
     });
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
 }
