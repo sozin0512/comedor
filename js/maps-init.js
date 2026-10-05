@@ -49,14 +49,10 @@
 
     /** En celular Places usa overlay a pantalla completa; el dropdown solo va en escritorio. */
     const usePlacesFullWindowOverlay = () => {
+        // Solo APK: en Chrome/Safari el overlay a pantalla completa tapa Destino
+        // (campo + sugerencias) y deja una franja gris. En web la lista va bajo el input.
         try {
             if (isHrNativeAndroid()) return true;
-        } catch (_) {}
-        try {
-            if (window.matchMedia?.('(max-width: 639px)')?.matches) return true;
-            if (window.matchMedia?.('(pointer: coarse)')?.matches && (window.innerWidth || 0) < 900) {
-                return true;
-            }
         } catch (_) {}
         return false;
     };
@@ -153,7 +149,8 @@
             flex: 0 0 auto !important;
             align-self: center !important;
         }
-        /* Cabecera "Google Maps (i)": tapa la primera sugerencia. En celular no ocultar si trae el input. */
+        /* Cabecera "Google Maps (i)": tapa la primera sugerencia.
+           No ocultar header/overlay que traen el input de búsqueda (full-window). */
         header:not(:has(input)):not(:has(.input-container)),
         [part="logo"],
         [part="attribution"],
@@ -163,7 +160,7 @@
         [class*="attribution-bar"],
         [class*="attribution-container"],
         .place-autocomplete-element-logo,
-        .place-autocomplete-element-header {
+        .place-autocomplete-element-header:not(:has(input)):not(:has(.input-container)) {
             display: none !important;
             height: 0 !important;
             min-height: 0 !important;
@@ -407,6 +404,19 @@
             max-height: 3rem !important;
             pointer-events: auto !important;
         }
+        dialog[open] header:has(input),
+        dialog[open] header:has(.input-container),
+        dialog[open] .place-autocomplete-element-header,
+        .full-window-autocomplete-dialog .place-autocomplete-element-header,
+        .place-autocomplete-element-overlay .place-autocomplete-element-header,
+        .place-autocomplete-element-full-window .place-autocomplete-element-header {
+            display: flex !important;
+            visibility: visible !important;
+            height: auto !important;
+            min-height: 3rem !important;
+            overflow: visible !important;
+            pointer-events: auto !important;
+        }
         dialog[open] header:not(:has(input)):not(:has(.input-container)),
         .full-window-autocomplete-dialog header:not(:has(input)):not(:has(.input-container)),
         .place-autocomplete-element-overlay > header:not(:has(input)),
@@ -496,6 +506,7 @@
         if (!root || !root.querySelectorAll) return;
         try {
             root.querySelectorAll('header, [class*="logo"], [class*="attribution"], [class*="header"], [part="logo"], [part="attribution"]').forEach((el) => {
+                if (el.querySelector?.('input, .input-container, [role="listbox"], [role="option"]')) return;
                 if (!isGoogleMapsHeaderEl(el) && !/^Google Maps\b/i.test(String(el.textContent || '').trim())) return;
                 if (el.closest?.('[role="listbox"], [role="option"]')) return;
                 try { el.style.setProperty('display', 'none', 'important'); } catch (_) {}
