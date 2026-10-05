@@ -278,11 +278,21 @@
         dialog,
         dialog[open],
         .full-window-autocomplete-dialog,
-        .dropdown {
+        .dropdown,
+        :host > [role="listbox"],
+        :host > [part="prediction-list"],
+        .widget-container > [role="listbox"],
+        .widget-container > [part="prediction-list"] {
             position: fixed !important;
             inset: auto !important;
+            top: var(--hr-places-list-top, 8px) !important;
+            left: var(--hr-places-list-left, 8px) !important;
+            right: auto !important;
+            bottom: auto !important;
+            width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
+            max-width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
             height: auto !important;
-            max-height: min(50dvh, 22rem) !important;
+            max-height: var(--hr-places-list-max-h, 42dvh) !important;
             margin: 0 !important;
             transform: none !important;
             z-index: 2147483000 !important;
@@ -297,6 +307,8 @@
             -webkit-overflow-scrolling: touch;
             pointer-events: auto !important;
             visibility: visible !important;
+            display: block !important;
+            opacity: 1 !important;
         }
         dialog::backdrop {
             display: none !important;
@@ -329,14 +341,29 @@
         }
         dialog [role="listbox"],
         .dropdown [role="listbox"],
-        .place-autocomplete-element-overlay [role="listbox"] {
+        .place-autocomplete-element-overlay [role="listbox"],
+        dialog [part="prediction-list"] {
             position: relative !important;
             top: auto !important;
+            left: auto !important;
             inset: auto !important;
+            width: 100% !important;
+            max-width: none !important;
             max-height: none !important;
             margin: 0 !important;
             box-shadow: none !important;
             border: none !important;
+            pointer-events: auto !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        [role="option"],
+        [part="prediction-item"],
+        .place-autocomplete-element-prediction {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
             pointer-events: auto !important;
         }
     `;
@@ -558,6 +585,59 @@
         } catch (_) {}
     };
 
+    const readVisualViewportBox = () => {
+        try {
+            const vv = window.visualViewport;
+            if (vv && vv.height > 80) {
+                const top = vv.offsetTop || 0;
+                const left = vv.offsetLeft || 0;
+                return {
+                    top,
+                    left,
+                    width: vv.width,
+                    height: vv.height,
+                    bottom: top + vv.height
+                };
+            }
+        } catch (_) {}
+        const h = window.innerHeight || 640;
+        const w = window.innerWidth || 360;
+        return { top: 0, left: 0, width: w, height: h, bottom: h };
+    };
+
+    const computePlacesDropdownBox = (host, { hasOwnInput } = {}) => {
+        const vv = readVisualViewportBox();
+        const gap = 8;
+        let left = Math.round(vv.left + 8);
+        let width = Math.max(160, Math.round(vv.width - 16));
+        let fieldTop = vv.top + 56;
+        let fieldBottom = fieldTop + 48;
+        try {
+            const rect = host?.getBoundingClientRect?.();
+            if (rect && rect.width > 8) {
+                left = Math.round(rect.left);
+                width = Math.round(rect.width);
+                fieldTop = rect.top;
+                fieldBottom = rect.bottom;
+            }
+        } catch (_) {}
+        const spaceBelow = vv.bottom - fieldBottom - gap;
+        const spaceAbove = fieldTop - vv.top - gap;
+        const prefer = Math.min(Math.round(vv.height * 0.5), 360);
+        const fieldInBottomHalf = fieldTop > (vv.top + vv.height * 0.4);
+        if (!hasOwnInput && spaceBelow >= 140 && !fieldInBottomHalf) {
+            return {
+                top: Math.round(fieldBottom + gap),
+                left,
+                width,
+                maxH: Math.max(96, Math.min(prefer, spaceBelow))
+            };
+        }
+        const maxH = Math.max(132, Math.min(prefer, Math.max(spaceAbove - (hasOwnInput ? 52 : 0), 132)));
+        const top = Math.round(Math.max(vv.top + 8, fieldTop - gap - maxH));
+        return { top, left, width, maxH };
+    };
+
     const getPlacesHostEl = (el) => {
         try {
             const host = el?.getRootNode?.()?.host;
@@ -583,40 +663,19 @@
         if (!el || el.nodeType !== 1) return;
         const dark = placesThemeIsDark();
         const host = getPlacesHostEl(el);
-        let topPx = null;
-        let leftPx = 8;
-        let widthPx = null;
-        try {
-            const rect = host?.getBoundingClientRect?.();
-            if (rect && rect.width > 8) {
-                const hasOwnInput = !!el.querySelector?.('input, .input-container');
-                const vh = window.innerHeight || 640;
-                const gap = 6;
-                topPx = Math.round(hasOwnInput ? rect.top : (rect.bottom + gap));
-                leftPx = Math.round(rect.left);
-                widthPx = Math.round(rect.width);
-                const maxH = Math.min(Math.round(vh * 0.5), 352);
-                if (topPx + 96 > vh) {
-                    topPx = Math.max(8, Math.round(rect.top - Math.min(maxH, rect.top - 8) - gap));
-                }
-            }
-        } catch (_) {}
+        const hasOwnInput = !!el.querySelector?.('input, .input-container');
+        const box = computePlacesDropdownBox(host, { hasOwnInput });
         try {
             el.style.setProperty('position', 'fixed', 'important');
             el.style.setProperty('inset', 'auto', 'important');
-            if (topPx != null) el.style.setProperty('top', `${topPx}px`, 'important');
-            el.style.setProperty('left', `${leftPx}px`, 'important');
+            el.style.setProperty('top', `${box.top}px`, 'important');
+            el.style.setProperty('left', `${box.left}px`, 'important');
             el.style.setProperty('right', 'auto', 'important');
             el.style.setProperty('bottom', 'auto', 'important');
-            if (widthPx != null) {
-                el.style.setProperty('width', `${widthPx}px`, 'important');
-                el.style.setProperty('max-width', `${widthPx}px`, 'important');
-            } else {
-                el.style.setProperty('width', 'calc(100vw - 16px)', 'important');
-                el.style.setProperty('max-width', '100%', 'important');
-            }
+            el.style.setProperty('width', `${box.width}px`, 'important');
+            el.style.setProperty('max-width', `${box.width}px`, 'important');
             el.style.setProperty('height', 'auto', 'important');
-            el.style.setProperty('max-height', 'min(50dvh, 22rem)', 'important');
+            el.style.setProperty('max-height', `${box.maxH}px`, 'important');
             el.style.setProperty('margin', '0px', 'important');
             el.style.setProperty('transform', 'none', 'important');
             el.style.setProperty('z-index', '2147483000', 'important');
@@ -633,6 +692,7 @@
             el.style.setProperty('pointer-events', 'auto', 'important');
             el.style.setProperty('visibility', 'visible', 'important');
             el.style.setProperty('opacity', '1', 'important');
+            el.style.setProperty('display', 'block', 'important');
         } catch (_) {}
     };
 
@@ -680,7 +740,8 @@
         } catch (_) {}
         let inner = null;
         try {
-            inner = el.querySelector?.('dialog[open], dialog, [role="listbox"], .dropdown');
+            inner = el.querySelector?.('[role="listbox"], [part="prediction-list"], dialog[open], .dropdown')
+                || el.querySelector?.('dialog');
         } catch (_) {}
         const cls = `${el.className || ''} ${el.getAttribute?.('part') || ''}`.toLowerCase();
         const isShellName = cls.includes('overlay-container')
@@ -694,6 +755,49 @@
         }
         stylePlacesDropdownCard(el);
     };
+
+    const applyPlacesListPlacement = (host = null) => {
+        const run = (el) => {
+            if (!el) return;
+            const box = computePlacesDropdownBox(el, { hasOwnInput: false });
+            try {
+                el.style.setProperty('--hr-places-list-top', `${box.top}px`);
+                el.style.setProperty('--hr-places-list-left', `${box.left}px`);
+                el.style.setProperty('--hr-places-list-width', `${box.width}px`);
+                el.style.setProperty('--hr-places-list-max-h', `${box.maxH}px`);
+            } catch (_) {}
+            try {
+                document.documentElement.style.setProperty('--hr-places-list-top', `${box.top}px`);
+                document.documentElement.style.setProperty('--hr-places-list-left', `${box.left}px`);
+                document.documentElement.style.setProperty('--hr-places-list-width', `${box.width}px`);
+                document.documentElement.style.setProperty('--hr-places-list-max-h', `${box.maxH}px`);
+            } catch (_) {}
+            const root = el.shadowRoot || el._hrShadow;
+            if (!root) return;
+            try {
+                root.querySelectorAll('[role="listbox"], [part="prediction-list"], .dropdown').forEach((list) => {
+                    const inDlg = !!list.closest?.('dialog, .place-autocomplete-element-overlay, .full-window-autocomplete-dialog');
+                    if (inDlg) {
+                        list.style.setProperty('position', 'relative', 'important');
+                        list.style.setProperty('inset', 'auto', 'important');
+                        list.style.setProperty('top', 'auto', 'important');
+                        list.style.setProperty('display', 'block', 'important');
+                        list.style.setProperty('visibility', 'visible', 'important');
+                        list.style.setProperty('opacity', '1', 'important');
+                        list.style.setProperty('max-height', 'none', 'important');
+                        return;
+                    }
+                    stylePlacesDropdownCard(list);
+                });
+            } catch (_) {}
+        };
+        if (host) {
+            run(host);
+            return;
+        }
+        document.querySelectorAll('gmp-place-autocomplete, gmp-basic-place-autocomplete').forEach(run);
+    };
+    window.applyPlacesListPlacement = applyPlacesListPlacement;
 
     const isPlacesDialog = (el) => {
         try {
@@ -863,7 +967,7 @@
             injectStyleIntoRoot(root);
             try {
                 root.querySelectorAll(
-                    'dialog, [popover], .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, .place-autocomplete-element-full-window'
+                    'dialog, [popover], .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, .place-autocomplete-element-full-window, [role="listbox"], [part="prediction-list"]'
                 ).forEach((el) => {
                     if (el.localName === 'dialog' && !el.open) {
                         unpinPlacesOverlay(el);
@@ -872,6 +976,7 @@
                     stylePlacesOverlayEl(el);
                 });
             } catch (_) {}
+            applyPlacesListPlacement(host);
         });
     };
     window.applyPlacesOverlaySafeTop = applyPlacesOverlaySafeTop;
@@ -1002,7 +1107,7 @@
                                     if (d.open) stylePlacesOverlayEl(d);
                                     else unpinPlacesOverlay(d);
                                 });
-                                shadow.querySelectorAll('[popover]:popover-open, .full-window-autocomplete-dialog, .place-autocomplete-element-overlay').forEach(stylePlacesOverlayEl);
+                                shadow.querySelectorAll('[popover]:popover-open, .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, [role="listbox"], [part="prediction-list"]').forEach(stylePlacesOverlayEl);
                             } catch (_) {}
                         });
                         mo.observe(shadow, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
@@ -1025,11 +1130,21 @@
                     setTimeout(() => pinOverlayBelowStatusBar(this, true), 40);
                     return result;
                 }
+                const shown = origShowModal.apply(this, arguments);
                 stylePlacesDropdown(this);
-                const shown = (typeof this.show === 'function') ? this.show() : origShowModal.apply(this, arguments);
-                requestAnimationFrame(() => stylePlacesDropdown(this));
-                setTimeout(() => stylePlacesDropdown(this), 50);
-                setTimeout(() => stylePlacesDropdown(this), 180);
+                applyPlacesListPlacement(this.getRootNode?.()?.host || getPlacesHostEl(this));
+                requestAnimationFrame(() => {
+                    stylePlacesDropdown(this);
+                    applyPlacesListPlacement(this.getRootNode?.()?.host || getPlacesHostEl(this));
+                });
+                setTimeout(() => {
+                    stylePlacesDropdown(this);
+                    applyPlacesListPlacement(this.getRootNode?.()?.host || getPlacesHostEl(this));
+                }, 50);
+                setTimeout(() => {
+                    stylePlacesDropdown(this);
+                    applyPlacesListPlacement(this.getRootNode?.()?.host || getPlacesHostEl(this));
+                }, 180);
                 return shown;
             }
             return origShowModal.apply(this, arguments);
@@ -1061,6 +1176,7 @@
             const result = origShowPopover.apply(this, arguments);
             if (isPlacesDialog(this)) {
                 stylePlacesOverlayEl(this);
+                applyPlacesListPlacement(this.getRootNode?.()?.host || getPlacesHostEl(this));
                 requestAnimationFrame(() => stylePlacesOverlayEl(this));
                 setTimeout(() => stylePlacesOverlayEl(this), 50);
                 setTimeout(() => stylePlacesOverlayEl(this), 180);
@@ -1104,6 +1220,10 @@
             };
             try { window.matchMedia('(max-width: 639px)')?.addEventListener?.('change', onMode); } catch (_) {}
             window.addEventListener('resize', onMode, { passive: true });
+            try {
+                window.visualViewport?.addEventListener('resize', onMode, { passive: true });
+                window.visualViewport?.addEventListener('scroll', onMode, { passive: true });
+            } catch (_) {}
         }
         if (window._hrPlacesOverlayMo) return;
         try {
@@ -2665,12 +2785,16 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         setTimeout(syncTripAutocompleteViewport, 50);
                         setTimeout(syncTripAutocompleteViewport, 180);
                         setTimeout(syncTripAutocompleteViewport, 360);
+                        window.applyPlacesListPlacement?.(el);
+                        setTimeout(() => window.applyPlacesListPlacement?.(el), 80);
+                        setTimeout(() => window.applyPlacesListPlacement?.(el), 220);
                     });
                     // Borrar origen y seguir escribiendo: mantener modo búsqueda activo
                     input.addEventListener('input', () => {
                         clearTimeout(blurTimer);
                         setActive(true);
                         syncTripAutocompleteViewport();
+                        window.applyPlacesListPlacement?.(el);
                     });
                     input.addEventListener('click', () => {
                         clearTimeout(blurTimer);

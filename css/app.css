@@ -1421,21 +1421,24 @@
         body.hr-places-fullwindow gmp-basic-place-autocomplete::part(prediction-list),
         body.trip-autocomplete-open gmp-place-autocomplete::part(prediction-list),
         body:has(.is-autocomplete-active) gmp-place-autocomplete::part(prediction-list) {
-            display: block;
-            visibility: visible;
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 100%;
-            width: 100%;
-            max-height: min(48dvh, 16rem);
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: fixed !important;
+            left: var(--hr-places-list-left, 8px) !important;
+            right: auto !important;
+            top: var(--hr-places-list-top, 8px) !important;
+            width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
+            max-width: var(--hr-places-list-width, calc(100vw - 16px)) !important;
+            max-height: var(--hr-places-list-max-h, min(42dvh, 16rem)) !important;
             overflow-x: hidden;
             overflow-y: auto;
             -webkit-overflow-scrolling: touch;
-            z-index: 80;
-            margin-top: 0.35rem;
+            z-index: 2147483000 !important;
+            margin-top: 0;
             border-radius: 1rem;
             box-shadow: var(--hr-places-shadow);
+            transform: none !important;
         }
 
         body.capacitor-android.trip-autocomplete-open,
@@ -1518,12 +1521,27 @@
             padding-top: 0.35rem !important;
         }
 
-        /* Web: lista de Places debajo del input, sin tapar la página */
+        /* Web: lista de Places visible sobre el mapa (el teclado tapa lo que queda bajo el campo).
+           backdrop-filter en el panel convierte position:fixed en coords del sheet y esconde la lista. */
+        body.trip-autocomplete-open #app-interface,
+        body:has(.is-autocomplete-active) #app-interface,
+        body.trip-autocomplete-open .app-shell,
+        body:has(.is-autocomplete-active) .app-shell {
+            overflow: visible !important;
+            transform: none !important;
+            filter: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
         body.trip-autocomplete-open #control-panel,
         body:has(.is-autocomplete-active) #control-panel,
         body.trip-autocomplete-open #control-panel #panel-content,
         body:has(.is-autocomplete-active) #control-panel #panel-content {
             overflow: visible !important;
+            transform: none !important;
+            filter: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
         }
         body.trip-autocomplete-open .trip-dest-wrap,
         body.trip-autocomplete-open .trip-origin-wrap,
