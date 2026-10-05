@@ -1364,6 +1364,7 @@ function locationAskIntro(kind, opts = {}) {
             `${rec}*¿A dónde te dejamos?*\n` +
             'Este pin es el *destino* (donde te vamos a dejar), no el punto de recogida.\n\n' +
             'Toca *Destino: enviar pin*, mueve el mapa y envía.\n' +
+            'Si te equivocaste en la recogida, escribe *cambiar recogida*.\n' +
             'En iPhone el mapa tarda unos segundos: espera el pin verde y luego Enviar.'
         );
     }
@@ -1379,6 +1380,7 @@ function locationAskIntro(kind, opts = {}) {
         '*¿Dónde te recogemos?*\n' +
         'Este pin es la *recogida* (donde te busca el conductor), no el destino.\n\n' +
         'Toca *Recogida: enviar pin*, mueve el mapa y envía.\n' +
+        'Si te equivocas, luego escribe *cambiar recogida*.\n' +
         'En iPhone el mapa tarda unos segundos: espera el pin verde y luego Enviar.'
     );
 }
@@ -1878,13 +1880,14 @@ async function askConfirm(from, session) {
         : 'Si confirmas, recién ahí avisamos a los conductores de esa ciudad.';
     const svcLine = `Servicio: ${serviceLabel(session.serviceType || 'auto')}`;
     const quote = quoteTrip(session);
-    const body = `¿Confirmas el viaje?\n\n${svcLine}\n${routeLine}\n${whenLine}${cityLine ? `\n${cityLine}` : ''}\n${quote.priceLine}\n\n${warn}`;
+    const body = `¿Confirmas el viaje?\n\n${svcLine}\n${routeLine}\n${whenLine}${cityLine ? `\n${cityLine}` : ''}\n${quote.priceLine}\n\n${warn}\n\nSi te equivocaste: *cambiar recogida*, *cambiar destino* o *invertir* (si los pines quedaron al revés). Escribe *cancelar* para salir.`;
     const btns = await sendCloudButtons(from, body, [
         { id: 'confirm_yes', title: 'Confirmar viaje' },
-        { id: 'confirm_no', title: 'Cancelar' }
+        { id: 'fix_origin', title: 'Cambiar recogida' },
+        { id: 'fix_dest', title: 'Cambiar destino' }
     ]);
     if (btns?.ok) return btns;
-    return sendCloudText(from, `${body}\n\nEscribe *confirmar* o *cancelar*.`);
+    return sendCloudText(from, `${body}\n\nEscribe *confirmar*, *cambiar recogida*, *cambiar destino* o *cancelar*.`);
 }
 
 function isConfirmYes(id, t) {
@@ -1905,6 +1908,100 @@ function wantsAddStop(id, t) {
 function wantsStopsDone(id, t) {
     if (id === 'stop_done') return true;
     return /^(no|nop|listo|seguir|continuar|confirmar|ya|asi esta|así está|sin parada|no gracias)(\b|$)/.test(t);
+}
+
+function wantsChangeOrigin(id, t) {
+    if (id === 'fix_origin') return true;
+    return /\b(cambiar recogida|cambiar origen|otra recogida|otro origen|mal la recogida|no es la recogida|corregir recogida|corregir origen)\b/.test(t);
+}
+
+function wantsChangeDest(id, t) {
+    if (id === 'fix_dest') return true;
+    return /\b(cambiar destino|otro destino|mal el destino|no es el destino|corregir destino|cambiar llegada)\b/.test(t);
+}
+
+function wantsSwapPlaces(id, t) {
+    if (id === 'fix_swap') return true;
+    return /\b(invertir|al reves|al revés|estan al reves|están al revés|intercambiar|trocar|el destino era origen|era al reves)\b/.test(t);
+}
+
+function wantsFixRoute(id, t) {
+    if (id === 'fix_route') return true;
+    if (wantsChangeOrigin(id, t) || wantsChangeDest(id, t) || wantsSwapPlaces(id, t)) return false;
+    return /\b(me equivo(que|qué)|me confundi|me confundí|corregir|pin mal|mala ubicacion|mala ubicación|error de pin|no es ahi|no es ahí|cambiar pin|cambiar ubicacion|cambiar ubicación)\b/.test(t);
+}
+
+async function restartOriginPin(from, session, contactName) {
+    const next = {
+        ...session,
+        origin: null,
+        step: 'origin',
+        waName: contactName || session.waName
+    };
+    await saveSession(from, next);
+    return sendLocationRequest(from, 'Enviar ubicacion', { kind: 'origin' });
+}
+
+async function restartDestPin(from, session, contactName) {
+    const next = {
+        ...session,
+        dest: null,
+        clientChoosesRoute: false,
+        step: 'dest',
+        waName: contactName || session.waName
+    };
+    await saveSession(from, next);
+    return askDest(from, next.origin);
+}
+
+async function swapOriginDestPins(from, session, contactName) {
+    if (!hasPlace(session.origin) || !hasPlace(session.dest)) {
+        return askFixRoute(from, session);
+    }
+    const next = {
+        ...session,
+        origin: session.dest,
+        dest: session.origin,
+        step: 'confirm',
+        waName: contactName || session.waName
+    };
+    await saveSession(from, next);
+    await sendCloudText(
+        from,
+        `Listo, invertí los pines.\nAhora:\n📍 Recogida: ${placeShortLabel(next.origin) || 'origen'}\n➡️ Destino: ${placeShortLabel(next.dest) || 'destino'}`
+    );
+    return askConfirm(from, next);
+}
+
+async function askFixRoute(from, session) {
+    const routeLine = formatRouteLine(session);
+    const body = `¿Qué quieres corregir?\n\n${routeLine}\n\nTambién puedes escribir *invertir* si los pines quedaron al revés.`;
+    const btns = await sendCloudButtons(from, body, [
+        { id: 'fix_origin', title: 'Cambiar recogida' },
+        { id: 'fix_dest', title: 'Cambiar destino' },
+        { id: 'fix_swap', title: 'Invertir pines' }
+    ]);
+    if (btns?.ok) return btns;
+    return sendCloudText(from, `${body}\n\nEscribe *cambiar recogida*, *cambiar destino* o *invertir*.`);
+}
+
+async function applyRouteFix(from, session, contactName, id, t) {
+    const asked = wantsSwapPlaces(id, t) || wantsChangeOrigin(id, t) || wantsChangeDest(id, t) || wantsFixRoute(id, t);
+    if (!asked) return null;
+    if (wantsSwapPlaces(id, t)) {
+        if (hasPlace(session.origin) && hasPlace(session.dest)) {
+            return swapOriginDestPins(from, session, contactName);
+        }
+        return sendCloudText(from, 'Aún no tengo los dos pines para invertir. Mándame recogida y destino, o escribe *cambiar recogida*.');
+    }
+    if (wantsChangeOrigin(id, t)) return restartOriginPin(from, session, contactName);
+    if (wantsChangeDest(id, t)) {
+        if (!hasPlace(session.origin)) return restartOriginPin(from, session, contactName);
+        return restartDestPin(from, session, contactName);
+    }
+    if (hasPlace(session.origin) && hasPlace(session.dest)) return askFixRoute(from, session);
+    if (hasPlace(session.origin)) return restartOriginPin(from, session, contactName);
+    return restartOriginPin(from, session, contactName);
 }
 
 async function askStops(from, session) {
@@ -2167,6 +2264,12 @@ async function routeAssistantMessage(from, text, buttonId, contactName, location
             return sendCloudText(from, 'Listo. Escribe *conductor* para ver la guía otra vez o *viaje* para pedir.');
         }
         return sendCloudText(from, 'Listo, cancelé el pedido. Escribe *viaje* cuando quieras armar otro.');
+    }
+
+    if (session.step === 'origin' || session.step === 'dest' || session.step === 'stops'
+        || session.step === 'stop_place' || session.step === 'confirm') {
+        const fixed = await applyRouteFix(from, session, contactName, id, t);
+        if (fixed) return fixed;
     }
 
     const faq = faqAnswer(t);
@@ -2498,6 +2601,8 @@ async function routeAssistantMessage(from, text, buttonId, contactName, location
             saveSessionBg(from, { ...session, step: 'stop_place' });
             return askStopPlace(from);
         }
+        const confirmFix = await applyRouteFix(from, session, contactName, id, t);
+        if (confirmFix) return confirmFix;
         if (isConfirmNo(id, t)) {
             await clearSession(from);
             return sendCloudText(from, 'Listo, no pedí el viaje. Escribe *viaje* cuando quieras armar otro.');
