@@ -373,6 +373,27 @@ async function notifyPassengerDriverDroppedWa(trip, tripId) {
     return result;
 }
 
+function pickUserPhone(u) {
+    if (!u || typeof u !== 'object') return null;
+    return u.phone || u.driverPhone || u.whatsapp || u.waPhone || u.whatsappPhone || null;
+}
+
+/** Teléfono del conductor: perfil público y, si falta, el privado. */
+async function resolveDriverPhoneByUid(uid) {
+    if (!uid) return null;
+    try {
+        const [pubSnap, privSnap] = await Promise.all([
+            db().doc(`artifacts/${APP_ID}/public/data/users/${uid}`).get(),
+            db().doc(`artifacts/${APP_ID}/users/${uid}/profile/data`).get()
+        ]);
+        const pub = pubSnap.exists ? (pubSnap.data() || {}) : {};
+        const priv = privSnap.exists ? (privSnap.data() || {}) : {};
+        return pickUserPhone(pub) || pickUserPhone(priv) || null;
+    } catch (_) {
+        return null;
+    }
+}
+
 async function notifyDriverNewTripWa(trip, tripId, driver = {}) {
     if (!trip || trip.isDemandSimulation) {
         return { ok: false, skipped: true, reason: 'no_trip' };
@@ -380,7 +401,8 @@ async function notifyDriverNewTripWa(trip, tripId, driver = {}) {
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) {
         return { ok: false, skipped: true, reason: 'staff_waiting_claim' };
     }
-    const phone = driver.phone || driver.driverPhone || null;
+    const phone = driver.phone || driver.driverPhone
+        || (driver.uid ? await resolveDriverPhoneByUid(driver.uid) : null);
     if (!phone) return { ok: false, skipped: true, reason: 'no_phone' };
     const template = (waTemplateDriverNewTrip.value() || 'nuevo_viaje').trim();
     const link = driverTripOpenLink(tripId);
@@ -595,16 +617,7 @@ async function sendUnreadChatWa(phone, name, preview, tripId = null) {
 async function resolveDriverPhone(trip) {
     const direct = trip?.driverPhone || trip?.driver?.phone || null;
     if (direct) return direct;
-    const uid = trip?.driverId;
-    if (!uid) return null;
-    try {
-        const snap = await db().doc(`artifacts/${APP_ID}/public/data/users/${uid}`).get();
-        if (!snap.exists) return null;
-        const u = snap.data() || {};
-        return u.phone || u.driverPhone || u.whatsapp || null;
-    } catch (_) {
-        return null;
-    }
+    return resolveDriverPhoneByUid(trip?.driverId);
 }
 
 /**
@@ -673,6 +686,7 @@ exports.notifyTripRequestReceivedWa = notifyTripRequestReceivedWa;
 exports.notifyTripConfirmedWa = notifyTripConfirmedWa;
 exports.notifyDriverArrivedWa = notifyDriverArrivedWa;
 exports.notifyDriverNewTripWa = notifyDriverNewTripWa;
+exports.resolveDriverPhoneByUid = resolveDriverPhoneByUid;
 exports.notifyPassengerDriverDroppedWa = notifyPassengerDriverDroppedWa;
 exports.notifyDriverAcceptedRouteWa = notifyDriverAcceptedRouteWa;
 exports.notifyPassengerUnreadChatWa = notifyPassengerUnreadChatWa;

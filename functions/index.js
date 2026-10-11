@@ -2663,26 +2663,46 @@ async function notifyStaffNewTrip(appId, tripId, trip) {
  * Marketplace abierto: no solo al offeredToDriverId.
  */
 async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = []) {
-    const ids = [...new Set((driverIds || []).map(String).filter(Boolean))].slice(0, 30);
-    if (!ids.length || !tripId) return;
+    const ids = [...new Set((driverIds || []).map(String).filter(Boolean))].slice(0, 50);
+    if (!ids.length || !tripId) return { sent: 0, skipNoPhone: 0, skipFail: 0, skipAlready: 0 };
     const already = new Set((trip.waDriverOfferUids || []).map(String));
     const pending = ids.filter((id) => !already.has(id));
-    if (!pending.length) return;
+    const skipAlready = ids.length - pending.length;
+    if (!pending.length) {
+        console.log(`[wa] new trip ${tripId} already notified ${ids.length}`);
+        return { sent: 0, skipNoPhone: 0, skipFail: 0, skipAlready };
+    }
     let wa;
     try {
         wa = require('./whatsapp-cloud');
-    } catch (_) {
-        return;
+    } catch (e) {
+        console.warn('[wa] module load', e?.message || e);
+        return { sent: 0, skipNoPhone: 0, skipFail: pending.length, skipAlready };
     }
     const sent = [];
+    let skipNoPhone = 0;
+    let skipFail = 0;
     for (const uid of pending) {
         try {
-            const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${uid}`).get();
-            const phone = uSnap.exists ? (uSnap.data()?.phone || uSnap.data()?.driverPhone || null) : null;
-            if (!phone) continue;
+            const phone = typeof wa.resolveDriverPhoneByUid === 'function'
+                ? await wa.resolveDriverPhoneByUid(uid)
+                : null;
+            if (!phone) {
+                skipNoPhone += 1;
+                console.warn(`[wa] new trip ${tripId} no_phone uid=${uid}`);
+                continue;
+            }
             const r = await wa.notifyDriverNewTripWa(trip, tripId, { phone, uid, tripId });
-            if (r?.ok) sent.push(uid);
+            if (r?.ok) {
+                sent.push(uid);
+            } else {
+                skipFail += 1;
+                console.warn(
+                    `[wa] new trip ${tripId} fail uid=${uid} reason=${r?.reason || r?.error || r?.status || 'unknown'}`
+                );
+            }
         } catch (e) {
+            skipFail += 1;
             console.warn('[wa] driver new trip', uid, e?.message || e);
         }
     }
@@ -2692,6 +2712,11 @@ async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = [])
             waDriverOfferAt: FieldValue.serverTimestamp()
         }).catch(() => {});
     }
+    console.log(
+        `[wa] new trip ${tripId} sent=${sent.length} skipNoPhone=${skipNoPhone} ` +
+        `skipFail=${skipFail} skipAlready=${skipAlready} pending=${pending.length}`
+    );
+    return { sent: sent.length, skipNoPhone, skipFail, skipAlready };
 }
 
 async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment = false } = {}) {
@@ -2822,22 +2847,35 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
     );
 
     const waTargets = [];
+    const seenWa = new Set();
     const addWa = (id) => {
-        if (id && !lockedDrivers.has(String(id))) waTargets.push(String(id));
+        const s = String(id || '');
+        if (!s || lockedDrivers.has(s) || seenWa.has(s)) return;
+        seenWa.add(s);
+        waTargets.push(s);
     };
     if (trip.offeredToDriverId) addWa(trip.offeredToDriverId);
     (trip.candidateDriverIds || []).forEach(addWa);
-    // App cerrada / sin GPS fresco: el push a veces no llega; WhatsApp sí.
     const orderedPushIds = [
         ...cityList.slice(0, 400),
         ...nearbyList.slice(0, Math.max(0, 400 - cityList.length))
     ];
+    // Primero quien el FCM no va a despertar (sin token / sent=0).
     orderedPushIds.forEach((id, i) => {
-        const loc = locByDriver.get(id) || {};
-        const noToken = pushResults[i] && pushResults[i].tokens === 0;
-        if (!isDriverOnline(loc) || noToken) addWa(id);
+        const r = pushResults[i];
+        if (!r || r.tokens === 0 || r.sent === 0) addWa(id);
     });
-    await notifyDriversNewTripWhatsApp(appId, tripId, trip, waTargets).catch(() => {});
+    // iPhone puede reportar FCM sent>0 y no mostrar el aviso hasta abrir la app.
+    // WhatsApp va a todos los elegibles de ciudad/cerca (tope en notifyDriversNewTripWhatsApp).
+    orderedPushIds.forEach((id) => addWa(id));
+    const waResult = await notifyDriversNewTripWhatsApp(appId, tripId, trip, waTargets).catch((e) => {
+        console.warn('[wa] eligible new trip', e?.message || e);
+        return null;
+    });
+    console.log(
+        `[notifyEligibleDriversNewTrip] ${tripId} waTargets=${waTargets.length} ` +
+        `waSent=${waResult?.sent || 0} waNoPhone=${waResult?.skipNoPhone || 0} waFail=${waResult?.skipFail || 0}`
+    );
 
     if (list.length || expandDepartment) {
         const patch = {
@@ -2845,6 +2883,8 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
             eligibleDriverAlertCount: list.length,
             eligibleDriverAlertPushed: pushed,
             eligibleDriverAlertNoToken: skipNoToken,
+            eligibleDriverAlertWaSent: waResult?.sent || 0,
+            eligibleDriverAlertWaNoPhone: waResult?.skipNoPhone || 0,
             eligibleDriverAlertAt: FieldValue.serverTimestamp(),
             eligibleDriverAlertZone: tripZone || null,
             // Cercanas del mismo depto. ya van en la 1ª oleada (como el aviso del admin).
@@ -3452,7 +3492,9 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 },
                 highPriority: true
             }).catch(() => {})));
-            await notifyDriversNewTripWhatsApp(appId, tripId, after, [...pushRecipients]).catch(() => {});
+            await notifyDriversNewTripWhatsApp(appId, tripId, after, [...pushRecipients]).catch((e) => {
+                console.warn('[wa] exclusive offer', tripId, e?.message || e);
+            });
         }
 
         // El más cercano pasó / rechazó: abrir a la ciudad de inmediato
