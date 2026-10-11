@@ -1,15 +1,18 @@
 # Plantillas WhatsApp Cloud API · HonduRaite
 
-Nombres e idioma deben coincidir con Functions (`.env`):
+Todas van en categoría **UTILITY** (`es_HN`) para cobrar ~0,011 USD en Honduras, no marketing (~0,074 USD).
 
-- `WHATSAPP_TEMPLATE_LANG=es_HN`
-- Pie en Meta: `HonduRaite · Viaja seguro`
+Meta no deja cambiar la categoría de una plantilla ya aprobada: hay nombres nuevos. Si Meta aún no las aprueba, Functions hace fallback a las de marketing viejas.
 
 ---
 
-## 0) Pasajero — solicitud recibida (NO cambiar)
+## 0) Pasajero — solicitud recibida
 
-Sigue `tu_viaje_esta_confirmado`: `{{1}}` nombre · `{{2}}` ruta Origen → Destino.
+| Campo | Valor |
+|--------|--------|
+| **Nombre** | `solicitud_viaje_recibida` (`WHATSAPP_TEMPLATE_TRIP_RECEIVED`) |
+| **Fallback** | `tu_viaje_esta_confirmado` |
+| **Variables** | `{{1}}` nombre · `{{2}}` ruta |
 
 ---
 
@@ -17,19 +20,10 @@ Sigue `tu_viaje_esta_confirmado`: `{{1}}` nombre · `{{2}}` ruta Origen → Dest
 
 | Campo | Valor |
 |--------|--------|
-| **Nombre en código** | `nuevo_viaje` (`WHATSAPP_TEMPLATE_DRIVER_NEW_TRIP`) |
+| **Nombre** | `viaje_pendiente_chofer` (`WHATSAPP_TEMPLATE_DRIVER_NEW_TRIP`) |
+| **Fallback** | `nuevo_viaje` |
 | **Variables** | `{{1}}` origen · `{{2}}` destino · `{{3}}` distancia |
-| **Categoría en Meta** | `nuevo_viaje` está APPROVED como MARKETING (puede no sonar / ir a “Empresas”). Plantilla UTILITY `viaje_pendiente_chofer` en revisión. |
-
-Cuerpo actual de `nuevo_viaje`:
-
-```
-Hay un viaje disponible. Origen: {{1}}. Destino: {{2}}. Distancia: {{3}}. Entrá a HonduRaite para ofertar.
-```
-
-El código manda 3 variables (no 4). Si hay ventana 24 h, un texto extra con el link `https://honduraite.com/?openDriver=1`.
-
-Se envía a conductores elegibles de la ciudad (cap 50).
+| **Botón** | Abrir HonduRaite → `https://honduraite.com/?openDriver=1` |
 
 ---
 
@@ -37,10 +31,9 @@ Se envía a conductores elegibles de la ciudad (cap 50).
 
 | Campo | Valor |
 |--------|--------|
-| **Nombre** | `viaje_confirmado` |
-| **Cuerpo (referencia)** | Conductor `{{1}}` · Vehículo `{{2}}` · Placa `{{3}}` · `{{4}}` minutos |
-
-Se dispara cuando un conductor **acepta**.
+| **Nombre** | `conductor_acepto_viaje` (`WHATSAPP_TEMPLATE_TRIP_CONFIRMED`) |
+| **Fallback** | `viaje_confirmado` |
+| **Variables** | `{{1}}` conductor · `{{2}}` vehículo · `{{3}}` placa · `{{4}}` minutos |
 
 ---
 
@@ -48,27 +41,25 @@ Se dispara cuando un conductor **acepta**.
 
 | Campo | Valor |
 |--------|--------|
-| **Nombre** | `conductor_llego` |
-| **Variables** | `{{1}}` conductor · `{{2}}` placa · `{{3}}` teléfono del conductor |
-
-Se dispara al marcar **llegó**.
+| **Nombre** | `conductor_en_recogida` (`WHATSAPP_TEMPLATE_DRIVER_ARRIVED`) |
+| **Fallback** | `conductor_llego` |
+| **Variables** | `{{1}}` conductor · `{{2}}` placa · `{{3}}` teléfono |
 
 ---
 
-## 4) Cliente — chats sin ver (viaje activo)
+## 4) Chats sin ver (viaje activo)
 
 | Campo | Valor |
 |--------|--------|
-| **Nombre** | `chats_sin_ver` (`WHATSAPP_TEMPLATE_CHAT_UNREAD`) |
-| **Variables** | `{{1}}` nombre · `{{2}}` link del viaje (`https://honduraite.com/?trip=ID&openChat=1`) |
-| **Cuerpo (referencia)** | `{{1}}, tienes mensajes sin ver en tu viaje HonduRaite. Responde aquí: {{2}}` |
+| **Nombre** | `mensajes_viaje_pendientes` (`WHATSAPP_TEMPLATE_CHAT_UNREAD`) |
+| **Variables** | `{{1}}` nombre · `{{2}}` enlace `https://honduraite.com/?trip=ID&openChat=1` |
 
-Se dispara si hay mensajes sin abrir en ~25 s: al **cliente** (escribe el conductor) o al **conductor** (escribe el pasajero). Si ya hay ventana de 24 h con el bot, se manda texto de sesión; esta plantilla es respaldo.
+Primero intenta texto de sesión (24 h); esta plantilla es respaldo.
 
 ---
 
 Despliegue:
 
 ```bash
-firebase deploy --only functions:onTripCreatedAssignOffer,functions:onTripUpdatePush,functions:nudgeUnseenTripChats,functions:testWhatsAppTripTemplate,functions:whatsappWebhook
+firebase deploy --only functions:onTripCreatedAssignOffer,functions:onTripUpdatePush,functions:nudgeUnseenTripChats,functions:testWhatsAppTripTemplate,functions:whatsappWebhook --force
 ```

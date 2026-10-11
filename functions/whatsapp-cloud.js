@@ -49,26 +49,33 @@ const waN8nWebhookUrl = defineString('WHATSAPP_N8N_WEBHOOK_URL', {
     description: 'URL de n8n para reenviar eventos WhatsApp (messages, statuses)'
 });
 
-/** Nombre exacto de la plantilla aprobada en Meta (minúsculas y guiones bajos) */
+/** Plantillas UTILITY (es_HN). Las de marketing viejas solo son fallback si Meta aún no aprueba. */
+const WA_TEMPLATE_MARKETING_FALLBACK = {
+    solicitud_viaje_recibida: 'tu_viaje_esta_confirmado',
+    conductor_acepto_viaje: 'viaje_confirmado',
+    conductor_en_recogida: 'conductor_llego',
+    viaje_pendiente_chofer: 'nuevo_viaje'
+};
+
 const waTemplateTripReceived = defineString('WHATSAPP_TEMPLATE_TRIP_RECEIVED', {
-    default: 'tu_viaje_esta_confirmado',
-    description: 'Plantilla existente: solicitud recibida. {{1}} nombre {{2}} ruta'
+    default: 'solicitud_viaje_recibida',
+    description: 'UTILITY: solicitud recibida. {{1}} nombre {{2}} ruta'
 });
 
 const waTemplateTripConfirmed = defineString('WHATSAPP_TEMPLATE_TRIP_CONFIRMED', {
-    default: 'viaje_confirmado',
-    description: 'Plantilla: conductor aceptó. {{1}} conductor {{2}} vehículo {{3}} placa {{4}} minutos'
+    default: 'conductor_acepto_viaje',
+    description: 'UTILITY: conductor aceptó. {{1}} conductor {{2}} vehículo {{3}} placa {{4}} minutos'
 });
 
 const waTemplateDriverArrived = defineString('WHATSAPP_TEMPLATE_DRIVER_ARRIVED', {
-    default: 'conductor_llego',
-    description: 'Plantilla: conductor en el punto. {{1}} conductor {{2}} placa {{3}} teléfono'
+    default: 'conductor_en_recogida',
+    description: 'UTILITY: conductor en el punto. {{1}} conductor {{2}} placa {{3}} teléfono'
 });
 
 /** Aviso a CONDUCTORES de viaje nuevo. {{1}} origen {{2}} destino {{3}} distancia */
 const waTemplateDriverNewTrip = defineString('WHATSAPP_TEMPLATE_DRIVER_NEW_TRIP', {
-    default: 'nuevo_viaje',
-    description: 'Plantilla al conductor: {{1}} origen {{2}} destino {{3}} distancia'
+    default: 'viaje_pendiente_chofer',
+    description: 'UTILITY al conductor: {{1}} origen {{2}} destino {{3}} distancia'
 });
 
 const waTemplateLang = defineString('WHATSAPP_TEMPLATE_LANG', {
@@ -76,10 +83,10 @@ const waTemplateLang = defineString('WHATSAPP_TEMPLATE_LANG', {
     description: 'Idioma de plantillas WhatsApp (es_HN = Spanish HND)'
 });
 
-/** Chats sin ver en viaje activo. {{1}} nombre {{2}} preview */
+/** Chats sin ver en viaje activo. {{1}} nombre {{2}} enlace */
 const waTemplateChatUnread = defineString('WHATSAPP_TEMPLATE_CHAT_UNREAD', {
-    default: 'chats_sin_ver',
-    description: 'Plantilla: mensajes sin ver. {{1}} nombre {{2}} preview'
+    default: 'mensajes_viaje_pendientes',
+    description: 'UTILITY: mensajes sin ver. {{1}} nombre {{2}} enlace'
 });
 
 function db() {
@@ -211,6 +218,11 @@ async function graphSendMessage(payload) {
     return last;
 }
 
+function templateUnavailable(res) {
+    const blob = JSON.stringify(res?.error || res || '');
+    return /132001|132005|template.*not exist|does not exist in the translation|not been approved|is paused|pending/i.test(blob);
+}
+
 /**
  * Envía plantilla de texto con variables {{1}}, {{2}}, ...
  * @param {string} toPhone
@@ -242,7 +254,12 @@ async function sendWhatsAppTemplate(toPhone, templateName, bodyParams = [], lang
             ...(components.length ? { components } : {})
         }
     };
-    const res = await graphSendMessage(payload);
+    let res = await graphSendMessage(payload);
+    const fallbackName = WA_TEMPLATE_MARKETING_FALLBACK[templateName];
+    if (!res?.ok && fallbackName && templateUnavailable(res)) {
+        console.warn(`[wa] plantilla ${templateName} no lista, fallback ${fallbackName}`);
+        return sendWhatsAppTemplate(toPhone, fallbackName, bodyParams, lang);
+    }
     try {
         await db().collection(`artifacts/${APP_ID}/public/data/whatsapp_cloud_outbox`).add({
             sentAt: FieldValue.serverTimestamp(),
@@ -277,7 +294,7 @@ async function notifyTripRequestReceivedWa(trip, tripId = null) {
     }
     if (trip.waTripRequestReceivedOk) return { ok: true, skipped: true, reason: 'already' };
     const phone = tripPhone(trip);
-    const template = (waTemplateTripReceived.value() || 'tu_viaje_esta_confirmado').trim();
+    const template = (waTemplateTripReceived.value() || 'solicitud_viaje_recibida').trim();
     const result = await sendWhatsAppTemplate(phone, template, [
         firstNameFrom(trip.clientName),
         shortRouteLabel(trip)
@@ -300,7 +317,7 @@ async function notifyTripConfirmedWa(trip, tripId = null) {
         return { ok: false, skipped: true, reason: 'no_trip_or_phone' };
     }
     if (trip.waTripConfirmedOk) return { ok: true, skipped: true, reason: 'already' };
-    const template = (waTemplateTripConfirmed.value() || 'viaje_confirmado').trim();
+    const template = (waTemplateTripConfirmed.value() || 'conductor_acepto_viaje').trim();
     const result = await sendWhatsAppTemplate(tripPhone(trip), template, [
         firstNameFrom(trip.driverName || 'Conductor'),
         vehicleLabel(trip),
@@ -331,7 +348,7 @@ async function notifyDriverArrivedWa(trip, tripId = null) {
         return { ok: false, skipped: true, reason: 'no_trip_or_phone' };
     }
     if (trip.waDriverArrivedOk) return { ok: true, skipped: true, reason: 'already' };
-    const template = (waTemplateDriverArrived.value() || 'conductor_llego').trim();
+    const template = (waTemplateDriverArrived.value() || 'conductor_en_recogida').trim();
     const phoneTxt = String(trip.driverPhone || 'N/D').replace(/\s+/g, ' ').trim().slice(0, 20) || 'N/D';
     const result = await sendWhatsAppTemplate(tripPhone(trip), template, [
         firstNameFrom(trip.driverName || 'Conductor'),
@@ -366,7 +383,7 @@ async function notifyPassengerDriverDroppedWa(trip, tripId) {
     );
     let result = await sendCloudText(phone, body);
     if (!result?.ok) {
-        const template = (waTemplateTripReceived.value() || 'tu_viaje_esta_confirmado').trim();
+        const template = (waTemplateTripReceived.value() || 'solicitud_viaje_recibida').trim();
         result = await sendWhatsAppTemplate(phone, template, [name, route]);
         await sendCloudText(phone, `El conductor canceló. Buscamos otro. Entra aquí:\n${link}`).catch(() => {});
     }
@@ -404,7 +421,7 @@ async function notifyDriverNewTripWa(trip, tripId, driver = {}) {
     const phone = driver.phone || driver.driverPhone
         || (driver.uid ? await resolveDriverPhoneByUid(driver.uid) : null);
     if (!phone) return { ok: false, skipped: true, reason: 'no_phone' };
-    const template = (waTemplateDriverNewTrip.value() || 'nuevo_viaje').trim();
+    const template = (waTemplateDriverNewTrip.value() || 'viaje_pendiente_chofer').trim();
     const link = driverTripOpenLink(tripId);
     const base = [originLabel(trip), destLabel(trip), distanceLabel(trip)];
     // Meta tiene {{1}} origen {{2}} destino {{3}} distancia. El 4.º (link) solo si la plantilla ya lo trae.
@@ -541,7 +558,7 @@ async function notifyDriverAcceptedRouteWa(trip, tripId = null, opts = {}) {
         await markTripWa(tripId, patch);
         return result;
     }
-    const template = (waTemplateDriverNewTrip.value() || 'nuevo_viaje').trim();
+    const template = (waTemplateDriverNewTrip.value() || 'viaje_pendiente_chofer').trim();
     const fallback = await sendWhatsAppTemplate(phone, template, [
         originLabel(trip),
         destLabel(trip),
@@ -601,7 +618,7 @@ async function sendUnreadChatWa(phone, name, preview, tripId = null) {
     );
     let result = await sendCloudText(phone, sessionBody);
     if (!result?.ok) {
-        const template = (waTemplateChatUnread.value() || 'chats_sin_ver').trim();
+        const template = (waTemplateChatUnread.value() || 'mensajes_viaje_pendientes').trim();
         result = await sendWhatsAppTemplate(phone, template, [
             firstNameFrom(name),
             link
@@ -2895,19 +2912,18 @@ exports.testWhatsAppTripTemplate = onCall(
 
         let template = String(request.data?.template || '').trim();
         let params = [];
-        if (kind === 'confirmed' || template === 'viaje_confirmado') {
-            template = template || (waTemplateTripConfirmed.value() || 'viaje_confirmado');
+        if (kind === 'confirmed' || template === 'viaje_confirmado' || template === 'conductor_acepto_viaje') {
+            template = template || (waTemplateTripConfirmed.value() || 'conductor_acepto_viaje');
             params = [driver, vehicle, plate, mins];
-        } else if (kind === 'arrived' || template === 'conductor_llego') {
-            template = template || (waTemplateDriverArrived.value() || 'conductor_llego');
+        } else if (kind === 'arrived' || template === 'conductor_llego' || template === 'conductor_en_recogida') {
+            template = template || (waTemplateDriverArrived.value() || 'conductor_en_recogida');
             params = [driver, plate, driverPhone];
-        } else if (kind === 'driver' || kind === 'nuevo_viaje' || template === 'nuevo_viaje') {
-            template = template || (waTemplateDriverNewTrip.value() || 'nuevo_viaje');
+        } else if (kind === 'driver' || kind === 'nuevo_viaje' || template === 'nuevo_viaje' || template === 'viaje_pendiente_chofer') {
+            template = template || (waTemplateDriverNewTrip.value() || 'viaje_pendiente_chofer');
             const origin = String(request.data?.origin || 'Centro').trim().slice(0, 80);
-            const tripId = String(request.data?.tripId || '').trim();
-            params = [origin, dest, dist, driverTripOpenLink(tripId || 'demo')];
+            params = [origin, dest, dist];
         } else {
-            template = template || (waTemplateTripReceived.value() || 'tu_viaje_esta_confirmado');
+            template = template || (waTemplateTripReceived.value() || 'solicitud_viaje_recibida');
             const route = String(request.data?.route || `Origen → ${dest}`).trim().slice(0, 90);
             params = [name, route];
         }
