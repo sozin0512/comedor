@@ -1,36 +1,62 @@
-const HR_SW_VERSION = '2026.10.05.7';
-/* HonduRaite — Service Worker + FCM: TODAS las notificaciones emergentes tipo Temu */
+const HR_SW_VERSION = '2026.10.11.2';
+/* HonduRaite — Service Worker de Web Push.
+ *
+ * No inicializar firebase.messaging() aquí: el SDK registra su propio
+ * listener de `push` y en iOS, si ese handler no llama showNotification
+ * (o rechaza por vibrate/requireInteraction), Safari REVOCA el permiso.
+ * El token FCM se obtiene en la página con getToken({ serviceWorkerRegistration }).
+ */
 
-importScripts('https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging-compat.js');
-
-firebase.initializeApp({
-    apiKey: 'AIzaSyCJfh_J-5gx25yl0OWV5a7-8tLfbI0cjRQ',
-    authDomain: 'comedor-86278.firebaseapp.com',
-    projectId: 'comedor-86278',
-    storageBucket: 'comedor-86278.firebasestorage.app',
-    messagingSenderId: '1081425728323',
-    appId: '1:1081425728323:web:f7fabcacc19a8f0daf15f6'
-});
-
-const messaging = firebase.messaging();
 const ICON = '/icons/icon-192.png';
-
-// Vibración fuerte estilo Temu (todas las notificaciones)
-const HONDU_TEMU_VIBRATE = [0, 500, 80, 500, 80, 600, 100, 800, 80, 1000, 150, 500];
 const recentShownTags = new Set();
+
+function parsePushPayload(event) {
+    if (!event?.data) return {};
+    try {
+        const json = event.data.json();
+        if (json && typeof json === 'object') return json;
+    } catch (_) {}
+    try {
+        const text = event.data.text();
+        if (!text) return {};
+        try {
+            return JSON.parse(text);
+        } catch (_) {
+            return { notification: { title: 'HonduRaite', body: String(text).slice(0, 180) } };
+        }
+    } catch (_) {}
+    return {};
+}
+
+function showSafeNotification(title, options) {
+    const safeTitle = String(title || 'HonduRaite').slice(0, 80) || 'HonduRaite';
+    const safeBody = String(options?.body || 'Tienes un aviso nuevo.').slice(0, 180) || 'Tienes un aviso nuevo.';
+    const iosSafe = {
+        body: safeBody,
+        icon: ICON,
+        badge: ICON,
+        tag: options?.tag || 'honduber-alert',
+        data: options?.data || {}
+    };
+    // iOS rechaza vibrate / renotify / requireInteraction y revoca el push.
+    return self.registration.showNotification(safeTitle, iosSafe).catch(() =>
+        self.registration.showNotification(safeTitle, { body: safeBody, icon: ICON, badge: ICON })
+    );
+}
 
 function presentHonduNotification(payload) {
     payload = payload || {};
     const data = payload.data || {};
     const title = payload.notification?.title || data.title || payload.title || 'HonduRaite';
-    const body = payload.notification?.body || data.body || payload.body || '';
+    const body = payload.notification?.body || data.body || payload.body || 'Tienes un aviso nuevo.';
     const type = String(data.type || '');
     const tag = String(data.tag || `fcm-${type || 'alert'}`);
     const dedupKey = `${tag}|${title}|${body}`;
-    if (recentShownTags.has(dedupKey)) return Promise.resolve();
-    recentShownTags.add(dedupKey);
-    setTimeout(() => recentShownTags.delete(dedupKey), 8000);
+    const already = recentShownTags.has(dedupKey);
+    if (!already) {
+        recentShownTags.add(dedupKey);
+        setTimeout(() => recentShownTags.delete(dedupKey), 8000);
+    }
 
     const isPassengerTrip = type === 'driver_bid'
         || type === 'trip_accepted'
@@ -46,31 +72,28 @@ function presentHonduNotification(payload) {
         || type === 'trip_started'
         || type === 'new_trip_staff';
 
-    const notifyClientsPlayTone = self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then((clients) => {
-            clients.forEach((client) => {
-                try {
-                    client.postMessage({
-                        type: 'HONDUBER_PLAY_TONE',
-                        pushData: data,
-                        notifType: type,
-                        tag,
-                        title,
-                        body
-                    });
-                } catch (_) {}
-            });
-        })
-        .catch(() => {});
+    if (!already) {
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then((clients) => {
+                clients.forEach((client) => {
+                    try {
+                        client.postMessage({
+                            type: 'HONDUBER_PLAY_TONE',
+                            pushData: data,
+                            notifType: type,
+                            tag,
+                            title,
+                            body
+                        });
+                    } catch (_) {}
+                });
+            })
+            .catch(() => {});
+    }
 
     const options = {
         body,
-        icon: ICON,
-        badge: ICON,
         tag,
-        renotify: true,
-        requireInteraction: true,
-        silent: false,
         data: {
             tripId: data.tripId || null,
             openChat: data.openChat === 'true',
@@ -90,28 +113,28 @@ function presentHonduNotification(payload) {
             amount: data.amount || '',
             serviceType: data.serviceType || '',
             toneEvent: data.toneEvent || null
-        },
-        vibrate: HONDU_TEMU_VIBRATE
+        }
     };
 
-    // Safari iOS REVOCA el push si el evento termina sin showNotification.
-    return Promise.all([
-        notifyClientsPlayTone,
-        self.registration.showNotification(title, options)
-    ]);
+    // Siempre showNotification: iOS revoca el push si el evento termina sin él.
+    return showSafeNotification(title, options);
 }
 
 self.addEventListener('push', (event) => {
-    let payload = {};
-    try {
-        payload = event.data ? (event.data.json() || {}) : {};
-    } catch (_) {
-        payload = {};
-    }
-    event.waitUntil(presentHonduNotification(payload));
+    event.waitUntil((async () => {
+        let payload = {};
+        try {
+            payload = parsePushPayload(event);
+        } catch (_) {
+            payload = {};
+        }
+        try {
+            await presentHonduNotification(payload);
+        } catch (_) {
+            await showSafeNotification('HonduRaite', { body: 'Tienes un aviso nuevo.' });
+        }
+    })());
 });
-
-messaging.onBackgroundMessage((payload) => presentHonduNotification(payload || {}));
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -181,7 +204,6 @@ self.addEventListener('notificationclick', (event) => {
                     amount: data.amount || '',
                     notifType: type,
                     tag,
-                    // Al tocar el aviso: reproducir tono Hondu (gesto de usuario en Safari)
                     playTone: true,
                     toneEvent: data.toneEvent || null,
                     pushData: data

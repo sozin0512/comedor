@@ -54,6 +54,17 @@ export async function initTripNotifications() {
 
     try {
         const swUrl = getMessagingSwUrl(import.meta.url);
+        try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((reg) => {
+                const url = String(reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '');
+                const path = url.split('?')[0];
+                if (/\/sw\.js$/i.test(path) || url.includes('firebase-messaging-sw.js?')) {
+                    return reg.unregister().catch(() => false);
+                }
+                return Promise.resolve(false);
+            }));
+        } catch (_) {}
         swRegistration = await navigator.serviceWorker.register(swUrl, { scope: '/' });
         try { swRegistration.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
         try { swRegistration.installing?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
@@ -130,9 +141,8 @@ export function triggerSuperTripVibration() {
 }
 
 /**
- * Web/iOS: notificaciones del sistema.
- * - silent:true → sin tono del SO (solo Web Audio). En iOS/Safari en 2.º plano Web Audio
- *   está muteado → el conductor NO se entera. Por eso las ofertas de viaje usan silent:false.
+ * Web/iOS: notificaciones del sistema (página visible).
+ * En iPhone el aviso fuera de la app lo pinta el service worker (firebase-messaging-sw.js).
  */
 export async function showTripNotification({
     title,
@@ -158,23 +168,29 @@ export async function showTripNotification({
         || tagStr.startsWith('trip-price-boost-')
         || tagStr.startsWith('freight-alert-');
 
+    const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
+    const isIOSDevice = /iPad|iPhone|iPod/i.test(ua)
+        || (typeof navigator !== 'undefined' && navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1);
+
     const options = {
         body: String(body).slice(0, 180),
         icon: ICON,
         badge: BADGE,
         tag: tag || 'honduber-trip',
-        renotify: true,
-        // silent:false en ofertas → iPhone/Safari suena aunque la pestaña esté en segundo plano
-        silent: !isRideAlert,
-        requireInteraction: !!requireInteraction || isRideAlert,
         data: {
             tripId: tripId || null,
             openChat: !!openChat,
             openNotifications: !!openNotifications || (!openChat && String(tag || '').startsWith('fcm-admin')),
             openDriver: isRideAlert ? true : false
-        },
-        vibrate
+        }
     };
+    // iOS: vibrate/renotify/requireInteraction hacen fallar showNotification y Safari revoca el push
+    if (!isIOSDevice) {
+        options.renotify = true;
+        options.silent = !isRideAlert;
+        options.requireInteraction = !!requireInteraction || isRideAlert;
+        options.vibrate = vibrate;
+    }
 
     try {
         const reg = swRegistration || await navigator.serviceWorker.ready;
@@ -182,10 +198,21 @@ export async function showTripNotification({
         return true;
     } catch (e) {
         try {
-            new Notification(title, options);
+            await (swRegistration || await navigator.serviceWorker.ready).showNotification(title, {
+                body: options.body,
+                icon: ICON,
+                badge: BADGE,
+                tag: options.tag,
+                data: options.data
+            });
             return true;
         } catch (_) {
-            return false;
+            try {
+                new Notification(title, { body: options.body, icon: ICON });
+                return true;
+            } catch (err) {
+                return false;
+            }
         }
     }
 }

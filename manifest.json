@@ -10,6 +10,17 @@
   "orientation": "portrait",
   "lang": "es-HN",
   "scope": "/",
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://honduraite.com/manifest.json"
+    },
+    {
+      "platform": "webapp",
+      "url": "https://comedor-86278.web.app/manifest.json"
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -30,5 +41,5 @@
       "purpose": "maskable"
     }
   ],
-  "version": "2026.10.05.7"
+  "version": "2026.10.11.2"
 }

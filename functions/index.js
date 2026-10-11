@@ -10,6 +10,18 @@ initializeApp();
 
 const db = getFirestore();
 const PUSH_ICON = `https://${process.env.GCLOUD_PROJECT || 'comedor-86278'}.web.app/icons/icon-192.png`;
+const PUSH_SITE = 'https://honduraite.com';
+
+/** FCM webpush.fcmOptions.link exige HTTPS absoluto; `/#driver` tiraba el aviso en iPhone. */
+function absolutePushClickUrl(path) {
+    const raw = String(path || '/');
+    try {
+        if (/^https:\/\//i.test(raw)) return raw;
+        return new URL(raw, PUSH_SITE).toString();
+    } catch (_) {
+        return `${PUSH_SITE}/`;
+    }
+}
 const ADMIN_EMAIL = 'josuesoza0513@gmail.com';
 const APP_ID = 'comayagua-vip-pro-v4';
 const TRIP_OFFER_TIMEOUT_MS = 120 * 1000;
@@ -2419,10 +2431,14 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         link = '/#notifications';
     }
 
+    const safeTitle = String(title || 'HonduRaite').slice(0, 80) || 'HonduRaite';
+    const safeBody = String(body || 'Tienes un aviso nuevo.').slice(0, 180) || 'Tienes un aviso nuevo.';
+    const clickUrl = absolutePushClickUrl(link);
+
     const dataPayload = {
         ...data,
-        title,
-        body,
+        title: safeTitle,
+        body: safeBody,
         // Marca para el servicio nativo (HonduMessagingService): Temu/WhatsApp + tono icÃ³nico
         style: 'whatsapp',
         temu: '1',
@@ -2431,6 +2447,14 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         sound: audio.sound || HONDU_ICONIC_PUSH_SOUND,
         openNotifications: openNotifications ? 'true' : String(data.openNotifications || 'false')
     };
+
+    const webNotification = {
+        title: safeTitle,
+        body: safeBody,
+        icon: PUSH_ICON,
+        badge: PUSH_ICON
+    };
+    if (data.tag) webNotification.tag = String(data.tag);
 
     // Importante: NO poner `notification` de nivel raÃ­z ni `android.notification`.
     // Si van, Android muestra un tray genÃ©rico y NO llama onMessageReceived en background
@@ -2447,15 +2471,8 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
                 Urgency: 'high',
                 TTL: '86400'
             },
-            notification: {
-                title,
-                body,
-                icon: PUSH_ICON,
-                badge: PUSH_ICON,
-                tag: data.tag || undefined
-                // Safari iOS: sin vibrate/renotify/requireInteraction (puede descartar el push)
-            },
-            fcmOptions: { link }
+            notification: webNotification,
+            fcmOptions: { link: clickUrl }
         },
         android: {
             // data-only + high priority: HonduMessagingService pinta el aviso tipo WhatsApp
@@ -2470,7 +2487,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             },
             payload: {
                 aps: {
-                    alert: { title, body },
+                    alert: { title: safeTitle, body: safeBody },
                     sound: 'default',
                     'interruption-level': 'time-sensitive',
                     'content-available': 1
@@ -2488,9 +2505,13 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         const res = await getMessaging().sendEachForMulticast({ ...payload, tokens: chunk });
         sent += res.successCount || 0;
         res.responses.forEach((r, idx) => {
-            if (!r.success && r.error?.code === 'messaging/registration-token-not-registered') {
+            if (r.success) return;
+            const code = r.error?.code || '';
+            if (code === 'messaging/registration-token-not-registered') {
                 invalid.push(chunk[idx]);
+                return;
             }
+            console.warn(`[push] fcm fail uid=${uid} type=${type} code=${code} msg=${r.error?.message || ''}`);
         });
     }
 

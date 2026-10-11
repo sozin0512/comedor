@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.05.7">
+    <meta name="hr-app-version" content="2026.10.11.2">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -20,6 +20,24 @@
                     document.documentElement.setAttribute('data-hr-restore-session', '1');
                 }
             } catch (e) {}
+            try {
+                var standalone = window.navigator.standalone === true
+                    || (window.matchMedia && (
+                        window.matchMedia('(display-mode: standalone)').matches
+                        || window.matchMedia('(display-mode: fullscreen)').matches
+                        || window.matchMedia('(display-mode: minimal-ui)').matches
+                    ));
+                if (standalone) {
+                    document.documentElement.classList.add('hr-pwa-installed');
+                    try { localStorage.setItem('honduber_pwa_installed', '1'); } catch (e2) {}
+                } else if (localStorage.getItem('honduber_pwa_installed') === '1') {
+                    document.documentElement.classList.add('hr-pwa-installed');
+                }
+            } catch (e) {}
+            window.showInstallFlow = window.showInstallFlow || function () {
+                if (document.documentElement.classList.contains('hr-pwa-installed')) return;
+                window.__hrInstallQueued = true;
+            };
         })();
     </script>
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,7 +45,7 @@
     <meta name="apple-mobile-web-app-title" content="HonduRaite">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="format-detection" content="telephone=no">
-    <link rel="manifest" href="manifest.json?v=2026.10.05.7">
+    <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
     <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
@@ -37,10 +55,10 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.05.7">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.11.2">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.05.7">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.11.2">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -86,7 +104,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.05.7"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.11.2"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -150,10 +168,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.05.7';
+        window.__HR_BUILD_VERSION__ = '2026.10.11.2';
         (function () {
             try {
-                var build = '2026.10.05.7';
+                var build = '2026.10.11.2';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -1065,10 +1083,10 @@
                     <span>Instalar app en este dispositivo</span>
                 </button>
 
-                <button onclick="window.showInstallFlow()" 
-                        class="w-full flex items-center justify-center gap-3 py-3 border border-gray-200 rounded-2xl text-sm font-bold hover:bg-gray-50 active:bg-gray-100">
+                <button type="button" data-hr-install-btn
+                        class="hidden w-full flex items-center justify-center gap-3 py-3 border border-blue-300 bg-blue-50 rounded-2xl text-sm font-bold text-blue-800 active:bg-blue-100">
                     <i class="fas fa-mobile-alt text-blue-600"></i>
-                    <span>Cómo instalar en mi celular</span>
+                    <span>Instalar en pantalla de inicio</span>
                 </button>
 
                 <button type="button" id="btn-passenger-tutorial"
@@ -1368,6 +1386,17 @@
             <button onclick="window.updateRole('driver')" id="role-driver" class="role-btn flex-1 py-3 rounded-xl font-bold text-xs transition-all text-gray-400 uppercase">Conductor</button>
         </div>
         <p id="login-role-hint" class="text-[10px] text-center text-gray-500 mb-3 leading-snug px-1">Pasajero: viajes, envíos, fletes o grúa. Eliges el servicio dentro de la app.</p>
+
+        <div id="hr-install-home-card" class="hr-install-home-card hidden">
+            <div class="hr-install-home-card__row">
+                <div class="hr-install-home-card__icon" aria-hidden="true"><i class="fas fa-plus-square"></i></div>
+                <div class="hr-install-home-card__copy">
+                    <p class="hr-install-home-card__title">Instalar en pantalla de inicio</p>
+                    <p class="hr-install-home-card__sub" data-hr-install-sub>Chrome y Safari · avisos de viaje con la app cerrada</p>
+                </div>
+            </div>
+            <button type="button" id="hr-install-home-btn" data-hr-install-btn class="hr-install-home-card__btn">Instalar</button>
+        </div>
 
         <div class="login-wa-cta login-wa-cta--top">
             <p class="login-wa-slogan">¿Apurado? Pide un viaje por WhatsApp</p>
@@ -1808,7 +1837,7 @@
         <button type="button" data-header-menu-action="history" class="header-more-item" role="menuitem">
             <i class="fas fa-history text-blue-600"></i><span>Mis Viajes Pasados + Facturas</span>
         </button>
-        <button type="button" data-header-menu-action="install" class="header-more-item" role="menuitem">
+        <button type="button" data-header-menu-action="install" class="hidden header-more-item" role="menuitem">
             <i class="fas fa-download text-emerald-600"></i><span>Instalar HonduRaite</span>
         </button>
         <button type="button" id="push-enable-btn-mobile" data-header-menu-action="push" class="hidden header-more-item" role="menuitem">
@@ -1956,12 +1985,12 @@
                     <div class="control-panel-grab" aria-hidden="true"></div>
                 </div>
                 <div id="ios-install-banner" class="hidden px-3 py-[7px] bg-blue-600 text-white flex items-center gap-2 text-xs border-b border-blue-700 z-10">
-                    <i class="fab fa-apple text-base ml-0.5"></i>
+                    <i class="fas fa-mobile-alt text-base ml-0.5"></i>
                     <div class="flex-1 leading-tight min-w-0">
-                        <span class="font-black">Instala HonduRaite</span>
-                        <span class="text-blue-100 hidden sm:inline"> — Acceso rápido + notificaciones</span>
+                        <span class="font-black">Pantalla de inicio</span>
+                        <span class="text-blue-100 hidden sm:inline"> — Chrome un toque · Safari Compartir</span>
                     </div>
-                    <button type="button" id="ios-install-btn"
+                    <button type="button" id="ios-install-btn" data-hr-install-btn
                             class="px-3.5 py-1 bg-white text-blue-700 font-black text-[10px] rounded-2xl active:opacity-90 shadow-sm whitespace-nowrap">
                         INSTALAR
                     </button>

@@ -65,7 +65,8 @@ function patchIndexHtml(version, filePath) {
     html = html.replace(/src="js\/maps-init\.js(\?v=[^"]*)?"/, `src="js/maps-init.js${q}"`);
     html = html.replace(/src="js\/auth-boot\.js(\?v=[^"]*)?"/, `src="js/auth-boot.js${q}"`);
     html = html.replace(/src="js\/app\.js(\?v=[^"]*)?"/, `src="js/app.js${q}"`);
-    html = html.replace(/href="manifest\.json(\?v=[^"]*)?"/, `href="manifest.json${q}"`);
+    // URL estable: si el href del manifest cambia con ?v=, iOS trata la PWA como otra app y pierde push
+    html = html.replace(/href="manifest\.json(\?v=[^"]*)?"/, 'href="manifest.json"');
     html = html.replace(/from '\.\/js\/config\.js(\?v=[^']*)?'/, `from './js/config.js${q}'`);
 
     const bootScript = `<script>

@@ -5,9 +5,9 @@ let nativeInstallUiHidden = false;
 
 function notifyInstallReady() {
     if (typeof window === 'undefined') return;
+    if (isPwaInstalled()) return;
     window.dispatchEvent(new CustomEvent('honduber-install-ready'));
-    const btn = document.getElementById('btn-native-install');
-    if (btn) btn.classList.remove('hidden');
+    refreshInstallHomeUi();
 }
 
 export function hideInstallUiForNativeApp() {
@@ -17,13 +17,15 @@ export function hideInstallUiForNativeApp() {
     [
         'btn-native-install',
         'ios-install-banner',
+        'hr-install-home-card',
+        'hr-install-banner',
         'install-reminder-banner',
         'install-reminder-banner-driver',
     ].forEach((id) => {
         const el = document.getElementById(id);
         if (el) {
             el.classList.add('hidden');
-            el.innerHTML = '';
+            if (id !== 'hr-install-home-card') el.innerHTML = '';
         }
     });
 
@@ -40,37 +42,67 @@ export function hideInstallUiForNativeApp() {
     document.documentElement.classList.add('native-app');
 }
 
+let pendingUserInstallClick = false;
+
 if (typeof window !== 'undefined' && !isCapacitorNative()) {
     window.addEventListener('beforeinstallprompt', (e) => {
-        // Store without preventDefault to avoid the "Banner not shown: preventDefault() called" message.
-        // The native prompt can be triggered via triggerNativeInstall() from the install button.
+        e.preventDefault();
         deferredInstallPrompt = e;
         notifyInstallReady();
+        refreshInstallHomeUi();
+        if (pendingUserInstallClick) {
+            pendingUserInstallClick = false;
+            triggerNativeInstall().catch(() => {});
+        }
     });
 
     window.addEventListener('appinstalled', () => {
         deferredInstallPrompt = null;
+        pendingUserInstallClick = false;
         try { localStorage.setItem('honduber_pwa_installed', '1'); } catch (_) {}
+        markPwaInstalledClass(true);
+        refreshInstallHomeUi();
+        window.showToast?.('HonduRaite quedó en tu pantalla de inicio. Ábrela desde el icono.', 'success');
     });
 }
 
 function isStandaloneDisplay() {
     if (typeof window === 'undefined') return false;
-    return window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true;
+    try {
+        if (window.navigator.standalone === true) return true;
+    } catch (_) {}
+    try {
+        if (window.matchMedia('(display-mode: standalone)').matches) return true;
+        if (window.matchMedia('(display-mode: fullscreen)').matches) return true;
+        if (window.matchMedia('(display-mode: minimal-ui)').matches) return true;
+    } catch (_) {}
+    return false;
+}
+
+function persistInstalledFlag() {
+    try { localStorage.setItem('honduber_pwa_installed', '1'); } catch (_) {}
 }
 
 export function isPwaInstalled() {
     if (typeof window === 'undefined') return true;
-    if (isCapacitorNative()) return true;
-    // iPhone/iPad: Safari y la PWA de inicio NO son lo mismo para push.
-    // Solo cuenta standalone real; el flag de localStorage engaña en pestaña Safari.
-    if (isIOS()) return isStandaloneDisplay();
+    if (isCapacitorNative()) {
+        persistInstalledFlag();
+        return true;
+    }
+    if (isStandaloneDisplay()) {
+        persistInstalledFlag();
+        return true;
+    }
+    try {
+        if (document.referrer.includes('android-app://')) {
+            persistInstalledFlag();
+            return true;
+        }
+    } catch (_) {}
     try {
         if (localStorage.getItem('honduber_pwa_installed') === '1') return true;
     } catch (_) {}
-    return isStandaloneDisplay()
-        || document.referrer.includes('android-app://');
+    return false;
 }
 
 export function isIOS() {
@@ -118,7 +150,7 @@ export function isIOSSafari() {
 }
 
 export function canTriggerNativeInstall() {
-    if (isCapacitorNative()) return false;
+    if (isCapacitorNative() || isPwaInstalled()) return false;
     return !!deferredInstallPrompt;
 }
 
@@ -128,11 +160,13 @@ export async function triggerNativeInstall() {
         await deferredInstallPrompt.prompt();
         const { outcome } = await deferredInstallPrompt.userChoice;
         deferredInstallPrompt = null;
-        document.getElementById('btn-native-install')?.classList.add('hidden');
         if (outcome === 'accepted') {
             try { localStorage.setItem('honduber_pwa_installed', '1'); } catch (_) {}
+            markPwaInstalledClass(true);
+            refreshInstallHomeUi();
             return true;
         }
+        refreshInstallHomeUi();
     } catch (_) {
         deferredInstallPrompt = null;
     }
@@ -150,33 +184,37 @@ export async function tryNativeInstall() {
  * @param {'passenger_request'|'driver_accept'} context
  */
 function installBannerHtml(roleLabel) {
+    const oneTap = canTriggerNativeInstall();
     return `
         <div class="mx-1 mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-200 text-left">
             <p class="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">
                 <i class="fas fa-mobile-alt"></i> Instala HonduRaite
             </p>
-            <p class="text-xs text-amber-900 leading-snug mb-2">Como ${roleLabel}, en iPhone los viajes no llegan si usas Safari. Agrega HonduRaite a inicio, ábrela desde el icono y activa avisos.</p>
-            <button type="button" onclick="window.showInstallFlow()" class="text-[10px] font-black text-amber-700 underline uppercase">Ver cómo instalar</button>
+            <p class="text-xs text-amber-900 leading-snug mb-2">Como ${roleLabel}, ponla en la pantalla de inicio para que los viajes te lleguen aunque cierres el navegador.</p>
+            <button type="button" onclick="window.showInstallFlow()" class="w-full mt-1 py-2.5 rounded-xl bg-amber-600 text-white text-xs font-black uppercase">
+                ${oneTap ? 'Instalar con un toque' : 'Instalar en pantalla de inicio'}
+            </button>
         </div>
     `;
 }
 
 export function renderInstallReminderBanner(context = null) {
-    if (isCapacitorNative()) return;
+    if (isCapacitorNative() || isPwaInstalled()) {
+        ['install-reminder-banner', 'install-reminder-banner-driver'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.add('hidden');
+                el.innerHTML = '';
+            }
+        });
+        return;
+    }
     const banners = [
         document.getElementById('install-reminder-banner'),
         document.getElementById('install-reminder-banner-driver')
     ].filter(Boolean);
 
     if (!banners.length) return;
-
-    if (isPwaInstalled()) {
-        banners.forEach((banner) => {
-            banner.classList.add('hidden');
-            banner.innerHTML = '';
-        });
-        return;
-    }
 
     const roleLabel = context === 'driver_accept' ? 'conductor' : 'pasajero';
     const html = installBannerHtml(roleLabel);
@@ -221,193 +259,228 @@ export function remindInstallIfNeeded(context) {
     return true;
 }
 
-let iosBannerInitialized = false;
+const A2HS_OVERLAY_ID = 'hr-a2hs-overlay';
+const IOS_SHARE_ICON = `<svg class="hr-a2hs__share-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2.5c.4 0 .75.35.75.75v9.04l2.47-2.47a.75.75 0 1 1 1.06 1.06l-3.75 3.75a.75.75 0 0 1-1.06 0L7.72 10.88a.75.75 0 0 1 1.06-1.06l2.47 2.47V3.25c0-.4.35-.75.75-.75zM6.5 13.5a.75.75 0 0 1 .75.75v4.5c0 .14.11.25.25.25h9c.14 0 .25-.11.25-.25v-4.5a.75.75 0 0 1 1.5 0v4.5A1.75 1.75 0 0 1 16.5 21h-9A1.75 1.75 0 0 1 5.75 19.25v-4.5a.75.75 0 0 1 .75-.75z"/></svg>`;
 
-export function initIOSInstallBanner() {
-    if (typeof window === 'undefined' || iosBannerInitialized || isCapacitorNative()) return;
-    iosBannerInitialized = true;
-
-    const banner = document.getElementById('ios-install-banner');
-    const btn = document.getElementById('ios-install-btn');
-    const closeBtn = document.getElementById('ios-install-close');
-
-    if (!banner) return;
-
-    const update = () => {
-        const isSearching = document.body.classList.contains('is-searching');
-        const shouldShow = isIOS() && !isPwaInstalled() && !sessionStorage.getItem('iosInstallBannerDismissed') && !isSearching;
-        if (shouldShow) {
-            banner.classList.remove('hidden');
-        } else {
-            banner.classList.add('hidden');
-        }
-    };
-
-    update();
-
-    if (btn) {
-        btn.addEventListener('click', () => {
-            window.showInstallGuide?.();
-        });
-    }
-
-    if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
-            banner.classList.add('hidden');
-            try { sessionStorage.setItem('iosInstallBannerDismissed', '1'); } catch (_) {}
-        });
-    }
-
-    // Hide automatically if it gets installed
-    window.addEventListener('appinstalled', () => {
-        banner.classList.add('hidden');
-    });
-
-    // Re-check on visibility (in case of manual install / PWA detection)
-    document.addEventListener('visibilitychange', () => {
-        if (!document.hidden) update();
-    });
-
-    // Expose for external refresh
-    window.refreshIOSInstallBanner = update;
+function isIPadDevice() {
+    if (!isIOS()) return false;
+    const ua = navigator.userAgent || '';
+    if (/iPad/.test(ua)) return true;
+    return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
 }
 
-export function showIOSInstallBannerIfNeeded() {
-    if (isCapacitorNative()) return;
-    if (window.refreshIOSInstallBanner) {
-        window.refreshIOSInstallBanner();
-        return;
-    }
-    const banner = document.getElementById('ios-install-banner');
-    if (!banner) return;
-    const isSearching = document.body.classList.contains('is-searching');
-    if (isIOS() && !isPwaInstalled() && !sessionStorage.getItem('iosInstallBannerDismissed') && !isSearching) {
-        banner.classList.remove('hidden');
-    } else {
-        banner.classList.add('hidden');
-    }
+function closeA2hsOverlay() {
+    document.getElementById(A2HS_OVERLAY_ID)?.remove();
 }
 
-const INSTALL_GUIDE_MODAL_ID = 'hr-install-guide-modal';
-
-/** Guía paso a paso para instalar la PWA. Disponible para todos los roles (no solo staff). */
-export function showInstallGuide() {
-    if (typeof document === 'undefined' || isCapacitorNative()) return;
-    const existing = document.getElementById(INSTALL_GUIDE_MODAL_ID);
-    if (existing) {
-        existing.remove();
-    }
-
-    const modal = document.createElement('div');
-    modal.id = INSTALL_GUIDE_MODAL_ID;
-    modal.className = 'fixed inset-0 bg-black/70 z-[40000] flex items-end md:items-center justify-center p-4';
-
-    const isIOSUser = isIOS();
-    const standalone = isStandaloneDisplay();
-
-    modal.innerHTML = `
-        <div class="bg-white w-full md:w-[420px] md:rounded-3xl rounded-t-3xl p-6 max-h-[92vh] overflow-auto">
-            <div class="flex justify-between items-center mb-3">
-                <h3 class="font-black text-xl">Instalar HonduRaite</h3>
-                <button type="button" onclick="this.closest('.fixed').remove()" class="text-2xl text-gray-400 hover:text-gray-600">×</button>
-            </div>
-
-            <p class="text-sm text-gray-600 mb-5">Instala la app en tu pantalla de inicio para usarla como una aplicación nativa (recibes notificaciones aunque cierres Safari/Chrome).</p>
-
-            ${isIOSUser ? `
-            <div class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-                <div class="flex items-center gap-2 mb-2">
-                    <i class="fab fa-apple text-2xl text-gray-900"></i>
-                    <div>
-                        <div class="font-black text-base">iPhone / iPad (Safari)</div>
-                        <div class="text-[10px] text-blue-700">Sigue estos pasos (es rápido):</div>
-                    </div>
-                </div>
-                <div class="space-y-3 text-sm">
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">1</div>
-                        <div>Toca el botón <strong>compartir</strong> <span class="text-blue-600">⎋</span> (abajo, en el centro de Safari).</div>
-                    </div>
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">2</div>
-                        <div>Desplaza hacia abajo y toca <strong>"Agregar a pantalla de inicio"</strong>.</div>
-                    </div>
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">3</div>
-                        <div>En la esquina superior toca <strong>"Agregar"</strong>.</div>
-                    </div>
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">4</div>
-                        <div>Cierra Safari y abre <strong>HonduRaite desde el icono nuevo</strong> (si entras por Safari, los viajes no te caen fuera de la app).</div>
-                    </div>
-                    <div class="flex gap-3">
-                        <div class="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-black shrink-0">5</div>
-                        <div>Toca <strong>Activar avisos</strong>. Sin eso, en iPhone no llegan push si cierras la app o estás desconectado.</div>
-                    </div>
-                </div>
-                <p class="text-[10px] text-amber-700 mt-3">⚠️ Importante: Usa <strong>Safari</strong> (no Chrome, Firefox ni otro). iOS 16.4 o superior.</p>
-            </div>
-            ` : ''}
-
-            <div class="mb-4 ${isIOSUser ? 'opacity-70' : ''}">
-                <div class="flex items-center gap-2 mb-2">
-                    <i class="fab fa-android text-xl text-emerald-600"></i>
-                    <span class="font-black">Android (Chrome / Edge)</span>
-                </div>
-                <ol class="list-decimal pl-5 text-sm space-y-1 text-gray-700">
-                    <li>Toca el menú ⋮ (arriba derecha)</li>
-                    <li>Elige <strong>"Instalar app"</strong> o <strong>"Agregar a la pantalla de inicio"</strong></li>
-                    <li>Confirma con <strong>Instalar</strong></li>
-                </ol>
-            </div>
-
-            ${!isIOSUser ? `
-            <div class="mb-4">
-                <div class="flex items-center gap-2 mb-2">
-                    <i class="fab fa-apple text-xl text-gray-800"></i>
-                    <span class="font-black">iPhone / iPad</span>
-                </div>
-                <ol class="list-decimal pl-5 text-sm space-y-1 text-gray-700">
-                    <li>Abre en <strong>Safari</strong></li>
-                    <li>Toca el botón compartir (cuadro con flecha ↑)</li>
-                    <li>Busca y toca <strong>"Agregar a pantalla de inicio"</strong></li>
-                    <li>Toca <strong>Agregar</strong></li>
-                </ol>
-            </div>
-            ` : ''}
-
-            <div class="pt-4 border-t flex gap-2">
-                <button type="button" onclick="this.closest('.fixed').remove()"
-                        class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 rounded-2xl text-sm">
-                    Cerrar
-                </button>
-                <button type="button" onclick="window.enableTripNotifications?.(); this.closest('.fixed').remove();"
-                        class="flex-1 bg-emerald-600 text-white font-black py-3 rounded-2xl text-sm">
-                    ${isIOSUser && !standalone
-                        ? 'Ya la instalé · abrir desde el icono'
-                        : 'Activar notificaciones'}
-                </button>
-            </div>
+function showIosAddToHomeOverlay() {
+    closeA2hsOverlay();
+    const ipad = isIPadDevice();
+    const overlay = document.createElement('div');
+    overlay.id = A2HS_OVERLAY_ID;
+    overlay.className = `hr-a2hs${ipad ? ' hr-a2hs--top' : ''}`;
+    overlay.innerHTML = `
+        <div class="hr-a2hs__sheet">
+            <button type="button" class="hr-a2hs__close" aria-label="Cerrar">×</button>
+            <p class="hr-a2hs__kicker"><i class="fab fa-apple"></i> iPhone / iPad</p>
+            <h2 class="hr-a2hs__title">Instalar en pantalla de inicio</h2>
+            <p class="hr-a2hs__lead">Toca <b>Compartir</b> ${ipad ? 'arriba' : 'abajo'} y luego <b>Agregar a pantalla de inicio</b>.</p>
+            <ol class="hr-a2hs__steps">
+                <li><span>1</span> Toca el botón ${IOS_SHARE_ICON} <b>Compartir</b></li>
+                <li><span>2</span> Toca <b>Agregar a pantalla de inicio</b></li>
+                <li><span>3</span> Toca <b>Agregar</b> y ábrela desde el icono</li>
+            </ol>
+            <p class="hr-a2hs__hint">Si estás en Chrome, abre honduraite.com en <b>Safari</b> para que te lleguen los avisos de viaje.</p>
+        </div>
+        <div class="hr-a2hs__arrow" aria-hidden="true">
+            <div class="hr-a2hs__share-bubble">${IOS_SHARE_ICON}</div>
+            <div class="hr-a2hs__chevron">${ipad ? '↑' : '↓'}</div>
         </div>
     `;
-
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
+    overlay.querySelector('.hr-a2hs__close')?.addEventListener('click', closeA2hsOverlay);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeA2hsOverlay();
     });
-    document.body.appendChild(modal);
+    document.body.appendChild(overlay);
 }
 
-/** Intenta el diálogo nativo; si no hay, muestra la guía. */
+function showChromeAddToHomeOverlay() {
+    closeA2hsOverlay();
+    const overlay = document.createElement('div');
+    overlay.id = A2HS_OVERLAY_ID;
+    overlay.className = 'hr-a2hs hr-a2hs--chrome';
+    overlay.innerHTML = `
+        <div class="hr-a2hs__sheet">
+            <button type="button" class="hr-a2hs__close" aria-label="Cerrar">×</button>
+            <p class="hr-a2hs__kicker"><i class="fab fa-chrome"></i> Chrome</p>
+            <h2 class="hr-a2hs__title">Instalar en pantalla de inicio</h2>
+            <p class="hr-a2hs__lead">Toca el menú <b>⋮</b> arriba a la derecha y elige <b>Instalar app</b>.</p>
+            <ol class="hr-a2hs__steps">
+                <li><span>1</span> Toca <b>⋮</b> (arriba derecha)</li>
+                <li><span>2</span> Toca <b>Instalar app</b> o <b>Agregar a la pantalla de inicio</b></li>
+                <li><span>3</span> Confirma con <b>Instalar</b></li>
+            </ol>
+        </div>
+        <div class="hr-a2hs__arrow hr-a2hs__arrow--chrome" aria-hidden="true">
+            <div class="hr-a2hs__share-bubble">⋮</div>
+            <div class="hr-a2hs__chevron">↑</div>
+        </div>
+    `;
+    overlay.querySelector('.hr-a2hs__close')?.addEventListener('click', closeA2hsOverlay);
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeA2hsOverlay();
+    });
+    document.body.appendChild(overlay);
+}
+
+/** Guía / overlay. Chrome usa el diálogo nativo desde showInstallFlow. */
+export function showInstallGuide() {
+    if (typeof document === 'undefined' || isCapacitorNative() || isPwaInstalled()) return;
+    if (isIOS()) {
+        showIosAddToHomeOverlay();
+        return;
+    }
+    showChromeAddToHomeOverlay();
+}
+
+/** Un toque: Chrome instala nativo; Safari abre la guía pegada a Compartir. */
 export async function showInstallFlow() {
-    if (isCapacitorNative()) return;
-    if (!isPwaInstalled() && canTriggerNativeInstall()) {
+    if (isCapacitorNative() || isPwaInstalled()) return;
+    if (canTriggerNativeInstall()) {
         const installed = await tryNativeInstall();
         if (installed) return;
     }
-    showInstallGuide();
+    if (isIOS()) {
+        showIosAddToHomeOverlay();
+        return;
+    }
+    pendingUserInstallClick = true;
+    window.setTimeout(() => {
+        if (!pendingUserInstallClick) return;
+        pendingUserInstallClick = false;
+        if (canTriggerNativeInstall()) {
+            triggerNativeInstall().catch(() => showChromeAddToHomeOverlay());
+            return;
+        }
+        showChromeAddToHomeOverlay();
+    }, 350);
+}
+
+function markPwaInstalledClass(on) {
+    try {
+        document.documentElement.classList.toggle('hr-pwa-installed', !!on);
+    } catch (_) {}
+}
+
+function refreshInstallHomeUi() {
+    if (typeof document === 'undefined') return;
+    const installed = isPwaInstalled();
+    markPwaInstalledClass(installed);
+    if (installed) closeA2hsOverlay();
+    const oneTap = !installed && canTriggerNativeInstall();
+    const label = oneTap ? 'Instalar con un toque' : 'Instalar';
+    const sub = isIOS()
+        ? 'Safari: Compartir → Agregar a pantalla de inicio'
+        : (oneTap ? 'Un toque y queda como app' : 'Chrome: menú ⋮ → Instalar app');
+
+    const card = document.getElementById('hr-install-home-card');
+    if (card) {
+        card.classList.toggle('hidden', installed);
+        const btn = card.querySelector('[data-hr-install-btn]');
+        const subEl = card.querySelector('[data-hr-install-sub]');
+        if (btn) btn.textContent = label;
+        if (subEl) subEl.textContent = sub;
+    }
+
+    const banner = document.getElementById('ios-install-banner');
+    if (banner) {
+        const searching = document.body.classList.contains('is-searching');
+        const dismissed = (() => {
+            try { return sessionStorage.getItem('hrInstallBannerDismissed') === '1' || sessionStorage.getItem('iosInstallBannerDismissed') === '1'; }
+            catch (_) { return false; }
+        })();
+        const show = !installed && !searching && !dismissed;
+        banner.classList.toggle('hidden', !show);
+        const bBtn = banner.querySelector('#ios-install-btn, [data-hr-install-btn]');
+        if (bBtn) bBtn.textContent = oneTap ? 'INSTALAR' : 'INSTALAR';
+    }
+
+    document.getElementById('btn-native-install')?.classList.toggle('hidden', true);
+
+    document.querySelectorAll('[data-header-menu-action="install"]').forEach((el) => {
+        el.classList.toggle('hidden', installed);
+        el.setAttribute('aria-hidden', installed ? 'true' : 'false');
+    });
+
+    document.querySelectorAll('[data-hr-install-btn]').forEach((el) => {
+        if (el.id === 'ios-install-btn' || el.closest('#hr-install-home-card')) return;
+        el.classList.toggle('hidden', installed);
+    });
+}
+
+let installHomeUiInitialized = false;
+
+export function initInstallHomeUi() {
+    if (typeof window === 'undefined' || installHomeUiInitialized || isCapacitorNative()) {
+        if (isCapacitorNative()) hideInstallUiForNativeApp();
+        return;
+    }
+    installHomeUiInitialized = true;
+    refreshInstallHomeUi();
+    if (typeof navigator !== 'undefined' && typeof navigator.getInstalledRelatedApps === 'function') {
+        navigator.getInstalledRelatedApps().then((apps) => {
+            if (Array.isArray(apps) && apps.length) {
+                persistInstalledFlag();
+                refreshInstallHomeUi();
+            }
+        }).catch(() => {});
+    }
+
+    document.querySelectorAll('[data-hr-install-btn], #hr-install-home-btn, #ios-install-btn').forEach((btn) => {
+        if (btn.dataset.hrInstallBound === '1') return;
+        btn.dataset.hrInstallBound = '1';
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            showInstallFlow();
+        });
+    });
+
+    const closeBtn = document.getElementById('ios-install-close');
+    if (closeBtn && closeBtn.dataset.hrInstallBound !== '1') {
+        closeBtn.dataset.hrInstallBound = '1';
+        closeBtn.addEventListener('click', () => {
+            document.getElementById('ios-install-banner')?.classList.add('hidden');
+            try {
+                sessionStorage.setItem('hrInstallBannerDismissed', '1');
+                sessionStorage.setItem('iosInstallBannerDismissed', '1');
+            } catch (_) {}
+        });
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) refreshInstallHomeUi();
+    });
+    window.addEventListener('pageshow', refreshInstallHomeUi);
+    window.addEventListener('honduber-install-ready', refreshInstallHomeUi);
+    window.refreshIOSInstallBanner = refreshInstallHomeUi;
+    window.refreshInstallHomeUi = refreshInstallHomeUi;
+
+    if (window.__hrInstallQueued) {
+        window.__hrInstallQueued = false;
+        if (!isPwaInstalled()) showInstallFlow();
+    }
+}
+
+export function initIOSInstallBanner() {
+    initInstallHomeUi();
+}
+
+export function showIOSInstallBannerIfNeeded() {
+    refreshInstallHomeUi();
 }
 
 if (typeof window !== 'undefined') {
     window.showInstallGuide = showInstallGuide;
     window.showInstallFlow = showInstallFlow;
+    window.initInstallHomeUi = initInstallHomeUi;
 }

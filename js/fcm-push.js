@@ -242,30 +242,47 @@ async function resolveVapidKey(db, appId, configVapid) {
     }
 }
 
+const WEB_PUSH_TOKEN_OK_KEY = 'honduber_push_token_ok';
+
 function detectWebPushPlatform() {
     if (isIosStandalonePwa()) return 'ios-pwa';
     if (isIOS()) return 'ios-safari';
     return 'web';
 }
 
-async function registerMessagingServiceWorker() {
-    const swUrl = getMessagingSwUrl(import.meta.url);
-    if ('serviceWorker' in navigator) {
-        try {
-            const regs = await navigator.serviceWorker.getRegistrations();
-            await Promise.all(regs.map((reg) => {
-                const url = String(reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '');
-                // Quitar SW viejos con ?v= (rompían la suscripción en iOS)
-                if (url.includes('firebase-messaging-sw.js?')) return reg.unregister().catch(() => false);
-                return Promise.resolve(false);
-            }));
-        } catch (_) {}
+export function hasSavedWebPushToken() {
+    try {
+        return localStorage.getItem(WEB_PUSH_TOKEN_OK_KEY) === '1';
+    } catch (_) {
+        return false;
     }
-    const reg = await navigator.serviceWorker.register(swUrl, { scope: '/' });
-    try { reg.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
-    try { reg.installing?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
-    await new Promise((resolve) => {
-        const timer = setTimeout(() => resolve(reg), 4000);
+}
+
+function markWebPushTokenOk(ok) {
+    try {
+        if (ok) localStorage.setItem(WEB_PUSH_TOKEN_OK_KEY, '1');
+        else localStorage.removeItem(WEB_PUSH_TOKEN_OK_KEY);
+    } catch (_) {}
+}
+
+function messagingSwScriptUrl(reg) {
+    return String(
+        reg?.active?.scriptURL
+        || reg?.waiting?.scriptURL
+        || reg?.installing?.scriptURL
+        || ''
+    );
+}
+
+function isCurrentMessagingSwUrl(url) {
+    if (!url) return false;
+    const path = url.split('?')[0];
+    return /\/firebase-messaging-sw\.js$/i.test(path) && !url.includes('?');
+}
+
+async function waitForServiceWorkerReady(reg, timeoutMs) {
+    const ready = await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(reg), timeoutMs);
         navigator.serviceWorker.ready.then((readyReg) => {
             clearTimeout(timer);
             resolve(readyReg || reg);
@@ -274,7 +291,93 @@ async function registerMessagingServiceWorker() {
             resolve(reg);
         });
     });
-    return reg;
+    if (navigator.serviceWorker.controller) return ready;
+    await new Promise((resolve) => {
+        const timer = setTimeout(resolve, Math.min(4000, timeoutMs));
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            clearTimeout(timer);
+            resolve();
+        }, { once: true });
+    });
+    return ready;
+}
+
+async function registerMessagingServiceWorker() {
+    const swUrl = getMessagingSwUrl(import.meta.url);
+    if ('serviceWorker' in navigator) {
+        try {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((reg) => {
+                const url = messagingSwScriptUrl(reg);
+                // sw.js viejo y SW con ?v= dejan iOS sin showNotification → Safari revoca el push
+                if (isCurrentMessagingSwUrl(url)) return Promise.resolve(false);
+                return reg.unregister().catch(() => false);
+            }));
+        } catch (_) {}
+    }
+    const reg = await navigator.serviceWorker.register(swUrl, { scope: '/' });
+    try { reg.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
+    try { reg.installing?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
+    return waitForServiceWorkerReady(reg, isIOS() ? 15000 : 4000);
+}
+
+async function messagingSupportedHere() {
+    try {
+        if (await isSupported()) return true;
+    } catch (_) {}
+    // iOS PWA: isSupported() a veces da false por cookies/ITP y el push sí existe
+    return isIosStandalonePwa()
+        && 'serviceWorker' in navigator
+        && 'PushManager' in window
+        && 'Notification' in window;
+}
+
+async function getFcmTokenWithRetry(messagingInstance, key, reg) {
+    const attempts = isIOS() ? 3 : 1;
+    const timeoutMs = isIOS() ? 20000 : 8000;
+    let lastErr = null;
+    for (let i = 0; i < attempts; i += 1) {
+        try {
+            const token = await Promise.race([
+                getToken(messagingInstance, {
+                    vapidKey: key,
+                    serviceWorkerRegistration: reg
+                }),
+                new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('getToken-timeout')), timeoutMs);
+                })
+            ]);
+            if (token) return token;
+        } catch (e) {
+            lastErr = e;
+            await new Promise((r) => setTimeout(r, 700 * (i + 1)));
+        }
+    }
+    if (lastErr) throw lastErr;
+    return null;
+}
+
+export async function showWebPushSelfTest(body) {
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+    const text = body || 'Avisos activos en este iPhone. Si ves esto, el permiso ya funciona.';
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification('HonduRaite', {
+            body: text,
+            icon: '/icons/icon-192.png',
+            badge: '/icons/icon-192.png',
+            tag: 'hr-push-test',
+            data: { type: 'push_test' }
+        });
+        return true;
+    } catch (_) {
+        try {
+            new Notification('HonduRaite', { body: text, icon: '/icons/icon-192.png' });
+            return true;
+        } catch (e) {
+            return false;
+        }
+    }
 }
 
 const FCM_TOKEN_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
@@ -369,6 +472,7 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     }
     if (saved) {
         try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
+        markWebPushTokenOk(true);
         pruneStaleFcmTokens(db, appId, uid, token).catch(() => {});
     }
     return saved;
@@ -710,7 +814,7 @@ let lastWebTokenValue = '';
 /** Web/PWA: FCM con service worker y VAPID. No se ejecuta en APK Android. */
 export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) {
     if (isCapacitorNative()) return null;
-    if (!uid || !(await isSupported())) return null;
+    if (!uid || !(await messagingSupportedHere())) return null;
 
     // iPhone: en pestaña Safari el token NO entrega viajes con la app cerrada.
     if (isIOS() && !canReceiveBackgroundWebPush()) {
@@ -728,15 +832,7 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
         const app = ensureFirebaseApp(firebaseConfig);
         const reg = await registerMessagingServiceWorker();
         messagingInstance = getMessaging(app);
-        const token = await Promise.race([
-            getToken(messagingInstance, {
-                vapidKey: key,
-                serviceWorkerRegistration: reg
-            }),
-            new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('getToken-timeout')), 8000);
-            })
-        ]);
+        const token = await getFcmTokenWithRetry(messagingInstance, key, reg);
 
         if (token) {
             const platform = detectWebPushPlatform();
@@ -745,6 +841,8 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
                 lastWebTokenValue = token;
                 lastWebTokenSaveAt = now;
                 await saveFcmToken(db, appId, uid, token, platform);
+            } else {
+                markWebPushTokenOk(true);
             }
         }
 
