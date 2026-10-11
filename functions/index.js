@@ -2489,8 +2489,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
                 aps: {
                     alert: { title: safeTitle, body: safeBody },
                     sound: 'default',
-                    'interruption-level': 'time-sensitive',
-                    'content-available': 1
+                    'interruption-level': 'time-sensitive'
                 }
             }
         }
@@ -2725,11 +2724,12 @@ async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = [])
     return { sent: sent.length, skipNoPhone, skipFail, skipAlready };
 }
 
-async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment = false } = {}) {
+async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment = false, closedAppOnly = false } = {}) {
     if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
-    if (isExclusiveWindowOpen(trip) && !expandDepartment) return;
-    if (!expandDepartment && trip.eligibleDriverAlertSent) return;
+    if (closedAppOnly && trip.closedAppDriverAlertSent) return;
+    if (isExclusiveWindowOpen(trip) && !expandDepartment && !closedAppOnly) return;
+    if (!expandDepartment && !closedAppOnly && trip.eligibleDriverAlertSent) return;
     if (expandDepartment && trip.eligibleDriverDeptAlertSent) return;
 
     const serviceType = trip.serviceType || 'auto';
@@ -2794,6 +2794,7 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
         }
 
         const loc = locByDriver.get(uid) || {};
+        if (closedAppOnly && isDriverOnline(loc)) continue;
         if (requiredType && !driverCanReceiveTripAlert(u, loc, requiredType)) {
             skipVehicle += 1;
             continue;
@@ -2847,7 +2848,7 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
     const pushed = pushResults.filter((r) => r && r.sent > 0).length;
     console.log(
         `[notifyEligibleDriversNewTrip] ${tripId} zone=${tripZone || 'n/a'} dept=${tripDept || 'n/a'} ` +
-        `considered=${candidateUids.size} city=${cityList.length} nearby=${nearbyList.length} ` +
+        `closedAppOnly=${closedAppOnly} considered=${candidateUids.size} city=${cityList.length} nearby=${nearbyList.length} ` +
         `pushed=${pushed} skipCity=${skipCity} skipVehicle=${skipVehicle} ` +
         `skipRestricted=${skipRestricted} skipLocked=${skipLocked} skipNoToken=${skipNoToken}`
     );
@@ -2866,14 +2867,14 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
         ...cityList.slice(0, 400),
         ...nearbyList.slice(0, Math.max(0, 400 - cityList.length))
     ];
-    // Primero quien el FCM no va a despertar (sin token / sent=0).
+    // WhatsApp barato: app cerrada / GPS viejo / sin token / FCM sent=0.
+    // No volvemos a mandar marketing a toda la ciudad.
     orderedPushIds.forEach((id, i) => {
+        const loc = locByDriver.get(id) || {};
         const r = pushResults[i];
-        if (!r || r.tokens === 0 || r.sent === 0) addWa(id);
+        const weakPush = !r || r.tokens === 0 || r.sent === 0;
+        if (closedAppOnly || !isDriverOnline(loc) || weakPush) addWa(id);
     });
-    // iPhone puede reportar FCM sent>0 y no mostrar el aviso hasta abrir la app.
-    // WhatsApp va a todos los elegibles de ciudad/cerca (tope en notifyDriversNewTripWhatsApp).
-    orderedPushIds.forEach((id) => addWa(id));
     const waResult = await notifyDriversNewTripWhatsApp(appId, tripId, trip, waTargets).catch((e) => {
         console.warn('[wa] eligible new trip', e?.message || e);
         return null;
@@ -2882,6 +2883,17 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
         `[notifyEligibleDriversNewTrip] ${tripId} waTargets=${waTargets.length} ` +
         `waSent=${waResult?.sent || 0} waNoPhone=${waResult?.skipNoPhone || 0} waFail=${waResult?.skipFail || 0}`
     );
+
+    if (closedAppOnly) {
+        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
+            closedAppDriverAlertSent: true,
+            closedAppDriverAlertCount: list.length,
+            closedAppDriverAlertPushed: pushed,
+            closedAppDriverAlertWaSent: waResult?.sent || 0,
+            closedAppDriverAlertAt: FieldValue.serverTimestamp()
+        }).catch(() => {});
+        return;
+    }
 
     if (list.length || expandDepartment) {
         const patch = {
@@ -2923,6 +2935,10 @@ async function expandPendingTripToDepartment(appId, tripId, tripLike = null) {
 async function alertDriversForPendingTrip(appId, tripId, trip) {
     const assignedExclusive = await assignNextTripOfferServer(appId, tripId).catch(() => false);
     await notifyStaffNewTrip(appId, tripId, trip).catch(() => {});
+    // App cerrada: FCM + WhatsApp ya, sin esperar los 18s del más cercano en línea.
+    await notifyEligibleDriversNewTrip(appId, tripId, trip, { closedAppOnly: true }).catch((e) => {
+        console.warn('notifyClosedAppDriversNewTrip', e?.message || e);
+    });
     if (assignedExclusive) {
         await sleep(TRIP_OFFER_EXCLUSIVE_MS);
     }
@@ -3007,6 +3023,9 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
         const t = d.data();
         if (isStaffTripWaitingClientClaim(t)) continue;
         if (t.driverId || t.isDemandSimulation) continue;
+        if (!t.closedAppDriverAlertSent) {
+            await notifyEligibleDriversNewTrip(APP_ID, d.id, t, { closedAppOnly: true }).catch(() => {});
+        }
         // Respaldo si el create se cayó: abrir a la ciudad al vencer los 18s
         if (t.offerPhase !== 'city' && (isExclusiveWindowExpired(t) || !t.offeredToDriverId)) {
             if (!t.offeredToDriverId && t.offerPhase !== 'exclusive') {
