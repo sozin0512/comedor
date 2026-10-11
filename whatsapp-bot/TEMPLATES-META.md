@@ -1,8 +1,6 @@
 # Plantillas WhatsApp Cloud API · HonduRaite
 
-Todas van en categoría **UTILITY** (`es_HN`) para cobrar ~0,011 USD en Honduras, no marketing (~0,074 USD).
-
-Meta no deja cambiar la categoría de una plantilla ya aprobada: hay nombres nuevos. Si Meta aún no las aprueba, Functions hace fallback a las de marketing viejas.
+Todas van en categoría **UTILITY** (`es_HN`). Las de marketing viejas se borraron; no hay fallback.
 
 ---
 
@@ -11,7 +9,6 @@ Meta no deja cambiar la categoría de una plantilla ya aprobada: hay nombres nue
 | Campo | Valor |
 |--------|--------|
 | **Nombre** | `solicitud_viaje_recibida` (`WHATSAPP_TEMPLATE_TRIP_RECEIVED`) |
-| **Fallback** | `tu_viaje_esta_confirmado` |
 | **Variables** | `{{1}}` nombre · `{{2}}` ruta |
 
 ---
@@ -21,7 +18,6 @@ Meta no deja cambiar la categoría de una plantilla ya aprobada: hay nombres nue
 | Campo | Valor |
 |--------|--------|
 | **Nombre** | `viaje_pendiente_chofer` (`WHATSAPP_TEMPLATE_DRIVER_NEW_TRIP`) |
-| **Fallback** | `nuevo_viaje` |
 | **Variables** | `{{1}}` origen · `{{2}}` destino · `{{3}}` distancia |
 | **Botón** | Abrir HonduRaite → `https://honduraite.com/?openDriver=1` |
 
@@ -32,7 +28,6 @@ Meta no deja cambiar la categoría de una plantilla ya aprobada: hay nombres nue
 | Campo | Valor |
 |--------|--------|
 | **Nombre** | `conductor_acepto_viaje` (`WHATSAPP_TEMPLATE_TRIP_CONFIRMED`) |
-| **Fallback** | `viaje_confirmado` |
 | **Variables** | `{{1}}` conductor · `{{2}}` vehículo · `{{3}}` placa · `{{4}}` minutos |
 
 ---
@@ -42,7 +37,6 @@ Meta no deja cambiar la categoría de una plantilla ya aprobada: hay nombres nue
 | Campo | Valor |
 |--------|--------|
 | **Nombre** | `conductor_en_recogida` (`WHATSAPP_TEMPLATE_DRIVER_ARRIVED`) |
-| **Fallback** | `conductor_llego` |
 | **Variables** | `{{1}}` conductor · `{{2}}` placa · `{{3}}` teléfono |
 
 ---

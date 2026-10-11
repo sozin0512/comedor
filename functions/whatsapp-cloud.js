@@ -49,14 +49,7 @@ const waN8nWebhookUrl = defineString('WHATSAPP_N8N_WEBHOOK_URL', {
     description: 'URL de n8n para reenviar eventos WhatsApp (messages, statuses)'
 });
 
-/** Plantillas UTILITY (es_HN). Las de marketing viejas solo son fallback si Meta aún no aprueba. */
-const WA_TEMPLATE_MARKETING_FALLBACK = {
-    solicitud_viaje_recibida: 'tu_viaje_esta_confirmado',
-    conductor_acepto_viaje: 'viaje_confirmado',
-    conductor_en_recogida: 'conductor_llego',
-    viaje_pendiente_chofer: 'nuevo_viaje'
-};
-
+/** Plantillas UTILITY (es_HN). Sin fallback a marketing. */
 const waTemplateTripReceived = defineString('WHATSAPP_TEMPLATE_TRIP_RECEIVED', {
     default: 'solicitud_viaje_recibida',
     description: 'UTILITY: solicitud recibida. {{1}} nombre {{2}} ruta'
@@ -218,11 +211,6 @@ async function graphSendMessage(payload) {
     return last;
 }
 
-function templateUnavailable(res) {
-    const blob = JSON.stringify(res?.error || res || '');
-    return /132001|132005|template.*not exist|does not exist in the translation|not been approved|is paused|pending/i.test(blob);
-}
-
 /**
  * Envía plantilla de texto con variables {{1}}, {{2}}, ...
  * @param {string} toPhone
@@ -254,12 +242,7 @@ async function sendWhatsAppTemplate(toPhone, templateName, bodyParams = [], lang
             ...(components.length ? { components } : {})
         }
     };
-    let res = await graphSendMessage(payload);
-    const fallbackName = WA_TEMPLATE_MARKETING_FALLBACK[templateName];
-    if (!res?.ok && fallbackName && templateUnavailable(res)) {
-        console.warn(`[wa] plantilla ${templateName} no lista, fallback ${fallbackName}`);
-        return sendWhatsAppTemplate(toPhone, fallbackName, bodyParams, lang);
-    }
+    const res = await graphSendMessage(payload);
     try {
         await db().collection(`artifacts/${APP_ID}/public/data/whatsapp_cloud_outbox`).add({
             sentAt: FieldValue.serverTimestamp(),
@@ -2912,13 +2895,13 @@ exports.testWhatsAppTripTemplate = onCall(
 
         let template = String(request.data?.template || '').trim();
         let params = [];
-        if (kind === 'confirmed' || template === 'viaje_confirmado' || template === 'conductor_acepto_viaje') {
+        if (kind === 'confirmed' || template === 'conductor_acepto_viaje') {
             template = template || (waTemplateTripConfirmed.value() || 'conductor_acepto_viaje');
             params = [driver, vehicle, plate, mins];
-        } else if (kind === 'arrived' || template === 'conductor_llego' || template === 'conductor_en_recogida') {
+        } else if (kind === 'arrived' || template === 'conductor_en_recogida') {
             template = template || (waTemplateDriverArrived.value() || 'conductor_en_recogida');
             params = [driver, plate, driverPhone];
-        } else if (kind === 'driver' || kind === 'nuevo_viaje' || template === 'nuevo_viaje' || template === 'viaje_pendiente_chofer') {
+        } else if (kind === 'driver' || template === 'viaje_pendiente_chofer') {
             template = template || (waTemplateDriverNewTrip.value() || 'viaje_pendiente_chofer');
             const origin = String(request.data?.origin || 'Centro').trim().slice(0, 80);
             params = [origin, dest, dist];
