@@ -407,9 +407,10 @@ async function notifyDriverNewTripWa(trip, tripId, driver = {}) {
     const template = (waTemplateDriverNewTrip.value() || 'nuevo_viaje').trim();
     const link = driverTripOpenLink(tripId);
     const base = [originLabel(trip), destLabel(trip), distanceLabel(trip)];
-    let result = await sendWhatsAppTemplate(phone, template, [...base, link]);
+    // Meta tiene {{1}} origen {{2}} destino {{3}} distancia. El 4.º (link) solo si la plantilla ya lo trae.
+    let result = await sendWhatsAppTemplate(phone, template, base);
     if (!result?.ok && templateParamMismatch(result)) {
-        result = await sendWhatsAppTemplate(phone, template, base);
+        result = await sendWhatsAppTemplate(phone, template, [...base, link]);
     }
     // Si hay ventana de 24 h con el bot, el link va también en texto (se puede tocar).
     await sendCloudText(
@@ -768,6 +769,27 @@ async function persistWebhookPayload(body) {
                     messageId: msg.id || null,
                     timestamp: msg.timestamp || null,
                     text: msg.text?.body || null,
+                    phoneNumberId: value.metadata?.phone_number_id || null
+                }));
+            }
+            for (const st of value.statuses || []) {
+                const status = String(st.status || '');
+                const errors = Array.isArray(st.errors) ? st.errors : [];
+                if (status === 'failed' || status === 'dropped' || errors.length) {
+                    console.warn(
+                        '[wa] delivery',
+                        status,
+                        st.recipient_id || '',
+                        JSON.stringify(errors).slice(0, 400)
+                    );
+                }
+                writes.push(firestore.collection(`artifacts/${APP_ID}/public/data/whatsapp_cloud_statuses`).add({
+                    receivedAt: now,
+                    to: st.recipient_id || null,
+                    status,
+                    messageId: st.id || null,
+                    timestamp: st.timestamp || null,
+                    errors,
                     phoneNumberId: value.metadata?.phone_number_id || null
                 }));
             }

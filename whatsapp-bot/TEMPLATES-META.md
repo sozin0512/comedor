@@ -18,26 +18,18 @@ Sigue `tu_viaje_esta_confirmado`: `{{1}}` nombre · `{{2}}` ruta Origen → Dest
 | Campo | Valor |
 |--------|--------|
 | **Nombre en código** | `nuevo_viaje` (`WHATSAPP_TEMPLATE_DRIVER_NEW_TRIP`) |
-| **Variables** | `{{1}}` origen · `{{2}}` destino · `{{3}}` distancia · `{{4}}` link (`https://honduraite.com/?trip=ID#driver`) |
+| **Variables** | `{{1}}` origen · `{{2}}` destino · `{{3}}` distancia |
+| **Categoría en Meta** | `nuevo_viaje` está APPROVED como MARKETING (puede no sonar / ir a “Empresas”). Plantilla UTILITY `viaje_pendiente_chofer` en revisión. |
 
-**Cuerpo en Meta (actualizar y enviar a revisión):**
+Cuerpo actual de `nuevo_viaje`:
 
 ```
-Hay un viaje nuevo en HonduRaite.
-
-Origen: {{1}}
-Destino: {{2}}
-Distancia: {{3}}
-
-Entra a la plataforma y acéptalo aquí:
-{{4}}
+Hay un viaje disponible. Origen: {{1}}. Destino: {{2}}. Distancia: {{3}}. Entrá a HonduRaite para ofertar.
 ```
 
-Botón opcional (CTA URL): `https://honduraite.com/?trip=` + sufijo dinámico.
+El código manda 3 variables (no 4). Si hay ventana 24 h, un texto extra con el link `https://honduraite.com/?openDriver=1`.
 
-Hasta que Meta apruebe las 4 variables, el código manda las 3 actuales y, si el conductor ya escribió al bot (ventana 24 h), un texto extra con el link.
-
-Se envía a conductores de la ciudad (app cerrada / sin push) y al ofertado.
+Se envía a conductores elegibles de la ciudad (cap 50).
 
 ---
 

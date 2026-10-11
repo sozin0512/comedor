@@ -2682,30 +2682,36 @@ async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = [])
     const sent = [];
     let skipNoPhone = 0;
     let skipFail = 0;
-    for (const uid of pending) {
-        try {
-            const phone = typeof wa.resolveDriverPhoneByUid === 'function'
-                ? await wa.resolveDriverPhoneByUid(uid)
-                : null;
-            if (!phone) {
-                skipNoPhone += 1;
-                console.warn(`[wa] new trip ${tripId} no_phone uid=${uid}`);
-                continue;
-            }
-            const r = await wa.notifyDriverNewTripWa(trip, tripId, { phone, uid, tripId });
-            if (r?.ok) {
-                sent.push(uid);
-            } else {
+    const WA_POOL = 6;
+    let cursor = 0;
+    const worker = async () => {
+        while (cursor < pending.length) {
+            const uid = pending[cursor++];
+            try {
+                const phone = typeof wa.resolveDriverPhoneByUid === 'function'
+                    ? await wa.resolveDriverPhoneByUid(uid)
+                    : null;
+                if (!phone) {
+                    skipNoPhone += 1;
+                    console.warn(`[wa] new trip ${tripId} no_phone uid=${uid}`);
+                    continue;
+                }
+                const r = await wa.notifyDriverNewTripWa(trip, tripId, { phone, uid, tripId });
+                if (r?.ok) {
+                    sent.push(uid);
+                } else {
+                    skipFail += 1;
+                    console.warn(
+                        `[wa] new trip ${tripId} fail uid=${uid} reason=${r?.reason || r?.error || r?.status || 'unknown'}`
+                    );
+                }
+            } catch (e) {
                 skipFail += 1;
-                console.warn(
-                    `[wa] new trip ${tripId} fail uid=${uid} reason=${r?.reason || r?.error || r?.status || 'unknown'}`
-                );
+                console.warn('[wa] driver new trip', uid, e?.message || e);
             }
-        } catch (e) {
-            skipFail += 1;
-            console.warn('[wa] driver new trip', uid, e?.message || e);
         }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(WA_POOL, pending.length) }, () => worker()));
     if (sent.length) {
         await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
             waDriverOfferUids: FieldValue.arrayUnion(...sent),
