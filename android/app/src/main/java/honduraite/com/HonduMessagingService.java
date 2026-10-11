@@ -90,14 +90,13 @@ public class HonduMessagingService extends FirebaseMessagingService {
             "Tienes un aviso nuevo"
         );
 
-        // App en primer plano: el JS ya muestra banner/tono; no duplicar
-        if (MainActivity.isAppInForeground()) {
+        boolean tripAlert = isTripWakeAlert(data);
+        boolean driverOrStaffWake = isDriverOrStaffTripWake(data);
+        // Login / sesión cerrada: la Activity sigue en primer plano y el JS no pinta
+        // el viaje. Los avisos de viaje siempre salen nativos.
+        if (MainActivity.isAppInForeground() && !tripAlert && !driverOrStaffWake) {
             return;
         }
-
-        boolean tripAlert = isTripWakeAlert(data);
-        // Conductor / staff: misma fuerza (pantalla apagada → enciende como llamada)
-        boolean driverOrStaffWake = isDriverOrStaffTripWake(data);
         ensureWhatsAppChannel(this);
         wakeScreenBriefly(this, (tripAlert || driverOrStaffWake) ? 12000L : 4000L);
         // Sonido explícito: muchos OEMs dejan el canal solo en vibración

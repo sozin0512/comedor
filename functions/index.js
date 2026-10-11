@@ -2456,17 +2456,31 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     };
     if (data.tag) webNotification.tag = String(data.tag);
 
-    // Importante: NO poner `notification` de nivel raÃ­z ni `android.notification`.
-    // Si van, Android muestra un tray genÃ©rico y NO llama onMessageReceived en background
-    // â†’ no podemos encender pantalla ni full-screen intent. Web/iOS van en webpush/apns.
+    // Viaje con la app cerrada / APK muerta: data-only NO llega (el SO no despierta
+    // HonduMessagingService). android.notification sí pinta el aviso de sistema.
+    const androidConfig = {
+        priority: 'high',
+        ttl: (isTripWake ? 3600 : 300) * 1000
+    };
+    if (isTripWake) {
+        androidConfig.notification = {
+            title: safeTitle,
+            body: safeBody,
+            channelId: audio.channelId,
+            sound: audio.sound || HONDU_ICONIC_PUSH_SOUND,
+            defaultVibrateTimings: true,
+            visibility: 'PUBLIC',
+            notificationPriority: 'PRIORITY_MAX',
+            tag: String(data.tag || `trip-${type || 'alert'}`).slice(0, 60)
+        };
+    }
+
     const payload = {
         tokens,
         data: Object.fromEntries(
             Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
         ),
         webpush: {
-            // high + TTL largo: iPhone bloqueado / sin red tira el aviso si TTL es corto.
-            // trip_offer iba a 180s y los conductores perdían el aviso; ahora igual que staff.
             headers: {
                 Urgency: 'high',
                 TTL: '86400'
@@ -2474,12 +2488,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             notification: webNotification,
             fcmOptions: { link: clickUrl }
         },
-        android: {
-            // data-only + high priority: HonduMessagingService pinta el aviso tipo WhatsApp
-            // 1h en viajes (antes 5 min: Doze/sin red se comía el aviso del conductor)
-            priority: 'high',
-            ttl: (isTripWake ? 3600 : 300) * 1000
-        },
+        android: androidConfig,
         apns: {
             headers: {
                 'apns-priority': '10',
@@ -2724,12 +2733,13 @@ async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = [])
     return { sent: sent.length, skipNoPhone, skipFail, skipAlready };
 }
 
-async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment = false, closedAppOnly = false } = {}) {
+async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment = false, closedAppOnly = false, immediate = false } = {}) {
     if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
     if (closedAppOnly && trip.closedAppDriverAlertSent) return;
-    if (isExclusiveWindowOpen(trip) && !expandDepartment && !closedAppOnly) return;
-    if (!expandDepartment && !closedAppOnly && trip.eligibleDriverAlertSent) return;
+    if (immediate && trip.eligibleDriverAlertSent) return;
+    if (isExclusiveWindowOpen(trip) && !expandDepartment && !closedAppOnly && !immediate) return;
+    if (!expandDepartment && !closedAppOnly && !immediate && trip.eligibleDriverAlertSent) return;
     if (expandDepartment && trip.eligibleDriverDeptAlertSent) return;
 
     const serviceType = trip.serviceType || 'auto';
@@ -2848,7 +2858,7 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
     const pushed = pushResults.filter((r) => r && r.sent > 0).length;
     console.log(
         `[notifyEligibleDriversNewTrip] ${tripId} zone=${tripZone || 'n/a'} dept=${tripDept || 'n/a'} ` +
-        `closedAppOnly=${closedAppOnly} considered=${candidateUids.size} city=${cityList.length} nearby=${nearbyList.length} ` +
+        `immediate=${immediate} closedAppOnly=${closedAppOnly} considered=${candidateUids.size} city=${cityList.length} nearby=${nearbyList.length} ` +
         `pushed=${pushed} skipCity=${skipCity} skipVehicle=${skipVehicle} ` +
         `skipRestricted=${skipRestricted} skipLocked=${skipLocked} skipNoToken=${skipNoToken}`
     );
@@ -2935,9 +2945,9 @@ async function expandPendingTripToDepartment(appId, tripId, tripLike = null) {
 async function alertDriversForPendingTrip(appId, tripId, trip) {
     const assignedExclusive = await assignNextTripOfferServer(appId, tripId).catch(() => false);
     await notifyStaffNewTrip(appId, tripId, trip).catch(() => {});
-    // App cerrada: FCM + WhatsApp ya, sin esperar los 18s del más cercano en línea.
-    await notifyEligibleDriversNewTrip(appId, tripId, trip, { closedAppOnly: true }).catch((e) => {
-        console.warn('notifyClosedAppDriversNewTrip', e?.message || e);
+    // Push ya, con o sin sesión abierta. El exclusivo de 18s solo prioriza quién acepta.
+    await notifyEligibleDriversNewTrip(appId, tripId, trip, { immediate: true }).catch((e) => {
+        console.warn('notifyEligibleDriversNewTrip immediate', e?.message || e);
     });
     if (assignedExclusive) {
         await sleep(TRIP_OFFER_EXCLUSIVE_MS);
@@ -3023,8 +3033,8 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
         const t = d.data();
         if (isStaffTripWaitingClientClaim(t)) continue;
         if (t.driverId || t.isDemandSimulation) continue;
-        if (!t.closedAppDriverAlertSent) {
-            await notifyEligibleDriversNewTrip(APP_ID, d.id, t, { closedAppOnly: true }).catch(() => {});
+        if (!t.eligibleDriverAlertSent) {
+            await notifyEligibleDriversNewTrip(APP_ID, d.id, t, { immediate: true }).catch(() => {});
         }
         // Respaldo si el create se cayó: abrir a la ciudad al vencer los 18s
         if (t.offerPhase !== 'city' && (isExclusiveWindowExpired(t) || !t.offeredToDriverId)) {
