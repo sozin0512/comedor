@@ -412,11 +412,6 @@ async function notifyDriverNewTripWa(trip, tripId, driver = {}) {
     if (!result?.ok && templateParamMismatch(result)) {
         result = await sendWhatsAppTemplate(phone, template, [...base, link]);
     }
-    // Si hay ventana de 24 h con el bot, el link va también en texto (se puede tocar).
-    await sendCloudText(
-        phone,
-        `HonduRaite: hay un viaje. Entra a la plataforma y acéptalo aquí:\n${link}`
-    ).catch(() => {});
     return result;
 }
 
