@@ -155,7 +155,7 @@ function showAppUpdateModal({ remoteVersion, force = false, showIosHelp = false 
             </div>
             <h2 id="app-update-title" class="app-update-modal-title">Nueva versión disponible</h2>
             <p class="app-update-modal-text">
-                Hay una actualización de HonduRaite. Toca <strong>Actualizar ahora</strong> para cargar los cambios más recientes.
+                Hay una actualización <strong>obligatoria</strong> de HonduRaite. Toca <strong>Actualizar ahora</strong> para cargar los avisos de viaje y seguir trabajando.
             </p>
             <p class="app-update-modal-meta">Instalada: ${running}${remoteVersion ? ` · Disponible: ${remoteVersion}` : ''}</p>
             ${showIosHelp || isIOSDevice() ? iosHelpBlock() : ''}
@@ -430,18 +430,17 @@ export function initAppUpdateCheck() {
     window.getBuildVersion = getBuildVersion;
     window.getMessagingSwUrl = getMessagingSwUrl;
 
-    // App nativa empaqueta assets: el update de web/PWA no aplica
-    if (isCapacitorNative()) {
-        console.info('[pwa-update] Capacitor nativo: se omite check web');
-        return;
+    // APK Capacitor carga el sitio vivo (server.url): también hay que recargar el WebView.
+    if (!isCapacitorNative()) {
+        bindServiceWorkerUpdateFlow();
     }
 
-    bindServiceWorkerUpdateFlow();
-
     // iPhone / PWA: varios pases tempranos (Safari a veces tarda o cachea el primer fetch)
-    const earlyMs = isIOSDevice()
-        ? [400, 1200, 2800, 6000, 12000, 25000]
-        : [1200, 4000, 12000];
+    const earlyMs = isCapacitorNative()
+        ? [600, 2000, 8000]
+        : (isIOSDevice()
+            ? [400, 1200, 2800, 6000, 12000, 25000]
+            : [1200, 4000, 12000]);
     earlyMs.forEach((ms) => {
         window.setTimeout(() => {
             checkForAppUpdate({ force: true }).catch(() => {});
