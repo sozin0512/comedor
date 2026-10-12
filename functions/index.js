@@ -1068,13 +1068,7 @@ exports.acceptDriverTrip = onCall(async (request) => {
             'El pasajero aÃºn no confirmÃ³ este viaje armado por staff.'
         );
     }
-    // Hibrido: 18s exclusivos al mas cercano. Despues se abre a toda la ciudad.
-    if (isExclusiveWindowOpen(trip) && trip.offeredToDriverId && trip.offeredToDriverId !== uid) {
-        throw new HttpsError(
-            'failed-precondition',
-            'Este viaje se está ofreciendo al conductor más cercano. En unos segundos se abre a todos en la ciudad.'
-        );
-    }
+    // El viaje queda abierto a la ciudad al crearse (mismo instante que lo ve staff).
     const declined = Array.isArray(trip.declinedDriverIds) ? trip.declinedDriverIds : [];
     if (declined.includes(uid)) {
         throw new HttpsError('failed-precondition', 'Ya rechazaste este viaje.');
@@ -2655,27 +2649,28 @@ async function notifyStaffNewTrip(appId, tripId, trip) {
     const body = `${price} Â· ${originShort || 'UbicaciÃ³n'}`;
 
     const snap = await db.collection(`artifacts/${appId}/public/data/users`).get();
-    const sent = new Set();
-
+    const staffIds = [];
+    const seen = new Set();
     for (const doc of snap.docs) {
         const u = doc.data() || {};
         const isStaff = u.role === 'supervisor' || u.email === ADMIN_EMAIL || u.role === 'admin';
-        if (!isStaff || sent.has(doc.id)) continue;
-        sent.add(doc.id);
-        await sendPushToUser(appId, doc.id, {
-            title,
-            body,
-            data: {
-                type: 'new_trip_staff',
-                tripId,
-                serviceType: trip.serviceType || '',
-                tag: `staff-trip-${tripId}`,
-                openAdmin: 'true',
-                superVibrate: 'true'
-            },
-            highPriority: true
-        });
+        if (!isStaff || seen.has(doc.id)) continue;
+        seen.add(doc.id);
+        staffIds.push(doc.id);
     }
+    await Promise.all(staffIds.map((id) => sendPushToUser(appId, id, {
+        title,
+        body,
+        data: {
+            type: 'new_trip_staff',
+            tripId,
+            serviceType: trip.serviceType || '',
+            tag: `staff-trip-${tripId}`,
+            openAdmin: 'true',
+            superVibrate: 'true'
+        },
+        highPriority: true
+    }).catch(() => null)));
 }
 
 /**
@@ -2898,14 +2893,15 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
         const weakPush = !r || r.tokens === 0 || r.sent === 0;
         if (closedAppOnly || !isDriverOnline(loc) || weakPush) addWa(id);
     });
-    const waResult = await notifyDriversNewTripWhatsApp(appId, tripId, trip, waTargets).catch((e) => {
+    notifyDriversNewTripWhatsApp(appId, tripId, trip, waTargets).then((waResult) => {
+        console.log(
+            `[notifyEligibleDriversNewTrip] ${tripId} waTargets=${waTargets.length} ` +
+            `waSent=${waResult?.sent || 0} waNoPhone=${waResult?.skipNoPhone || 0} waFail=${waResult?.skipFail || 0}`
+        );
+    }).catch((e) => {
         console.warn('[wa] eligible new trip', e?.message || e);
-        return null;
     });
-    console.log(
-        `[notifyEligibleDriversNewTrip] ${tripId} waTargets=${waTargets.length} ` +
-        `waSent=${waResult?.sent || 0} waNoPhone=${waResult?.skipNoPhone || 0} waFail=${waResult?.skipFail || 0}`
-    );
+    const waResult = null;
 
     if (closedAppOnly) {
         await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
@@ -2956,20 +2952,19 @@ async function expandPendingTripToDepartment(appId, tripId, tripLike = null) {
 }
 
 async function alertDriversForPendingTrip(appId, tripId, trip) {
-    const assignedExclusive = await assignNextTripOfferServer(appId, tripId).catch(() => false);
-    await notifyStaffNewTrip(appId, tripId, trip).catch(() => {});
-    // Push ya, con o sin sesión abierta. El exclusivo de 18s solo prioriza quién acepta.
-    await notifyEligibleDriversNewTrip(appId, tripId, trip, { immediate: true }).catch((e) => {
-        console.warn('notifyEligibleDriversNewTrip immediate', e?.message || e);
-    });
-    if (assignedExclusive) {
-        await sleep(TRIP_OFFER_EXCLUSIVE_MS);
-    }
+    // Igual que staff: FCM YA. Sin esperar GPS exclusivo ni 18s.
+    await Promise.all([
+        notifyStaffNewTrip(appId, tripId, trip).catch((e) => {
+            console.warn('notifyStaffNewTrip', e?.message || e);
+        }),
+        notifyEligibleDriversNewTrip(appId, tripId, trip, { immediate: true }).catch((e) => {
+            console.warn('notifyEligibleDriversNewTrip immediate', e?.message || e);
+        })
+    ]);
+    // Ciudad abierta YA: el conductor lo ve y puede aceptar, como el supervisor.
     await openTripOfferToCity(appId, tripId).catch((e) => {
         console.warn('openTripOfferToCity', e?.message || e);
     });
-    await sleep(TRIP_DEPT_EXPAND_MS);
-    await expandPendingTripToDepartment(appId, tripId);
 }
 
 exports.onTripCreatedAssignOffer = onDocumentCreated(
@@ -3022,10 +3017,9 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
             return;
         }
 
-        // WhatsApp Cloud API: â€œya recibimos tu solicitudâ€¦â€
         try {
             const wa = require('./whatsapp-cloud');
-            await wa.notifyTripRequestReceivedWa(trip, tripId).catch((e) => {
+            wa.notifyTripRequestReceivedWa(trip, tripId).catch((e) => {
                 console.warn('[wa] trip_request_received', e?.message || e);
             });
         } catch (e) {
@@ -3049,15 +3043,8 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
         if (!t.eligibleDriverAlertSent) {
             await notifyEligibleDriversNewTrip(APP_ID, d.id, t, { immediate: true }).catch(() => {});
         }
-        // Respaldo si el create se cayó: abrir a la ciudad al vencer los 18s
-        if (t.offerPhase !== 'city' && (isExclusiveWindowExpired(t) || !t.offeredToDriverId)) {
-            if (!t.offeredToDriverId && t.offerPhase !== 'exclusive') {
-                const got = await assignNextTripOfferServer(APP_ID, d.id).catch(() => false);
-                if (got) continue;
-            }
-            if (!isExclusiveWindowOpen(t)) {
-                await openTripOfferToCity(APP_ID, d.id).catch(() => {});
-            }
+        if (t.offerPhase !== 'city') {
+            await openTripOfferToCity(APP_ID, d.id).catch(() => {});
         }
     }
 
