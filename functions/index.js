@@ -2384,11 +2384,17 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
 
     const type = String(data.type || '');
     const audio = resolveAndroidPushAudio();
+    const openDriver = data.openDriver === true || data.openDriver === 'true';
     const isTripWake = type === 'trip_offer'
         || type === 'ride_demand_alert'
         || type === 'freight_trip_alert'
         || type === 'new_trip_staff'
-        || type === 'trip_price_boost';
+        || type === 'trip_price_boost'
+        || type === 'staff_created_trip'
+        || type === 'scheduled_trip_active'
+        || openDriver
+        || data.wake === '1'
+        || data.wake === 1;
 
     // Click del push: viajes â†’ conductor; ofertas â†’ pasajero; resto â†’ centro de notificaciones
     const openNotifications = data.openNotifications === 'true'
@@ -2456,11 +2462,12 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     };
     if (data.tag) webNotification.tag = String(data.tag);
 
-    // Viaje con la app cerrada / APK muerta: data-only NO llega (el SO no despierta
-    // HonduMessagingService). android.notification sí pinta el aviso de sistema.
+    // App cerrada / APK muerta: data-only NO llega. Hay que mandar
+    // android.notification + notification para que Play Services pinte el aviso.
     const androidConfig = {
         priority: 'high',
-        ttl: (isTripWake ? 3600 : 300) * 1000
+        ttl: (isTripWake ? 3600 : 300) * 1000,
+        directBootOk: true
     };
     if (isTripWake) {
         androidConfig.notification = {
@@ -2468,9 +2475,12 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             body: safeBody,
             channelId: audio.channelId,
             sound: audio.sound || HONDU_ICONIC_PUSH_SOUND,
+            defaultSound: true,
             defaultVibrateTimings: true,
             visibility: 'PUBLIC',
             notificationPriority: 'PRIORITY_MAX',
+            color: '#25D366',
+            ticker: safeTitle,
             tag: String(data.tag || `trip-${type || 'alert'}`).slice(0, 60)
         };
     }
@@ -2503,6 +2513,9 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             }
         }
     };
+    if (isTripWake) {
+        payload.notification = { title: safeTitle, body: safeBody };
+    }
 
     const uniqueTokens = [...new Set(tokens.filter(Boolean))];
     const CHUNK = 500;

@@ -31,8 +31,9 @@ import java.util.Map;
  * - Enciende pantalla (wake lock + full-screen intent en bloqueo)
  * - Heads-up aunque la app esté en otra app / cerrada
  *
- * Requiere FCM data-only en Android (sin android.notification) para que
- * onMessageReceived se ejecute también en background.
+ * App en primer plano: onMessageReceived pinta el aviso nativo de viaje
+ * (también en la pantalla de login). App muerta: Play Services usa
+ * android.notification del Cloud Function.
  */
 public class HonduMessagingService extends FirebaseMessagingService {
 

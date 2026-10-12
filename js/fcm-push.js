@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getMessaging, getToken, isSupported, onMessage } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js';
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert } from './trip-notifications.js';
+import { initTripNotifications, notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert } from './trip-notifications.js';
 import { isCapacitorNative, isCapacitorAndroid } from './capacitor-native.js';
 import { getMessagingSwUrl } from './pwa-update.js';
 import { isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush } from './pwa-install.js';
@@ -11,7 +11,19 @@ import { APP_CONFIG } from './config.js';
 let messagingInstance = null;
 let androidPushInitialized = false;
 let androidPushInitPromise = null;
+let lastAndroidTokenValue = '';
+let closedSessionPushBooted = false;
 let localNotifIdSeq = Math.floor(Date.now() % 100000);
+const LAST_PUSH_UID_KEY = 'honduber_push_uid';
+
+export function lastPushUid() {
+    try { return localStorage.getItem(LAST_PUSH_UID_KEY) || ''; } catch (_) { return ''; }
+}
+
+export function rememberPushUid(uid) {
+    if (!uid) return;
+    try { localStorage.setItem(LAST_PUSH_UID_KEY, uid); } catch (_) {}
+}
 
 const PushNotifications = registerPlugin('PushNotifications');
 const LocalNotifications = registerPlugin('LocalNotifications');
@@ -471,6 +483,7 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
         console.warn('saveFcmToken private', e?.code || e?.message || e);
     }
     if (saved) {
+        rememberPushUid(uid);
         try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
         markWebPushTokenOk(true);
         pruneStaleFcmTokens(db, appId, uid, token).catch(() => {});
@@ -814,7 +827,8 @@ let lastWebTokenValue = '';
 /** Web/PWA: FCM con service worker y VAPID. No se ejecuta en APK Android. */
 export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) {
     if (isCapacitorNative()) return null;
-    if (!uid || !(await messagingSupportedHere())) return null;
+    const tokenUid = uid || lastPushUid() || null;
+    if (!(await messagingSupportedHere())) return null;
 
     // iPhone: en pestaña Safari el token NO entrega viajes con la app cerrada.
     if (isIOS() && !canReceiveBackgroundWebPush()) {
@@ -837,11 +851,12 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
         if (token) {
             const platform = detectWebPushPlatform();
             const now = Date.now();
-            if (token !== lastWebTokenValue || now - lastWebTokenSaveAt > 60 * 1000) {
-                lastWebTokenValue = token;
+            const shouldSave = tokenUid && (token !== lastWebTokenValue || now - lastWebTokenSaveAt > 60 * 1000);
+            lastWebTokenValue = token;
+            if (shouldSave) {
                 lastWebTokenSaveAt = now;
-                await saveFcmToken(db, appId, uid, token, platform);
-            } else {
+                await saveFcmToken(db, appId, tokenUid, token, platform);
+            } else if (tokenUid) {
                 markWebPushTokenOk(true);
             }
         }
@@ -851,7 +866,9 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
             onMessage(messagingInstance, (payload) => routeForegroundPush(payload));
         }
 
-        bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid });
+        if (tokenUid) {
+            bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid: tokenUid });
+        }
 
         return token || null;
     } catch (e) {
@@ -988,12 +1005,19 @@ if (typeof window !== 'undefined') {
 
 /** APK Android: push nativo vía Capacitor. No registra SW ni toca tokens web. */
 export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest = false }) {
-    if (!isCapacitorAndroid() || !uid) return null;
+    if (!isCapacitorAndroid()) return null;
     if (!isAndroidFcmConfigured()) {
         console.warn('initAndroidFcmPush: falta google-services.json para honduraite.com');
         return null;
     }
-    if (androidPushInitialized) return 'ready';
+    const tokenUid = uid || lastPushUid() || null;
+    if (tokenUid) rememberPushUid(tokenUid);
+    if (androidPushInitialized) {
+        if (tokenUid && lastAndroidTokenValue && db && appId) {
+            await saveFcmToken(db, appId, tokenUid, lastAndroidTokenValue, 'android').catch(() => {});
+        }
+        return 'ready';
+    }
     if (androidPushInitPromise) return androidPushInitPromise;
 
     androidPushInitPromise = (async () => {
@@ -1018,7 +1042,11 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                     clearTimeout(timeout);
                     tokenValue = token?.value || null;
                     if (tokenValue) {
-                        await saveFcmToken(db, appId, uid, tokenValue, 'android');
+                        lastAndroidTokenValue = tokenValue;
+                        const saveUid = tokenUid || lastPushUid() || uid;
+                        if (saveUid) {
+                            await saveFcmToken(db, appId, saveUid, tokenValue, 'android').catch(() => {});
+                        }
                         localStorage.setItem('honduber_push_enabled', '1');
                     }
                     resolve(tokenValue);
@@ -1075,4 +1103,37 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
     })();
 
     return androidPushInitPromise;
+}
+
+/**
+ * Pantalla de login / sesión cerrada: hay que seguir recibiendo el aviso de viaje.
+ * El token ya quedó en el conductor; aquí solo se escucha y se pinta el banner.
+ */
+export async function initClosedSessionPushReceiver({ db, appId, firebaseConfig, vapidKey } = {}) {
+    if (closedSessionPushBooted && (androidPushInitialized || onMessageBound)) {
+        return 'ready';
+    }
+    closedSessionPushBooted = true;
+    const uid = lastPushUid();
+    if (isCapacitorAndroid()) {
+        return initAndroidFcmPush({
+            db,
+            appId,
+            uid: uid || null,
+            skipPermissionRequest: true
+        }).catch(() => null);
+    }
+    if (isCapacitorNative()) return null;
+    try {
+        await initTripNotifications();
+    } catch (_) {}
+    if (!uid || !firebaseConfig) return uid ? null : 'sw';
+    if (isIOS() && !canReceiveBackgroundWebPush()) return null;
+    return initFcmPush({
+        firebaseConfig,
+        vapidKey: vapidKey || '',
+        db,
+        appId,
+        uid
+    }).catch(() => null);
 }
