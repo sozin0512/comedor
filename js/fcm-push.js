@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getMessaging, getToken, isSupported, onMessage } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js';
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { initTripNotifications, notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert } from './trip-notifications.js';
+import { initTripNotifications, notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert, setAndroidNotificationPermissionCache, getNotificationPermission } from './trip-notifications.js';
 import { isCapacitorNative, isCapacitorAndroid } from './capacitor-native.js';
 import { getMessagingSwUrl } from './pwa-update.js';
 import { isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush } from './pwa-install.js';
@@ -10,8 +10,11 @@ import { APP_CONFIG } from './config.js';
 
 let messagingInstance = null;
 let androidPushInitialized = false;
+let androidPushListenersBound = false;
+let androidPushResumeBound = false;
 let androidPushInitPromise = null;
 let lastAndroidTokenValue = '';
+let androidPushContext = { db: null, appId: null };
 let closedSessionPushBooted = false;
 let localNotifIdSeq = Math.floor(Date.now() % 100000);
 const LAST_PUSH_UID_KEY = 'honduber_push_uid';
@@ -895,6 +898,54 @@ function bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid }) {
     window.addEventListener('focus', () => refresh());
 }
 
+export function hasAndroidFcmToken() {
+    return !!lastAndroidTokenValue;
+}
+
+function normalizeAndroidReceiveState(receive) {
+    if (receive === 'granted') return 'granted';
+    if (receive === 'denied') return 'denied';
+    return 'default';
+}
+
+/** Permiso nativo POST_NOTIFICATIONS + interruptor del sistema. No uses Notification.permission del WebView. */
+export async function refreshAndroidNativePermission() {
+    if (!isCapacitorAndroid()) return getNotificationPermission();
+    let receive = 'default';
+    try {
+        const perm = await PushNotifications.checkPermissions();
+        receive = perm?.receive || 'default';
+    } catch (e) {
+        console.warn('[push] checkPermissions', e);
+    }
+    try {
+        const SK = registerPlugin('SessionKeepalive');
+        const sys = await SK.areNotificationsEnabled?.();
+        if (sys && sys.enabled === false) receive = 'denied';
+    } catch (_) {}
+    const state = normalizeAndroidReceiveState(receive);
+    setAndroidNotificationPermissionCache(state);
+    return state;
+}
+
+export async function openAndroidNotificationSettings() {
+    if (!isCapacitorAndroid()) return false;
+    try {
+        const SK = registerPlugin('SessionKeepalive');
+        if (SK.openNotificationSettings) {
+            await SK.openNotificationSettings();
+            return true;
+        }
+        if (SK.openAppSettings) {
+            await SK.openAppSettings();
+            return true;
+        }
+    } catch (e) {
+        console.warn('[push] openNotificationSettings', e);
+    }
+    return false;
+}
+
 /**
  * Pide permisos para notificaciones emergentes tipo Temu:
  * 1) Notificaciones (Android 13+)
@@ -926,6 +977,12 @@ export async function requestAndroidTemuNotificationPermissions({
     } catch (e) {
         console.warn('[push] request push perm:', e);
     }
+
+    try {
+        const SK = registerPlugin('SessionKeepalive');
+        const sys = await SK.areNotificationsEnabled?.();
+        if (sys && sys.enabled === false) result.push = 'denied';
+    } catch (_) {}
 
     try {
         if (LocalNotifications?.checkPermissions) {
@@ -971,8 +1028,9 @@ export async function requestAndroidTemuNotificationPermissions({
         }
     }
 
-    result.ok = result.push === 'granted' || result.local === 'granted'
-        || localStorage.getItem('honduber_push_enabled') === '1';
+    const state = normalizeAndroidReceiveState(result.push);
+    setAndroidNotificationPermissionCache(state);
+    result.ok = result.push === 'granted';
     return result;
 }
 
@@ -1001,102 +1059,151 @@ export async function ensureAndroidTripWakePermissions({
 // Exponer para app.js (al ir en línea el conductor)
 if (typeof window !== 'undefined') {
     window.ensureAndroidTripWakePermissions = ensureAndroidTripWakePermissions;
+    window.initAndroidFcmPush = initAndroidFcmPush;
+    window.initFcmPush = initFcmPush;
+    window.refreshAndroidNativePermission = refreshAndroidNativePermission;
+    window.openAndroidNotificationSettings = openAndroidNotificationSettings;
+}
+
+function bindAndroidPushResume() {
+    if (androidPushResumeBound || typeof document === 'undefined') return;
+    androidPushResumeBound = true;
+    const onVisible = () => {
+        if (document.visibilityState !== 'visible') return;
+        refreshAndroidNativePermission().then((state) => {
+            if (state !== 'granted') return;
+            const { db, appId } = androidPushContext;
+            initAndroidFcmPush({
+                db,
+                appId,
+                uid: lastPushUid() || null,
+                skipPermissionRequest: true
+            }).catch(() => {});
+        }).catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+}
+
+async function persistAndroidToken(tokenValue) {
+    if (!tokenValue) return;
+    lastAndroidTokenValue = tokenValue;
+    try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
+    setAndroidNotificationPermissionCache('granted');
+    markWebPushTokenOk(true);
+    const saveUid = lastPushUid();
+    const { db, appId } = androidPushContext;
+    if (saveUid && db && appId) {
+        await saveFcmToken(db, appId, saveUid, tokenValue, 'android').catch(() => {});
+    }
+}
+
+function bindAndroidPushListeners() {
+    if (androidPushListenersBound || !isCapacitorAndroid()) return;
+    androidPushListenersBound = true;
+
+    PushNotifications.addListener('registration', async (token) => {
+        const tokenValue = token?.value || null;
+        if (!tokenValue) return;
+        await persistAndroidToken(tokenValue);
+    }).catch((e) => console.warn('[push] registration listener', e));
+
+    PushNotifications.addListener('registrationError', (err) => {
+        console.warn('[push] registrationError', err);
+    }).catch(() => {});
+
+    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        routeForegroundPush({
+            notification: notification.notification || {
+                title: notification.title,
+                body: notification.body
+            },
+            data: notification.data || notification.notification?.data || {},
+            title: notification.title,
+            body: notification.body
+        });
+    }).catch(() => {});
+
+    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        handleNotificationNavigation(action.notification?.data || {});
+    }).catch(() => {});
+
+    try {
+        if (LocalNotifications?.addListener) {
+            LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+                const extra = action.notification?.extra || {};
+                handleNotificationNavigation(extra);
+            }).catch(() => {});
+        }
+    } catch (_) {}
+
+    bindAndroidPushResume();
+}
+
+async function waitForAndroidToken(timeoutMs = 10000) {
+    if (lastAndroidTokenValue) return lastAndroidTokenValue;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        if (lastAndroidTokenValue) return lastAndroidTokenValue;
+        await new Promise((r) => setTimeout(r, 200));
+    }
+    return lastAndroidTokenValue || null;
 }
 
 /** APK Android: push nativo vía Capacitor. No registra SW ni toca tokens web. */
-export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest = false }) {
+export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest = false } = {}) {
     if (!isCapacitorAndroid()) return null;
     if (!isAndroidFcmConfigured()) {
         console.warn('initAndroidFcmPush: falta google-services.json para honduraite.com');
         return null;
     }
+    if (db && appId) androidPushContext = { db, appId };
     const tokenUid = uid || lastPushUid() || null;
     if (tokenUid) rememberPushUid(tokenUid);
-    if (androidPushInitialized) {
-        if (tokenUid && lastAndroidTokenValue && db && appId) {
-            await saveFcmToken(db, appId, tokenUid, lastAndroidTokenValue, 'android').catch(() => {});
-        }
-        return 'ready';
+
+    bindAndroidPushListeners();
+
+    if (androidPushInitPromise) {
+        try { await androidPushInitPromise; } catch (_) {}
     }
-    if (androidPushInitPromise) return androidPushInitPromise;
 
     androidPushInitPromise = (async () => {
         try {
-            if (!skipPermissionRequest) {
+            let nativePerm = await refreshAndroidNativePermission();
+            if (nativePerm !== 'granted') {
+                if (skipPermissionRequest) {
+                    if (lastAndroidTokenValue && tokenUid) {
+                        await persistAndroidToken(lastAndroidTokenValue);
+                    }
+                    return lastAndroidTokenValue || null;
+                }
                 const temu = await requestAndroidTemuNotificationPermissions({
                     requestFullScreen: true,
                     requestBattery: false
                 });
-                if (temu.push !== 'granted' && temu.local !== 'granted') {
-                    // Si el SO no reporta bien, igual intentamos registrar si el usuario ya dio permiso antes
-                    if (localStorage.getItem('honduber_push_enabled') !== '1') return null;
+                nativePerm = await refreshAndroidNativePermission();
+                if (nativePerm !== 'granted' && temu.push !== 'granted') {
+                    return lastAndroidTokenValue || null;
                 }
             } else {
                 await ensureAndroidPushChannels();
             }
 
-            let tokenValue = null;
-            const tokenPromise = new Promise((resolve) => {
-                const timeout = setTimeout(() => resolve(null), 12000);
-                PushNotifications.addListener('registration', async (token) => {
-                    clearTimeout(timeout);
-                    tokenValue = token?.value || null;
-                    if (tokenValue) {
-                        lastAndroidTokenValue = tokenValue;
-                        const saveUid = tokenUid || lastPushUid() || uid;
-                        if (saveUid) {
-                            await saveFcmToken(db, appId, saveUid, tokenValue, 'android').catch(() => {});
-                        }
-                        localStorage.setItem('honduber_push_enabled', '1');
-                    }
-                    resolve(tokenValue);
-                }).catch(() => {
-                    clearTimeout(timeout);
-                    resolve(null);
-                });
-                PushNotifications.addListener('registrationError', () => {
-                    clearTimeout(timeout);
-                    resolve(null);
-                }).catch(() => {
-                    clearTimeout(timeout);
-                    resolve(null);
-                });
-            });
-
-            await PushNotifications.register();
-            await tokenPromise;
-
-            await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-                routeForegroundPush({
-                    notification: notification.notification || {
-                        title: notification.title,
-                        body: notification.body
-                    },
-                    data: notification.data || notification.notification?.data || {},
-                    title: notification.title,
-                    body: notification.body
-                });
-            }).catch(() => {});
-
-            await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-                handleNotificationNavigation(action.notification?.data || {});
-            }).catch(() => {});
-
-            // Click en notificación local (foreground)
             try {
-                if (LocalNotifications?.addListener) {
-                    await LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
-                        const extra = action.notification?.extra || {};
-                        handleNotificationNavigation(extra);
-                    });
-                }
-            } catch (_) {}
+                await PushNotifications.register();
+            } catch (e) {
+                console.warn('[push] register', e);
+            }
 
+            const token = await waitForAndroidToken(
+                lastAndroidTokenValue ? 2000 : (skipPermissionRequest ? 2500 : 10000)
+            );
+            if (token) await persistAndroidToken(token);
             androidPushInitialized = true;
-            return tokenValue || 'ready';
+            return token || lastAndroidTokenValue || null;
         } catch (e) {
             console.warn('initAndroidFcmPush:', e);
-            return null;
+            return lastAndroidTokenValue || null;
         } finally {
             androidPushInitPromise = null;
         }
@@ -1108,13 +1215,11 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
 /**
  * Pantalla de login / sesión cerrada: hay que seguir recibiendo el aviso de viaje.
  * El token ya quedó en el conductor; aquí solo se escucha y se pinta el banner.
+ * No pide permiso (eso es al entrar a la cuenta) y NO bloquea un registro posterior.
  */
 export async function initClosedSessionPushReceiver({ db, appId, firebaseConfig, vapidKey } = {}) {
-    if (closedSessionPushBooted && (androidPushInitialized || onMessageBound)) {
-        return 'ready';
-    }
-    closedSessionPushBooted = true;
     const uid = lastPushUid();
+    closedSessionPushBooted = true;
     if (isCapacitorAndroid()) {
         return initAndroidFcmPush({
             db,
@@ -1124,6 +1229,7 @@ export async function initClosedSessionPushReceiver({ db, appId, firebaseConfig,
         }).catch(() => null);
     }
     if (isCapacitorNative()) return null;
+    if (onMessageBound) return lastWebTokenValue || 'ready';
     try {
         await initTripNotifications();
     } catch (_) {}

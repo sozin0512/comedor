@@ -232,9 +232,8 @@ export async function getBackgroundModeStatus() {
             SessionKeepalive.hasFullScreenIntentPermission?.().catch(() => ({ granted: true })),
             SessionKeepalive.areNotificationsEnabled?.().catch(() => ({ enabled: true })),
         ]);
-        const notifGranted = (typeof Notification !== 'undefined' && Notification.permission === 'granted')
-            || localStorage.getItem('honduber_push_enabled') === '1'
-            || notifSys?.enabled === true;
+        const notifGranted = notifSys?.enabled === true
+            || window.getNotificationPermission?.() === 'granted';
         return {
             supported: true,
             platform: 'android',

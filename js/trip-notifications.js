@@ -37,13 +37,28 @@ export function isNotificationSupported() {
     return 'Notification' in window && 'serviceWorker' in navigator;
 }
 
+/** En APK, Notification.permission del WebView miente (casi siempre "denied"). */
+let androidNativePermission = null;
+
+export function setAndroidNotificationPermissionCache(state) {
+    if (state === 'granted' || state === 'denied' || state === 'default') {
+        androidNativePermission = state;
+        if (state === 'granted') {
+            try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
+        }
+    }
+}
+
 export function getNotificationPermission() {
     if (!isNotificationSupported()) return 'unsupported';
     if (isCapacitorAndroid()) {
-        if (localStorage.getItem('honduber_push_enabled') === '1') return 'granted';
-        if (typeof Notification !== 'undefined') return Notification.permission;
+        if (androidNativePermission) return androidNativePermission;
+        try {
+            if (localStorage.getItem('honduber_push_token_ok') === '1') return 'granted';
+        } catch (_) {}
         return 'default';
     }
+    if (typeof Notification === 'undefined') return 'unsupported';
     return Notification.permission;
 }
 
@@ -88,8 +103,13 @@ export async function requestTripNotificationPermission() {
                     requestFullScreen: true,
                     requestBattery: false
                 });
-                if (temu.push === 'granted' || temu.local === 'granted') return 'granted';
-                if (temu.push === 'denied' && temu.local === 'denied') return 'denied';
+                const pushState = temu.push === 'granted'
+                    ? 'granted'
+                    : (temu.push === 'denied' ? 'denied' : 'default');
+                setAndroidNotificationPermissionCache(pushState);
+                // App cerrada: hace falta POST_NOTIFICATIONS nativo, no el permiso "local" del WebView
+                if (temu.push === 'granted') return 'granted';
+                if (temu.push === 'denied') return 'denied';
             } catch (e) {
                 console.warn('requestAndroidTemuNotificationPermissions:', e);
             }
@@ -98,9 +118,11 @@ export async function requestTripNotificationPermission() {
             if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
                 perm = await PushNotifications.requestPermissions();
             }
-            if (perm.receive === 'granted') return 'granted';
-            if (perm.receive === 'denied') return 'denied';
-            return 'default';
+            const state = perm.receive === 'granted'
+                ? 'granted'
+                : (perm.receive === 'denied' ? 'denied' : 'default');
+            setAndroidNotificationPermissionCache(state);
+            return state;
         } catch (e) {
             console.warn('requestTripNotificationPermission (android):', e);
             return 'unsupported';
