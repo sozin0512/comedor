@@ -374,7 +374,7 @@ async function getFcmTokenWithRetry(messagingInstance, key, reg) {
 
 export async function showWebPushSelfTest(body) {
     if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
-    const text = body || 'Avisos activos en este iPhone. Si ves esto, el permiso ya funciona.';
+    const text = body || 'Avisos activos. Si ves esto, el permiso del navegador ya funciona.';
     try {
         const reg = await navigator.serviceWorker.ready;
         await reg.showNotification('HonduRaite', {
@@ -842,6 +842,10 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
     const key = await resolveVapidKey(db, appId, vapidKey);
     if (!key) {
         console.warn('FCM: agrega messaging.vapidKey en config.js o fcmVapidKey en appSettings/main');
+        return null;
+    }
+
+    if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
         return null;
     }
 

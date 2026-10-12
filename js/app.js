@@ -4,28 +4,28 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.11.5";
+} from "./auth-credentials.js?v=2026.10.11.6";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.11.5";
+import { APP_CONFIG } from "./config.js?v=2026.10.11.6";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.11.5";
+} from "./market.js?v=2026.10.11.6";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.11.5";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.11.5";
+} from "./phone-utils.js?v=2026.10.11.6";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.11.6";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.11.5";
+} from "./referrals.js?v=2026.10.11.6";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -40,12 +40,12 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.11.5";
+} from "./zones.js?v=2026.10.11.6";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.11.5";
+} from "./trip-notifications.js?v=2026.10.11.6";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -67,7 +67,7 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.11.5";
+} from "./notification-tones.js?v=2026.10.11.6";
 
 installNotificationTonesApi();
 
@@ -103,7 +103,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.11.5";
+} from "./passenger-alerts.js?v=2026.10.11.6";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -112,22 +112,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.11.5";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.11.5";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide } from "./pwa-install.js?v=2026.10.11.5";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.11.5";
+} from "./passenger-verification.js?v=2026.10.11.6";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.11.6";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide } from "./pwa-install.js?v=2026.10.11.6";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.11.6";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, showWebPushSelfTest, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, previewAndroidSystemPushSound } from "./fcm-push.js?v=2026.10.11.5";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, showWebPushSelfTest, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, previewAndroidSystemPushSound } from "./fcm-push.js?v=2026.10.11.6";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.11.5";
+} from "./feedback.js?v=2026.10.11.6";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.11.5";
+} from "./greetings.js?v=2026.10.11.6";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -144,52 +144,52 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.11.5";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.11.5";
+} from "./service-types.js?v=2026.10.11.6";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.11.6";
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getApprovedVehicleTypes, getRegisteredVehicleTypes,
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles-v2.js?v=2026.10.11.5";
+} from "./driver-vehicles-v2.js?v=2026.10.11.6";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.11.5";
+} from "./route-fixed-fares.js?v=2026.10.11.6";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.11.5";
+} from "./commission-free-day.js?v=2026.10.11.6";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.11.5";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.11.5";
+} from "./route-conditions.js?v=2026.10.11.6";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.11.6";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.11.5";
+} from "./demand-heatmap.js?v=2026.10.11.6";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.11.5";
+} from "./ops-fleet-map.js?v=2026.10.11.6";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.11.5";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.11.5";
+} from "./live-trip-keepalive.js?v=2026.10.11.6";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.11.6";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.11.5";
+} from "./driver-session.js?v=2026.10.11.6";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -198,7 +198,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.11.5";
+} from "./session-keepalive.js?v=2026.10.11.6";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -286,28 +286,28 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.11.5";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.11.6";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.11.5";
+} from "./auth-ui.js?v=2026.10.11.6";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.11.5";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.11.5";
+} from "./age-verification.js?v=2026.10.11.6";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.11.6";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.11.5";
+} from "./trip-experience.js?v=2026.10.11.6";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.11.5";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.11.5";
+} from "./support-tickets.js?v=2026.10.11.6";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.11.6";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.11.5";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.11.6";
 
 
 let app;
@@ -4403,10 +4403,24 @@ if (document.readyState === 'loading') {
             }
             // iPhone en Safari: el permiso de la pestaña no cuenta como avisos activos
             if (isIOS() && !isIosStandalonePwa()) return false;
-            if (isIOS()) {
-                return getNotificationPermission() === 'granted' && hasSavedWebPushToken();
+            return getNotificationPermission() === 'granted' && hasSavedWebPushToken();
+        }
+
+        function pushPermissionBannerCopy() {
+            const denied = getNotificationPermission() === 'denied';
+            if (isCapacitorAndroid()) {
+                return denied
+                    ? 'El permiso de notificaciones está bloqueado. Toca aquí, actívalo en Ajustes de HonduRaite y vuelve a la app.'
+                    : 'Toca aquí y acepta el permiso de notificaciones. Sin eso el aviso no llega con la app cerrada.';
             }
-            return getNotificationPermission() === 'granted';
+            if (isIOS()) {
+                return denied
+                    ? 'El iPhone bloqueó los avisos. Ve a Ajustes → Notificaciones → HonduRaite y actívalos, luego abre la app desde el icono de inicio.'
+                    : 'Toca aquí y acepta el permiso. En iPhone los viajes solo llegan si HonduRaite está en la pantalla de inicio.';
+            }
+            return denied
+                ? 'El navegador bloqueó los avisos. Toca el candado de la barra → Notificaciones → Permitir, y recarga HonduRaite.'
+                : 'Toca aquí y acepta Permitir en el recuadro del navegador. Así el viaje te llega aunque cierres la pestaña.';
         }
 
         function syncPushPermissionBanner() {
@@ -4427,7 +4441,6 @@ if (document.readyState === 'loading') {
                 el.innerHTML = '';
                 return;
             }
-            const denied = getNotificationPermission() === 'denied';
             el.classList.remove('hidden');
             el.innerHTML = `
                 <button type="button" data-hr-push-fix
@@ -4436,9 +4449,7 @@ if (document.readyState === 'loading') {
                     <span>
                         <strong style="display:block;color:#9a3412;font-size:13px;">Los viajes no te van a sonar</strong>
                         <span style="display:block;color:#9a3412;font-size:12px;line-height:1.35;margin-top:2px;">
-                            ${denied
-                                ? 'El permiso de notificaciones está bloqueado. Toca aquí, actívalo en Ajustes de HonduRaite y vuelve a la app.'
-                                : 'Toca aquí y acepta el permiso de notificaciones. Sin eso el aviso no llega con la app cerrada.'}
+                            ${pushPermissionBannerCopy()}
                         </span>
                     </span>
                 </button>`;
@@ -4521,9 +4532,11 @@ if (document.readyState === 'loading') {
                         isIOS() ? 'warning' : 'success'
                     );
                 } else {
-                    if (isIOS() && !isCapacitorNative()) {
+                    if (!isCapacitorNative()) {
                         showWebPushSelfTest(
-                            'Avisos activos. Cierra HonduRaite: si este aviso se quedó en el centro de notificaciones, ya llegan fuera de la app.'
+                            isIOS()
+                                ? 'Avisos activos. Cierra HonduRaite: si este aviso se quedó en el centro de notificaciones, ya llegan fuera de la app.'
+                                : 'Avisos activos. Cierra la pestaña: si este aviso se quedó en el sistema, los viajes te llegan igual.'
                         ).catch(() => {});
                     }
                     window.showToast(
@@ -4531,7 +4544,7 @@ if (document.readyState === 'loading') {
                             ? '¡Listo! Debes ver un aviso de prueba. Así te llegan los viajes con la app cerrada.'
                             : (isIOS()
                                 ? '¡Listo! Debes ver un aviso de prueba. Déjalo y cierra la app: los viajes te llegarán aunque estés en otra app.'
-                                : '¡Listo! Recibirás avisos de viajes, chat y actualizaciones.'),
+                                : '¡Listo! Debes ver un aviso de prueba. Así te llegan los viajes aunque cierres la pestaña.'),
                         'success'
                     );
                     localStorage.setItem('honduber_push_enabled', '1');
@@ -4591,11 +4604,16 @@ if (document.readyState === 'loading') {
                     return;
                 }
             }
-            const perm = getNotificationPermission();
-            if (perm === 'granted') {
+            if (isPushReadyForThisContext()) {
+                registerPushServices().catch(() => {});
                 setHeaderTwinVisible('push-enable-btn', false);
+                syncPushPermissionBanner();
                 return;
             }
+            if (getNotificationPermission() === 'granted') {
+                registerPushServices().catch(() => {});
+            }
+            syncPushPermissionBanner();
             setTimeout(() => {
                 showNotificationEnableModal();
             }, 1200);
@@ -4611,9 +4629,13 @@ if (document.readyState === 'loading') {
                 ? (isDriver
                     ? 'En <strong>iPhone</strong> los viajes <strong>no llegan</strong> si usas Safari o cierras la pestaña. Instala HonduRaite en la <strong>pantalla de inicio</strong>, ábrela desde el icono y ahí activa avisos.'
                     : 'En <strong>iPhone</strong> los avisos fuera de Safari solo funcionan si instalas HonduRaite en inicio y la abres desde el icono.')
-                : (isDriver
-                    ? 'Cuando haya un <strong>viaje nuevo</strong>, el aviso suena y <strong>enciende la pantalla</strong> aunque estés en otra app o con el teléfono bloqueado (estilo WhatsApp), además de chat y actualizaciones.'
-                    : 'Recibe avisos importantes: conductor asignado, llegada al origen, mensajes del chat y actualizaciones de viajes — también fuera de la app.');
+                : isCapacitorAndroid()
+                    ? (isDriver
+                        ? 'Cuando haya un <strong>viaje nuevo</strong>, el aviso suena y <strong>enciende la pantalla</strong> aunque estés en otra app o con el teléfono bloqueado (estilo WhatsApp), además de chat y actualizaciones.'
+                        : 'Recibe avisos importantes: conductor asignado, llegada al origen, mensajes del chat y actualizaciones de viajes — también fuera de la app.')
+                    : (isDriver
+                        ? 'El navegador va a pedir <strong>Permitir notificaciones</strong>. Sin eso el viaje <strong>no llega</strong> si cierras la pestaña. En Chrome también puedes instalar HonduRaite en inicio para que suene más seguro.'
+                        : 'El navegador va a pedir <strong>Permitir notificaciones</strong> para avisos de viaje y chat aunque cierres la pestaña.');
 
             const overlay = document.createElement('div');
             overlay.id = 'notif-prompt-modal';
@@ -4628,7 +4650,9 @@ if (document.readyState === 'loading') {
                         ${notifDetail}
                         ${isCapacitorAndroid()
                             ? '<br><br><strong>Android pedirá permiso</strong> para notificaciones y, si hace falta, para <strong>pantalla completa / emergente</strong> (enciende la pantalla) y batería sin optimizar.'
-                            : ''}
+                            : (!iosNeedsInstall
+                                ? '<br><br>Toca el botón y luego <strong>Permitir</strong> en el recuadro del navegador.'
+                                : '')}
                     </p>
 
                     <div style="display:flex;flex-direction:column;gap:10px;">
