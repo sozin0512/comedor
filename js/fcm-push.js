@@ -324,9 +324,11 @@ async function registerMessagingServiceWorker() {
             const regs = await navigator.serviceWorker.getRegistrations();
             await Promise.all(regs.map((reg) => {
                 const url = messagingSwScriptUrl(reg);
-                // sw.js viejo y SW con ?v= dejan iOS sin showNotification → Safari revoca el push
-                if (isCurrentMessagingSwUrl(url)) return Promise.resolve(false);
-                return reg.unregister().catch(() => false);
+                const path = url.split('?')[0];
+                // Nunca desregistrar firebase-messaging-sw.js: en iPhone eso REVOCA el permiso.
+                if (/\/firebase-messaging-sw\.js$/i.test(path)) return Promise.resolve(false);
+                if (/\/sw\.js$/i.test(path)) return reg.unregister().catch(() => false);
+                return Promise.resolve(false);
             }));
         } catch (_) {}
     }

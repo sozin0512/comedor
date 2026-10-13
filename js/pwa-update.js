@@ -195,8 +195,15 @@ function showAppUpdateModal({ remoteVersion, force = false, showIosHelp = false 
 
 async function unregisterAllServiceWorkers() {
     if (!('serviceWorker' in navigator)) return;
+    // iPhone: borrar el SW revoca el permiso de notificaciones y lo pide en cada apertura.
+    if (isIOSDevice()) return;
     const regs = await navigator.serviceWorker.getRegistrations();
-    await Promise.all(regs.map((reg) => reg.unregister().catch(() => false)));
+    await Promise.all(regs.map((reg) => {
+        const url = String(reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '');
+        const path = url.split('?')[0];
+        if (/\/firebase-messaging-sw\.js$/i.test(path)) return Promise.resolve(false);
+        return reg.unregister().catch(() => false);
+    }));
 }
 
 async function clearAllCaches() {
@@ -421,8 +428,18 @@ export async function applyAppUpdate({ auto = false, fromButton = false } = {}) 
     }, isIOSDevice() ? 2800 : 2200);
 }
 
+function stripUpdateQueryFromAddress() {
+    try {
+        const url = new URL(location.href);
+        if (!url.searchParams.has('hr_refresh') && !url.searchParams.has('_') && !url.searchParams.has('v')) return;
+        url.search = '';
+        history.replaceState(null, '', url.pathname + (url.hash || ''));
+    } catch (_) {}
+}
+
 export function initAppUpdateCheck() {
     if (typeof window === 'undefined') return;
+    stripUpdateQueryFromAddress();
 
     // Siempre exponer applyAppUpdate (también en Capacitor por si se usa WebView con version.json remoto)
     window.applyAppUpdate = applyAppUpdate;

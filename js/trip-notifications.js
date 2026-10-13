@@ -74,9 +74,9 @@ export async function initTripNotifications() {
             await Promise.all(regs.map((reg) => {
                 const url = String(reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '');
                 const path = url.split('?')[0];
-                if (/\/sw\.js$/i.test(path) || url.includes('firebase-messaging-sw.js?')) {
-                    return reg.unregister().catch(() => false);
-                }
+                // No tocar firebase-messaging-sw.js: en iPhone desregistrarlo revoca el permiso.
+                if (/\/firebase-messaging-sw\.js$/i.test(path)) return Promise.resolve(false);
+                if (/\/sw\.js$/i.test(path)) return reg.unregister().catch(() => false);
                 return Promise.resolve(false);
             }));
         } catch (_) {}
