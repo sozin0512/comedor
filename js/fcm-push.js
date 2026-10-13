@@ -882,7 +882,14 @@ function handleNotificationNavigation(data = {}) {
         try { location.hash = 'driver'; } catch (_) {}
         const wakeDriverOffer = (playSound = false) => {
             try {
-                if (window.userProfile?.role !== 'driver') return;
+                const driverSession = typeof window.isDriverAppSession === 'function'
+                    ? window.isDriverAppSession()
+                    : (
+                        document.body.classList.contains('driver-mode')
+                        || String(window.userProfile?.role || '').toLowerCase() === 'driver'
+                        || String(localStorage.getItem('lastUserRole') || '').toLowerCase() === 'driver'
+                    );
+                if (!driverSession) return;
                 document.body.classList.add('driver-mode');
                 document.getElementById('driver-view')?.classList.remove('hidden');
                 document.getElementById('client-view')?.classList.add('hidden');

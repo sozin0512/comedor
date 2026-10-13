@@ -1585,6 +1585,24 @@ function collectDriverVehicleTypes(userData, loc) {
     return types;
 }
 
+/** Conductor operativo aunque el perfil público no tenga role 'driver' (igual que Pasar / Aceptar). */
+function isDriverForTripPush(userData, loc) {
+    const role = String(userData?.role || '').toLowerCase();
+    if (role === 'driver') return true;
+    if (loc && (loc.vehicleType || loc.online === true || loc.lat != null || loc.serviceZoneId)) return true;
+    if (userData?.activeVehicleId) return true;
+    if (userData?.vehicleType || userData?.driverStatus) return true;
+    if (Array.isArray(userData?.vehicles) && userData.vehicles.length) return true;
+    return false;
+}
+
+function isDriverBlockedFromTripPush(userData, loc) {
+    const status = String(userData?.approvalStatus || loc?.approvalStatus || '').toLowerCase();
+    if (status === 'suspended' || status === 'rejected') return true;
+    if (userData?.accountRestricted) return true;
+    return false;
+}
+
 /** Notificar: cuenta vehículos legacy (sin approvalStatus en cada uno) si la cuenta no está bloqueada. */
 function driverCanReceiveTripAlert(userData, loc, requiredType) {
     if (!requiredType) return true;
@@ -2922,15 +2940,29 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
         : `🆕 ${svcLabel} cerca, en tu departamento`;
     const body = `${price} · ${originShort || 'Ubicación'} — ¡Entrá a aceptar!`;
 
+    // Igual que staff: leer todos los perfiles públicos. El where role==driver
+    // se saltaba choferes con rol público 'client' (el mismo bug de Pasar).
     const [driversLocSnap, usersSnap] = await Promise.all([
         db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
-        db.collection(`artifacts/${appId}/public/data/users`).where('role', '==', 'driver').get()
+        db.collection(`artifacts/${appId}/public/data/users`).get()
     ]);
     const locByDriver = new Map();
     driversLocSnap.docs.forEach((d) => locByDriver.set(d.id, d.data() || {}));
 
     const userById = new Map();
     usersSnap.docs.forEach((d) => userById.set(d.id, d.data() || {}));
+    const missingLocIds = [...locByDriver.keys()].filter((id) => !userById.has(id));
+    if (missingLocIds.length) {
+        const extra = await Promise.all(
+            missingLocIds.slice(0, 500).map((id) =>
+                db.doc(`artifacts/${appId}/public/data/users/${id}`).get().catch(() => null)
+            )
+        );
+        extra.forEach((snap, i) => {
+            const id = missingLocIds[i];
+            userById.set(id, snap?.exists ? (snap.data() || {}) : {});
+        });
+    }
 
     const candidateUids = new Set([...userById.keys(), ...locByDriver.keys()]);
     const cityRecipients = new Set();
@@ -2948,18 +2980,13 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
             continue;
         }
         const u = userById.get(uid) || {};
-        if (u.role && u.role !== 'driver') continue;
-        if (u.approvalStatus === 'suspended' || u.approvalStatus === 'rejected') continue;
-        if (u.approvalStatus && u.approvalStatus !== 'approved' && u.approvalStatus !== '') {
-            skipRestricted += 1;
-            continue;
-        }
-        if (u.accountRestricted) {
+        const loc = locByDriver.get(uid) || {};
+        if (!isDriverForTripPush(u, loc)) continue;
+        if (isDriverBlockedFromTripPush(u, loc)) {
             skipRestricted += 1;
             continue;
         }
 
-        const loc = locByDriver.get(uid) || {};
         if (closedAppOnly && isDriverOnline(loc)) continue;
         if (requiredType && !driverCanReceiveTripAlert(u, loc, requiredType)) {
             skipVehicle += 1;
