@@ -1032,7 +1032,15 @@ function bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid }) {
 }
 
 export function hasAndroidFcmToken() {
-    return !!lastAndroidTokenValue;
+    if (lastAndroidTokenValue) return true;
+    try {
+        const stored = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
+        if (stored) {
+            lastAndroidTokenValue = stored;
+            return true;
+        }
+    } catch (_) {}
+    return false;
 }
 
 function normalizeAndroidReceiveState(receive) {
@@ -1233,6 +1241,7 @@ async function persistAndroidToken(tokenValue) {
     setAndroidNotificationPermissionCache('granted');
     markWebPushTokenOk(true);
     notifyPushTokenReady(tokenValue, 'android');
+    stopAndroidTokenWatchdog();
     const saveUid = lastPushUid();
     const { db, appId } = androidPushContext;
     if (saveUid && db && appId) {
@@ -1284,12 +1293,133 @@ function bindAndroidPushListeners() {
 
 async function waitForAndroidToken(timeoutMs = 10000) {
     if (lastAndroidTokenValue) return lastAndroidTokenValue;
+    try {
+        const stored = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
+        if (stored) {
+            lastAndroidTokenValue = stored;
+            return stored;
+        }
+    } catch (_) {}
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
         if (lastAndroidTokenValue) return lastAndroidTokenValue;
         await new Promise((r) => setTimeout(r, 200));
     }
     return lastAndroidTokenValue || null;
+}
+
+async function fetchNativeFcmToken() {
+    if (!isCapacitorAndroid()) return '';
+    try {
+        const SK = registerPlugin('SessionKeepalive');
+        if (typeof SK.getFcmToken !== 'function') return '';
+        const res = await SK.getFcmToken();
+        return String(res?.token || '').trim();
+    } catch (_) {
+        return '';
+    }
+}
+
+let androidTokenWatchdog = null;
+let androidTokenWatchdogBusy = false;
+
+function stopAndroidTokenWatchdog() {
+    if (androidTokenWatchdog) {
+        clearInterval(androidTokenWatchdog);
+        androidTokenWatchdog = null;
+    }
+    androidTokenWatchdogBusy = false;
+}
+
+async function forceAndroidRegister() {
+    bindAndroidPushListeners();
+    try {
+        await PushNotifications.register();
+    } catch (e) {
+        console.warn('[push] force register', e);
+    }
+}
+
+function startAndroidTokenWatchdog() {
+    if (!isCapacitorAndroid() || androidTokenWatchdog) return;
+    let attempt = 0;
+    androidTokenWatchdog = setInterval(() => {
+        if (lastAndroidTokenValue || hasAndroidFcmToken()) {
+            stopAndroidTokenWatchdog();
+            persistAndroidToken(lastAndroidTokenValue).catch(() => {});
+            return;
+        }
+        if (androidTokenWatchdogBusy) return;
+        androidTokenWatchdogBusy = true;
+        attempt += 1;
+        (async () => {
+            try {
+                const perm = await refreshAndroidNativePermission();
+                if (perm === 'denied') {
+                    stopAndroidTokenWatchdog();
+                    return;
+                }
+                const native = await fetchNativeFcmToken();
+                if (native) {
+                    await persistAndroidToken(native);
+                    stopAndroidTokenWatchdog();
+                    return;
+                }
+                await forceAndroidRegister();
+            } catch (e) {
+                console.warn('[push] token watchdog', e);
+            } finally {
+                androidTokenWatchdogBusy = false;
+            }
+        })();
+        if (attempt >= 36) stopAndroidTokenWatchdog();
+    }, 4000);
+}
+
+/** Si el permiso ya está, no pide nada: registra FCM hasta que quede el token. */
+export async function ensureAndroidPushToken({ db, appId, uid } = {}) {
+    if (!isCapacitorAndroid()) return lastAndroidTokenValue || null;
+    if (!isAndroidFcmConfigured()) return lastAndroidTokenValue || null;
+    if (db && appId) androidPushContext = { db, appId };
+    if (uid) rememberPushUid(uid);
+    bindAndroidPushListeners();
+
+    if (lastAndroidTokenValue || hasAndroidFcmToken()) {
+        await persistAndroidToken(lastAndroidTokenValue);
+        return lastAndroidTokenValue;
+    }
+
+    const native = await fetchNativeFcmToken();
+    if (native) {
+        await persistAndroidToken(native);
+        return native;
+    }
+
+    const fromInit = await initAndroidFcmPush({
+        db: androidPushContext.db,
+        appId: androidPushContext.appId,
+        uid: lastPushUid() || uid || null,
+        skipPermissionRequest: true
+    }).catch(() => null);
+
+    if (fromInit || lastAndroidTokenValue) return fromInit || lastAndroidTokenValue;
+
+    startAndroidTokenWatchdog();
+    const waited = await waitForAndroidToken(18000);
+    if (waited) return waited;
+    startAndroidTokenWatchdog();
+    return lastAndroidTokenValue || null;
+}
+
+if (typeof window !== 'undefined') {
+    window.ensureAndroidPushToken = ensureAndroidPushToken;
+    if (isCapacitorAndroid()) {
+        try {
+            const stored = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
+            if (stored) lastAndroidTokenValue = stored;
+        } catch (_) {}
+        try { bindAndroidPushListeners(); } catch (_) {}
+    }
 }
 
 /** APK Android: push nativo vía Capacitor. No registra SW ni toca tokens web. */
@@ -1317,6 +1447,12 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                     if (lastAndroidTokenValue && tokenUid) {
                         await persistAndroidToken(lastAndroidTokenValue);
                     }
+                    const nativeTok = await fetchNativeFcmToken();
+                    if (nativeTok) {
+                        await persistAndroidToken(nativeTok);
+                        return nativeTok;
+                    }
+                    startAndroidTokenWatchdog();
                     return lastAndroidTokenValue || null;
                 }
                 const temu = await requestAndroidTemuNotificationPermissions({
@@ -1325,10 +1461,18 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                 });
                 nativePerm = await refreshAndroidNativePermission();
                 if (nativePerm !== 'granted' && temu.push !== 'granted') {
+                    startAndroidTokenWatchdog();
                     return lastAndroidTokenValue || null;
                 }
             } else {
                 await ensureAndroidPushChannels();
+            }
+
+            const nativeTok = await fetchNativeFcmToken();
+            if (nativeTok) {
+                await persistAndroidToken(nativeTok);
+                androidPushInitialized = true;
+                return nativeTok;
             }
 
             try {
@@ -1338,13 +1482,14 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
             }
 
             let token = await waitForAndroidToken(
-                lastAndroidTokenValue ? 2500 : (skipPermissionRequest ? 5000 : 16000)
+                lastAndroidTokenValue ? 2500 : 14000
             );
             if (!token) {
                 try { await PushNotifications.register(); } catch (_) {}
-                token = await waitForAndroidToken(skipPermissionRequest ? 4000 : 10000);
+                token = await waitForAndroidToken(8000);
             }
             if (token) await persistAndroidToken(token);
+            else startAndroidTokenWatchdog();
             androidPushInitialized = true;
             return token || lastAndroidTokenValue || null;
         } catch (e) {

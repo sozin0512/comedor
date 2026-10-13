@@ -15,6 +15,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 @CapacitorPlugin(
     name = "SessionKeepalive",
@@ -252,6 +253,32 @@ public class SessionKeepalivePlugin extends Plugin {
             ret.put("error", e.getMessage() != null ? e.getMessage() : "error");
         }
         call.resolve(ret);
+    }
+
+    /** Token FCM actual aunque Capacitor ya haya consumido el evento registration. */
+    @PluginMethod
+    public void getFcmToken(PluginCall call) {
+        try {
+            FirebaseMessaging.getInstance()
+                .getToken()
+                .addOnCompleteListener((task) -> {
+                    JSObject ret = new JSObject();
+                    if (!task.isSuccessful() || task.getResult() == null || task.getResult().isEmpty()) {
+                        ret.put("token", "");
+                        Exception err = task.getException();
+                        ret.put("error", err != null ? err.getMessage() : "no_token");
+                        call.resolve(ret);
+                        return;
+                    }
+                    ret.put("token", task.getResult());
+                    call.resolve(ret);
+                });
+        } catch (Exception e) {
+            JSObject ret = new JSObject();
+            ret.put("token", "");
+            ret.put("error", e.getMessage() != null ? e.getMessage() : "error");
+            call.resolve(ret);
+        }
     }
 
     /** Estado de notificaciones del sistema (canales / bloqueo total). */
