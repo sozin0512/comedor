@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.10.13.1';
+const HR_SW_VERSION = '2026.10.13.2';
 /* HonduRaite — Service Worker de Web Push.
  *
  * No inicializar firebase.messaging() aquí: el SDK registra su propio
@@ -28,9 +28,18 @@ function parsePushPayload(event) {
     return {};
 }
 
+function isIosSw() {
+    try {
+        return /iP(hone|ad|od)/i.test(self.navigator?.userAgent || '');
+    } catch (_) {
+        return false;
+    }
+}
+
 function showSafeNotification(title, options) {
     const safeTitle = String(title || 'HonduRaite').slice(0, 80) || 'HonduRaite';
     const safeBody = String(options?.body || 'Tienes un aviso nuevo.').slice(0, 180) || 'Tienes un aviso nuevo.';
+    const ios = isIosSw();
     const iosSafe = {
         body: safeBody,
         icon: ICON,
@@ -39,6 +48,11 @@ function showSafeNotification(title, options) {
         data: options?.data || {}
     };
     // iOS rechaza vibrate / renotify / requireInteraction y revoca el push.
+    // En Chrome/Android hay que pedir silent:false o el aviso llega mudo.
+    if (!ios) {
+        iosSafe.silent = false;
+        iosSafe.renotify = true;
+    }
     return self.registration.showNotification(safeTitle, iosSafe).catch(() =>
         self.registration.showNotification(safeTitle, { body: safeBody, icon: ICON, badge: ICON })
     );

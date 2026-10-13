@@ -1769,9 +1769,9 @@ function rideDemandTitle(serviceType) {
  * v9: tono icÃ³nico hondu_iconic + MediaPlayer backup (v8 a menudo solo vibraba).
  * (Android no cambia el sound de un canal ya creado â†’ hay que versionar el id)
  */
-const ANDROID_PUSH_CHANNEL_VERSION = 'v9';
+const ANDROID_PUSH_CHANNEL_VERSION = 'v10';
 /** Canal nativo creado por HonduMessagingService */
-const WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v9';
+const WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v10';
 const TEMU_ALL_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 const RIDE_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 const DEFAULT_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
@@ -2460,7 +2460,9 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         title: safeTitle,
         body: safeBody,
         icon: PUSH_ICON,
-        badge: PUSH_ICON
+        badge: PUSH_ICON,
+        // iOS/Chrome: si silent queda true o se omite mal, el aviso llega mudo.
+        silent: false
     };
     if (data.tag) webNotification.tag = String(data.tag);
 

@@ -239,6 +239,21 @@ public class SessionKeepalivePlugin extends Plugin {
         call.resolve();
     }
 
+    /** Recrea el canal de viajes con tono de alarma (USAGE_ALARM). */
+    @PluginMethod
+    public void ensureTripAlertChannel(PluginCall call) {
+        JSObject ret = new JSObject();
+        try {
+            HonduMessagingService.ensureWhatsAppChannel(getContext());
+            ret.put("ok", true);
+            ret.put("channelId", HonduMessagingService.WA_CHANNEL_ID);
+        } catch (Exception e) {
+            ret.put("ok", false);
+            ret.put("error", e.getMessage() != null ? e.getMessage() : "error");
+        }
+        call.resolve(ret);
+    }
+
     /** Estado de notificaciones del sistema (canales / bloqueo total). */
     @PluginMethod
     public void areNotificationsEnabled(PluginCall call) {

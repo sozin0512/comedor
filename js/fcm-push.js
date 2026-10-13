@@ -32,12 +32,13 @@ const PushNotifications = registerPlugin('PushNotifications');
 const LocalNotifications = registerPlugin('LocalNotifications');
 
 /**
- * Canales Android — estilo WhatsApp (v9): tono icónico hondu_iconic + enciende pantalla.
+ * Canales Android — estilo WhatsApp (v10): tono icónico hondu_iconic + enciende pantalla.
  * Debe coincidir con HonduMessagingService.WA_CHANNEL_ID y functions/index.js
  * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
+ * v9 a menudo nació sin wav / con USAGE_NOTIFICATION (volumen de avisos en 0 = mudo).
  */
-export const ANDROID_PUSH_CHANNEL_VERSION = 'v9';
-export const HONDU_WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v9';
+export const ANDROID_PUSH_CHANNEL_VERSION = 'v10';
+export const HONDU_WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v10';
 export const HONDU_TEMU_ALL_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
 export const HONDU_RIDE_ALERT_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
 export const HONDU_DEFAULT_CHANNEL_ID = HONDU_WA_ALERT_CHANNEL_ID;
@@ -99,8 +100,22 @@ function isRideAlertData(_data = {}) {
 export async function ensureAndroidPushChannels() {
     if (!isCapacitorAndroid()) return;
 
+    const legacyIds = [
+        'hondu_wa_alert_v9',
+        'hondu_wa_alert_v8',
+        'hondu_wa_alert_v7',
+        'hondu_wa_alert_v6',
+        'hondu_wa_alert_v5',
+        'hondu_ride_alert_v4',
+        'hondu_temu_all_v4',
+        'hondu_default_v4'
+    ];
+    for (const id of legacyIds) {
+        try { await PushNotifications.deleteChannel({ id }); } catch (_) {}
+        try { await LocalNotifications?.deleteChannel?.({ id }); } catch (_) {}
+    }
+
     // Canal estilo WhatsApp: HIGH/MAX + tono icónico + luz + vibración
-    // El servicio nativo HonduMessagingService también lo crea y usa full-screen intent
     const waChannel = {
         id: HONDU_WA_ALERT_CHANNEL_ID,
         name: 'HonduRaite viajes (enciende pantalla)',
@@ -128,6 +143,11 @@ export async function ensureAndroidPushChannels() {
     } catch (e) {
         console.warn('[push] local channels:', e);
     }
+
+    try {
+        const SK = registerPlugin('SessionKeepalive');
+        await SK.ensureTripAlertChannel?.();
+    } catch (_) {}
 }
 
 /**
@@ -522,20 +542,44 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     return saved;
 }
 
+function playTripHtmlAlert() {
+    try {
+        const audio = new Audio('icons/hondu_iconic.wav');
+        audio.playsInline = true;
+        audio.setAttribute('playsinline', 'true');
+        audio.muted = false;
+        audio.volume = 1;
+        const p = audio.play();
+        if (p?.catch) p.catch(() => {});
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
 function playConfiguredToneFromPush(data = {}) {
     try {
+        try { window.unlockNotificationTones?.(); } catch (_) {}
+        const type = String(data.type || '');
+        const tripLike = type === 'trip_offer'
+            || type === 'push_test'
+            || type === 'new_trip_staff'
+            || type === 'ride_demand_alert'
+            || type === 'freight_trip_alert'
+            || type === 'trip_price_boost'
+            || data.openDriver === 'true';
+        if (tripLike) playTripHtmlAlert();
         // Preferir tonos configurados por admin (Personalización)
         if (typeof window.playEventNotificationTone === 'function') {
             const eventId = typeof window.resolveToneEventFromPush === 'function'
                 ? window.resolveToneEventFromPush(data)
                 : (window.HonduTones?.resolveToneEventFromPush?.(data) || 'general');
-            return !!window.playEventNotificationTone(eventId);
+            return !!window.playEventNotificationTone(eventId) || tripLike;
         }
         if (window.HonduTones?.playEventTone) {
             const eventId = window.HonduTones.resolveToneEventFromPush?.(data) || 'general';
             return !!window.HonduTones.playEventTone(eventId);
         }
-        const type = String(data.type || '');
         if (type === 'chat') return !!window.playChatSound?.();
         if (type === 'trip_offer' || type === 'ride_demand_alert' || type === 'trip_price_boost') {
             return !!window.playDriverTripOfferSound?.();
@@ -557,18 +601,28 @@ function routeForegroundPush(payload) {
     const tripId = data.tripId || null;
     const type = data.type || '';
 
-    // Tono de Personalización (Web Audio). En Android puede fallar si el AudioContext está bloqueado.
+    // Tono JS (Web Audio). En iPhone/Android a menudo está bloqueado: el canal nativo
+    // / la notificación de sistema deben sonar igual.
+    try { window.unlockNotificationTones?.(); } catch (_) {}
     const playedJsTone = playConfiguredToneFromPush(data);
+    const typeForSound = String(type || data.type || '');
+    const tripLike = typeForSound === 'trip_offer'
+        || typeForSound === 'push_test'
+        || typeForSound === 'new_trip_staff'
+        || typeForSound === 'ride_demand_alert'
+        || typeForSound === 'freight_trip_alert'
+        || typeForSound === 'trip_price_boost'
+        || data.openDriver === 'true'
+        || data.wake === '1';
 
-    // Android en PRIMER PLANO: banner local. En background el nativo HonduMessagingService
-    // ya pinta el aviso tipo WhatsApp (evitar doble notificación).
+    // Android en PRIMER PLANO: banner local. Viajes NUNCA silent (Web Audio miente “ok”).
     if (isCapacitorAndroid()) {
         const appVisible = typeof document === 'undefined'
             || document.visibilityState === 'visible';
         if (appVisible) {
             showAndroidForegroundLocalNotification(
                 { notification: { title, body }, data },
-                { forceSilent: !!playedJsTone }
+                { forceSilent: !!playedJsTone && !tripLike }
             ).catch(() => {});
             try {
                 navigator.vibrate?.([0, 500, 80, 500, 80, 600, 100, 800, 80, 1000]);

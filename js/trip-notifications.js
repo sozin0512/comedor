@@ -188,7 +188,10 @@ export async function showTripNotification({
         || tagStr.startsWith('trip-offer-')
         || tagStr.startsWith('ride-demand-')
         || tagStr.startsWith('trip-price-boost-')
-        || tagStr.startsWith('freight-alert-');
+        || tagStr.startsWith('freight-alert-')
+        || tagStr.startsWith('staff-trip-')
+        || tagStr.startsWith('push-test-')
+        || tagStr.startsWith('trip-offer-city-');
 
     const ua = typeof navigator !== 'undefined' ? (navigator.userAgent || '') : '';
     const isIOSDevice = /iPad|iPhone|iPod/i.test(ua)

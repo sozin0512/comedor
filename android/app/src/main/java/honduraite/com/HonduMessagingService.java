@@ -41,14 +41,15 @@ public class HonduMessagingService extends FirebaseMessagingService {
 
     /**
      * Debe coincidir con functions/index.js y js/fcm-push.js
-     * v9: tono icónico hondu_iconic + MediaPlayer backup (v8 a menudo solo vibraba).
+     * v10: recreado porque v9 a menudo nació sin wav o con USAGE_NOTIFICATION (mudo).
      */
-    public static final String WA_CHANNEL_ID = "hondu_wa_alert_v9";
+    public static final String WA_CHANNEL_ID = "hondu_wa_alert_v10";
     public static final String WA_CHANNEL_NAME = "HonduRaite viajes (enciende pantalla)";
     private static final String WA_GROUP = "honduraite_wa_group";
 
     /** Canales viejos a borrar para no dejar basura silenciada. */
     private static final String[] LEGACY_CHANNEL_IDS = {
+        "hondu_wa_alert_v9",
         "hondu_wa_alert_v8",
         "hondu_wa_alert_v7",
         "hondu_wa_alert_v6",
@@ -120,7 +121,7 @@ public class HonduMessagingService extends FirebaseMessagingService {
         String openAdmin = firstNonEmpty(data.get("openAdmin"), "");
         String tag = firstNonEmpty(data.get("tag"), "");
         if ("true".equalsIgnoreCase(openDriver) || "true".equalsIgnoreCase(openAdmin)) return true;
-        if ("trip_offer".equals(type) || "new_trip_staff".equals(type)
+        if ("trip_offer".equals(type) || "push_test".equals(type) || "new_trip_staff".equals(type)
             || "ride_demand_alert".equals(type) || "freight_trip_alert".equals(type)) {
             return true;
         }
@@ -128,7 +129,8 @@ public class HonduMessagingService extends FirebaseMessagingService {
             || tag.startsWith("staff-trip-")
             || tag.startsWith("ride-demand-")
             || tag.startsWith("freight-alert-")
-            || tag.startsWith("trip-offer-city-");
+            || tag.startsWith("trip-offer-city-")
+            || tag.startsWith("push-test-");
     }
 
     public static Uri iconicSoundUri(Context context) {
@@ -154,7 +156,18 @@ public class HonduMessagingService extends FirebaseMessagingService {
 
             NotificationChannel existing = nm.getNotificationChannel(WA_CHANNEL_ID);
             if (existing != null) {
-                return;
+                boolean noSound = existing.getSound() == null;
+                boolean low = existing.getImportance() < NotificationManager.IMPORTANCE_HIGH;
+                boolean wrongUsage = false;
+                try {
+                    AudioAttributes have = existing.getAudioAttributes();
+                    wrongUsage = have == null || have.getUsage() != AudioAttributes.USAGE_ALARM;
+                } catch (Exception ignored) {}
+                if (noSound || low || wrongUsage) {
+                    try { nm.deleteNotificationChannel(WA_CHANNEL_ID); } catch (Exception ignored) {}
+                } else {
+                    return;
+                }
             }
 
             NotificationChannel ch = new NotificationChannel(
@@ -254,6 +267,7 @@ public class HonduMessagingService extends FirebaseMessagingService {
         if ("whatsapp".equalsIgnoreCase(style) || "true".equalsIgnoreCase(openDriver)) return true;
         if (type.isEmpty() && tag.isEmpty()) return true;
         return "trip_offer".equals(type)
+            || "push_test".equals(type)
             || "ride_demand_alert".equals(type)
             || "freight_trip_alert".equals(type)
             || "new_trip_staff".equals(type)
