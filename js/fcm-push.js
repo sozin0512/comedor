@@ -10,7 +10,7 @@ import { APP_CONFIG } from './config.js';
 
 let messagingInstance = null;
 let androidPushInitialized = false;
-let androidPushListenersBound = false;
+let androidPushListenersPromise = null;
 let androidPushResumeBound = false;
 let androidPushInitPromise = null;
 let lastAndroidTokenValue = '';
@@ -98,9 +98,19 @@ function isRideAlertData(_data = {}) {
  * Canales nativos (app en otra app / cerrada).
  * Android 8+ solo usa el sound del canal; no el Web Audio de Personalización.
  */
-export async function ensureAndroidPushChannels() {
-    if (!isCapacitorAndroid()) return;
+let androidChannelsPromise = null;
+export function ensureAndroidPushChannels() {
+    if (!isCapacitorAndroid()) return Promise.resolve();
+    if (!androidChannelsPromise) {
+        androidChannelsPromise = ensureAndroidPushChannelsOnce().catch((e) => {
+            androidChannelsPromise = null;
+            console.warn('[push] channels', e);
+        });
+    }
+    return androidChannelsPromise;
+}
 
+async function ensureAndroidPushChannelsOnce() {
     const legacyIds = [
         'hondu_wa_alert_v9',
         'hondu_wa_alert_v8',
@@ -112,8 +122,8 @@ export async function ensureAndroidPushChannels() {
         'hondu_default_v4'
     ];
     for (const id of legacyIds) {
-        try { await PushNotifications.deleteChannel({ id }); } catch (_) {}
-        try { await LocalNotifications?.deleteChannel?.({ id }); } catch (_) {}
+        try { await raceTimeout(PushNotifications.deleteChannel({ id }), 1500, null); } catch (_) {}
+        try { await raceTimeout(LocalNotifications?.deleteChannel?.({ id }), 1500, null); } catch (_) {}
     }
 
     // Canal estilo WhatsApp: HIGH/MAX + tono icónico + luz + vibración
@@ -131,7 +141,7 @@ export async function ensureAndroidPushChannels() {
 
     for (const ch of [waChannel]) {
         try {
-            await PushNotifications.createChannel(ch);
+            await raceTimeout(PushNotifications.createChannel(ch), 2500, null);
         } catch (e) {
             console.warn('[push] canal', ch.id, e);
         }
@@ -139,7 +149,7 @@ export async function ensureAndroidPushChannels() {
 
     try {
         if (LocalNotifications?.createChannel) {
-            await LocalNotifications.createChannel(waChannel);
+            await raceTimeout(LocalNotifications.createChannel(waChannel), 2500, null);
         }
     } catch (e) {
         console.warn('[push] local channels:', e);
@@ -147,7 +157,7 @@ export async function ensureAndroidPushChannels() {
 
     try {
         const SK = registerPlugin('SessionKeepalive');
-        await SK.ensureTripAlertChannel?.();
+        await raceTimeout(SK.ensureTripAlertChannel?.(), 2500, null);
     } catch (_) {}
 }
 
@@ -1165,25 +1175,52 @@ export async function openAndroidNotificationSettings() {
  * 4) Crea canal MAX
  * 5) (opcional) batería sin optimizar
  */
-/** Después de Permitir: registra FCM ya. No espera a que el interruptor del fabricante diga true. */
-export async function registerAndroidPushNow() {
+let androidRegisterFlight = null;
+
+function readPushTokenValue(token) {
+    if (!token) return '';
+    if (typeof token === 'string') return token.trim();
+    return String(token.value || token.token || '').trim();
+}
+
+/**
+ * Un solo getToken a la vez. En el S24, pedir el token y a la vez borrar canales
+ * deja el puente de Capacitor colgado y la pastilla no sale de Registrando.
+ */
+export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
     if (!isCapacitorAndroid()) return lastAndroidTokenValue || null;
-    holdAndroidNotificationGrant();
-    setAndroidNotificationPermissionCache('granted');
-    bindAndroidPushListeners();
-    try { await ensureAndroidPushChannels(); } catch (_) {}
-    try { await PushNotifications.register(); } catch (e) {
-        console.warn('[push] register now', e);
+    if (assumeGranted || androidNotificationGrantHeld() || getNotificationPermission() === 'granted') {
+        holdAndroidNotificationGrant();
     }
-    const native = await fetchNativeFcmToken().catch(() => '');
-    if (native) {
-        await persistAndroidToken(native);
-        return native;
+    if (androidRegisterFlight) return androidRegisterFlight;
+    androidRegisterFlight = requestAndroidFcmTokenOnce().finally(() => {
+        androidRegisterFlight = null;
+    });
+    return androidRegisterFlight;
+}
+
+async function requestAndroidFcmTokenOnce() {
+    await raceTimeout(bindAndroidPushListeners(), 3000, false);
+    if (lastAndroidTokenValue || hasAndroidFcmToken()) {
+        await persistAndroidToken(lastAndroidTokenValue);
+        return lastAndroidTokenValue || null;
     }
-    const waited = await waitForAndroidToken(12000);
-    if (waited) {
-        await persistAndroidToken(waited);
-        return waited;
+    const askOnce = async (waitMs) => {
+        try { await raceTimeout(PushNotifications.register(), 5000, null); } catch (e) {
+            console.warn('[push] register now', e);
+        }
+        return waitForAndroidToken(waitMs);
+    };
+    let token = await askOnce(9000);
+    if (!token) token = await fetchNativeFcmToken();
+    if (!token) {
+        await new Promise((r) => setTimeout(r, 1200));
+        token = await askOnce(7000);
+    }
+    if (token) {
+        await persistAndroidToken(token);
+        ensureAndroidPushChannels().catch(() => {});
+        return token;
     }
     startAndroidTokenWatchdog();
     return lastAndroidTokenValue || null;
@@ -1408,45 +1445,47 @@ async function persistAndroidToken(tokenValue) {
 }
 
 function bindAndroidPushListeners() {
-    if (androidPushListenersBound || !isCapacitorAndroid()) return;
-    androidPushListenersBound = true;
-
-    PushNotifications.addListener('registration', async (token) => {
-        const tokenValue = token?.value || null;
-        if (!tokenValue) return;
-        await persistAndroidToken(tokenValue);
-    }).catch((e) => console.warn('[push] registration listener', e));
-
-    PushNotifications.addListener('registrationError', (err) => {
-        console.warn('[push] registrationError', err);
-    }).catch(() => {});
-
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
-        routeForegroundPush({
-            notification: notification.notification || {
+    if (!isCapacitorAndroid()) return Promise.resolve(false);
+    if (androidPushListenersPromise) return androidPushListenersPromise;
+    androidPushListenersPromise = (async () => {
+        await PushNotifications.addListener('registration', async (token) => {
+            const tokenValue = readPushTokenValue(token);
+            if (!tokenValue) return;
+            await persistAndroidToken(tokenValue);
+        });
+        await PushNotifications.addListener('registrationError', (err) => {
+            console.warn('[push] registrationError', err);
+        });
+        await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+            routeForegroundPush({
+                notification: notification.notification || {
+                    title: notification.title,
+                    body: notification.body
+                },
+                data: notification.data || notification.notification?.data || {},
                 title: notification.title,
                 body: notification.body
-            },
-            data: notification.data || notification.notification?.data || {},
-            title: notification.title,
-            body: notification.body
+            });
         });
-    }).catch(() => {});
-
-    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-        handleNotificationNavigation(action.notification?.data || {});
-    }).catch(() => {});
-
-    try {
-        if (LocalNotifications?.addListener) {
-            LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
-                const extra = action.notification?.extra || {};
-                handleNotificationNavigation(extra);
-            }).catch(() => {});
-        }
-    } catch (_) {}
-
-    bindAndroidPushResume();
+        await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+            handleNotificationNavigation(action.notification?.data || {});
+        });
+        try {
+            if (LocalNotifications?.addListener) {
+                await LocalNotifications.addListener('localNotificationActionPerformed', (action) => {
+                    const extra = action.notification?.extra || {};
+                    handleNotificationNavigation(extra);
+                });
+            }
+        } catch (_) {}
+        bindAndroidPushResume();
+        return true;
+    })().catch((e) => {
+        androidPushListenersPromise = null;
+        console.warn('[push] listeners', e);
+        return false;
+    });
+    return androidPushListenersPromise;
 }
 
 async function waitForAndroidToken(timeoutMs = 10000) {
@@ -1587,17 +1626,14 @@ function startAndroidTokenWatchdog() {
                 const perm = await refreshAndroidNativePermission();
                 if (perm === 'denied' && !androidNotificationGrantHeld()) {
                     deniedStreak += 1;
-                    if (deniedStreak >= 4) stopAndroidTokenWatchdog();
+                    if (deniedStreak >= 6) stopAndroidTokenWatchdog();
                     return;
                 }
                 deniedStreak = 0;
-                const native = await fetchNativeFcmToken();
+                const native = await registerAndroidPushNow();
                 if (native) {
-                    await persistAndroidToken(native);
                     stopAndroidTokenWatchdog();
-                    return;
                 }
-                await forceAndroidRegister();
             } catch (e) {
                 console.warn('[push] token watchdog', e);
             } finally {
@@ -1632,26 +1668,7 @@ export async function ensureAndroidPushToken({ db, appId, uid } = {}) {
         return recovered;
     }
 
-    const native = await fetchNativeFcmToken();
-    if (native) {
-        await persistAndroidToken(native);
-        return native;
-    }
-
-    const fromInit = await initAndroidFcmPush({
-        db: androidPushContext.db,
-        appId: androidPushContext.appId,
-        uid: lastPushUid() || uid || null,
-        skipPermissionRequest: true
-    }).catch(() => null);
-
-    if (fromInit || lastAndroidTokenValue) return fromInit || lastAndroidTokenValue;
-
-    startAndroidTokenWatchdog();
-    const waited = await waitForAndroidToken(18000);
-    if (waited) return waited;
-    startAndroidTokenWatchdog();
-    return lastAndroidTokenValue || null;
+    return registerAndroidPushNow();
 }
 
 if (typeof window !== 'undefined') {
@@ -1695,27 +1712,7 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
     androidPushInitPromise = (async () => {
         try {
             let nativePerm = await refreshAndroidNativePermission();
-            if (nativePerm !== 'granted') {
-                if (skipPermissionRequest) {
-                    if (lastAndroidTokenValue) {
-                        await persistAndroidToken(lastAndroidTokenValue);
-                    }
-                    const nativeTok = await fetchNativeFcmToken();
-                    if (nativeTok) {
-                        await persistAndroidToken(nativeTok);
-                        return nativeTok;
-                    }
-                    try { await PushNotifications.register(); } catch (_) {}
-                    if (nativePerm !== 'denied') {
-                        const skippedTok = await waitForAndroidToken(8000);
-                        if (skippedTok) {
-                            await persistAndroidToken(skippedTok);
-                            return skippedTok;
-                        }
-                    }
-                    startAndroidTokenWatchdog();
-                    return lastAndroidTokenValue || null;
-                }
+            if (nativePerm !== 'granted' && !skipPermissionRequest) {
                 const temu = await requestAndroidTemuNotificationPermissions({
                     requestFullScreen: false,
                     requestBattery: false
@@ -1725,33 +1722,11 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                     startAndroidTokenWatchdog();
                     return lastAndroidTokenValue || null;
                 }
-            } else {
-                await ensureAndroidPushChannels();
             }
-
-            const nativeTok = await fetchNativeFcmToken();
-            if (nativeTok) {
-                await persistAndroidToken(nativeTok);
-                androidPushInitialized = true;
-                return nativeTok;
-            }
-
-            try {
-                await PushNotifications.register();
-            } catch (e) {
-                console.warn('[push] register', e);
-            }
-
-            let token = await waitForAndroidToken(
-                lastAndroidTokenValue ? 2500 : 14000
-            );
-            if (!token) {
-                try { await PushNotifications.register(); } catch (_) {}
-                token = await waitForAndroidToken(8000);
-            }
-            if (token) await persistAndroidToken(token);
-            else startAndroidTokenWatchdog();
-            androidPushInitialized = true;
+            const token = await registerAndroidPushNow({
+                assumeGranted: nativePerm === 'granted'
+            });
+            androidPushInitialized = !!token;
             return token || lastAndroidTokenValue || null;
         } catch (e) {
             console.warn('initAndroidFcmPush:', e);
