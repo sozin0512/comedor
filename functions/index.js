@@ -2414,9 +2414,31 @@ function resolveAndroidPushAudio() {
     };
 }
 
+async function persistCallerDeviceToken(appId, uid, token, platform) {
+    if (!uid || !looksLikeFcmToken(token)) return false;
+    const key = token.replace(/\./g, '_');
+    const plat = String(platform || '').trim().toLowerCase() || 'web';
+    const patch = {
+        [`fcmTokens.${key}`]: {
+            token,
+            updatedAt: Date.now(),
+            platform: plat
+        },
+        fcmTokenUpdatedAt: FieldValue.serverTimestamp()
+    };
+    await Promise.all([
+        db.doc(`artifacts/${appId}/public/data/users/${uid}`).set(patch, { merge: true }).catch(() => {}),
+        db.doc(`artifacts/${appId}/users/${uid}/profile/data`).set(patch, { merge: true }).catch(() => {})
+    ]);
+    return true;
+}
+
 async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true, targetToken = '', targetPlatform = '' }) {
     const { tokens, records, platforms } = await getUserPushMeta(appId, uid);
-    if (!tokens.length) {
+    const wantToken = String(targetToken || '').trim();
+    const wantPlat = String(targetPlatform || '').trim().toLowerCase();
+    // Primera activación: el celular ya tiene token y Firestore todavía no. Igual se manda.
+    if (!tokens.length && !looksLikeFcmToken(wantToken)) {
         console.warn(`[push] sin token FCM (público ni privado) uid=${uid} type=${data.type || ''}`);
         return { sent: 0, tokens: 0, platforms: [] };
     }
@@ -2564,8 +2586,6 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
 
     const androidTokens = [];
     const webTokens = [];
-    const wantToken = String(targetToken || '').trim();
-    const wantPlat = String(targetPlatform || '').trim().toLowerCase();
     for (const rec of (records || [])) {
         if (!rec?.token) continue;
         if (wantToken && rec.token !== wantToken) continue;
@@ -2643,6 +2663,9 @@ exports.pingMyPush = onCall(async (request) => {
     }
     const token = String(request.data?.token || '').trim();
     const platform = String(request.data?.platform || '').trim();
+    if (looksLikeFcmToken(token)) {
+        await persistCallerDeviceToken(APP_ID, uid, token, platform).catch(() => {});
+    }
     const result = await sendPushToUser(APP_ID, uid, {
         title: 'HonduRaite · Aviso de prueba',
         body: 'Si ves esto, los viajes te llegan con la app o la pestaña cerrada.',

@@ -101,7 +101,7 @@ export async function requestTripNotificationPermission() {
             try {
                 const { requestAndroidTemuNotificationPermissions } = await import('./fcm-push.js');
                 const temu = await requestAndroidTemuNotificationPermissions({
-                    requestFullScreen: true,
+                    requestFullScreen: false,
                     requestBattery: false
                 });
                 const pushState = temu.push === 'granted'

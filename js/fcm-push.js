@@ -448,7 +448,14 @@ export async function pingMyPushFromClient() {
         if (typeof callable !== 'function' || !fns) {
             return { sent: 0, tokens: 0, error: 'no_callable' };
         }
-        const { token, platform } = getThisDevicePushTarget();
+        let { token, platform } = getThisDevicePushTarget();
+        if (!token && isCapacitorAndroid()) {
+            await waitForAndroidToken(8000);
+            ({ token, platform } = getThisDevicePushTarget());
+        }
+        if (!token) {
+            return { sent: 0, tokens: 0, error: 'no_local_token' };
+        }
         const res = await callable(fns, 'pingMyPush')({ token, platform });
         return res?.data || { sent: 0, tokens: 0 };
     } catch (e) {
@@ -1193,6 +1200,7 @@ if (typeof window !== 'undefined') {
     window.pingMyPushFromClient = pingMyPushFromClient;
     window.hasSavedWebPushToken = hasSavedWebPushToken;
     window.hasAndroidFcmToken = hasAndroidFcmToken;
+    window.getThisDevicePushTarget = getThisDevicePushTarget;
     window.bootWebPushServiceWorker = bootWebPushServiceWorker;
 }
 
@@ -1223,12 +1231,11 @@ async function persistAndroidToken(tokenValue) {
     try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
     setAndroidNotificationPermissionCache('granted');
     markWebPushTokenOk(true);
+    notifyPushTokenReady(tokenValue, 'android');
     const saveUid = lastPushUid();
     const { db, appId } = androidPushContext;
     if (saveUid && db && appId) {
         await saveFcmToken(db, appId, saveUid, tokenValue, 'android').catch(() => {});
-    } else {
-        notifyPushTokenReady(tokenValue, 'android');
     }
 }
 
@@ -1312,7 +1319,7 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                     return lastAndroidTokenValue || null;
                 }
                 const temu = await requestAndroidTemuNotificationPermissions({
-                    requestFullScreen: true,
+                    requestFullScreen: false,
                     requestBattery: false
                 });
                 nativePerm = await refreshAndroidNativePermission();
@@ -1329,9 +1336,13 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                 console.warn('[push] register', e);
             }
 
-            const token = await waitForAndroidToken(
-                lastAndroidTokenValue ? 2000 : (skipPermissionRequest ? 2500 : 10000)
+            let token = await waitForAndroidToken(
+                lastAndroidTokenValue ? 2500 : (skipPermissionRequest ? 5000 : 16000)
             );
+            if (!token) {
+                try { await PushNotifications.register(); } catch (_) {}
+                token = await waitForAndroidToken(skipPermissionRequest ? 4000 : 10000);
+            }
             if (token) await persistAndroidToken(token);
             androidPushInitialized = true;
             return token || lastAndroidTokenValue || null;
