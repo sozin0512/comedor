@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.11.8">
+    <meta name="hr-app-version" content="2026.10.11.9">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -55,10 +55,10 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.11.8">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.11.9">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.11.8">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.11.9">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -104,7 +104,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.11.8"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.11.9"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -168,10 +168,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.11.8';
+        window.__HR_BUILD_VERSION__ = '2026.10.11.9';
         (function () {
             try {
-                var build = '2026.10.11.8';
+                var build = '2026.10.11.9';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -2344,6 +2344,7 @@
                             <button type="button" id="driver-zone-badge" onclick="window.showCityPickerModal?.()" class="text-[9px] font-black uppercase tracking-widest text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full max-w-[9.5rem] truncate active:scale-95" title="Cambiar ciudad" aria-label="Cambiar ciudad">Ciudad</button>
                             <span id="driver-vehicle-type-badge" class="hidden text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-2 py-1 rounded-full">Auto</span>
                             <span id="driver-online-badge" class="text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">En línea</span>
+                            <button type="button" id="driver-push-status-badge" onclick="window.enableTripNotifications?.()" class="hidden text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-full">Avisos activos</button>
                         </div>
                     </div>
                     <div id="driver-radar-status" class="driver-radar-status shrink-0" aria-live="polite">
