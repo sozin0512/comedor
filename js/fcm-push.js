@@ -1,7 +1,7 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getMessaging, getToken, isSupported, onMessage } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js';
 import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { initTripNotifications, notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert, setAndroidNotificationPermissionCache, getNotificationPermission } from './trip-notifications.js';
+import { initTripNotifications, notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert, setAndroidNotificationPermissionCache, getNotificationPermission, holdAndroidNotificationGrant, androidNotificationGrantHeld } from './trip-notifications.js';
 import { isCapacitorNative, isCapacitorAndroid } from './capacitor-native.js';
 import { getMessagingSwUrl } from './pwa-update.js';
 import { isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush } from './pwa-install.js';
@@ -1098,29 +1098,44 @@ function normalizeAndroidReceiveState(receive) {
     return 'default';
 }
 
-/** Permiso nativo POST_NOTIFICATIONS + interruptor del sistema. No uses Notification.permission del WebView. */
-export async function refreshAndroidNativePermission() {
-    if (!isCapacitorAndroid()) return getNotificationPermission();
-    let receive = 'default';
+async function readAndroidPermissionParts() {
     let asked = 'default';
     try {
         const perm = await PushNotifications.checkPermissions();
         asked = perm?.receive || 'default';
-        receive = asked;
     } catch (e) {
         console.warn('[push] checkPermissions', e);
     }
-    // S24 (Android 14) y TCL Paper UI: antes de preguntar, areNotificationsEnabled()
-    // da false. Eso no es un bloqueo. Si lo marcamos denied, ese teléfono no ve Permitir.
-    const stillAsking = asked === 'prompt' || asked === 'prompt-with-rationale';
+    let sys = null;
     try {
         const SK = registerPlugin('SessionKeepalive');
-        const sys = await SK.areNotificationsEnabled?.();
-        if (!stillAsking && sys && sys.enabled === false) receive = 'denied';
-        else if (!stillAsking && sys && sys.enabled === true && receive !== 'denied') receive = 'granted';
+        const res = await SK.areNotificationsEnabled?.();
+        if (res && typeof res.enabled === 'boolean') sys = res.enabled;
     } catch (_) {}
-    const state = normalizeAndroidReceiveState(receive);
-    setAndroidNotificationPermissionCache(state);
+    return { asked, sys };
+}
+
+function decideAndroidPermission(asked, sys) {
+    if (androidNotificationGrantHeld() || asked === 'granted' || sys === true) return 'granted';
+    if (asked === 'prompt' || asked === 'prompt-with-rationale') return 'default';
+    if (asked === 'denied') return 'denied';
+    return 'default';
+}
+
+/** Permiso nativo POST_NOTIFICATIONS + interruptor del sistema. No uses Notification.permission del WebView. */
+export async function refreshAndroidNativePermission() {
+    if (!isCapacitorAndroid()) return getNotificationPermission();
+    // S24 (Android 14) y TCL Paper UI: antes de preguntar, areNotificationsEnabled()
+    // da false. Eso no es un bloqueo. Después de Permitir sigue en false un momento
+    // y, si lo pasamos a denied, el recuadro verde nunca llega.
+    if (androidNotificationGrantHeld()) {
+        setAndroidNotificationPermissionCache('granted');
+        return 'granted';
+    }
+    const { asked, sys } = await readAndroidPermissionParts();
+    const state = decideAndroidPermission(asked, sys);
+    if (state === 'granted') holdAndroidNotificationGrant();
+    else setAndroidNotificationPermissionCache(state);
     return state;
 }
 
@@ -1150,6 +1165,30 @@ export async function openAndroidNotificationSettings() {
  * 4) Crea canal MAX
  * 5) (opcional) batería sin optimizar
  */
+/** Después de Permitir: registra FCM ya. No espera a que el interruptor del fabricante diga true. */
+export async function registerAndroidPushNow() {
+    if (!isCapacitorAndroid()) return lastAndroidTokenValue || null;
+    holdAndroidNotificationGrant();
+    setAndroidNotificationPermissionCache('granted');
+    bindAndroidPushListeners();
+    try { await ensureAndroidPushChannels(); } catch (_) {}
+    try { await PushNotifications.register(); } catch (e) {
+        console.warn('[push] register now', e);
+    }
+    const native = await fetchNativeFcmToken().catch(() => '');
+    if (native) {
+        await persistAndroidToken(native);
+        return native;
+    }
+    const waited = await waitForAndroidToken(12000);
+    if (waited) {
+        await persistAndroidToken(waited);
+        return waited;
+    }
+    startAndroidTokenWatchdog();
+    return lastAndroidTokenValue || null;
+}
+
 /** Arranca el diálogo nativo en el mismo toque, antes de cualquier await. */
 export function beginAndroidNotificationPermissionRequest() {
     if (!isCapacitorAndroid()) return null;
@@ -1160,7 +1199,7 @@ export function beginAndroidNotificationPermissionRequest() {
     }
 }
 
-/** Espera la respuesta real. En algunos teléfonos el plugin contesta antes del toque. */
+/** Espera la respuesta real. En S24 y TCL el plugin dice denied un momento después de Permitir. */
 export async function finishAndroidPermissionRequest(started) {
     if (!isCapacitorAndroid()) return 'default';
     let receive = 'default';
@@ -1170,26 +1209,35 @@ export async function finishAndroidPermissionRequest(started) {
     } catch (e) {
         console.warn('[push] requestPermissions', e);
     }
-    if (receive !== 'granted' && receive !== 'denied') {
-        const deadline = Date.now() + 25000;
-        while (Date.now() < deadline) {
-            await new Promise((r) => setTimeout(r, 400));
-            try {
-                const again = await PushNotifications.checkPermissions();
-                receive = again?.receive || receive;
-            } catch (_) {}
-            if (receive === 'granted' || receive === 'denied') break;
+    const acceptGranted = () => {
+        holdAndroidNotificationGrant();
+        registerAndroidPushNow().catch(() => {});
+        return 'granted';
+    };
+    if (receive === 'granted') return acceptGranted();
+
+    const deadline = Date.now() + 22000;
+    let deniedSince = 0;
+    while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 400));
+        const { asked, sys } = await readAndroidPermissionParts();
+        if (asked === 'granted' || sys === true || androidNotificationGrantHeld()) return acceptGranted();
+        if (asked === 'prompt' || asked === 'prompt-with-rationale') {
+            deniedSince = 0;
+            continue;
+        }
+        if (asked === 'denied') {
+            if (!deniedSince) deniedSince = Date.now();
+            if (Date.now() - deniedSince > 8000) {
+                setAndroidNotificationPermissionCache('denied');
+                return 'denied';
+            }
+            continue;
         }
     }
-    try {
-        const SK = registerPlugin('SessionKeepalive');
-        const sys = await SK.areNotificationsEnabled?.();
-        const stillAsking = receive === 'prompt' || receive === 'prompt-with-rationale';
-        if (!stillAsking && sys && sys.enabled === false && receive === 'granted') receive = 'denied';
-    } catch (_) {}
-    const state = normalizeAndroidReceiveState(receive);
-    setAndroidNotificationPermissionCache(state);
-    return state;
+    const finalState = await refreshAndroidNativePermission();
+    if (finalState === 'granted') return acceptGranted();
+    return finalState;
 }
 
 export async function requestAndroidTemuNotificationPermissions({
@@ -1221,11 +1269,10 @@ export async function requestAndroidTemuNotificationPermissions({
         const SK = registerPlugin('SessionKeepalive');
         const sys = await SK.areNotificationsEnabled?.();
         // No pises un diálogo que el usuario todavía no contestó.
-        if (result.push === 'prompt' || result.push === 'prompt-with-rationale') {
-            // dejar prompt
-        } else if (sys && sys.enabled === false) result.push = 'denied';
-        else if (sys && sys.enabled === true && result.push === 'granted') result.push = 'granted';
-        else if (sys && sys.enabled === true && result.push !== 'denied') result.push = 'granted';
+        if (result.push === 'granted' || sys?.enabled === true) {
+            result.push = 'granted';
+            holdAndroidNotificationGrant();
+        }
     } catch (_) {}
 
     // Un segundo diálogo (local / pantalla completa) en el mismo instante
@@ -1525,6 +1572,7 @@ async function forceAndroidRegister() {
 function startAndroidTokenWatchdog() {
     if (!isCapacitorAndroid() || androidTokenWatchdog) return;
     let attempt = 0;
+    let deniedStreak = 0;
     androidTokenWatchdog = setInterval(() => {
         if (lastAndroidTokenValue || hasAndroidFcmToken()) {
             stopAndroidTokenWatchdog();
@@ -1537,10 +1585,12 @@ function startAndroidTokenWatchdog() {
         (async () => {
             try {
                 const perm = await refreshAndroidNativePermission();
-                if (perm === 'denied') {
-                    stopAndroidTokenWatchdog();
+                if (perm === 'denied' && !androidNotificationGrantHeld()) {
+                    deniedStreak += 1;
+                    if (deniedStreak >= 4) stopAndroidTokenWatchdog();
                     return;
                 }
+                deniedStreak = 0;
                 const native = await fetchNativeFcmToken();
                 if (native) {
                     await persistAndroidToken(native);
@@ -1655,8 +1705,8 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                         await persistAndroidToken(nativeTok);
                         return nativeTok;
                     }
+                    try { await PushNotifications.register(); } catch (_) {}
                     if (nativePerm !== 'denied') {
-                        try { await PushNotifications.register(); } catch (_) {}
                         const skippedTok = await waitForAndroidToken(8000);
                         if (skippedTok) {
                             await persistAndroidToken(skippedTok);

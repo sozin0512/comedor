@@ -39,8 +39,20 @@ export function isNotificationSupported() {
 
 /** En APK, Notification.permission del WebView miente (casi siempre "denied"). */
 let androidNativePermission = null;
+/** Tras Permitir, S24 y TCL siguen diciendo "apagado" un rato. No dejar que eso borre el permiso. */
+let androidGrantHoldUntil = 0;
+
+export function holdAndroidNotificationGrant(ms = 90000) {
+    androidGrantHoldUntil = Date.now() + ms;
+    androidNativePermission = 'granted';
+}
+
+export function androidNotificationGrantHeld() {
+    return Date.now() < androidGrantHoldUntil;
+}
 
 export function setAndroidNotificationPermissionCache(state) {
+    if (state !== 'granted' && androidNotificationGrantHeld()) return;
     if (state === 'granted' || state === 'denied' || state === 'default') {
         androidNativePermission = state;
         // Permiso ≠ token. honduber_push_enabled solo cuando el FCM ya quedó.
