@@ -52,11 +52,14 @@ export function setAndroidNotificationPermissionCache(state) {
 export function getNotificationPermission() {
     if (!isNotificationSupported()) return 'unsupported';
     if (isCapacitorAndroid()) {
-        if (androidNativePermission) return androidNativePermission;
+        if (androidNativePermission === 'granted' || androidNativePermission === 'denied') {
+            return androidNativePermission;
+        }
         try {
             if (localStorage.getItem('honduber_push_token_ok') === '1') return 'granted';
+            if (localStorage.getItem('honduber_fcm_token_last')) return 'granted';
         } catch (_) {}
-        return 'default';
+        return androidNativePermission || 'default';
     }
     if (typeof Notification === 'undefined') return 'unsupported';
     return Notification.permission;

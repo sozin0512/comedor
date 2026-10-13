@@ -278,6 +278,8 @@ async function resolveVapidKey(db, appId, configVapid) {
 }
 
 const WEB_PUSH_TOKEN_OK_KEY = 'honduber_push_token_ok';
+const LAST_FCM_TOKEN_KEY = 'honduber_fcm_token_last';
+const LAST_FCM_PLATFORM_KEY = 'honduber_fcm_platform_last';
 
 function detectWebPushPlatform() {
     if (isIosStandalonePwa()) return 'ios-pwa';
@@ -287,10 +289,10 @@ function detectWebPushPlatform() {
 
 export function hasSavedWebPushToken() {
     try {
-        return localStorage.getItem(WEB_PUSH_TOKEN_OK_KEY) === '1';
-    } catch (_) {
-        return false;
-    }
+        if (localStorage.getItem(WEB_PUSH_TOKEN_OK_KEY) === '1') return true;
+        if (localStorage.getItem(LAST_FCM_TOKEN_KEY)) return true;
+    } catch (_) {}
+    return false;
 }
 
 function markWebPushTokenOk(ok) {
@@ -413,9 +415,6 @@ function notifyPushTokenReady(token, platform) {
     } catch (_) {}
     try { window.updatePushEnableButton?.(); } catch (_) {}
 }
-
-const LAST_FCM_TOKEN_KEY = 'honduber_fcm_token_last';
-const LAST_FCM_PLATFORM_KEY = 'honduber_fcm_platform_last';
 
 function rememberDevicePushToken(token, platform) {
     if (!token) return;
@@ -1056,6 +1055,7 @@ export async function refreshAndroidNativePermission() {
         const SK = registerPlugin('SessionKeepalive');
         const sys = await SK.areNotificationsEnabled?.();
         if (sys && sys.enabled === false) receive = 'denied';
+        else if (sys && sys.enabled === true) receive = 'granted';
     } catch (_) {}
     const state = normalizeAndroidReceiveState(receive);
     setAndroidNotificationPermissionCache(state);
@@ -1116,6 +1116,7 @@ export async function requestAndroidTemuNotificationPermissions({
         const SK = registerPlugin('SessionKeepalive');
         const sys = await SK.areNotificationsEnabled?.();
         if (sys && sys.enabled === false) result.push = 'denied';
+        else if (sys && sys.enabled === true) result.push = 'granted';
     } catch (_) {}
 
     try {
