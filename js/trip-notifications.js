@@ -43,9 +43,7 @@ let androidNativePermission = null;
 export function setAndroidNotificationPermissionCache(state) {
     if (state === 'granted' || state === 'denied' || state === 'default') {
         androidNativePermission = state;
-        if (state === 'granted') {
-            try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
-        }
+        // Permiso ≠ token. honduber_push_enabled solo cuando el FCM ya quedó.
     }
 }
 

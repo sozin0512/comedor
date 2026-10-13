@@ -962,6 +962,12 @@ let onMessageBound = false;
 let tokenRefreshBound = false;
 let lastWebTokenSaveAt = 0;
 let lastWebTokenValue = '';
+try {
+    if (!isCapacitorAndroid()) {
+        lastWebTokenValue = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
+        if (lastWebTokenValue) markWebPushTokenOk(true);
+    }
+} catch (_) {}
 
 /** Web/PWA: FCM con service worker y VAPID. No se ejecuta en APK Android. */
 export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) {
@@ -983,6 +989,10 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
 
     if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
         return null;
+    }
+
+    if (tokenUid && db && appId) {
+        await recoverSavedPushTokenFromProfile(db, appId, tokenUid).catch(() => {});
     }
 
     try {
@@ -1315,14 +1325,84 @@ async function waitForAndroidToken(timeoutMs = 10000) {
     return lastAndroidTokenValue || null;
 }
 
+let nativeGetFcmTokenState = 'unknown';
+
+function raceTimeout(promise, ms, fallback) {
+    let timer = null;
+    return Promise.race([
+        Promise.resolve(promise).then(
+            (v) => { if (timer) clearTimeout(timer); return v; },
+            () => { if (timer) clearTimeout(timer); return fallback; }
+        ),
+        new Promise((resolve) => {
+            timer = setTimeout(() => resolve(fallback), ms);
+        })
+    ]);
+}
+
+function latestStoredFcmToken(map, preferPlatform = '') {
+    if (!map || typeof map !== 'object') return null;
+    let best = null;
+    for (const v of Object.values(map)) {
+        const token = typeof v === 'string' ? v : String(v?.token || '');
+        if (!token) continue;
+        const platform = typeof v === 'object' ? String(v.platform || '') : '';
+        const at = typeof v === 'object' ? Number(v.updatedAt) || 0 : 0;
+        const pref = preferPlatform && platform === preferPlatform ? 1 : 0;
+        const score = pref * 1e15 + at;
+        if (!best || score > best.score) best = { token, platform, at, score };
+    }
+    return best;
+}
+
+async function recoverSavedPushTokenFromProfile(db, appId, uid) {
+    if (!db || !appId || !uid) return '';
+    if (lastAndroidTokenValue || lastWebTokenValue) {
+        return lastAndroidTokenValue || lastWebTokenValue;
+    }
+    try {
+        const stored = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
+        if (stored) return stored;
+    } catch (_) {}
+    const prefer = isCapacitorAndroid() ? 'android' : detectWebPushPlatform();
+    const refs = [
+        doc(db, 'artifacts', appId, 'public', 'data', 'users', uid),
+        doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data')
+    ];
+    let best = null;
+    for (const ref of refs) {
+        try {
+            const snap = await getDoc(ref);
+            if (!snap.exists()) continue;
+            const found = latestStoredFcmToken(snap.data()?.fcmTokens, prefer);
+            if (found && (!best || found.score > best.score)) best = found;
+        } catch (_) {}
+    }
+    if (!best?.token) return '';
+    const platform = best.platform || prefer;
+    rememberDevicePushToken(best.token, platform);
+    markWebPushTokenOk(true);
+    try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
+    if (isCapacitorAndroid()) lastAndroidTokenValue = best.token;
+    else lastWebTokenValue = best.token;
+    notifyPushTokenReady(best.token, platform);
+    return best.token;
+}
+
 async function fetchNativeFcmToken() {
     if (!isCapacitorAndroid()) return '';
+    if (nativeGetFcmTokenState === 'missing') return '';
     try {
         const SK = registerPlugin('SessionKeepalive');
-        if (typeof SK.getFcmToken !== 'function') return '';
-        const res = await SK.getFcmToken();
+        const res = await raceTimeout(SK.getFcmToken(), 8000, null);
+        if (!res) return '';
+        nativeGetFcmTokenState = 'ok';
         return String(res?.token || '').trim();
-    } catch (_) {
+    } catch (e) {
+        const msg = String(e?.message || e || '');
+        if (/unimplemented|not implemented|unavailable/i.test(msg)) {
+            nativeGetFcmTokenState = 'missing';
+        }
         return '';
     }
 }
@@ -1396,6 +1476,17 @@ export async function ensureAndroidPushToken({ db, appId, uid } = {}) {
         return lastAndroidTokenValue;
     }
 
+    const recovered = await recoverSavedPushTokenFromProfile(
+        androidPushContext.db,
+        androidPushContext.appId,
+        lastPushUid() || uid || null
+    ).catch(() => '');
+    if (recovered) {
+        await persistAndroidToken(recovered);
+        forceAndroidRegister().catch(() => {});
+        return recovered;
+    }
+
     const native = await fetchNativeFcmToken();
     if (native) {
         await persistAndroidToken(native);
@@ -1443,7 +1534,7 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
     bindAndroidPushListeners();
 
     if (androidPushInitPromise) {
-        try { await androidPushInitPromise; } catch (_) {}
+        return androidPushInitPromise;
     }
 
     androidPushInitPromise = (async () => {
@@ -1458,6 +1549,14 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
                     if (nativeTok) {
                         await persistAndroidToken(nativeTok);
                         return nativeTok;
+                    }
+                    if (nativePerm !== 'denied') {
+                        try { await PushNotifications.register(); } catch (_) {}
+                        const skippedTok = await waitForAndroidToken(8000);
+                        if (skippedTok) {
+                            await persistAndroidToken(skippedTok);
+                            return skippedTok;
+                        }
                     }
                     startAndroidTokenWatchdog();
                     return lastAndroidTokenValue || null;
