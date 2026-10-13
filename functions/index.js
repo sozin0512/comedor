@@ -1130,6 +1130,44 @@ exports.acceptDriverTrip = onCall(async (request) => {
     return { ok: true, tripId, driverBusy: !!patch.driverFinishingOtherTrip };
 });
 
+/** Pasar / rechazar oferta — Admin SDK (el cliente no puede escribir declinedDriverIds si el perfil público no tiene role driver). */
+exports.declineDriverTrip = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    }
+    const tripId = String(request.data?.tripId || '').trim();
+    if (!tripId) {
+        throw new HttpsError('invalid-argument', 'ID de viaje requerido.');
+    }
+
+    await assertCallerIsApprovedDriver(uid);
+
+    const tripRef = db.doc(`artifacts/${APP_ID}/public/data/trips/${tripId}`);
+    const tripSnap = await tripRef.get();
+    if (!tripSnap.exists) {
+        throw new HttpsError('not-found', 'Este viaje ya no existe.');
+    }
+    const trip = tripSnap.data() || {};
+    if (trip.status !== 'pending') {
+        return { ok: true, skipped: true, reason: 'not_pending' };
+    }
+
+    const patch = {
+        declinedDriverIds: FieldValue.arrayUnion(uid),
+        [`driverBids.${uid}`]: FieldValue.delete()
+    };
+    const released = trip.offeredToDriverId === uid;
+    if (released) {
+        patch.offeredToDriverId = null;
+        patch.offeredToDriverName = null;
+        patch.offerSentAt = null;
+        patch.offerDistanceKm = null;
+    }
+    await tripRef.update(patch);
+    return { ok: true, tripId, releasedOffer: released };
+});
+
 async function refundTripSaldoIfNeeded(tripRef, trip) {
     if (trip.paymentMethod !== 'saldo' || !trip.saldoCharged || trip.saldoRefunded) {
         return { skipped: true, reason: 'no_refund_needed' };

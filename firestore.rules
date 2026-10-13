@@ -49,7 +49,9 @@ service cloud.firestore {
 
     // Público o privado: perfiles viejos a veces solo tienen role en uno de los dos
     function isDriver(app) {
-      return getRole(app) == 'driver' || getPrivateRole(app) == 'driver';
+      return getRole(app) == 'driver'
+        || getPrivateRole(app) == 'driver'
+        || exists(/databases/$(database)/documents/artifacts/$(app)/public/data/drivers_location/$(requestUid()));
     }
 
     function isClient(app) {
@@ -239,6 +241,19 @@ service cloud.firestore {
           && isDriver(app)
           && request.resource.data.status == 'pending'
           && request.resource.data.clientId == resource.data.clientId
+        )
+        // Pasar: cualquier sesión autenticada puede ocultarse a sí misma (arrayUnion uid)
+        || (
+          isSignedIn()
+          && resource.data.status == 'pending'
+          && request.resource.data.status == 'pending'
+          && request.resource.data.clientId == resource.data.clientId
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['declinedDriverIds', 'driverBids', 'offeredToDriverId', 'offeredToDriverName', 'offerSentAt', 'offerDistanceKm', 'candidateDriverIds'])
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['offeredToDriverId'])
+            || resource.data.offeredToDriverId == requestUid()
+          )
         )
         // Viaje armado para cliente NUEVO (guest_…): el pasajero autenticado reclama 1 vez
         || (
