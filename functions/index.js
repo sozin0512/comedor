@@ -2334,7 +2334,7 @@ async function openTripOfferToCity(appId, tripId) {
 }
 
 async function getUserPushMeta(appId, uid) {
-    if (!uid) return { tokens: [], pushSoundMode: 'temu' };
+    if (!uid) return { tokens: [], records: [], platforms: [], pushSoundMode: 'temu' };
     const pubRef = db.doc(`artifacts/${appId}/public/data/users/${uid}`);
     const privRef = db.doc(`artifacts/${appId}/users/${uid}/profile/data`);
     const [pubSnap, privSnap] = await Promise.all([
@@ -2354,7 +2354,7 @@ async function getUserPushMeta(appId, uid) {
     const mode = pub.pushSoundMode === 'soft' || pub.pushSoundMode === 'normal'
         ? pub.pushSoundMode
         : 'temu';
-    return { tokens, platforms, pushSoundMode: mode };
+    return { tokens, records, platforms, pushSoundMode: mode };
 }
 
 async function getUserTokens(appId, uid) {
@@ -2377,7 +2377,7 @@ function resolveAndroidPushAudio() {
 }
 
 async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true }) {
-    const { tokens, platforms } = await getUserPushMeta(appId, uid);
+    const { tokens, records, platforms } = await getUserPushMeta(appId, uid);
     if (!tokens.length) {
         console.warn(`[push] sin token FCM (público ni privado) uid=${uid} type=${data.type || ''}`);
         return { sent: 0, tokens: 0, platforms: [] };
@@ -2491,56 +2491,72 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         };
     }
 
-    const payload = {
-        tokens,
-        data: Object.fromEntries(
-            Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
-        ),
+    const dataFields = Object.fromEntries(
+        Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
+    );
+
+    // iOS PWA: si el FCM lleva notification (arriba o webpush.notification), Safari
+    // entrega el aviso SOLO con la app abierta y NO lo pone en el centro de notificaciones.
+    // Data-only + showNotification en el SW = barra de notificaciones.
+    const webPayload = {
+        data: dataFields,
         webpush: {
             headers: {
                 Urgency: 'high',
                 TTL: '86400'
             },
+            fcmOptions: { link: clickUrl }
+        }
+    };
+    const androidPayload = {
+        data: dataFields,
+        android: androidConfig,
+        webpush: {
+            headers: { Urgency: 'high', TTL: '86400' },
             notification: webNotification,
             fcmOptions: { link: clickUrl }
-        },
-        android: androidConfig,
-        apns: {
-            headers: {
-                'apns-priority': '10',
-                'apns-push-type': 'alert'
-            },
-            payload: {
-                aps: {
-                    alert: { title: safeTitle, body: safeBody },
-                    sound: 'default',
-                    'interruption-level': 'time-sensitive'
-                }
-            }
         }
     };
     if (isTripWake) {
-        payload.notification = { title: safeTitle, body: safeBody };
+        androidPayload.notification = { title: safeTitle, body: safeBody };
     }
 
-    const uniqueTokens = [...new Set(tokens.filter(Boolean))];
+    const androidTokens = [];
+    const webTokens = [];
+    for (const rec of (records || [])) {
+        if (!rec?.token) continue;
+        if (rec.platform === 'android') androidTokens.push(rec.token);
+        else webTokens.push(rec.token);
+    }
+    if (!androidTokens.length && !webTokens.length) {
+        (tokens || []).forEach((t) => webTokens.push(t));
+    }
+
     const CHUNK = 500;
     let sent = 0;
     const invalid = [];
-    for (let i = 0; i < uniqueTokens.length; i += CHUNK) {
-        const chunk = uniqueTokens.slice(i, i + CHUNK);
-        const res = await getMessaging().sendEachForMulticast({ ...payload, tokens: chunk });
-        sent += res.successCount || 0;
-        res.responses.forEach((r, idx) => {
-            if (r.success) return;
-            const code = r.error?.code || '';
-            if (code === 'messaging/registration-token-not-registered') {
-                invalid.push(chunk[idx]);
-                return;
-            }
-            console.warn(`[push] fcm fail uid=${uid} type=${type} code=${code} msg=${r.error?.message || ''}`);
-        });
+    const uniqueAll = [...new Set([...(androidTokens || []), ...(webTokens || [])].filter(Boolean))];
+
+    async function sendChunks(base, list, label) {
+        const unique = [...new Set((list || []).filter(Boolean))];
+        for (let i = 0; i < unique.length; i += CHUNK) {
+            const chunk = unique.slice(i, i + CHUNK);
+            const res = await getMessaging().sendEachForMulticast({ ...base, tokens: chunk });
+            sent += res.successCount || 0;
+            (res.responses || []).forEach((r, idx) => {
+                if (r.success) return;
+                const code = r.error?.code || '';
+                if (code === 'messaging/registration-token-not-registered') {
+                    invalid.push(chunk[idx]);
+                    return;
+                }
+                console.warn(`[push] fcm fail uid=${uid} type=${type} via=${label} code=${code} msg=${r.error?.message || ''}`);
+            });
+        }
     }
+
+    await sendChunks(androidPayload, androidTokens, 'android');
+    await sendChunks(webPayload, webTokens, 'web');
 
     if (invalid.length) {
         const updates = {};
@@ -2553,10 +2569,11 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         ]);
     }
     console.log(
-        `[push] uid=${uid} type=${type || 'n/a'} sent=${sent}/${uniqueTokens.length} ` +
+        `[push] uid=${uid} type=${type || 'n/a'} sent=${sent}/${uniqueAll.length} ` +
+        `android=${androidTokens.length} web=${webTokens.length} ` +
         `platforms=${(platforms || []).join(',') || 'n/a'} invalid=${invalid.length}`
     );
-    return { sent, tokens: uniqueTokens.length, platforms: platforms || [], invalid: invalid.length };
+    return { sent, tokens: uniqueAll.length, platforms: platforms || [], invalid: invalid.length };
 }
 
 /** Conductor/staff: prueba FCM real (web y APK) para avisos con la app cerrada. */
