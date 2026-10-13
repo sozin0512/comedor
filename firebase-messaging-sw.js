@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.10.13.2';
+const HR_SW_VERSION = '2026.10.13.3';
 /* HonduRaite — Service Worker de Web Push.
  *
  * No inicializar firebase.messaging() aquí: el SDK registra su propio
@@ -152,6 +152,16 @@ self.addEventListener('push', (event) => {
 });
 
 self.addEventListener('install', () => self.skipWaiting());
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+            clients.forEach((client) => {
+                try { client.postMessage({ type: 'HONDUBER_PUSH_SUB_CHANGE' }); } catch (_) {}
+            });
+        })
+    );
+});
 
 self.addEventListener('message', (event) => {
     if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();

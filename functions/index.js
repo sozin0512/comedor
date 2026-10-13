@@ -2460,9 +2460,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         title: safeTitle,
         body: safeBody,
         icon: PUSH_ICON,
-        badge: PUSH_ICON,
-        // iOS/Chrome: si silent queda true o se omite mal, el aviso llega mudo.
-        silent: false
+        badge: PUSH_ICON
     };
     if (data.tag) webNotification.tag = String(data.tag);
 

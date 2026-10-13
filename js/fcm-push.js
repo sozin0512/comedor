@@ -337,6 +337,17 @@ async function waitForServiceWorkerReady(reg, timeoutMs) {
     return ready;
 }
 
+export async function bootWebPushServiceWorker() {
+    if (isCapacitorNative()) return null;
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
+    try {
+        return await registerMessagingServiceWorker();
+    } catch (e) {
+        console.warn('[push] boot SW', e);
+        return null;
+    }
+}
+
 async function registerMessagingServiceWorker() {
     const swUrl = getMessagingSwUrl(import.meta.url);
     if ('serviceWorker' in navigator) {
@@ -1154,6 +1165,7 @@ if (typeof window !== 'undefined') {
     window.pingMyPushFromClient = pingMyPushFromClient;
     window.hasSavedWebPushToken = hasSavedWebPushToken;
     window.hasAndroidFcmToken = hasAndroidFcmToken;
+    window.bootWebPushServiceWorker = bootWebPushServiceWorker;
 }
 
 function bindAndroidPushResume() {

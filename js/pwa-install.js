@@ -149,6 +149,13 @@ export function isIOSSafari() {
     return /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|Chrome|Android/i.test(ua);
 }
 
+/** Chrome/Firefox/Edge en iPhone: NO tienen Web Push. Solo Safari → Agregar a pantalla de inicio. */
+export function isIosNonSafariBrowser() {
+    if (!isIOS()) return false;
+    const ua = navigator.userAgent || '';
+    return /CriOS|FxiOS|EdgiOS/i.test(ua);
+}
+
 export function canTriggerNativeInstall() {
     if (isCapacitorNative() || isPwaInstalled()) return false;
     return !!deferredInstallPrompt;

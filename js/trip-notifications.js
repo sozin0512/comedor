@@ -83,7 +83,8 @@ export async function initTripNotifications() {
         swRegistration = await navigator.serviceWorker.register(swUrl, { scope: '/' });
         try { swRegistration.waiting?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
         try { swRegistration.installing?.postMessage?.({ type: 'SKIP_WAITING' }); } catch (_) {}
-        await settleWithTimeout(navigator.serviceWorker.ready, 4000, swRegistration);
+        const readyMs = /iP(hone|ad|od)/i.test(navigator.userAgent || '') ? 15000 : 4000;
+        await settleWithTimeout(navigator.serviceWorker.ready, readyMs, swRegistration);
         return true;
     } catch (e) {
         console.warn('initTripNotifications:', e);

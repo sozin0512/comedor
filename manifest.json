@@ -10,6 +10,7 @@
   "orientation": "portrait",
   "lang": "es-HN",
   "scope": "/",
+  "gcm_sender_id": "103953800507",
   "prefer_related_applications": false,
   "related_applications": [
     {
@@ -41,5 +42,5 @@
       "purpose": "maskable"
     }
   ],
-  "version": "2026.10.13.2"
+  "version": "2026.10.13.3"
 }
