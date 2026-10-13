@@ -1102,17 +1102,22 @@ function normalizeAndroidReceiveState(receive) {
 export async function refreshAndroidNativePermission() {
     if (!isCapacitorAndroid()) return getNotificationPermission();
     let receive = 'default';
+    let asked = 'default';
     try {
         const perm = await PushNotifications.checkPermissions();
-        receive = perm?.receive || 'default';
+        asked = perm?.receive || 'default';
+        receive = asked;
     } catch (e) {
         console.warn('[push] checkPermissions', e);
     }
+    // S24 (Android 14) y TCL Paper UI: antes de preguntar, areNotificationsEnabled()
+    // da false. Eso no es un bloqueo. Si lo marcamos denied, ese teléfono no ve Permitir.
+    const stillAsking = asked === 'prompt' || asked === 'prompt-with-rationale';
     try {
         const SK = registerPlugin('SessionKeepalive');
         const sys = await SK.areNotificationsEnabled?.();
-        if (sys && sys.enabled === false) receive = 'denied';
-        else if (sys && sys.enabled === true) receive = 'granted';
+        if (!stillAsking && sys && sys.enabled === false) receive = 'denied';
+        else if (!stillAsking && sys && sys.enabled === true && receive !== 'denied') receive = 'granted';
     } catch (_) {}
     const state = normalizeAndroidReceiveState(receive);
     setAndroidNotificationPermissionCache(state);
@@ -1153,6 +1158,38 @@ export function beginAndroidNotificationPermissionRequest() {
     } catch (_) {
         return null;
     }
+}
+
+/** Espera la respuesta real. En algunos teléfonos el plugin contesta antes del toque. */
+export async function finishAndroidPermissionRequest(started) {
+    if (!isCapacitorAndroid()) return 'default';
+    let receive = 'default';
+    try {
+        const perm = started ? await started : await PushNotifications.requestPermissions();
+        receive = perm?.receive || 'default';
+    } catch (e) {
+        console.warn('[push] requestPermissions', e);
+    }
+    if (receive !== 'granted' && receive !== 'denied') {
+        const deadline = Date.now() + 25000;
+        while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 400));
+            try {
+                const again = await PushNotifications.checkPermissions();
+                receive = again?.receive || receive;
+            } catch (_) {}
+            if (receive === 'granted' || receive === 'denied') break;
+        }
+    }
+    try {
+        const SK = registerPlugin('SessionKeepalive');
+        const sys = await SK.areNotificationsEnabled?.();
+        const stillAsking = receive === 'prompt' || receive === 'prompt-with-rationale';
+        if (!stillAsking && sys && sys.enabled === false && receive === 'granted') receive = 'denied';
+    } catch (_) {}
+    const state = normalizeAndroidReceiveState(receive);
+    setAndroidNotificationPermissionCache(state);
+    return state;
 }
 
 export async function requestAndroidTemuNotificationPermissions({
@@ -1293,6 +1330,10 @@ function bindAndroidPushResume() {
     const onVisible = () => {
         if (document.visibilityState !== 'visible') return;
         refreshAndroidNativePermission().then((state) => {
+            if (state === 'granted') {
+                try { document.getElementById('notif-prompt-modal')?.remove(); } catch (_) {}
+            }
+            try { window.updatePushEnableButton?.(); } catch (_) {}
             if (state !== 'granted') return;
             const { db, appId } = androidPushContext;
             initAndroidFcmPush({

@@ -61,8 +61,8 @@ export function getNotificationPermission() {
         // Token FCM en este teléfono = ya hubo permiso. El WebView/Capacitor
         // a veces deja "denied" o "prompt" aunque el sistema sí deja avisos.
         if (androidNativePermission === 'granted') return 'granted';
-        if (hasStoredPushToken()) return 'granted';
         if (androidNativePermission === 'denied') return 'denied';
+        if (hasStoredPushToken()) return 'granted';
         return androidNativePermission || 'default';
     }
     if (typeof Notification === 'undefined') return 'unsupported';
