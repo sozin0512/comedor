@@ -2376,7 +2376,7 @@ function resolveAndroidPushAudio() {
     };
 }
 
-async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true }) {
+async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true, targetToken = '', targetPlatform = '' }) {
     const { tokens, records, platforms } = await getUserPushMeta(appId, uid);
     if (!tokens.length) {
         console.warn(`[push] sin token FCM (público ni privado) uid=${uid} type=${data.type || ''}`);
@@ -2498,6 +2498,8 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     // iOS PWA: si el FCM lleva notification (arriba o webpush.notification), Safari
     // entrega el aviso SOLO con la app abierta y NO lo pone en el centro de notificaciones.
     // Data-only + showNotification en el SW = barra de notificaciones.
+    // Web/iOS: webpush.notification SIN notification de raíz.
+    // La de raíz hace que iPhone lo pinte solo con la app abierta (y el Android de la misma cuenta sí suena).
     const webPayload = {
         data: dataFields,
         webpush: {
@@ -2505,6 +2507,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
                 Urgency: 'high',
                 TTL: '86400'
             },
+            notification: webNotification,
             fcmOptions: { link: clickUrl }
         }
     };
@@ -2523,12 +2526,22 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
 
     const androidTokens = [];
     const webTokens = [];
+    const wantToken = String(targetToken || '').trim();
+    const wantPlat = String(targetPlatform || '').trim().toLowerCase();
     for (const rec of (records || [])) {
         if (!rec?.token) continue;
-        if (rec.platform === 'android') androidTokens.push(rec.token);
+        if (wantToken && rec.token !== wantToken) continue;
+        const plat = String(rec.platform || '').toLowerCase();
+        if (wantPlat === 'android' && plat && plat !== 'android') continue;
+        if (wantPlat && wantPlat !== 'android' && plat === 'android') continue;
+        if (plat === 'android') androidTokens.push(rec.token);
         else webTokens.push(rec.token);
     }
-    if (!androidTokens.length && !webTokens.length) {
+    if (wantToken && !androidTokens.includes(wantToken) && !webTokens.includes(wantToken)) {
+        if (wantPlat === 'android') androidTokens.push(wantToken);
+        else webTokens.push(wantToken);
+    }
+    if (!wantToken && !androidTokens.length && !webTokens.length) {
         (tokens || []).forEach((t) => webTokens.push(t));
     }
 
@@ -2573,7 +2586,15 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         `android=${androidTokens.length} web=${webTokens.length} ` +
         `platforms=${(platforms || []).join(',') || 'n/a'} invalid=${invalid.length}`
     );
-    return { sent, tokens: uniqueAll.length, platforms: platforms || [], invalid: invalid.length };
+    return {
+        sent,
+        tokens: uniqueAll.length,
+        platforms: platforms || [],
+        invalid: invalid.length,
+        android: androidTokens.length,
+        web: webTokens.length,
+        targeted: !!(wantToken || wantPlat)
+    };
 }
 
 /** Conductor/staff: prueba FCM real (web y APK) para avisos con la app cerrada. */
@@ -2582,6 +2603,8 @@ exports.pingMyPush = onCall(async (request) => {
     if (!uid) {
         throw new HttpsError('unauthenticated', 'Inicia sesión para probar avisos.');
     }
+    const token = String(request.data?.token || '').trim();
+    const platform = String(request.data?.platform || '').trim();
     const result = await sendPushToUser(APP_ID, uid, {
         title: 'HonduRaite · Aviso de prueba',
         body: 'Si ves esto, los viajes te llegan con la app o la pestaña cerrada.',
@@ -2592,13 +2615,18 @@ exports.pingMyPush = onCall(async (request) => {
             superVibrate: 'true',
             wake: '1'
         },
-        highPriority: true
+        highPriority: true,
+        targetToken: token,
+        targetPlatform: platform
     });
     return {
         sent: result.sent || 0,
         tokens: result.tokens || 0,
         platforms: result.platforms || [],
-        invalid: result.invalid || 0
+        invalid: result.invalid || 0,
+        android: result.android || 0,
+        web: result.web || 0,
+        targeted: !!result.targeted
     };
 });
 

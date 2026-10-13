@@ -414,6 +414,32 @@ function notifyPushTokenReady(token, platform) {
     try { window.updatePushEnableButton?.(); } catch (_) {}
 }
 
+const LAST_FCM_TOKEN_KEY = 'honduber_fcm_token_last';
+const LAST_FCM_PLATFORM_KEY = 'honduber_fcm_platform_last';
+
+function rememberDevicePushToken(token, platform) {
+    if (!token) return;
+    try {
+        localStorage.setItem(LAST_FCM_TOKEN_KEY, String(token));
+        if (platform) localStorage.setItem(LAST_FCM_PLATFORM_KEY, String(platform));
+    } catch (_) {}
+}
+
+export function getThisDevicePushTarget() {
+    let token = '';
+    let platform = '';
+    try {
+        token = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
+        platform = localStorage.getItem(LAST_FCM_PLATFORM_KEY) || '';
+    } catch (_) {}
+    if (!token) token = lastAndroidTokenValue || lastWebTokenValue || '';
+    if (!platform) {
+        if (isCapacitorAndroid()) platform = 'android';
+        else platform = detectWebPushPlatform();
+    }
+    return { token, platform };
+}
+
 /** Prueba FCM real (Cloud Function). No uses LocalNotifications: eso no demuestra avisos fuera de la app. */
 export async function pingMyPushFromClient() {
     try {
@@ -422,7 +448,8 @@ export async function pingMyPushFromClient() {
         if (typeof callable !== 'function' || !fns) {
             return { sent: 0, tokens: 0, error: 'no_callable' };
         }
-        const res = await callable(fns, 'pingMyPush')({});
+        const { token, platform } = getThisDevicePushTarget();
+        const res = await callable(fns, 'pingMyPush')({ token, platform });
         return res?.data || { sent: 0, tokens: 0 };
     } catch (e) {
         console.warn('[push] pingMyPush', e?.message || e);
@@ -545,6 +572,7 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     }
     if (saved) {
         rememberPushUid(uid);
+        rememberDevicePushToken(token, platform);
         try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
         markWebPushTokenOk(true);
         pruneStaleFcmTokens(db, appId, uid, token).catch(() => {});
@@ -1191,6 +1219,7 @@ function bindAndroidPushResume() {
 async function persistAndroidToken(tokenValue) {
     if (!tokenValue) return;
     lastAndroidTokenValue = tokenValue;
+    rememberDevicePushToken(tokenValue, 'android');
     try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
     setAndroidNotificationPermissionCache('granted');
     markWebPushTokenOk(true);
