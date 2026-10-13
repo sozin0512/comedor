@@ -47,16 +47,22 @@ export function setAndroidNotificationPermissionCache(state) {
     }
 }
 
+function hasStoredPushToken() {
+    try {
+        if (localStorage.getItem('honduber_push_token_ok') === '1') return true;
+        if (localStorage.getItem('honduber_fcm_token_last')) return true;
+    } catch (_) {}
+    return false;
+}
+
 export function getNotificationPermission() {
     if (!isNotificationSupported()) return 'unsupported';
     if (isCapacitorAndroid()) {
-        if (androidNativePermission === 'granted' || androidNativePermission === 'denied') {
-            return androidNativePermission;
-        }
-        try {
-            if (localStorage.getItem('honduber_push_token_ok') === '1') return 'granted';
-            if (localStorage.getItem('honduber_fcm_token_last')) return 'granted';
-        } catch (_) {}
+        // Token FCM en este teléfono = ya hubo permiso. El WebView/Capacitor
+        // a veces deja "denied" o "prompt" aunque el sistema sí deja avisos.
+        if (androidNativePermission === 'granted') return 'granted';
+        if (hasStoredPushToken()) return 'granted';
+        if (androidNativePermission === 'denied') return 'denied';
         return androidNativePermission || 'default';
     }
     if (typeof Notification === 'undefined') return 'unsupported';
@@ -98,33 +104,18 @@ export async function requestTripNotificationPermission() {
 
     if (isCapacitorAndroid()) {
         try {
-            // Permisos completos Temu: notificaciones + local + full-screen intent
-            try {
-                const { requestAndroidTemuNotificationPermissions } = await import('./fcm-push.js');
-                const temu = await requestAndroidTemuNotificationPermissions({
-                    requestFullScreen: false,
-                    requestBattery: false
-                });
-                const pushState = temu.push === 'granted'
-                    ? 'granted'
-                    : (temu.push === 'denied' ? 'denied' : 'default');
-                setAndroidNotificationPermissionCache(pushState);
-                // App cerrada: hace falta POST_NOTIFICATIONS nativo, no el permiso "local" del WebView
-                if (temu.push === 'granted') return 'granted';
-                if (temu.push === 'denied') return 'denied';
-            } catch (e) {
-                console.warn('requestAndroidTemuNotificationPermissions:', e);
-            }
-            const PushNotifications = registerPlugin('PushNotifications');
-            let perm = await PushNotifications.checkPermissions();
-            if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
-                perm = await PushNotifications.requestPermissions();
-            }
-            const state = perm.receive === 'granted'
+            const { requestAndroidTemuNotificationPermissions } = await import('./fcm-push.js');
+            const temu = await requestAndroidTemuNotificationPermissions({
+                requestFullScreen: false,
+                requestBattery: false,
+                requestLocal: false
+            });
+            const pushState = temu.push === 'granted'
                 ? 'granted'
-                : (perm.receive === 'denied' ? 'denied' : 'default');
-            setAndroidNotificationPermissionCache(state);
-            return state;
+                : (temu.push === 'denied' ? 'denied' : 'default');
+            setAndroidNotificationPermissionCache(pushState);
+            // Un solo diálogo. Pedirlo otra vez lo cierra antes del toque.
+            return pushState;
         } catch (e) {
             console.warn('requestTripNotificationPermission (android):', e);
             return 'unsupported';

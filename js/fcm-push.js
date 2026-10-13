@@ -14,7 +14,8 @@ let androidPushListenersBound = false;
 let androidPushResumeBound = false;
 let androidPushInitPromise = null;
 let lastAndroidTokenValue = '';
-let androidPushContext = { db: null, appId: null };
+let lastWebTokenValue = '';
+let androidPushContext = { db: null, appId: null, uid: null };
 let closedSessionPushBooted = false;
 let localNotifIdSeq = Math.floor(Date.now() % 100000);
 const LAST_PUSH_UID_KEY = 'honduber_push_uid';
@@ -292,6 +293,7 @@ export function hasSavedWebPushToken() {
         if (localStorage.getItem(WEB_PUSH_TOKEN_OK_KEY) === '1') return true;
         if (localStorage.getItem(LAST_FCM_TOKEN_KEY)) return true;
     } catch (_) {}
+    if (lastWebTokenValue || lastAndroidTokenValue) return true;
     return false;
 }
 
@@ -300,6 +302,21 @@ function markWebPushTokenOk(ok) {
         if (ok) localStorage.setItem(WEB_PUSH_TOKEN_OK_KEY, '1');
         else localStorage.removeItem(WEB_PUSH_TOKEN_OK_KEY);
     } catch (_) {}
+}
+
+/** El aviso verde depende de esto, no de que Firestore ya haya confirmado el write. */
+function claimDevicePushToken(token, platform) {
+    if (!token) return;
+    rememberDevicePushToken(token, platform);
+    markWebPushTokenOk(true);
+    try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
+    if (platform === 'android' || isCapacitorAndroid()) {
+        lastAndroidTokenValue = token;
+        setAndroidNotificationPermissionCache('granted');
+    } else {
+        lastWebTokenValue = token;
+    }
+    notifyPushTokenReady(token, platform);
 }
 
 function messagingSwScriptUrl(reg) {
@@ -386,12 +403,21 @@ async function getFcmTokenWithRetry(messagingInstance, key, reg) {
     const attempts = 3;
     const timeoutMs = isIOS() ? 20000 : 12000;
     let lastErr = null;
+    let readyReg = reg;
+    try {
+        if (!readyReg?.active && typeof navigator !== 'undefined' && navigator.serviceWorker?.ready) {
+            readyReg = await Promise.race([
+                navigator.serviceWorker.ready,
+                new Promise((resolve) => setTimeout(() => resolve(reg), 4000))
+            ]);
+        }
+    } catch (_) {}
     for (let i = 0; i < attempts; i += 1) {
         try {
             const token = await Promise.race([
                 getToken(messagingInstance, {
                     vapidKey: key,
-                    serviceWorkerRegistration: reg
+                    serviceWorkerRegistration: readyReg || reg
                 }),
                 new Promise((_, reject) => {
                     setTimeout(() => reject(new Error('getToken-timeout')), timeoutMs);
@@ -551,7 +577,10 @@ async function pruneStaleFcmTokens(db, appId, uid, keepToken = null) {
 }
 
 export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
-    if (!uid || !token) return;
+    if (!token) return false;
+    claimDevicePushToken(token, platform);
+    if (!uid || !db || !appId) return false;
+    rememberPushUid(uid);
     const tokenPatch = {
         [`fcmTokens.${token.replace(/\./g, '_')}`]: {
             token,
@@ -577,12 +606,7 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
         console.warn('saveFcmToken private', e?.code || e?.message || e);
     }
     if (saved) {
-        rememberPushUid(uid);
-        rememberDevicePushToken(token, platform);
-        try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
-        markWebPushTokenOk(true);
         pruneStaleFcmTokens(db, appId, uid, token).catch(() => {});
-        notifyPushTokenReady(token, platform);
     }
     return saved;
 }
@@ -961,7 +985,7 @@ function handleNotificationNavigation(data = {}) {
 let onMessageBound = false;
 let tokenRefreshBound = false;
 let lastWebTokenSaveAt = 0;
-let lastWebTokenValue = '';
+let webPushInitPromise = null;
 try {
     if (!isCapacitorAndroid()) {
         lastWebTokenValue = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
@@ -991,10 +1015,10 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
         return null;
     }
 
-    if (tokenUid && db && appId) {
-        await recoverSavedPushTokenFromProfile(db, appId, tokenUid).catch(() => {});
-    }
+    await recoverSavedPushTokenFromProfile(db, appId, tokenUid).catch(() => '');
+    if (webPushInitPromise) return lastWebTokenValue || webPushInitPromise;
 
+    webPushInitPromise = (async () => {
     try {
         const app = ensureFirebaseApp(firebaseConfig);
         const reg = await registerMessagingServiceWorker();
@@ -1003,14 +1027,14 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
 
         if (token) {
             const platform = detectWebPushPlatform();
-            const now = Date.now();
-            const shouldSave = tokenUid && (token !== lastWebTokenValue || now - lastWebTokenSaveAt > 60 * 1000);
+            const prev = lastWebTokenValue;
             lastWebTokenValue = token;
+            claimDevicePushToken(token, platform);
+            const now = Date.now();
+            const shouldSave = !!tokenUid && (token !== prev || now - lastWebTokenSaveAt > 60 * 1000);
             if (shouldSave) {
-                lastWebTokenSaveAt = now;
-                await saveFcmToken(db, appId, tokenUid, token, platform);
-            } else if (tokenUid) {
-                markWebPushTokenOk(true);
+                const saved = await saveFcmToken(db, appId, tokenUid, token, platform);
+                if (saved) lastWebTokenSaveAt = now;
             }
         }
 
@@ -1023,11 +1047,19 @@ export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) 
             bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid: tokenUid });
         }
 
-        return token || null;
+        return token || lastWebTokenValue || null;
     } catch (e) {
         console.warn('initFcmPush:', e);
-        return null;
+        if (tokenUid) {
+            bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid: tokenUid });
+        }
+        return lastWebTokenValue || null;
+    } finally {
+        webPushInitPromise = null;
     }
+    })();
+
+    return lastWebTokenValue || webPushInitPromise;
 }
 
 function bindWebPushTokenRefresh({ firebaseConfig, vapidKey, db, appId, uid }) {
@@ -1113,9 +1145,20 @@ export async function openAndroidNotificationSettings() {
  * 4) Crea canal MAX
  * 5) (opcional) batería sin optimizar
  */
+/** Arranca el diálogo nativo en el mismo toque, antes de cualquier await. */
+export function beginAndroidNotificationPermissionRequest() {
+    if (!isCapacitorAndroid()) return null;
+    try {
+        return PushNotifications.requestPermissions();
+    } catch (_) {
+        return null;
+    }
+}
+
 export async function requestAndroidTemuNotificationPermissions({
     requestFullScreen = true,
-    requestBattery = false
+    requestBattery = false,
+    requestLocal = false
 } = {}) {
     if (!isCapacitorAndroid()) return { ok: false, reason: 'not_android' };
 
@@ -1140,20 +1183,34 @@ export async function requestAndroidTemuNotificationPermissions({
     try {
         const SK = registerPlugin('SessionKeepalive');
         const sys = await SK.areNotificationsEnabled?.();
-        if (sys && sys.enabled === false) result.push = 'denied';
-        else if (sys && sys.enabled === true) result.push = 'granted';
+        // No pises un diálogo que el usuario todavía no contestó.
+        if (result.push === 'prompt' || result.push === 'prompt-with-rationale') {
+            // dejar prompt
+        } else if (sys && sys.enabled === false) result.push = 'denied';
+        else if (sys && sys.enabled === true && result.push === 'granted') result.push = 'granted';
+        else if (sys && sys.enabled === true && result.push !== 'denied') result.push = 'granted';
     } catch (_) {}
 
-    try {
-        if (LocalNotifications?.checkPermissions) {
-            let lp = await LocalNotifications.checkPermissions();
-            if (lp.display === 'prompt' || lp.display === 'prompt-with-rationale') {
-                lp = await LocalNotifications.requestPermissions();
+    // Un segundo diálogo (local / pantalla completa) en el mismo instante
+    // cierra el de notificaciones antes de que el conductor toque Permitir.
+    if (result.push !== 'granted') {
+        result.ok = false;
+        return result;
+    }
+
+    if (requestLocal) {
+        await new Promise((r) => setTimeout(r, 700));
+        try {
+            if (LocalNotifications?.checkPermissions) {
+                let lp = await LocalNotifications.checkPermissions();
+                if (lp.display === 'prompt' || lp.display === 'prompt-with-rationale') {
+                    lp = await LocalNotifications.requestPermissions();
+                }
+                result.local = lp.display || 'default';
             }
-            result.local = lp.display || 'default';
+        } catch (e) {
+            console.warn('[push] request local perm:', e);
         }
-    } catch (e) {
-        console.warn('[push] request local perm:', e);
     }
 
     await ensureAndroidPushChannels();
@@ -1253,13 +1310,9 @@ function bindAndroidPushResume() {
 async function persistAndroidToken(tokenValue) {
     if (!tokenValue) return;
     lastAndroidTokenValue = tokenValue;
-    rememberDevicePushToken(tokenValue, 'android');
-    try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
-    setAndroidNotificationPermissionCache('granted');
-    markWebPushTokenOk(true);
-    notifyPushTokenReady(tokenValue, 'android');
+    claimDevicePushToken(tokenValue, 'android');
     stopAndroidTokenWatchdog();
-    const saveUid = lastPushUid();
+    const saveUid = lastPushUid() || androidPushContext.uid || null;
     const { db, appId } = androidPushContext;
     if (saveUid && db && appId) {
         await saveFcmToken(db, appId, saveUid, tokenValue, 'android').catch(() => {});
@@ -1356,14 +1409,20 @@ function latestStoredFcmToken(map, preferPlatform = '') {
 }
 
 async function recoverSavedPushTokenFromProfile(db, appId, uid) {
-    if (!db || !appId || !uid) return '';
     if (lastAndroidTokenValue || lastWebTokenValue) {
         return lastAndroidTokenValue || lastWebTokenValue;
     }
     try {
         const stored = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
-        if (stored) return stored;
+        if (stored) {
+            const platform = isCapacitorAndroid()
+                ? 'android'
+                : (localStorage.getItem(LAST_FCM_PLATFORM_KEY) || detectWebPushPlatform());
+            claimDevicePushToken(stored, platform);
+            return stored;
+        }
     } catch (_) {}
+    if (!db || !appId || !uid) return '';
     const prefer = isCapacitorAndroid() ? 'android' : detectWebPushPlatform();
     const refs = [
         doc(db, 'artifacts', appId, 'public', 'data', 'users', uid),
@@ -1380,12 +1439,7 @@ async function recoverSavedPushTokenFromProfile(db, appId, uid) {
     }
     if (!best?.token) return '';
     const platform = best.platform || prefer;
-    rememberDevicePushToken(best.token, platform);
-    markWebPushTokenOk(true);
-    try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
-    if (isCapacitorAndroid()) lastAndroidTokenValue = best.token;
-    else lastWebTokenValue = best.token;
-    notifyPushTokenReady(best.token, platform);
+    claimDevicePushToken(best.token, platform);
     return best.token;
 }
 
@@ -1467,7 +1521,7 @@ function startAndroidTokenWatchdog() {
 export async function ensureAndroidPushToken({ db, appId, uid } = {}) {
     if (!isCapacitorAndroid()) return lastAndroidTokenValue || null;
     if (!isAndroidFcmConfigured()) return lastAndroidTokenValue || null;
-    if (db && appId) androidPushContext = { db, appId };
+    if (db && appId) androidPushContext = { db, appId, uid: uid || androidPushContext.uid || lastPushUid() || null };
     if (uid) rememberPushUid(uid);
     bindAndroidPushListeners();
 
@@ -1527,14 +1581,24 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
         console.warn('initAndroidFcmPush: falta google-services.json para honduraite.com');
         return null;
     }
-    if (db && appId) androidPushContext = { db, appId };
-    const tokenUid = uid || lastPushUid() || null;
+    if (db && appId) {
+        androidPushContext = { db, appId, uid: uid || androidPushContext.uid || lastPushUid() || null };
+    }
+    const tokenUid = uid || lastPushUid() || androidPushContext.uid || null;
     if (tokenUid) rememberPushUid(tokenUid);
 
     bindAndroidPushListeners();
 
+    await recoverSavedPushTokenFromProfile(
+        androidPushContext.db,
+        androidPushContext.appId,
+        tokenUid
+    ).catch(() => '');
+    if (lastAndroidTokenValue) {
+        persistAndroidToken(lastAndroidTokenValue).catch(() => {});
+    }
     if (androidPushInitPromise) {
-        return androidPushInitPromise;
+        return lastAndroidTokenValue || androidPushInitPromise;
     }
 
     androidPushInitPromise = (async () => {
@@ -1542,7 +1606,7 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
             let nativePerm = await refreshAndroidNativePermission();
             if (nativePerm !== 'granted') {
                 if (skipPermissionRequest) {
-                    if (lastAndroidTokenValue && tokenUid) {
+                    if (lastAndroidTokenValue) {
                         await persistAndroidToken(lastAndroidTokenValue);
                     }
                     const nativeTok = await fetchNativeFcmToken();
@@ -1606,7 +1670,7 @@ export async function initAndroidFcmPush({ db, appId, uid, skipPermissionRequest
         }
     })();
 
-    return androidPushInitPromise;
+    return lastAndroidTokenValue || androidPushInitPromise;
 }
 
 /**

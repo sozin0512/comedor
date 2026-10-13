@@ -880,6 +880,10 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        .header-more-item.hidden {
+            display: none !important;
+        }
+
         .header-more-item:active {
             background: #f1f5f9;
         }

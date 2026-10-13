@@ -262,7 +262,6 @@ export function remindInstallIfNeeded(context) {
         }
     }, 500);
 
-    window.enableTripNotifications?.();
     return true;
 }
 
