@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.10.11.9';
+const HR_SW_VERSION = '2026.10.13.1';
 /* HonduRaite — Service Worker de Web Push.
  *
  * No inicializar firebase.messaging() aquí: el SDK registra su propio
@@ -70,7 +70,8 @@ function presentHonduNotification(payload) {
         || type === 'passenger_counter'
         || type === 'trip_price_boost'
         || type === 'trip_started'
-        || type === 'new_trip_staff';
+        || type === 'new_trip_staff'
+        || type === 'push_test';
 
     if (!already) {
         self.clients.matchAll({ type: 'window', includeUncontrolled: true })
@@ -156,12 +157,14 @@ self.addEventListener('notificationclick', (event) => {
         || type === 'passenger_counter'
         || type === 'trip_price_boost'
         || type === 'trip_started'
+        || type === 'push_test'
         || tag.startsWith('trip-offer-')
         || tag.startsWith('freight-alert-')
         || tag.startsWith('ride-demand-')
         || tag.startsWith('staff-trip-')
         || tag.startsWith('passenger-counter-')
-        || tag.startsWith('trip-price-boost-');
+        || tag.startsWith('trip-price-boost-')
+        || tag.startsWith('push-test-');
     const openChat = data.openChat === true || data.openChat === 'true';
     const openDriver = isTripOffer || data.openDriver === true || data.openDriver === 'true';
     const openPassenger = type === 'driver_bid'

@@ -350,8 +350,8 @@ async function messagingSupportedHere() {
 }
 
 async function getFcmTokenWithRetry(messagingInstance, key, reg) {
-    const attempts = isIOS() ? 3 : 1;
-    const timeoutMs = isIOS() ? 20000 : 8000;
+    const attempts = 3;
+    const timeoutMs = isIOS() ? 20000 : 12000;
     let lastErr = null;
     for (let i = 0; i < attempts; i += 1) {
         try {
@@ -372,6 +372,31 @@ async function getFcmTokenWithRetry(messagingInstance, key, reg) {
     }
     if (lastErr) throw lastErr;
     return null;
+}
+
+function notifyPushTokenReady(token, platform) {
+    try {
+        window.dispatchEvent(new CustomEvent('honduber-push-token', {
+            detail: { token: token || '', platform: platform || '' }
+        }));
+    } catch (_) {}
+    try { window.updatePushEnableButton?.(); } catch (_) {}
+}
+
+/** Prueba FCM real (Cloud Function). No uses LocalNotifications: eso no demuestra avisos fuera de la app. */
+export async function pingMyPushFromClient() {
+    try {
+        const callable = window.httpsCallable;
+        const fns = window.cloudFunctions;
+        if (typeof callable !== 'function' || !fns) {
+            return { sent: 0, tokens: 0, error: 'no_callable' };
+        }
+        const res = await callable(fns, 'pingMyPush')({});
+        return res?.data || { sent: 0, tokens: 0 };
+    } catch (e) {
+        console.warn('[push] pingMyPush', e?.message || e);
+        return { sent: 0, tokens: 0, error: e?.message || 'ping_failed' };
+    }
 }
 
 export async function showWebPushSelfTest(body) {
@@ -492,6 +517,7 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
         try { localStorage.setItem('honduber_push_enabled', '1'); } catch (_) {}
         markWebPushTokenOk(true);
         pruneStaleFcmTokens(db, appId, uid, token).catch(() => {});
+        notifyPushTokenReady(token, platform);
     }
     return saved;
 }
@@ -717,12 +743,14 @@ function handleNotificationNavigation(data = {}) {
         || type === 'new_trip_staff'
         || type === 'passenger_counter'
         || type === 'trip_price_boost'
+        || type === 'push_test'
         || tag.startsWith('trip-offer-')
         || tag.startsWith('freight-alert-')
         || tag.startsWith('ride-demand-')
         || tag.startsWith('staff-trip-')
         || tag.startsWith('passenger-counter-')
-        || tag.startsWith('trip-price-boost-');
+        || tag.startsWith('trip-price-boost-')
+        || tag.startsWith('push-test-');
     const isPassengerTrip = type === 'driver_bid'
         || type === 'trip_accepted'
         || type === 'trip_arrived'
@@ -1069,6 +1097,9 @@ if (typeof window !== 'undefined') {
     window.initFcmPush = initFcmPush;
     window.refreshAndroidNativePermission = refreshAndroidNativePermission;
     window.openAndroidNotificationSettings = openAndroidNotificationSettings;
+    window.pingMyPushFromClient = pingMyPushFromClient;
+    window.hasSavedWebPushToken = hasSavedWebPushToken;
+    window.hasAndroidFcmToken = hasAndroidFcmToken;
 }
 
 function bindAndroidPushResume() {
@@ -1101,6 +1132,8 @@ async function persistAndroidToken(tokenValue) {
     const { db, appId } = androidPushContext;
     if (saveUid && db && appId) {
         await saveFcmToken(db, appId, saveUid, tokenValue, 'android').catch(() => {});
+    } else {
+        notifyPushTokenReady(tokenValue, 'android');
     }
 }
 

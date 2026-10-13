@@ -1649,11 +1649,12 @@ function fcmTokenMapEntries(raw) {
             ? entry
             : (entry?.token || entry?.value || (looksLikeFcmToken(key) ? key.replace(/_/g, '.') : ''));
         const updatedAt = (entry && typeof entry === 'object') ? (Number(entry.updatedAt) || 0) : 0;
-        return { key, token, updatedAt };
+        const platform = (entry && typeof entry === 'object') ? String(entry.platform || '') : '';
+        return { key, token, updatedAt, platform };
     }).filter((e) => e.key);
 }
 
-function liveFcmTokensFromMaps(maps, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, maxKeep = FCM_TOKEN_MAX_KEEP } = {}) {
+function liveFcmTokenRecordsFromMaps(maps, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, maxKeep = FCM_TOKEN_MAX_KEEP } = {}) {
     const byToken = new Map();
     for (const raw of maps) {
         for (const e of fcmTokenMapEntries(raw)) {
@@ -1665,8 +1666,11 @@ function liveFcmTokensFromMaps(maps, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, maxKeep 
     const cutoff = Date.now() - maxAgeMs;
     const ranked = [...byToken.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     const fresh = ranked.filter((e) => e.updatedAt >= cutoff);
-    const pick = (fresh.length ? fresh : ranked).slice(0, maxKeep);
-    return pick.map((e) => e.token);
+    return (fresh.length ? fresh : ranked).slice(0, maxKeep);
+}
+
+function liveFcmTokensFromMaps(maps, opts) {
+    return liveFcmTokenRecordsFromMaps(maps, opts).map((e) => e.token);
 }
 
 function staleFcmTokenDeletePatch(raw, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, maxKeep = FCM_TOKEN_MAX_KEEP } = {}) {
@@ -1794,6 +1798,7 @@ function isHonduRideAlertType(type) {
         || type === 'scheduled_reminder'
         || type === 'trip_scheduled_reserved'
         || type === 'staff_created_trip'
+        || type === 'push_test'
         // Pedidos de tiendas virtuales (emprendedor / cliente)
         || type === 'store_order'
         || type === 'store_order_update';
@@ -2338,7 +2343,9 @@ async function getUserPushMeta(appId, uid) {
     ]);
     const pub = pubSnap?.exists ? (pubSnap.data() || {}) : {};
     const priv = privSnap?.exists ? (privSnap.data() || {}) : {};
-    const tokens = liveFcmTokensFromMaps([pub.fcmTokens, priv.fcmTokens, pub.fcmToken, priv.fcmToken]);
+    const records = liveFcmTokenRecordsFromMaps([pub.fcmTokens, priv.fcmTokens, pub.fcmToken, priv.fcmToken]);
+    const tokens = records.map((e) => e.token);
+    const platforms = [...new Set(records.map((e) => e.platform).filter(Boolean))];
     const bloated = fcmTokenMapEntries(pub.fcmTokens).length > FCM_TOKEN_MAX_KEEP
         || fcmTokenMapEntries(priv.fcmTokens).length > FCM_TOKEN_MAX_KEEP;
     if (bloated) {
@@ -2347,7 +2354,7 @@ async function getUserPushMeta(appId, uid) {
     const mode = pub.pushSoundMode === 'soft' || pub.pushSoundMode === 'normal'
         ? pub.pushSoundMode
         : 'temu';
-    return { tokens, pushSoundMode: mode };
+    return { tokens, platforms, pushSoundMode: mode };
 }
 
 async function getUserTokens(appId, uid) {
@@ -2370,10 +2377,10 @@ function resolveAndroidPushAudio() {
 }
 
 async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true }) {
-    const { tokens } = await getUserPushMeta(appId, uid);
+    const { tokens, platforms } = await getUserPushMeta(appId, uid);
     if (!tokens.length) {
         console.warn(`[push] sin token FCM (público ni privado) uid=${uid} type=${data.type || ''}`);
-        return { sent: 0, tokens: 0 };
+        return { sent: 0, tokens: 0, platforms: [] };
     }
 
     const type = String(data.type || '');
@@ -2386,6 +2393,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         || type === 'trip_price_boost'
         || type === 'staff_created_trip'
         || type === 'scheduled_trip_active'
+        || type === 'push_test'
         || openDriver
         || data.wake === '1'
         || data.wake === 1;
@@ -2456,20 +2464,24 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     };
     if (data.tag) webNotification.tag = String(data.tag);
 
-    // App cerrada / APK muerta: data-only NO llega. Hay que mandar
-    // android.notification + notification para que Play Services pinte el aviso.
+    // Viaje / prueba: notification + data.
+    // - APK cerrada / muerta: Play Services pinta el aviso (data-only a menudo no llega).
+    // - Web/PWA pestaña cerrada: webpush.notification + SW showNotification.
+    // - APK en primer plano: HonduMessagingService / onMessageReceived.
     const androidConfig = {
-        priority: 'high',
+        priority: (highPriority || isTripWake) ? 'high' : 'normal',
         ttl: (isTripWake ? 3600 : 300) * 1000,
         directBootOk: true
     };
+    if (isTripWake && data.tripId && type !== 'push_test') {
+        androidConfig.collapseKey = `trip-${String(data.tripId).slice(0, 40)}`;
+    }
     if (isTripWake) {
         androidConfig.notification = {
             title: safeTitle,
             body: safeBody,
             channelId: audio.channelId,
             sound: audio.sound || HONDU_ICONIC_PUSH_SOUND,
-            defaultSound: true,
             defaultVibrateTimings: true,
             visibility: 'PUBLIC',
             notificationPriority: 'PRIORITY_MAX',
@@ -2540,8 +2552,38 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             db.doc(`artifacts/${appId}/users/${uid}/profile/data`).update(updates).catch(() => {})
         ]);
     }
-    return { sent, tokens: uniqueTokens.length };
+    console.log(
+        `[push] uid=${uid} type=${type || 'n/a'} sent=${sent}/${uniqueTokens.length} ` +
+        `platforms=${(platforms || []).join(',') || 'n/a'} invalid=${invalid.length}`
+    );
+    return { sent, tokens: uniqueTokens.length, platforms: platforms || [], invalid: invalid.length };
 }
+
+/** Conductor/staff: prueba FCM real (web y APK) para avisos con la app cerrada. */
+exports.pingMyPush = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+        throw new HttpsError('unauthenticated', 'Inicia sesión para probar avisos.');
+    }
+    const result = await sendPushToUser(APP_ID, uid, {
+        title: 'HonduRaite · Aviso de prueba',
+        body: 'Si ves esto, los viajes te llegan con la app o la pestaña cerrada.',
+        data: {
+            type: 'push_test',
+            tag: `push-test-${Date.now()}`,
+            openDriver: 'true',
+            superVibrate: 'true',
+            wake: '1'
+        },
+        highPriority: true
+    });
+    return {
+        sent: result.sent || 0,
+        tokens: result.tokens || 0,
+        platforms: result.platforms || [],
+        invalid: result.invalid || 0
+    };
+});
 
 /**
  * Cuando el pasajero sube la tarifa: push fuerte a conductores online de la zona
