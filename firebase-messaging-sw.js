@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.10.13.17';
+const HR_SW_VERSION = '2026.10.13.18';
 /* HonduRaite — Service Worker de Web Push.
  *
  * No inicializar firebase.messaging() aquí: el SDK registra su propio

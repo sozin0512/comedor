@@ -1178,6 +1178,7 @@ export async function openAndroidNotificationSettings() {
 let androidRegisterFlight = null;
 let prefetchedAndroidToken = '';
 let androidPermissionDialogOpen = false;
+let lastAndroidRegisterAt = 0;
 
 function readPushTokenValue(token) {
     if (!token) return '';
@@ -1196,17 +1197,18 @@ async function rememberAndroidToken(token) {
     return value;
 }
 
-/** Pide el token en segundo plano, antes de Permitir. Un solo getToken. */
+/**
+ * Antes de Permitir solo engancha listeners.
+ * En el S24 Ultra, getToken en ese momento traba el puente y el aviso no se activa nunca.
+ */
 export function prefetchAndroidFcmToken() {
     if (!isCapacitorAndroid() || !isAndroidFcmConfigured()) return Promise.resolve(null);
     if (lastAndroidTokenValue || prefetchedAndroidToken) {
         return Promise.resolve(lastAndroidTokenValue || prefetchedAndroidToken);
     }
-    if (androidRegisterFlight) return androidRegisterFlight;
-    androidRegisterFlight = requestAndroidFcmTokenOnce().finally(() => {
-        androidRegisterFlight = null;
-    });
-    return androidRegisterFlight;
+    return bindAndroidPushListeners()
+        .then(() => lastAndroidTokenValue || prefetchedAndroidToken || null)
+        .catch(() => null);
 }
 
 /**
@@ -1215,6 +1217,9 @@ export function prefetchAndroidFcmToken() {
  */
 export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
     if (!isCapacitorAndroid()) return lastAndroidTokenValue || null;
+    if (androidPermissionDialogOpen && !assumeGranted) {
+        return prefetchedAndroidToken || lastAndroidTokenValue || null;
+    }
     const granted = assumeGranted || androidNotificationGrantHeld() || getNotificationPermission() === 'granted';
     if (granted) holdAndroidNotificationGrant();
     const ready = prefetchedAndroidToken || lastAndroidTokenValue;
@@ -1225,6 +1230,8 @@ export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
         }
         return ready;
     }
+    // Sin Permitir no se pide el token: en el S24 eso deja el puente colgado.
+    if (!granted) return null;
     if (!androidRegisterFlight) {
         androidRegisterFlight = requestAndroidFcmTokenOnce().finally(() => {
             androidRegisterFlight = null;
@@ -1240,21 +1247,25 @@ export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
 }
 
 async function requestAndroidFcmTokenOnce() {
-    await raceTimeout(bindAndroidPushListeners(), 600, false);
+    await raceTimeout(bindAndroidPushListeners(), 2000, false);
     if (prefetchedAndroidToken || lastAndroidTokenValue) {
         return rememberAndroidToken(prefetchedAndroidToken || lastAndroidTokenValue);
     }
-    if (!androidPermissionDialogOpen && nativeGetFcmTokenState !== 'missing') {
-        const native = await fetchNativeFcmToken(4000);
-        if (native) return rememberAndroidToken(native);
+    if (androidPermissionDialogOpen) return null;
+    // Un solo register(). Otro getToken encima (SessionKeepalive o un reintento
+    // a los 4s) es lo que deja al S24 Ultra en Registrando para siempre.
+    const since = Date.now() - lastAndroidRegisterAt;
+    if (lastAndroidRegisterAt && since < 30000) {
+        const waited = await waitForAndroidToken(Math.min(12000, 30000 - since));
+        if (waited) return rememberAndroidToken(waited);
+        return prefetchedAndroidToken || lastAndroidTokenValue || null;
     }
-    if (nativeGetFcmTokenState === 'missing' && !androidPermissionDialogOpen) {
-        try { await raceTimeout(PushNotifications.register(), 2500, null); } catch (e) {
-            console.warn('[push] register now', e);
-        }
-        const fromEvent = await waitForAndroidToken(3000);
-        if (fromEvent) return rememberAndroidToken(fromEvent);
+    lastAndroidRegisterAt = Date.now();
+    try { await raceTimeout(PushNotifications.register(), 8000, null); } catch (e) {
+        console.warn('[push] register now', e);
     }
+    const fromEvent = await waitForAndroidToken(12000);
+    if (fromEvent) return rememberAndroidToken(fromEvent);
     if (!prefetchedAndroidToken && !lastAndroidTokenValue) startAndroidTokenWatchdog();
     return prefetchedAndroidToken || lastAndroidTokenValue || null;
 }
@@ -1290,7 +1301,7 @@ export async function finishAndroidPermissionRequest(started) {
     };
     if (receive === 'granted') return acceptGranted();
 
-    const deadline = Date.now() + 22000;
+    const deadline = Date.now() + 26000;
     let deniedSince = 0;
     while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 400));
@@ -1302,7 +1313,8 @@ export async function finishAndroidPermissionRequest(started) {
         }
         if (asked === 'denied') {
             if (!deniedSince) deniedSince = Date.now();
-            if (Date.now() - deniedSince > 8000) {
+            // El S24 dice denied unos segundos después de Permitir. No cerrar el aviso.
+            if (Date.now() - deniedSince > 12000) {
                 setAndroidNotificationPermissionCache('denied');
                 return 'denied';
             }
@@ -1330,10 +1342,9 @@ export async function requestAndroidTemuNotificationPermissions({
     };
 
     try {
-        let perm = await PushNotifications.checkPermissions();
-        if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {
-            perm = await PushNotifications.requestPermissions();
-        }
+        // No volver a abrir el diálogo del sistema. En el S24 un segundo
+        // requestPermissions cierra Permitir y el aviso no queda.
+        const perm = await PushNotifications.checkPermissions();
         result.push = perm.receive || 'default';
     } catch (e) {
         console.warn('[push] request push perm:', e);
@@ -1356,6 +1367,12 @@ export async function requestAndroidTemuNotificationPermissions({
         return result;
     }
 
+    // Borrar canales mientras FirebaseMessaging.getToken sigue en curso
+    // deja el puente del S24 Ultra colgado y la pastilla no pasa a Avisos activos.
+    if (lastAndroidTokenValue || prefetchedAndroidToken) {
+        await ensureAndroidPushChannels();
+    }
+
     if (requestLocal) {
         await new Promise((r) => setTimeout(r, 700));
         try {
@@ -1370,8 +1387,6 @@ export async function requestAndroidTemuNotificationPermissions({
             console.warn('[push] request local perm:', e);
         }
     }
-
-    await ensureAndroidPushChannels();
 
     // Full-screen intent (banner emergente agresivo en Android 14+)
     if (requestFullScreen) {
@@ -1646,49 +1661,28 @@ function stopAndroidTokenWatchdog() {
     androidTokenWatchdogBusy = false;
 }
 
-async function forceAndroidRegister() {
-    bindAndroidPushListeners();
-    try {
-        await PushNotifications.register();
-    } catch (e) {
-        console.warn('[push] force register', e);
-    }
-}
-
 function startAndroidTokenWatchdog() {
     if (!isCapacitorAndroid() || androidTokenWatchdog) return;
     let attempt = 0;
-    let deniedStreak = 0;
     androidTokenWatchdog = setInterval(() => {
         if (lastAndroidTokenValue || hasAndroidFcmToken()) {
             stopAndroidTokenWatchdog();
             persistAndroidToken(lastAndroidTokenValue).catch(() => {});
             return;
         }
-        if (androidTokenWatchdogBusy) return;
+        if (androidPermissionDialogOpen || androidRegisterFlight || androidTokenWatchdogBusy) return;
+        if (Date.now() - lastAndroidRegisterAt < 30000) return;
         androidTokenWatchdogBusy = true;
         attempt += 1;
-        (async () => {
-            try {
-                const perm = await refreshAndroidNativePermission();
-                if (perm === 'denied' && !androidNotificationGrantHeld()) {
-                    deniedStreak += 1;
-                    if (deniedStreak >= 6) stopAndroidTokenWatchdog();
-                    return;
-                }
-                deniedStreak = 0;
-                const native = await registerAndroidPushNow();
-                if (native) {
-                    stopAndroidTokenWatchdog();
-                }
-            } catch (e) {
-                console.warn('[push] token watchdog', e);
-            } finally {
-                androidTokenWatchdogBusy = false;
-            }
-        })();
-        if (attempt >= 36) stopAndroidTokenWatchdog();
-    }, 4000);
+        registerAndroidPushNow().then((native) => {
+            if (native) stopAndroidTokenWatchdog();
+        }).catch((e) => {
+            console.warn('[push] token watchdog', e);
+        }).finally(() => {
+            androidTokenWatchdogBusy = false;
+        });
+        if (attempt >= 2) stopAndroidTokenWatchdog();
+    }, 8000);
 }
 
 /** Si el permiso ya está, no pide nada: registra FCM hasta que quede el token. */
@@ -1715,7 +1709,6 @@ export async function ensureAndroidPushToken({ db, appId, uid } = {}) {
     ).catch(() => '');
     if (recovered) {
         await persistAndroidToken(recovered);
-        forceAndroidRegister().catch(() => {});
         return recovered;
     }
 
@@ -1730,7 +1723,6 @@ if (typeof window !== 'undefined') {
             if (stored) lastAndroidTokenValue = stored;
         } catch (_) {}
         try { bindAndroidPushListeners(); } catch (_) {}
-        setTimeout(() => { prefetchAndroidFcmToken().catch(() => {}); }, 500);
     }
 }
 

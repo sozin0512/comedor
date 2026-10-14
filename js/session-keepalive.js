@@ -84,12 +84,17 @@ export async function startAndroidSessionKeepalive(options = {}) {
         const needsWake = !!(driverMode || tripMode);
         await ensureBatteryExemption(needsWake);
         await ensureFullScreenIntentPermission(needsWake);
-        // Canal nativo + permisos de push (si fcm-push ya cargó)
+        // Sin token no toques canales ni pidas el permiso otra vez:
+        // en el S24 Ultra eso traba el puente y el aviso no se activa.
         try {
-            await window.ensureAndroidTripWakePermissions?.({
-                requestBattery: false, // ya se pidió arriba
-                requestFullScreen: false
-            });
+            const hasToken = window.hasAndroidFcmToken?.()
+                || !!localStorage.getItem('honduber_fcm_token_last');
+            if (hasToken) {
+                await window.ensureAndroidTripWakePermissions?.({
+                    requestBattery: false,
+                    requestFullScreen: false
+                });
+            }
         } catch (_) {}
     } catch (err) {
         console.warn('session-keepalive start:', err);
