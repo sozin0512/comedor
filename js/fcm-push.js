@@ -1176,6 +1176,8 @@ export async function openAndroidNotificationSettings() {
  * 5) (opcional) batería sin optimizar
  */
 let androidRegisterFlight = null;
+let prefetchedAndroidToken = '';
+let androidPermissionDialogOpen = false;
 
 function readPushTokenValue(token) {
     if (!token) return '';
@@ -1183,14 +1185,22 @@ function readPushTokenValue(token) {
     return String(token.value || token.token || '').trim();
 }
 
-/**
- * Un solo getToken a la vez. En el S24, pedir el token y a la vez borrar canales
- * deja el puente de Capacitor colgado y la pastilla no sale de Registrando.
- */
-export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
-    if (!isCapacitorAndroid()) return lastAndroidTokenValue || null;
-    if (assumeGranted || androidNotificationGrantHeld() || getNotificationPermission() === 'granted') {
-        holdAndroidNotificationGrant();
+async function rememberAndroidToken(token) {
+    const value = String(token || '').trim();
+    if (!value) return null;
+    prefetchedAndroidToken = value;
+    if (androidNotificationGrantHeld() || getNotificationPermission() === 'granted') {
+        await persistAndroidToken(value);
+        ensureAndroidPushChannels().catch(() => {});
+    }
+    return value;
+}
+
+/** Pide el token en segundo plano, antes de Permitir. Un solo getToken. */
+export function prefetchAndroidFcmToken() {
+    if (!isCapacitorAndroid() || !isAndroidFcmConfigured()) return Promise.resolve(null);
+    if (lastAndroidTokenValue || prefetchedAndroidToken) {
+        return Promise.resolve(lastAndroidTokenValue || prefetchedAndroidToken);
     }
     if (androidRegisterFlight) return androidRegisterFlight;
     androidRegisterFlight = requestAndroidFcmTokenOnce().finally(() => {
@@ -1199,39 +1209,66 @@ export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
     return androidRegisterFlight;
 }
 
-async function requestAndroidFcmTokenOnce() {
-    await raceTimeout(bindAndroidPushListeners(), 3000, false);
-    if (lastAndroidTokenValue || hasAndroidFcmToken()) {
-        await persistAndroidToken(lastAndroidTokenValue);
-        return lastAndroidTokenValue || null;
+/**
+ * Un solo getToken a la vez. En el S24, pedir el token y a la vez borrar canales
+ * deja el puente de Capacitor colgado y la pastilla no sale de Registrando.
+ */
+export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
+    if (!isCapacitorAndroid()) return lastAndroidTokenValue || null;
+    const granted = assumeGranted || androidNotificationGrantHeld() || getNotificationPermission() === 'granted';
+    if (granted) holdAndroidNotificationGrant();
+    const ready = prefetchedAndroidToken || lastAndroidTokenValue;
+    if (ready) {
+        if (granted) {
+            await persistAndroidToken(ready);
+            ensureAndroidPushChannels().catch(() => {});
+        }
+        return ready;
     }
-    const askOnce = async (waitMs) => {
-        try { await raceTimeout(PushNotifications.register(), 5000, null); } catch (e) {
+    if (!androidRegisterFlight) {
+        androidRegisterFlight = requestAndroidFcmTokenOnce().finally(() => {
+            androidRegisterFlight = null;
+        });
+    }
+    const token = await androidRegisterFlight;
+    const got = prefetchedAndroidToken || token || lastAndroidTokenValue;
+    if (got && (androidNotificationGrantHeld() || getNotificationPermission() === 'granted')) {
+        await persistAndroidToken(got);
+        ensureAndroidPushChannels().catch(() => {});
+    }
+    return got || null;
+}
+
+async function requestAndroidFcmTokenOnce() {
+    await raceTimeout(bindAndroidPushListeners(), 600, false);
+    if (prefetchedAndroidToken || lastAndroidTokenValue) {
+        return rememberAndroidToken(prefetchedAndroidToken || lastAndroidTokenValue);
+    }
+    if (!androidPermissionDialogOpen && nativeGetFcmTokenState !== 'missing') {
+        const native = await fetchNativeFcmToken(4000);
+        if (native) return rememberAndroidToken(native);
+    }
+    if (nativeGetFcmTokenState === 'missing' && !androidPermissionDialogOpen) {
+        try { await raceTimeout(PushNotifications.register(), 2500, null); } catch (e) {
             console.warn('[push] register now', e);
         }
-        return waitForAndroidToken(waitMs);
-    };
-    let token = await askOnce(9000);
-    if (!token) token = await fetchNativeFcmToken();
-    if (!token) {
-        await new Promise((r) => setTimeout(r, 1200));
-        token = await askOnce(7000);
+        const fromEvent = await waitForAndroidToken(3000);
+        if (fromEvent) return rememberAndroidToken(fromEvent);
     }
-    if (token) {
-        await persistAndroidToken(token);
-        ensureAndroidPushChannels().catch(() => {});
-        return token;
-    }
-    startAndroidTokenWatchdog();
-    return lastAndroidTokenValue || null;
+    if (!prefetchedAndroidToken && !lastAndroidTokenValue) startAndroidTokenWatchdog();
+    return prefetchedAndroidToken || lastAndroidTokenValue || null;
 }
 
 /** Arranca el diálogo nativo en el mismo toque, antes de cualquier await. */
 export function beginAndroidNotificationPermissionRequest() {
     if (!isCapacitorAndroid()) return null;
+    androidPermissionDialogOpen = true;
     try {
-        return PushNotifications.requestPermissions();
+        const pending = PushNotifications.requestPermissions();
+        Promise.resolve(pending).finally(() => { androidPermissionDialogOpen = false; });
+        return pending;
     } catch (_) {
+        androidPermissionDialogOpen = false;
         return null;
     }
 }
@@ -1451,7 +1488,7 @@ function bindAndroidPushListeners() {
         await PushNotifications.addListener('registration', async (token) => {
             const tokenValue = readPushTokenValue(token);
             if (!tokenValue) return;
-            await persistAndroidToken(tokenValue);
+            await rememberAndroidToken(tokenValue);
         });
         await PushNotifications.addListener('registrationError', (err) => {
             console.warn('[push] registrationError', err);
@@ -1489,7 +1526,9 @@ function bindAndroidPushListeners() {
 }
 
 async function waitForAndroidToken(timeoutMs = 10000) {
-    if (lastAndroidTokenValue) return lastAndroidTokenValue;
+    if (lastAndroidTokenValue || prefetchedAndroidToken) {
+        return lastAndroidTokenValue || prefetchedAndroidToken;
+    }
     try {
         const stored = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
         if (stored) {
@@ -1499,10 +1538,12 @@ async function waitForAndroidToken(timeoutMs = 10000) {
     } catch (_) {}
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
-        if (lastAndroidTokenValue) return lastAndroidTokenValue;
-        await new Promise((r) => setTimeout(r, 200));
+        if (lastAndroidTokenValue || prefetchedAndroidToken) {
+            return lastAndroidTokenValue || prefetchedAndroidToken;
+        }
+        await new Promise((r) => setTimeout(r, 80));
     }
-    return lastAndroidTokenValue || null;
+    return lastAndroidTokenValue || prefetchedAndroidToken || null;
 }
 
 let nativeGetFcmTokenState = 'unknown';
@@ -1570,12 +1611,12 @@ async function recoverSavedPushTokenFromProfile(db, appId, uid) {
     return best.token;
 }
 
-async function fetchNativeFcmToken() {
+async function fetchNativeFcmToken(timeoutMs = 4000) {
     if (!isCapacitorAndroid()) return '';
     if (nativeGetFcmTokenState === 'missing') return '';
     try {
         const SK = registerPlugin('SessionKeepalive');
-        const res = await raceTimeout(SK.getFcmToken(), 8000, null);
+        const res = await raceTimeout(SK.getFcmToken(), timeoutMs, null);
         if (!res) return '';
         nativeGetFcmTokenState = 'ok';
         return String(res?.token || '').trim();
@@ -1679,6 +1720,7 @@ if (typeof window !== 'undefined') {
             if (stored) lastAndroidTokenValue = stored;
         } catch (_) {}
         try { bindAndroidPushListeners(); } catch (_) {}
+        setTimeout(() => { prefetchAndroidFcmToken().catch(() => {}); }, 500);
     }
 }
 
