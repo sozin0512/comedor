@@ -2907,14 +2907,44 @@ async function notifyDriversNewTripWhatsApp(appId, tripId, trip, driverIds = [])
     return { sent: sent.length, skipNoPhone, skipFail, skipAlready };
 }
 
-async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartment = false, closedAppOnly = false, immediate = false } = {}) {
+function firestoreTimeMs(value) {
+    if (!value) return 0;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value.toMillis === 'function') return Number(value.toMillis()) || 0;
+    if (value.seconds) return Number(value.seconds) * 1000;
+    return 0;
+}
+
+function driverPushTokenUpdatedAtMs(userData) {
+    let max = 0;
+    for (const e of fcmTokenMapEntries(userData?.fcmTokens)) {
+        if ((e.updatedAt || 0) > max) max = e.updatedAt || 0;
+    }
+    return Math.max(max, firestoreTimeMs(userData?.fcmTokenUpdatedAt));
+}
+
+async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
+    expandDepartment = false,
+    closedAppOnly = false,
+    immediate = false,
+    retryFreshTokens = false
+} = {}) {
     if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
-    if (closedAppOnly && trip.closedAppDriverAlertSent) return;
-    if (immediate && trip.eligibleDriverAlertSent) return;
-    if (isExclusiveWindowOpen(trip) && !expandDepartment && !closedAppOnly && !immediate) return;
-    if (!expandDepartment && !closedAppOnly && !immediate && trip.eligibleDriverAlertSent) return;
-    if (expandDepartment && trip.eligibleDriverDeptAlertSent) return;
+    // El primer aviso ya salió. Esta pasada solo suena a quien guardó el token DESPUÉS.
+    if (retryFreshTokens) {
+        if (!trip.eligibleDriverAlertSent) return;
+    } else {
+        if (closedAppOnly && trip.closedAppDriverAlertSent) return;
+        if (immediate && trip.eligibleDriverAlertSent) return;
+        if (isExclusiveWindowOpen(trip) && !expandDepartment && !closedAppOnly && !immediate) return;
+        if (!expandDepartment && !closedAppOnly && !immediate && trip.eligibleDriverAlertSent) return;
+        if (expandDepartment && trip.eligibleDriverDeptAlertSent) return;
+    }
+    const retryNowMs = Date.now();
+    const retrySinceMs = retryFreshTokens
+        ? (Number(trip.eligibleDriverAlertTokenWatermark) || firestoreTimeMs(trip.eligibleDriverAlertAt))
+        : 0;
 
     const serviceType = trip.serviceType || 'auto';
     const freight = isFreightService(serviceType);
@@ -2994,6 +3024,15 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
         }
 
         const tier = driverNewTripAlertTier(u, loc, trip);
+        if (retryFreshTokens) {
+            if (tier !== 'city' && tier !== 'nearby') {
+                skipCity += 1;
+                continue;
+            }
+            // Ya se avisó a quien tenía token. Solo entra el que lo guardó después.
+            const tokenAt = driverPushTokenUpdatedAtMs(u);
+            if (!(tokenAt > retrySinceMs && tokenAt <= retryNowMs)) continue;
+        }
         if (tier === 'city') {
             if (expandDepartment && trip.eligibleDriverAlertSent) {
                 skipCity += 1;
@@ -3009,11 +3048,14 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
         skipCity += 1;
     }
 
-    // También incluir candidatos del pool de oferta si ya se asignó
-    if (trip.offeredToDriverId) cityRecipients.add(String(trip.offeredToDriverId));
-    (trip.candidateDriverIds || []).forEach((id) => {
-        if (id) cityRecipients.add(String(id));
-    });
+    // También incluir candidatos del pool de oferta si ya se asignó.
+    // En el reintento no: esos ya entraron en la primera oleada si tenían token.
+    if (!retryFreshTokens) {
+        if (trip.offeredToDriverId) cityRecipients.add(String(trip.offeredToDriverId));
+        (trip.candidateDriverIds || []).forEach((id) => {
+            if (id) cityRecipients.add(String(id));
+        });
+    }
 
     const cityList = [...cityRecipients].filter((id) => id && !lockedDrivers.has(String(id)));
     const nearbyList = [...nearbyRecipients].filter((id) => id && !lockedDrivers.has(String(id)) && !cityRecipients.has(id));
@@ -3041,10 +3083,19 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, { expandDepartm
     const pushed = pushResults.filter((r) => r && r.sent > 0).length;
     console.log(
         `[notifyEligibleDriversNewTrip] ${tripId} zone=${tripZone || 'n/a'} dept=${tripDept || 'n/a'} ` +
-        `immediate=${immediate} closedAppOnly=${closedAppOnly} considered=${candidateUids.size} city=${cityList.length} nearby=${nearbyList.length} ` +
+        `immediate=${immediate} closedAppOnly=${closedAppOnly} retryFresh=${retryFreshTokens} considered=${candidateUids.size} city=${cityList.length} nearby=${nearbyList.length} ` +
         `pushed=${pushed} skipCity=${skipCity} skipVehicle=${skipVehicle} ` +
         `skipRestricted=${skipRestricted} skipLocked=${skipLocked} skipNoToken=${skipNoToken}`
     );
+
+    if (retryFreshTokens) {
+        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
+            eligibleDriverAlertTokenWatermark: retryNowMs,
+            eligibleDriverAlertRetryPushed: pushed,
+            eligibleDriverAlertRetryAt: FieldValue.serverTimestamp()
+        }).catch(() => {});
+        return;
+    }
 
     const waTargets = [];
     const seenWa = new Set();
@@ -3217,6 +3268,15 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
         if (t.driverId || t.isDemandSimulation) continue;
         if (!t.eligibleDriverAlertSent) {
             await notifyEligibleDriversNewTrip(APP_ID, d.id, t, { immediate: true }).catch(() => {});
+        } else {
+            // Conductores que guardaron el aviso después del primer envío.
+            // El admin ya sonó; estos teléfonos no tenían token en ese momento.
+            const createdMs = firestoreTimeMs(t.createdAt);
+            const ageMs = createdMs ? (Date.now() - createdMs) : 0;
+            const missing = Number(t.eligibleDriverAlertNoToken) || 0;
+            if (missing > 0 && ageMs > 0 && ageMs < 6 * 60 * 60 * 1000) {
+                await notifyEligibleDriversNewTrip(APP_ID, d.id, t, { retryFreshTokens: true }).catch(() => {});
+            }
         }
         if (t.offerPhase !== 'city') {
             await openTripOfferToCity(APP_ID, d.id).catch(() => {});

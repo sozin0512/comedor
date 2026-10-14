@@ -1469,6 +1469,8 @@ function bindAndroidPushResume() {
     window.addEventListener('focus', onVisible);
 }
 
+let unsavedAndroidToken = '';
+
 async function persistAndroidToken(tokenValue) {
     if (!tokenValue) return;
     lastAndroidTokenValue = tokenValue;
@@ -1476,9 +1478,13 @@ async function persistAndroidToken(tokenValue) {
     stopAndroidTokenWatchdog();
     const saveUid = lastPushUid() || androidPushContext.uid || null;
     const { db, appId } = androidPushContext;
-    if (saveUid && db && appId) {
-        await saveFcmToken(db, appId, saveUid, tokenValue, 'android').catch(() => {});
+    // Si el token llega antes del login, se guarda en cuanto haya uid.
+    if (!(saveUid && db && appId)) {
+        unsavedAndroidToken = tokenValue;
+        return;
     }
+    unsavedAndroidToken = '';
+    await saveFcmToken(db, appId, saveUid, tokenValue, 'android').catch(() => {});
 }
 
 function bindAndroidPushListeners() {
@@ -1692,6 +1698,10 @@ export async function ensureAndroidPushToken({ db, appId, uid } = {}) {
     if (db && appId) androidPushContext = { db, appId, uid: uid || androidPushContext.uid || lastPushUid() || null };
     if (uid) rememberPushUid(uid);
     bindAndroidPushListeners();
+
+    if (unsavedAndroidToken) {
+        await persistAndroidToken(unsavedAndroidToken);
+    }
 
     if (lastAndroidTokenValue || hasAndroidFcmToken()) {
         await persistAndroidToken(lastAndroidTokenValue);
