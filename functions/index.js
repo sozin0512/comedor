@@ -93,7 +93,7 @@ const ZONE_DEPARTMENT = {
 const HN_CITY_CENTERS = require('./hn-city-centers');
 
 const TRIP_OFFER_NEAR_RADIUS_KM = 8;
-// MÃ¡s de 1: se guardan candidates y se les manda push (web/iOS se enteran aunque no sean el â€œprimeroâ€)
+// Más de 1: se guardan candidates y se les manda push (web/iOS se enteran aunque no sean el “primero”)
 const TRIP_OFFER_POOL_SIZE = 8;
 /** Si NO hay conductores registrados en la ciudad del viaje, ofertar a online del MISMO departamento. */
 const ENABLE_NEARBY_CITY_SPILL = true;
@@ -234,7 +234,7 @@ const CITY_COVERAGE_KM = {
     talanga: 12,
     'valle-angeles': 10,
     'la-paz': 14,
-    // Alrededores Comayagua / Francisco MorazÃ¡n (pueblos sin flota propia)
+    // Alrededores Comayagua / Francisco Morazán (pueblos sin flota propia)
     lepaterique: 12,
     'villa-de-san-antonio': 12,
     ajuterique: 12,
@@ -257,7 +257,7 @@ function getTripOfferNearRadiusKm(zoneId) {
 /**
  * @param {Array} sortedCandidates
  * @param {string|null} zoneId
- * @param {number|null} maxFarKmOverride â€” p.ej. spill 45 km cuando no hay flota local
+ * @param {number|null} maxFarKmOverride — p.ej. spill 45 km cuando no hay flota local
  */
 function pickDriversByProximityTier(sortedCandidates, zoneId, maxFarKmOverride = null) {
     if (!sortedCandidates?.length) return { candidates: [], tier: null };
@@ -273,7 +273,7 @@ function pickDriversByProximityTier(sortedCandidates, zoneId, maxFarKmOverride =
         pool = sortedCandidates.filter((c) => c.distanceKm <= farKm);
         tier = maxFarKmOverride && farKm > baseFar ? 'spill' : 'far';
     }
-    // Ãšltimo recurso: si hay spill y aÃºn vacÃ­o, tomar los mÃ¡s cercanos dentro del override
+    // Último recurso: si hay spill y aún vacío, tomar los más cercanos dentro del override
     if (!pool.length && maxFarKmOverride) {
         pool = sortedCandidates.filter((c) => c.distanceKm <= maxFarKmOverride);
         tier = 'spill';
@@ -307,10 +307,10 @@ async function collectRegisteredDriverZones(appId) {
 }
 
 /**
- * Â¿Puede este conductor (por zona GPS) atender el viaje?
+ * ¿Puede este conductor (por zona GPS) atender el viaje?
  * - Misma ciudad siempre.
- * - NUNCA otro departamento (Comayagua â†® Francisco MorazÃ¡n).
- * - Otra ciudad del MISMO depto.: solo si allowSpill y distancia â‰¤ maxDistKm.
+ * - NUNCA otro departamento (Comayagua ↮ Francisco Morazán).
+ * - Otra ciudad del MISMO depto.: solo si allowSpill y distancia ≤ maxDistKm.
  */
 function driverLocCanServeTripZone(loc, tripZone, distKm, { allowSpill = false, maxDistKm = null } = {}) {
     if (!tripZone) return true;
@@ -367,7 +367,7 @@ function driverAlreadyReservedAnotherPassenger(tripDocs, driverId, excludeTripId
     });
 }
 
-/** Correos con permiso de moderaciÃ³n aunque el rol en BD quedÃ³ desfasado. */
+/** Correos con permiso de moderación aunque el rol en BD quedó desfasado. */
 const KNOWN_STAFF_EMAILS = new Set([
     ADMIN_EMAIL,
     'sozajob146@gmail.com',
@@ -421,10 +421,10 @@ async function healStaffProfileIfNeeded(uid, email, pub, priv, pubRef, privRef) 
     await privRef.set(heal, { merge: true });
 }
 
-/** Admin supremo o supervisor â€” para moderar perfiles sin depender de reglas del cliente. */
+/** Admin supremo o supervisor — para moderar perfiles sin depender de reglas del cliente. */
 async function assertCallerCanModerate(auth) {
     if (!auth?.uid) {
-        throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
     const email = await resolveCallerAdminEmail(auth);
     if (email === ADMIN_EMAIL) {
@@ -440,7 +440,7 @@ async function assertCallerCanModerate(auth) {
     if (!callerLooksLikeStaff(pub, priv, email)) {
         throw new HttpsError(
             'permission-denied',
-            'Tu cuenta no tiene permisos de supervisor en Firestore. Cierra sesiÃ³n y vuelve a entrar.'
+            'Tu cuenta no tiene permisos de supervisor en Firestore. Cierra sesión y vuelve a entrar.'
         );
     }
 
@@ -473,7 +473,7 @@ function buildModerationPatch(rawFields) {
 async function handleReferralCodeReassignment(targetUid, newCodeRaw, currentProfile = {}) {
     const newCode = normalizeReferralCode(newCodeRaw);
     if (!newCode || newCode.length < 3) {
-        throw new HttpsError('invalid-argument', 'CÃ³digo de referido invÃ¡lido. Debe tener al menos 3 caracteres alfanumÃ©ricos.');
+        throw new HttpsError('invalid-argument', 'Código de referido inválido. Debe tener al menos 3 caracteres alfanuméricos.');
     }
 
     const currentCode = currentProfile.referralCode || null;
@@ -486,10 +486,10 @@ async function handleReferralCodeReassignment(targetUid, newCodeRaw, currentProf
     // Verificar unicidad
     const existingSnap = await codesCol.doc(newCode).get();
     if (existingSnap.exists && existingSnap.data()?.uid !== targetUid) {
-        throw new HttpsError('already-exists', 'Ese cÃ³digo de referido ya estÃ¡ asignado a otro usuario.');
+        throw new HttpsError('already-exists', 'Ese código de referido ya está asignado a otro usuario.');
     }
 
-    // Eliminar cÃ³digo anterior si pertenecÃ­a a este usuario
+    // Eliminar código anterior si pertenecía a este usuario
     if (currentCode && currentCode !== newCode) {
         const oldDoc = codesCol.doc(currentCode);
         try {
@@ -596,12 +596,12 @@ exports.syncAdminUid = onCall(async (request) => {
     return { ok: true, adminUid };
 });
 
-/** Cambia rol de un usuario â€” Admin SDK, sin depender de reglas del cliente. */
-/** Sincroniza perfil privado desde el pÃºblico (arregla desfase supervisor/client). */
+/** Cambia rol de un usuario — Admin SDK, sin depender de reglas del cliente. */
+/** Sincroniza perfil privado desde el público (arregla desfase supervisor/client). */
 exports.syncMyProfileFromPublic = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
-        throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
 
     await scrubNonSupremeAdminProfile(uid);
@@ -638,7 +638,7 @@ const REGISTRATION_STAFF_ROLES = new Set(['admin', 'supervisor']);
 
 function buildRegistrationPatch(rawProfile, uid, authEmail, existingRole) {
     if (!rawProfile || typeof rawProfile !== 'object' || Array.isArray(rawProfile)) {
-        throw new HttpsError('invalid-argument', 'Perfil invÃ¡lido.');
+        throw new HttpsError('invalid-argument', 'Perfil inválido.');
     }
 
     const hasExplicitRole = rawProfile.role != null && String(rawProfile.role).trim() !== '';
@@ -684,11 +684,11 @@ function buildRegistrationPatch(rawProfile, uid, authEmail, existingRole) {
     return patch;
 }
 
-/** Registro inicial o reenvÃ­o de perfil (pasajero/conductor) vÃ­a Admin SDK. */
+/** Registro inicial o reenvío de perfil (pasajero/conductor) vía Admin SDK. */
 exports.registerUserProfile = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
-        throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
 
     const authEmail = await resolveCallerAdminEmail(request.auth);
@@ -705,7 +705,7 @@ exports.registerUserProfile = onCall(async (request) => {
     if (REGISTRATION_STAFF_ROLES.has(existingRole) && hasExplicitRole) {
         throw new HttpsError(
             'failed-precondition',
-            'Esta cuenta ya tiene rol de personal. Cierra sesiÃ³n y usa una cuenta nueva.'
+            'Esta cuenta ya tiene rol de personal. Cierra sesión y usa una cuenta nueva.'
         );
     }
 
@@ -766,13 +766,13 @@ exports.acceptTermsProfile = onCall(async (request) => {
     };
 });
 
-/** Valida creaciÃ³n de trips en el servidor (checks bÃ¡sicos). */
+/** Valida creación de trips en el servidor (checks básicos). */
 exports.validateTripCreation = onCall(async (request) => {
     const auth = request.auth || {};
-    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
 
     const trip = request.data?.trip || null;
-    if (!trip || typeof trip !== 'object') throw new HttpsError('invalid-argument', 'Datos de viaje invÃ¡lidos.');
+    if (!trip || typeof trip !== 'object') throw new HttpsError('invalid-argument', 'Datos de viaje inválidos.');
 
     // El clientId debe coincidir con el caller (viaje propio)
     if (String(trip.clientId || '') !== String(auth.uid)) {
@@ -788,8 +788,8 @@ exports.validateTripCreation = onCall(async (request) => {
 
     const role = String(pub.role || priv.role || 'client').toLowerCase().trim();
     // Permitir client / admin / supervisor / sin rol (pruebas).
-    // Conductor "puro" se bloquea en la app; aquÃ­ no exigir role==='client' (rompÃ­a pedir viaje).
-    const blockedRoles = []; // reservado si mÃ¡s adelante se quiere restringir
+    // Conductor "puro" se bloquea en la app; aquí no exigir role==='client' (rompía pedir viaje).
+    const blockedRoles = []; // reservado si más adelante se quiere restringir
     if (blockedRoles.includes(role)) {
         throw new HttpsError('failed-precondition', 'Tu cuenta no puede solicitar viajes como pasajero.');
     }
@@ -803,7 +803,7 @@ exports.validateTripCreation = onCall(async (request) => {
     const termsAccepted = !!(priv.termsAccepted || pub.termsAccepted);
     const privacyAccepted = !!(priv.privacyAccepted || pub.privacyAccepted);
 
-    // Leer configuraciÃ³n global de appSettings para negociaciÃ³n
+    // Leer configuración global de appSettings para negociación
     const settingsRef = db.doc(`artifacts/${APP_ID}/public/data/appSettings/main`);
     const settingsSnap = await settingsRef.get();
     const settings = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
@@ -874,10 +874,10 @@ exports.validateTripCreation = onCall(async (request) => {
     };
 });
 
-/** Admin: setea negociaciÃ³n globalmente en appSettings */
+/** Admin: setea negociación globalmente en appSettings */
 exports.setGlobalNegotiation = onCall(async (request) => {
     const auth = request.auth || {};
-    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     await assertCallerCanModerate(request.auth);
     const enabled = !!request.data?.enabled;
     const ref = db.doc(`artifacts/${APP_ID}/public/data/appSettings/main`);
@@ -888,9 +888,9 @@ exports.setGlobalNegotiation = onCall(async (request) => {
 /** Permite a un supervisor/administrador habilitar o deshabilitar la fase de regateo en un viaje. */
 exports.setTripNegotiation = onCall(async (request) => {
     const auth = request.auth || {};
-    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+    if (!auth.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
 
-    // Verificar permisos de moderaciÃ³n
+    // Verificar permisos de moderación
     await assertCallerCanModerate(request.auth);
 
     const tripId = String(request.data?.tripId || '').trim();
@@ -934,7 +934,7 @@ function serializePayoutRecord(doc) {
 exports.getMyDriverPayoutRecords = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
-        throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
 
     const snap = await db.collection(`artifacts/${APP_ID}/public/data/driver_payout_records`)
@@ -1020,7 +1020,7 @@ async function assertCallerIsApprovedDriver(uid) {
     const hasApprovedVehicle = vehicles.some((v) => v && v.approvalStatus === 'approved')
         || pub.approvalStatus === 'approved'
         || priv.approvalStatus === 'approved';
-    // Conductor: role driver, o perfil con vehÃ­culos aprobados (perfiles incompletos / dual)
+    // Conductor: role driver, o perfil con vehículos aprobados (perfiles incompletos / dual)
     const looksLikeDriver = role === 'driver' || hasApprovedVehicle || !!pub.activeVehicleId || !!priv.activeVehicleId;
     if (!looksLikeDriver) {
         throw new HttpsError('permission-denied', 'Solo conductores aprobados pueden aceptar viajes.');
@@ -1029,16 +1029,16 @@ async function assertCallerIsApprovedDriver(uid) {
     const isExplicitlyBad = ['pending', 'rejected', 'suspended'].includes(approvalStatus);
 
     if (isExplicitlyBad && !hasApprovedVehicle) {
-        throw new HttpsError('failed-precondition', 'Tu cuenta aÃºn no estÃ¡ aprobada.');
+        throw new HttpsError('failed-precondition', 'Tu cuenta aún no está aprobada.');
     }
     return { pubRef, privRef, profile: { ...priv, ...pub } };
 }
 
-/** Aceptar viaje como conductor â€” Admin SDK (sin depender de reglas cliente). */
+/** Aceptar viaje como conductor — Admin SDK (sin depender de reglas cliente). */
 exports.acceptDriverTrip = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
-        throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
 
     const tripId = String(request.data?.tripId || '').trim();
@@ -1056,16 +1056,16 @@ exports.acceptDriverTrip = onCall(async (request) => {
 
     const trip = tripSnap.data() || {};
     if (trip.status !== 'pending') {
-        throw new HttpsError('failed-precondition', 'Otro conductor ya tomÃ³ este viaje.');
+        throw new HttpsError('failed-precondition', 'Otro conductor ya tomó este viaje.');
     }
     if (trip.driverId && trip.driverId !== uid) {
-        throw new HttpsError('failed-precondition', 'Otro conductor ya tomÃ³ este viaje.');
+        throw new HttpsError('failed-precondition', 'Otro conductor ya tomó este viaje.');
     }
-    // Staff armÃ³ viaje: el cliente debe reclamarlo antes de que un conductor lo acepte
+    // Staff armó viaje: el cliente debe reclamarlo antes de que un conductor lo acepte
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) {
         throw new HttpsError(
             'failed-precondition',
-            'El pasajero aÃºn no confirmÃ³ este viaje armado por staff.'
+            'El pasajero aún no confirmó este viaje armado por staff.'
         );
     }
     // El viaje queda abierto a la ciudad al crearse (mismo instante que lo ve staff).
@@ -1081,8 +1081,8 @@ exports.acceptDriverTrip = onCall(async (request) => {
     }
 
     const patch = sanitizeTripAcceptFields(request.data?.acceptFields);
-    // Viaje programado a futuro: se RESERVA (status scheduled + driver), no arranca aÃºn.
-    // Se activa a accepted ~30 min antes (o si el conductor toca â€œIniciar yaâ€).
+    // Viaje programado a futuro: se RESERVA (status scheduled + driver), no arranca aún.
+    // Se activa a accepted ~30 min antes (o si el conductor toca “Iniciar ya”).
     const scheduledMs = getScheduledTripMs(trip);
     const reserveScheduled = !!(scheduledMs
         && Date.now() < scheduledMs - SCHEDULED_TRIP_PREP_MS);
@@ -1186,12 +1186,12 @@ async function refundTripSaldoIfNeeded(tripRef, trip) {
 }
 
 /**
- * Cancelar viaje â€” pasajero o conductor (Admin SDK, sin depender de reglas cliente).
+ * Cancelar viaje — pasajero o conductor (Admin SDK, sin depender de reglas cliente).
  */
 exports.cancelTrip = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
-        throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
 
     const tripId = String(request.data?.tripId || '').trim();
@@ -1333,12 +1333,12 @@ exports.cancelTrip = onCall(async (request) => {
 
 /**
  * Refund de saldo al pasajero cuando se cancela un viaje (Admin SDK).
- * Llamable por cliente o conductor del viaje (verifica participaciÃ³n).
+ * Llamable por cliente o conductor del viaje (verifica participación).
  */
 exports.refundCancelledTrip = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
-        throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
 
     const tripId = String(request.data?.tripId || '').trim();
@@ -1378,7 +1378,7 @@ exports.refundCancelledTrip = onCall(async (request) => {
     }
 });
 
-/** Escribe campos de moderaciÃ³n (bloquear, aprobar, sancionar) vÃ­a Admin SDK. */
+/** Escribe campos de moderación (bloquear, aprobar, sancionar) vía Admin SDK. */
 exports.moderateUserProfile = onCall(async (request) => {
     const caller = await assertCallerCanModerate(request.auth);
     const targetUid = String(request.data?.targetUid || '').trim();
@@ -1400,7 +1400,7 @@ exports.moderateUserProfile = onCall(async (request) => {
     const fields = request.data?.fields || {};
     if (typeof fields.referralCode !== 'undefined') {
         if (!caller.isAdmin) {
-            throw new HttpsError('permission-denied', 'Solo el administrador puede cambiar cÃ³digos de referido.');
+            throw new HttpsError('permission-denied', 'Solo el administrador puede cambiar códigos de referido.');
         }
         await handleReferralCodeReassignment(targetUid, fields.referralCode, targetSnap.exists ? (targetSnap.data() || {}) : {});
     }
@@ -1424,7 +1424,7 @@ exports.setUserRole = onCall(async (request) => {
         throw new HttpsError('invalid-argument', 'UID de usuario requerido.');
     }
     if (!['client', 'driver', 'supervisor'].includes(newRole)) {
-        throw new HttpsError('invalid-argument', 'Rol no vÃ¡lido.');
+        throw new HttpsError('invalid-argument', 'Rol no válido.');
     }
 
     const pubRef = db.doc(`artifacts/${APP_ID}/public/data/users/${targetUid}`);
@@ -1839,12 +1839,12 @@ function requiredRideVehicleType(tripServiceType) {
 function tripOfferPushTitle(serviceType) {
     const trip = String(serviceType || 'auto').toLowerCase();
     if (trip === 'auto' || trip === 'vip' || trip === 'taxi_vip') {
-        return 'HonduRaite Â· ðŸš— Â¡Taxi VIP para ti!';
+        return 'HonduRaite · 🚗 ¡Taxi VIP para ti!';
     }
-    if (trip === 'taxi') return 'HonduRaite Â· ðŸš• Â¡Taxi para ti!';
-    if (trip === 'delivery') return 'HonduRaite Â· ðŸ“¦ Â¡EnvÃ­o para ti!';
-    if (trip === 'moto') return 'HonduRaite Â· ðŸï¸ Â¡Moto para ti!';
-    return 'HonduRaite Â· Â¡Nuevo viaje para ti!';
+    if (trip === 'taxi') return 'HonduRaite · 🚕 ¡Taxi para ti!';
+    if (trip === 'delivery') return 'HonduRaite · 📦 ¡Envío para ti!';
+    if (trip === 'moto') return 'HonduRaite · 🏍️ ¡Moto para ti!';
+    return 'HonduRaite · ¡Nuevo viaje para ti!';
 }
 
 function staffTripNotificationLabel(serviceType) {
@@ -1852,9 +1852,9 @@ function staffTripNotificationLabel(serviceType) {
     if (trip === 'auto' || trip === 'vip' || trip === 'taxi_vip') return 'Taxi VIP';
     if (trip === 'taxi') return 'Taxi tradicional';
     if (trip === 'moto') return 'Viaje en moto';
-    if (trip === 'delivery') return 'EnvÃ­o/Comida';
+    if (trip === 'delivery') return 'Envío/Comida';
     if (trip === 'flete_paila') return 'Flete paila';
-    if (trip === 'flete_camion') return 'Flete camiÃ³n';
+    if (trip === 'flete_camion') return 'Flete camión';
     return 'Viaje';
 }
 
@@ -1865,17 +1865,17 @@ function isRideService(type) {
 function rideDemandTitle(serviceType) {
     const trip = String(serviceType || 'auto').toLowerCase();
     if (trip === 'auto' || trip === 'vip' || trip === 'taxi_vip') {
-        return 'HonduRaite Â· ðŸš— Â¡Cliente pide Taxi VIP!';
+        return 'HonduRaite · 🚗 ¡Cliente pide Taxi VIP!';
     }
-    if (trip === 'taxi') return 'HonduRaite Â· ðŸš• Â¡Cliente pide taxi!';
-    if (trip === 'delivery') return 'HonduRaite Â· ðŸ“¦ Â¡Cliente pide envÃ­o!';
-    return 'HonduRaite Â· ðŸï¸ Â¡Cliente pide moto!';
+    if (trip === 'taxi') return 'HonduRaite · 🚕 ¡Cliente pide taxi!';
+    if (trip === 'delivery') return 'HonduRaite · 📦 ¡Cliente pide envío!';
+    return 'HonduRaite · 🏍️ ¡Cliente pide moto!';
 }
 
 /**
  * Canal Android emergente tipo WhatsApp (enciende pantalla + suena).
- * v9: tono icÃ³nico hondu_iconic + MediaPlayer backup (v8 a menudo solo vibraba).
- * (Android no cambia el sound de un canal ya creado â†’ hay que versionar el id)
+ * v9: tono icónico hondu_iconic + MediaPlayer backup (v8 a menudo solo vibraba).
+ * (Android no cambia el sound de un canal ya creado → hay que versionar el id)
  */
 const ANDROID_PUSH_CHANNEL_VERSION = 'v10';
 /** Canal nativo creado por HonduMessagingService */
@@ -1883,9 +1883,9 @@ const WA_ALERT_CHANNEL_ID = 'hondu_wa_alert_v10';
 const TEMU_ALL_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 const RIDE_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
 const DEFAULT_ALERT_CHANNEL_ID = WA_ALERT_CHANNEL_ID;
-/** res/raw/hondu_iconic.wav (sin extensiÃ³n) */
+/** res/raw/hondu_iconic.wav (sin extensión) */
 const HONDU_ICONIC_PUSH_SOUND = 'hondu_iconic';
-/** VibraciÃ³n fuerte estilo Temu (ms). */
+/** Vibración fuerte estilo Temu (ms). */
 const HONDU_SUPER_VIBRATE_MS = [0, 450, 100, 450, 100, 550, 120, 750, 100, 950];
 const HONDU_DEFAULT_VIBRATE_MS = HONDU_SUPER_VIBRATE_MS;
 const HONDU_TEMU_VIBRATE_MS = [0, 500, 80, 500, 80, 600, 100, 800, 80, 1000, 150, 500];
@@ -1944,8 +1944,8 @@ function offlineDriverNearTrip(loc, trip, radiusKm) {
 
 /**
  * Avisa a conductores OFFLINE del MISMO DEPARTAMENTO.
- * Siempre (aunque haya online), para que se pongan en lÃ­nea y refuercen flota.
- * Nunca cruza departamentos (Comayagua â†® Francisco MorazÃ¡n).
+ * Siempre (aunque haya online), para que se pongan en línea y refuercen flota.
+ * Nunca cruza departamentos (Comayagua ↮ Francisco Morazán).
  * Una vez por viaje.
  */
 async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
@@ -1953,7 +1953,7 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     if (!isRideService(serviceType)) return;
     if (trip.rideOfflineAlertSent || trip.isDemandSimulation) return;
     if (trip.status !== 'pending') return;
-    // No avisar conductores si el cliente aÃºn no reclamÃ³ el viaje de staff
+    // No avisar conductores si el cliente aún no reclamó el viaje de staff
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
 
     const requiredType = requiredRideVehicleType(serviceType);
@@ -1965,18 +1965,18 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
 
     // Si no queremos avisar offline cuando ya hay online, se puede apagar con flag
     if (!ALWAYS_NOTIFY_OFFLINE_SAME_DEPARTMENT && hasOnlineCoverage) {
-        // Aun asÃ­ avisar offline del depto. (comportamiento pedido: SIEMPRE)
+        // Aun así avisar offline del depto. (comportamiento pedido: SIEMPRE)
     }
 
     const tripZone = resolveTripZoneId(trip);
     const tripDept = getDepartmentForZone(tripZone);
     const price = trip.price || 'Nuevo viaje';
     const originShort = (trip.origin || '').slice(0, 48);
-    const deptLabel = tripDept ? ` Â· ${tripDept}` : '';
-    const bodyCore = [String(price), originShort].filter(Boolean).join(' Â· ');
+    const deptLabel = tripDept ? ` · ${tripDept}` : '';
+    const bodyCore = [String(price), originShort].filter(Boolean).join(' · ');
     const body = hasOnlineCoverage
-        ? `${bodyCore}${deptLabel} â€” Hay pedidos en tu departamento. AbrÃ­ HonduRaite y ponete en lÃ­nea.`
-        : `${bodyCore}${deptLabel} â€” Â¡Nadie en lÃ­nea cerca! AbrÃ­ la app y ponete en lÃ­nea YA.`;
+        ? `${bodyCore}${deptLabel} — Hay pedidos en tu departamento. Abrí HonduRaite y ponete en línea.`
+        : `${bodyCore}${deptLabel} — ¡Nadie en línea cerca! Abrí la app y ponete en línea YA.`;
 
     const [driversLocSnap, usersSnap] = await Promise.all([
         db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
@@ -1992,7 +1992,7 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     for (const userDoc of usersSnap.docs) {
         const uid = userDoc.id;
         const loc = locByDriver.get(uid);
-        // Solo fuera de sesiÃ³n / offline (no molestar a quien ya estÃ¡ en lÃ­nea con oferta)
+        // Solo fuera de sesión / offline (no molestar a quien ya está en línea con oferta)
         if (loc && isDriverOnline(loc)) continue;
 
         const u = userDoc.data() || {};
@@ -2041,14 +2041,14 @@ async function notifyOfflineFreightDrivers(appId, tripId, trip) {
     if (!requiredType) return;
 
     const tripZone = resolveTripZoneId(trip);
-    const modeLabel = serviceType === 'flete_paila' ? 'Paila' : 'CamiÃ³n';
+    const modeLabel = serviceType === 'flete_paila' ? 'Paila' : 'Camión';
     const price = trip.price || 'Nuevo flete';
     const originShort = (trip.origin || '').slice(0, 48);
     const cargo = (trip.freightDetails?.cargoDescription || trip.cargoDescription || '').slice(0, 40);
     const bodyParts = [String(price)];
     if (cargo) bodyParts.push(cargo);
     if (originShort) bodyParts.push(originShort);
-    const body = bodyParts.join(' Â· ');
+    const body = bodyParts.join(' · ');
 
     const [driversLocSnap, usersSnap] = await Promise.all([
         db.collection(`artifacts/${appId}/public/data/drivers_location`).get(),
@@ -2073,14 +2073,14 @@ async function notifyOfflineFreightDrivers(appId, tripId, trip) {
         if (!driverHasApprovedVehicleType(u, requiredType)) continue;
 
         const driverZone = u.serviceZoneId || locByDriver.get(uid)?.serviceZoneId || null;
-        // Solo mismo departamento (no cruzar Comayagua â†” Francisco MorazÃ¡n)
+        // Solo mismo departamento (no cruzar Comayagua ↔ Francisco Morazán)
         if (tripZone && driverZone && !sameDepartment(driverZone, tripZone)) continue;
         if (tripZone && !driverZone) continue;
 
         notified.add(uid);
         await sendPushToUser(appId, uid, {
-            title: `ðŸš› Â¡Flete ${modeLabel} disponible!`,
-            body: `${body} â€” ActÃ­vate para aceptarlo.`,
+            title: `🚛 ¡Flete ${modeLabel} disponible!`,
+            body: `${body} — Actívate para aceptarlo.`,
             data: {
                 type: 'freight_trip_alert',
                 tripId,
@@ -2251,7 +2251,7 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
 
 /**
  * Resuelve si hay flota local registrada y si se debe desbordar a ciudades cercanas.
- * Ej: Lepaterique sin conductores â†’ ofertar a Comayagua/cercanos en lÃ­nea.
+ * Ej: Lepaterique sin conductores → ofertar a Comayagua/cercanos en línea.
  */
 async function resolveTripOfferSpillContext(appId, trip) {
     const tripZone = resolveTripZoneId(trip);
@@ -2533,7 +2533,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         || data.wake === '1'
         || data.wake === 1;
 
-    // Click del push: viajes â†’ conductor; ofertas â†’ pasajero; resto â†’ centro de notificaciones
+    // Click del push: viajes → conductor; ofertas → pasajero; resto → centro de notificaciones
     const openNotifications = data.openNotifications === 'true'
         || (
             data.openChat !== 'true'
@@ -2551,7 +2551,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     let link = '/';
     if (data.openReports === 'true') link = '/#admin-reports';
     else if (type === 'deposit_reminder' || data.openDeposit === 'true') {
-        // Conductor: abrir flujo de depÃ³sito (cuentas + baucher)
+        // Conductor: abrir flujo de depósito (cuentas + baucher)
         link = '/#deposit';
     } else if (type === 'trip_offer' || type === 'ride_demand_alert' || data.openDriver === 'true') {
         link = '/#driver';
@@ -2563,7 +2563,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         || data.openPassenger === 'true'
         || data.openClient === 'true'
     ) {
-        // Pasajero: abrir bÃºsqueda / panel de ofertas al tocar el push
+        // Pasajero: abrir búsqueda / panel de ofertas al tocar el push
         link = type === 'passenger_counter' ? '/#driver' : '/#client';
     } else if (type === 'store_order' || data.openMerchant === 'true') {
         // Emprendedor: panel de pedidos de tienda
@@ -2582,7 +2582,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         ...data,
         title: safeTitle,
         body: safeBody,
-        // Marca para el servicio nativo (HonduMessagingService): Temu/WhatsApp + tono icÃ³nico
+        // Marca para el servicio nativo (HonduMessagingService): Temu/WhatsApp + tono icónico
         style: 'whatsapp',
         temu: '1',
         wake: '1',
@@ -2784,15 +2784,15 @@ exports.pingMyPush = onCall(async (request) => {
 
 /**
  * Cuando el pasajero sube la tarifa: push fuerte a conductores online de la zona
- * y a los que ya habÃ­an visto el viaje (aunque estÃ©n en otra app).
+ * y a los que ya habían visto el viaje (aunque estén en otra app).
  */
 async function notifyDriversTripPriceBoost(appId, tripId, after, before) {
     if (!after || after.status !== 'pending' || after.driverId) return;
     const priceLabel = after.price || formatMoneyL(after.priceNum);
     const fromLabel = before?.price || formatMoneyL(before?.priceNum);
     const originShort = (after.origin || '').slice(0, 42);
-    const title = 'ðŸ”¥ Cliente subiÃ³ el precio';
-    const body = `${fromLabel ? `${fromLabel} â†’ ` : ''}${priceLabel || 'MÃ¡s tarifa'}${originShort ? ` Â· ${originShort}` : ''}. Â¡EntrÃ¡ ya!`;
+    const title = '🔥 Cliente subió el precio';
+    const body = `${fromLabel ? `${fromLabel} → ` : ''}${priceLabel || 'Más tarifa'}${originShort ? ` · ${originShort}` : ''}. ¡Entrá ya!`;
 
     const recipients = new Set();
     if (after.offeredToDriverId) recipients.add(String(after.offeredToDriverId));
@@ -2809,7 +2809,7 @@ async function notifyDriversTripPriceBoost(appId, tripId, after, before) {
         });
     } catch (_) {}
 
-    // Offline de la zona (mismo tipo de vehÃ­culo) â€” para que se activen
+    // Offline de la zona (mismo tipo de vehículo) — para que se activen
     try {
         const serviceType = after.serviceType || 'auto';
         if (isRideService(serviceType)) {
@@ -2884,8 +2884,8 @@ async function notifyStaffNewTrip(appId, tripId, trip) {
     const price = trip.price || 'Nuevo';
     const originShort = (trip.origin || '').slice(0, 42);
     const svcLabel = staffTripNotificationLabel(trip.serviceType);
-    const title = `ðŸ†• ${svcLabel} pendiente`;
-    const body = `${price} Â· ${originShort || 'UbicaciÃ³n'}`;
+    const title = `🆕 ${svcLabel} pendiente`;
+    const body = `${price} · ${originShort || 'Ubicación'}`;
 
     const snap = await db.collection(`artifacts/${appId}/public/data/users`).get();
     const staffIds = [];
@@ -3276,7 +3276,7 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
     async (event) => {
         const trip = event.data.data() || {};
         const { appId, tripId } = event.params;
-        // Programados tambiÃ©n empiezan en pending (negociar/aceptar antes de reservar)
+        // Programados también empiezan en pending (negociar/aceptar antes de reservar)
         if (trip.status !== 'pending' || trip.isDemandSimulation) return;
 
         // Viaje armado por staff: primero notificar al cliente; NO ofertar a conductores
@@ -3285,19 +3285,19 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
             const staffName = (trip.staffCreatedByName || 'Soporte').split(' ')[0];
             const destShort = String(trip.destination || 'tu destino').slice(0, 40);
             // Programado: el cliente elige fecha/hora al abrir (clientChoosesSchedule)
-            // o ya viene con scheduledFor (legacy / staff lo fijÃ³).
+            // o ya viene con scheduledFor (legacy / staff lo fijó).
             const clientPicksWhen = trip.clientChoosesSchedule === true && !trip.scheduledFor;
             const whenLabel = trip.scheduledFor
                 ? formatScheduledTripWhen(trip.scheduledFor)
                 : '';
-            let title = 'ðŸš• Te armamos un viaje';
-            let body = `${staffName} (staff) creÃ³ tu viaje a ${destShort}. Ãbrelo y toca Â«Quiero este viajeÂ» si lo tomas.`;
+            let title = '🚕 Te armamos un viaje';
+            let body = `${staffName} (staff) creó tu viaje a ${destShort}. Ábrelo y toca «Quiero este viaje» si lo tomas.`;
             if (clientPicksWhen) {
-                title = 'ðŸ“… Te armamos un viaje programado';
-                body = `${staffName} (staff) armÃ³ tu viaje a ${destShort}. Ãbrelo, elige fecha y hora, y confirma.`;
+                title = '📅 Te armamos un viaje programado';
+                body = `${staffName} (staff) armó tu viaje a ${destShort}. Ábrelo, elige fecha y hora, y confirma.`;
             } else if (trip.scheduledFor) {
-                title = 'ðŸ“… Te armamos un viaje programado';
-                body = `${staffName} (staff) creÃ³ tu viaje para ${whenLabel}. Ãbrelo y toca Â«Quiero este viajeÂ» si lo tomas.`;
+                title = '📅 Te armamos un viaje programado';
+                body = `${staffName} (staff) creó tu viaje para ${whenLabel}. Ábrelo y toca «Quiero este viaje» si lo tomas.`;
             }
             await sendPushToUser(appId, trip.clientId, {
                 title,
@@ -3445,7 +3445,7 @@ exports.nudgeUnseenTripChats = onSchedule('every 1 minutes', async () => {
     }
 });
 
-// â”€â”€â”€ Copa HonduRaite (servidor): suma viajes al completar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Copa HonduRaite (servidor): suma viajes al completar ───────────────────
 
 /** Conductor apto para copa: no bloqueado. Completar un viaje real ya lo valida. */
 function isDriverApprovedForCopaServer(profile, trip = null) {
@@ -3478,7 +3478,7 @@ function isPassengerVerifiedForCopaServer(profile, trip = null) {
         if (status === 'approved' || profile?.verified === true || profile?.clientVerified === true) return true;
         if (profile?.identityVerificationStatus === 'approved') return true;
         if (profile?.passengerVerificationStatus === 'approved') return true;
-        // CompletÃ³ viaje real: sumar igual (reglas de negocio copa = viajes hechos)
+        // Completó viaje real: sumar igual (reglas de negocio copa = viajes hechos)
         return true;
     }
     if (!profile) return false;
@@ -3513,7 +3513,7 @@ function isCopaChallengeActiveServer(ch) {
 /**
  * Suma +1 viaje en entries de copa (conductor y pasajero).
  * Idempotente: no cuenta el mismo tripId dos veces.
- * force:true reintenta aunque copaCreditedServer ya estÃ© marcado (si faltÃ³ driver/passenger).
+ * force:true reintenta aunque copaCreditedServer ya esté marcado (si faltó driver/passenger).
  */
 async function creditCopaOnTripCompleted(appId, tripId, trip, opts = {}) {
     if (!tripId || !trip || trip.isDemandSimulation) return { driver: false, passenger: false };
@@ -3526,7 +3526,7 @@ async function creditCopaOnTripCompleted(appId, tripId, trip, opts = {}) {
 
     const results = { driver: false, passenger: false, driverSkipped: false, passengerSkipped: false };
 
-    // â€”â€” Conductor â€”â€”
+    // —— Conductor ——
     if (trip.driverId && (force || trip.copaCreditedDriver !== true)) {
         try {
             const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${trip.driverId}`).get();
@@ -3587,7 +3587,7 @@ async function creditCopaOnTripCompleted(appId, tripId, trip, opts = {}) {
         }
     }
 
-    // â€”â€” Pasajero â€”â€”
+    // —— Pasajero ——
     if (trip.clientId && (force || trip.copaCreditedPassenger !== true)) {
         try {
             const uSnap = await db.doc(`artifacts/${appId}/public/data/users/${trip.clientId}`).get();
@@ -3659,7 +3659,7 @@ async function creditCopaOnTripCompleted(appId, tripId, trip, opts = {}) {
 
 /** Callable staff: re-acreditar copa de un viaje o de los completed recientes (sin borrar ranking). */
 exports.repairCopaCredits = onCall(async (request) => {
-    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+    if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     await assertCallerCanModerate(request.auth);
 
     const tripId = String(request.data?.tripId || '').trim();
@@ -3671,7 +3671,7 @@ exports.repairCopaCredits = onCall(async (request) => {
         const snap = await db.doc(`artifacts/${APP_ID}/public/data/trips/${tripId}`).get();
         if (!snap.exists) throw new HttpsError('not-found', 'Viaje no encontrado.');
         const t = snap.data() || {};
-        if (t.status !== 'completed') throw new HttpsError('failed-precondition', 'El viaje no estÃ¡ completed.');
+        if (t.status !== 'completed') throw new HttpsError('failed-precondition', 'El viaje no está completed.');
         trips = [{ id: snap.id, ...t }];
     } else {
         const sinceMs = Date.now() - hours * 60 * 60 * 1000;
@@ -3722,7 +3722,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
         const after = event.data.after.data();
         const { appId, tripId } = event.params;
 
-        // Cliente reclamÃ³ viaje armado por staff â†’ WA + avisar conductores de la ciudad
+        // Cliente reclamó viaje armado por staff → WA + avisar conductores de la ciudad
         if (
             after.status === 'pending'
             && after.staffCreatedBy
@@ -3790,8 +3790,8 @@ exports.onTripUpdatePush = onDocumentUpdated(
             && afterBidCount === 0
         ) {
             const isFreight = isFreightService(after.serviceType);
-            const dist = after.offerDistanceKm != null ? ` Â· ${after.offerDistanceKm} km` : '';
-            const payLabel = after.paymentMethod === 'saldo' ? ' Â· Saldo' : '';
+            const dist = after.offerDistanceKm != null ? ` · ${after.offerDistanceKm} km` : '';
+            const payLabel = after.paymentMethod === 'saldo' ? ' · Saldo' : '';
             const originShort = (after.origin || '').slice(0, 48);
             const cargo = isFreight
                 ? (after.freightDetails?.cargoDescription || '').slice(0, 36)
@@ -3809,9 +3809,9 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 ? ` Recogida programada en ${minsUntilPickup} min (${formatScheduledTripWhen(after.scheduledFor)}).`
                 : '';
             const offerTitle = minsUntilPickup > 0
-                ? 'ðŸ“… Viaje programado'
-                : (isFreight ? 'ðŸš› Â¡Flete disponible!' : tripOfferPushTitle(after.serviceType));
-            const offerBody = `${bodyCore}${bodyExtra ? ` Â· ${bodyExtra}` : ''}${scheduledHint}${busyHint}`;
+                ? '📅 Viaje programado'
+                : (isFreight ? '🚛 ¡Flete disponible!' : tripOfferPushTitle(after.serviceType));
+            const offerBody = `${bodyCore}${bodyExtra ? ` · ${bodyExtra}` : ''}${scheduledHint}${busyHint}`;
             const offerData = {
                 type: 'trip_offer',
                 tripId,
@@ -3851,7 +3851,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
             await openTripOfferToCity(appId, tripId).catch(() => {});
         }
 
-        // â€”â€” Oferta de precio del conductor â†’ push al pasajero (aunque estÃ© en otra app) â€”â€”
+        // —— Oferta de precio del conductor → push al pasajero (aunque esté en otra app) ——
         if (after.status === 'pending' && after.clientId && !after.driverId) {
             if (after.negotiationEnabled === false) {
                 const patch = {};
@@ -3879,7 +3879,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
                     const priceChanged = prev && prev.price !== bid.price;
                     // Nueva oferta o cambio de precio del conductor (no solo contraoferta del pasajero)
                     if (isNew || priceChanged) {
-                        // Evitar re-notificar si solo cambiÃ³ el counter del pasajero
+                        // Evitar re-notificar si solo cambió el counter del pasajero
                         if (prev && prev.price === bid.price && prev.counter !== bid.counter) continue;
                         if (!newestDriverBid
                             || Number(bid.at || 0) >= Number(newestDriverBid.at || 0)) {
@@ -3912,9 +3912,9 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 const name = (newestDriverBid.name || 'Un conductor').split(' ')[0];
                 await sendPushToUser(appId, after.clientId, {
                     title: newestDriverBid.isNew
-                        ? 'ðŸ’° Â¡Te ofrecieron un precio!'
-                        : 'ðŸ’° Oferta actualizada',
-                    body: `${name} ofrece ${priceLabel || 'un precio'} por tu viaje. Ãbrelo para aceptar o negociar.`,
+                        ? '💰 ¡Te ofrecieron un precio!'
+                        : '💰 Oferta actualizada',
+                    body: `${name} ofrece ${priceLabel || 'un precio'} por tu viaje. Ábrelo para aceptar o negociar.`,
                     data: {
                         type: 'driver_bid',
                         tripId,
@@ -3929,7 +3929,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 });
             }
 
-            // â€”â€” Contraoferta del pasajero â†’ push al conductor (aunque estÃ© en otra app) â€”â€”
+            // —— Contraoferta del pasajero → push al conductor (aunque esté en otra app) ——
             if (canNegotiateTrip) {
                 for (const [driverId, bid] of Object.entries(afterBids)) {
                     const prev = beforeBids[driverId];
@@ -3938,8 +3938,8 @@ exports.onTripUpdatePush = onDocumentUpdated(
                     if (!counterNew) continue;
                     const priceLabel = formatMoneyL(bid.counter);
                     await sendPushToUser(appId, driverId, {
-                        title: 'ðŸ“¨ Contraoferta del pasajero',
-                        body: `El pasajero ofrece ${priceLabel || 'otro precio'}. Acepta o pide mÃ¡s.`,
+                        title: '📨 Contraoferta del pasajero',
+                        body: `El pasajero ofrece ${priceLabel || 'otro precio'}. Acepta o pide más.`,
                         data: {
                             type: 'passenger_counter',
                             tripId,
@@ -3953,7 +3953,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 }
             }
 
-            // â€”â€” Pasajero subiÃ³ la tarifa â†’ avisar flota (nuevo viaje con mÃ¡s plata) â€”â€”
+            // —— Pasajero subió la tarifa → avisar flota (nuevo viaje con más plata) ——
             const beforeBoostMs = before.priceBoostedAt?.toMillis?.()
                 || (before.priceBoostedAt?.seconds ? before.priceBoostedAt.seconds * 1000 : 0);
             const afterBoostMs = after.priceBoostedAt?.toMillis?.()
@@ -3969,10 +3969,10 @@ exports.onTripUpdatePush = onDocumentUpdated(
 
         if (before.status === 'pending' && after.status === 'accepted' && after.clientId) {
             const busyBody = after.driverFinishingOtherTrip
-                ? `${after.driverName || 'Tu conductor'} ya te reservÃ³. Termina su viaje actual y va hacia ti.`
-                : `${after.driverName || 'Un conductor'} aceptÃ³ tu viaje y va en camino.`;
+                ? `${after.driverName || 'Tu conductor'} ya te reservó. Termina su viaje actual y va hacia ti.`
+                : `${after.driverName || 'Un conductor'} aceptó tu viaje y va en camino.`;
             await sendPushToUser(appId, after.clientId, {
-                title: after.driverFinishingOtherTrip ? 'Â¡Conductor reservado!' : 'Â¡Conductor asignado!',
+                title: after.driverFinishingOtherTrip ? '¡Conductor reservado!' : '¡Conductor asignado!',
                 body: busyBody,
                 data: {
                     type: 'trip_accepted',
@@ -3992,12 +3992,12 @@ exports.onTripUpdatePush = onDocumentUpdated(
             } catch (_) {}
         }
 
-        // Conductor reservÃ³ viaje PROGRAMADO (status scheduled con driver)
+        // Conductor reservó viaje PROGRAMADO (status scheduled con driver)
         if (before.status === 'pending' && after.status === 'scheduled' && after.driverId && after.clientId) {
             const whenLabel = formatScheduledTripWhen(after.scheduledFor);
             await sendPushToUser(appId, after.clientId, {
-                title: 'ðŸ“… Conductor confirmado para tu viaje programado',
-                body: `${after.driverName || 'Un conductor'} te recogerÃ¡ el ${whenLabel}. Te avisaremos antes de la hora.`,
+                title: '📅 Conductor confirmado para tu viaje programado',
+                body: `${after.driverName || 'Un conductor'} te recogerá el ${whenLabel}. Te avisaremos antes de la hora.`,
                 data: {
                     type: 'trip_scheduled_reserved',
                     tripId,
@@ -4008,7 +4008,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 highPriority: true
             });
             await sendPushToUser(appId, after.driverId, {
-                title: 'ðŸ“… Viaje programado reservado',
+                title: '📅 Viaje programado reservado',
                 body: `Recogida ${whenLabel}. Te alertaremos 1 h, 30, 10 y 5 min antes. Puedes iniciar antes desde la app.`,
                 data: {
                     type: 'trip_scheduled_reserved',
@@ -4035,8 +4035,8 @@ exports.onTripUpdatePush = onDocumentUpdated(
 
         if (!before.driverArrived && after.driverArrived && after.clientId) {
             await sendPushToUser(appId, after.clientId, {
-                title: 'Tu conductor llegÃ³',
-                body: 'Ya estÃ¡ en el punto de encuentro.',
+                title: 'Tu conductor llegó',
+                body: 'Ya está en el punto de encuentro.',
                 data: {
                     type: 'trip_arrived',
                     tripId,
@@ -4056,7 +4056,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
         if (before.status !== 'in_progress' && after.status === 'in_progress' && after.driverId) {
             await sendPushToUser(appId, after.driverId, {
                 title: 'Viaje iniciado',
-                body: 'El pasajero confirmÃ³ el PIN. Ve al destino.',
+                body: 'El pasajero confirmó el PIN. Ve al destino.',
                 data: {
                     type: 'trip_started',
                     tripId,
@@ -4068,7 +4068,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
             });
         }
 
-        // â€”â€” Copa HonduRaite: al completar viaje, sumar en SERVIDOR (Admin SDK) â€”â€”
+        // —— Copa HonduRaite: al completar viaje, sumar en SERVIDOR (Admin SDK) ——
         // El cliente a menudo falla: el conductor no puede escribir la entry del pasajero
         // (reglas Firestore), y en web/iOS a veces no corre el JS viejo. Viajes programados
         // cuentan igual que los normales.
@@ -4134,17 +4134,17 @@ exports.onAppFeedbackPush = onDocumentCreated(
         const type = d.type || 'bug_report';
 
         const titles = {
-            crash: 'ðŸ’¥ Crash en la app',
-            error: 'âš ï¸ Error en la app',
-            suggestion: 'ðŸ’¡ Nueva sugerencia',
-            bug_report: 'ðŸ› Reporte de problema'
+            crash: '💥 Crash en la app',
+            error: '⚠️ Error en la app',
+            suggestion: '💡 Nueva sugerencia',
+            bug_report: '🐛 Reporte de problema'
         };
 
         const body = (d.message || d.details || 'Sin detalle').slice(0, 180);
         const who = d.userName ? `${d.userName} (${d.userRole || 'usuario'})` : 'Usuario';
 
         await notifyModerators(appId, {
-            title: titles[type] || 'ðŸ“‹ Nuevo reporte',
+            title: titles[type] || '📋 Nuevo reporte',
             body: `${who}: ${body}`,
             data: {
                 type: `app_feedback_${type}`,
@@ -4165,7 +4165,7 @@ exports.onFraudReportPush = onDocumentCreated(
         if (!isFraud && !isSafety) return;
 
         await notifyModerators(appId, {
-            title: isFraud ? 'âš ï¸ Alerta de fraude' : 'âš ï¸ Alerta de seguridad',
+            title: isFraud ? '⚠️ Alerta de fraude' : '⚠️ Alerta de seguridad',
             body: (data.text || 'Nuevo reporte').slice(0, 180),
             data: { type: isFraud ? 'fraud_report' : 'safety_report', tag: `report-${event.params.reportId}` }
         });
@@ -4180,7 +4180,7 @@ exports.onFraudSurveyPush = onDocumentCreated(
         if (!data.fraudFlag && !data.safetySerious) return;
 
         await notifyModerators(appId, {
-            title: data.fraudFlag ? 'âš ï¸ Encuesta de fraude' : 'âš ï¸ Alerta de seguridad',
+            title: data.fraudFlag ? '⚠️ Encuesta de fraude' : '⚠️ Alerta de seguridad',
             body: `${data.respondentName || 'Usuario'}: ${data.reasonLabel || data.reason || 'Nueva encuesta'}`,
             data: {
                 type: data.fraudFlag ? 'fraud_survey' : 'safety_survey',
@@ -4202,8 +4202,8 @@ exports.onUserVerifiedPush = onDocumentUpdated(
 
         const roleLabel = after.role === 'driver' ? 'conductor' : 'pasajero';
         await sendPushToUser(appId, userId, {
-            title: 'Â¡Cuenta verificada!',
-            body: `Tu verificaciÃ³n como ${roleLabel} fue aprobada. Ya puedes usar HonduRaite.`,
+            title: '¡Cuenta verificada!',
+            body: `Tu verificación como ${roleLabel} fue aprobada. Ya puedes usar HonduRaite.`,
             data: { type: 'verification_approved', tag: `verified-${userId}` }
         });
     }
@@ -4215,7 +4215,7 @@ exports.onSupportTicketPush = onDocumentCreated(
         const d = event.data.data() || {};
         const { appId } = event.params;
         await notifyModerators(appId, {
-            title: d.priority === 'high' ? 'ðŸš¨ Ticket de soporte urgente' : 'ðŸ’¬ Nuevo ticket de soporte',
+            title: d.priority === 'high' ? '🚨 Ticket de soporte urgente' : '💬 Nuevo ticket de soporte',
             body: `${d.userName || 'Usuario'}: ${(d.subject || d.message || '').slice(0, 160)}`,
             data: { type: 'support_ticket', tag: `ticket-${event.params.ticketId}`, openReports: 'true' }
         });
@@ -4224,7 +4224,7 @@ exports.onSupportTicketPush = onDocumentCreated(
 
 /**
  * Tiendas virtuales: push al emprendedor cuando llega un pedido nuevo.
- * Suena en web/Android (canal Temu) y el tono se personaliza en admin â†’ PersonalizaciÃ³n.
+ * Suena en web/Android (canal Temu) y el tono se personaliza en admin → Personalización.
  */
 exports.onStoreOrderCreatedPush = onDocumentCreated(
     'artifacts/{appId}/public/data/store_orders/{orderId}',
@@ -4238,16 +4238,16 @@ exports.onStoreOrderCreatedPush = onDocumentCreated(
         const items = Array.isArray(d.items) ? d.items : [];
         const summary = items
             .slice(0, 3)
-            .map((i) => `${i.qty || 1}Ã— ${i.name || 'producto'}`)
+            .map((i) => `${i.qty || 1}× ${i.name || 'producto'}`)
             .join(', ');
         const total = Number(d.itemsTotal);
-        const totalTxt = Number.isFinite(total) ? ` Â· L. ${total.toFixed(2)}` : '';
+        const totalTxt = Number.isFinite(total) ? ` · L. ${total.toFixed(2)}` : '';
         const storeName = d.storeName ? String(d.storeName).slice(0, 40) : 'tu tienda';
         const clientName = d.clientName ? String(d.clientName).slice(0, 36) : 'Cliente';
 
         await sendPushToUser(appId, d.ownerId, {
-            title: 'ðŸ›’ Â¡Nuevo pedido en tu tienda!',
-            body: `${storeName}: ${clientName} Â· ${summary || 'Pedido nuevo'}${totalTxt}`,
+            title: '🛒 ¡Nuevo pedido en tu tienda!',
+            body: `${storeName}: ${clientName} · ${summary || 'Pedido nuevo'}${totalTxt}`,
             data: {
                 type: 'store_order',
                 toneEvent: 'store_order',
@@ -4310,7 +4310,7 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
         const status = String(after.status || '');
         const storeName = after.storeName ? String(after.storeName).slice(0, 40) : 'Tienda';
 
-        // Reembolso automÃ¡tico de puntos si se cancela y se pagÃ³ con saldo
+        // Reembolso automático de puntos si se cancela y se pagó con saldo
         if (status === 'cancelled' && after.paymentMethod === 'saldo' && after.paymentStatus === 'paid') {
             const reason = after.cancelledBy === 'merchant' ? 'merchant_reject' : 'client_cancel';
             await refundStoreOrderSaldoAdmin(appId, orderId, after, reason).catch((e) => {
@@ -4319,13 +4319,13 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
         }
 
         const labels = {
-            accepted: { title: 'âœ… Pedido aceptado', body: `${storeName} aceptÃ³ tu pedido y lo estÃ¡ preparando.` },
-            preparing: { title: 'ðŸ‘¨â€ðŸ³ Preparando tu pedido', body: `${storeName} estÃ¡ preparando tu pedido.` },
-            ready: { title: 'ðŸ“¦ Pedido listo', body: `${storeName}: tu pedido estÃ¡ listo. Pronto sale la entrega.` },
-            out_for_delivery: { title: 'ðŸ›µ Pedido en camino', body: `${storeName}: un conductor va con tu pedido.` },
-            delivered: { title: 'ðŸŽ‰ Pedido entregado', body: `${storeName}: Â¡pedido entregado! Gracias por usar HonduRaite.` },
+            accepted: { title: '✅ Pedido aceptado', body: `${storeName} aceptó tu pedido y lo está preparando.` },
+            preparing: { title: '👨‍🍳 Preparando tu pedido', body: `${storeName} está preparando tu pedido.` },
+            ready: { title: '📦 Pedido listo', body: `${storeName}: tu pedido está listo. Pronto sale la entrega.` },
+            out_for_delivery: { title: '🛵 Pedido en camino', body: `${storeName}: un conductor va con tu pedido.` },
+            delivered: { title: '🎉 Pedido entregado', body: `${storeName}: ¡pedido entregado! Gracias por usar HonduRaite.` },
             cancelled: {
-                title: 'âŒ Pedido cancelado',
+                title: '❌ Pedido cancelado',
                 body: after.paymentMethod === 'saldo'
                     ? `${storeName}: pedido cancelado. Si pagaste con puntos, se reembolsan a tu saldo.`
                     : `${storeName}: el pedido fue cancelado.`
@@ -4352,11 +4352,11 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
             }).catch(() => {});
         }
 
-        // Si el cliente cancelÃ³, avisar al emprendedor
+        // Si el cliente canceló, avisar al emprendedor
         if (status === 'cancelled' && after.cancelledBy === 'client' && after.ownerId) {
             await sendPushToUser(appId, after.ownerId, {
-                title: 'âŒ Pedido cancelado por el cliente',
-                body: `${after.clientName || 'Cliente'} cancelÃ³ el pedido en ${storeName}.`,
+                title: '❌ Pedido cancelado por el cliente',
+                body: `${after.clientName || 'Cliente'} canceló el pedido en ${storeName}.`,
                 data: {
                     type: 'store_order_update',
                     toneEvent: 'store_order_update',
@@ -4479,7 +4479,7 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
                 scheduledActivatedFrom: 'auto_prep',
             });
             await sendPushToUser(appId, trip.driverId, {
-                title: 'ðŸš— Viaje programado ACTIVO',
+                title: '🚗 Viaje programado ACTIVO',
                 body: `Es hora de moverte. Recogida ${whenLabel}. Abre la app y ve al origen.`,
                 data: {
                     type: 'scheduled_trip_active',
@@ -4492,7 +4492,7 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
             }).catch(() => {});
             if (trip.clientId) {
                 await sendPushToUser(appId, trip.clientId, {
-                    title: 'Tu viaje programado ya estÃ¡ activo',
+                    title: 'Tu viaje programado ya está activo',
                     body: `${trip.driverName || 'Tu conductor'} se dirige al punto de recogida (${whenLabel}).`,
                     data: {
                         type: 'scheduled_trip_active',
@@ -4507,7 +4507,7 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
             continue;
         }
 
-        // Legacy: programado sin conductor â†’ pending + buscar ofertas
+        // Legacy: programado sin conductor → pending + buscar ofertas
         await docSnap.ref.update({
             status: 'pending',
             activatedAt: FieldValue.serverTimestamp(),
@@ -4521,7 +4521,7 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
 
         if (trip.clientId) {
             await sendPushToUser(appId, trip.clientId, {
-                title: isEarly ? 'Buscando conductor para tu viaje programado' : 'Tu viaje programado ya estÃ¡ activo',
+                title: isEarly ? 'Buscando conductor para tu viaje programado' : 'Tu viaje programado ya está activo',
                 body: isEarly
                     ? `Recogida a las ${whenLabel}. Ya contactamos conductores cercanos.`
                     : 'Estamos buscando conductor para tu viaje.',
@@ -4547,11 +4547,11 @@ exports.onVerificationAlertPush = onDocumentCreated(
         const d = event.data.data() || {};
         const { appId } = event.params;
         const roleLabel = d.role === 'driver' ? 'conductor' : 'pasajero';
-        const agePart = d.age != null ? ` Â· ${d.age} aÃ±os` : '';
+        const agePart = d.age != null ? ` · ${d.age} años` : '';
 
         await notifyModerators(appId, {
-            title: d.role === 'driver' ? 'ðŸªª Nuevo conductor por verificar' : 'ðŸªª Nuevo pasajero por verificar',
-            body: `${d.name || 'Usuario'} (${roleLabel})${agePart} â€” revisa foto e identidad.`,
+            title: d.role === 'driver' ? '🪪 Nuevo conductor por verificar' : '🪪 Nuevo pasajero por verificar',
+            body: `${d.name || 'Usuario'} (${roleLabel})${agePart} — revisa foto e identidad.`,
             data: {
                 type: 'verification_pending',
                 tag: `verify-${event.params.alertId}`,
@@ -4569,8 +4569,8 @@ exports.onDriverDepositRequestPush = onDocumentCreated(
         const amount = parseFloat(data.amount) || 0;
 
         await notifyModerators(appId, {
-            title: 'Nuevo depÃ³sito de conductor',
-            body: `${data.driverName || 'Conductor'} enviÃ³ comprobante por L. ${amount.toFixed(2)}`,
+            title: 'Nuevo depósito de conductor',
+            body: `${data.driverName || 'Conductor'} envió comprobante por L. ${amount.toFixed(2)}`,
             data: { type: 'driver_deposit_pending', tag: `deposit-req-${event.params.requestId}` }
         });
     }
@@ -4589,14 +4589,14 @@ exports.onDriverDepositValidatedPush = onDocumentUpdated(
 
         if (after.status === 'approved') {
             await sendPushToUser(appId, after.driverId, {
-                title: 'DepÃ³sito validado',
-                body: `Tu depÃ³sito de L. ${amount.toFixed(2)} fue confirmado por un supervisor.`,
+                title: 'Depósito validado',
+                body: `Tu depósito de L. ${amount.toFixed(2)} fue confirmado por un supervisor.`,
                 data: { type: 'driver_deposit_approved', tag: `deposit-${requestId}`, amount: String(amount) }
             });
         } else if (after.status === 'rejected') {
             await sendPushToUser(appId, after.driverId, {
-                title: 'DepÃ³sito rechazado',
-                body: 'Tu comprobante no fue aceptado. EnvÃ­a uno nuevo desde DepÃ³sito del DÃ­a.',
+                title: 'Depósito rechazado',
+                body: 'Tu comprobante no fue aceptado. Envía uno nuevo desde Depósito del Día.',
                 data: { type: 'driver_deposit_rejected', tag: `deposit-rejected-${requestId}` }
             });
         }
@@ -4610,7 +4610,7 @@ exports.onDriverPayoutBankPush = onDocumentCreated(
         const { appId } = event.params;
         await notifyModerators(appId, {
             title: 'Cuenta bancaria de conductor',
-            body: `${d.driverName || 'Conductor'} registrÃ³ ${d.payoutBank || 'banco'} Â· ${d.payoutAccount || ''}. Saldo a pagar: L. ${(parseFloat(d.driverBalance) || 0).toFixed(2)}`,
+            body: `${d.driverName || 'Conductor'} registró ${d.payoutBank || 'banco'} · ${d.payoutAccount || ''}. Saldo a pagar: L. ${(parseFloat(d.driverBalance) || 0).toFixed(2)}`,
             data: { type: 'driver_bank_registered', tag: `bank-${event.params.eventId}` }
         });
         await sendPushToUser(appId, d.driverId, {
@@ -4628,19 +4628,19 @@ exports.onDriverSessionEventPush = onDocumentCreated(
         const { appId } = event.params;
         const deposit = parseFloat(d.depositOwed) || 0;
         const saldo = parseFloat(d.saldoPayoutOwed) || 0;
-        const contact = `Tel: ${d.phone || 'N/D'} Â· Email: ${d.email || 'N/D'}`;
+        const contact = `Tel: ${d.phone || 'N/D'} · Email: ${d.email || 'N/D'}`;
         const bank = d.payoutAccount ? `${d.payoutBank || ''} ${d.payoutAccount}` : 'Sin cuenta';
 
         if (d.type === 'deposit') {
             await notifyModerators(appId, {
-                title: 'Conductor cerrÃ³ turno (depÃ³sito)',
+                title: 'Conductor cerró turno (depósito)',
                 body: `${d.driverName}: depositar L. ${deposit.toFixed(2)}. Le debemos L. ${saldo.toFixed(2)}. ${contact}. Cuenta: ${bank}`,
                 data: { type: 'driver_logout_deposit', tag: `sess-${event.params.eventId}` }
             });
         } else {
             await notifyModerators(appId, {
                 title: 'Conductor en descanso',
-                body: `${d.driverName} tomÃ³ descanso. DepÃ³sito pendiente: L. ${deposit.toFixed(2)}. ${contact}. Cuenta: ${bank}`,
+                body: `${d.driverName} tomó descanso. Depósito pendiente: L. ${deposit.toFixed(2)}. ${contact}. Cuenta: ${bank}`,
                 data: { type: 'driver_logout_break', tag: `sess-${event.params.eventId}` }
             });
         }
@@ -4717,7 +4717,7 @@ async function expireDriverObjectivesForApp(appId) {
                 targetUserId: String(driverId),
                 targetUserName: driverName,
                 personal: true,
-                message: `â±ï¸ El objetivo Â«${title}Â» venciÃ³ sin completarse a tiempo. Recompensa: ${reward}`,
+                message: `⏱️ El objetivo «${title}» venció sin completarse a tiempo. Recompensa: ${reward}`,
                 sentBy: 'system',
                 sentByName: 'Sistema',
                 createdAt: FieldValue.serverTimestamp(),
@@ -4785,21 +4785,21 @@ exports.driverDepositReminder9pm = onSchedule(
             if (owed <= 0) continue;
 
             await sendPushToUser(APP_ID, doc.id, {
-                title: 'Recordatorio: depÃ³sito de comisiÃ³n',
-                body: `Son las 9:00 p.m. Debes depositar L. ${owed.toFixed(2)}. Los supervisores ya estÃ¡n notificados.`,
+                title: 'Recordatorio: depósito de comisión',
+                body: `Son las 9:00 p.m. Debes depositar L. ${owed.toFixed(2)}. Los supervisores ya están notificados.`,
                 data: { type: 'deposit_reminder_9pm', tag: `9pm-${doc.id}` }
             });
 
             await notifyModerators(APP_ID, {
-                title: 'Recordatorio 9 p.m. â€” depÃ³sito pendiente',
-                body: `${u.name || 'Conductor'} aÃºn debe depositar L. ${owed.toFixed(2)}. Tel: ${u.phone || 'N/D'} Â· ${u.payoutEmail || ''}`,
+                title: 'Recordatorio 9 p.m. — depósito pendiente',
+                body: `${u.name || 'Conductor'} aún debe depositar L. ${owed.toFixed(2)}. Tel: ${u.phone || 'N/D'} · ${u.payoutEmail || ''}`,
                 data: { type: 'deposit_reminder_mod', tag: `9pm-mod-${doc.id}` }
             });
         }
     }
 );
 
-/** Honduras sin DST: mediodÃ­a local = 18:00 UTC. */
+/** Honduras sin DST: mediodía local = 18:00 UTC. */
 function getDepositDeadlineMsFromWorkStartAdmin(workStartMs) {
     const start = Number(workStartMs);
     if (!Number.isFinite(start) || start <= 0) return 0;
@@ -4836,8 +4836,8 @@ function isStaffGraceActiveAdmin(u, nowMs) {
 }
 
 /**
- * Plazo de depÃ³sito: 12:00 p.m. del dÃ­a siguiente al inicio de trabajo.
- * - La comisiÃ³n de viajes del dÃ­a NO es deuda hasta consolidar (cierre de turno / cliente / vencer plazo).
+ * Plazo de depósito: 12:00 p.m. del día siguiente al inicio de trabajo.
+ * - La comisión de viajes del día NO es deuda hasta consolidar (cierre de turno / cliente / vencer plazo).
  * - 2 h antes: push "tienes 2 horas para depositar"
  * - Al vencer con monto a depositar: force offline + driverOnBreak + depositAutoBlocked
  *   (usa pendingDepositDebt y/o driverLastDepositOwed ya consolidado en cliente al cerrar turno)
@@ -4860,8 +4860,8 @@ exports.enforceDriverDepositDeadlines = onSchedule(
             if (u.approvalStatus === 'suspended') continue;
             if (isStaffGraceActiveAdmin(u, now)) continue;
 
-            // Solo montos ya consolidados a deuda (o Ãºltimo cierre de turno).
-            // La comisiÃ³n "pendiente de hoy" se consolida en el cliente al vencer / cerrar turno.
+            // Solo montos ya consolidados a deuda (o último cierre de turno).
+            // La comisión "pendiente de hoy" se consolida en el cliente al vencer / cerrar turno.
             const debt = Math.max(
                 0,
                 parseFloat(u.pendingDepositDebt) || 0,
@@ -4872,7 +4872,7 @@ exports.enforceDriverDepositDeadlines = onSchedule(
             let workStart = toMsAdmin(u.depositWorkStartedAt) || Number(u.depositWorkStartedAtMs) || 0;
             let deadline = toMsAdmin(u.depositDeadlineAt) || Number(u.depositDeadlineAtMs) || 0;
             if (!workStart && !deadline) {
-                // Sin ancla: no inventamos bloqueo aquÃ­; el cliente fija al ir online
+                // Sin ancla: no inventamos bloqueo aquí; el cliente fija al ir online
                 continue;
             }
             if (!deadline && workStart) {
@@ -4885,9 +4885,9 @@ exports.enforceDriverDepositDeadlines = onSchedule(
             const privRef = db.doc(`artifacts/${APP_ID}/users/${uid}/profile/data`);
             const msLeft = deadline - now;
 
-            // Aviso 2 horas antes (aÃºn es plazo de depÃ³sito del ciclo, no necesariamente "vencida")
+            // Aviso 2 horas antes (aún es plazo de depósito del ciclo, no necesariamente "vencida")
             if (msLeft > 0 && msLeft <= twoH && !u.depositWarning2hSent) {
-                const body = `Tienes 2 horas para el depÃ³sito (L. ${debt.toFixed(2)}). Si no, tu cuenta serÃ¡ inhabilitada por incumplir con el pago.`;
+                const body = `Tienes 2 horas para el depósito (L. ${debt.toFixed(2)}). Si no, tu cuenta será inhabilitada por incumplir con el pago.`;
                 await userRef.set({
                     depositWarning2hSent: true,
                     depositWarning2hSentAt: FieldValue.serverTimestamp(),
@@ -4902,7 +4902,7 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                 } catch (_) {}
 
                 await sendPushToUser(APP_ID, uid, {
-                    title: 'Aviso: depÃ³sito del dÃ­a por vencer',
+                    title: 'Aviso: depósito del día por vencer',
                     body,
                     data: { type: 'deposit_deadline_warning', tag: `dep-warn-${uid}` },
                     highPriority: true
@@ -4912,7 +4912,7 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                     targetRole: 'driver',
                     personal: true,
                     type: 'deposit_deadline_warning',
-                    title: 'Aviso: depÃ³sito del dÃ­a por vencer',
+                    title: 'Aviso: depósito del día por vencer',
                     message: body,
                     sentBy: 'system',
                     sentByName: 'Sistema',
@@ -4922,9 +4922,9 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                 warned += 1;
             }
 
-            // Plazo vencido â†’ inhabilitar (deuda vencida, no "pendiente del dÃ­a")
+            // Plazo vencido → inhabilitar (deuda vencida, no "pendiente del día")
             if (msLeft <= 0 && !u.depositAutoBlocked) {
-                const body = `Tu cuenta fue inhabilitada: no depositaste L. ${debt.toFixed(2)} a tiempo (plazo 12:00 p.m. del dÃ­a siguiente). Eso ya es deuda vencida. EnvÃ­a el comprobante para reactivarte.`;
+                const body = `Tu cuenta fue inhabilitada: no depositaste L. ${debt.toFixed(2)} a tiempo (plazo 12:00 p.m. del día siguiente). Eso ya es deuda vencida. Envía el comprobante para reactivarte.`;
                 await userRef.set({
                     driverOnBreak: true,
                     depositAutoBlocked: true,
@@ -4951,14 +4951,14 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                 } catch (_) {}
 
                 await sendPushToUser(APP_ID, uid, {
-                    title: 'Cuenta inhabilitada â€” deuda vencida',
+                    title: 'Cuenta inhabilitada — deuda vencida',
                     body,
                     data: { type: 'deposit_auto_blocked', tag: `dep-block-${uid}` },
                     highPriority: true
                 });
                 await notifyModerators(APP_ID, {
                     title: 'Conductor inhabilitado por deuda vencida',
-                    body: `${u.name || 'Conductor'} no depositÃ³ L. ${debt.toFixed(2)} a tiempo. Tel: ${u.phone || 'N/D'}`,
+                    body: `${u.name || 'Conductor'} no depositó L. ${debt.toFixed(2)} a tiempo. Tel: ${u.phone || 'N/D'}`,
                     data: { type: 'deposit_auto_blocked_mod', tag: `dep-block-mod-${uid}` }
                 });
                 await db.collection(`artifacts/${APP_ID}/public/data/notifications`).add({
@@ -4966,7 +4966,7 @@ exports.enforceDriverDepositDeadlines = onSchedule(
                     targetRole: 'driver',
                     personal: true,
                     type: 'deposit_auto_blocked',
-                    title: 'Cuenta inhabilitada â€” deuda vencida',
+                    title: 'Cuenta inhabilitada — deuda vencida',
                     message: body,
                     sentBy: 'system',
                     sentByName: 'Sistema',
@@ -5046,8 +5046,8 @@ async function notifyAllPassengersNewPromo(promo, senderName) {
     const usersSnap = await db.collection(`artifacts/${APP_ID}/public/data/users`).get();
     const notifCol = db.collection(`artifacts/${APP_ID}/public/data/notifications`);
     const amt = parseFloat(promo.discountAmount) || 0;
-    const title = `ðŸŽ Nueva promo: L. ${amt.toFixed(0)} OFF`;
-    const body = `${promo.title || promo.code}: cÃ³digo ${promo.code}. ReclÃ¡mala en el mapa.`;
+    const title = `🎁 Nueva promo: L. ${amt.toFixed(0)} OFF`;
+    const body = `${promo.title || promo.code}: código ${promo.code}. Reclámala en el mapa.`;
     const now = Date.now();
 
     let batch = db.batch();
@@ -5064,7 +5064,7 @@ async function notifyAllPassengersNewPromo(promo, senderName) {
             targetUserId: userDoc.id,
             targetUserName: u.name || 'Pasajero',
             personal: true,
-            message: `${title} â€” ${body}`,
+            message: `${title} — ${body}`,
             promoAlert: true,
             promoId: promo.id || null,
             promoCode: promo.code || '',
@@ -5108,18 +5108,18 @@ exports.publishPromotion = onCall(PROMO_CALLABLE_OPTS, async (request) => {
     const showOnMap = data.showOnMap !== false;
 
     if (!code || code.length < 3) {
-        throw new HttpsError('invalid-argument', 'CÃ³digo invÃ¡lido (mÃ­n. 3 caracteres).');
+        throw new HttpsError('invalid-argument', 'Código inválido (mín. 3 caracteres).');
     }
     if (!discountAmount || discountAmount <= 0) {
-        throw new HttpsError('invalid-argument', 'Valor del bono invÃ¡lido.');
+        throw new HttpsError('invalid-argument', 'Valor del bono inválido.');
     }
     if (!title) {
-        throw new HttpsError('invalid-argument', 'TÃ­tulo requerido.');
+        throw new HttpsError('invalid-argument', 'Título requerido.');
     }
 
     const existing = await findPromoByCode(code);
     if (existing) {
-        throw new HttpsError('already-exists', 'Ya existe una promo con ese cÃ³digo.');
+        throw new HttpsError('already-exists', 'Ya existe una promo con ese código.');
     }
 
     const validFromMs = data.validFrom ? new Date(data.validFrom).getTime() : Date.now();
@@ -5171,7 +5171,7 @@ exports.managePromotion = onCall(PROMO_CALLABLE_OPTS, async (request) => {
 
     const promoRef = db.doc(`artifacts/${APP_ID}/public/data/promotions/${promoId}`);
     const snap = await promoRef.get();
-    if (!snap.exists) throw new HttpsError('not-found', 'PromociÃ³n no encontrada.');
+    if (!snap.exists) throw new HttpsError('not-found', 'Promoción no encontrada.');
 
     if (action === 'delete') {
         await promoRef.set({
@@ -5189,17 +5189,17 @@ exports.managePromotion = onCall(PROMO_CALLABLE_OPTS, async (request) => {
         await promoRef.set({ status: 'active', updatedAt: FieldValue.serverTimestamp() }, { merge: true });
         return { ok: true, action };
     }
-    throw new HttpsError('invalid-argument', 'AcciÃ³n no vÃ¡lida.');
+    throw new HttpsError('invalid-argument', 'Acción no válida.');
 });
 
 exports.claimPromoCode = onCall(PROMO_CALLABLE_OPTS, async (request) => {
     const uid = request.auth?.uid;
-    if (!uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+    if (!uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
 
     const code = normalizePromoCode(request.data?.code);
     const promoIdHint = String(request.data?.promoId || '').trim();
 
-    if (!code) throw new HttpsError('invalid-argument', 'CÃ³digo requerido.');
+    if (!code) throw new HttpsError('invalid-argument', 'Código requerido.');
 
     let promoEntry = null;
     if (promoIdHint) {
@@ -5210,11 +5210,11 @@ exports.claimPromoCode = onCall(PROMO_CALLABLE_OPTS, async (request) => {
         }
     }
     if (!promoEntry) promoEntry = await findPromoByCode(code);
-    if (!promoEntry) throw new HttpsError('not-found', 'CÃ³digo de promo no encontrado.');
+    if (!promoEntry) throw new HttpsError('not-found', 'Código de promo no encontrado.');
 
     const promo = promoEntry.data;
     if (!isPromoCurrentlyActive(promo)) {
-        throw new HttpsError('failed-precondition', 'Esta promociÃ³n ya no estÃ¡ disponible.');
+        throw new HttpsError('failed-precondition', 'Esta promoción ya no está disponible.');
     }
 
     const claimRef = db.doc(`artifacts/${APP_ID}/users/${uid}/claimed_promos/${promoEntry.id}`);
@@ -5223,7 +5223,7 @@ exports.claimPromoCode = onCall(PROMO_CALLABLE_OPTS, async (request) => {
     const userUses = existingClaim.exists ? (existingClaim.data().useCount || (existingClaim.data().used ? 1 : 0)) : 0;
 
     if (userUses >= maxPerUser) {
-        throw new HttpsError('failed-precondition', 'Ya reclamaste esta promociÃ³n.');
+        throw new HttpsError('failed-precondition', 'Ya reclamaste esta promoción.');
     }
 
     await db.runTransaction(async (tx) => {
@@ -5234,12 +5234,12 @@ exports.claimPromoCode = onCall(PROMO_CALLABLE_OPTS, async (request) => {
             throw new HttpsError('failed-precondition', 'Promo agotada o expirada.');
         }
         if (fresh.maxUsers && (fresh.claimedCount || 0) >= fresh.maxUsers) {
-            throw new HttpsError('resource-exhausted', 'Se alcanzÃ³ el lÃ­mite de usuarios.');
+            throw new HttpsError('resource-exhausted', 'Se alcanzó el límite de usuarios.');
         }
 
         const claimSnap = await tx.get(claimRef);
         if (claimSnap.exists && (claimSnap.data().useCount || 0) >= maxPerUser) {
-            throw new HttpsError('failed-precondition', 'Ya reclamaste esta promociÃ³n.');
+            throw new HttpsError('failed-precondition', 'Ya reclamaste esta promoción.');
         }
 
         tx.set(claimRef, {
@@ -5267,13 +5267,13 @@ exports.claimPromoCode = onCall(PROMO_CALLABLE_OPTS, async (request) => {
     return {
         ok: true,
         promoId: promoEntry.id,
-        message: `Â¡Bono de L. ${amt.toFixed(2)} guardado! Se aplica al pagar con saldo.`
+        message: `¡Bono de L. ${amt.toFixed(2)} guardado! Se aplica al pagar con saldo.`
     };
 });
 
 exports.redeemPromoOnTripComplete = onCall(PROMO_CALLABLE_OPTS, async (request) => {
     const uid = request.auth?.uid;
-    if (!uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesiÃ³n.');
+    if (!uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
 
     const tripId = String(request.data?.tripId || '').trim();
     const promoId = String(request.data?.promoId || '').trim();
@@ -5314,12 +5314,12 @@ exports.redeemPromoOnTripComplete = onCall(PROMO_CALLABLE_OPTS, async (request) 
     return { ok: true };
 });
 // ============================================================
-// BROADCAST PUSH â€” llega con app abierta o cerrada (FCM)
+// BROADCAST PUSH — llega con app abierta o cerrada (FCM)
 // ============================================================
 
 /**
  * Usuarios con al menos 1 viaje real (no pending/cancelado).
- * Pasajero = clientId Â· Conductor = driverId
+ * Pasajero = clientId · Conductor = driverId
  */
 async function loadTripExperienceSets(appId) {
     const clientsWithTrips = new Set();
@@ -5364,7 +5364,7 @@ function userMatchesTripFilter(uid, role, tripFilter, sets, userData = {}) {
 }
 
 /**
- * EnvÃ­a FCM a usuarios con token y deja un aviso en la campana (notificaciones).
+ * Envía FCM a usuarios con token y deja un aviso en la campana (notificaciones).
  * targetRole: 'all' | 'client' | 'driver' | 'supervisor'
  * tripFilter: 'all' | 'has_trips' | 'no_trips'
  */
@@ -5387,7 +5387,7 @@ async function broadcastPushToUsers({
     await notifCol.add({
         targetRole: targetRole === 'all' ? 'all' : targetRole,
         tripFilter: filter,
-        message: `${title} â€” ${body}`,
+        message: `${title} — ${body}`,
         title,
         body,
         broadcast: true,
@@ -5448,7 +5448,7 @@ async function broadcastPushToUsers({
     };
 }
 
-/** Callable: admin envÃ­a mensaje push a todos (o por rol). */
+/** Callable: admin envía mensaje push a todos (o por rol). */
 exports.broadcastAppMessage = onCall(PROMO_CALLABLE_OPTS, async (request) => {
     const caller = await assertCallerCanModerate(request.auth);
     if (!caller.isAdmin) {
@@ -5458,10 +5458,10 @@ exports.broadcastAppMessage = onCall(PROMO_CALLABLE_OPTS, async (request) => {
     const body = String(request.data?.body || '').trim();
     const targetRole = String(request.data?.targetRole || 'all').trim();
     if (!title || !body) {
-        throw new HttpsError('invalid-argument', 'TÃ­tulo y mensaje son requeridos.');
+        throw new HttpsError('invalid-argument', 'Título y mensaje son requeridos.');
     }
     if (!['all', 'client', 'driver', 'supervisor'].includes(targetRole)) {
-        throw new HttpsError('invalid-argument', 'targetRole invÃ¡lido.');
+        throw new HttpsError('invalid-argument', 'targetRole inválido.');
     }
     const tripFilter = normalizeTripFilter(request.data?.tripFilter);
     const result = await broadcastPushToUsers({
@@ -5480,7 +5480,7 @@ exports.broadcastAppMessage = onCall(PROMO_CALLABLE_OPTS, async (request) => {
 });
 
 /**
- * "2026.07.30.6" â†’ 2026073004 (igual que android/app/build.gradle).
+ * "2026.07.30.6" → 2026073004 (igual que android/app/build.gradle).
  * Evita el bug de solo quitar puntos (202607304) que ocultaba updates en APKs viejas.
  */
 function apkVersionLabelToCode(label) {
@@ -5501,8 +5501,8 @@ function apkVersionLabelToCode(label) {
 
 /**
  * Al publicar/cambiar APK en appSettings:
- * 1) Repara androidApkVersionCode si estÃ¡ mal (crÃ­tico para APKs antiguas)
- * 2) EnvÃ­a push app_update a todos cuando cambia buildId / url / version
+ * 1) Repara androidApkVersionCode si está mal (crítico para APKs antiguas)
+ * 2) Envía push app_update a todos cuando cambia buildId / url / version
  */
 exports.onApkSettingsPublished = onDocumentUpdated(
     {
@@ -5521,30 +5521,30 @@ exports.onApkSettingsPublished = onDocumentUpdated(
 
         // Auto-reparar versionCode sin re-disparar loops infinitos
         if (correctCode > 0 && storedCode !== correctCode) {
-            console.log('[onApkSettingsPublished] repair versionCode', storedCode, 'â†’', correctCode);
+            console.log('[onApkSettingsPublished] repair versionCode', storedCode, '→', correctCode);
             await ref.set({
                 androidApkVersionCode: correctCode,
                 androidApkVersionCodeRepairedAt: FieldValue.serverTimestamp(),
             }, { merge: true });
         }
 
-        // REGLA SIMPLE: cualquier cambio de buildId o de URL del APK = nueva publicaciÃ³n â†’ avisar a todos
+        // REGLA SIMPLE: cualquier cambio de buildId o de URL del APK = nueva publicación → avisar a todos
         const isNewPublish =
             String(before.androidApkBuildId || '') !== String(after.androidApkBuildId || '')
             || String(before.androidApkUrl || '') !== String(after.androidApkUrl || '');
 
-        // Solo repair de versionCode (sin nueva subida) â†’ no spamear push
+        // Solo repair de versionCode (sin nueva subida) → no spamear push
         if (!isNewPublish) {
             return { repaired: correctCode > 0 && storedCode !== correctCode, notified: false };
         }
 
         const verLabel = version || String(correctCode || storedCode || '');
         const codeLabel = correctCode || storedCode || '';
-        console.log('[onApkSettingsPublished] APK subido â†’ broadcast app_update', verLabel, codeLabel, after.androidApkBuildId);
+        console.log('[onApkSettingsPublished] APK subido → broadcast app_update', verLabel, codeLabel, after.androidApkBuildId);
         try {
             const result = await broadcastPushToUsers({
-                title: 'HonduRaite Â· Actualiza la app',
-                body: `Hay una nueva versiÃ³n${verLabel ? ` (${verLabel})` : ''}. Ãbrela e instala la actualizaciÃ³n para seguir con viajes.`,
+                title: 'HonduRaite · Actualiza la app',
+                body: `Hay una nueva versión${verLabel ? ` (${verLabel})` : ''}. Ábrela e instala la actualización para seguir con viajes.`,
                 targetRole: 'all',
                 tripFilter: 'all',
                 data: {
@@ -5566,8 +5566,8 @@ exports.onApkSettingsPublished = onDocumentUpdated(
 );
 
 /**
- * Si el admin crea una notificaciÃ³n con broadcastPush/sendPush = true,
- * reenvÃ­a FCM a los usuarios del rol (app cerrada o en segundo plano).
+ * Si el admin crea una notificación con broadcastPush/sendPush = true,
+ * reenvía FCM a los usuarios del rol (app cerrada o en segundo plano).
  */
 exports.onNotificationBroadcastPush = onDocumentCreated(
     'artifacts/{appId}/public/data/notifications/{notifId}',
@@ -5624,7 +5624,7 @@ exports.onNotificationBroadcastPush = onDocumentCreated(
                     tag: String(data.tag || `notif-${event.params.notifId}`),
                     targetRole: String(targetRole),
                     tripFilter,
-                    // PWA web/iOS/Android instalados: cliente chequea version.json y muestra â€œActualizarâ€
+                    // PWA web/iOS/Android instalados: cliente chequea version.json y muestra “Actualizar”
                     forceUpdate: data.forceUpdate === true || data.type === 'app_update' ? 'true' : 'false',
                     version: String(data.version || ''),
                     openNotifications: data.type === 'app_update' ? 'true' : String(data.openNotifications || 'false')
@@ -5735,7 +5735,7 @@ async function processOneTimeScheduledNotifications() {
         if (!data.scheduledFor) continue;
         if (data.pushDispatched === true || data.sentPush === true) continue;
         if (data.type === 'reply') continue;
-        // Solo avisos globales/programados (no hilos personales sin intenciÃ³n de push)
+        // Solo avisos globales/programados (no hilos personales sin intención de push)
         if (data.personal && !data.sendPush && !data.broadcastPush && !data.scheduledFor) continue;
 
         const title = String(data.title || 'HonduRaite').trim() || 'HonduRaite';
@@ -5829,7 +5829,7 @@ async function processRecurringCampaigns() {
     return fired;
 }
 
-/** Cada 15 min: one-shot programados + campaÃ±as diarias/semanales. */
+/** Cada 15 min: one-shot programados + campañas diarias/semanales. */
 exports.processScheduledAndRecurringPushes = onSchedule(
     {
         schedule: 'every 15 minutes',
