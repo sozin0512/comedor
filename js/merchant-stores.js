@@ -101,6 +101,14 @@ let pendingStorePhotoPreview = null;
 /** Filtros del mundo de tiendas (pantalla completa) */
 let storesSearchQuery = '';
 let storesCategoryFilter = 'all';
+/** Ciudad que el cliente mira en Tiendas (null = la de su dispositivo). No cambia la zona de viajes. */
+let storesBrowseCityId = null;
+/** Vista rápida de productos por tienda (tarjetas del listado). */
+const storeProductPreview = new Map();
+const storeProductPreviewLoading = new Set();
+let storeProductPreviewRerender = null;
+/** Filtro por ciudad del panel staff de tiendas */
+let staffStoresCityFilter = 'all';
 
 /** Invitación staff → crear empresa (persiste si el invitado aún no tiene cuenta). */
 const PENDING_CREATE_BUSINESS_KEY = 'hr_pending_create_business';
@@ -457,6 +465,274 @@ function buildStoreCityOptionsHtml(selectedId = '') {
     return html;
 }
 
+/* ===================== CIUDAD QUE SE MIRA · HORARIO · AVATAR ===================== */
+
+/** Ciudad que se está mirando en Tiendas: la elegida en el selector o, si no, la del cliente. */
+function browseCity() {
+    const z = storesBrowseCityId ? getZoneById(storesBrowseCityId) : null;
+    if (z) return { cityId: z.id, cityName: z.name, center: z.center || null };
+    return activeCity();
+}
+
+function storeInCity(s, cityId) {
+    // Tiendas viejas sin ciudad se siguen mostrando (no se pierden mientras se corrigen)
+    return !s?.cityId || s.cityId === cityId;
+}
+
+/** Tiendas que puede ver esta cuenta en el marketplace (aprobadas; staff ve todas para moderar). */
+function marketplaceBaseStores() {
+    let all = [...storesCache.values()].filter((s) => s.active !== false);
+    if (!isStoresStaff()) all = all.filter((s) => isStoreApprovedForPublic(s));
+    return all;
+}
+
+/** Ciudades con tiendas de la lista general (sin +18), para el selector y las sugerencias. */
+function citiesWithStores() {
+    const map = new Map();
+    marketplaceBaseStores().filter((s) => !isStoreAdultsOnly(s) && s.cityId).forEach((s) => {
+        const cur = map.get(s.cityId)
+            || { id: s.cityId, name: s.cityName || getZoneById(s.cityId)?.name || s.cityId, count: 0 };
+        cur.count += 1;
+        map.set(s.cityId, cur);
+    });
+    return [...map.values()].sort((a, b) => b.count - a.count || String(a.name).localeCompare(String(b.name), 'es'));
+}
+
+/** Números por categoría en una ciudad (Todas y categorías sin +18; la Zona +18 aparte). */
+function cityStoreCounts(cityId) {
+    const base = marketplaceBaseStores().filter((s) => storeInCity(s, cityId));
+    const general = base.filter((s) => !isStoreAdultsOnly(s));
+    const counts = {
+        all: general.length,
+        adultos: canSeeAdultStores() ? base.filter((s) => isStoreAdultsOnly(s)).length : 0,
+    };
+    STORE_CATEGORIES.forEach((c) => {
+        counts[c.id] = general.filter((s) => (s.category || 'otro') === c.id).length;
+    });
+    return counts;
+}
+
+/** <option> del selector de ciudad del cliente: primero las que tienen tiendas, luego todas. */
+function buildBrowseCityOptionsHtml(selectedId = '') {
+    const withStores = citiesWithStores();
+    const ids = new Set(withStores.map((c) => c.id));
+    let html = '';
+    if (withStores.length) {
+        html += '<optgroup label="Ciudades con tiendas">';
+        withStores.forEach((c) => {
+            html += `<option value="${esc(c.id)}" ${c.id === selectedId ? 'selected' : ''}>${esc(c.name)} (${c.count})</option>`;
+        });
+        html += '</optgroup>';
+    }
+    const groups = new Map();
+    getAllKnownZones().filter((z) => z?.id && z?.name && !ids.has(z.id)).forEach((z) => {
+        const us = isUsZone(z);
+        const label = us ? `EE. UU. · ${z.department || 'Otras'}` : (z.department || 'Otras');
+        if (!groups.has(label)) groups.set(label, { us, list: [] });
+        groups.get(label).list.push(z);
+    });
+    [...groups.keys()].sort((a, b) => (groups.get(a).us ? 1 : 0) - (groups.get(b).us ? 1 : 0) || a.localeCompare(b, 'es'))
+        .forEach((label) => {
+            html += `<optgroup label="${esc(label)}">`;
+            groups.get(label).list.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'es')).forEach((z) => {
+                html += `<option value="${esc(z.id)}" ${z.id === selectedId ? 'selected' : ''}>${esc(z.name)}</option>`;
+            });
+            html += '</optgroup>';
+        });
+    return html;
+}
+
+/** Honduras no usa horario de verano: UTC-6 todo el año. */
+const HN_UTC_OFFSET_MIN = -6 * 60;
+
+function hnNowMinutes(date = new Date()) {
+    const utc = date.getUTCHours() * 60 + date.getUTCMinutes();
+    return (utc + HN_UTC_OFFSET_MIN + 1440) % 1440;
+}
+
+function parseHHMM(v) {
+    const m = String(v || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return null;
+    const h = Number(m[1]);
+    const mi = Number(m[2]);
+    if (h > 23 || mi > 59) return null;
+    return h * 60 + mi;
+}
+
+function fmtHour12(min) {
+    const h24 = Math.floor(min / 60) % 24;
+    const mi = min % 60;
+    const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+    return `${h12}:${String(mi).padStart(2, '0')} ${h24 < 12 ? 'a. m.' : 'p. m.'}`;
+}
+
+/** Horario diario de la tienda ({ open, close } en minutos) o null si no tiene. */
+function storeHours(s) {
+    const open = parseHHMM(s?.hours?.open);
+    const close = parseHHMM(s?.hours?.close);
+    if (open == null || close == null || open === close) return null;
+    return { open, close };
+}
+
+/**
+ * ¿Está abierta ahora? El interruptor del dueño (isOpen) manda; si además tiene horario,
+ * fuera de horario sale cerrada. Hora de Honduras.
+ * @returns {{ open: boolean, label: string }}
+ */
+function storeOpenInfo(s, now = hnNowMinutes()) {
+    const h = storeHours(s);
+    if (s?.isOpen === false) return { open: false, label: h ? `Abre ${fmtHour12(h.open)}` : '' };
+    if (!h) return { open: true, label: '' };
+    const within = h.open < h.close
+        ? (now >= h.open && now < h.close)
+        : (now >= h.open || now < h.close); // cierra después de medianoche
+    return within
+        ? { open: true, label: `Cierra ${fmtHour12(h.close)}` }
+        : { open: false, label: `Abre ${fmtHour12(h.open)}` };
+}
+
+function storeInitials(name) {
+    const words = String(name || '').replace(/[^\p{L}\p{N}\s]/gu, ' ').trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return 'T';
+    return ((words[0][0] || '') + (words[1]?.[0] || '')).toUpperCase();
+}
+
+/** Logo de la tienda o, si no tiene, sus iniciales con color por categoría. */
+function storeAvatarHtml(s, extraCls = '') {
+    const cat = esc(s?.category || 'otro');
+    const img = s?.photoUrl
+        ? `<img src="${esc(s.photoUrl)}" alt="" loading="lazy" onerror="this.remove()">`
+        : '';
+    return `<span class="hr-store-avatar hr-store-avatar--${cat} ${extraCls}" aria-hidden="true">${esc(storeInitials(s?.name))}${img}</span>`;
+}
+
+/* ===================== ZONA +18 · VERIFICACIÓN DE EDAD ===================== */
+
+/**
+ * ¿Mostrar el chip / la entrada "Zona +18"?
+ * Mayores de edad y staff: sí. Sin fecha de nacimiento: sí, con candado (pide la fecha).
+ * Menores: no aparece. El contenido +18 lo sigue filtrando el servidor (firestore.rules).
+ */
+function adultZoneVisible() {
+    if (canSeeAdultStores()) return true;
+    return !!getCurrentUser()?.uid && getUserAgeYears() == null;
+}
+
+function openAdultZone() {
+    if (canSeeAdultStores()) {
+        storesCategoryFilter = ADULT_ZONE_CHIP.id;
+        marketplaceView = 'list';
+        syncAdultStoresListener();
+        return renderMarketplace();
+    }
+    if (!getCurrentUser()?.uid) return toast('Inicia sesión para entrar a la Zona +18', 'warning');
+    if (getUserAgeYears() == null) return showAgeGateSheet();
+    return toast('La Zona +18 es solo para mayores de 18 años.', 'warning');
+}
+
+const MONTHS_ES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+/** Hoja inferior: confirmar fecha de nacimiento (se pide una sola vez y se guarda en el perfil). */
+function showAgeGateSheet() {
+    document.getElementById('hr-age-gate')?.remove();
+    const yNow = new Date().getFullYear();
+    const days = Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('');
+    const months = MONTHS_ES.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+    const years = Array.from({ length: yNow - 1919 }, (_, i) => `<option value="${yNow - i}">${yNow - i}</option>`).join('');
+    const wrap = document.createElement('div');
+    wrap.id = 'hr-age-gate';
+    wrap.className = 'hr-sheet';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.setAttribute('aria-labelledby', 'hr-age-gate-title');
+    wrap.innerHTML = `
+        <div class="hr-sheet-backdrop" data-age-action="cancel"></div>
+        <div class="hr-sheet-panel">
+            <span class="hr-sheet-grip" aria-hidden="true"></span>
+            <span class="hr-sheet-icon hr-sheet-icon--adult"><i class="fas fa-lock"></i></span>
+            <h3 id="hr-age-gate-title" class="hr-sheet-title">Contenido para mayores de 18</h3>
+            <p class="hr-sheet-text">Esta sección tiene productos para adultos. Para entrar, confirma tu fecha de nacimiento. Se guarda en tu perfil y no se vuelve a pedir.</p>
+            <div class="hr-age-fields">
+                <select id="hr-age-day" class="hr-age-select" aria-label="Día"><option value="">Día</option>${days}</select>
+                <select id="hr-age-month" class="hr-age-select" aria-label="Mes"><option value="">Mes</option>${months}</select>
+                <select id="hr-age-year" class="hr-age-select" aria-label="Año"><option value="">Año</option>${years}</select>
+            </div>
+            <button type="button" class="hr-sheet-btn hr-sheet-btn--adult" data-age-action="confirm">Confirmar edad</button>
+            <button type="button" class="hr-sheet-btn hr-sheet-btn--ghost" data-age-action="cancel">Ahora no</button>
+            <p class="hr-sheet-note">Menores de edad: la Zona +18 queda oculta por completo.</p>
+        </div>
+    `;
+    document.body.appendChild(wrap);
+    const close = () => {
+        wrap.remove();
+        document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (ev) => { if (ev.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    wrap.addEventListener('click', async (ev) => {
+        const btn = ev.target.closest('[data-age-action]');
+        if (!btn) return;
+        if (btn.getAttribute('data-age-action') === 'cancel') return close();
+        const d = Number(wrap.querySelector('#hr-age-day')?.value || 0);
+        const m = Number(wrap.querySelector('#hr-age-month')?.value || 0);
+        const y = Number(wrap.querySelector('#hr-age-year')?.value || 0);
+        if (!d || !m || !y) return toast('Elige día, mes y año', 'warning');
+        const dt = new Date(Date.UTC(y, m - 1, d));
+        if (dt.getUTCDate() !== d || dt.getUTCMonth() !== m - 1) return toast('Esa fecha no existe. Revisa el día.', 'warning');
+        const ymd = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const age = calculateAge(ymd);
+        if (age == null || age < 0) return toast('Fecha de nacimiento inválida', 'warning');
+        const uid = getCurrentUser()?.uid;
+        if (!uid) return toast('Inicia sesión para confirmar tu edad', 'warning');
+        btn.disabled = true;
+        try {
+            if (typeof window.ownerProfilePatch !== 'function') throw new Error('perfil no disponible');
+            await window.ownerProfilePatch(uid, { birthDate: ymd });
+        } catch (e) {
+            console.warn('[stores] age gate save', e);
+            btn.disabled = false;
+            return toast('No se pudo guardar tu fecha de nacimiento. Intenta de nuevo.', 'error');
+        }
+        const profile = getUserProfile() || window.userProfile;
+        if (profile) profile.birthDate = ymd;
+        if (window.userProfile && window.userProfile !== profile) window.userProfile.birthDate = ymd;
+        close();
+        if (age >= 18) {
+            toast('Edad confirmada', 'success');
+            storesCategoryFilter = ADULT_ZONE_CHIP.id;
+            syncAdultStoresListener();
+        } else {
+            toast('La Zona +18 es solo para mayores de 18 años.', 'info');
+            storesCategoryFilter = 'all';
+        }
+        marketplaceView = 'list';
+        renderMarketplace();
+    });
+}
+
+/** Carga (en segundo plano) 2 productos de cada tienda abierta para la vista rápida de la tarjeta. */
+function ensureProductPreviews(list) {
+    if (!dbRef) return;
+    const now = hnNowMinutes();
+    const todo = list
+        .filter((s) => storeOpenInfo(s, now).open && !storeProductPreview.has(s.id) && !storeProductPreviewLoading.has(s.id))
+        .slice(0, 12);
+    todo.forEach((s) => {
+        storeProductPreviewLoading.add(s.id);
+        loadProducts(s.id)
+            .then((prods) => storeProductPreview.set(s.id, prods.filter((p) => p.available !== false).slice(0, 2)))
+            .catch(() => storeProductPreview.set(s.id, []))
+            .finally(() => {
+                storeProductPreviewLoading.delete(s.id);
+                clearTimeout(storeProductPreviewRerender);
+                storeProductPreviewRerender = setTimeout(() => {
+                    const market = document.getElementById('stores-marketplace-panel');
+                    if (marketplaceView === 'list' && market && !market.classList.contains('hidden')) renderMarketplace();
+                }, 120);
+            });
+    });
+}
+
 function cartCount() {
     return cart.reduce((s, i) => s + (i.qty || 0), 0);
 }
@@ -503,7 +779,7 @@ function cartMerchantTariffTotal() {
 
 function ensureShell() {
     let market = document.getElementById('stores-marketplace-panel');
-    const needMarketRebuild = !market || market.getAttribute('data-layout') !== 'world-v4';
+    const needMarketRebuild = !market || market.getAttribute('data-layout') !== 'world-v5';
 
     if (needMarketRebuild) {
         const wasOpen = market && !market.classList.contains('hidden');
@@ -511,7 +787,7 @@ function ensureShell() {
         market = document.createElement('div');
         market.id = 'stores-marketplace-panel';
         market.className = 'stores-world hidden';
-        market.setAttribute('data-layout', 'world-v4');
+        market.setAttribute('data-layout', 'world-v5');
         market.setAttribute('role', 'dialog');
         market.setAttribute('aria-modal', 'true');
         market.setAttribute('aria-label', 'Tiendas virtuales');
@@ -523,9 +799,15 @@ function ensureShell() {
                             <i class="fas fa-arrow-left"></i>
                         </button>
                         <div class="min-w-0 flex-1">
-                            <p class="stores-kicker">HonduRaite · Marketplace</p>
-                            <h2 id="stores-panel-title" class="stores-title">Tiendas virtuales</h2>
+                            <h2 id="stores-panel-title" class="stores-title">Tiendas</h2>
+                            <p id="stores-panel-sub" class="stores-subtitle">Entrega en moto o Taxi VIP</p>
                         </div>
+                        <label id="stores-city-picker" class="stores-city-pill" title="Cambiar ciudad">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span id="stores-city-pill-label">—</span>
+                            <i class="fas fa-caret-down"></i>
+                            <select id="stores-city-select" aria-label="Ciudad de las tiendas"></select>
+                        </label>
                         <button type="button" class="stores-icon-btn" data-stores-action="my-orders" title="Mis pedidos" aria-label="Mis pedidos">
                             <i class="fas fa-receipt"></i>
                         </button>
@@ -534,16 +816,12 @@ function ensureShell() {
                         <div class="stores-search-wrap">
                             <i class="fas fa-search"></i>
                             <input type="search" id="stores-search-input" class="stores-search-input"
-                                   placeholder="Buscar tienda, comida, farmacia…"
+                                   placeholder="Buscar tiendas"
                                    autocomplete="off" enterkeyhint="search">
                             <button type="button" id="stores-search-clear" class="stores-search-clear hidden" data-stores-action="clear-search" aria-label="Limpiar búsqueda">×</button>
                         </div>
-                        <div id="stores-merchant-chips" class="stores-merchant-chips" aria-label="Mi tienda"></div>
                         <div id="stores-category-chips" class="stores-category-chips" role="tablist" aria-label="Categorías"></div>
-                        <div class="stores-world-meta">
-                            <span id="stores-city-label" class="stores-city-label"><i class="fas fa-map-marker-alt"></i> —</span>
-                            <span id="stores-count-label" class="stores-count-label">0 tiendas</span>
-                        </div>
+                        <div id="stores-merchant-chips" class="stores-merchant-chips" aria-label="Mi tienda"></div>
                     </div>
                 </header>
                 <div id="stores-panel-body" class="stores-world-body"></div>
@@ -567,6 +845,15 @@ function ensureShell() {
                 const clearBtn = document.getElementById('stores-search-clear');
                 clearBtn?.classList.toggle('hidden', !storesSearchQuery.trim());
                 if (marketplaceView === 'list') renderMarketplace();
+            });
+        }
+        const citySelect = market.querySelector('#stores-city-select');
+        if (citySelect && citySelect.dataset.bound !== '1') {
+            citySelect.dataset.bound = '1';
+            citySelect.addEventListener('change', () => {
+                storesBrowseCityId = citySelect.value || null;
+                marketplaceView = 'list';
+                renderMarketplace();
             });
         }
         if (wasOpen) {
@@ -1205,35 +1492,54 @@ function renderCategoryChips() {
         }
     }
     if (!wrap) return;
+    const counts = cityStoreCounts(browseCity().cityId);
+    const adultAllowed = canSeeAdultStores();
     const chips = [
         { id: 'all', label: 'Todas', shortLabel: 'Todas', icon: 'fa-border-all' },
         ...STORE_CATEGORIES,
-        // Zona +18: solo aparece para mayores de edad (por fecha de nacimiento) y staff
-        ...(canSeeAdultStores() ? [ADULT_ZONE_CHIP] : []),
+        // Zona +18: mayores de edad y staff; sin fecha de nacimiento sale con candado (pide la fecha). Menores: no.
+        ...(adultZoneVisible() ? [ADULT_ZONE_CHIP] : []),
     ];
-    if (storesCategoryFilter === ADULT_ZONE_CHIP.id && !canSeeAdultStores()) storesCategoryFilter = 'all';
+    if (storesCategoryFilter === ADULT_ZONE_CHIP.id && !adultAllowed) storesCategoryFilter = 'all';
     wrap.innerHTML = chips.map((c) => {
-        const short = c.shortLabel || c.label;
+        const isAdult = c.id === ADULT_ZONE_CHIP.id;
+        const short = isAdult ? '+18' : (c.shortLabel || c.label);
+        const n = isAdult ? (adultAllowed ? counts.adultos : null) : (counts[c.id] ?? 0);
         return `
-        <button type="button" class="stores-cat-chip ${storesCategoryFilter === c.id ? 'active' : ''}"
-                data-stores-action="filter-cat" data-cat="${esc(c.id)}"
+        <button type="button" class="stores-cat-chip ${isAdult ? 'stores-cat-chip--adult' : ''} ${storesCategoryFilter === c.id ? 'active' : ''}"
+                data-stores-action="filter-cat" data-cat="${esc(c.id)}" role="tab"
+                aria-selected="${storesCategoryFilter === c.id ? 'true' : 'false'}"
                 title="${esc(c.label)}">
-            <i class="fas ${esc(c.icon || 'fa-tag')}"></i>
             <span class="stores-cat-chip-label" data-full="${esc(c.label)}" data-short="${esc(short)}">${esc(short)}</span>
+            ${n != null ? `<span class="stores-cat-chip-count">${n}</span>` : ''}
+            ${isAdult ? '<i class="fas fa-lock stores-cat-chip-lock" aria-label="con candado"></i>' : ''}
         </button>`;
     }).join('');
 }
 
-function filteredStoreList() {
-    const city = activeCity();
-    const q = storesSearchQuery.trim().toLowerCase();
-    const staff = isStoresStaff();
-    let all = [...storesCache.values()].filter((s) => s.active !== false);
-
-    // Público: solo tiendas aprobadas por supervisores. Staff ve todas (moderar).
-    if (!staff) {
-        all = all.filter((s) => isStoreApprovedForPublic(s));
+/** Selector de ciudad del encabezado + texto del buscador. */
+function syncCityPicker() {
+    const city = browseCity();
+    const lbl = document.getElementById('stores-city-pill-label');
+    if (lbl) lbl.textContent = city.cityName;
+    const sel = document.getElementById('stores-city-select');
+    if (sel) {
+        const key = `${citiesWithStores().map((c) => `${c.id}:${c.count}`).join('|')}#${city.cityId}`;
+        if (sel.dataset.key !== key) {
+            sel.innerHTML = buildBrowseCityOptionsHtml(city.cityId);
+            sel.dataset.key = key;
+        }
+        sel.value = city.cityId;
     }
+    const input = document.getElementById('stores-search-input');
+    if (input) input.placeholder = `Buscar tiendas en ${city.cityName}`;
+}
+
+function filteredStoreList() {
+    const city = browseCity();
+    const q = storesSearchQuery.trim().toLowerCase();
+    // Público: solo tiendas aprobadas por supervisores. Staff ve todas (moderar).
+    let all = marketplaceBaseStores();
 
     // +18 nunca en la lista general (Todas, categorías ni búsqueda); solo en la Zona +18
     if (storesCategoryFilter === ADULT_ZONE_CHIP.id) {
@@ -1245,8 +1551,8 @@ function filteredStoreList() {
         }
     }
 
-    const local = all.filter((s) => !s.cityId || s.cityId === city.cityId);
-    let list = local.length ? local : all;
+    // Solo tiendas de la ciudad elegida (ya no se mezclan otras ciudades si no hay)
+    let list = all.filter((s) => storeInCity(s, city.cityId));
 
     if (q) {
         list = list.filter((s) => {
@@ -1255,9 +1561,10 @@ function filteredStoreList() {
         });
     }
 
+    const now = hnNowMinutes();
     return list.sort((a, b) => {
-        const ao = a.isOpen === false ? 1 : 0;
-        const bo = b.isOpen === false ? 1 : 0;
+        const ao = storeOpenInfo(a, now).open ? 0 : 1;
+        const bo = storeOpenInfo(b, now).open ? 0 : 1;
         const ap = storeApprovalStatus(a) === 'approved' ? 0 : 1;
         const bp = storeApprovalStatus(b) === 'approved' ? 0 : 1;
         return ap - bp || ao - bo || String(a.name || '').localeCompare(String(b.name || ''), 'es');
@@ -1265,7 +1572,7 @@ function filteredStoreList() {
 }
 
 function updateStoresMeta(listLen) {
-    const city = activeCity();
+    const city = browseCity();
     const cityEl = document.getElementById('stores-city-label');
     const countEl = document.getElementById('stores-count-label');
     if (cityEl) cityEl.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${esc(city.cityName)}`;
@@ -1276,6 +1583,32 @@ function updateStoresMeta(listLen) {
 
 function setToolbarVisible(show) {
     document.getElementById('stores-world-toolbar')?.classList.toggle('hidden', !show);
+    document.getElementById('stores-city-picker')?.classList.toggle('hidden', !show);
+    document.getElementById('stores-panel-sub')?.classList.toggle('hidden', !show);
+}
+
+function storesSectionHtml(title, tone, aside, stores) {
+    return `
+        <section class="hr-stores-section">
+            <div class="hr-stores-section-head">
+                <p class="hr-stores-section-title"><span class="hr-dot hr-dot--${tone}"></span>${esc(title)}</p>
+                <span class="hr-stores-section-aside">${esc(aside)}</span>
+            </div>
+            <div class="stores-browse-grid" role="list">${stores.map(storeCardHtml).join('')}</div>
+        </section>`;
+}
+
+function adultZoneEntryHtml() {
+    const allowed = canSeeAdultStores();
+    return `
+        <button type="button" class="hr-adult-entry" data-stores-action="filter-cat" data-cat="${esc(ADULT_ZONE_CHIP.id)}">
+            <span class="hr-adult-entry-icon"><i class="fas fa-lock"></i></span>
+            <span class="min-w-0 flex-1">
+                <strong>Zona +18</strong>
+                <small>Productos para adultos · separada de la lista general${allowed ? '' : ' · confirma tu edad para entrar'}</small>
+            </span>
+            <i class="fas fa-chevron-right"></i>
+        </button>`;
 }
 
 function renderMarketplace() {
@@ -1283,51 +1616,83 @@ function renderMarketplace() {
     if (!body) return;
 
     if (marketplaceView === 'list') {
-        setMarketplaceTitle('Tiendas virtuales');
+        setMarketplaceTitle('Tiendas');
         setToolbarVisible(true);
         renderCategoryChips();
-        const city = activeCity();
+        syncCityPicker();
+        const city = browseCity();
         const list = filteredStoreList();
         updateStoresMeta(list.length);
+        const now = hnNowMinutes();
+        const openList = list.filter((s) => storeOpenInfo(s, now).open);
+        const closedList = list.filter((s) => !storeOpenInfo(s, now).open);
+        const isAdultView = storesCategoryFilter === ADULT_ZONE_CHIP.id;
+        const filtering = !!storesSearchQuery.trim() || (storesCategoryFilter !== 'all' && !isAdultView);
+        const parts = [];
 
-        body.innerHTML = `
-            <div class="stores-world-hero stores-world-hero--compact">
-                <div>
-                    <p class="stores-world-hero-title">Explora negocios locales</p>
-                    <p class="stores-world-hero-sub">Pide con fotos · entrega en <b>moto o Taxi VIP</b> · máx. <b>1 tienda</b> por cuenta</p>
-                </div>
-            </div>
-            <div class="stores-browse-grid" role="list">
-                ${list.length ? list.map(storeCardHtml).join('') : `
-                    <div class="stores-empty stores-empty--full">
-                        <i class="fas fa-store-slash"></i>
-                        <p>${storesSearchQuery.trim() || storesCategoryFilter !== 'all'
-                            ? 'No hay tiendas con ese filtro.'
-                            : `Aún no hay tiendas en ${esc(city.cityName)}.`}</p>
-                        <p class="text-xs text-slate-500">Prueba otra categoría, quita la búsqueda o publica tu negocio.</p>
-                        <div class="flex flex-wrap gap-2 justify-center mt-3">
-                            ${(storesSearchQuery.trim() || storesCategoryFilter !== 'all') ? `
-                                <button type="button" class="stores-secondary-btn" data-stores-action="clear-filters">Ver todas</button>
-                            ` : ''}
-                            <button type="button" class="stores-primary-btn" data-stores-action="create-store">
-                                <i class="fas fa-plus"></i> Crear tienda nueva
-                            </button>
-                        </div>
+        if (isAdultView) {
+            parts.push(`
+                <div class="hr-adult-banner">
+                    <span class="hr-adult-entry-icon"><i class="fas fa-lock"></i></span>
+                    <div class="min-w-0 flex-1">
+                        <strong>Zona +18</strong>
+                        <small>Productos para adultos · separada de la lista general</small>
                     </div>
-                `}
-            </div>
-        `;
+                    <button type="button" class="hr-link-btn" data-stores-action="clear-filters">Salir</button>
+                </div>`);
+        }
+        if (!list.length) {
+            const others = citiesWithStores().filter((c) => c.id !== city.cityId).slice(0, 4);
+            parts.push(`
+                <div class="hr-empty-card">
+                    <p class="hr-empty-title">${filtering
+                        ? 'No hay tiendas con ese filtro'
+                        : isAdultView ? 'Aún no hay tiendas +18 aquí' : 'Aún no hay tiendas abiertas aquí'}</p>
+                    <p class="hr-empty-sub">${filtering
+                        ? `Prueba otra categoría o quita la búsqueda en ${esc(city.cityName)}.`
+                        : `Pronto habrá más negocios en ${esc(city.cityName)}.`}</p>
+                    <div class="hr-empty-actions">
+                        ${filtering ? '<button type="button" class="stores-secondary-btn" data-stores-action="clear-filters">Ver todas</button>' : ''}
+                        ${!isAdultView ? others.map((c) => `
+                            <button type="button" class="stores-secondary-btn" data-stores-action="browse-city" data-city-id="${esc(c.id)}">
+                                <i class="fas fa-map-marker-alt"></i> ${esc(c.name)} · ${c.count === 1 ? '1 tienda' : `${c.count} tiendas`}
+                            </button>`).join('') : ''}
+                        <button type="button" class="stores-primary-btn" data-stores-action="create-store">
+                            <i class="fas fa-plus"></i> Crear tienda
+                        </button>
+                    </div>
+                </div>`);
+        } else {
+            if (openList.length) {
+                parts.push(storesSectionHtml('Abiertas ahora', 'open',
+                    openList.length === 1 ? '1 tienda' : `${openList.length} tiendas`, openList));
+            } else {
+                parts.push(`
+                    <div class="hr-empty-card hr-empty-card--soft">
+                        <p class="hr-empty-title">Ninguna tienda abierta ahora</p>
+                        <p class="hr-empty-sub">Mira abajo a qué hora abren en ${esc(city.cityName)}.</p>
+                    </div>`);
+            }
+            if (closedList.length) parts.push(storesSectionHtml('Cerradas por ahora', 'closed', 'van al final', closedList));
+        }
+        if (!isAdultView && adultZoneVisible()) parts.push(adultZoneEntryHtml());
+        if (!isAdultView) {
+            parts.push(`<p class="hr-stores-footnote">Las tiendas marcadas +18 no aparecen en esta lista general. Solo se muestran a cuentas verificadas como mayores de edad.</p>`);
+        }
+        body.innerHTML = parts.join('');
+        ensureProductPreviews(list);
     } else if (marketplaceView === 'store' && viewingStore) {
         setToolbarVisible(false);
         setMarketplaceTitle(viewingStore.name || 'Tienda');
-        const open = viewingStore.isOpen !== false;
+        const openInfo = storeOpenInfo(viewingStore);
+        const open = openInfo.open;
         const adults = isStoreAdultsOnly(viewingStore);
         const appr = storeApprovalStatus(viewingStore);
         const apprMeta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
         const tariffPct = getTarifaDelMomentoSync();
         const logoBlock = viewingStore.photoUrl
             ? `<div class="store-detail-logo-wrap"><img class="store-detail-logo" src="${esc(viewingStore.photoUrl)}" alt="${esc(viewingStore.name || 'Tienda')}" loading="lazy" onerror="this.style.opacity='0'"></div>`
-            : `<div class="store-detail-avatar"><i class="fas ${esc(catIcon(viewingStore.category))}"></i></div>`;
+            : storeAvatarHtml(viewingStore, 'hr-store-avatar--lg');
         const staffBar = isStoresStaff()
             ? `<div class="store-staff-bar">
                     <p class="store-staff-bar-label"><i class="fas fa-shield-alt"></i> Moderación staff · ${esc(apprMeta.label)}</p>
@@ -1349,7 +1714,13 @@ function renderMarketplace() {
                 ${logoBlock}
                 <div class="min-w-0">
                     <p class="store-detail-name">${esc(viewingStore.name)}${adults ? ' <span class="store-badge-18">+18</span>' : ''}</p>
-                    <p class="store-detail-meta">${esc(catLabel(viewingStore.category))} · ${open ? '<span class="text-emerald-600 font-bold">Abierta</span>' : '<span class="text-slate-500">Cerrada</span>'}</p>
+                    <p class="store-detail-meta">${esc(catLabel(viewingStore.category))}${viewingStore.cityName ? ` · ${esc(viewingStore.cityName)}` : ''}</p>
+                    <div class="hr-pills">
+                        <span class="hr-pill ${open ? 'hr-pill--open' : 'hr-pill--closed'}">${open ? '<span class="hr-dot hr-dot--open"></span>Abierta' : 'Cerrada'}</span>
+                        ${openInfo.label ? `<span class="hr-pill">${esc(openInfo.label)}</span>` : ''}
+                        <span class="hr-pill hr-pill--soft">Moto</span>
+                        <span class="hr-pill hr-pill--soft">Taxi VIP</span>
+                    </div>
                     ${viewingStore.address ? `<p class="store-detail-addr"><i class="fas fa-map-marker-alt"></i> ${esc(viewingStore.address)}</p>` : ''}
                     ${viewingStore.description ? `<p class="store-detail-desc">${esc(viewingStore.description)}</p>` : ''}
                     ${adults ? `<p class="text-[11px] font-bold text-rose-700 mt-1"><i class="fas fa-exclamation-triangle"></i> Solo mayores de 18 años</p>` : ''}
@@ -1391,14 +1762,13 @@ function catLabel(id) {
 }
 
 function storeCardHtml(s) {
-    const open = s.isOpen !== false;
+    const info = storeOpenInfo(s);
+    const open = info.open;
     const staff = isStoresStaff();
     const adults = isStoreAdultsOnly(s);
     const appr = storeApprovalStatus(s);
     const apprMeta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
-    const cover = s.photoUrl
-        ? `<div class="store-card-cover-wrap"><img class="store-card-cover" src="${esc(s.photoUrl)}" alt="${esc(s.name || 'Tienda')}" loading="lazy" onerror="this.style.opacity='0'"></div>`
-        : `<div class="store-card-cover-wrap"><div class="store-card-cover store-card-cover--icon"><i class="fas ${esc(catIcon(s.category))}"></i></div></div>`;
+    const preview = open ? (storeProductPreview.get(s.id) || []) : [];
     const adminDelete = staff
         ? `<button type="button" class="store-admin-delete-btn" data-stores-action="admin-delete-store" data-store-id="${esc(s.id)}" title="Borrar tienda (admin/supervisor)">
                 <i class="fas fa-trash-alt pointer-events-none"></i>
@@ -1407,19 +1777,34 @@ function storeCardHtml(s) {
         : '';
     return `
         <div class="store-card-wrap ${staff ? 'store-card-wrap--staff' : ''} ${appr !== 'approved' ? 'store-card-wrap--pending' : ''}" role="listitem">
-            <button type="button" class="store-card store-card--browse ${open ? '' : 'store-card--closed'}" data-stores-action="open-store" data-store-id="${esc(s.id)}">
-                ${cover}
-                <div class="store-card-body">
-                    <div class="store-card-top">
-                        <p class="store-card-name">${esc(s.name || 'Tienda')}${adults ? ' <span class="store-badge-18">+18</span>' : ''}</p>
-                        <span class="store-card-status ${open ? 'is-open' : ''}">${open ? 'Abierta' : 'Cerrada'}</span>
-                    </div>
-                    <p class="store-card-meta">${esc(catLabel(s.category))}${s.cityName ? ` · ${esc(s.cityName)}` : ''}</p>
-                    ${s.address ? `<p class="store-card-addr"><i class="fas fa-map-marker-alt"></i> ${esc(s.address)}</p>` : ''}
-                    ${s.description ? `<p class="store-card-desc">${esc(s.description)}</p>` : ''}
-                    ${staff ? `<p class="text-[10px] font-bold mt-1 order-status order-status--${apprMeta.tone}" style="display:inline-block">${esc(apprMeta.label)}</p>` : ''}
-                    ${staff && s.ownerId ? `<p class="store-card-owner-id text-[10px] text-slate-400 font-semibold mt-1">Dueño: ${esc(String(s.ownerId).slice(0, 10))}…</p>` : ''}
-                </div>
+            <button type="button" class="hr-store-card ${open ? '' : 'is-closed'}" data-stores-action="open-store" data-store-id="${esc(s.id)}">
+                <span class="hr-store-card-head">
+                    ${storeAvatarHtml(s)}
+                    <span class="hr-store-card-info">
+                        <span class="hr-store-name">${esc(s.name || 'Tienda')}</span>
+                        <span class="hr-store-meta">${esc(catLabel(s.category))}${s.cityName ? ` · ${esc(s.cityName)}` : ''}</span>
+                        <span class="hr-pills">
+                            <span class="hr-pill ${open ? 'hr-pill--open' : 'hr-pill--closed'}">${open ? '<span class="hr-dot hr-dot--open"></span>Abierta' : 'Cerrada'}</span>
+                            ${info.label ? `<span class="hr-pill">${esc(info.label)}</span>` : ''}
+                            ${adults ? '<span class="hr-pill hr-pill--adult">+18</span>' : ''}
+                            ${staff && appr !== 'approved' ? `<span class="hr-pill hr-pill--${esc(apprMeta.tone)}">${esc(apprMeta.label)}</span>` : ''}
+                        </span>
+                    </span>
+                </span>
+                ${preview.length ? `
+                    <span class="hr-store-products">
+                        ${preview.map((p) => `
+                            <span class="hr-store-product">
+                                <span class="hr-store-product-name">${esc(p.name || 'Producto')}</span>
+                                <span class="hr-store-product-price">${money(productDisplayPrice(p))}</span>
+                            </span>`).join('')}
+                    </span>` : ''}
+                ${open ? `
+                    <span class="hr-pills hr-pills--delivery">
+                        <span class="hr-pill hr-pill--soft"><i class="fas fa-motorcycle"></i> Moto</span>
+                        <span class="hr-pill hr-pill--soft"><i class="fas fa-taxi"></i> Taxi VIP</span>
+                    </span>` : ''}
+                ${staff && s.ownerId ? `<span class="store-card-owner-id">Dueño: ${esc(String(s.ownerId).slice(0, 10))}…</span>` : ''}
             </button>
             ${adminDelete}
         </div>
@@ -1835,6 +2220,7 @@ async function openStore(storeId) {
     await getTarifaDelMomento().catch(() => {});
     viewingStore = store;
     viewingProducts = await loadProducts(storeId);
+    storeProductPreview.set(storeId, viewingProducts.filter((p) => p.available !== false).slice(0, 2));
     // If cart is from another store, clear
     if (cart.length && cart[0]?.storeId && cart[0].storeId !== storeId) {
         cart = [];
@@ -1846,7 +2232,10 @@ async function openStore(storeId) {
 function addToCart(productId) {
     const p = viewingProducts.find((x) => x.id === productId);
     if (!p || p.available === false) return;
-    if (viewingStore?.isOpen === false) return toast('La tienda está cerrada', 'warning');
+    if (viewingStore && !storeOpenInfo(viewingStore).open) {
+        const lbl = storeOpenInfo(viewingStore).label;
+        return toast(`La tienda está cerrada${lbl ? ` · ${lbl}` : ''}`, 'warning');
+    }
     if (!isStoreApprovedForPublic(viewingStore) && !isStoresStaff()) {
         return toast('Esta tienda aún no está verificada', 'warning');
     }
@@ -1890,7 +2279,10 @@ async function placeOrder() {
     const profile = getUserProfile() || {};
     if (!user) return toast('Inicia sesión para pedir', 'error');
     if (!viewingStore || !cart.length) return toast('Carrito vacío', 'warning');
-    if (viewingStore.isOpen === false) return toast('La tienda está cerrada', 'warning');
+    if (!storeOpenInfo(viewingStore).open) {
+        const lbl = storeOpenInfo(viewingStore).label;
+        return toast(`La tienda está cerrada${lbl ? ` · ${lbl}` : ''}`, 'warning');
+    }
 
     const address = document.getElementById('store-checkout-address')?.value.trim() || '';
     const recipientName = document.getElementById('store-checkout-recipient')?.value.trim() || '';
@@ -2091,7 +2483,14 @@ function onMarketplaceClick(e) {
         return renderMarketplace();
     }
     if (action === 'filter-cat') {
-        storesCategoryFilter = t.getAttribute('data-cat') || 'all';
+        const cat = t.getAttribute('data-cat') || 'all';
+        if (cat === ADULT_ZONE_CHIP.id) return openAdultZone();
+        storesCategoryFilter = cat;
+        marketplaceView = 'list';
+        return renderMarketplace();
+    }
+    if (action === 'browse-city') {
+        storesBrowseCityId = t.getAttribute('data-city-id') || null;
         marketplaceView = 'list';
         return renderMarketplace();
     }
@@ -2407,6 +2806,13 @@ function renderMerchantStoreForm() {
                 </p>` : ''}
             <label class="stores-field"><span>Dirección / punto de recogida *</span>
                 <input id="m-store-address" class="stores-input" required value="${esc(s.address || '')}" placeholder="Colonia, calle, referencia"></label>
+            <div class="grid grid-cols-2 gap-2">
+                <label class="stores-field"><span>Abre a las</span>
+                    <input id="m-store-open-at" class="stores-input" type="time" value="${esc(s.hours?.open || '')}"></label>
+                <label class="stores-field"><span>Cierra a las</span>
+                    <input id="m-store-close-at" class="stores-input" type="time" value="${esc(s.hours?.close || '')}"></label>
+            </div>
+            <p class="text-[10px] text-slate-500 -mt-1 leading-snug">Horario de todos los días, hora de Honduras. Fuera de ese horario tu tienda sale como “Cerrada” y va al final de la lista. Déjalo vacío si prefieres abrir y cerrar a mano.</p>
             <label class="stores-field"><span>WhatsApp del negocio *</span>
                 <input id="m-store-phone" class="stores-input" required value="${esc(s.phone || (!editingExisting ? (getUserProfile()?.phone || '') : ''))}" placeholder="+504..."></label>
             <label class="stores-field stores-field--check" style="flex-direction:row;align-items:flex-start;gap:0.65rem;cursor:pointer;">
@@ -2805,6 +3211,17 @@ async function saveStore() {
     if (!address || address.length < 4) return toast('Dirección de recogida requerida', 'warning');
     if (!phone) return toast('WhatsApp del negocio requerido', 'warning');
 
+    // Horario diario (opcional): las dos horas o ninguna
+    const openAt = document.getElementById('m-store-open-at')?.value || '';
+    const closeAt = document.getElementById('m-store-close-at')?.value || '';
+    if ((openAt && !closeAt) || (!openAt && closeAt)) {
+        return toast('Pon la hora de abrir y la de cerrar, o deja las dos vacías', 'warning');
+    }
+    if (openAt && parseHHMM(openAt) === parseHHMM(closeAt)) {
+        return toast('La hora de abrir y la de cerrar no pueden ser iguales', 'warning');
+    }
+    const hours = openAt && closeAt ? { open: openAt, close: closeAt, tz: 'America/Tegucigalpa' } : null;
+
     // Ciudad REAL de la tienda (elegida y validada con la ubicación). Ya no se usa la ciudad del dispositivo.
     const selectedCityId = document.getElementById('m-store-city')?.value || '';
     const cityCheck = resolveStoreCity({ selectedId: selectedCityId, lat, lng });
@@ -2857,6 +3274,7 @@ async function saveStore() {
         citySource: cityCheck.source,
         locationApprox: !hasRealCoords,
         isOpen: isNewStore ? true : (myStore?.isOpen !== false),
+        hours,
         active: true,
         adultsOnly,
         requiresAge18: adultsOnly,
@@ -3558,24 +3976,53 @@ export async function loadSupervisorStores(opts = {}) {
             return ao - bo || String(a.name || '').localeCompare(String(b.name || ''), 'es');
         });
 
-        const pending = staffStoresList.filter((s) => storeApprovalStatus(s) === 'pending');
-        const approved = staffStoresList.filter((s) => storeApprovalStatus(s) === 'approved');
-        const rejected = staffStoresList.filter((s) => storeApprovalStatus(s) === 'rejected');
-        const adults = staffStoresList.filter((s) => isStoreAdultsOnly(s));
+        // Filtro por ciudad (las ciudades que tienen tiendas)
+        const cityMap = new Map();
+        staffStoresList.forEach((s) => {
+            const id = s.cityId || '';
+            if (!cityMap.has(id)) {
+                cityMap.set(id, id ? (s.cityName || getZoneById(id)?.name || id) : 'Sin ciudad');
+            }
+        });
+        const cityOptions = [...cityMap.entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'es'));
+        if (staffStoresCityFilter !== 'all' && !cityMap.has(staffStoresCityFilter)) staffStoresCityFilter = 'all';
+        const inCity = staffStoresCityFilter === 'all'
+            ? staffStoresList
+            : staffStoresList.filter((s) => (s.cityId || '') === staffStoresCityFilter);
 
-        let filtered = staffStoresList;
+        const pending = inCity.filter((s) => storeApprovalStatus(s) === 'pending');
+        const approved = inCity.filter((s) => storeApprovalStatus(s) === 'approved');
+        const rejected = inCity.filter((s) => storeApprovalStatus(s) === 'rejected');
+        const adults = inCity.filter((s) => isStoreAdultsOnly(s));
+        const cityIssues = inCity.filter((s) => storeCityIssue(s));
+
+        let filtered = inCity;
         if (staffStoresFilter === 'pending') filtered = pending;
         else if (staffStoresFilter === 'approved') filtered = approved;
         else if (staffStoresFilter === 'rejected') filtered = rejected;
         else if (staffStoresFilter === 'adults') filtered = adults;
 
         const chips = [
-            { id: 'pending', label: `En revisión (${pending.length})` },
+            { id: 'all', label: `Todas (${inCity.length})` },
             { id: 'approved', label: `Aprobadas (${approved.length})` },
+            { id: 'pending', label: `En revisión (${pending.length})` },
             { id: 'rejected', label: `Rechazadas (${rejected.length})` },
             { id: 'adults', label: `+18 (${adults.length})` },
-            { id: 'all', label: `Todas (${staffStoresList.length})` },
         ];
+        // Resumen: tocar un número filtra la lista
+        const kpis = `
+            <div class="hr-staff-kpis">
+                ${[
+                    ['approved', approved.length, 'Aprobadas'],
+                    ['pending', pending.length, 'En revisión'],
+                    ['rejected', rejected.length, 'Rechazadas'],
+                    ['adults', adults.length, '+18'],
+                ].map(([id, n, label]) => `
+                    <button type="button" class="hr-staff-kpi hr-staff-kpi--${id} ${staffStoresFilter === id ? 'is-active' : ''}"
+                        data-staff-stores-filter="${id}">
+                        <b>${n}</b><span>${label}</span>
+                    </button>`).join('')}
+            </div>`;
 
         const cards = filtered.length
             ? filtered.map((s) => staffStoreCardHtml(s)).join('')
@@ -3586,14 +4033,23 @@ export async function loadSupervisorStores(opts = {}) {
         const body = `
             <div id="staff-stores-review" class="space-y-4">
                 ${U?.hero
-                    ? U.hero('Tiendas virtuales', 'Verifica negocios · aprobar / rechazar · marcar +18',
-                        U.kpiRow?.([
-                            { value: pending.length, label: 'En revisión', variant: 'amber' },
-                            { value: approved.length, label: 'Aprobadas', variant: 'emerald' },
-                            { value: rejected.length, label: 'Rechazadas', variant: 'red' },
-                            { value: adults.length, label: '+18', variant: 'purple' },
-                        ]) || '')
-                    : `<h2 class="text-xl font-black text-white mb-2">Tiendas virtuales</h2>`}
+                    ? U.hero('Verificar tiendas', 'Panel de supervisor · aprobar / rechazar · marcar +18 · corregir ciudad', '')
+                    : '<h2 class="text-xl font-black text-white mb-2">Verificar tiendas</h2>'}
+                ${kpis}
+                <div class="hr-staff-filters">
+                    <label class="hr-staff-city">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <select id="staff-stores-city-filter" aria-label="Filtrar por ciudad">
+                            <option value="all" ${staffStoresCityFilter === 'all' ? 'selected' : ''}>Todas las ciudades</option>
+                            ${cityOptions.map(([id, name]) => `<option value="${esc(id)}" ${staffStoresCityFilter === id ? 'selected' : ''}>${esc(name)}</option>`).join('')}
+                        </select>
+                    </label>
+                </div>
+                ${cityIssues.length ? `
+                    <p class="hr-staff-issue-summary">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        ${cityIssues.length === 1 ? '1 tienda tiene' : `${cityIssues.length} tiendas tienen`} una ciudad que no cuadra con su ubicación. Usa <b>Corregir ciudad</b>.
+                    </p>` : ''}
                 <div class="ops-chipbar flex flex-wrap gap-2" id="staff-stores-filter-chips">
                     ${chips.map((c) => `
                         <button type="button" class="ops-chip ${staffStoresFilter === c.id ? 'ops-chip--active' : ''}"
@@ -3604,12 +4060,17 @@ export async function loadSupervisorStores(opts = {}) {
                     <b>Nos parece bien</b> = tienda visible en el marketplace.
                     <b>Nos parece mal</b> = rechazada y oculta.
                     <b>+18</b> = solo clientes mayores de 18 (según fecha de nacimiento del perfil).
+                    <b>Corregir ciudad</b> = cambia en qué ciudad sale la tienda.
                 </p>
                 <div class="space-y-3">${cards}</div>
             </div>
         `;
         container.innerHTML = U?.page ? U.page(body) : body;
 
+        container.querySelector('#staff-stores-city-filter')?.addEventListener('change', (ev) => {
+            staffStoresCityFilter = ev.target.value || 'all';
+            loadSupervisorStores({ keepFilter: true });
+        });
         container.querySelectorAll('[data-staff-stores-filter]').forEach((btn) => {
             btn.addEventListener('click', () => {
                 staffStoresFilter = btn.getAttribute('data-staff-stores-filter') || 'pending';
@@ -3628,6 +4089,7 @@ export async function loadSupervisorStores(opts = {}) {
                     else if (action === 'reject') await staffSetStoreApproval(id, 'rejected');
                     else if (action === 'toggle18') await staffToggleAdultsOnly(id);
                     else if (action === 'delete') await adminDeleteStore(id);
+                    else if (action === 'fix-city') await staffFixStoreCity(id);
                     else if (action === 'open') {
                         try { window.closeSupervisorPanel?.(); } catch (_) {}
                         openMarketplace();
@@ -3644,61 +4106,173 @@ export async function loadSupervisorStores(opts = {}) {
     }
 }
 
+/**
+ * ¿La ciudad publicada no cuadra con la ubicación real? (el error "San Jose").
+ * @returns {{ published: string, real: object|null } | null}
+ */
+function storeCityIssue(s) {
+    const savedZone = s?.cityId ? getZoneById(s.cityId) : null;
+    const published = s?.cityName || savedZone?.name || s?.cityId || '';
+    const real = cityFromStoreCoords(s?.lat, s?.lng);
+    if (!s?.cityId) return { published: 'sin ciudad', real };
+    if (real) {
+        const check = resolveStoreCity({ selectedId: s.cityId, lat: s.lat, lng: s.lng });
+        return check.ok ? null : { published, real };
+    }
+    // Sin ubicación real y publicada en EE. UU.: casi seguro es el error de la ciudad del teléfono
+    if (savedZone && isUsZone(savedZone)) return { published, real: null };
+    return null;
+}
+
 function staffStoreCardHtml(s) {
     const appr = storeApprovalStatus(s);
     const meta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
     const adults = isStoreAdultsOnly(s);
-    const open = s.isOpen !== false;
-    const photo = s.photoUrl
-        ? `<img src="${esc(s.photoUrl)}" alt="" class="w-14 h-14 rounded-xl object-cover border border-slate-600" loading="lazy">`
-        : `<div class="w-14 h-14 rounded-xl bg-slate-700 flex items-center justify-center text-slate-400"><i class="fas ${esc(catIcon(s.category))}"></i></div>`;
+    const open = storeOpenInfo(s).open;
+    const issue = storeCityIssue(s);
     return `
-        <article class="ops-card rounded-2xl border border-slate-700/80 bg-slate-900/50 p-4 space-y-3" data-store-id="${esc(s.id)}">
+        <article class="ops-card hr-staff-store rounded-2xl border border-slate-700/80 bg-slate-900/50 p-4 space-y-3" data-store-id="${esc(s.id)}">
             <div class="flex gap-3 items-start">
-                ${photo}
+                ${storeAvatarHtml(s)}
                 <div class="min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-2">
-                        <h3 class="font-black text-white text-sm">${esc(s.name || 'Sin nombre')}</h3>
-                        <span class="ops-badge ops-badge--${meta.tone === 'emerald' ? 'emerald' : meta.tone === 'red' ? 'red' : 'amber'}">${esc(meta.label)}</span>
-                        ${adults ? `<span class="ops-badge ops-badge--purple">+18</span>` : ''}
-                        <span class="text-[10px] font-bold ${open ? 'text-emerald-400' : 'text-slate-500'}">${open ? 'Abierta' : 'Cerrada'}</span>
-                    </div>
+                    <h3 class="font-black text-white text-sm">${esc(s.name || 'Sin nombre')}</h3>
                     <p class="text-[11px] text-slate-400 font-semibold mt-0.5">
                         ${esc(catLabel(s.category))}${s.cityName ? ` · ${esc(s.cityName)}` : ''}
                     </p>
-                    ${s.address ? `<p class="text-[11px] text-slate-500 mt-0.5"><i class="fas fa-map-marker-alt"></i> ${esc(s.address)}</p>` : ''}
+                    <div class="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span class="ops-badge ops-badge--${meta.tone === 'emerald' ? 'emerald' : meta.tone === 'red' ? 'red' : 'amber'}">${esc(meta.label)}</span>
+                        ${adults ? `<span class="ops-badge ops-badge--purple">+18</span>` : ''}
+                        <span class="text-[10px] font-bold ${open ? 'text-emerald-400' : 'text-slate-500'}">● ${open ? 'Abierta' : 'Cerrada'}</span>
+                    </div>
+                    ${s.address ? `<p class="text-[11px] text-slate-500 mt-1"><i class="fas fa-map-marker-alt"></i> ${esc(s.address)}</p>` : ''}
                     ${s.phone ? `<p class="text-[11px] text-slate-500"><i class="fab fa-whatsapp"></i> ${esc(s.phone)}</p>` : ''}
                     ${s.description ? `<p class="text-[11px] text-slate-400 mt-1 line-clamp-2">${esc(s.description)}</p>` : ''}
                     ${s.ownerName || s.ownerId ? `<p class="text-[10px] text-slate-500 mt-1">Dueño: ${esc(s.ownerName || String(s.ownerId).slice(0, 12) + '…')}</p>` : ''}
                     ${appr === 'rejected' && s.rejectionReason ? `<p class="text-[10px] text-red-400 font-semibold mt-1">Motivo: ${esc(s.rejectionReason)}</p>` : ''}
                 </div>
             </div>
-            <div class="flex flex-wrap gap-2">
+            ${issue ? `
+                <p class="hr-staff-city-warn">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Publicada en: <b>${esc(issue.published)}</b>
+                    ${issue.real ? ` · Ciudad real: <b>${esc(issue.real.name)}</b>` : ' · sin ubicación real, revisa con el dueño'}
+                </p>` : ''}
+            <div class="hr-staff-actions">
                 ${appr !== 'approved' ? `
-                    <button type="button" class="ops-btn ops-btn--emerald text-xs py-2 px-3 rounded-xl font-bold"
-                        data-staff-store-action="approve" data-store-id="${esc(s.id)}">
+                    <button type="button" class="hr-staff-act hr-staff-act--ok" data-staff-store-action="approve" data-store-id="${esc(s.id)}">
                         <i class="fas fa-thumbs-up"></i> Nos parece bien
                     </button>` : ''}
                 ${appr !== 'rejected' ? `
-                    <button type="button" class="ops-btn ops-btn--danger text-xs py-2 px-3 rounded-xl font-bold"
-                        data-staff-store-action="reject" data-store-id="${esc(s.id)}">
+                    <button type="button" class="hr-staff-act hr-staff-act--bad" data-staff-store-action="reject" data-store-id="${esc(s.id)}">
                         <i class="fas fa-thumbs-down"></i> Nos parece mal
                     </button>` : ''}
-                <button type="button" class="ops-btn text-xs py-2 px-3 rounded-xl font-bold border border-slate-600"
-                    data-staff-store-action="toggle18" data-store-id="${esc(s.id)}">
+                <button type="button" class="hr-staff-act hr-staff-act--adult" data-staff-store-action="toggle18" data-store-id="${esc(s.id)}">
                     <i class="fas fa-user-shield"></i> ${adults ? 'Quitar +18' : 'Marcar +18'}
                 </button>
-                <button type="button" class="ops-btn text-xs py-2 px-3 rounded-xl font-bold border border-slate-600"
-                    data-staff-store-action="open" data-store-id="${esc(s.id)}">
+                <button type="button" class="hr-staff-act hr-staff-act--view" data-staff-store-action="open" data-store-id="${esc(s.id)}">
                     <i class="fas fa-external-link-alt"></i> Ver en app
                 </button>
-                <button type="button" class="ops-btn ops-btn--danger text-xs py-2 px-3 rounded-xl font-bold"
-                    data-staff-store-action="delete" data-store-id="${esc(s.id)}">
-                    <i class="fas fa-trash"></i>
+                <button type="button" class="hr-staff-act hr-staff-act--del" data-staff-store-action="delete" data-store-id="${esc(s.id)}">
+                    <i class="fas fa-trash"></i> Borrar
+                </button>
+                <button type="button" class="hr-staff-act hr-staff-act--city ${issue ? 'is-flagged' : ''}" data-staff-store-action="fix-city" data-store-id="${esc(s.id)}">
+                    <i class="fas fa-map-marker-alt"></i> Corregir ciudad
                 </button>
             </div>
         </article>
     `;
+}
+
+/** Ventana para elegir ciudad. Devuelve el id elegido o null si cancela. */
+function pickCityModal({ title = 'Elegir ciudad', note = '', selectedId = '' } = {}) {
+    return new Promise((resolve) => {
+        document.getElementById('hr-city-pick')?.remove();
+        const wrap = document.createElement('div');
+        wrap.id = 'hr-city-pick';
+        wrap.className = 'hr-sheet hr-sheet--center';
+        wrap.setAttribute('role', 'dialog');
+        wrap.setAttribute('aria-modal', 'true');
+        wrap.innerHTML = `
+            <div class="hr-sheet-backdrop" data-pick-action="cancel"></div>
+            <div class="hr-sheet-panel">
+                <span class="hr-sheet-icon"><i class="fas fa-map-marker-alt"></i></span>
+                <h3 class="hr-sheet-title">${esc(title)}</h3>
+                ${note ? `<p class="hr-sheet-text">${note}</p>` : ''}
+                <select id="hr-city-pick-select" class="hr-age-select hr-city-pick-select">${buildStoreCityOptionsHtml(selectedId)}</select>
+                <button type="button" class="hr-sheet-btn" data-pick-action="save">Guardar ciudad</button>
+                <button type="button" class="hr-sheet-btn hr-sheet-btn--ghost" data-pick-action="cancel">Cancelar</button>
+            </div>`;
+        document.body.appendChild(wrap);
+        const done = (v) => { wrap.remove(); resolve(v); };
+        wrap.addEventListener('click', (ev) => {
+            const b = ev.target.closest('[data-pick-action]');
+            if (!b) return;
+            if (b.getAttribute('data-pick-action') === 'cancel') return done(null);
+            const v = wrap.querySelector('#hr-city-pick-select')?.value || '';
+            if (!v) return toast('Elige una ciudad', 'warning');
+            done(v);
+        });
+    });
+}
+
+/** Staff: cambiar la ciudad donde se publica una tienda (queda registrado quién y cuándo). */
+async function staffFixStoreCity(storeId) {
+    if (!isStoresStaff()) return toast('Solo supervisores o admin', 'error');
+    let store = staffStoresList.find((x) => x.id === storeId) || storesCache.get(storeId) || null;
+    if (!store) {
+        try {
+            const snap = await getDoc(publicDoc('stores', storeId));
+            if (snap.exists()) store = { id: snap.id, ...snap.data() };
+        } catch (_) {}
+    }
+    if (!store) return toast('Tienda no encontrada', 'error');
+    const issue = storeCityIssue(store);
+    const suggested = issue?.real?.id || initialStoreCityId(store) || store.cityId || '';
+    const chosenId = await pickCityModal({
+        title: `Corregir ciudad · ${store.name || 'Tienda'}`,
+        note: `Ahora sale en <b>${esc(store.cityName || store.cityId || 'sin ciudad')}</b>.${issue?.real ? ` Por su ubicación parece <b>${esc(issue.real.name)}</b>.` : ''}`,
+        selectedId: suggested,
+    });
+    if (!chosenId) return;
+    const zone = getZoneById(chosenId);
+    if (!zone) return toast('Ciudad no válida', 'error');
+    if (zone.id === store.cityId) return toast('La tienda ya está en esa ciudad', 'info');
+    const check = resolveStoreCity({ selectedId: zone.id, lat: store.lat, lng: store.lng });
+    if (!check.ok && !confirm(`${check.message}\n\n¿Guardar ${zone.name} de todos modos?`)) return;
+
+    const user = getCurrentUser();
+    const profile = getUserProfile() || {};
+    const hasRealCoords = validCoords(store.lat, store.lng) && !isZoneCenterCoords(store.lat, store.lng);
+    const patch = {
+        cityId: zone.id,
+        cityName: zone.name,
+        cityDepartment: zone.department || null,
+        citySource: 'staff',
+        cityFixedBy: user?.uid || null,
+        cityFixedByName: profile.name || profile.email || 'Staff',
+        cityFixedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    };
+    // Sin ubicación real: mover el punto aproximado al centro de la nueva ciudad (igual que al guardar la tienda)
+    if (!hasRealCoords && zone.center) {
+        patch.lat = zone.center.lat;
+        patch.lng = zone.center.lng;
+        patch.locationApprox = true;
+    }
+    try {
+        await updateDoc(publicDoc('stores', storeId), patch);
+        const local = { cityId: patch.cityId, cityName: patch.cityName, cityDepartment: patch.cityDepartment, citySource: 'staff' };
+        if (patch.lat != null) Object.assign(local, { lat: patch.lat, lng: patch.lng, locationApprox: true });
+        [storesCache.get(storeId), viewingStore?.id === storeId ? viewingStore : null, myStore?.id === storeId ? myStore : null]
+            .forEach((o) => { if (o) Object.assign(o, local); });
+        toast(`Ciudad corregida: ${zone.name}`, 'success');
+        if (document.getElementById('staff-stores-review')) {
+            try { await loadSupervisorStores({ keepFilter: true }); } catch (_) {}
+        }
+    } catch (e) {
+        console.error('[stores] staffFixStoreCity', e);
+        toast('No se pudo corregir la ciudad', 'error');
+    }
 }
 
 /* ===================== INVITAR EMPRESA (STAFF → WHATSAPP) ===================== */
@@ -4185,6 +4759,7 @@ export function initMerchantStores(deps = {}) {
     window.loadSupervisorStores = loadSupervisorStores;
     window.staffSetStoreApproval = staffSetStoreApproval;
     window.staffToggleStoreAdultsOnly = staffToggleAdultsOnly;
+    window.staffFixStoreCity = staffFixStoreCity;
 
     // When user logs in, warm listeners lightly
     if (getCurrentUser()?.uid) {
