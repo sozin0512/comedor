@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
 import { getMessaging, getToken, isSupported, onMessage } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js';
-import { doc, getDoc, setDoc, deleteField, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp, FieldPath } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { initTripNotifications, notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert, setAndroidNotificationPermissionCache, getNotificationPermission, holdAndroidNotificationGrant, androidNotificationGrantHeld } from './trip-notifications.js';
 import { isCapacitorNative, isCapacitorAndroid } from './capacitor-native.js';
 import { getMessagingSwUrl } from './pwa-update.js';
@@ -139,6 +139,20 @@ async function ensureAndroidPushChannelsOnce() {
         lightColor: '#25D366'
     };
 
+    // Primero el canal nativo (HonduMessagingService: tono + USAGE_ALARM).
+    // Si Capacitor lo crea primero queda con USAGE_NOTIFICATION; el nativo lo veía
+    // "mal", lo borraba en CADA push (eso cancela el aviso ya pintado) y Android lo
+    // restauraba igual. Capacitor solo si el plugin nativo no existe (APK viejo).
+    let nativeChannelOk = false;
+    try {
+        const SK = registerPlugin('SessionKeepalive');
+        if (SK.ensureTripAlertChannel) {
+            const r = await raceTimeout(SK.ensureTripAlertChannel().then(() => true), 2500, false);
+            nativeChannelOk = r === true;
+        }
+    } catch (_) {}
+    if (nativeChannelOk) return;
+
     for (const ch of [waChannel]) {
         try {
             await raceTimeout(PushNotifications.createChannel(ch), 2500, null);
@@ -154,11 +168,6 @@ async function ensureAndroidPushChannelsOnce() {
     } catch (e) {
         console.warn('[push] local channels:', e);
     }
-
-    try {
-        const SK = registerPlugin('SessionKeepalive');
-        await raceTimeout(SK.ensureTripAlertChannel?.(), 2500, null);
-    } catch (_) {}
 }
 
 /**
@@ -525,6 +534,24 @@ export async function showWebPushSelfTest(body) {
 const FCM_TOKEN_MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000;
 const FCM_TOKEN_MAX_KEEP = 24;
 
+/**
+ * setDoc(..., { merge: true }) con la clave `fcmTokens.<key>` NO entra al mapa:
+ * crea un campo de primer nivel con ese nombre literal (y el servidor no lo leía).
+ * Juntamos las dos formas para podar y borrar.
+ */
+const FCM_LITERAL_PREFIX = 'fcmTokens.';
+function fcmTokenEntriesFromDoc(data) {
+    const out = fcmTokenMapEntries(data?.fcmTokens);
+    for (const [k, v] of Object.entries(data || {})) {
+        if (!k.startsWith(FCM_LITERAL_PREFIX) || !v) continue;
+        const key = k.slice(FCM_LITERAL_PREFIX.length);
+        const token = typeof v === 'string' ? v : (v?.token || '');
+        const updatedAt = typeof v === 'object' ? (Number(v.updatedAt) || 0) : 0;
+        if (key) out.push({ key, token, updatedAt, literal: true });
+    }
+    return out;
+}
+
 function fcmTokenMapEntries(raw) {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
     return Object.entries(raw).map(([key, entry]) => {
@@ -538,34 +565,26 @@ function fcmTokenMapEntries(raw) {
     }).filter((e) => e.key);
 }
 
-function staleFcmTokenDeletePatch(raw, { keepToken = null } = {}) {
-    const entries = fcmTokenMapEntries(raw);
+function staleFcmTokenDeleteKeys(entries, { keepToken = null } = {}) {
     if (!entries.length) return null;
     const cutoff = Date.now() - FCM_TOKEN_MAX_AGE_MS;
+    const idOf = (e) => `${e.literal ? 'L' : 'M'}:${e.key}`;
+    // Campo literal viejo que ya está también dentro del mapa: sobra.
+    const mapKeys = new Set(entries.filter((e) => !e.literal).map((e) => e.key));
     const ranked = [...entries].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     const keep = new Set();
     for (const e of ranked) {
+        if (e.literal && mapKeys.has(e.key)) continue;
         if (keepToken && e.token === keepToken) {
-            keep.add(e.key);
+            keep.add(idOf(e));
             continue;
         }
         if (e.updatedAt > 0 && e.updatedAt < cutoff) continue;
         if (keep.size >= FCM_TOKEN_MAX_KEEP) continue;
-        if (e.updatedAt > 0 || entries.length <= FCM_TOKEN_MAX_KEEP) keep.add(e.key);
+        if (e.updatedAt > 0 || entries.length <= FCM_TOKEN_MAX_KEEP) keep.add(idOf(e));
     }
-    if (keepToken) {
-        const current = entries.find((e) => e.token === keepToken || e.key === keepToken.replace(/\./g, '_'));
-        if (current) keep.add(current.key);
-    }
-    const patch = {};
-    let n = 0;
-    for (const e of entries) {
-        if (!keep.has(e.key)) {
-            patch[`fcmTokens.${e.key}`] = deleteField();
-            n += 1;
-        }
-    }
-    return n ? patch : null;
+    const del = entries.filter((e) => !keep.has(idOf(e)));
+    return del.length ? del : null;
 }
 
 async function pruneStaleFcmTokens(db, appId, uid, keepToken = null) {
@@ -578,8 +597,15 @@ async function pruneStaleFcmTokens(db, appId, uid, keepToken = null) {
         try {
             const snap = await getDoc(ref);
             if (!snap.exists()) continue;
-            const patch = staleFcmTokenDeletePatch(snap.data()?.fcmTokens, { keepToken });
-            if (patch) await setDoc(ref, patch, { merge: true });
+            const del = staleFcmTokenDeleteKeys(fcmTokenEntriesFromDoc(snap.data()), { keepToken });
+            if (!del) continue;
+            // updateDoc sí interpreta `fcmTokens.x`; el literal viejo va con FieldPath.
+            const args = [];
+            for (const e of del) {
+                if (e.literal) args.push(new FieldPath(`${FCM_LITERAL_PREFIX}${e.key}`), deleteField());
+                else args.push(`fcmTokens.${e.key}`, deleteField());
+            }
+            await updateDoc(ref, ...args);
         } catch (e) {
             console.warn('pruneStaleFcmTokens', e?.code || e?.message || e);
         }
@@ -591,11 +617,14 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     claimDevicePushToken(token, platform);
     if (!uid || !db || !appId) return false;
     rememberPushUid(uid);
+    // Objeto anidado + merge: queda DENTRO del mapa fcmTokens (lo que lee el servidor).
     const tokenPatch = {
-        [`fcmTokens.${token.replace(/\./g, '_')}`]: {
-            token,
-            updatedAt: Date.now(),
-            platform
+        fcmTokens: {
+            [token.replace(/\./g, '_')]: {
+                token,
+                updatedAt: Date.now(),
+                platform
+            }
         },
         fcmTokenUpdatedAt: serverTimestamp()
     };
@@ -1179,6 +1208,8 @@ let androidRegisterFlight = null;
 let prefetchedAndroidToken = '';
 let androidPermissionDialogOpen = false;
 let lastAndroidRegisterAt = 0;
+/** true cuando el evento `registration` del plugin entregó el token REAL de este equipo. */
+let androidNativeTokenConfirmed = false;
 
 function readPushTokenValue(token) {
     if (!token) return '';
@@ -1227,6 +1258,7 @@ export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
         if (granted) {
             await persistAndroidToken(ready);
             ensureAndroidPushChannels().catch(() => {});
+            confirmAndroidTokenOnce();
         }
         return ready;
     }
@@ -1246,9 +1278,23 @@ export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
     return got || null;
 }
 
-async function requestAndroidFcmTokenOnce() {
+/**
+ * Con permiso ya dado y un token cacheado (que puede ser viejo o de otro equipo),
+ * un solo register() en segundo plano por sesión. El evento `registration`
+ * reemplaza el token si no coincide. Respeta el "un solo register" del S24.
+ */
+function confirmAndroidTokenOnce() {
+    if (!isCapacitorAndroid() || androidNativeTokenConfirmed) return;
+    if (androidPermissionDialogOpen || androidRegisterFlight) return;
+    if (lastAndroidRegisterAt && Date.now() - lastAndroidRegisterAt < 30000) return;
+    androidRegisterFlight = requestAndroidFcmTokenOnce({ force: true }).catch(() => null).finally(() => {
+        androidRegisterFlight = null;
+    });
+}
+
+async function requestAndroidFcmTokenOnce({ force = false } = {}) {
     await raceTimeout(bindAndroidPushListeners(), 2000, false);
-    if (prefetchedAndroidToken || lastAndroidTokenValue) {
+    if (!force && (prefetchedAndroidToken || lastAndroidTokenValue)) {
         return rememberAndroidToken(prefetchedAndroidToken || lastAndroidTokenValue);
     }
     if (androidPermissionDialogOpen) return null;
@@ -1263,6 +1309,14 @@ async function requestAndroidFcmTokenOnce() {
     lastAndroidRegisterAt = Date.now();
     try { await raceTimeout(PushNotifications.register(), 8000, null); } catch (e) {
         console.warn('[push] register now', e);
+    }
+    if (force) {
+        // El listener `registration` ya guarda el token real; aquí solo esperamos.
+        const t0 = Date.now();
+        while (!androidNativeTokenConfirmed && Date.now() - t0 < 12000) {
+            await new Promise((r) => setTimeout(r, 120));
+        }
+        return prefetchedAndroidToken || lastAndroidTokenValue || null;
     }
     const fromEvent = await waitForAndroidToken(12000);
     if (fromEvent) return rememberAndroidToken(fromEvent);
@@ -1509,6 +1563,12 @@ function bindAndroidPushListeners() {
         await PushNotifications.addListener('registration', async (token) => {
             const tokenValue = readPushTokenValue(token);
             if (!tokenValue) return;
+            androidNativeTokenConfirmed = true;
+            if (lastAndroidTokenValue && lastAndroidTokenValue !== tokenValue) {
+                // El cacheado era viejo o de otro equipo: manda el real.
+                console.warn('[push] token Android cambió; guardo el real de este equipo');
+                lastAndroidTokenValue = '';
+            }
             await rememberAndroidToken(tokenValue);
         });
         await PushNotifications.addListener('registrationError', (err) => {
@@ -1597,39 +1657,29 @@ function latestStoredFcmToken(map, preferPlatform = '') {
     return best;
 }
 
-async function recoverSavedPushTokenFromProfile(db, appId, uid) {
+/**
+ * Solo el token guardado EN ESTE equipo (localStorage).
+ * Antes también tomaba "el más nuevo" del perfil en Firestore: ese puede ser de OTRO
+ * celular de la misma cuenta (p. ej. el TCL). El S24 lo adoptaba como propio, ya no
+ * llamaba register() y los viajes le llegaban al otro teléfono.
+ */
+async function recoverSavedPushTokenFromProfile(_db, _appId, _uid) {
     if (lastAndroidTokenValue || lastWebTokenValue) {
         return lastAndroidTokenValue || lastWebTokenValue;
     }
     try {
         const stored = localStorage.getItem(LAST_FCM_TOKEN_KEY) || '';
+        const storedPlat = localStorage.getItem(LAST_FCM_PLATFORM_KEY) || '';
         if (stored) {
+            if (isCapacitorAndroid() && storedPlat && storedPlat !== 'android') return '';
             const platform = isCapacitorAndroid()
                 ? 'android'
-                : (localStorage.getItem(LAST_FCM_PLATFORM_KEY) || detectWebPushPlatform());
+                : (storedPlat || detectWebPushPlatform());
             claimDevicePushToken(stored, platform);
             return stored;
         }
     } catch (_) {}
-    if (!db || !appId || !uid) return '';
-    const prefer = isCapacitorAndroid() ? 'android' : detectWebPushPlatform();
-    const refs = [
-        doc(db, 'artifacts', appId, 'public', 'data', 'users', uid),
-        doc(db, 'artifacts', appId, 'users', uid, 'profile', 'data')
-    ];
-    let best = null;
-    for (const ref of refs) {
-        try {
-            const snap = await getDoc(ref);
-            if (!snap.exists()) continue;
-            const found = latestStoredFcmToken(snap.data()?.fcmTokens, prefer);
-            if (found && (!best || found.score > best.score)) best = found;
-        } catch (_) {}
-    }
-    if (!best?.token) return '';
-    const platform = best.platform || prefer;
-    claimDevicePushToken(best.token, platform);
-    return best.token;
+    return '';
 }
 
 async function fetchNativeFcmToken(timeoutMs = 4000) {

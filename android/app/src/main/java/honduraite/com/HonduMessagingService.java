@@ -163,11 +163,16 @@ public class HonduMessagingService extends FirebaseMessagingService {
                     AudioAttributes have = existing.getAudioAttributes();
                     wrongUsage = have == null || have.getUsage() != AudioAttributes.USAGE_ALARM;
                 } catch (Exception ignored) {}
+                // NO borrar y recrear el mismo id: Android "des-borra" el canal con sus
+                // ajustes viejos (no arregla nada) y deleteNotificationChannel CANCELA
+                // los avisos ya pintados en ese canal. Como esto corre en cada push,
+                // el aviso de viaje que pintó el sistema desaparecía. Solo registrar.
                 if (noSound || low || wrongUsage) {
-                    try { nm.deleteNotificationChannel(WA_CHANNEL_ID); } catch (Exception ignored) {}
-                } else {
-                    return;
+                    Log.w(TAG, "Canal " + WA_CHANNEL_ID + " existente noSound=" + noSound
+                        + " low=" + low + " usageNoAlarma=" + wrongUsage
+                        + " (se deja; el tono lo refuerza MediaPlayer)");
                 }
+                return;
             }
 
             NotificationChannel ch = new NotificationChannel(
