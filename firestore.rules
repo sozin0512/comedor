@@ -64,6 +64,42 @@ service cloud.firestore {
       return isAdmin(app) || isSupervisor(app);
     }
 
+    // === EDAD (+18) ===
+    // Mayor de edad según la fecha de nacimiento del perfil (YYYY-MM-DD o Timestamp).
+    // Sin fecha o con formato raro = NO es mayor (no recibe tiendas +18).
+    // request.time está en UTC (Honduras es UTC-6): el cambio a 18 puede llegar unas horas antes.
+    function isAdultYmd(y, m, d) {
+      let ny = request.time.year();
+      let nm = request.time.month();
+      let nd = request.time.day();
+      return ny - y > 18
+        || (ny - y == 18 && (nm > m || (nm == m && nd >= d)));
+    }
+
+    function isAdultBirthDate(bd) {
+      return (bd is string
+          && bd.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && isAdultYmd(int(bd.split('-')[0]), int(bd.split('-')[1]), int(bd.split('-')[2])))
+        || (bd is timestamp && isAdultYmd(bd.year(), bd.month(), bd.day()));
+    }
+
+    // Busca birthDate en el perfil público y, si no está, en el privado.
+    function isAdultUser(app) {
+      let pub = get(/databases/$(database)/documents/artifacts/$(app)/public/data/users/$(requestUid()));
+      let priv = get(/databases/$(database)/documents/artifacts/$(app)/users/$(requestUid())/profile/data);
+      return (pub != null && isAdultBirthDate(pub.data.get('birthDate', null)))
+        || (priv != null && isAdultBirthDate(priv.data.get('birthDate', null)));
+    }
+
+    // Staff para LEER tiendas +18. No usa getRole(): `userDoc.exists` no existe en
+    // las reglas (da error y la condición queda en false), así que hoy los supervisores
+    // por role no pasan isStaff(). Aquí se lee el role con .get() para no fallar.
+    function isStoresReaderStaff(app) {
+      let u = get(/databases/$(database)/documents/artifacts/$(app)/public/data/users/$(requestUid()));
+      return request.auth.token.get('email', '') == 'josuesoza0513@gmail.com'
+        || (u != null && u.data.get('role', '') in ['admin', 'supervisor']);
+    }
+
     function isOwner(userId) {
       return isSignedIn() && requestUid() == userId;
     }
@@ -424,12 +460,27 @@ service cloud.firestore {
     // ============================================================
 
     match /artifacts/{app}/public/data/stores/{storeId} {
-      allow read: if isSignedIn();
+      // +18 filtrado en el servidor: una tienda adultsOnly == true solo la leen
+      // el dueño, staff o cuentas con 18+ por fecha de nacimiento.
+      // IMPORTANTE: las reglas no son filtros. La lista general debe consultar
+      // where('adultsOnly', '==', false); una consulta sin ese filtro falla
+      // (permission-denied) para menores y cuentas sin fecha de nacimiento.
+      // Sin .get(campo, default): en consultas el default hace pasar la regla aunque
+      // la consulta no filtre adultsOnly (probado en emulador). Tiendas sin el campo
+      // solo las leen dueño/staff/adultos hasta correr el script de backfill.
+      allow get, list: if isSignedIn() && (
+        resource.data.adultsOnly == false
+        || resource.data.ownerId == requestUid()
+        || isStoresReaderStaff(app)
+        || isAdultUser(app)
+      );
       // Crear tienda: dueño; verificación siempre pending (no auto-aprobar)
+      // adultsOnly siempre presente (bool) para que la consulta general la encuentre
       allow create: if isSignedIn()
         && request.resource.data.ownerId == requestUid()
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
+        && request.resource.data.adultsOnly is bool
         && (
           !('approvalStatus' in request.resource.data)
           || request.resource.data.approvalStatus == 'pending'
@@ -447,6 +498,11 @@ service cloud.firestore {
               request.resource.data.approvalStatus == 'pending'
               && resource.data.approvalStatus == 'rejected'
             )
+          )
+          // El dueño no puede quitar la marca +18 (solo staff)
+          && !(
+            resource.data.get('adultsOnly', false) == true
+            && request.resource.data.get('adultsOnly', false) != true
           )
         )
       );
@@ -582,9 +638,11 @@ service cloud.firestore {
     }
 
     // Catch-all para otras colecciones públicas
+    // 'stores' queda fuera: si no, este allow read (que se suma con OR a la regla de
+    // stores) dejaría que cualquier cuenta leyera tiendas +18.
     match /artifacts/{app}/public/data/{collection}/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && (isOwner(docId) || isStaff(app));
+      allow read: if isSignedIn() && collection != 'stores';
+      allow write: if isSignedIn() && collection != 'stores' && (isOwner(docId) || isStaff(app));
     }
 
     // Seguridad por defecto
