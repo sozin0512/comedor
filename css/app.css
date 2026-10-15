@@ -23754,3 +23754,464 @@ html[data-theme="dark"] .hr-a2hs__sheet { background: #0f172a; }
 html[data-theme="dark"] .hr-a2hs__title { color: #f8fafc; }
 html[data-theme="dark"] .hr-a2hs__lead,
 html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
+
+/* ==========================================================================
+   TIENDAS · DISEÑO NUEVO (propuesta Jack, mockups A1 / A2 / B)
+   Ciudad → categoría, abiertas primero con horario, Zona +18 aparte,
+   panel "Verificar tiendas" con filtros. Prefijo #stores-marketplace-panel
+   para ganarle a las reglas viejas sin tocarlas.
+   ========================================================================== */
+:root {
+  --hr-navy: #0B1E3F;
+  --hr-blue: #0A6CFF;
+  --hr-teal: #00B8A9;
+  --hr-ink: #13203A;
+  --hr-mut: #6B7690;
+  --hr-line: #E6EAF2;
+  --hr-bg: #F4F6FB;
+  --hr-ok: #12A150;
+  --hr-bad: #E5484D;
+  --hr-adult: #7C3AED;
+}
+#stores-marketplace-panel .stores-world-inner { background: var(--hr-bg); }
+#stores-marketplace-panel .stores-world-head {
+  background: #fff;
+  border-bottom: 1px solid var(--hr-line);
+  padding-bottom: 0.7rem;
+}
+#stores-marketplace-panel .stores-world-head-row { gap: 0.5rem; margin-bottom: 0.6rem; }
+#stores-marketplace-panel .stores-title {
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--hr-ink);
+}
+#stores-marketplace-panel .stores-subtitle {
+  margin: 0.1rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--hr-mut);
+}
+#stores-marketplace-panel .stores-subtitle.hidden,
+#stores-marketplace-panel .stores-city-pill.hidden { display: none !important; }
+.stores-city-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 46%;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: var(--hr-navy);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.stores-city-pill > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.stores-city-pill > i { font-size: 0.75rem; flex-shrink: 0; }
+.stores-city-pill select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px; /* evita zoom en iOS */
+}
+#stores-marketplace-panel .stores-world-toolbar { gap: 0.6rem; }
+#stores-marketplace-panel .stores-search-input {
+  background: var(--hr-bg);
+  border-color: transparent;
+  border-radius: 0.9rem;
+  font-weight: 500;
+  color: var(--hr-ink);
+}
+#stores-marketplace-panel .stores-search-input:focus {
+  border-color: var(--hr-blue);
+  box-shadow: 0 0 0 3px rgba(10, 108, 255, 0.15);
+}
+/* Categorías: una fila con scroll, número al lado */
+#stores-marketplace-panel .stores-category-chips {
+  flex-wrap: nowrap !important;
+  overflow-x: auto;
+  gap: 0.5rem;
+  margin: 0 -0.15rem;
+  padding: 0 0.15rem 0.1rem;
+}
+#stores-marketplace-panel .stores-cat-chip {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  gap: 0.3rem;
+  padding: 0.5rem 0.8rem;
+  border: none;
+  background: var(--hr-bg);
+  color: var(--hr-ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.stores-cat-chip-count { color: var(--hr-mut); font-weight: 600; }
+#stores-marketplace-panel .stores-cat-chip.active { background: var(--hr-blue); color: #fff; border: none; }
+#stores-marketplace-panel .stores-cat-chip.active .stores-cat-chip-count { color: #CFE0FF; }
+#stores-marketplace-panel .stores-cat-chip--adult { background: #F1EAFE; color: var(--hr-adult); }
+#stores-marketplace-panel .stores-cat-chip--adult.active { background: var(--hr-adult); color: #fff; }
+.stores-cat-chip-lock { font-size: 0.68rem; }
+/* Acciones de emprendedor: más discretas, debajo de las categorías */
+#stores-marketplace-panel .stores-action-chip { min-height: 2rem; font-size: 0.7rem; border-radius: 0.75rem; }
+
+#stores-marketplace-panel .stores-world-body { padding: 0.9rem 0.9rem 1.5rem; }
+.hr-stores-section { margin-bottom: 1rem; }
+.hr-stores-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0.1rem 0.15rem 0.6rem;
+}
+.hr-stores-section-title {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--hr-ink);
+}
+.hr-stores-section-aside { font-size: 0.75rem; color: var(--hr-mut); }
+.hr-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  margin-right: 0.4rem;
+  background: var(--hr-ok);
+  flex-shrink: 0;
+}
+.hr-dot--closed { background: #B7BFCE; }
+.hr-pill .hr-dot { width: 0.4rem; height: 0.4rem; margin-right: 0.3rem; }
+
+/* Tarjeta de tienda */
+.hr-store-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.8rem;
+  border: none;
+  border-radius: 1.15rem;
+  background: #fff;
+  color: var(--hr-ink);
+  box-shadow: 0 2px 10px rgba(11, 30, 63, 0.06);
+  cursor: pointer;
+}
+.hr-store-card:active { transform: scale(0.99); }
+.hr-store-card.is-closed { opacity: 0.6; filter: grayscale(0.6); }
+.store-card-wrap--pending .hr-store-card { box-shadow: 0 0 0 2px #fcd34d; }
+.hr-store-card-head { display: flex; gap: 0.75rem; align-items: flex-start; min-width: 0; }
+.hr-store-card-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.hr-store-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hr-store-meta { font-size: 0.75rem; color: var(--hr-mut); margin-top: 0.1rem; }
+.hr-store-avatar {
+  position: relative;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 0.9rem;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: 0.02em;
+  background: linear-gradient(135deg, var(--hr-blue), var(--hr-teal));
+}
+.hr-store-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hr-store-avatar--comida { background: linear-gradient(135deg, #0A6CFF, #00B8A9); }
+.hr-store-avatar--pulperia { background: linear-gradient(135deg, #F59E0B, #EF4444); }
+.hr-store-avatar--farmacia { background: linear-gradient(135deg, #10B981, #059669); }
+.hr-store-avatar--tienda { background: linear-gradient(135deg, #EC4899, #8B5CF6); }
+.hr-store-avatar--otro { background: linear-gradient(135deg, #64748B, #334155); }
+.hr-store-avatar--lg { width: 4.75rem; height: 4.75rem; font-size: 1.6rem; border-radius: 1.05rem; }
+.hr-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.45rem; }
+.hr-pills--delivery { margin-top: 0; }
+.hr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--hr-bg);
+  color: var(--hr-ink);
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.hr-pill i { font-size: 0.65rem; color: var(--hr-mut); }
+.hr-pill--open { background: #E3F6EA; color: var(--hr-ok); }
+.hr-pill--closed { background: #FDECEC; color: var(--hr-bad); }
+.hr-pill--adult { background: #F1EAFE; color: var(--hr-adult); }
+.hr-pill--amber { background: #FFF4D6; color: #8A6300; }
+.hr-pill--red { background: #FDECEC; color: var(--hr-bad); }
+.hr-store-products { display: flex; gap: 0.5rem; }
+.hr-store-product {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--hr-line);
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.6rem;
+}
+.hr-store-product-name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hr-store-product-price { font-size: 0.82rem; font-weight: 700; color: var(--hr-blue); margin-top: 0.1rem; }
+.hr-store-card .store-card-owner-id { font-size: 0.62rem; color: #94a3b8; font-weight: 600; }
+/* Tarjetas anchas (una por fila en celular), como en el mockup A1 */
+#stores-marketplace-panel .hr-stores-section .stores-browse-grid {
+  grid-template-columns: 1fr !important;
+  gap: 0.75rem !important;
+}
+@media (min-width: 640px) {
+  #stores-marketplace-panel .hr-stores-section .stores-browse-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (min-width: 1024px) {
+  #stores-marketplace-panel .hr-stores-section .stores-browse-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+
+/* Vacío, Zona +18 y nota */
+.hr-empty-card {
+  background: #fff;
+  border-radius: 1.15rem;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  box-shadow: 0 2px 10px rgba(11, 30, 63, 0.06);
+  margin-bottom: 0.9rem;
+}
+.hr-empty-card--soft { padding: 0.9rem 1rem; }
+.hr-empty-title { margin: 0; font-size: 0.95rem; font-weight: 700; color: var(--hr-ink); }
+.hr-empty-sub { margin: 0.3rem 0 0; font-size: 0.78rem; color: var(--hr-mut); }
+.hr-empty-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: center; margin-top: 0.85rem; }
+.hr-adult-entry,
+.hr-adult-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.8rem;
+  margin-bottom: 0.9rem;
+  border-radius: 1.15rem;
+  border: 1.5px solid #DDD0FB;
+  background: #FAF7FF;
+  color: var(--hr-ink);
+}
+.hr-adult-entry strong,
+.hr-adult-banner strong { display: block; font-size: 0.95rem; font-weight: 700; }
+.hr-adult-entry small,
+.hr-adult-banner small { display: block; font-size: 0.74rem; color: var(--hr-mut); line-height: 1.3; }
+.hr-adult-entry > .fa-chevron-right { color: var(--hr-adult); font-size: 0.8rem; }
+.hr-adult-entry-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.9rem;
+  background: #EDE4FD;
+  color: var(--hr-adult);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.hr-link-btn { border: none; background: none; color: var(--hr-adult); font-weight: 700; font-size: 0.78rem; }
+.hr-stores-footnote {
+  margin: 0.25rem 0 0;
+  padding: 0.4rem 0.75rem;
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--hr-mut);
+}
+
+/* Hoja inferior (verificar edad) y ventana centrada (corregir ciudad) */
+.hr-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.hr-sheet--center { align-items: center; padding: 1rem; }
+.hr-sheet-backdrop { position: absolute; inset: 0; background: rgba(11, 30, 63, 0.45); }
+.hr-sheet-panel {
+  position: relative;
+  width: 100%;
+  max-width: 30rem;
+  background: #fff;
+  border-radius: 1.6rem 1.6rem 0 0;
+  padding: 0.8rem 1.4rem calc(1.3rem + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  text-align: center;
+  color: var(--hr-ink);
+  animation: hr-sheet-up 0.22s ease-out;
+}
+.hr-sheet--center .hr-sheet-panel { border-radius: 1.4rem; padding-bottom: 1.3rem; }
+@keyframes hr-sheet-up { from { transform: translateY(30px); opacity: 0.4; } to { transform: none; opacity: 1; } }
+.hr-sheet-grip { width: 2.6rem; height: 0.3rem; border-radius: 999px; background: #DCE2EE; align-self: center; margin-bottom: 0.4rem; }
+.hr-sheet-icon {
+  align-self: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #E8F0FF;
+  color: var(--hr-blue);
+  font-size: 1.2rem;
+}
+.hr-sheet-icon--adult { background: #F1EAFE; color: var(--hr-adult); }
+.hr-sheet-title { margin: 0.3rem 0 0; font-size: 1.25rem; font-weight: 800; }
+.hr-sheet-text { margin: 0; font-size: 0.85rem; color: var(--hr-mut); line-height: 1.45; }
+.hr-age-fields { display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 0.5rem; margin: 0.4rem 0; }
+.hr-age-select {
+  width: 100%;
+  padding: 0.8rem 0.5rem;
+  border: none;
+  border-radius: 0.9rem;
+  background: var(--hr-bg);
+  color: var(--hr-ink);
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  text-align-last: center;
+}
+.hr-city-pick-select { text-align: left; text-align-last: left; padding-left: 0.9rem; }
+.hr-sheet-btn {
+  width: 100%;
+  padding: 0.9rem;
+  border: none;
+  border-radius: 0.9rem;
+  background: var(--hr-blue);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.hr-sheet-btn--adult { background: var(--hr-adult); }
+.hr-sheet-btn--ghost { background: var(--hr-bg); color: var(--hr-ink); }
+.hr-sheet-btn:disabled { opacity: 0.6; }
+.hr-sheet-note { margin: 0.2rem 0 0; font-size: 0.72rem; color: var(--hr-mut); }
+
+/* Panel "Verificar tiendas" (supervisor) */
+.hr-staff-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.45rem; margin-top: 0.75rem; }
+.hr-staff-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  text-align: left;
+}
+.hr-staff-kpi b { font-size: 1.25rem; font-weight: 800; line-height: 1.1; }
+.hr-staff-kpi span { font-size: 0.66rem; color: #CBD5E1; font-weight: 600; }
+.hr-staff-kpi--adults b { color: #C4B5FD; }
+.hr-staff-kpi.is-active { border-color: #60A5FA; background: rgba(10, 108, 255, 0.25); }
+.hr-staff-filters { display: flex; gap: 0.5rem; }
+.hr-staff-city {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.75rem;
+  border-radius: 0.8rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(15, 23, 42, 0.6);
+  color: #CBD5E1;
+}
+.hr-staff-city select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.65rem 0;
+  border: none;
+  background: transparent;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.hr-staff-city select option { color: #0f172a; }
+.hr-staff-issue-summary,
+.hr-staff-city-warn {
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.7rem;
+  background: rgba(232, 164, 0, 0.14);
+  border: 1px solid rgba(232, 164, 0, 0.35);
+  color: #FCD34D;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.hr-staff-city-warn b { color: #FDE68A; }
+.hr-staff-store .hr-store-avatar { width: 3rem; height: 3rem; font-size: 1rem; }
+.hr-staff-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
+.hr-staff-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.5rem 0.35rem;
+  border-radius: 0.65rem;
+  border: 1px solid transparent;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+}
+.hr-staff-act i { font-size: 0.68rem; flex-shrink: 0; }
+.hr-staff-act--ok { background: rgba(18, 161, 80, 0.16); color: #6EE7B7; }
+.hr-staff-act--bad { background: rgba(229, 72, 77, 0.16); color: #FCA5A5; }
+.hr-staff-act--adult { background: rgba(124, 58, 237, 0.2); color: #C4B5FD; }
+.hr-staff-act--view { background: rgba(10, 108, 255, 0.18); color: #93C5FD; }
+.hr-staff-act--del { background: rgba(229, 72, 77, 0.1); color: #FCA5A5; border-color: rgba(229, 72, 77, 0.3); }
+.hr-staff-act--city { background: rgba(255, 255, 255, 0.06); color: #E2E8F0; border-color: rgba(148, 163, 184, 0.3); }
+.hr-staff-act--city.is-flagged { border-color: rgba(232, 164, 0, 0.6); color: #FCD34D; }
+.hr-staff-act:disabled { opacity: 0.55; }
+@media (max-width: 359px) {
+  .hr-staff-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hr-staff-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Ajustes v5: encabezado compacto y detalle de tienda en tarjeta blanca */
+#stores-marketplace-panel .stores-world-head-row .stores-icon-btn { width: 2.15rem; height: 2.15rem; border-radius: 0.8rem; }
+#stores-marketplace-panel .stores-subtitle { font-size: 0.7rem; line-height: 1.25; }
+#stores-marketplace-panel .stores-city-pill { max-width: 42%; padding: 0.42rem 0.7rem; font-size: 0.76rem; }
+#stores-marketplace-panel .store-detail-head {
+  background: #fff;
+  border: none;
+  border-radius: 1.15rem;
+  box-shadow: 0 2px 10px rgba(11, 30, 63, 0.06);
+}
+#stores-marketplace-panel .store-detail-meta { color: var(--hr-mut); font-weight: 500; }
+.hr-staff-kpis { margin-top: 0; }
