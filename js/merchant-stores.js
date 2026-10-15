@@ -12,7 +12,10 @@ import {
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.07.27.9';
-import { haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId } from './zones.js?v=2026.07.27.9';
+import {
+    haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
+    getAllKnownZones, findNearestZone, isUsZone,
+} from './zones.js?v=2026.07.27.9';
 import { resolvePhotoUrl } from './storage.js?v=2026.08.04.3';
 import { APP_CONFIG } from './config.js?v=2026.08.04.3';
 import { calculateAge } from './age-verification.js?v=2026.08.04.3';
@@ -36,6 +39,9 @@ const ORDER_STATUS = {
     cancelled: { label: 'Cancelado', tone: 'red' },
 };
 
+/** Filtro especial: tiendas +18 fuera de "Todas", categorías y búsqueda general. */
+const ADULT_ZONE_CHIP = { id: 'adultos', label: 'Zona +18', shortLabel: 'Zona +18', icon: 'fa-user-shield' };
+
 /** Estado de verificación de tienda (supervisores). */
 const STORE_APPROVAL = {
     pending: { label: 'En revisión', tone: 'amber', icon: 'fa-hourglass-half' },
@@ -57,12 +63,17 @@ let storageRef = null;
 let getCurrentUser = () => null;
 let getUserProfile = () => null;
 let unsubStores = null;
+/** Listener aparte solo para tiendas +18 (mayores de edad / staff). */
+let unsubAdultStores = null;
 let unsubMerchantOrders = null;
 let unsubClientOrders = null;
 let unsubProducts = null;
 
 /** @type {Map<string, object>} */
 const storesCache = new Map();
+/** Tiendas de la consulta general (sin +18) y de la consulta +18, por separado. */
+const generalStoresById = new Map();
+const adultStoresById = new Map();
 /** @type {object|null} */
 let viewingStore = null;
 /** @type {object[]} */
@@ -318,6 +329,10 @@ function publicDoc(name, id) {
     return doc(dbRef, 'artifacts', appIdRef, 'public', 'data', name, id);
 }
 
+/**
+ * Ciudad elegida en ESTE dispositivo (la del cliente que mira).
+ * Ojo: NO usar como ciudad de una tienda; para eso está resolveStoreCity().
+ */
 function activeCity() {
     const zoneId = getStoredManualZoneId() || getDefaultZoneId();
     const zone = getZoneById(zoneId);
@@ -326,6 +341,120 @@ function activeCity() {
         cityName: zone?.name || 'Comayagua',
         center: zone?.center || null,
     };
+}
+
+/* ===================== CIUDAD DE LA TIENDA ===================== */
+
+/** Distancia máxima (km) entre la ubicación de la tienda y el centro de la ciudad elegida. */
+const STORE_CITY_MAX_KM = 60;
+
+function zoneCountry(z) {
+    if (!z) return null;
+    return isUsZone(z) ? 'us' : (z.country || 'hn');
+}
+
+function validCoords(lat, lng) {
+    const la = Number(lat);
+    const ln = Number(lng);
+    return lat != null && lng != null && lat !== '' && lng !== ''
+        && Number.isFinite(la) && Number.isFinite(ln)
+        && Math.abs(la) <= 90 && Math.abs(ln) <= 180
+        && !(la === 0 && ln === 0);
+}
+
+/**
+ * ¿Las coordenadas son exactamente el centro de alguna ciudad?
+ * Antes, si la tienda no tenía GPS se guardaba el centro de la ciudad del dispositivo
+ * (p. ej. San Jose, California). Esas coordenadas NO son la ubicación real.
+ */
+function isZoneCenterCoords(lat, lng) {
+    if (!validCoords(lat, lng)) return false;
+    const la = Number(lat);
+    const ln = Number(lng);
+    return getAllKnownZones().some((z) => z?.center
+        && Math.abs(z.center.lat - la) < 0.0005
+        && Math.abs(z.center.lng - ln) < 0.0005);
+}
+
+/** Ciudad más cercana a la ubicación real de la tienda (o null si está lejos de todas). */
+function cityFromStoreCoords(lat, lng) {
+    if (!validCoords(lat, lng) || isZoneCenterCoords(lat, lng)) return null;
+    const nearest = findNearestZone(Number(lat), Number(lng));
+    if (!nearest?.zone || nearest.distanceKm > STORE_CITY_MAX_KM) return null;
+    return nearest.zone;
+}
+
+/**
+ * Decide en qué ciudad se publica una tienda. Nunca usa la ciudad del dispositivo en silencio.
+ * Prioridad: ciudad elegida en el formulario (validada contra la ubicación) → ciudad por GPS/coords.
+ * @returns {{ ok: true, zone: object, source: 'manual'|'coords' } | { ok: false, message: string, suggested?: object }}
+ */
+function resolveStoreCity({ selectedId = '', lat = null, lng = null } = {}) {
+    const chosen = selectedId ? getZoneById(selectedId) : null;
+    const realCoords = validCoords(lat, lng) && !isZoneCenterCoords(lat, lng);
+    const fromCoords = realCoords ? cityFromStoreCoords(lat, lng) : null;
+
+    if (!chosen) {
+        if (fromCoords) return { ok: true, zone: fromCoords, source: 'coords' };
+        return { ok: false, message: 'Elige la ciudad donde está tu tienda.' };
+    }
+    if (realCoords && chosen.center) {
+        const dist = haversineKm(Number(lat), Number(lng), chosen.center.lat, chosen.center.lng);
+        const nearest = findNearestZone(Number(lat), Number(lng));
+        const sameCountry = !nearest?.zone || zoneCountry(nearest.zone) === zoneCountry(chosen);
+        if (!sameCountry || dist > STORE_CITY_MAX_KM) {
+            const hint = fromCoords ? ` Según la ubicación parece ${fromCoords.name}.` : '';
+            return {
+                ok: false,
+                suggested: fromCoords || null,
+                message: `La ubicación de la tienda está a ${Math.round(dist)} km de ${chosen.name}.${hint} Revisa la ciudad o la ubicación.`,
+            };
+        }
+    }
+    return { ok: true, zone: chosen, source: 'manual' };
+}
+
+/** Ciudad inicial del selector del formulario (visible y editable por el dueño). */
+function initialStoreCityId(store) {
+    const fromCoords = cityFromStoreCoords(store?.lat, store?.lng);
+    const saved = store?.cityId ? getZoneById(store.cityId) : null;
+    if (fromCoords) {
+        const check = saved ? resolveStoreCity({ selectedId: saved.id, lat: store?.lat, lng: store?.lng }) : null;
+        return check?.ok ? saved.id : fromCoords.id;
+    }
+    // Sin ubicación real: una ciudad de EE. UU. guardada es casi seguro el error "San Jose" → que la elija
+    if (saved && !isUsZone(saved)) return saved.id;
+    if (store?.id) return '';
+    // Tienda nueva: sugerir la ciudad del dispositivo solo si es de Honduras (el error "San Jose" venía de aquí).
+    const device = getZoneById(activeCity().cityId);
+    return device && !isUsZone(device) ? device.id : '';
+}
+
+/** <option> de ciudades: Honduras primero (por departamento), luego EE. UU. */
+function buildStoreCityOptionsHtml(selectedId = '') {
+    const zones = getAllKnownZones().filter((z) => z?.id && z?.name);
+    const groups = new Map();
+    zones.forEach((z) => {
+        const us = isUsZone(z);
+        const label = us ? `EE. UU. · ${z.department || 'Otras'}` : (z.department || 'Otras');
+        if (!groups.has(label)) groups.set(label, { us, list: [] });
+        groups.get(label).list.push(z);
+    });
+    const labels = [...groups.keys()].sort((a, b) => {
+        const ua = groups.get(a).us ? 1 : 0;
+        const ub = groups.get(b).us ? 1 : 0;
+        return ua - ub || a.localeCompare(b, 'es');
+    });
+    let html = `<option value="" ${selectedId ? '' : 'selected'} disabled>Elige la ciudad de tu tienda…</option>`;
+    labels.forEach((label) => {
+        const list = groups.get(label).list.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'es'));
+        html += `<optgroup label="${esc(label)}">`;
+        list.forEach((z) => {
+            html += `<option value="${esc(z.id)}" ${z.id === selectedId ? 'selected' : ''}>${esc(z.name)}</option>`;
+        });
+        html += '</optgroup>';
+    });
+    return html;
 }
 
 function cartCount() {
@@ -691,19 +820,78 @@ function bindUiHooks() {
 
 /* ===================== DATA ===================== */
 
+/** ¿Puede recibir tiendas +18 del servidor? (las reglas de Firestore validan lo mismo) */
+function canSeeAdultStores() {
+    return isStoresStaff() || userIsAdult18();
+}
+
+function rebuildStoresCache() {
+    storesCache.clear();
+    generalStoresById.forEach((v, k) => storesCache.set(k, v));
+    adultStoresById.forEach((v, k) => storesCache.set(k, v));
+    if (!document.getElementById('stores-marketplace-panel')?.classList.contains('hidden')
+        && marketplaceView === 'list') {
+        renderMarketplace();
+    }
+    refreshMyStoreFromCache();
+}
+
+/**
+ * Tiendas del marketplace. Las +18 se filtran EN EL SERVIDOR (firestore.rules):
+ * - Consulta general: solo adultsOnly == false (la reciben todos, también menores).
+ * - Consulta +18: solo si el perfil tiene 18+ por fecha de nacimiento (o es staff).
+ *   Un menor que intente esta consulta recibe permission-denied.
+ * Las reglas no filtran: por eso cada consulta lleva el filtro que la regla exige.
+ */
 function startStoresListener() {
-    if (unsubStores) return;
-    // Límite alto para marketplace con muchos negocios (filtrado en cliente por ciudad/búsqueda)
-    const q = query(publicCol('stores'), where('active', '==', true), limit(300));
-    unsubStores = onSnapshot(q, (snap) => {
-        storesCache.clear();
-        snap.forEach((d) => storesCache.set(d.id, { id: d.id, ...d.data() }));
-        if (!document.getElementById('stores-marketplace-panel')?.classList.contains('hidden')
-            && marketplaceView === 'list') {
-            renderMarketplace();
+    if (!unsubStores) {
+        // Límite alto para marketplace con muchos negocios (filtrado en cliente por ciudad/búsqueda)
+        const q = query(publicCol('stores'),
+            where('active', '==', true),
+            where('adultsOnly', '==', false),
+            limit(300));
+        unsubStores = onSnapshot(q, (snap) => {
+            generalStoresById.clear();
+            snap.forEach((d) => generalStoresById.set(d.id, { id: d.id, ...d.data() }));
+            rebuildStoresCache();
+        }, (err) => {
+            console.warn('[stores] listener', err);
+            unsubStores = null;
+        });
+    }
+    syncAdultStoresListener();
+}
+
+/** Prende/apaga la consulta +18 según la edad del perfil (se llama al abrir Tiendas). */
+function syncAdultStoresListener() {
+    const allowed = canSeeAdultStores();
+    if (!allowed) {
+        if (unsubAdultStores) {
+            try { unsubAdultStores(); } catch (_) {}
+            unsubAdultStores = null;
         }
-        refreshMyStoreFromCache();
-    }, (err) => console.warn('[stores] listener', err));
+        if (adultStoresById.size) {
+            adultStoresById.clear();
+            rebuildStoresCache();
+        }
+        return;
+    }
+    if (unsubAdultStores) return;
+    const q = query(publicCol('stores'),
+        where('active', '==', true),
+        where('adultsOnly', '==', true),
+        limit(300));
+    unsubAdultStores = onSnapshot(q, (snap) => {
+        adultStoresById.clear();
+        snap.forEach((d) => adultStoresById.set(d.id, { id: d.id, ...d.data() }));
+        rebuildStoresCache();
+    }, (err) => {
+        // permission-denied = el servidor no lo considera mayor de edad (o sin fecha de nacimiento)
+        console.warn('[stores] listener +18', err?.code || err);
+        unsubAdultStores = null;
+        adultStoresById.clear();
+        rebuildStoresCache();
+    });
 }
 
 function refreshMyStoreFromCache() {
@@ -1020,7 +1208,10 @@ function renderCategoryChips() {
     const chips = [
         { id: 'all', label: 'Todas', shortLabel: 'Todas', icon: 'fa-border-all' },
         ...STORE_CATEGORIES,
+        // Zona +18: solo aparece para mayores de edad (por fecha de nacimiento) y staff
+        ...(canSeeAdultStores() ? [ADULT_ZONE_CHIP] : []),
     ];
+    if (storesCategoryFilter === ADULT_ZONE_CHIP.id && !canSeeAdultStores()) storesCategoryFilter = 'all';
     wrap.innerHTML = chips.map((c) => {
         const short = c.shortLabel || c.label;
         return `
@@ -1044,8 +1235,14 @@ function filteredStoreList() {
         all = all.filter((s) => isStoreApprovedForPublic(s));
     }
 
-    if (storesCategoryFilter && storesCategoryFilter !== 'all') {
-        all = all.filter((s) => (s.category || 'otro') === storesCategoryFilter);
+    // +18 nunca en la lista general (Todas, categorías ni búsqueda); solo en la Zona +18
+    if (storesCategoryFilter === ADULT_ZONE_CHIP.id) {
+        all = canSeeAdultStores() ? all.filter((s) => isStoreAdultsOnly(s)) : [];
+    } else {
+        all = all.filter((s) => !isStoreAdultsOnly(s));
+        if (storesCategoryFilter && storesCategoryFilter !== 'all') {
+            all = all.filter((s) => (s.category || 'otro') === storesCategoryFilter);
+        }
     }
 
     const local = all.filter((s) => !s.cityId || s.cityId === city.cityId);
@@ -1590,7 +1787,21 @@ function merchantOrderActionsHtml(o) {
 }
 
 async function openStore(storeId) {
-    const store = storesCache.get(storeId) || (await getDoc(publicDoc('stores', storeId)).then((d) => d.exists() ? { id: d.id, ...d.data() } : null));
+    let store = storesCache.get(storeId) || null;
+    if (!store) {
+        try {
+            const d = await getDoc(publicDoc('stores', storeId));
+            store = d.exists() ? { id: d.id, ...d.data() } : null;
+        } catch (e) {
+            // Las reglas niegan tiendas +18 a menores o cuentas sin fecha de nacimiento
+            if (e?.code === 'permission-denied') {
+                return toast(getCurrentUser()
+                    ? 'Esta tienda es solo para mayores de 18. Revisa tu fecha de nacimiento en el perfil.'
+                    : 'Inicia sesión para ver esta tienda.', 'warning');
+            }
+            console.warn('[stores] openStore', e);
+        }
+    }
     if (!store) return toast('Tienda no encontrada', 'error');
 
     const uid = getCurrentUser()?.uid;
@@ -2135,7 +2346,10 @@ function renderMerchantStoreForm() {
     // En modo "crear nueva" el formulario va vacío aunque ya exista otra tienda
     const editingExisting = !merchantCreateMode && myStore;
     const s = editingExisting ? myStore : {};
-    const city = activeCity();
+    const storeCityId = initialStoreCityId(s);
+    const savedCityMismatch = editingExisting && s.cityId && storeCityId !== s.cityId;
+    // +18 marcado: el dueño no puede quitarlo (solo un supervisor)
+    const adultsLocked = !!(editingExisting && isStoreAdultsOnly(s) && !isStoresStaff());
     const cats = STORE_CATEGORIES.map((c) =>
         `<option value="${c.id}" ${s.category === c.id ? 'selected' : ''}>${esc(c.label)}</option>`
     ).join('');
@@ -2184,15 +2398,24 @@ function renderMerchantStoreForm() {
                 <select id="m-store-category" class="stores-input">${cats}</select></label>
             <label class="stores-field"><span>Descripción</span>
                 <textarea id="m-store-desc" class="stores-input" rows="2" placeholder="Qué vendes...">${esc(s.description || '')}</textarea></label>
+            <label class="stores-field"><span>Ciudad de la tienda *</span>
+                <select id="m-store-city" class="stores-input" required>${buildStoreCityOptionsHtml(storeCityId)}</select></label>
+            ${savedCityMismatch ? `
+                <p class="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    <i class="fas fa-exclamation-triangle"></i> Tu tienda estaba publicada en <b>${esc(s.cityName || s.cityId)}</b>.
+                    Revisa la ciudad y toca guardar para corregirla.
+                </p>` : ''}
             <label class="stores-field"><span>Dirección / punto de recogida *</span>
                 <input id="m-store-address" class="stores-input" required value="${esc(s.address || '')}" placeholder="Colonia, calle, referencia"></label>
             <label class="stores-field"><span>WhatsApp del negocio *</span>
                 <input id="m-store-phone" class="stores-input" required value="${esc(s.phone || (!editingExisting ? (getUserProfile()?.phone || '') : ''))}" placeholder="+504..."></label>
             <label class="stores-field stores-field--check" style="flex-direction:row;align-items:flex-start;gap:0.65rem;cursor:pointer;">
-                <input type="checkbox" id="m-store-adults-only" ${s.adultsOnly ? 'checked' : ''} style="width:1.1rem;height:1.1rem;margin-top:0.15rem;flex-shrink:0;">
+                <input type="checkbox" id="m-store-adults-only" ${isStoreAdultsOnly(s) ? 'checked' : ''} ${adultsLocked ? 'disabled' : ''} style="width:1.1rem;height:1.1rem;margin-top:0.15rem;flex-shrink:0;">
                 <span>
                     <strong class="block text-sm text-slate-800">Tienda solo para mayores de 18 (+18)</strong>
-                    <small class="text-[10px] text-slate-500 font-semibold leading-snug">Ej. alcohol, tabaco u otros productos restringidos. Un supervisor lo confirma al verificar.</small>
+                    <small class="text-[10px] text-slate-500 font-semibold leading-snug">${adultsLocked
+                        ? 'Marcada +18. Solo un supervisor puede quitar esta marca.'
+                        : 'Ej. alcohol, tabaco u otros productos restringidos. Un supervisor lo confirma al verificar.'}</small>
                 </span>
             </label>
             ${editingExisting ? (() => {
@@ -2228,7 +2451,7 @@ function renderMerchantStoreForm() {
             <button type="button" class="stores-secondary-btn w-full" data-merchant-action="use-gps">
                 <i class="fas fa-crosshairs"></i> Usar mi GPS como ubicación de la tienda
             </button>
-            <p class="text-[11px] text-slate-500">Ciudad de publicación: <b>${esc(s.cityName || city.cityName)}</b></p>
+            <p class="text-[11px] text-slate-500">Los clientes verán tu tienda en la ciudad que elijas arriba. Si usas el GPS, la ciudad se elige sola.</p>
             <button type="button" class="stores-primary-btn w-full" data-merchant-action="save-store">
                 ${editingExisting ? 'Guardar cambios' : 'Crear mi tienda'}
             </button>
@@ -2244,7 +2467,7 @@ function renderMerchantStoreForm() {
 
 function buildStoreCatalogShareText(store, products) {
     const name = store?.name || 'Mi tienda';
-    const city = store?.cityName || activeCity().cityName || '';
+    const city = store?.cityName || '';
     const available = (products || []).filter((p) => p.available !== false);
     const lines = available.slice(0, 40).map((p) => {
         const price = Number(p.price);
@@ -2582,11 +2805,22 @@ async function saveStore() {
     if (!address || address.length < 4) return toast('Dirección de recogida requerida', 'warning');
     if (!phone) return toast('WhatsApp del negocio requerido', 'warning');
 
-    const city = activeCity();
-    // If no coords, use city center as soft location
-    const finalLat = Number.isFinite(lat) ? lat : (city.center?.lat ?? null);
-    const finalLng = Number.isFinite(lng) ? lng : (city.center?.lng ?? null);
-    const adultsOnly = !!document.getElementById('m-store-adults-only')?.checked;
+    // Ciudad REAL de la tienda (elegida y validada con la ubicación). Ya no se usa la ciudad del dispositivo.
+    const selectedCityId = document.getElementById('m-store-city')?.value || '';
+    const cityCheck = resolveStoreCity({ selectedId: selectedCityId, lat, lng });
+    if (!cityCheck.ok) {
+        if (cityCheck.suggested) {
+            const sel = document.getElementById('m-store-city');
+            if (sel && !sel.value) sel.value = cityCheck.suggested.id;
+        }
+        return toast(cityCheck.message, 'warning');
+    }
+    const storeCity = cityCheck.zone;
+    // Sin GPS (o con el centro de otra ciudad guardado por error): usar el centro de la ciudad de la tienda
+    const hasRealCoords = validCoords(lat, lng) && !isZoneCenterCoords(lat, lng);
+    const finalLat = hasRealCoords ? lat : (storeCity.center?.lat ?? null);
+    const finalLng = hasRealCoords ? lng : (storeCity.center?.lng ?? null);
+    const adultsChecked = !!document.getElementById('m-store-adults-only')?.checked;
 
     // Revalidar: máximo 1 tienda por usuario
     await loadMyStore();
@@ -2596,6 +2830,9 @@ async function saveStore() {
         toast('Ya tienes una tienda. Solo se permite una por cuenta.', 'warning');
         return openMerchantPanel({ createNew: false });
     }
+
+    // Si un supervisor la marcó +18, el dueño no puede quitarlo (las reglas también lo impiden)
+    const adultsOnly = adultsChecked || (!isNewStore && isStoreAdultsOnly(myStore) && !isStoresStaff());
 
     const prevStatus = !isNewStore ? storeApprovalStatus(myStore) : 'pending';
     // Si estaba rechazada y edita, vuelve a revisión. No puede auto-aprobarse.
@@ -2614,8 +2851,11 @@ async function saveStore() {
         phone,
         lat: finalLat,
         lng: finalLng,
-        cityId: (!isNewStore && myStore?.cityId) ? myStore.cityId : city.cityId,
-        cityName: (!isNewStore && myStore?.cityName) ? myStore.cityName : city.cityName,
+        cityId: storeCity.id,
+        cityName: storeCity.name,
+        cityDepartment: storeCity.department || null,
+        citySource: cityCheck.source,
+        locationApprox: !hasRealCoords,
         isOpen: isNewStore ? true : (myStore?.isOpen !== false),
         active: true,
         adultsOnly,
@@ -2709,7 +2949,10 @@ async function useGpsForStore() {
             const lngEl = document.getElementById('m-store-lng');
             if (latEl) latEl.value = String(pos.coords.latitude.toFixed(6));
             if (lngEl) lngEl.value = String(pos.coords.longitude.toFixed(6));
-            toast('Ubicación GPS cargada', 'success');
+            const gpsCity = cityFromStoreCoords(pos.coords.latitude, pos.coords.longitude);
+            const citySel = document.getElementById('m-store-city');
+            if (gpsCity && citySel) citySel.value = gpsCity.id;
+            toast(gpsCity ? `Ubicación GPS cargada · ${gpsCity.name}` : 'Ubicación GPS cargada', 'success');
         },
         () => toast('No se pudo obtener GPS', 'error'),
         { enableHighAccuracy: true, timeout: 12000 }
