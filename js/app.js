@@ -4507,6 +4507,51 @@ if (document.readyState === 'loading') {
             return el;
         }
 
+        /** Guía corta cuando la prueba no llega: permisos, canal con sonido y batería. */
+        function showPushHelpGuide(reason = '') {
+            document.getElementById('hr-push-help')?.remove();
+            const android = isCapacitorAndroid();
+            const ios = isIOS();
+            const steps = android
+                ? [
+                    'Ajustes → Apps → HonduRaite → Notificaciones: actívalas y abre <strong>“HonduRaite viajes”</strong>: sonido activado y “Mostrar como emergente”.',
+                    'Ajustes → Apps → HonduRaite → Batería: <strong>Sin restricciones</strong>.',
+                    'Samsung: Ajustes → Batería → Límites de uso en segundo plano: quita HonduRaite de <strong>Apps en suspensión</strong> y <strong>suspensión profunda</strong>.',
+                    'No cierres la app deslizándola del selector de apps ni uses “Forzar detención”.'
+                ]
+                : ios
+                    ? [
+                        'Necesitas iOS 16.4 o más nuevo.',
+                        'En Safari: Compartir → <strong>Agregar a pantalla de inicio</strong>, y abre HonduRaite desde ese ícono (no desde Safari).',
+                        'Toca Activar avisos y luego <strong>Permitir</strong>.',
+                        'Ajustes → Notificaciones → HonduRaite: Permitir, Sonidos y Banners activados. Modo Concentración apagado.'
+                    ]
+                    : [
+                        'Permite las notificaciones de este sitio en el navegador (candado → Notificaciones → Permitir).',
+                        'Deja el navegador abierto en segundo plano.'
+                    ];
+            const el = document.createElement('div');
+            el.id = 'hr-push-help';
+            el.style.cssText = 'position:fixed;inset:0;z-index:40001;background:rgba(15,23,42,0.85);display:flex;align-items:center;justify-content:center;padding:20px;';
+            el.innerHTML = `
+                <div style="background:#fff;border-radius:20px;padding:20px;max-width:360px;width:100%;">
+                    <p style="margin:0 0 6px;font-size:16px;font-weight:800;color:#0f172a;">Los avisos no llegan a este ${android ? 'celular' : (ios ? 'iPhone' : 'navegador')}</p>
+                    ${reason ? `<p style="margin:0 0 10px;font-size:12px;color:#64748b;">${reason}</p>` : ''}
+                    <ol style="margin:0;padding-left:18px;font-size:13px;line-height:1.45;color:#334155;">${steps.map((t) => `<li style="margin-bottom:6px;">${t}</li>`).join('')}</ol>
+                    <div style="display:flex;gap:8px;margin-top:14px;">
+                        ${android ? '<button type="button" data-hr-open-settings style="flex:1;padding:10px;border-radius:12px;background:#0f172a;color:#fff;font-weight:700;font-size:13px;">Abrir ajustes</button>' : ''}
+                        <button type="button" data-hr-close style="flex:1;padding:10px;border-radius:12px;background:#e2e8f0;color:#0f172a;font-weight:700;font-size:13px;">Listo</button>
+                    </div>
+                </div>`;
+            el.querySelector('[data-hr-close]')?.addEventListener('click', () => el.remove());
+            el.querySelector('[data-hr-open-settings]')?.addEventListener('click', () => {
+                openAndroidNotificationSettings?.().catch?.(() => {});
+            });
+            document.body.appendChild(el);
+            return el;
+        }
+        window.showPushHelpGuide = showPushHelpGuide;
+
         async function sendRealPushSelfTest({ alreadyReady = false } = {}) {
             const pingFn = pingMyPushFromClient || window.pingMyPushFromClient;
             if (typeof pingFn !== 'function') return { sent: 0 };
@@ -4528,6 +4573,13 @@ if (document.readyState === 'loading') {
                     await new Promise((r) => setTimeout(r, 900));
                 }
                 const ping = await pingFn();
+                try { console.info('[push] prueba', JSON.stringify(ping)); } catch (_) {}
+                if (ping?.sent > 0 && ping?.inProfile === false) {
+                    // La prueba va directo al token; un viaje real usa el perfil.
+                    window.showToast('La prueba salió, pero este equipo todavía no quedó guardado para viajes. Abre la app otra vez en un minuto.', 'warning');
+                } else if (ping?.sent === 0 && Array.isArray(ping?.errors) && ping.errors.length) {
+                    showPushHelpGuide(`FCM: ${ping.errors.map((e) => e.code || 'error').join(', ')}`);
+                }
                 if (ping?.sent > 0) {
                     window.showToast(
                         isCapacitorAndroid()
