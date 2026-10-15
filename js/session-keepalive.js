@@ -80,10 +80,17 @@ export async function startAndroidSessionKeepalive(options = {}) {
             driverMode: !!(driverMode || tripMode),
             tripMode: !!tripMode,
         });
-        await ensureOverlayPermission();
-        const needsWake = !!(driverMode || tripMode);
-        await ensureBatteryExemption(needsWake);
-        await ensureFullScreenIntentPermission(needsWake);
+        // Conductor en el S24: batería / pantalla completa / "sobre otras apps" abren
+        // diálogos y Ajustes que pausan la app justo cuando el aviso está registrando.
+        // Sin token todavía no se piden: se piden en la próxima vuelta (o al quedar el token).
+        const pushTokenReady = !!(window.hasAndroidFcmToken?.()
+            || localStorage.getItem('honduber_fcm_token_last'));
+        if (pushTokenReady) {
+            await ensureOverlayPermission();
+            const needsWake = !!(driverMode || tripMode);
+            await ensureBatteryExemption(needsWake);
+            await ensureFullScreenIntentPermission(needsWake);
+        }
         // Sin token no toques canales ni pidas el permiso otra vez:
         // en el S24 Ultra eso traba el puente y el aviso no se activa.
         try {
