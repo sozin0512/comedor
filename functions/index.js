@@ -3,7 +3,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
-const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, FieldPath, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 
 initializeApp();
@@ -1710,6 +1710,57 @@ function fcmTokenMapEntries(raw) {
     }).filter((e) => e.key);
 }
 
+/**
+ * Desde el 2026-08-31 saveFcmToken (cliente) y persistCallerDeviceToken (Admin)
+ * escribían con set(..., { merge: true }) y la clave `fcmTokens.<key>`.
+ * set() NO interpreta puntos: el token quedaba en un campo de primer nivel
+ * llamado literalmente "fcmTokens.<key>" y no dentro del mapa fcmTokens,
+ * así que getUserPushMeta no lo veía (solo funcionaban tokens viejos o la
+ * prueba con targetToken). Aquí se juntan las dos formas.
+ */
+const FCM_LITERAL_PREFIX = 'fcmTokens.';
+
+function fcmTokenMapFromDoc(docData) {
+    if (!docData || typeof docData !== 'object') return null;
+    const out = {};
+    let n = 0;
+    for (const [k, v] of Object.entries(docData)) {
+        if (!k.startsWith(FCM_LITERAL_PREFIX) || !v) continue;
+        const key = k.slice(FCM_LITERAL_PREFIX.length);
+        if (!key) continue;
+        if (typeof v === 'object') out[key] = { ...v, literalField: true };
+        else if (typeof v === 'string') out[key] = { token: v, updatedAt: 0, literalField: true };
+        n += 1;
+    }
+    const map = docData.fcmTokens;
+    if (map && typeof map === 'object' && !Array.isArray(map)) {
+        for (const [k, v] of Object.entries(map)) {
+            const prev = out[k];
+            const at = (v && typeof v === 'object') ? (Number(v.updatedAt) || 0) : 0;
+            if (!prev || at >= (Number(prev.updatedAt) || 0)) out[k] = v;
+            n += 1;
+        }
+    } else if (Array.isArray(map) || typeof map === 'string') {
+        for (const e of fcmTokenMapEntries(map)) {
+            if (!out[e.key]) out[e.key] = { token: e.token, updatedAt: e.updatedAt || 0 };
+            n += 1;
+        }
+    }
+    return n ? out : null;
+}
+
+/** Borra tokens en el mapa (`fcmTokens.key`) y en el campo literal viejo. */
+async function deleteFcmTokenKeys(ref, keys) {
+    const uniq = [...new Set((keys || []).filter(Boolean))];
+    if (!uniq.length) return;
+    const args = [];
+    for (const key of uniq) {
+        args.push(`fcmTokens.${key}`, FieldValue.delete());
+        args.push(new FieldPath(`${FCM_LITERAL_PREFIX}${key}`), FieldValue.delete());
+    }
+    await ref.update(...args);
+}
+
 function liveFcmTokenRecordsFromMaps(maps, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, maxKeep = FCM_TOKEN_MAX_KEEP } = {}) {
     const byToken = new Map();
     for (const raw of maps) {
@@ -1764,13 +1815,14 @@ function staleFcmTokenDeletePatch(raw, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, maxKee
 
 async function pruneUserFcmTokenMaps(appId, uid, pubTokens, privTokens) {
     const jobs = [];
+    const keysOf = (patch) => Object.keys(patch || {}).map((k) => k.slice(FCM_LITERAL_PREFIX.length));
     const pubPatch = staleFcmTokenDeletePatch(pubTokens);
     const privPatch = staleFcmTokenDeletePatch(privTokens);
     if (pubPatch) {
-        jobs.push(db.doc(`artifacts/${appId}/public/data/users/${uid}`).update(pubPatch).catch(() => {}));
+        jobs.push(deleteFcmTokenKeys(db.doc(`artifacts/${appId}/public/data/users/${uid}`), keysOf(pubPatch)).catch(() => {}));
     }
     if (privPatch) {
-        jobs.push(db.doc(`artifacts/${appId}/users/${uid}/profile/data`).update(privPatch).catch(() => {}));
+        jobs.push(deleteFcmTokenKeys(db.doc(`artifacts/${appId}/users/${uid}/profile/data`), keysOf(privPatch)).catch(() => {}));
     }
     if (jobs.length) await Promise.all(jobs);
     return jobs.length;
@@ -2399,13 +2451,15 @@ async function getUserPushMeta(appId, uid) {
     ]);
     const pub = pubSnap?.exists ? (pubSnap.data() || {}) : {};
     const priv = privSnap?.exists ? (privSnap.data() || {}) : {};
-    const records = liveFcmTokenRecordsFromMaps([pub.fcmTokens, priv.fcmTokens, pub.fcmToken, priv.fcmToken]);
+    const pubMap = fcmTokenMapFromDoc(pub);
+    const privMap = fcmTokenMapFromDoc(priv);
+    const records = liveFcmTokenRecordsFromMaps([pubMap, privMap, pub.fcmToken, priv.fcmToken]);
     const tokens = records.map((e) => e.token);
     const platforms = [...new Set(records.map((e) => e.platform).filter(Boolean))];
-    const bloated = fcmTokenMapEntries(pub.fcmTokens).length > FCM_TOKEN_MAX_KEEP
-        || fcmTokenMapEntries(priv.fcmTokens).length > FCM_TOKEN_MAX_KEEP;
+    const bloated = fcmTokenMapEntries(pubMap).length > FCM_TOKEN_MAX_KEEP
+        || fcmTokenMapEntries(privMap).length > FCM_TOKEN_MAX_KEEP;
     if (bloated) {
-        pruneUserFcmTokenMaps(appId, uid, pub.fcmTokens, priv.fcmTokens).catch(() => {});
+        pruneUserFcmTokenMaps(appId, uid, pubMap, privMap).catch(() => {});
     }
     const mode = pub.pushSoundMode === 'soft' || pub.pushSoundMode === 'normal'
         ? pub.pushSoundMode
@@ -2436,11 +2490,14 @@ async function persistCallerDeviceToken(appId, uid, token, platform) {
     if (!uid || !looksLikeFcmToken(token)) return false;
     const key = token.replace(/\./g, '_');
     const plat = String(platform || '').trim().toLowerCase() || 'web';
+    // Objeto anidado: set+merge no expande `fcmTokens.x` (quedaba como campo literal).
     const patch = {
-        [`fcmTokens.${key}`]: {
-            token,
-            updatedAt: Date.now(),
-            platform: plat
+        fcmTokens: {
+            [key]: {
+                token,
+                updatedAt: Date.now(),
+                platform: plat
+            }
         },
         fcmTokenUpdatedAt: FieldValue.serverTimestamp()
     };
@@ -2578,8 +2635,12 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     // Data-only + showNotification en el SW = barra de notificaciones.
     // Web/iOS: webpush.notification SIN notification de raíz.
     // La de raíz hace que iPhone lo pinte solo con la app abierta (y el Android de la misma cuenta sí suena).
+    // android también aquí: tokens viejos sin `platform` caen en webTokens y,
+    // si son de un APK, sin android.priority llegaban en prioridad normal (Doze = tarde).
+    // FCM ignora el bloque android para tokens web.
     const webPayload = {
         data: dataFields,
+        android: androidConfig,
         webpush: {
             headers: {
                 Urgency: 'high',
@@ -2624,6 +2685,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     const CHUNK = 500;
     let sent = 0;
     const invalid = [];
+    const errors = [];
     const uniqueAll = [...new Set([...(androidTokens || []), ...(webTokens || [])].filter(Boolean))];
 
     async function sendChunks(base, list, label) {
@@ -2635,7 +2697,12 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
             (res.responses || []).forEach((r, idx) => {
                 if (r.success) return;
                 const code = r.error?.code || '';
-                if (code === 'messaging/registration-token-not-registered') {
+                errors.push({ via: label, code, token: String(chunk[idx] || '').slice(-8) });
+                if (
+                    code === 'messaging/registration-token-not-registered'
+                    || code === 'messaging/invalid-registration-token'
+                ) {
+                    console.warn(`[push] token invalido uid=${uid} via=${label} code=${code} tok=…${String(chunk[idx] || '').slice(-8)}`);
                     invalid.push(chunk[idx]);
                     return;
                 }
@@ -2648,13 +2715,10 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     await sendChunks(webPayload, webTokens, 'web');
 
     if (invalid.length) {
-        const updates = {};
-        invalid.forEach((token) => {
-            updates[`fcmTokens.${token.replace(/\./g, '_')}`] = FieldValue.delete();
-        });
+        const keys = invalid.map((token) => token.replace(/\./g, '_'));
         await Promise.all([
-            db.doc(`artifacts/${appId}/public/data/users/${uid}`).update(updates).catch(() => {}),
-            db.doc(`artifacts/${appId}/users/${uid}/profile/data`).update(updates).catch(() => {})
+            deleteFcmTokenKeys(db.doc(`artifacts/${appId}/public/data/users/${uid}`), keys).catch(() => {}),
+            deleteFcmTokenKeys(db.doc(`artifacts/${appId}/users/${uid}/profile/data`), keys).catch(() => {})
         ]);
     }
     console.log(
@@ -2669,6 +2733,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         invalid: invalid.length,
         android: androidTokens.length,
         web: webTokens.length,
+        errors: errors.slice(0, 10),
         targeted: !!(wantToken || wantPlat)
     };
 }
@@ -2684,6 +2749,9 @@ exports.pingMyPush = onCall(async (request) => {
     if (looksLikeFcmToken(token)) {
         await persistCallerDeviceToken(APP_ID, uid, token, platform).catch(() => {});
     }
+    // Lo que verá un viaje real (sin targetToken): ¿este celular está en el perfil?
+    const meta = await getUserPushMeta(APP_ID, uid).catch(() => ({ tokens: [], records: [] }));
+    const inProfile = looksLikeFcmToken(token) ? (meta.tokens || []).includes(token) : false;
     const result = await sendPushToUser(APP_ID, uid, {
         title: 'HonduRaite · Aviso de prueba',
         body: 'Si ves esto, los viajes te llegan con la app o la pestaña cerrada.',
@@ -2705,7 +2773,12 @@ exports.pingMyPush = onCall(async (request) => {
         invalid: result.invalid || 0,
         android: result.android || 0,
         web: result.web || 0,
-        targeted: !!result.targeted
+        targeted: !!result.targeted,
+        // Diagnóstico: si inProfile=false los viajes reales NO llegan a este equipo.
+        inProfile,
+        profileTokens: (meta.tokens || []).length,
+        profilePlatforms: (meta.records || []).map((r) => r.platform || '?'),
+        errors: result.errors || []
     };
 });
 
@@ -2917,7 +2990,7 @@ function firestoreTimeMs(value) {
 
 function driverPushTokenUpdatedAtMs(userData) {
     let max = 0;
-    for (const e of fcmTokenMapEntries(userData?.fcmTokens)) {
+    for (const e of fcmTokenMapEntries(fcmTokenMapFromDoc(userData))) {
         if ((e.updatedAt || 0) > max) max = e.updatedAt || 0;
     }
     return Math.max(max, firestoreTimeMs(userData?.fcmTokenUpdatedAt));
@@ -4672,14 +4745,15 @@ exports.pruneStaleFcmTokens = onSchedule(
         for (const userDoc of snap.docs) {
             scanned += 1;
             const pub = userDoc.data() || {};
-            const entries = fcmTokenMapEntries(pub.fcmTokens);
+            const pubMap = fcmTokenMapFromDoc(pub);
+            const entries = fcmTokenMapEntries(pubMap);
             if (entries.length <= FCM_TOKEN_MAX_KEEP) continue;
             let privTokens = null;
             try {
                 const privSnap = await db.doc(`artifacts/${APP_ID}/users/${userDoc.id}/profile/data`).get();
-                privTokens = privSnap.exists ? (privSnap.data()?.fcmTokens || null) : null;
+                privTokens = privSnap.exists ? fcmTokenMapFromDoc(privSnap.data()) : null;
             } catch (_) {}
-            const n = await pruneUserFcmTokenMaps(APP_ID, userDoc.id, pub.fcmTokens, privTokens);
+            const n = await pruneUserFcmTokenMaps(APP_ID, userDoc.id, pubMap, privTokens);
             if (n) pruned += 1;
         }
         console.log(`[pruneStaleFcmTokens] scanned=${scanned} prunedUsers=${pruned}`);
