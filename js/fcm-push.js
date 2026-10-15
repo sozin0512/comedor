@@ -1210,6 +1210,57 @@ let androidPermissionDialogOpen = false;
 let lastAndroidRegisterAt = 0;
 /** true cuando el evento `registration` del plugin entregó el token REAL de este equipo. */
 let androidNativeTokenConfirmed = false;
+/** Cuándo empezó a esperar el token (permiso dado, sin token). 0 = no espera. */
+let androidRegisterWaitingSince = 0;
+let androidRegisterGaveUpAt = 0;
+let androidRegisterError = '';
+/** Tope de la pastilla "Registrando avisos…": después se muestra "Activar avisos" para reintentar. */
+const ANDROID_REGISTER_MAX_WAIT_MS = 75000;
+
+function notifyAndroidRegisterState(type) {
+    try { window.dispatchEvent(new CustomEvent(type, { detail: { error: androidRegisterError || '' } })); } catch (_) {}
+    try { window.updatePushEnableButton?.(); } catch (_) {}
+}
+
+function markAndroidRegisterGaveUp(reason) {
+    if (lastAndroidTokenValue || hasAndroidFcmToken()) return;
+    if (androidRegisterGaveUpAt) return;
+    androidRegisterGaveUpAt = Date.now();
+    if (reason && !androidRegisterError) androidRegisterError = reason;
+    console.warn('[push] Android sin token; se deja de esperar:', androidRegisterError || reason);
+    notifyAndroidRegisterState('honduber-push-register-failed');
+}
+
+/** Hay un diálogo de permiso o un register() en curso (no abrir otros diálogos/ajustes encima). */
+export function isAndroidPushRegistrationBusy() {
+    if (!isCapacitorAndroid()) return false;
+    if (lastAndroidTokenValue || hasAndroidFcmToken()) return false;
+    return !!(androidPermissionDialogOpen || androidRegisterFlight || androidTokenWatchdog);
+}
+
+/** Estado para la pastilla: `gaveUp` = ya no mostrar el spinner. */
+export function getAndroidPushRegisterState() {
+    const hasToken = !!(lastAndroidTokenValue || hasAndroidFcmToken());
+    const timedOut = !hasToken && androidRegisterWaitingSince > 0
+        && Date.now() - androidRegisterWaitingSince > ANDROID_REGISTER_MAX_WAIT_MS;
+    if (timedOut && !androidRegisterGaveUpAt) {
+        // Marca diferida para que el evento salga una sola vez.
+        setTimeout(() => markAndroidRegisterGaveUp('timeout'), 0);
+    }
+    return {
+        hasToken,
+        busy: isAndroidPushRegistrationBusy(),
+        gaveUp: !hasToken && (!!androidRegisterGaveUpAt || timedOut),
+        error: androidRegisterError || ''
+    };
+}
+
+/** El conductor toca Activar avisos otra vez: se permite un intento nuevo. */
+export function resetAndroidPushRegisterFailure() {
+    androidRegisterGaveUpAt = 0;
+    androidRegisterError = '';
+    androidRegisterWaitingSince = 0;
+}
 
 function readPushTokenValue(token) {
     if (!token) return '';
@@ -1257,13 +1308,15 @@ export async function registerAndroidPushNow({ assumeGranted = false } = {}) {
     if (ready) {
         if (granted) {
             await persistAndroidToken(ready);
-            ensureAndroidPushChannels().catch(() => {});
-            confirmAndroidTokenOnce();
+            // En el S24, register() mientras se tocan canales traba el puente:
+            // primero los canales, después el único register() de confirmación.
+            ensureAndroidPushChannels().catch(() => {}).finally(() => confirmAndroidTokenOnce());
         }
         return ready;
     }
     // Sin Permitir no se pide el token: en el S24 eso deja el puente colgado.
     if (!granted) return null;
+    if (!androidRegisterWaitingSince) androidRegisterWaitingSince = Date.now();
     if (!androidRegisterFlight) {
         androidRegisterFlight = requestAndroidFcmTokenOnce().finally(() => {
             androidRegisterFlight = null;
@@ -1320,6 +1373,11 @@ async function requestAndroidFcmTokenOnce({ force = false } = {}) {
     }
     const fromEvent = await waitForAndroidToken(12000);
     if (fromEvent) return rememberAndroidToken(fromEvent);
+    // El evento `registration` no llegó (S24 de conductor: el diálogo de batería /
+    // pantalla completa / ubicación pausa la app encima del register()).
+    // Un getToken directo del APK (SessionKeepalive.getFcmToken), ya sin otro en curso.
+    const fromNative = await fetchNativeFcmToken(6000);
+    if (fromNative) return rememberAndroidToken(fromNative);
     if (!prefetchedAndroidToken && !lastAndroidTokenValue) startAndroidTokenWatchdog();
     return prefetchedAndroidToken || lastAndroidTokenValue || null;
 }
@@ -1328,9 +1386,15 @@ async function requestAndroidFcmTokenOnce({ force = false } = {}) {
 export function beginAndroidNotificationPermissionRequest() {
     if (!isCapacitorAndroid()) return null;
     androidPermissionDialogOpen = true;
+    // Si Android pausa la app (diálogo de batería/ubicación del conductor) la promesa
+    // puede no volver nunca; sin este tope ningún register() vuelve a correr.
+    const safety = setTimeout(() => { androidPermissionDialogOpen = false; }, 30000);
     try {
         const pending = PushNotifications.requestPermissions();
-        Promise.resolve(pending).finally(() => { androidPermissionDialogOpen = false; });
+        Promise.resolve(pending).finally(() => {
+            clearTimeout(safety);
+            androidPermissionDialogOpen = false;
+        });
         return pending;
     } catch (_) {
         androidPermissionDialogOpen = false;
@@ -1343,7 +1407,9 @@ export async function finishAndroidPermissionRequest(started) {
     if (!isCapacitorAndroid()) return 'default';
     let receive = 'default';
     try {
-        const perm = started ? await started : await PushNotifications.requestPermissions();
+        // Con tope: si la respuesta del diálogo se pierde, seguimos leyendo el permiso real.
+        const perm = await raceTimeout(started || PushNotifications.requestPermissions(), 30000, null);
+        if (!perm) androidPermissionDialogOpen = false;
         receive = perm?.receive || 'default';
     } catch (e) {
         console.warn('[push] requestPermissions', e);
@@ -1510,6 +1576,7 @@ if (typeof window !== 'undefined') {
     window.pingMyPushFromClient = pingMyPushFromClient;
     window.hasSavedWebPushToken = hasSavedWebPushToken;
     window.hasAndroidFcmToken = hasAndroidFcmToken;
+    window.isAndroidPushRegistrationBusy = isAndroidPushRegistrationBusy;
     window.getThisDevicePushTarget = getThisDevicePushTarget;
     window.bootWebPushServiceWorker = bootWebPushServiceWorker;
 }
@@ -1543,6 +1610,9 @@ let unsavedAndroidToken = '';
 async function persistAndroidToken(tokenValue) {
     if (!tokenValue) return;
     lastAndroidTokenValue = tokenValue;
+    androidRegisterWaitingSince = 0;
+    androidRegisterGaveUpAt = 0;
+    androidRegisterError = '';
     claimDevicePushToken(tokenValue, 'android');
     stopAndroidTokenWatchdog();
     const saveUid = lastPushUid() || androidPushContext.uid || null;
@@ -1573,6 +1643,8 @@ function bindAndroidPushListeners() {
         });
         await PushNotifications.addListener('registrationError', (err) => {
             console.warn('[push] registrationError', err);
+            androidRegisterError = String(err?.error || err?.message || err || 'registration_error').slice(0, 120);
+            notifyAndroidRegisterState('honduber-push-register-error');
         });
         await PushNotifications.addListener('pushNotificationReceived', (notification) => {
             routeForegroundPush({
@@ -1730,6 +1802,9 @@ function startAndroidTokenWatchdog() {
             console.warn('[push] token watchdog', e);
         }).finally(() => {
             androidTokenWatchdogBusy = false;
+            if (attempt >= 2 && !lastAndroidTokenValue && !hasAndroidFcmToken()) {
+                markAndroidRegisterGaveUp(androidRegisterError || 'no_token');
+            }
         });
         if (attempt >= 2) stopAndroidTokenWatchdog();
     }, 8000);

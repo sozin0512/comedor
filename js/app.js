@@ -118,7 +118,7 @@ import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, c
 import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.13.18";
 import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.13.18";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken } from "./fcm-push.js?v=2026.10.13.18";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure } from "./fcm-push.js?v=2026.10.13.18";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
@@ -4430,6 +4430,9 @@ if (document.readyState === 'loading') {
             if (isPushReadyForThisContext()) return false;
             if (hasLocalPushToken()) return false;
             if (getNotificationPermission() === 'denied') return false;
+            // Con tope: si el teléfono no entregó el token, la pastilla vuelve a "Activar avisos"
+            // (tocarla reintenta) en vez de quedarse en "Registrando avisos…" para siempre.
+            if (isCapacitorAndroid() && getAndroidPushRegisterState?.().gaveUp) return false;
             if (getNotificationPermission() === 'granted') return true;
             try { return localStorage.getItem('honduber_push_enabled') === '1'; } catch (_) { return false; }
         }
@@ -4615,6 +4618,7 @@ if (document.readyState === 'loading') {
             }
             if (window.__hrPushAskLock) return;
             window.__hrPushAskLock = true;
+            if (isCapacitorAndroid()) resetAndroidPushRegisterFailure?.();
             try {
             if (!isNotificationSupported()) {
                 return window.showToast('Tu navegador no soporta notificaciones.');
@@ -4754,8 +4758,19 @@ if (document.readyState === 'loading') {
                         'Permiso dado. El aviso se está registrando; espera el recuadro. No hace falta tocar Activar avisos otra vez.',
                         'warning'
                     );
+                    // Si el token llega tarde (watchdog / getToken nativo), igual mandar la prueba.
+                    const onLateToken = () => {
+                        window.removeEventListener('honduber-push-token', onLateToken);
+                        clearTimeout(lateTimer);
+                        updatePushEnableButton();
+                        sendRealPushSelfTest({ alreadyReady: true }).catch(() => {});
+                    };
+                    const lateTimer = setTimeout(() => window.removeEventListener('honduber-push-token', onLateToken), 120000);
+                    window.addEventListener('honduber-push-token', onLateToken);
                     registerPromise.then((tok) => {
                         if (tok || hasAndroidFcmToken() || hasSavedWebPushToken()) {
+                            window.removeEventListener('honduber-push-token', onLateToken);
+                            clearTimeout(lateTimer);
                             updatePushEnableButton();
                             sendRealPushSelfTest({ alreadyReady: true }).catch(() => {});
                         }
@@ -5083,6 +5098,18 @@ if (document.readyState === 'loading') {
         window.updatePushEnableButton = updatePushEnableButton;
         window.addEventListener('honduber-push-token', () => {
             try { updatePushEnableButton(); } catch (_) {}
+        });
+        window.addEventListener('honduber-push-register-failed', (ev) => {
+            try { updatePushEnableButton(); } catch (_) {}
+            if (!isCapacitorAndroid() || hasLocalPushToken()) return;
+            const code = ev?.detail?.error || '';
+            window.showToast(
+                'Este teléfono no terminó de registrar los avisos. Toca "Activar avisos" otra vez.',
+                'warning'
+            );
+            if (code && code !== 'timeout' && code !== 'no_token') {
+                try { showPushHelpGuide(`Android: ${code}`); } catch (_) {}
+            }
         });
 
         window.showToast = (message, type = 'error') => {
@@ -41571,10 +41598,19 @@ window.cancelSetupAndLogout = () => {
                     requestDriverLocationFixes();
                 };
                 const gpsWait = setInterval(armGps, 700);
-                setTimeout(() => {
+                // A los 20 s se pide la ubicación igual, pero no encima de un registro
+                // de avisos en curso (en el S24 el diálogo de ubicación lo deja colgado).
+                const gpsStartedAt = Date.now();
+                const forceGps = () => {
+                    const busy = !!window.isAndroidPushRegistrationBusy?.();
+                    if (busy && Date.now() - gpsStartedAt < 60000) {
+                        setTimeout(forceGps, 2000);
+                        return;
+                    }
                     clearInterval(gpsWait);
                     requestDriverLocationFixes();
-                }, 20000);
+                };
+                setTimeout(forceGps, 20000);
                 document.addEventListener('visibilitychange', () => {
                     if (document.visibilityState === 'visible') armGps();
                 });
