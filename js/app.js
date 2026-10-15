@@ -309,6 +309,7 @@ import {
 import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.13.18";
 
 import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.13.18";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.13.18";
 
 
 let app;
@@ -4513,6 +4514,12 @@ if (document.readyState === 'loading') {
         /** Guía corta cuando la prueba no llega: permisos, canal con sonido y batería. */
         function showPushHelpGuide(reason = '') {
             document.getElementById('hr-push-help')?.remove();
+            // Conductor en Android: la guía completa (batería, "Aplicaciones en suspensión"
+            // de Samsung, notificaciones) con botones a Ajustes y "Ya lo hice".
+            if (isCapacitorAndroid() && isDriverAppSession()) {
+                showDriverSleepGuide({ reason, source: 'push-failed' }).catch(() => {});
+                return null;
+            }
             const android = isCapacitorAndroid();
             const ios = isIOS();
             const steps = android
@@ -4592,6 +4599,11 @@ if (document.readyState === 'loading') {
                                 : 'Avisos activos. Prueba enviada a este navegador. Cierra la pestaña: si aparece, los viajes te llegan igual.'),
                         'success'
                     );
+                    // Conductor Android: después de activar, que el teléfono no duerma la app
+                    // (solo si sigue restringida o nunca lo confirmó; no insiste).
+                    if (isCapacitorAndroid() && isDriverAppSession()) {
+                        setTimeout(() => { maybeRemindDriverSleepGuide({ source: 'activated' }).catch(() => {}); }, 7000);
+                    }
                 } else if (ping?.tokens === 0 || ping?.error === 'no_local_token') {
                     if (alreadyReady) {
                         window.showToast(
@@ -12024,15 +12036,18 @@ if (document.readyState === 'loading') {
             const depositBtn = document.getElementById('btn-daily-deposit');
             const payoutsBtn = document.getElementById('btn-driver-payouts');
             const bgModeBtn = document.getElementById('btn-driver-background-mode');
+            const sleepGuideBtn = document.getElementById('btn-driver-sleep-guide');
             if (depositBtn) {
                 if (window.userProfile.role === 'driver') {
                     depositBtn.classList.remove('hidden');
                     payoutsBtn?.classList.remove('hidden');
                     bgModeBtn?.classList.remove('hidden');
+                    sleepGuideBtn?.classList.toggle('hidden', !isCapacitorAndroid());
                 } else {
                     depositBtn.classList.add('hidden');
                     payoutsBtn?.classList.add('hidden');
                     bgModeBtn?.classList.add('hidden');
+                    sleepGuideBtn?.classList.add('hidden');
                 }
             }
 
@@ -41212,6 +41227,8 @@ window.cancelSetupAndLogout = () => {
                                     requestBattery: true
                                 }).catch(() => {});
                             }, 2500);
+                            // Recordatorio de "Aplicaciones en suspensión" (máx. 1 vez al día si sigue restringida).
+                            setTimeout(() => { maybeRemindDriverSleepGuide({ source: 'online' }).catch(() => {}); }, 12000);
                         }
                     }).catch(() => {});
                 } else {
