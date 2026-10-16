@@ -118,7 +118,7 @@ import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, c
 import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.13.18";
 import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.13.18";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure } from "./fcm-push.js?v=2026.10.13.18";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken } from "./fcm-push.js?v=2026.10.13.18";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
@@ -4582,8 +4582,20 @@ if (document.readyState === 'loading') {
                 } else {
                     await new Promise((r) => setTimeout(r, 900));
                 }
-                const ping = await pingFn();
+                let ping = await pingFn();
                 try { console.info('[push] prueba', JSON.stringify(ping)); } catch (_) {}
+                if (ping?.thisDeviceInvalid) {
+                    // FCM dijo que el token de este equipo murió: pedir uno nuevo y probar otra vez.
+                    // healThisDevicePushToken corre como mucho 1 vez cada 6 h (sin bucle).
+                    window.showToast('Renovando el registro de avisos de este equipo…', 'warning');
+                    const healed = await healThisDevicePushToken().catch(() => ({ healed: false }));
+                    try { updatePushEnableButton(); } catch (_) {}
+                    if (healed?.healed) {
+                        await new Promise((r) => setTimeout(r, 900));
+                        ping = await pingFn();
+                        try { console.info('[push] prueba (token nuevo)', JSON.stringify(ping)); } catch (_) {}
+                    }
+                }
                 if (ping?.sent > 0 && ping?.inProfile === false) {
                     // La prueba va directo al token; un viaje real usa el perfil.
                     window.showToast('La prueba salió, pero este equipo todavía no quedó guardado para viajes. Abre la app otra vez en un minuto.', 'warning');

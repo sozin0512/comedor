@@ -5,6 +5,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue, FieldPath, Timestamp } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
+const crypto = require('crypto');
 
 initializeApp();
 
@@ -1705,9 +1706,39 @@ function fcmTokenMapEntries(raw) {
             ? entry
             : (entry?.token || entry?.value || (looksLikeFcmToken(key) ? key.replace(/_/g, '.') : ''));
         const updatedAt = (entry && typeof entry === 'object') ? (Number(entry.updatedAt) || 0) : 0;
-        const platform = (entry && typeof entry === 'object') ? String(entry.platform || '') : '';
-        return { key, token, updatedAt, platform };
+        const obj = (entry && typeof entry === 'object') ? entry : {};
+        const platform = String(obj.platform || '');
+        return {
+            key, token, updatedAt, platform,
+            model: String(obj.model || ''),
+            osVersion: String(obj.osVersion || ''),
+            brand: String(obj.brand || ''),
+            appVersion: String(obj.appVersion || '')
+        };
     }).filter((e) => e.key);
+}
+
+/** Metadatos del equipo que manda el cliente (texto corto, nada más). */
+function sanitizePushDeviceMeta(raw) {
+    const src = (raw && typeof raw === 'object') ? raw : {};
+    const clip = (v, n) => String(v ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, n);
+    const out = {};
+    const fields = { model: 48, osVersion: 24, brand: 24, appVersion: 24, os: 16, ua: 180 };
+    for (const [k, n] of Object.entries(fields)) {
+        const v = clip(src[k], n);
+        if (v) out[k] = v;
+    }
+    return out;
+}
+
+/** Texto corto para logs: plataforma + modelo + versión, sin datos personales. */
+function describeTokenDevice(rec) {
+    if (!rec) return 'plat=? model=?';
+    const plat = rec.platform || '?';
+    const model = [rec.brand, rec.model].filter(Boolean).join(' ') || '?';
+    const os = rec.osVersion ? ` os=${rec.osVersion}` : '';
+    const app = rec.appVersion ? ` app=${rec.appVersion}` : '';
+    return `plat=${plat} model=${model.replace(/\s+/g, '_')}${os}${app}`;
 }
 
 /**
@@ -1773,7 +1804,15 @@ function liveFcmTokenRecordsFromMaps(maps, { maxAgeMs = FCM_TOKEN_MAX_AGE_MS, ma
     const cutoff = Date.now() - maxAgeMs;
     const ranked = [...byToken.values()].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     const fresh = ranked.filter((e) => e.updatedAt >= cutoff);
-    return (fresh.length ? fresh : ranked).slice(0, maxKeep);
+    // Antes, si todos eran viejos (>60 días) se mandaba igual a todos: fallos seguros.
+    // Ahora: frescos; si no hay, solo los sin fecha (tokens antiguos sin updatedAt); nunca vencidos.
+    const unknownAge = ranked.filter((e) => !(e.updatedAt > 0));
+    return (fresh.length ? fresh : unknownAge).slice(0, maxKeep);
+}
+
+function hasKnownStaleFcmEntries(raw, maxAgeMs = FCM_TOKEN_MAX_AGE_MS) {
+    const cutoff = Date.now() - maxAgeMs;
+    return fcmTokenMapEntries(raw).some((e) => e.updatedAt > 0 && e.updatedAt < cutoff);
 }
 
 function liveFcmTokensFromMaps(maps, opts) {
@@ -2457,7 +2496,10 @@ async function getUserPushMeta(appId, uid) {
     const tokens = records.map((e) => e.token);
     const platforms = [...new Set(records.map((e) => e.platform).filter(Boolean))];
     const bloated = fcmTokenMapEntries(pubMap).length > FCM_TOKEN_MAX_KEEP
-        || fcmTokenMapEntries(privMap).length > FCM_TOKEN_MAX_KEEP;
+        || fcmTokenMapEntries(privMap).length > FCM_TOKEN_MAX_KEEP
+        // También con 24 o menos: los vencidos (>60 días) se borran al enviar.
+        || hasKnownStaleFcmEntries(pubMap)
+        || hasKnownStaleFcmEntries(privMap);
     if (bloated) {
         pruneUserFcmTokenMaps(appId, uid, pubMap, privMap).catch(() => {});
     }
@@ -2486,7 +2528,47 @@ function resolveAndroidPushAudio() {
     };
 }
 
-async function persistCallerDeviceToken(appId, uid, token, platform) {
+function fcmTokenOwnerRef(appId, token) {
+    const hash = crypto.createHash('sha256').update(String(token)).digest('hex');
+    // Fuera de public/data: las reglas (catch-all) no dejan leerlo ni escribirlo desde el cliente.
+    return db.doc(`artifacts/${appId}/fcm_token_owners/${hash}`);
+}
+
+/**
+ * Un token = un equipo = una cuenta. Si el celular cambió de cuenta, se borra el
+ * token de la cuenta anterior (si no, al conductor anterior le seguían llegando
+ * avisos a un teléfono que ya no es suyo). Índice por hash: 1 lectura por guardado.
+ */
+async function claimFcmTokenOwner(appId, uid, token, platform = '') {
+    if (!uid || !looksLikeFcmToken(token)) return { movedFrom: '' };
+    const ref = fcmTokenOwnerRef(appId, token);
+    let prev = '';
+    let prevAt = 0;
+    try {
+        const snap = await ref.get();
+        if (snap.exists) {
+            prev = String(snap.data()?.uid || '');
+            prevAt = Number(snap.data()?.updatedAt) || 0;
+        }
+    } catch (_) {}
+    let movedFrom = '';
+    if (prev && prev !== uid) {
+        const key = token.replace(/\./g, '_');
+        await Promise.all([
+            deleteFcmTokenKeys(db.doc(`artifacts/${appId}/public/data/users/${prev}`), [key]).catch(() => {}),
+            deleteFcmTokenKeys(db.doc(`artifacts/${appId}/users/${prev}/profile/data`), [key]).catch(() => {})
+        ]);
+        movedFrom = prev;
+        console.log(`[push] token movido de cuenta tok=…${String(token).slice(-8)} plat=${platform || '?'}`);
+    }
+    // Escribir solo si cambia el dueño o el índice tiene más de 1 día (ahorra escrituras).
+    if (prev !== uid || Date.now() - prevAt > 24 * 60 * 60 * 1000) {
+        await ref.set({ uid, platform: String(platform || ''), updatedAt: Date.now() }, { merge: true }).catch(() => {});
+    }
+    return { movedFrom };
+}
+
+async function persistCallerDeviceToken(appId, uid, token, platform, meta = null) {
     if (!uid || !looksLikeFcmToken(token)) return false;
     const key = token.replace(/\./g, '_');
     const plat = String(platform || '').trim().toLowerCase() || 'web';
@@ -2494,6 +2576,7 @@ async function persistCallerDeviceToken(appId, uid, token, platform) {
     const patch = {
         fcmTokens: {
             [key]: {
+                ...sanitizePushDeviceMeta(meta),
                 token,
                 updatedAt: Date.now(),
                 platform: plat
@@ -2505,8 +2588,35 @@ async function persistCallerDeviceToken(appId, uid, token, platform) {
         db.doc(`artifacts/${appId}/public/data/users/${uid}`).set(patch, { merge: true }).catch(() => {}),
         db.doc(`artifacts/${appId}/users/${uid}/profile/data`).set(patch, { merge: true }).catch(() => {})
     ]);
+    await claimFcmTokenOwner(appId, uid, token, plat).catch(() => {});
     return true;
 }
+
+/** El cliente guarda su token (con modelo / versión) y lo reclama como único dueño. */
+exports.registerFcmToken = onCall(async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Inicia sesión.');
+    const token = String(request.data?.token || '').trim();
+    if (!looksLikeFcmToken(token) || token.length > 4096) {
+        throw new HttpsError('invalid-argument', 'Token inválido.');
+    }
+    const platform = String(request.data?.platform || '').trim().slice(0, 16);
+    await persistCallerDeviceToken(APP_ID, uid, token, platform, request.data?.meta);
+    return { ok: true };
+});
+
+const FCM_INVALID_TOKEN_CODES = new Set([
+    'messaging/registration-token-not-registered',
+    'messaging/invalid-registration-token'
+]);
+/** Fallos pasajeros de FCM: 1-2 reintentos cortos. */
+const FCM_RETRYABLE_CODES = new Set([
+    'messaging/unavailable',
+    'messaging/server-unavailable',
+    'messaging/internal-error',
+    'messaging/unknown-error'
+]);
+const FCM_RETRY_DELAYS_MS = [500, 1500];
 
 async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true, targetToken = '', targetPlatform = '' }) {
     const { tokens, records, platforms } = await getUserPushMeta(appId, uid);
@@ -2603,9 +2713,16 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     // - APK cerrada / muerta: Play Services pinta el aviso (data-only a menudo no llega).
     // - Web/PWA pestaña cerrada: webpush.notification + SW showNotification.
     // - APK en primer plano: HonduMessagingService / onMessageReceived.
+    // Oferta de viaje: si no llega en 10 min ya no sirve (el viaje se fue). Antes 1 h / 24 h.
+    const isTripOfferPush = type === 'trip_offer'
+        || type === 'ride_demand_alert'
+        || type === 'freight_trip_alert'
+        || type === 'trip_price_boost';
+    const TRIP_OFFER_TTL_S = 600;
+    const webTtl = isTripOfferPush ? String(TRIP_OFFER_TTL_S) : '86400';
     const androidConfig = {
         priority: (highPriority || isTripWake) ? 'high' : 'normal',
-        ttl: (isTripWake ? 3600 : 300) * 1000,
+        ttl: (isTripOfferPush ? TRIP_OFFER_TTL_S : (isTripWake ? 3600 : 300)) * 1000,
         directBootOk: true
     };
     if (isTripWake && data.tripId && type !== 'push_test') {
@@ -2644,7 +2761,7 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         webpush: {
             headers: {
                 Urgency: 'high',
-                TTL: '86400'
+                TTL: webTtl
             },
             notification: webNotification,
             fcmOptions: { link: clickUrl }
@@ -2654,11 +2771,17 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         data: dataFields,
         android: androidConfig,
         webpush: {
-            headers: { Urgency: 'high', TTL: '86400' },
+            headers: { Urgency: 'high', TTL: webTtl },
             notification: webNotification,
             fcmOptions: { link: clickUrl }
         }
     };
+    // Por si algún día hay token APNs directo (hoy iPhone va por webpush/PWA).
+    if (isTripOfferPush) {
+        const exp = String(Math.floor(Date.now() / 1000) + TRIP_OFFER_TTL_S);
+        webPayload.apns = { headers: { 'apns-expiration': exp } };
+        androidPayload.apns = { headers: { 'apns-expiration': exp } };
+    }
     if (isTripWake) {
         androidPayload.notification = { title: safeTitle, body: safeBody };
     }
@@ -2684,30 +2807,53 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
 
     const CHUNK = 500;
     let sent = 0;
+    let retried = 0;
     const invalid = [];
     const errors = [];
+    const codeCounts = {};
     const uniqueAll = [...new Set([...(androidTokens || []), ...(webTokens || [])].filter(Boolean))];
+    const recByToken = new Map((records || []).filter((r) => r?.token).map((r) => [r.token, r]));
+    const deviceOf = (tok) => describeTokenDevice(recByToken.get(tok) || { platform: wantPlat || '' });
 
     async function sendChunks(base, list, label) {
-        const unique = [...new Set((list || []).filter(Boolean))];
-        for (let i = 0; i < unique.length; i += CHUNK) {
-            const chunk = unique.slice(i, i + CHUNK);
-            const res = await getMessaging().sendEachForMulticast({ ...base, tokens: chunk });
-            sent += res.successCount || 0;
-            (res.responses || []).forEach((r, idx) => {
-                if (r.success) return;
-                const code = r.error?.code || '';
-                errors.push({ via: label, code, token: String(chunk[idx] || '').slice(-8) });
-                if (
-                    code === 'messaging/registration-token-not-registered'
-                    || code === 'messaging/invalid-registration-token'
-                ) {
-                    console.warn(`[push] token invalido uid=${uid} via=${label} code=${code} tok=…${String(chunk[idx] || '').slice(-8)}`);
-                    invalid.push(chunk[idx]);
-                    return;
+        let pending = [...new Set((list || []).filter(Boolean))];
+        for (let attempt = 0; pending.length && attempt <= FCM_RETRY_DELAYS_MS.length; attempt += 1) {
+            if (attempt > 0) {
+                retried += pending.length;
+                await new Promise((r) => setTimeout(r, FCM_RETRY_DELAYS_MS[attempt - 1]));
+            }
+            const canRetry = attempt < FCM_RETRY_DELAYS_MS.length;
+            const retryNext = [];
+            for (let i = 0; i < pending.length; i += CHUNK) {
+                const chunk = pending.slice(i, i + CHUNK);
+                let responses;
+                try {
+                    const res = await getMessaging().sendEachForMulticast({ ...base, tokens: chunk });
+                    sent += res.successCount || 0;
+                    responses = res.responses || [];
+                } catch (e) {
+                    // Falla de todo el lote (red, credenciales): cada token cuenta como fallo.
+                    responses = chunk.map(() => ({ success: false, error: { code: e?.code || 'messaging/unknown-error', message: e?.message || '' } }));
                 }
-                console.warn(`[push] fcm fail uid=${uid} type=${type} via=${label} code=${code} msg=${r.error?.message || ''}`);
-            });
+                responses.forEach((r, idx) => {
+                    if (r.success) return;
+                    const tok = chunk[idx];
+                    const code = r.error?.code || 'unknown';
+                    if (canRetry && FCM_RETRYABLE_CODES.has(code)) {
+                        retryNext.push(tok);
+                        return;
+                    }
+                    codeCounts[code] = (codeCounts[code] || 0) + 1;
+                    errors.push({ via: label, code, token: String(tok || '').slice(-8), platform: recByToken.get(tok)?.platform || '' });
+                    if (FCM_INVALID_TOKEN_CODES.has(code)) {
+                        console.warn(`[push] token invalido uid=${uid} via=${label} ${deviceOf(tok)} code=${code} tok=…${String(tok || '').slice(-8)}`);
+                        invalid.push(tok);
+                        return;
+                    }
+                    console.warn(`[push] fcm fail uid=${uid} type=${type} via=${label} ${deviceOf(tok)} code=${code} intento=${attempt + 1} msg=${r.error?.message || ''}`);
+                });
+            }
+            pending = retryNext;
         }
     }
 
@@ -2724,13 +2870,18 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     console.log(
         `[push] uid=${uid} type=${type || 'n/a'} sent=${sent}/${uniqueAll.length} ` +
         `android=${androidTokens.length} web=${webTokens.length} ` +
-        `platforms=${(platforms || []).join(',') || 'n/a'} invalid=${invalid.length}`
+        `platforms=${(platforms || []).join(',') || 'n/a'} invalid=${invalid.length} ` +
+        `retried=${retried} codes=${JSON.stringify(codeCounts)}`
     );
     return {
         sent,
         tokens: uniqueAll.length,
         platforms: platforms || [],
         invalid: invalid.length,
+        codes: codeCounts,
+        retried,
+        // La prueba (pingMyPush) apunta a un token: ¿ese token está muerto?
+        targetInvalid: !!(wantToken && invalid.includes(wantToken)),
         android: androidTokens.length,
         web: webTokens.length,
         errors: errors.slice(0, 10),
@@ -2747,7 +2898,7 @@ exports.pingMyPush = onCall(async (request) => {
     const token = String(request.data?.token || '').trim();
     const platform = String(request.data?.platform || '').trim();
     if (looksLikeFcmToken(token)) {
-        await persistCallerDeviceToken(APP_ID, uid, token, platform).catch(() => {});
+        await persistCallerDeviceToken(APP_ID, uid, token, platform, request.data?.meta).catch(() => {});
     }
     // Lo que verá un viaje real (sin targetToken): ¿este celular está en el perfil?
     const meta = await getUserPushMeta(APP_ID, uid).catch(() => ({ tokens: [], records: [] }));
@@ -2778,7 +2929,10 @@ exports.pingMyPush = onCall(async (request) => {
         inProfile,
         profileTokens: (meta.tokens || []).length,
         profilePlatforms: (meta.records || []).map((r) => r.platform || '?'),
-        errors: result.errors || []
+        errors: result.errors || [],
+        codes: result.codes || {},
+        // El cliente borra su token y pide uno nuevo (una vez cada tanto, sin bucle).
+        thisDeviceInvalid: !!result.targetInvalid
     };
 });
 
@@ -4747,7 +4901,8 @@ exports.pruneStaleFcmTokens = onSchedule(
             const pub = userDoc.data() || {};
             const pubMap = fcmTokenMapFromDoc(pub);
             const entries = fcmTokenMapEntries(pubMap);
-            if (entries.length <= FCM_TOKEN_MAX_KEEP) continue;
+            // Antes solo entraban usuarios con >24 tokens; los vencidos de los demás nunca se borraban.
+            if (!entries.length && !pub.fcmTokenUpdatedAt) continue;
             let privTokens = null;
             try {
                 const privSnap = await db.doc(`artifacts/${APP_ID}/users/${userDoc.id}/profile/data`).get();
