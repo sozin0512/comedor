@@ -2774,6 +2774,20 @@ async function forwardWebhookToN8n(body, signature) {
     }
 }
 
+let waRoles = null;
+async function waCallerIsTrustedStaff(auth) {
+    if (!waRoles) {
+        const { getAuth } = require('firebase-admin/auth');
+        const { FieldValue } = require('firebase-admin/firestore');
+        waRoles = require('./roles')({
+            db: db(), getAuth, FieldValue, HttpsError, onCall, APP_ID,
+            ADMIN_EMAIL: 'josuesoza0513@gmail.com',
+            KNOWN_STAFF_EMAILS: require('./roles').DEFAULT_KNOWN_STAFF_EMAILS
+        });
+    }
+    return !!(await waRoles.helpers.isTrustedStaff(auth));
+}
+
 /**
  * Envío de texto con Cloud API (staff / admin vía callable).
  * Requiere WHATSAPP_ACCESS_TOKEN + WHATSAPP_PHONE_NUMBER_ID configurados.
@@ -2789,10 +2803,8 @@ exports.sendWhatsAppCloudText = onCall(
 
         const firestore = db();
         const uid = request.auth.uid;
-        const userSnap = await firestore.doc(`artifacts/${APP_ID}/public/data/users/${uid}`).get();
-        const role = userSnap.exists ? (userSnap.data()?.role || '') : '';
-        const email = (request.auth.token?.email || '').toLowerCase();
-        const isStaff = role === 'admin' || role === 'supervisor' || email === 'josuesoza0513@gmail.com';
+        // Rol de confianza (claim / doc roles), no el perfil editable.
+        const isStaff = await waCallerIsTrustedStaff(request.auth);
         if (!isStaff) {
             throw new HttpsError('permission-denied', 'Solo staff puede enviar por Cloud API.');
         }
@@ -2865,10 +2877,8 @@ exports.testWhatsAppTripTemplate = onCall(
         }
         const firestore = db();
         const uid = request.auth.uid;
-        const userSnap = await firestore.doc(`artifacts/${APP_ID}/public/data/users/${uid}`).get();
-        const role = userSnap.exists ? (userSnap.data()?.role || '') : '';
-        const email = (request.auth.token?.email || '').toLowerCase();
-        const isStaff = role === 'admin' || role === 'supervisor' || email === 'josuesoza0513@gmail.com';
+        // Rol de confianza (claim / doc roles), no el perfil editable.
+        const isStaff = await waCallerIsTrustedStaff(request.auth);
         if (!isStaff) {
             throw new HttpsError('permission-denied', 'Solo staff puede probar plantillas.');
         }

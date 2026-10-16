@@ -397,10 +397,12 @@ function driverAlreadyReservedAnotherPassenger(tripDocs, driverId, excludeTripId
 }
 
 /** Correos con permiso de moderación aunque el rol en BD quedó desfasado. */
-const KNOWN_STAFF_EMAILS = new Set([
-    ADMIN_EMAIL,
-    'sozajob146@gmail.com',
-]);
+const KNOWN_STAFF_EMAILS = require('./roles').DEFAULT_KNOWN_STAFF_EMAILS; // admin + sozajob146
+
+/** Roles de confianza (claims + artifacts/{app}/roles). Ver roles.js. */
+const roles = require('./roles')({
+    db, getAuth, FieldValue, HttpsError, onCall, APP_ID, ADMIN_EMAIL, KNOWN_STAFF_EMAILS
+});
 
 async function resolveCallerAdminEmail(auth) {
     if (!auth?.uid) return '';
@@ -420,12 +422,6 @@ async function assertCallerIsSupremeAdmin(auth) {
         throw new HttpsError('permission-denied', 'Solo el administrador supremo puede hacer esto.');
     }
     return auth.uid;
-}
-
-function callerLooksLikeStaff(pub, priv, email) {
-    return pub.role === 'supervisor' || priv.role === 'supervisor'
-        || !!pub.staffGrantedBy || !!priv.staffGrantedBy
-        || KNOWN_STAFF_EMAILS.has(email);
 }
 
 async function healStaffProfileIfNeeded(uid, email, pub, priv, pubRef, privRef) {
@@ -460,21 +456,22 @@ async function assertCallerCanModerate(auth) {
         return { uid: auth.uid, isAdmin: true };
     }
 
-    const pubRef = db.doc(`artifacts/${APP_ID}/public/data/users/${auth.uid}`);
-    const privRef = db.doc(`artifacts/${APP_ID}/users/${auth.uid}/profile/data`);
-    const [pubSnap, privSnap] = await Promise.all([pubRef.get(), privRef.get()]);
-    const pub = pubSnap.exists ? (pubSnap.data() || {}) : {};
-    const priv = privSnap.exists ? (privSnap.data() || {}) : {};
-
-    if (!callerLooksLikeStaff(pub, priv, email)) {
+    // Rol de confianza (claim / doc roles / correo staff conocido). El perfil ya NO cuenta:
+    // el usuario puede editar su propio `role`.
+    const trusted = await roles.helpers.isTrustedStaff(auth);
+    if (!trusted) {
         throw new HttpsError(
             'permission-denied',
-            'Tu cuenta no tiene permisos de supervisor en Firestore. Cierra sesión y vuelve a entrar.'
+            'Tu cuenta no tiene permisos de supervisor. Pide al administrador que te asigne el rol.'
         );
     }
-
-    await healStaffProfileIfNeeded(auth.uid, email, pub, priv, pubRef, privRef);
-    return { uid: auth.uid, isAdmin: false };
+    if (trusted.source === 'known-email') {
+        const pubRef = db.doc(`artifacts/${APP_ID}/public/data/users/${auth.uid}`);
+        const privRef = db.doc(`artifacts/${APP_ID}/users/${auth.uid}/profile/data`);
+        const [pubSnap, privSnap] = await Promise.all([pubRef.get(), privRef.get()]);
+        await healStaffProfileIfNeeded(auth.uid, email, pubSnap.data() || {}, privSnap.data() || {}, pubRef, privRef).catch(() => {});
+    }
+    return { uid: auth.uid, isAdmin: trusted.role === 'admin', role: trusted.role, source: trusted.source };
 }
 
 const MODERATION_FORBIDDEN_FIELDS = new Set(['role', 'uid', 'email']);
@@ -622,6 +619,10 @@ exports.repairUserProfile = onCall(async (request) => {
 exports.syncAdminUid = onCall(async (request) => {
     const adminUid = await assertCallerIsSupremeAdmin(request.auth);
     await stampAdminUidInSettings(adminUid);
+    // Respaldo anti-bloqueo: el admin supremo queda también con claim + doc roles.
+    await roles.helpers.applyTrustedRole(adminUid, 'admin', { byUid: adminUid, source: 'syncAdminUid' }).catch((e) => {
+        console.warn('syncAdminUid claims', e?.message || e);
+    });
     return { ok: true, adminUid };
 });
 
@@ -1477,6 +1478,8 @@ exports.setUserRole = onCall(async (request) => {
         patch.staffGrantedAt = null;
     }
 
+    // Rol de confianza primero (claim de Auth + doc roles: lo que miran reglas y funciones).
+    await roles.helpers.applyTrustedRole(targetUid, newRole, { byUid: adminUid, source: 'setUserRole' });
     await pubRef.set(patch, { merge: true });
     await privRef.set(patch, { merge: true });
     await stampAdminUidInSettings(adminUid);
@@ -3046,7 +3049,9 @@ function afterBoostTag(trip) {
 }
 
 async function notifyModerators(appId, { title, body, data = {} }) {
-    const snap = await db.collection(`artifacts/${appId}/public/data/users`).get();
+    const trustedIds = await roles.helpers.listTrustedStaffUids(appId);
+    const snap = trustedIds ? { docs: trustedIds.map((id) => ({ id, data: () => ({ role: 'supervisor' }) })) }
+        : await db.collection(`artifacts/${appId}/public/data/users`).get();
     const sent = new Set();
 
     for (const doc of snap.docs) {
@@ -3069,7 +3074,10 @@ async function notifyStaffNewTrip(appId, tripId, trip) {
     const title = `🆕 ${svcLabel} pendiente`;
     const body = `${price} · ${originShort || 'Ubicación'}`;
 
-    const snap = await db.collection(`artifacts/${appId}/public/data/users`).get();
+    // Con la migración hecha: solo staff de confianza (doc roles). Antes: perfil (legado).
+    const trustedIds = await roles.helpers.listTrustedStaffUids(appId);
+    const snap = trustedIds ? { docs: trustedIds.map((id) => ({ id, data: () => ({ role: 'supervisor' }) })) }
+        : await db.collection(`artifacts/${appId}/public/data/users`).get();
     const staffIds = [];
     const seen = new Set();
     for (const doc of snap.docs) {
@@ -6238,6 +6246,7 @@ exports.dailyCommissionFreeDayPush = onSchedule(
 const whatsappCloud = require('./whatsapp-cloud');
 // ───── Panel de supervisor «Viajes» ─────
 Object.assign(exports, viajesPanel.exports);
+Object.assign(exports, roles.exports);
 
 exports.whatsappWebhook = whatsappCloud.whatsappWebhook;
 exports.sendWhatsAppCloudText = whatsappCloud.sendWhatsAppCloudText;

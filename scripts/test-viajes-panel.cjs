@@ -29,6 +29,7 @@ const get = async (p) => (await db.doc(p).get()).data();
 (async () => {
   const now = Date.now();
   await db.doc(`${B}/users/SUP`).set({ role: 'supervisor', name: 'Sup Uno' });
+  await db.doc(`artifacts/${APP}/roles/SUP`).set({ role: 'supervisor', source: 'test' }); // rol de confianza (oct 2026)
   await db.doc(`${B}/users/ADM`).set({ role: 'admin', name: 'Josue' });
   await db.doc(`${B}/users/CLI`).set({ role: 'client', name: 'Cliente' });
   await db.doc(`${B}/users/DRV1`).set({ role: 'driver', name: 'Chofer 1', fcmTokens: { k1: { token: tok('D1'), updatedAt: now, platform: 'android', brand: 'TCL', model: 'T610K', osVersion: '13' } } });

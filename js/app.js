@@ -171,6 +171,7 @@ import {
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
 } from "./route-conditions.js?v=2026.10.13.18";
 import { initTheme, toggleTheme } from "./theme.js?v=2026.10.13.18";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.13.18";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
 } from "./demand-heatmap.js?v=2026.10.13.18";
@@ -2953,12 +2954,11 @@ async function stripFakeAdminFromProfile(user, profile) {
     const authMail = String(user.email || '').trim().toLowerCase() || null;
     const fix = { updatedAt: serverTimestamp() };
     if (hijacked && authMail) fix.email = authMail;
-    if (fakeRole) {
-        fix.role = profile.staffGrantedBy ? 'supervisor' : 'client';
-        if (fix.role !== 'supervisor') {
-            fix.staffGrantedBy = null;
-            fix.staffGrantedAt = null;
-        }
+    if (fakeRole && !profile.staffGrantedBy) {
+        // Las reglas solo dejan al usuario bajarse a client/driver (subirse a supervisor lo hace el admin).
+        fix.role = 'client';
+        fix.staffGrantedBy = null;
+        fix.staffGrantedAt = null;
     }
     try {
         await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), fix, { merge: true });
@@ -2969,7 +2969,18 @@ async function stripFakeAdminFromProfile(user, profile) {
     return { ...profile, ...fix };
 }
 
+/**
+ * Rol de staff confirmado por el servidor (custom claim / doc roles), vía js/role-menu.js.
+ * undefined = aún no hay respuesta (se usa el perfil como antes; el servidor igual valida).
+ */
+const trustedStaffRoleOf = (user) => {
+    if (!user?.uid || user.uid !== currentUser?.uid) return undefined;
+    return getTrustedStaffRole();
+};
+
 const isSupervisorUser = (user, profile) => {
+    const trusted = trustedStaffRoleOf(user);
+    if (trusted !== undefined) return trusted === 'supervisor' || trusted === 'admin';
     if (!profile) return false;
     if (profile.role === 'supervisor') return true;
     // Respaldo si el rol quedó en client pero admin ya asignó staffGrantedBy (reglas Firestore usan lo mismo).
@@ -2977,11 +2988,14 @@ const isSupervisorUser = (user, profile) => {
     return false;
 };
 
-const isStaffUser = (user, profile) =>
-    isAdminUser(user, profile)
-    || isSupervisorUser(user, profile)
-    || profile?.role === 'admin'
-    || profile?.role === 'supervisor';
+const isStaffUser = (user, profile) => {
+    if (isAdminUser(user, profile)) return true;
+    const trusted = trustedStaffRoleOf(user);
+    if (trusted !== undefined) return trusted === 'supervisor' || trusted === 'admin';
+    return isSupervisorUser(user, profile)
+        || profile?.role === 'admin'
+        || profile?.role === 'supervisor';
+};
 
 // Expuestos para módulos (tiendas virtuales, moderación, etc.)
 window.isAdminUser = isAdminUser;
@@ -6885,7 +6899,10 @@ if (document.readyState === 'loading') {
             const header = document.getElementById('app-header');
             if (!menu || !header) return;
             const rect = header.getBoundingClientRect();
-            menu.style.top = `${rect.bottom + 4}px`;
+            // Menú por rol (js/role-menu.js): la tarjeta trae logo + rol, cubre el header como en la maqueta.
+            const top = menu.classList.contains('rm-host') ? Math.max(6, rect.top + 6) : rect.bottom + 4;
+            menu.style.top = `${top}px`;
+            menu.style.setProperty('--rm-top', `${top}px`);
         }
 
         window.toggleHeaderMoreMenu = () => {
@@ -12385,8 +12402,14 @@ if (document.readyState === 'loading') {
                     syncFields.staffGrantedAt = grantAt || serverTimestamp();
                 }
             }
-            await setDoc(privRef, syncFields, { merge: true });
-            await setDoc(pubRef, syncFields, { merge: true });
+            // Solo cosmético: el permiso real es el rol de confianza (claim / doc roles).
+            // Las reglas ya no dejan que el usuario se ponga role supervisor; si falla, seguimos.
+            try {
+                await setDoc(privRef, syncFields, { merge: true });
+                await setDoc(pubRef, syncFields, { merge: true });
+            } catch (e) {
+                console.warn('prepareStaffModeration: sync de perfil omitido', e?.code || e);
+            }
         }
 
         async function ensureStaffPublicRoleSync() {
@@ -29517,7 +29540,16 @@ onAuthStateChanged(auth, async (user) => {
                         { merge: true }
                     );
                 } catch (e) {
-                    console.warn('Sync error', e);
+                    // Reglas: el usuario no puede subirse a supervisor solo. Reintentar sin `role`.
+                    if (e?.code === 'permission-denied') {
+                        try {
+                            const retry = buildPublicProfileSyncPayload(authUser, window.userProfile, { includeRole: false });
+                            delete retry.role; delete retry.staffGrantedBy; delete retry.staffGrantedAt;
+                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', authUser.uid), retry, { merge: true });
+                        } catch (e2) { console.warn('Sync error (sin role)', e2); }
+                    } else {
+                        console.warn('Sync error', e);
+                    }
                 }
                 if (isAdminUser(authUser, window.userProfile)) {
                     ensureStaffPublicRoleSync().catch(() => {});
@@ -29612,6 +29644,18 @@ onAuthStateChanged(auth, async (user) => {
                 }
 
                 hydrateLoginProfileInBackground(user, profile);
+
+                // Menú por rol + rol de confianza (claims). Admin/Supervisión solo si el servidor lo confirma.
+                try {
+                    initRoleMenu({ getCurrentUser: () => currentUser, getUserProfile: () => window.userProfile, functions: cloudFunctions, callFn: async (name) => (await httpsCallable(cloudFunctions, name)({})).data });
+                    onRoleProfileReady(user).then((trusted) => {
+                        if (trusted === undefined || user.uid !== currentUser?.uid) return;
+                        const isAdm = isAdminUser(user, window.userProfile) || trusted === 'admin';
+                        setHeaderTwinVisible('admin-trigger-btn', isAdm);
+                        setHeaderTwinVisible('supervisor-trigger-btn', isAdm || trusted === 'supervisor');
+                        if (trusted === 'admin' || trusted === 'supervisor') window.startStaffTripAlertsListener?.();
+                    }).catch(() => {});
+                } catch (e) { console.warn('[role-menu]', e); }
 
                 const adminAccess = isAdminUser(user, profile);
                 const supervisorAccess = isSupervisorUser(user, profile);
