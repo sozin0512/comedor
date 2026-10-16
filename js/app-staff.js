@@ -57,6 +57,8 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
         let saldoTrips = 0;
         const tripRows = [];
         const driverStats = {};
+        /** Para la comisión por servicio (panel Viajes → Ajustes de comisión). */
+        const commTrips = [];
 
         tripsSnap.forEach((tripDoc) => {
             const t = tripDoc.data();
@@ -75,6 +77,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
 
                     totalTrips++;
                     totalEarned += price;
+                    commTrips.push({ t, price, saldo: t.paymentMethod === 'saldo' });
 
                     if (t.paymentMethod === 'saldo') {
                         saldoEarned += price;
@@ -124,8 +127,32 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
         if (!Number.isFinite(platformPct) || platformPct < 0 || platformPct > 100) {
             platformPct = Number(APP_CONFIG.commissionPercent) || 25;
         }
-        const cashCommission = Math.round(cashEarned * (platformPct / 100) * 100) / 100;
-        const saldoCommission = Math.round(saldoEarned * (platformPct / 100) * 100) / 100;
+        // % por viaje: el que quedó guardado al completar; si no, el del servicio; si no, el general.
+        const svcPctCache = {};
+        const pctForTrip = async (t) => {
+            const stored = Number(t.commissionPercent);
+            if (t.commissionPercent != null && Number.isFinite(stored) && stored >= 0 && stored <= 100) return stored;
+            const key = window.commissionServiceKey?.(t) || '';
+            if (!(key in svcPctCache)) {
+                try {
+                    const v = typeof window.getPlatformCommission === 'function' ? await window.getPlatformCommission(t) : platformPct;
+                    svcPctCache[key] = Number.isFinite(Number(v)) ? Number(v) : platformPct;
+                } catch (_) {
+                    svcPctCache[key] = platformPct;
+                }
+            }
+            return svcPctCache[key];
+        };
+        let cashCommissionSum = 0;
+        let saldoCommissionSum = 0;
+        for (const ct of commTrips) {
+            const pct = await pctForTrip(ct.t);
+            const c = ct.price * (pct / 100);
+            if (ct.saldo) saldoCommissionSum += c;
+            else cashCommissionSum += c;
+        }
+        const cashCommission = Math.round(cashCommissionSum * 100) / 100;
+        const saldoCommission = Math.round(saldoCommissionSum * 100) / 100;
         const commission = Math.round((cashCommission + saldoCommission) * 100) / 100;
         const driverSummary = Object.values(driverStats)
             .sort((a, b) => b.earned - a.earned)
@@ -440,7 +467,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                     <span class="font-bold">L. ${saldoEarned.toFixed(2)} <span class="text-xs text-gray-400">(${saldoTrips} viajes)</span></span>
                 </div>
                 <div class="pt-3 border-t border-gray-700 flex justify-between">
-                    <span class="font-bold text-amber-400">Comisión generada (${platformPct}%)</span>
+                    <span class="font-bold text-amber-400">Comisión generada (${platformPct}% general · o el % de cada servicio)</span>
                     <span class="font-black text-amber-400">L. ${commission.toFixed(2)}</span>
                 </div>
                 <p class="text-[10px] text-slate-400 font-bold leading-snug">

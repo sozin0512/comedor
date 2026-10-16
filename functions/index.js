@@ -25,6 +25,17 @@ function absolutePushClickUrl(path) {
 }
 const ADMIN_EMAIL = 'josuesoza0513@gmail.com';
 const APP_ID = 'comayagua-vip-pro-v4';
+/** Panel de supervisor «Viajes»: callables de staff + reenvío automático (ver viajes-panel.js). */
+const viajesPanel = require('./viajes-panel')({
+    db, FieldValue, HttpsError, onCall, onSchedule, APP_ID,
+    // function declarations (hoisted): se resuelven al llamar
+    sendPushToUser: (...a) => sendPushToUser(...a),
+    assertCallerCanModerate: (...a) => assertCallerCanModerate(...a),
+    assertCallerIsSupremeAdmin: (...a) => assertCallerIsSupremeAdmin(...a),
+    notifyEligibleDriversNewTrip: (...a) => notifyEligibleDriversNewTrip(...a),
+    describeTokenDevice: (...a) => describeTokenDevice(...a),
+    getUserPushMeta: (...a) => getUserPushMeta(...a)
+});
 const TRIP_OFFER_TIMEOUT_MS = 120 * 1000;
 /** Primer tramo: solo el conductor más cercano. Luego se abre a toda la ciudad. */
 const TRIP_OFFER_EXCLUSIVE_MS = 18 * 1000;
@@ -215,6 +226,23 @@ function driverNewTripAlertTier(userData, loc, trip) {
         const gpsCity = findNearestHnCity(loc.lat, loc.lng);
         if (gpsCity?.id && gpsCity.department && !sameDepartment(gpsCity.id, tripZone)) return null;
         return d <= cityKm ? 'city' : 'nearby';
+    }
+    return null;
+}
+/** Reenvío del panel: si no entra por ciudad/cercanas, entra todo el departamento (o GPS ≤ 150 km). */
+const RESEND_WIDE_KM = 150;
+function driverWideResendTier(userData, loc, trip) {
+    const tripZone = resolveTripZoneId(trip);
+    if (!tripZone) return null;
+    const driverZone = userData?.serviceZoneId || userData?.cityId
+        || loc?.serviceZoneId || loc?.cityId || null;
+    if (driverZone && sameDepartment(driverZone, tripZone)) return 'nearby';
+    if (
+        loc?.lat != null && loc?.lng != null
+        && trip.originLat != null && trip.originLng != null
+    ) {
+        const d = haversineKm(Number(trip.originLat), Number(trip.originLng), Number(loc.lat), Number(loc.lng));
+        if (Number.isFinite(d) && d <= RESEND_WIDE_KM) return 'nearby';
     }
     return null;
 }
@@ -3154,12 +3182,18 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
     expandDepartment = false,
     closedAppOnly = false,
     immediate = false,
-    retryFreshTokens = false
+    retryFreshTokens = false,
+    // Panel Viajes: «Reenviar a más conductores» (staff o automático a los N s).
+    // Vuelve a sonar a la ciudad + cercanas y amplía a todo el departamento.
+    resend = false,
+    resendReason = 'staff'
 } = {}) {
     if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
     // El primer aviso ya salió. Esta pasada solo suena a quien guardó el token DESPUÉS.
-    if (retryFreshTokens) {
+    if (resend) {
+        // sin guardas: el reenvío es a propósito
+    } else if (retryFreshTokens) {
         if (!trip.eligibleDriverAlertSent) return;
     } else {
         if (closedAppOnly && trip.closedAppDriverAlertSent) return;
@@ -3250,7 +3284,8 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
             continue;
         }
 
-        const tier = driverNewTripAlertTier(u, loc, trip);
+        let tier = driverNewTripAlertTier(u, loc, trip);
+        if (resend && !tier) tier = driverWideResendTier(u, loc, trip);
         if (retryFreshTokens) {
             if (tier !== 'city' && tier !== 'nearby') {
                 skipCity += 1;
@@ -3261,7 +3296,7 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
             if (!(tokenAt > retrySinceMs && tokenAt <= retryNowMs)) continue;
         }
         if (tier === 'city') {
-            if (expandDepartment && trip.eligibleDriverAlertSent) {
+            if (expandDepartment && !resend && trip.eligibleDriverAlertSent) {
                 skipCity += 1;
                 continue;
             }
@@ -3308,6 +3343,34 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
     ]);
     const skipNoToken = pushResults.filter((r) => r && r.tokens === 0).length;
     const pushed = pushResults.filter((r) => r && r.sent > 0).length;
+
+    // Embudo del panel Viajes: a quién se notificó y a quién FCM aceptó el envío.
+    // («les llegó» de verdad lo confirma el celular con ackPushReceived → deliveredTo).
+    const funnelIds = [
+        ...cityList.slice(0, 400),
+        ...nearbyList.slice(0, Math.max(0, 400 - cityList.length))
+    ];
+    if (funnelIds.length) {
+        const okIds = funnelIds.filter((id, i) => pushResults[i] && pushResults[i].sent > 0);
+        const noTokIds = funnelIds.filter((id, i) => pushResults[i] && pushResults[i].tokens === 0);
+        const funnelPatch = {
+            alertNotifiedDriverIds: FieldValue.arrayUnion(...funnelIds),
+            alertFirstNotifiedAtMs: trip.alertFirstNotifiedAtMs || Date.now()
+        };
+        if (okIds.length) funnelPatch.alertFcmOkDriverIds = FieldValue.arrayUnion(...okIds);
+        if (noTokIds.length) funnelPatch.alertNoTokenDriverIds = FieldValue.arrayUnion(...noTokIds);
+        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update(funnelPatch).catch(() => {});
+    }
+    if (resend) {
+        console.log(`[notifyEligibleDriversNewTrip] ${tripId} resend=${resendReason} city=${cityList.length} nearby=${nearbyList.length} pushed=${pushed}`);
+        await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
+            lastResendPushed: pushed,
+            lastResendNotified: funnelIds.length,
+            lastResendNoToken: skipNoToken
+        }).catch(() => {});
+        // Sin WhatsApp en el reenvío (solo push).
+        return { notified: funnelIds.length, pushed, noToken: skipNoToken };
+    }
     console.log(
         `[notifyEligibleDriversNewTrip] ${tripId} zone=${tripZone || 'n/a'} dept=${tripDept || 'n/a'} ` +
         `immediate=${immediate} closedAppOnly=${closedAppOnly} retryFresh=${retryFreshTokens} considered=${candidateUids.size} city=${cityList.length} nearby=${nearbyList.length} ` +
@@ -3480,6 +3543,12 @@ exports.onTripCreatedAssignOffer = onDocumentCreated(
         }
 
         await alertDriversForPendingTrip(appId, tripId, trip);
+
+        // Panel Viajes: si en N s (10 por defecto, platformConfig/main.autoResendSeconds)
+        // nadie ofertó, se reenvía solo a un radio más grande.
+        await viajesPanel.helpers.runAutoResend(appId, tripId, trip).catch((e) => {
+            console.warn('runAutoResend', e?.message || e);
+        });
     }
 );
 
@@ -6167,6 +6236,9 @@ exports.dailyCommissionFreeDayPush = onSchedule(
 
 // ── WhatsApp Cloud API (Meta oficial) ────────────────────────────────
 const whatsappCloud = require('./whatsapp-cloud');
+// ───── Panel de supervisor «Viajes» ─────
+Object.assign(exports, viajesPanel.exports);
+
 exports.whatsappWebhook = whatsappCloud.whatsappWebhook;
 exports.sendWhatsAppCloudText = whatsappCloud.sendWhatsAppCloudText;
 exports.testWhatsAppTripTemplate = whatsappCloud.testWhatsAppTripTemplate;

@@ -135,6 +135,29 @@ function presentHonduNotification(payload) {
     return showSafeNotification(title, options);
 }
 
+// Panel Viajes: avisar a la app que este aviso llegó (si está cerrada, se guarda y se manda al abrir).
+const HR_ACK_TYPES = ['trip_offer', 'ride_demand_alert', 'freight_trip_alert', 'trip_price_boost', 'push_test'];
+async function reportPushReceived(payload) {
+    try {
+        const d = (payload && (payload.data || payload.notification?.data)) || {};
+        const type = String(d.type || '');
+        if (!HR_ACK_TYPES.includes(type) || (!d.tripId && !d.testId)) return;
+        const info = { type, tripId: String(d.tripId || ''), testId: String(d.testId || ''), _receivedAtMs: Date.now() };
+        const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        if (list.length) {
+            list.forEach((c) => { try { c.postMessage({ type: 'HR_PUSH_RECEIVED', data: info }); } catch (_) {} });
+            return;
+        }
+        const cache = await caches.open('hr-push-acks');
+        const req = new Request('/__hr_push_acks');
+        const prev = await cache.match(req);
+        let arr = [];
+        if (prev) { try { arr = await prev.json(); } catch (_) {} }
+        arr.push(info);
+        await cache.put(req, new Response(JSON.stringify(arr.slice(-30)), { headers: { 'Content-Type': 'application/json' } }));
+    } catch (_) {}
+}
+
 self.addEventListener('push', (event) => {
     event.waitUntil((async () => {
         let payload = {};
@@ -143,6 +166,7 @@ self.addEventListener('push', (event) => {
         } catch (_) {
             payload = {};
         }
+        reportPushReceived(payload);
         try {
             await presentHonduNotification(payload);
         } catch (_) {

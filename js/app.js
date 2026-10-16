@@ -392,6 +392,16 @@ function loadHeavyUiAfterAuth() {
             window.onMerchantAuthReady = m.onMerchantAuthReady;
             try { m.onMerchantAuthReady?.(); } catch (_) {}
         }).catch((e) => console.warn(e)));
+        vLoad.push(hrLazy('ops-viajes-panel.js').then((m) => {
+            m.initViajesPanel({
+                db, appId,
+                functions: cloudFunctions,
+                getCurrentUser: () => currentUser || window.currentUser || null,
+                getUserProfile: () => window.userProfile,
+                isAdminUser: (u, p) => isAdminUser(u, p),
+                isStaffUser: (u, p) => isStaffUser(u, p)
+            });
+        }).catch((e) => console.warn(e)));
         vLoad.push(hrLazy('staff-create-client-trip.js').then((m) => {
             m.installStaffCreateClientTrip({
                 db, appId,
@@ -13539,7 +13549,8 @@ if (document.readyState === 'loading') {
                 collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
                 (snap) => {
                     window._adminTripsLastSnap = snap;
-                    const allTripsForAlert = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    // Papelera (panel Viajes): fuera de la vista anterior también
+                    const allTripsForAlert = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => !t.trashedAtMs);
                     // Always alert staff on new pending trips (even if not currently viewing Viajes tab)
                     const pendingForAlert = allTripsForAlert.filter(t => t.status === 'pending' && !t.driverId && !t.isDemandSimulation);
                     alertStaffNewPendingTrips(pendingForAlert);
@@ -17780,8 +17791,16 @@ if (document.readyState === 'loading') {
             return simDocs.length;
         }
 
-        // Admin / Supervisor: borrar viajes (activos atascados o cancelados)
+        // Admin / Supervisor: «BORRAR» ya no borra: mueve a la papelera (se recupera 30 días).
+        // Borrar para siempre solo desde Papelera escribiendo BORRAR (panel Viajes).
         window.deleteActiveTrip = async (tripId) => {
+            if (typeof window.viajesMoveToTrash === 'function') {
+                return window.viajesMoveToTrash([tripId]);
+            }
+            return window.showToast?.('Cargando el panel… intenta de nuevo en un momento.', 'info');
+        };
+        // Borrado directo anterior (sin papelera). Ya no está enlazado a ningún botón.
+        window._legacyDeleteActiveTripPermanent = async (tripId) => {
             if (!tripId) return;
             const isStaff = window.userProfile?.role === 'supervisor' || isAdminUser(currentUser, window.userProfile);
             if (!isStaff) {
@@ -22536,7 +22555,8 @@ if (document.readyState === 'loading') {
                 };
             }
 
-            let commissionPercent = await getPlatformCommission();
+            // % del servicio si el admin lo definió en el panel Viajes; si no, el general.
+            let commissionPercent = await getPlatformCommission(trip);
             let driverProfile = null;
 
             if (trip.driverId) {
@@ -23845,31 +23865,56 @@ if (document.readyState === 'loading') {
         }
 
         /** Cache corta del % de comisión del admin (platformConfig). Se invalida al guardar. */
-        let _platformCommissionCache = { value: null, at: 0 };
+        let _platformCommissionCache = { value: null, at: 0, byService: {} };
 
         function invalidatePlatformCommissionCache() {
-            _platformCommissionCache = { value: null, at: 0 };
+            _platformCommissionCache = { value: null, at: 0, byService: {} };
         }
+        window.invalidatePlatformCommissionCache = invalidatePlatformCommissionCache;
 
-        async function getPlatformCommission() {
+        /** Clave de comisión por servicio (panel Viajes): moto, auto (VIP), taxi, delivery, flete, grua, hourly. */
+        function commissionServiceKey(tripOrType) {
+            if (!tripOrType) return '';
+            if (typeof tripOrType === 'string') {
+                if (tripOrType === 'flete_paila' || tripOrType === 'flete_camion') return 'flete';
+                return tripOrType;
+            }
+            if (tripOrType.bookingType === 'hourly') return 'hourly';
+            return commissionServiceKey(String(tripOrType.serviceType || 'auto'));
+        }
+        window.commissionServiceKey = commissionServiceKey;
+
+        /**
+         * % de plataforma. Sin argumento: el % general (platformConfig/main.commissionPercentage).
+         * Con viaje o servicio: si el admin puso un % para ese servicio (commissionByService), ese.
+         */
+        async function getPlatformCommission(tripOrService = null) {
             const now = Date.now();
+            const pick = () => {
+                const key = commissionServiceKey(tripOrService);
+                const v = key ? Number(_platformCommissionCache.byService?.[key]) : NaN;
+                return Number.isFinite(v) && v >= 0 && v <= 100 ? v : _platformCommissionCache.value;
+            };
             if (_platformCommissionCache.value != null && (now - _platformCommissionCache.at) < 8000) {
-                return _platformCommissionCache.value;
+                return pick();
             }
             const fallback = Number(APP_CONFIG.commissionPercent);
             const safeFallback = Number.isFinite(fallback) && fallback >= 0 && fallback <= 100 ? fallback : 25;
             try {
                 const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'platformConfig', 'main'));
                 if (snap.exists()) {
-                    const raw = parseFloat(snap.data().commissionPercentage);
-                    if (Number.isFinite(raw) && raw >= 0 && raw <= 100) {
-                        _platformCommissionCache = { value: raw, at: now };
-                        return raw;
-                    }
+                    const data = snap.data() || {};
+                    const raw = parseFloat(data.commissionPercentage);
+                    const byService = (data.commissionByService && typeof data.commissionByService === 'object')
+                        ? data.commissionByService
+                        : {};
+                    const value = Number.isFinite(raw) && raw >= 0 && raw <= 100 ? raw : safeFallback;
+                    _platformCommissionCache = { value, at: now, byService };
+                    return pick();
                 }
             } catch (_) {}
-            _platformCommissionCache = { value: safeFallback, at: now };
-            return safeFallback;
+            _platformCommissionCache = { value: safeFallback, at: now, byService: {} };
+            return pick();
         }
         // Expuesto para tiendas (tarifa del momento / comisión dividida 50-50)
         window.getPlatformCommission = getPlatformCommission;
@@ -40228,6 +40273,9 @@ window.cancelSetupAndLogout = () => {
                 }
 
                 const tripUpdates = { [ratedField]: true };
+                // Panel Viajes (columna Calif.): guardar las estrellas en el viaje
+                const starsNum = Math.min(5, Math.max(1, Math.round(Number(selectedStars) || 0)));
+                if (starsNum) tripUpdates[`${ratedField}Stars`] = starsNum;
                 if (tipAmount > 0) {
                     tripUpdates.tipAmount = tipAmount;
                     tripUpdates.tipPaid = true;
@@ -42286,7 +42334,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                     const tripsTabActive = document.querySelector('#supervisor-panel .ops-nav-item[data-sup-tab="trips"].ops-nav-item--active');
                     if (!supPanel || supPanel.classList.contains('hidden') || !tripsTabActive) return;
 
-                    const allTrips = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    const allTrips = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => !t.trashedAtMs);
                     if (window.supervisorTripsRenderTimer) clearTimeout(window.supervisorTripsRenderTimer);
                     window.supervisorTripsRenderTimer = setTimeout(() => {
                         if (window.supervisorTripsPastView) return;
