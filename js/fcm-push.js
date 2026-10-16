@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
-import { getMessaging, getToken, isSupported, onMessage } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js';
+import { getMessaging, getToken, deleteToken, isSupported, onMessage } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-messaging.js';
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp, FieldPath } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { initTripNotifications, notifyChatMessage, notifyTripEvent, notifyFreightTripAlert, notifyRideDemandAlert, notifyStaffNewTripAlert, setAndroidNotificationPermissionCache, getNotificationPermission, holdAndroidNotificationGrant, androidNotificationGrantHeld } from './trip-notifications.js';
 import { isCapacitorNative, isCapacitorAndroid } from './capacitor-native.js';
@@ -18,6 +18,79 @@ let lastWebTokenValue = '';
 let androidPushContext = { db: null, appId: null, uid: null };
 let closedSessionPushBooted = false;
 let localNotifIdSeq = Math.floor(Date.now() % 100000);
+/** Últimos datos de initFcmPush (web), para pedir un token nuevo si el actual murió. */
+let lastWebInitArgs = null;
+
+// —— Metadatos del equipo (modelo / Android / app) guardados con cada token ——
+// Sin plugin Device en el APK: se leen del navegador (UA + userAgentData).
+let pushDeviceHints = null;
+function brandFromModel(model, ua) {
+    const m = String(model || '');
+    if (/^SM-|^SC-|^SCV|galaxy/i.test(m) || /SAMSUNG|Samsung/.test(ua)) return 'samsung';
+    if (/redmi|poco|xiaomi|^M2\d{3}|^2\d{3}[A-Z0-9]{3,}/i.test(m) || /Xiaomi|Redmi|POCO/i.test(ua)) return 'xiaomi';
+    if (/moto|XT\d{4}/i.test(m)) return 'motorola';
+    if (/^T\d{3}|TCL/i.test(m) || /TCL/i.test(ua)) return 'tcl';
+    if (/HUAWEI|HONOR|^[A-Z]{3}-L\d/i.test(m) || /HUAWEI|HONOR/i.test(ua)) return 'huawei';
+    if (/Pixel/i.test(m)) return 'google';
+    if (/iPhone|iPad/.test(ua)) return 'apple';
+    return '';
+}
+function parseUaDevice(ua) {
+    const out = { os: '', osVersion: '', model: '' };
+    const a = ua.match(/Android\s+([\d.]+)(?:;\s*([^;)]+?))?(?:\s+Build\/[^;)]*)?[;)]/);
+    if (a) {
+        out.os = 'android';
+        out.osVersion = a[1] || '';
+        const model = String(a[2] || '').trim();
+        // UA reducido de Chrome: el modelo sale como "K" y la versión fija en "10" (no sirve).
+        if (model === 'K') out.osVersion = '';
+        else if (model && !/^wv$/i.test(model)) out.model = model;
+        return out;
+    }
+    const i = ua.match(/(iPhone|iPad)[^)]*OS (\d+(?:_\d+)*)/);
+    if (i) {
+        out.os = 'ios';
+        out.model = i[1];
+        out.osVersion = i[2].replace(/_/g, '.');
+        return out;
+    }
+    if (/Windows/.test(ua)) out.os = 'windows';
+    else if (/Mac OS X/.test(ua)) out.os = 'macos';
+    else if (/Linux/.test(ua)) out.os = 'linux';
+    return out;
+}
+async function primePushDeviceHints() {
+    if (pushDeviceHints) return pushDeviceHints;
+    pushDeviceHints = {};
+    try {
+        const hi = await navigator.userAgentData?.getHighEntropyValues?.(['model', 'platformVersion', 'platform']);
+        if (hi) {
+            if (hi.model) pushDeviceHints.model = String(hi.model);
+            if (hi.platformVersion && /android/i.test(hi.platform || '')) pushDeviceHints.osVersion = String(hi.platformVersion);
+        }
+    } catch (_) {}
+    return pushDeviceHints;
+}
+try { primePushDeviceHints(); } catch (_) {}
+
+/** { model, osVersion, brand, os, appVersion, ua } — texto corto, sin datos personales. */
+export function getPushDeviceMeta() {
+    let ua = '';
+    try { ua = String(navigator.userAgent || ''); } catch (_) {}
+    const parsed = parseUaDevice(ua);
+    const hints = pushDeviceHints || {};
+    const model = String(hints.model || parsed.model || '').slice(0, 48);
+    const meta = {
+        os: parsed.os || (isCapacitorAndroid() ? 'android' : ''),
+        osVersion: String(hints.osVersion || parsed.osVersion || '').slice(0, 24),
+        model,
+        brand: brandFromModel(model, ua),
+        appVersion: String(APP_CONFIG?.appVersion || '').slice(0, 24),
+        ua: ua.slice(0, 180)
+    };
+    for (const k of Object.keys(meta)) if (!meta[k]) delete meta[k];
+    return meta;
+}
 const LAST_PUSH_UID_KEY = 'honduber_push_uid';
 
 export function lastPushUid() {
@@ -500,11 +573,59 @@ export async function pingMyPushFromClient() {
         if (!token) {
             return { sent: 0, tokens: 0, error: 'no_local_token' };
         }
-        const res = await callable(fns, 'pingMyPush')({ token, platform });
+        await primePushDeviceHints().catch(() => {});
+        const res = await callable(fns, 'pingMyPush')({ token, platform, meta: getPushDeviceMeta() });
         return res?.data || { sent: 0, tokens: 0 };
     } catch (e) {
         console.warn('[push] pingMyPush', e?.message || e);
         return { sent: 0, tokens: 0, error: e?.message || 'ping_failed' };
+    }
+}
+
+/**
+ * FCM dijo que el token de ESTE equipo ya no existe (registration-token-not-registered).
+ * Se borra local y se pide uno nuevo. Máximo 1 vez cada 6 h por equipo (sin bucles).
+ * Web: deleteToken + getToken. Android: unregister (borra el token en el equipo) + un register().
+ */
+const PUSH_HEAL_KEY = 'hr_push_heal_at';
+export async function healThisDevicePushToken() {
+    try {
+        const last = Number(localStorage.getItem(PUSH_HEAL_KEY) || 0);
+        if (last && Date.now() - last < 6 * 60 * 60 * 1000) return { healed: false, reason: 'recent' };
+        localStorage.setItem(PUSH_HEAL_KEY, String(Date.now()));
+    } catch (_) {}
+    const old = getThisDevicePushTarget().token || '';
+    const forgetLocal = () => {
+        try {
+            localStorage.removeItem(LAST_FCM_TOKEN_KEY);
+            localStorage.removeItem(FCM_CLAIM_KEY);
+        } catch (_) {}
+        markWebPushTokenOk(false);
+        lastWebTokenValue = '';
+        lastAndroidTokenValue = '';
+        prefetchedAndroidToken = '';
+        unsavedAndroidToken = '';
+    };
+    try {
+        if (isCapacitorAndroid()) {
+            forgetLocal();
+            androidNativeTokenConfirmed = false;
+            try { await raceTimeout(PushNotifications.unregister(), 5000, null); } catch (_) {}
+            await new Promise((r) => setTimeout(r, 1500));
+            lastAndroidRegisterAt = 0;
+            const token = await registerAndroidPushNow({ assumeGranted: true });
+            return { healed: !!token && token !== old, token: token || '' };
+        }
+        if (!lastWebInitArgs) return { healed: false, reason: 'no_web_init' };
+        try {
+            if (messagingInstance) await raceTimeout(deleteToken(messagingInstance), 6000, null);
+        } catch (_) {}
+        forgetLocal();
+        const token = await initFcmPush(lastWebInitArgs);
+        return { healed: !!token && token !== old, token: token || '' };
+    } catch (e) {
+        console.warn('[push] heal', e?.message || e);
+        return { healed: false, reason: 'error' };
     }
 }
 
@@ -618,9 +739,12 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     if (!uid || !db || !appId) return false;
     rememberPushUid(uid);
     // Objeto anidado + merge: queda DENTRO del mapa fcmTokens (lo que lee el servidor).
+    await primePushDeviceHints().catch(() => {});
+    const deviceMeta = getPushDeviceMeta();
     const tokenPatch = {
         fcmTokens: {
             [token.replace(/\./g, '_')]: {
+                ...deviceMeta,
                 token,
                 updatedAt: Date.now(),
                 platform
@@ -647,7 +771,30 @@ export async function saveFcmToken(db, appId, uid, token, platform = 'web') {
     if (saved) {
         pruneStaleFcmTokens(db, appId, uid, token).catch(() => {});
     }
+    claimFcmTokenOnServer(uid, token, platform, deviceMeta);
     return saved;
+}
+
+/**
+ * Servidor: marca esta cuenta como única dueña del token (lo quita de la cuenta
+ * anterior si el celular cambió de cuenta). Una vez por cuenta+token cada 12 h.
+ */
+const FCM_CLAIM_KEY = 'hr_fcm_claim_v1';
+function claimFcmTokenOnServer(uid, token, platform, meta) {
+    try {
+        const callable = window.httpsCallable;
+        const fns = window.cloudFunctions;
+        if (typeof callable !== 'function' || !fns || !uid || !token) return;
+        const sig = `${uid}|${token.slice(-24)}`;
+        let prev = {};
+        try { prev = JSON.parse(localStorage.getItem(FCM_CLAIM_KEY) || '{}') || {}; } catch (_) {}
+        if (prev.sig === sig && Date.now() - (Number(prev.at) || 0) < 12 * 60 * 60 * 1000) return;
+        try { localStorage.setItem(FCM_CLAIM_KEY, JSON.stringify({ sig, at: Date.now() })); } catch (_) {}
+        callable(fns, 'registerFcmToken')({ token, platform, meta }).catch((e) => {
+            console.warn('[push] registerFcmToken', e?.code || e?.message || e);
+            try { localStorage.removeItem(FCM_CLAIM_KEY); } catch (_) {}
+        });
+    } catch (_) {}
 }
 
 function playTripHtmlAlert() {
@@ -1035,6 +1182,7 @@ try {
 /** Web/PWA: FCM con service worker y VAPID. No se ejecuta en APK Android. */
 export async function initFcmPush({ firebaseConfig, vapidKey, db, appId, uid }) {
     if (isCapacitorNative()) return null;
+    lastWebInitArgs = { firebaseConfig, vapidKey, db, appId, uid };
     const tokenUid = uid || lastPushUid() || null;
     if (!(await messagingSupportedHere())) return null;
 
