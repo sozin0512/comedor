@@ -13,6 +13,9 @@ t('notifyEligibleDriversNewTrip no suena papelera', /if \(trip\.trashedAtMs\) re
 t('assignNextTripOfferServer no ofrece papelera', /trip\.trashedAtMs\) return false/.test(body(fn, 'async function assignNextTripOfferServer', 600)));
 t('notifyOfflineRideDriversWhenNoCoverage no avisa papelera', /trip\.trashedAtMs\) return/.test(body(fn, 'async function notifyOfflineRideDriversWhenNoCoverage', 400)));
 t('notifyDriversTripPriceBoost no avisa papelera', /after\.trashedAtMs\) return/.test(body(fn, 'async function notifyDriversTripPriceBoost', 300)));
+t('acceptDriverTrip rechaza papelera', /trip\.trashedAtMs\)/.test(body(fn, 'exports.acceptDriverTrip', 1500)));
+t('reoferta a conductor libre ignora papelera', /!t\.isDemandSimulation && !t\.trashedAtMs\);\n\s+for \(const t of pending\)/.test(app));
+t('aceptar en app rechaza papelera', /t\.status !== 'pending' \|\| t\.trashedAtMs\) return window\.showToast/.test(app));
 // Cliente: extraer tripVisibleForMe y ejecutarlo
 const m = app.match(/const tripVisibleForMe = \(t\) => \{\n([\s\S]*?)\n\s{16}\};/);
 t('app.js tiene tripVisibleForMe', !!m);

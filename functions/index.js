@@ -1100,6 +1100,9 @@ exports.acceptDriverTrip = onCall(async (request) => {
     if (trip.status !== 'pending') {
         throw new HttpsError('failed-precondition', 'Otro conductor ya tomó este viaje.');
     }
+    if (trip.trashedAtMs) {
+        throw new HttpsError('failed-precondition', 'Este viaje ya no está disponible.');
+    }
     if (trip.driverId && trip.driverId !== uid) {
         throw new HttpsError('failed-precondition', 'Otro conductor ya tomó este viaje.');
     }

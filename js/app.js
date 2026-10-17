@@ -6070,7 +6070,7 @@ if (document.readyState === 'loading') {
                 (snap) => {
                     const pending = snap.docs
                         .map(d => ({ id: d.id, ...d.data() }))
-                        .filter(t => t.status === 'pending' && !t.isDemandSimulation && !t.driverId);
+                        .filter(t => t.status === 'pending' && !t.isDemandSimulation && !t.driverId && !t.trashedAtMs);
                     alertStaffNewPendingTrips(pending);
                 }
             );
@@ -9457,7 +9457,7 @@ if (document.readyState === 'loading') {
                 const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
                 const pending = snap.docs
                     .map((d) => ({ id: d.id, ...d.data() }))
-                    .filter((t) => t.status === 'pending' && !t.driverId && !t.isDemandSimulation);
+                    .filter((t) => t.status === 'pending' && !t.driverId && !t.isDemandSimulation && !t.trashedAtMs);
                 for (const t of pending) {
                     const offerFresh = t.offeredToDriverId
                         && t.offerSentAt?.toMillis
@@ -10760,7 +10760,7 @@ if (document.readyState === 'loading') {
                 if (!tripSnap.exists()) return;
 
                 const t = tripSnap.data();
-                if (t.status !== 'pending') return window.showToast('Este viaje ya no está disponible.');
+                if (t.status !== 'pending' || t.trashedAtMs) return window.showToast('Este viaje ya no está disponible.');
                 const driverZoneId = window.activeServiceZoneId
                     || window.userProfile?.serviceZoneId
                     || getDefaultZoneId();
