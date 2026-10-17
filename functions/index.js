@@ -2033,7 +2033,7 @@ function offlineDriverNearTrip(loc, trip, radiusKm) {
 async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     const serviceType = trip.serviceType || 'auto';
     if (!isRideService(serviceType)) return;
-    if (trip.rideOfflineAlertSent || trip.isDemandSimulation) return;
+    if (trip.rideOfflineAlertSent || trip.isDemandSimulation || trip.trashedAtMs) return;
     if (trip.status !== 'pending') return;
     // No avisar conductores si el cliente aún no reclamó el viaje de staff
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
@@ -2285,7 +2285,8 @@ async function fetchPendingTripDocs(appId) {
     const snap = await db.collection(`artifacts/${appId}/public/data/trips`)
         .where('status', '==', 'pending')
         .get();
-    return snap.docs;
+    // Papelera: el viaje sigue «pending» (se puede restaurar) pero no se ofrece ni se avisa.
+    return snap.docs.filter((d) => !d.get('trashedAtMs'));
 }
 
 async function fetchTripDocsForOffer(appId) {
@@ -2474,7 +2475,7 @@ async function assignNextTripOfferServer(appId, tripId) {
     if (!tripSnap.exists) return false;
 
     const trip = { id: tripSnap.id, ...tripSnap.data() };
-    if (trip.isDemandSimulation) return false;
+    if (trip.isDemandSimulation || trip.trashedAtMs) return false;
     if (trip.status !== 'pending' || trip.driverId) return false;
     const zoneMeta = resolveTripZoneMeta(trip);
     if (zoneMeta.id && zoneMeta.id !== trip.serviceZoneId) {
@@ -3030,7 +3031,7 @@ exports.pingMyPush = onCall(async (request) => {
  * y a los que ya habían visto el viaje (aunque estén en otra app).
  */
 async function notifyDriversTripPriceBoost(appId, tripId, after, before) {
-    if (!after || after.status !== 'pending' || after.driverId) return;
+    if (!after || after.status !== 'pending' || after.driverId || after.trashedAtMs) return;
     const priceLabel = after.price || formatMoneyL(after.priceNum);
     const fromLabel = before?.price || formatMoneyL(before?.priceNum);
     const originShort = (after.origin || '').slice(0, 42);
@@ -3255,6 +3256,8 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
     resendReason = 'staff'
 } = {}) {
     if (!trip || trip.status !== 'pending' || trip.isDemandSimulation || trip.driverId) return;
+    // Papelera del panel Viajes: no vuelve a sonar a nadie (ni con «Reenviar»).
+    if (trip.trashedAtMs) return;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return;
     // El primer aviso ya salió. Esta pasada solo suena a quien guardó el token DESPUÉS.
     if (resend) {

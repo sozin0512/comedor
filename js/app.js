@@ -11482,6 +11482,8 @@ if (document.readyState === 'loading') {
 
                 const tripVisibleForMe = (t) => {
                     if (t.status !== 'pending' || t.isDemandSimulation || t.driverId) return false;
+                    // Papelera del panel Viajes: el conductor ya no lo ve (se puede restaurar 30 días)
+                    if (t.trashedAtMs) return false;
                     if (testDriverMode) return true;
                     if (isTripExclusiveActive(t) && t.offeredToDriverId === currentUser.uid) return true;
                     if (isTripExclusiveActive(t) && t.offeredToDriverId !== currentUser.uid) return false;
@@ -11501,7 +11503,7 @@ if (document.readyState === 'loading') {
                 // Use all pending (not just zone matched) so closest trips trigger assignment even if zone id minor mismatch
                 const pendingAll = snap.docs.filter((d) => {
                     const t = d.data();
-                    return t.status === 'pending' && !t.isDemandSimulation;
+                    return t.status === 'pending' && !t.isDemandSimulation && !t.trashedAtMs;
                 });
 
                 // Always run staff alerts (works for supervisor/admin even without driver container)
