@@ -41307,10 +41307,14 @@ window.cancelSetupAndLogout = () => {
 
         window.startDriverLocationTracking = async () => {
             if (!navigator.geolocation || !currentUser) return;
-            if (window.driverLocationWatchId != null) {
+            if (window.driverLocationWatchId != null || window.__hrDriverLocPending) {
                 markDriverWantedOnline();
                 return;
             }
+            // Cada encendido es una «sesión» nueva: lo que quede armado de una sesión
+            // anterior (espera de GPS en Android, visibilitychange) ya no puede encender nada.
+            const locGen = (window.__hrDriverLocGen = (window.__hrDriverLocGen || 0) + 1);
+            window.__hrDriverLocArmed = false;
 
             const testDriverMode = isTestDriverProfile();
             let activeVehicle = getActiveVehicle(window.userProfile);
@@ -41509,8 +41513,11 @@ window.cancelSetupAndLogout = () => {
             };
 
             const requestDriverLocationFixes = () => {
-            if (window.__hrDriverLocArmed) return;
+            if (locGen !== window.__hrDriverLocGen) return;
+            if (window.__hrDriverLocArmed || window.driverLocationWatchId != null) return;
             window.__hrDriverLocArmed = true;
+            window.__hrDriverLocPending = false;
+            if (window.__hrDriverGpsWait) { clearInterval(window.__hrDriverGpsWait); window.__hrDriverGpsWait = null; }
             if (navigator.geolocation.getCurrentPosition) {
                 navigator.geolocation.getCurrentPosition(
                     (position) => {
@@ -41792,18 +41799,23 @@ window.cancelSetupAndLogout = () => {
             };
             // S24 y TCL: el permiso de ubicación cierra el de notificaciones si salen juntos.
             if (isCapacitorAndroid() && getNotificationPermission() !== 'granted') {
+                window.__hrDriverLocPending = true;
                 const armGps = () => {
+                    if (locGen !== window.__hrDriverLocGen) return;
                     if (window.__hrDriverLocArmed) return;
                     const waitingNotif = !!document.getElementById('notif-prompt-modal')
                         && getNotificationPermission() !== 'granted';
                     if (waitingNotif) return;
                     requestDriverLocationFixes();
                 };
+                if (window.__hrDriverGpsWait) clearInterval(window.__hrDriverGpsWait);
                 const gpsWait = setInterval(armGps, 700);
+                window.__hrDriverGpsWait = gpsWait;
                 // A los 20 s se pide la ubicación igual, pero no encima de un registro
                 // de avisos en curso (en el S24 el diálogo de ubicación lo deja colgado).
                 const gpsStartedAt = Date.now();
                 const forceGps = () => {
+                    if (locGen !== window.__hrDriverLocGen) { clearInterval(gpsWait); return; }
                     const busy = !!window.isAndroidPushRegistrationBusy?.();
                     if (busy && Date.now() - gpsStartedAt < 60000) {
                         setTimeout(forceGps, 2000);
@@ -41813,9 +41825,14 @@ window.cancelSetupAndLogout = () => {
                     requestDriverLocationFixes();
                 };
                 setTimeout(forceGps, 20000);
-                document.addEventListener('visibilitychange', () => {
+                const onVisArm = () => {
+                    if (locGen !== window.__hrDriverLocGen) {
+                        document.removeEventListener('visibilitychange', onVisArm);
+                        return;
+                    }
                     if (document.visibilityState === 'visible') armGps();
-                });
+                };
+                document.addEventListener('visibilitychange', onVisArm);
             } else {
                 requestDriverLocationFixes();
             }
@@ -41898,6 +41915,15 @@ window.cancelSetupAndLogout = () => {
         };
 
         window.stopDriverLocationTracking = () => {
+            // Cierra la sesión de GPS: sin esto, al volver a «En línea» el GPS no se re-armaba
+            // (__hrDriverLocArmed quedaba en true) y el interruptor se quedaba en «Desconectado».
+            window.__hrDriverLocGen = (window.__hrDriverLocGen || 0) + 1;
+            window.__hrDriverLocArmed = false;
+            window.__hrDriverLocPending = false;
+            if (window.__hrDriverGpsWait) {
+                clearInterval(window.__hrDriverGpsWait);
+                window.__hrDriverGpsWait = null;
+            }
             if (window._depositDeadlineWatch) {
                 clearInterval(window._depositDeadlineWatch);
                 window._depositDeadlineWatch = null;
@@ -41929,11 +41955,14 @@ window.cancelSetupAndLogout = () => {
             syncDriverSessionKeepalive(false).catch(() => {});
         };
 
+        // En línea = GPS vigilando o esperando el permiso de avisos (Android) para armarlo.
+        window.isDriverOnlineActive = () => window.driverLocationWatchId != null || !!window.__hrDriverLocPending;
+
         // Toggle explícito para conductor: "Estoy en línea" / Pausar
         window.toggleDriverOnline = async (forceOnline) => {
             if (!currentUser || window.userProfile?.role !== 'driver') return;
 
-            const currentlyOnline = !!window.driverLocationWatchId;
+            const currentlyOnline = window.isDriverOnlineActive();
             const wantOnline = typeof forceOnline === 'boolean' ? forceOnline : !currentlyOnline;
 
             if (!wantOnline) {
@@ -41944,6 +41973,9 @@ window.cancelSetupAndLogout = () => {
 
             // Activar
             await window.startDriverLocationTracking();
+            // Si no arrancó (vehículo sin aprobar, bloqueo por deuda, sin GPS…) ya se mostró
+            // el motivo: no marcar online:true ni decir «¡Estás en línea!».
+            if (!window.isDriverOnlineActive()) return;
             // Forzar un update inmediato para que pasajeros lo vean ya
             try {
                 await setDoc(
