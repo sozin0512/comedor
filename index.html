@@ -403,6 +403,8 @@
                 <div class="ops-nav-section">
                     <span class="ops-nav-label">Tiendas</span>
                     <button type="button" onclick="window.loadSupervisorStores()" id="sup-tab-stores" data-sup-tab="stores" class="ops-nav-item"><i class="fas fa-store"></i><span>Verificar tiendas</span></button>
+                    <button type="button" onclick="window.loadSupervisorStoreOrders && window.loadSupervisorStoreOrders()" id="sup-tab-store-orders" data-sup-tab="store-orders" class="ops-nav-item"><i class="fas fa-shopping-bag"></i><span>Pedidos</span><em id="sup-store-orders-badge" class="ops-nav-badge hidden"></em></button>
+                    <button type="button" onclick="window.loadSupervisorDeliveryZones && window.loadSupervisorDeliveryZones()" id="sup-tab-delivery-zones" data-sup-tab="delivery-zones" class="ops-nav-item"><i class="fas fa-draw-polygon"></i><span>Zonas de envío</span></button>
                 </div>
                 <div class="ops-nav-section">
                     <span class="ops-nav-label">Operaciones</span>

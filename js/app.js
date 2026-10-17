@@ -398,6 +398,7 @@ function loadHeavyUiAfterAuth() {
         vLoad.push(hrLazy('merchant-stores.js').then((m) => {
             m.initMerchantStores({
                 db, appId, storage,
+                functions: cloudFunctions,
                 getCurrentUser: () => currentUser,
                 getUserProfile: () => window.userProfile,
             });
@@ -411,6 +412,23 @@ function loadHeavyUiAfterAuth() {
                 getCurrentUser: () => currentUser || window.currentUser || null,
                 getUserProfile: () => window.userProfile,
                 isAdminUser: (u, p) => isAdminUser(u, p),
+                isStaffUser: (u, p) => isStaffUser(u, p)
+            });
+        }).catch((e) => console.warn(e)));
+        vLoad.push(hrLazy('ops-delivery-zones.js').then((m) => {
+            m.initDeliveryZonesAdmin({
+                db, appId,
+                functions: cloudFunctions,
+                getCurrentUser: () => currentUser || window.currentUser || null,
+                getUserProfile: () => window.userProfile,
+                isStaffUser: (u, p) => isStaffUser(u, p)
+            });
+        }).catch((e) => console.warn(e)));
+        vLoad.push(hrLazy('ops-store-orders.js').then((m) => {
+            m.initStoreOrdersAdmin({
+                db, appId,
+                getCurrentUser: () => currentUser || window.currentUser || null,
+                getUserProfile: () => window.userProfile,
                 isStaffUser: (u, p) => isStaffUser(u, p)
             });
         }).catch((e) => console.warn(e)));

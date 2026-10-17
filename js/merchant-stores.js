@@ -20,6 +20,10 @@ import { resolvePhotoUrl } from './storage.js?v=2026.08.04.3';
 import { APP_CONFIG } from './config.js?v=2026.08.04.3';
 import { calculateAge } from './age-verification.js?v=2026.08.04.3';
 import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.09.10.2';
+import {
+    configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
+    checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
+} from './store-delivery-zones.js?v=2026.10.17.1';
 
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
@@ -889,6 +893,7 @@ function ensureShell() {
                         <button type="button" class="merchant-tab active" data-merchant-tab="orders">Pedidos</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="products">Menú</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="store">Tienda</button>
+                        <button type="button" class="merchant-tab" data-merchant-tab="envios">Envíos</button>
                     </nav>
                 </header>
                 <div id="merchant-panel-body" class="stores-world-body"></div>
@@ -2041,6 +2046,8 @@ function renderCheckoutHtml() {
     const tariffPct = getTarifaDelMomentoSync();
     const dest = document.getElementById('destination-autocomplete');
     const destVal = dest?.value || dest?.getAttribute?.('value') || '';
+    // «Envío a <zona>: L X» (cotiza el servidor; se pinta al llegar)
+    setTimeout(() => { refreshCheckoutQuote(false, viewingStore).catch(() => {}); }, 0);
     return `
         <div class="checkout-box space-y-3">
             <p class="stores-section-label">Entrega</p>
@@ -2060,7 +2067,7 @@ function renderCheckoutHtml() {
                     <span>L. ${bal.toFixed(2)}</span>
                 </div>
                 <p class="text-[10px] text-slate-500 mt-1.5 leading-snug">
-                    Puedes pagar productos + tu mitad de tarifa con <b>puntos/saldo</b> o en <b>efectivo</b>. El envío se paga al conductor.
+                    Puedes pagar productos + tu mitad de tarifa con <b>puntos/saldo</b> o en <b>efectivo</b>. El envío se paga al conductor en efectivo.
                 </p>
             </div>
             <label class="stores-field">
@@ -2068,6 +2075,7 @@ function renderCheckoutHtml() {
                 <input id="store-checkout-address" type="text" placeholder="Colonia, referencia, casa..."
                        value="${esc(destVal)}" class="stores-input">
             </label>
+            ${checkoutFeeHtml()}
             <label class="stores-field">
                 <span>Quién recibe *</span>
                 <input id="store-checkout-recipient" type="text" placeholder="Nombre"
@@ -2119,6 +2127,7 @@ function orderCardHtml(o, { merchant = false } = {}) {
                     ${o.paymentStatus === 'refunded' ? ' · reembolsado' : ''}
                 </span>
                 ${o.deliveryAddress ? `<span><i class="fas fa-map-marker-alt"></i> ${esc(o.deliveryAddress)}</span>` : ''}
+                ${orderFeeLineHtml(o)}
             </div>
             ${o.platformFeeBuyer != null || o.platformFeeMerchant != null ? `
                 <p class="text-[10px] text-slate-500 font-semibold mt-1 leading-snug">
@@ -2311,6 +2320,22 @@ async function placeOrder() {
         return toast('Esta tienda es solo para mayores de 18 años', 'warning');
     }
 
+    // Zonas de envío: ubicación elegida en «Confirmar pedido» (GPS o pin del mapa) y bloqueo
+    // si la ciudad no permite pedidos fuera de zona. El monto lo pone el servidor al crear.
+    const zoneGate = await checkoutGateForOrder(viewingStore);
+    if (zoneGate.point) {
+        deliveryLat = zoneGate.point.lat;
+        deliveryLng = zoneGate.point.lng;
+    }
+    if (zoneGate.blocked) {
+        refreshCheckoutQuote(false, viewingStore).catch(() => {});
+        return toast('Por ahora no llegamos a esa dirección. Prueba otra ubicación.', 'warning');
+    }
+    if (zoneGate.changed) {
+        await refreshCheckoutQuote(false, viewingStore).catch(() => {});
+        return toast(`Envío a ${zoneGate.quote.zoneName}: L ${zoneGate.quote.fee}. Revísalo y vuelve a tocar «enviar pedido».`, 'info');
+    }
+
     const tariffPct = await getTarifaDelMomento();
     // Recalcular splits con la tarifa del momento al confirmar
     const items = cart.map((i) => {
@@ -2399,6 +2424,7 @@ async function placeOrder() {
             updatedAt: serverTimestamp(),
         };
         await addDoc(publicCol('store_orders'), payload);
+        resetCheckoutZone();
         cart = [];
         marketplaceView = 'my-orders';
         startClientOrdersListener();
@@ -2691,6 +2717,11 @@ function renderMerchantBody() {
                 <p>Primero crea tu tienda virtual.</p>
                 <button type="button" class="stores-primary-btn mt-3" data-merchant-action="goto-store">Configurar tienda</button>
             </div>`;
+        return;
+    }
+    if (merchantTab === 'envios') {
+        // Tarifa de envío por zona (la valida el servidor)
+        renderMerchantZonesTab(body, myStore).catch((e) => console.warn('[stores] envíos', e));
         return;
     }
     if (merchantTab === 'products') {
@@ -3633,7 +3664,8 @@ async function createDeliveryTripForOrder(order) {
     }
 
     const km = Math.max(0.5, haversineKm(storeLat, storeLng, destLat, destLng));
-    const priceNum = calculateServiceFare('delivery', km, null, 1);
+    // Con zona de envío, el viaje cobra la tarifa fija que el servidor puso en el pedido.
+    const { priceNum } = deliveryTripPrice(order, calculateServiceFare('delivery', km, null, 1));
     const priceText = `L. ${priceNum.toFixed(2)}`;
     const itemsLine = (order.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
     const packageDescription = `Pedido tienda: ${itemsLine}`.slice(0, 400);
@@ -4736,6 +4768,7 @@ export function initMerchantStores(deps = {}) {
     storageRef = deps.storage || null;
     getCurrentUser = deps.getCurrentUser || (() => null);
     getUserProfile = deps.getUserProfile || (() => null);
+    configureStoreZones({ db: dbRef, appId: appIdRef, functions: deps.functions || null, getCurrentUser, toast });
 
     bindUiHooks();
 
