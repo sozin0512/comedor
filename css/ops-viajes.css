@@ -147,6 +147,12 @@
 .vj-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 16px;border-radius:12px;font-size:13px;font-weight:600;z-index:9500}
 
 /* Tablet */
+
+/* Pestaña Avisos: una fila por conductor */
+.vj-pd{display:grid;grid-template-columns:26px minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,1.2fr) minmax(0,1.3fr);gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+.vj-pd:last-child{border-bottom:0}
+.vj-pd-who{min-width:0}
+.vj-pd-act{text-align:right;min-width:0}
 @media (max-width:1200px){
   .vj-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
   .vj-grid3{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -157,6 +163,10 @@
 }
 /* Teléfono */
 @media (max-width:760px){
+  .vj-pd{grid-template-columns:26px minmax(0,1fr) auto;row-gap:4px}
+  .vj-pd-dates{grid-column:2 / 4}
+  .vj-pd-act{grid-column:2 / 4;text-align:left}
+  .vj-pd-act .vj-b{width:100%}
   .vj{border-radius:0}
   .vj-top{padding:12px 12px 10px}
   .vj-body{padding:12px}

@@ -2934,3 +2934,86 @@ exports.testWhatsAppTripTemplate = onCall(
         return { ok: true, template, to: normalizeWaPhone(to), result: result.result };
     }
 );
+
+// ───────────── Panel Viajes · «Pedir que activen avisos» (staffNudgeDriverPush) ─────────────
+
+/** Texto libre (sesión de 24 h) con registro en whatsapp_cloud_outbox. Devuelve { ok, messageId }. */
+async function sendCloudTextLogged(toPhone, body, meta = {}) {
+    const to = normalizeWaPhone(toPhone);
+    if (!to) return { ok: false, skipped: true, reason: 'bad_phone' };
+    const res = await graphSendMessage({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'text',
+        text: { preview_url: true, body: String(body || '').slice(0, 4000) }
+    });
+    const messageId = res?.result?.messages?.[0]?.id || null;
+    try {
+        await db().collection(`artifacts/${APP_ID}/public/data/whatsapp_cloud_outbox`).add({
+            sentAt: FieldValue.serverTimestamp(),
+            kind: 'text',
+            purpose: String(meta.purpose || '').slice(0, 40) || null,
+            to,
+            ok: !!res.ok,
+            skipped: !!res.skipped,
+            reason: res.reason || null,
+            messageId,
+            byUid: meta.byUid || null,
+            metaResponse: res.result || res.error || null
+        });
+    } catch (_) {}
+    return { ...res, messageId };
+}
+
+/**
+ * Último mensaje que ESTE número nos escribió (abre la ventana de 24 h de Meta).
+ * Solo igualdad en `from` (sin índice compuesto); el máximo se calcula aquí.
+ */
+async function lastInboundAtMs(toPhone) {
+    const from = normalizeWaPhone(toPhone);
+    if (!from) return 0;
+    try {
+        const snap = await db().collection(`artifacts/${APP_ID}/public/data/whatsapp_cloud_inbox`)
+            .where('from', '==', from).limit(200).get();
+        let best = 0;
+        snap.forEach((d) => {
+            const x = d.data() || {};
+            const ts = Number(x.timestamp) > 0 ? Number(x.timestamp) * 1000 : 0;
+            const rc = x.receivedAt && typeof x.receivedAt.toMillis === 'function' ? x.receivedAt.toMillis() : 0;
+            best = Math.max(best, ts, rc);
+        });
+        return best;
+    } catch (_) {
+        return 0;
+    }
+}
+
+/** Nombre de la plantilla aprobada para el aviso (vacío = no hay, se usa texto en ventana de 24 h). */
+function driverPushActivateTemplateName() {
+    return String(process.env.WHATSAPP_TEMPLATE_DRIVER_PUSH_ACTIVATE || '').trim();
+}
+
+/** Estado de entrega que Meta mandó al webhook para estos mensajes (failed 131047 = fuera de 24 h). */
+async function deliveryStatusesFor(messageIds = []) {
+    const ids = [...new Set(messageIds.filter(Boolean))];
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += 30) {
+        try {
+            const snap = await db().collection(`artifacts/${APP_ID}/public/data/whatsapp_cloud_statuses`)
+                .where('messageId', 'in', ids.slice(i, i + 30)).get();
+            snap.forEach((d) => {
+                const x = d.data() || {};
+                const prev = out.get(x.messageId) || [];
+                prev.push({ status: x.status || '', errors: Array.isArray(x.errors) ? x.errors : [], timestamp: Number(x.timestamp) || 0 });
+                out.set(x.messageId, prev);
+            });
+        } catch (_) {}
+    }
+    return out;
+}
+
+exports.sendCloudTextLogged = sendCloudTextLogged;
+exports.lastInboundAtMs = lastInboundAtMs;
+exports.driverPushActivateTemplateName = driverPushActivateTemplateName;
+exports.deliveryStatusesFor = deliveryStatusesFor;
+exports.templateParamMismatch = templateParamMismatch;

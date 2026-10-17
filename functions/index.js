@@ -34,7 +34,19 @@ const viajesPanel = require('./viajes-panel')({
     assertCallerIsSupremeAdmin: (...a) => assertCallerIsSupremeAdmin(...a),
     notifyEligibleDriversNewTrip: (...a) => notifyEligibleDriversNewTrip(...a),
     describeTokenDevice: (...a) => describeTokenDevice(...a),
-    getUserPushMeta: (...a) => getUserPushMeta(...a)
+    getUserPushMeta: (...a) => getUserPushMeta(...a),
+    recordPushHealth: (...a) => driverPushStatus.helpers.recordPushHealth(...a)
+});
+/** Panel Viajes · pestaña «Avisos»: estado de avisos por conductor + «Pedir que activen» (ver driver-push-status.js). */
+const HN_ZONE_NAMES = new Map(require('./hn-city-centers').map((c) => [c.id, c.name]));
+const driverPushStatus = require('./driver-push-status')({
+    db, HttpsError, onCall, APP_ID,
+    assertCallerCanModerate: (...a) => assertCallerCanModerate(...a),
+    fcmTokenMapFromDoc: (...a) => fcmTokenMapFromDoc(...a),
+    liveFcmTokenRecordsFromMaps: (...a) => liveFcmTokenRecordsFromMaps(...a),
+    fcmTokenMapEntries: (...a) => fcmTokenMapEntries(...a),
+    zoneName: (id) => HN_ZONE_NAMES.get(String(id || '')) || '',
+    wa: () => require('./whatsapp-cloud')
 });
 const TRIP_OFFER_TIMEOUT_MS = 120 * 1000;
 /** Primer tramo: solo el conductor más cercano. Luego se abre a toda la ciudad. */
@@ -2930,6 +2942,13 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     await sendChunks(androidPayload, androidTokens, 'android');
     await sendChunks(webPayload, webTokens, 'web');
 
+    // Pestaña «Avisos»: último FCM aceptado / último token muerto (sin tokens, solo fechas).
+    if (sent > 0 || invalid.length) {
+        const healthPatch = {};
+        if (sent > 0) { healthPatch.lastFcmOkAtMs = Date.now(); healthPatch.lastFcmOkType = type || ''; }
+        if (invalid.length) { healthPatch.lastInvalidAtMs = Date.now(); healthPatch.lastInvalidCount = invalid.length; }
+        await driverPushStatus.helpers.recordPushHealth(appId, uid, healthPatch);
+    }
     if (invalid.length) {
         const keys = invalid.map((token) => token.replace(/\./g, '_'));
         await Promise.all([
@@ -6285,6 +6304,7 @@ exports.dailyCommissionFreeDayPush = onSchedule(
 const whatsappCloud = require('./whatsapp-cloud');
 // ───── Panel de supervisor «Viajes» ─────
 Object.assign(exports, viajesPanel.exports);
+Object.assign(exports, driverPushStatus.exports);
 Object.assign(exports, roles.exports);
 
 exports.whatsappWebhook = whatsappCloud.whatsappWebhook;

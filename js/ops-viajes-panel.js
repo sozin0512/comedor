@@ -597,7 +597,8 @@ function tabsCounts() {
         hist: inPeriod.filter((t) => t.status === 'completed' || isCancelled(t)).length,
         sched: all.filter((t) => isFutureScheduled(t, now)).length,
         review: reviewQueue().length,
-        trash: baseTrips().filter((t) => t.trashedAtMs && passCity(t) && passSvc(t)).length
+        trash: baseTrips().filter((t) => t.trashedAtMs && passCity(t) && passSvc(t)).length,
+        push: PUSH.data ? (PUSH.data.counts.total - PUSH.data.counts.active) : 0
     };
 }
 function periodLabel() {
@@ -646,7 +647,7 @@ function renderTop() {
       </div>
     </div>
     <div class="vj-tabs">
-      ${tab('live', 'En vivo', counts.live)}${tab('hist', 'Historial', counts.hist)}${tab('sched', 'Programados', counts.sched)}${tab('review', 'Por revisar', counts.review, true)}${tab('trash', 'Papelera', counts.trash)}
+      ${tab('live', 'En vivo', counts.live)}${tab('hist', 'Historial', counts.hist)}${tab('sched', 'Programados', counts.sched)}${tab('review', 'Por revisar', counts.review, true)}${tab('trash', 'Papelera', counts.trash)}${tab('push', 'Avisos', counts.push, true)}
     </div>`;
 }
 
@@ -940,6 +941,168 @@ function renderHistory() {
       </div>
     </div>
     <div class="vj-legend">Cada fila muestra el servicio real. «Comisión» en rojo = el viaje guardó un % distinto al de su servicio. Con el interruptor activado, las cuentas de prueba y de la empresa no cuentan en totales ni en comisión.</div>`;
+}
+
+// ───────────────────────── Render: Avisos (notificaciones por conductor) ─────────────────────────
+// Datos calculados en el servidor (staffDriverPushStatus): nunca llegan tokens al navegador.
+const PUSH = { data: null, loading: false, error: '', at: 0, status: 'all', q: '', busy: new Set(), bulkBusy: false };
+const PUSH_STATUS = {
+    active: { label: 'Activos', tag: 'ok' },
+    expired: { label: 'Vencidos', tag: 'warn' },
+    never: { label: 'Nunca activados', tag: 'bad' }
+};
+const PUSH_REASON = {
+    confirmado: 'confirmó un aviso',
+    fcm_ok: 'FCM aceptó un aviso (sin confirmación del celular)',
+    token_reciente: 'registró su teléfono hace poco',
+    sin_actividad: 'sin avisos confirmados en 14 días',
+    token_invalido: 'FCM borró su registro (token muerto)',
+    token_vencido: 'su registro venció',
+    nunca: 'nunca activó los avisos'
+};
+const PUSH_DEVICE = { android: 'App Android', 'ios-pwa': 'iPhone (app de inicio)', web: 'Web', unknown: '—' };
+async function loadPushStatus(force = false) {
+    if (PUSH.loading) return;
+    if (!force && PUSH.data && Date.now() - PUSH.at < 60000) return;
+    PUSH.loading = true; PUSH.error = '';
+    scheduleRender();
+    try {
+        PUSH.data = await callFn('staffDriverPushStatus', {});
+        PUSH.at = Date.now();
+    } catch (e) {
+        PUSH.error = errMsg(e);
+    } finally {
+        PUSH.loading = false;
+        scheduleRender();
+    }
+}
+function fmtWhen(ms) {
+    if (!ms) return '—';
+    const d = Date.now() - ms;
+    if (d < 60 * 60 * 1000) return `hace ${Math.max(1, Math.round(d / 60000))} min`;
+    if (d < DAY) return `hace ${Math.round(d / 3600000)} h`;
+    return `${fmtDayShort(ms)} ${new Date(ms).getFullYear() !== new Date().getFullYear() ? new Date(ms).getFullYear() : ''}`.trim();
+}
+function pushRows() {
+    const list = PUSH.data?.drivers || [];
+    const q = slug(PUSH.q);
+    return list.filter((d) => (PUSH.status === 'all' || d.status === PUSH.status)
+        && (!q || slug(`${d.name} ${d.phone} ${d.city}`).includes(q) || String(d.phone || '').replace(/\D/g, '').includes(PUSH.q.replace(/\D/g, '') || '§')))
+        .sort((a, b) => ({ never: 0, expired: 1, active: 2 }[a.status] - { never: 0, expired: 1, active: 2 }[b.status]) || a.name.localeCompare(b.name));
+}
+function pushNudgeTargets() {
+    const now = Date.now();
+    return (PUSH.data?.drivers || []).filter((d) => d.status !== 'active' && d.phone && !(d.nextNudgeAtMs > now) && !d.isTest);
+}
+function pushRow(d) {
+    const now = Date.now();
+    const st = PUSH_STATUS[d.status] || PUSH_STATUS.never;
+    const ln = d.lastNudge;
+    const lnBad = ln && ln.result && ln.result !== 'sent';
+    const lnTxt = ln ? `Pedido ${fmtWhen(ln.atMs)}${ln.byName ? ` por ${esc(ln.byName)}` : ''} · <b style="color:${lnBad ? 'var(--bad)' : 'var(--ok)'}">${esc(ln.text || ln.result)}</b>${ln.delivery === 'read' ? ' · leído' : ln.delivery === 'delivered' ? ' · entregado' : ''}` : '';
+    const wait = d.nextNudgeAtMs > now ? Math.ceil((d.nextNudgeAtMs - now) / 3600000) : 0;
+    let btn = '';
+    if (d.status !== 'active') {
+        if (!d.phone) btn = '<button class="vj-b g" disabled>Sin teléfono</button>';
+        else if (wait) btn = `<button class="vj-b g" disabled title="Una vez cada 24 h por conductor">De nuevo en ${wait} h</button>`;
+        else btn = `<button class="vj-b t" data-act="pushNudge" data-uid="${esc(d.uid)}" ${PUSH.busy.has(d.uid) ? 'disabled' : ''}>${PUSH.busy.has(d.uid) ? 'Enviando…' : 'Pedir que activen'}</button>`;
+    }
+    return `
+      <div class="vj-pd">
+        <span class="vj-av">${esc((d.name || '?').trim().charAt(0).toUpperCase())}</span>
+        <div class="vj-pd-who">
+          <div style="font-weight:700" class="vj-ellip">${esc(d.name)}${d.isTest ? ' <span class="vj-tag warn">Prueba</span>' : ''}</div>
+          <div class="vj-sub" style="font-size:11px">${d.phone ? esc(d.phone) : 'sin teléfono'} · ${esc(d.city || 'sin ciudad')} · ${esc(PUSH_DEVICE[d.device] || '—')}</div>
+        </div>
+        <div class="vj-pd-st"><span class="vj-tag ${st.tag}">${st.label}</span>
+          <div class="vj-sub" style="font-size:10.5px;margin-top:2px">${esc(PUSH_REASON[d.reason] || '')}</div></div>
+        <div class="vj-pd-dates vj-sub" style="font-size:11px">
+          <div>Registro: <b style="color:var(--ink)">${fmtWhen(d.lastTokenAtMs)}</b></div>
+          <div>Último aviso recibido: <b style="color:var(--ink)">${fmtWhen(d.lastConfirmedAtMs)}</b></div>
+        </div>
+        <div class="vj-pd-act">${btn}${lnTxt ? `<div class="vj-sub" style="font-size:10.5px;margin-top:3px">${lnTxt}</div>` : ''}</div>
+      </div>`;
+}
+function renderPush() {
+    if (!PUSH.data && !PUSH.error) { loadPushStatus(); return '<div class="vj-empty">Revisando los avisos de cada conductor…</div>'; }
+    if (!PUSH.data) return `<div class="vj-card"><div class="vj-empty">No se pudo cargar: ${esc(PUSH.error)} · <span class="vj-link" data-act="pushReload">Reintentar</span></div></div>`;
+    const c = PUSH.data.counts;
+    const pctOk = c.total ? Math.round((c.active / c.total) * 100) : 0;
+    const rows = pushRows();
+    const targets = pushNudgeTargets();
+    const chip = (k, label, n) => `<button class="vj-chip ${PUSH.status === k ? 'on' : ''} ${k === 'never' ? 'red' : ''}" data-act="pushStatus" data-v="${k}">${label} <b>${n}</b></button>`;
+    const tpl = PUSH.data.template?.name;
+    return `
+    <div class="vj-card">
+      <div class="vj-row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="vj-h1" style="font-size:19px">${c.active} de ${c.total} conductores con avisos activos</div>
+          <div class="vj-sub">Activo = teléfono registrado y un aviso confirmado, aceptado o un registro en los últimos ${PUSH.data.activeWindowDays} días · actualizado ${fmtWhen(PUSH.data.generatedAtMs)}</div>
+        </div>
+        <button class="vj-b o" data-act="pushReload" ${PUSH.loading ? 'disabled' : ''}>${PUSH.loading ? 'Actualizando…' : 'Actualizar'}</button>
+      </div>
+      <div class="vj-bar" style="margin:10px 0 4px"><i style="width:${Math.max(2, pctOk)}%;background:${pctOk >= 80 ? 'var(--ok)' : pctOk >= 50 ? 'var(--warn)' : 'var(--bad)'}"></i></div>
+      <div class="vj-row" style="justify-content:space-between;margin-top:10px">
+        <div class="vj-chips scroll">${chip('all', 'Todos', c.total)}${chip('active', 'Activos', c.active)}${chip('expired', 'Vencidos', c.expired)}${chip('never', 'Nunca activados', c.never)}</div>
+        <div class="vj-row" style="flex:1;justify-content:flex-end">
+          <label class="vj-search">${IC_SEARCH}<input data-act="pushQ" value="${esc(PUSH.q)}" placeholder="Buscar nombre, teléfono o ciudad"></label>
+          <button class="vj-b" data-act="pushNudgeAll" ${!targets.length || PUSH.bulkBusy ? 'disabled' : ''}>${PUSH.bulkBusy ? 'Enviando…' : `Pedir que activen a todos los que faltan (${targets.length})`}</button>
+        </div>
+      </div>
+      <div class="vj-sub" style="font-size:10.5px;margin-top:6px">${tpl
+        ? `WhatsApp con la plantilla aprobada «${esc(tpl)}» (llega aunque no te hayan escrito).`
+        : 'Sin plantilla aprobada: el WhatsApp solo sale a quien escribió a HonduRaite en las últimas 24 h; a los demás se marca «fuera de la ventana de 24 h».'} Máximo 1 pedido cada 24 h por conductor. El enlace abre la activación de avisos y la guía (Samsung incluida).</div>
+    </div>
+    <div class="vj-card">
+      ${rows.map(pushRow).join('') || '<div class="vj-empty">Ningún conductor con estos filtros.</div>'}
+    </div>`;
+}
+function applyNudgeResults(results = []) {
+    const by = new Map((PUSH.data?.drivers || []).map((d) => [d.uid, d]));
+    const name = myProfile()?.name || 'Tú';
+    results.forEach((r) => {
+        const d = by.get(r.uid);
+        if (!d) return;
+        if (r.result === 'cooldown') { d.nextNudgeAtMs = r.nextAllowedAtMs || d.nextNudgeAtMs; return; }
+        d.lastNudge = { atMs: Date.now(), byName: name, result: r.result, text: r.text, via: r.via };
+        if (r.nextAllowedAtMs) d.nextNudgeAtMs = r.nextAllowedAtMs;
+    });
+}
+function nudgeSummary(results = []) {
+    const okN = results.filter((r) => r.result === 'sent').length;
+    const outN = results.filter((r) => r.result === 'outside_window').length;
+    const other = results.length - okN - outN;
+    return [`${okN} enviado(s)`, outN ? `${outN} fuera de la ventana de 24 h` : '', other ? `${other} no se pudo (ver lista)` : ''].filter(Boolean).join(' · ');
+}
+async function pushNudge(uids, bulk = false) {
+    const list = [...new Set(uids)].filter(Boolean);
+    if (!list.length) return;
+    if (bulk) PUSH.bulkBusy = true;
+    list.forEach((u) => PUSH.busy.add(u));
+    render();
+    try {
+        const r = await callFn('staffNudgeDriverPush', bulk ? { driverUids: list, confirmCount: list.length, bulk: true } : { driverUid: list[0] });
+        applyNudgeResults(r?.results || []);
+        const one = (r?.results || [])[0];
+        if (!bulk && one) toast(one.result === 'sent' ? 'WhatsApp enviado.' : one.text || 'No se pudo enviar.', one.result === 'sent' ? 'success' : 'warning');
+        else toast(nudgeSummary(r?.results || []), 'info');
+    } catch (e) {
+        toast(errMsg(e), 'error');
+    } finally {
+        list.forEach((u) => PUSH.busy.delete(u));
+        PUSH.bulkBusy = false;
+        render();
+    }
+}
+function pushNudgeAll() {
+    const targets = pushNudgeTargets();
+    if (!targets.length) return;
+    const tpl = PUSH.data?.template?.name;
+    const msg = `¿Mandar WhatsApp a ${targets.length} conductor(es) sin avisos activos para que los activen?\n\n`
+        + (tpl ? `Se usa la plantilla «${tpl}».` : 'Sin plantilla: solo llega a quien escribió en las últimas 24 h; los demás quedan marcados «fuera de la ventana de 24 h».')
+        + '\nA cada conductor se le puede pedir 1 vez cada 24 h.';
+    if (!confirm(msg)) return;
+    pushNudge(targets.map((d) => d.uid), true);
 }
 
 // ───────────────────────── Render: Programados ─────────────────────────
@@ -1567,6 +1730,10 @@ function onClick(e, scope) {
         case 'remind': remind(el.dataset.uid); break;
         case 'remindAll': remindAll(); break;
         case 'markPaid': openMarkPaid(); break;
+        case 'pushReload': loadPushStatus(true); break;
+        case 'pushStatus': PUSH.status = v || 'all'; render(); break;
+        case 'pushNudge': pushNudge([el.dataset.uid]); break;
+        case 'pushNudgeAll': pushNudgeAll(); break;
         default: break;
     }
 }
@@ -1584,6 +1751,17 @@ function onChange(e) {
 }
 let qTimer = null;
 function onInput(e) {
+    const pq = e.target.closest('[data-act="pushQ"]');
+    if (pq) {
+        PUSH.q = pq.value;
+        clearTimeout(qTimer);
+        qTimer = setTimeout(() => {
+            render();
+            const inp = mounted?.root?.querySelector('[data-act="pushQ"]');
+            if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+        }, 250);
+        return;
+    }
     const el = e.target.closest('[data-act="histQ"]');
     if (!el) return;
     UI.histQ = el.value;
@@ -1604,6 +1782,7 @@ function bodyHtml() {
         case 'sched': return renderScheduled();
         case 'review': return renderReview();
         case 'trash': return renderTrash();
+        case 'push': return renderPush();
         default: return renderLive();
     }
 }
@@ -1816,4 +1995,4 @@ export function mountViajesPanelWithData(container, data = {}, opts = {}) {
     return { render, ST, UI };
 }
 
-export const __test = { computeKpis, computeOwing, computeHealth, reviewQueue, reviewKinds, tripCommission, deviceClass, svcKey, possibleCause, ST, UI };
+export const __test = { computeKpis, computeOwing, computeHealth, reviewQueue, reviewKinds, tripCommission, deviceClass, svcKey, possibleCause, ST, UI, PUSH, renderPush, pushRows, pushNudgeTargets };
