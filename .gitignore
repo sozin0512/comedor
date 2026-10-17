@@ -74,3 +74,4 @@ panel-reference*
 analyze_*.py
 $null
 assets
+functions/scripts/out/

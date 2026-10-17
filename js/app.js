@@ -171,6 +171,7 @@ import {
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
 } from "./route-conditions.js?v=2026.10.13.18";
 import { initTheme, toggleTheme } from "./theme.js?v=2026.10.13.18";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.13.18";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
 } from "./demand-heatmap.js?v=2026.10.13.18";
@@ -391,6 +392,16 @@ function loadHeavyUiAfterAuth() {
             });
             window.onMerchantAuthReady = m.onMerchantAuthReady;
             try { m.onMerchantAuthReady?.(); } catch (_) {}
+        }).catch((e) => console.warn(e)));
+        vLoad.push(hrLazy('ops-viajes-panel.js').then((m) => {
+            m.initViajesPanel({
+                db, appId,
+                functions: cloudFunctions,
+                getCurrentUser: () => currentUser || window.currentUser || null,
+                getUserProfile: () => window.userProfile,
+                isAdminUser: (u, p) => isAdminUser(u, p),
+                isStaffUser: (u, p) => isStaffUser(u, p)
+            });
         }).catch((e) => console.warn(e)));
         vLoad.push(hrLazy('staff-create-client-trip.js').then((m) => {
             m.installStaffCreateClientTrip({
@@ -2943,12 +2954,11 @@ async function stripFakeAdminFromProfile(user, profile) {
     const authMail = String(user.email || '').trim().toLowerCase() || null;
     const fix = { updatedAt: serverTimestamp() };
     if (hijacked && authMail) fix.email = authMail;
-    if (fakeRole) {
-        fix.role = profile.staffGrantedBy ? 'supervisor' : 'client';
-        if (fix.role !== 'supervisor') {
-            fix.staffGrantedBy = null;
-            fix.staffGrantedAt = null;
-        }
+    if (fakeRole && !profile.staffGrantedBy) {
+        // Las reglas solo dejan al usuario bajarse a client/driver (subirse a supervisor lo hace el admin).
+        fix.role = 'client';
+        fix.staffGrantedBy = null;
+        fix.staffGrantedAt = null;
     }
     try {
         await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'data'), fix, { merge: true });
@@ -2959,7 +2969,18 @@ async function stripFakeAdminFromProfile(user, profile) {
     return { ...profile, ...fix };
 }
 
+/**
+ * Rol de staff confirmado por el servidor (custom claim / doc roles), vía js/role-menu.js.
+ * undefined = aún no hay respuesta (se usa el perfil como antes; el servidor igual valida).
+ */
+const trustedStaffRoleOf = (user) => {
+    if (!user?.uid || user.uid !== currentUser?.uid) return undefined;
+    return getTrustedStaffRole();
+};
+
 const isSupervisorUser = (user, profile) => {
+    const trusted = trustedStaffRoleOf(user);
+    if (trusted !== undefined) return trusted === 'supervisor' || trusted === 'admin';
     if (!profile) return false;
     if (profile.role === 'supervisor') return true;
     // Respaldo si el rol quedó en client pero admin ya asignó staffGrantedBy (reglas Firestore usan lo mismo).
@@ -2967,11 +2988,14 @@ const isSupervisorUser = (user, profile) => {
     return false;
 };
 
-const isStaffUser = (user, profile) =>
-    isAdminUser(user, profile)
-    || isSupervisorUser(user, profile)
-    || profile?.role === 'admin'
-    || profile?.role === 'supervisor';
+const isStaffUser = (user, profile) => {
+    if (isAdminUser(user, profile)) return true;
+    const trusted = trustedStaffRoleOf(user);
+    if (trusted !== undefined) return trusted === 'supervisor' || trusted === 'admin';
+    return isSupervisorUser(user, profile)
+        || profile?.role === 'admin'
+        || profile?.role === 'supervisor';
+};
 
 // Expuestos para módulos (tiendas virtuales, moderación, etc.)
 window.isAdminUser = isAdminUser;
@@ -6875,7 +6899,10 @@ if (document.readyState === 'loading') {
             const header = document.getElementById('app-header');
             if (!menu || !header) return;
             const rect = header.getBoundingClientRect();
-            menu.style.top = `${rect.bottom + 4}px`;
+            // Menú por rol (js/role-menu.js): la tarjeta trae logo + rol, cubre el header como en la maqueta.
+            const top = menu.classList.contains('rm-host') ? Math.max(6, rect.top + 6) : rect.bottom + 4;
+            menu.style.top = `${top}px`;
+            menu.style.setProperty('--rm-top', `${top}px`);
         }
 
         window.toggleHeaderMoreMenu = () => {
@@ -12375,8 +12402,14 @@ if (document.readyState === 'loading') {
                     syncFields.staffGrantedAt = grantAt || serverTimestamp();
                 }
             }
-            await setDoc(privRef, syncFields, { merge: true });
-            await setDoc(pubRef, syncFields, { merge: true });
+            // Solo cosmético: el permiso real es el rol de confianza (claim / doc roles).
+            // Las reglas ya no dejan que el usuario se ponga role supervisor; si falla, seguimos.
+            try {
+                await setDoc(privRef, syncFields, { merge: true });
+                await setDoc(pubRef, syncFields, { merge: true });
+            } catch (e) {
+                console.warn('prepareStaffModeration: sync de perfil omitido', e?.code || e);
+            }
         }
 
         async function ensureStaffPublicRoleSync() {
@@ -13539,7 +13572,8 @@ if (document.readyState === 'loading') {
                 collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
                 (snap) => {
                     window._adminTripsLastSnap = snap;
-                    const allTripsForAlert = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    // Papelera (panel Viajes): fuera de la vista anterior también
+                    const allTripsForAlert = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => !t.trashedAtMs);
                     // Always alert staff on new pending trips (even if not currently viewing Viajes tab)
                     const pendingForAlert = allTripsForAlert.filter(t => t.status === 'pending' && !t.driverId && !t.isDemandSimulation);
                     alertStaffNewPendingTrips(pendingForAlert);
@@ -17780,8 +17814,16 @@ if (document.readyState === 'loading') {
             return simDocs.length;
         }
 
-        // Admin / Supervisor: borrar viajes (activos atascados o cancelados)
+        // Admin / Supervisor: «BORRAR» ya no borra: mueve a la papelera (se recupera 30 días).
+        // Borrar para siempre solo desde Papelera escribiendo BORRAR (panel Viajes).
         window.deleteActiveTrip = async (tripId) => {
+            if (typeof window.viajesMoveToTrash === 'function') {
+                return window.viajesMoveToTrash([tripId]);
+            }
+            return window.showToast?.('Cargando el panel… intenta de nuevo en un momento.', 'info');
+        };
+        // Borrado directo anterior (sin papelera). Ya no está enlazado a ningún botón.
+        window._legacyDeleteActiveTripPermanent = async (tripId) => {
             if (!tripId) return;
             const isStaff = window.userProfile?.role === 'supervisor' || isAdminUser(currentUser, window.userProfile);
             if (!isStaff) {
@@ -22536,7 +22578,8 @@ if (document.readyState === 'loading') {
                 };
             }
 
-            let commissionPercent = await getPlatformCommission();
+            // % del servicio si el admin lo definió en el panel Viajes; si no, el general.
+            let commissionPercent = await getPlatformCommission(trip);
             let driverProfile = null;
 
             if (trip.driverId) {
@@ -23845,31 +23888,56 @@ if (document.readyState === 'loading') {
         }
 
         /** Cache corta del % de comisión del admin (platformConfig). Se invalida al guardar. */
-        let _platformCommissionCache = { value: null, at: 0 };
+        let _platformCommissionCache = { value: null, at: 0, byService: {} };
 
         function invalidatePlatformCommissionCache() {
-            _platformCommissionCache = { value: null, at: 0 };
+            _platformCommissionCache = { value: null, at: 0, byService: {} };
         }
+        window.invalidatePlatformCommissionCache = invalidatePlatformCommissionCache;
 
-        async function getPlatformCommission() {
+        /** Clave de comisión por servicio (panel Viajes): moto, auto (VIP), taxi, delivery, flete, grua, hourly. */
+        function commissionServiceKey(tripOrType) {
+            if (!tripOrType) return '';
+            if (typeof tripOrType === 'string') {
+                if (tripOrType === 'flete_paila' || tripOrType === 'flete_camion') return 'flete';
+                return tripOrType;
+            }
+            if (tripOrType.bookingType === 'hourly') return 'hourly';
+            return commissionServiceKey(String(tripOrType.serviceType || 'auto'));
+        }
+        window.commissionServiceKey = commissionServiceKey;
+
+        /**
+         * % de plataforma. Sin argumento: el % general (platformConfig/main.commissionPercentage).
+         * Con viaje o servicio: si el admin puso un % para ese servicio (commissionByService), ese.
+         */
+        async function getPlatformCommission(tripOrService = null) {
             const now = Date.now();
+            const pick = () => {
+                const key = commissionServiceKey(tripOrService);
+                const v = key ? Number(_platformCommissionCache.byService?.[key]) : NaN;
+                return Number.isFinite(v) && v >= 0 && v <= 100 ? v : _platformCommissionCache.value;
+            };
             if (_platformCommissionCache.value != null && (now - _platformCommissionCache.at) < 8000) {
-                return _platformCommissionCache.value;
+                return pick();
             }
             const fallback = Number(APP_CONFIG.commissionPercent);
             const safeFallback = Number.isFinite(fallback) && fallback >= 0 && fallback <= 100 ? fallback : 25;
             try {
                 const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'platformConfig', 'main'));
                 if (snap.exists()) {
-                    const raw = parseFloat(snap.data().commissionPercentage);
-                    if (Number.isFinite(raw) && raw >= 0 && raw <= 100) {
-                        _platformCommissionCache = { value: raw, at: now };
-                        return raw;
-                    }
+                    const data = snap.data() || {};
+                    const raw = parseFloat(data.commissionPercentage);
+                    const byService = (data.commissionByService && typeof data.commissionByService === 'object')
+                        ? data.commissionByService
+                        : {};
+                    const value = Number.isFinite(raw) && raw >= 0 && raw <= 100 ? raw : safeFallback;
+                    _platformCommissionCache = { value, at: now, byService };
+                    return pick();
                 }
             } catch (_) {}
-            _platformCommissionCache = { value: safeFallback, at: now };
-            return safeFallback;
+            _platformCommissionCache = { value: safeFallback, at: now, byService: {} };
+            return pick();
         }
         // Expuesto para tiendas (tarifa del momento / comisión dividida 50-50)
         window.getPlatformCommission = getPlatformCommission;
@@ -29472,7 +29540,16 @@ onAuthStateChanged(auth, async (user) => {
                         { merge: true }
                     );
                 } catch (e) {
-                    console.warn('Sync error', e);
+                    // Reglas: el usuario no puede subirse a supervisor solo. Reintentar sin `role`.
+                    if (e?.code === 'permission-denied') {
+                        try {
+                            const retry = buildPublicProfileSyncPayload(authUser, window.userProfile, { includeRole: false });
+                            delete retry.role; delete retry.staffGrantedBy; delete retry.staffGrantedAt;
+                            await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', authUser.uid), retry, { merge: true });
+                        } catch (e2) { console.warn('Sync error (sin role)', e2); }
+                    } else {
+                        console.warn('Sync error', e);
+                    }
                 }
                 if (isAdminUser(authUser, window.userProfile)) {
                     ensureStaffPublicRoleSync().catch(() => {});
@@ -29567,6 +29644,18 @@ onAuthStateChanged(auth, async (user) => {
                 }
 
                 hydrateLoginProfileInBackground(user, profile);
+
+                // Menú por rol + rol de confianza (claims). Admin/Supervisión solo si el servidor lo confirma.
+                try {
+                    initRoleMenu({ getCurrentUser: () => currentUser, getUserProfile: () => window.userProfile, functions: cloudFunctions, callFn: async (name) => (await httpsCallable(cloudFunctions, name)({})).data });
+                    onRoleProfileReady(user).then((trusted) => {
+                        if (trusted === undefined || user.uid !== currentUser?.uid) return;
+                        const isAdm = isAdminUser(user, window.userProfile) || trusted === 'admin';
+                        setHeaderTwinVisible('admin-trigger-btn', isAdm);
+                        setHeaderTwinVisible('supervisor-trigger-btn', isAdm || trusted === 'supervisor');
+                        if (trusted === 'admin' || trusted === 'supervisor') window.startStaffTripAlertsListener?.();
+                    }).catch(() => {});
+                } catch (e) { console.warn('[role-menu]', e); }
 
                 const adminAccess = isAdminUser(user, profile);
                 const supervisorAccess = isSupervisorUser(user, profile);
@@ -40228,6 +40317,9 @@ window.cancelSetupAndLogout = () => {
                 }
 
                 const tripUpdates = { [ratedField]: true };
+                // Panel Viajes (columna Calif.): guardar las estrellas en el viaje
+                const starsNum = Math.min(5, Math.max(1, Math.round(Number(selectedStars) || 0)));
+                if (starsNum) tripUpdates[`${ratedField}Stars`] = starsNum;
                 if (tipAmount > 0) {
                     tripUpdates.tipAmount = tipAmount;
                     tripUpdates.tipPaid = true;
@@ -42286,7 +42378,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                     const tripsTabActive = document.querySelector('#supervisor-panel .ops-nav-item[data-sup-tab="trips"].ops-nav-item--active');
                     if (!supPanel || supPanel.classList.contains('hidden') || !tripsTabActive) return;
 
-                    const allTrips = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                    const allTrips = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter((t) => !t.trashedAtMs);
                     if (window.supervisorTripsRenderTimer) clearTimeout(window.supervisorTripsRenderTimer);
                     window.supervisorTripsRenderTimer = setTimeout(() => {
                         if (window.supervisorTripsPastView) return;

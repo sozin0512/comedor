@@ -4749,6 +4749,8 @@ export function initMerchantStores(deps = {}) {
     window.openStoresMarketplace = openMarketplace;
     window.closeStoresMarketplace = (opts) => closeMarketplace(opts || {});
     window.openMerchantPanel = openMerchantPanel;
+    /** Menú por rol: «Mi tienda» vs «Crear mi tienda (máx. 1)». */
+    window.getMyStoreSummary = () => (myStore ? { id: myStore.id, name: myStore.name || '', approvalStatus: myStore.approvalStatus || '' } : null);
     window.openCreateStorePanel = openCreateStorePanel;
     window.openMyStorePanel = openMyStorePanel;
     window.closeMerchantPanel = closeMerchantPanel;

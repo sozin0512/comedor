@@ -849,8 +849,68 @@ function playConfiguredToneFromPush(data = {}) {
     }
 }
 
+// —— Panel Viajes: el celular confirma que el aviso LLEGÓ (no solo que FCM lo aceptó) ——
+const HR_ACK_TYPES = new Set(['trip_offer', 'ride_demand_alert', 'freight_trip_alert', 'trip_price_boost', 'push_test']);
+const hrAckedPush = new Set();
+let hrAckCallable = null;
+export async function ackPushToServer(data = {}, via = 'foreground') {
+    try {
+        const type = String(data?.type || '');
+        if (!HR_ACK_TYPES.has(type)) return;
+        const tripId = data.tripId ? String(data.tripId) : '';
+        const testId = data.testId ? String(data.testId) : '';
+        if (!tripId && !testId) return;
+        const key = `${type}|${tripId}|${testId}`;
+        if (hrAckedPush.has(key)) return;
+        const fns = typeof window !== 'undefined' ? window.cloudFunctions : null;
+        if (!fns || !window.auth?.currentUser) return;
+        hrAckedPush.add(key);
+        if (!hrAckCallable) {
+            const { httpsCallable } = await import('https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js');
+            hrAckCallable = httpsCallable(fns, 'ackPushReceived');
+        }
+        await hrAckCallable({ type, tripId, testId, via, atMs: Number(data._receivedAtMs) || Date.now() });
+    } catch (e) {
+        // sin red / función aún no publicada: no romper el aviso
+    }
+}
+/** Avisos que el service worker recibió con la app cerrada (se guardan en Cache Storage). */
+async function flushQueuedPushAcks() {
+    try {
+        if (typeof caches === 'undefined') return;
+        const cache = await caches.open('hr-push-acks');
+        const req = new Request('/__hr_push_acks');
+        const res = await cache.match(req);
+        if (!res) return;
+        let list = [];
+        try { list = await res.json(); } catch (_) {}
+        await cache.delete(req);
+        for (const d of (Array.isArray(list) ? list : []).slice(-30)) {
+            await ackPushToServer(d, 'queued');
+        }
+    } catch (_) {}
+}
+let hrSwAckBound = false;
+function bindSwPushAckListener() {
+    if (hrSwAckBound || typeof navigator === 'undefined' || !navigator.serviceWorker) return;
+    hrSwAckBound = true;
+    try {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data?.type === 'HR_PUSH_RECEIVED') ackPushToServer(event.data.data || {}, 'sw');
+        });
+    } catch (_) {}
+    setTimeout(flushQueuedPushAcks, 4000);
+}
+try {
+    if (typeof window !== 'undefined') {
+        window.hrAckPushToServer = ackPushToServer;
+        bindSwPushAckListener();
+    }
+} catch (_) {}
+
 function routeForegroundPush(payload) {
     const data = payload.data || payload.notification?.data || {};
+    ackPushToServer(data, isCapacitorAndroid() ? 'android' : 'foreground');
     const title = payload.notification?.title || data.title || payload.title || 'HonduRaite';
     const body = payload.notification?.body || data.body || payload.body || '';
     const tripId = data.tripId || null;
@@ -1044,6 +1104,7 @@ export function openNotificationsCenterFromPush() {
 }
 
 function handleNotificationNavigation(data = {}) {
+    ackPushToServer(data, 'tap');
     const type = String(data.type || '');
     const tag = String(data.tag || '');
     const isTripOffer = type === 'trip_offer'
