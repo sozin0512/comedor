@@ -62,6 +62,7 @@ function patchIndexHtml(version, filePath) {
 
     html = html.replace(/href="css\/tailwind\.css(\?v=[^"]*)?"/, `href="css/tailwind.css${q}"`);
     html = html.replace(/href="css\/app\.css(\?v=[^"]*)?"/, `href="css/app.css${q}"`);
+    html = html.replace(/href="css\/role-menu\.css(\?v=[^"]*)?"/, `href="css/role-menu.css${q}"`);
     html = html.replace(/src="js\/maps-init\.js(\?v=[^"]*)?"/, `src="js/maps-init.js${q}"`);
     html = html.replace(/src="js\/auth-boot\.js(\?v=[^"]*)?"/, `src="js/auth-boot.js${q}"`);
     html = html.replace(/src="js\/app\.js(\?v=[^"]*)?"/, `src="js/app.js${q}"`);
