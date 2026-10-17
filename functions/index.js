@@ -2029,6 +2029,14 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
     const requiredType = requiredRideVehicleType(serviceType);
     if (!requiredType) return;
 
+    // Varios onUpdate del mismo viaje llegaban casi juntos y cada uno mandaba
+    // ride_demand_alert (3 avisos por conductor en segundos). Se reclama el envío
+    // en una transacción ANTES de mandar; si nadie fue avisado se libera.
+    const claimed = await claimRideOfflineAlert(appId, tripId);
+    if (!claimed) return;
+    let notifiedCount = 0;
+    try {
+
     const tripDocs = await fetchTripDocsForOffer(appId);
     const onlineNear = await findDriversForTripOffer(appId, trip, tripDocs);
     const hasOnlineCoverage = (onlineNear.candidates?.length || 0) > 0;
@@ -2090,6 +2098,7 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
         });
     }
 
+    notifiedCount = notified.size;
     if (notified.size) {
         await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).update({
             rideOfflineAlertSent: true,
@@ -2098,6 +2107,39 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
             rideOfflineAlertHadCoverage: hasOnlineCoverage,
             rideOfflineAlertDepartment: tripDept || null
         }).catch(() => {});
+    }
+    } finally {
+        if (!notifiedCount) {
+            console.log(`[push] ride_demand_alert trip=${tripId} sin conductores avisados (reclamo vence en ${RIDE_OFFLINE_CLAIM_LEASE_MS / 1000}s)`);
+        }
+    }
+}
+
+/**
+ * Reclamo atómico del aviso ride_demand_alert de un viaje.
+ * true solo para UNA invocación: el viaje sigue pendiente, aún no se avisó y nadie
+ * más lo reclamó hace menos de RIDE_OFFLINE_CLAIM_LEASE_MS. Si nadie fue avisado,
+ * el reclamo NO se libera con otra escritura (eso dispararía onUpdate en bucle):
+ * simplemente vence y la siguiente actualización real del viaje puede reintentar.
+ */
+const RIDE_OFFLINE_CLAIM_LEASE_MS = 120000;
+async function claimRideOfflineAlert(appId, tripId, nowMs = Date.now()) {
+    const ref = db.doc(`artifacts/${appId}/public/data/trips/${tripId}`);
+    try {
+        return await db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (!snap.exists) return false;
+            const t = snap.data() || {};
+            if (t.rideOfflineAlertSent || t.isDemandSimulation) return false;
+            if (t.status !== 'pending' || t.driverId) return false;
+            const prev = Number(t.rideOfflineAlertClaimAt) || 0;
+            if (prev && nowMs - prev < RIDE_OFFLINE_CLAIM_LEASE_MS) return false;
+            tx.update(ref, { rideOfflineAlertClaimAt: nowMs });
+            return true;
+        });
+    } catch (e) {
+        console.warn(`[push] claimRideOfflineAlert trip=${tripId} ${e?.message || e}`);
+        return false;
     }
 }
 
@@ -2649,6 +2691,9 @@ const FCM_RETRYABLE_CODES = new Set([
 ]);
 const FCM_RETRY_DELAYS_MS = [500, 1500];
 
+/** TTL de avisos de viaje a conductores (trip_offer, ride_demand_alert, freight_trip_alert, trip_price_boost). */
+const TRIP_OFFER_PUSH_TTL_S = 3600;
+
 async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority = true, targetToken = '', targetPlatform = '' }) {
     const { tokens, records, platforms } = await getUserPushMeta(appId, uid);
     const wantToken = String(targetToken || '').trim();
@@ -2749,7 +2794,11 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         || type === 'ride_demand_alert'
         || type === 'freight_trip_alert'
         || type === 'trip_price_boost';
-    const TRIP_OFFER_TTL_S = 600;
+    // 1 h (antes 10 min): con el teléfono dormido / sin datos / navegador cerrado
+    // más de 10 min el aviso de viaje vencía en FCM y nunca llegaba, mientras los
+    // avisos normales (24 h) sí aparecían al despertar. Viaje ya tomado/cancelado
+    // no se reenvía (filtros de status) y al tocar se avisa si ya no está disponible.
+    const TRIP_OFFER_TTL_S = TRIP_OFFER_PUSH_TTL_S;
     const webTtl = isTripOfferPush ? String(TRIP_OFFER_TTL_S) : '86400';
     const androidConfig = {
         priority: (highPriority || isTripWake) ? 'high' : 'normal',
@@ -2759,20 +2808,13 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
     if (isTripWake && data.tripId && type !== 'push_test') {
         androidConfig.collapseKey = `trip-${String(data.tripId).slice(0, 40)}`;
     }
-    if (isTripWake) {
-        androidConfig.notification = {
-            title: safeTitle,
-            body: safeBody,
-            channelId: audio.channelId,
-            sound: audio.sound || HONDU_ICONIC_PUSH_SOUND,
-            defaultVibrateTimings: true,
-            visibility: 'PUBLIC',
-            notificationPriority: 'PRIORITY_MAX',
-            color: '#25D366',
-            ticker: safeTitle,
-            tag: String(data.tag || `trip-${type || 'alert'}`).slice(0, 60)
-        };
-    }
+    // Android: avisos de viaje DATA-ONLY (sin android.notification ni notification
+    // de raíz). Con notification + app cerrada, el sistema pintaba el aviso solo en el
+    // canal hondu_wa_alert_v10 y NO llamaba a HonduMessagingService: sin tono por
+    // MediaPlayer/ALARM, sin encender pantalla y mudo si ese canal quedó silenciado.
+    // Data-only + priority high = mismo camino que el aviso de campaña que sí llega:
+    // onMessageReceived pinta full-screen, suena y enciende pantalla (APK desde 07/2026).
+    // No se manda channelId de notificación: el APK instalado usa su propio canal.
 
     const dataFields = Object.fromEntries(
         Object.entries(dataPayload).map(([k, v]) => [k, String(v ?? '')])
@@ -2812,9 +2854,6 @@ async function sendPushToUser(appId, uid, { title, body, data = {}, highPriority
         const exp = String(Math.floor(Date.now() / 1000) + TRIP_OFFER_TTL_S);
         webPayload.apns = { headers: { 'apns-expiration': exp } };
         androidPayload.apns = { headers: { 'apns-expiration': exp } };
-    }
-    if (isTripWake) {
-        androidPayload.notification = { title: safeTitle, body: safeBody };
     }
 
     const androidTokens = [];

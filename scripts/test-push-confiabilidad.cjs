@@ -6,7 +6,7 @@ const reqFn = Module.createRequire(path.join(FN, 'index.js'));
 // FCM falso
 const calls = []; const seen = {};
 const fakeMessaging = { sendEachForMulticast: async (msg) => {
-  calls.push({ ttl: msg.android?.ttl, webTtl: msg.webpush?.headers?.TTL, apns: msg.apns?.headers?.['apns-expiration'] || null, tokens: msg.tokens.slice(), type: msg.data?.type });
+  calls.push({ ttl: msg.android?.ttl, webTtl: msg.webpush?.headers?.TTL, apns: msg.apns?.headers?.['apns-expiration'] || null, tokens: msg.tokens.slice(), type: msg.data?.type, androidNotif: !!msg.android?.notification, rootNotif: !!msg.notification, prio: msg.android?.priority, dataTitle: msg.data?.title, webNotif: !!msg.webpush?.notification });
   const responses = msg.tokens.map((t) => {
     seen[t] = (seen[t] || 0) + 1;
     if (t.includes('DEAD')) return { success: false, error: { code: 'messaging/registration-token-not-registered', message: 'gone' } };
@@ -19,7 +19,7 @@ const fakeMessaging = { sendEachForMulticast: async (msg) => {
 } };
 const msgPath = reqFn.resolve('firebase-admin/messaging');
 require.cache[msgPath] = { id: msgPath, filename: msgPath, loaded: true, exports: { getMessaging: () => fakeMessaging } };
-const src = fs.readFileSync(path.join(FN, 'index.js'), 'utf8') + '\nmodule.exports.__t = { sendPushToUser, getUserPushMeta, liveFcmTokenRecordsFromMaps };\n';
+const src = fs.readFileSync(path.join(FN, 'index.js'), 'utf8') + '\nmodule.exports.__t = { sendPushToUser, getUserPushMeta, liveFcmTokenRecordsFromMaps, claimRideOfflineAlert, RIDE_OFFLINE_CLAIM_LEASE_MS };\n';
 const m = new Module(path.join(FN, 'index.js'), module); m.filename = path.join(FN, 'index.js'); m.paths = Module._nodeModulePaths(FN);
 m._compile(src, m.filename);
 const fx = m.exports; const T = fx.__t;
@@ -63,7 +63,24 @@ const res = []; const ok = (n, c, extra='') => res.push([c ? 'PASS' : 'FAIL', n,
   calls.length = 0;
   await T.sendPushToUser(APP, 'A', { title: 't', body: 'b', data: { type: 'trip_offer', tripId: 'x1' } });
   const c0 = calls[0];
-  ok('oferta: ttl android 600 s, webpush 600, apns', c0.ttl === 600000 && c0.webTtl === '600' && !!c0.apns, JSON.stringify(c0));
+  const expS = Number(c0.apns) - Math.floor(Date.now() / 1000);
+  ok('oferta: ttl android 3600 s, webpush 3600, apns +1 h', c0.ttl === 3600000 && c0.webTtl === '3600' && expS > 3500 && expS <= 3600, JSON.stringify(c0));
+  ok('oferta android: data-only (sin android.notification ni notification raíz), priority high, título en data',
+    c0.androidNotif === false && c0.rootNotif === false && c0.prio === 'high' && c0.dataTitle === 't', JSON.stringify(c0));
+  for (const ty of ['ride_demand_alert', 'freight_trip_alert', 'trip_price_boost']) {
+    calls.length = 0;
+    await T.sendPushToUser(APP, 'A', { title: 't', body: 'b', data: { type: ty, tripId: 'x1' } });
+    ok(`${ty}: TTL 3600 web/android + data-only android`, calls[0].ttl === 3600000 && calls[0].webTtl === '3600' && !calls[0].androidNotif && !calls[0].rootNotif, JSON.stringify(calls[0]));
+  }
+  // web/iOS sigue con webpush.notification (no cambia)
+  await db.doc(`${P}/W`).set({ role: 'driver', fcmTokens: { [keyOf(tok('IOSW'))]: { token: tok('IOSW'), updatedAt: now, platform: 'ios-pwa' } } });
+  calls.length = 0;
+  await T.sendPushToUser(APP, 'W', { title: 't', body: 'b', data: { type: 'trip_offer', tripId: 'x1' } });
+  ok('oferta web/iOS: webpush.notification + TTL 3600, sin notification raíz', calls[0].webNotif && calls[0].webTtl === '3600' && !calls[0].rootNotif, JSON.stringify(calls[0]));
+  // aviso de campaña (el que sí llegaba): igual que antes
+  calls.length = 0;
+  await T.sendPushToUser(APP, 'A', { title: 't', body: 'b', data: { type: 'recurring_notify' } });
+  ok('recurring_notify: android ttl 300 s, web 86400, data-only', calls[0].ttl === 300000 && calls[0].webTtl === '86400' && !calls[0].androidNotif, JSON.stringify(calls[0]));
   calls.length = 0;
   await T.sendPushToUser(APP, 'A', { title: 't', body: 'b', data: { type: 'trip_accepted' } });
   ok('aviso normal: TTL sin cambio', calls[0].webTtl === '86400' && !calls[0].apns, JSON.stringify(calls[0]));
@@ -86,6 +103,18 @@ const res = []; const ok = (n, c, extra='') => res.push([c ? 'PASS' : 'FAIL', n,
   await fx.pruneStaleFcmTokens.run({});
   const e1 = (await db.doc(`${P}/E`).get()).data();
   ok('nocturna: borra vencido con 2 tokens', !e1.fcmTokens[keyOf(tok('E1'))] && !!e1.fcmTokens[keyOf(tok('E2'))]);
+  // Dedupe ride_demand_alert: 5 reclamos simultáneos → solo 1 gana
+  const TR = `artifacts/${APP}/public/data/trips`;
+  await db.doc(`${TR}/R1`).set({ status: 'pending', serviceType: 'auto' });
+  const claims = await Promise.all([1, 2, 3, 4, 5].map(() => T.claimRideOfflineAlert(APP, 'R1')));
+  ok('dedupe: 5 reclamos simultáneos → 1 gana', claims.filter(Boolean).length === 1, JSON.stringify(claims));
+  ok('dedupe: reclamo otra vez dentro del plazo → no', (await T.claimRideOfflineAlert(APP, 'R1')) === false);
+  ok('dedupe: vencido el plazo (sin aviso enviado) → reintenta', (await T.claimRideOfflineAlert(APP, 'R1', Date.now() + T.RIDE_OFFLINE_CLAIM_LEASE_MS + 1000)) === true);
+  await db.doc(`${TR}/R1`).update({ rideOfflineAlertSent: true });
+  ok('dedupe: ya enviado → nunca más', (await T.claimRideOfflineAlert(APP, 'R1', Date.now() + 10 * 60000)) === false);
+  await db.doc(`${TR}/R2`).set({ status: 'accepted', driverId: 'zz', serviceType: 'auto' });
+  ok('dedupe: viaje no pendiente → no', (await T.claimRideOfflineAlert(APP, 'R2')) === false);
+  ok('dedupe: viaje inexistente → no', (await T.claimRideOfflineAlert(APP, 'NOPE')) === false);
   // registerFcmToken sin sesión
   let threw = false; try { await fx.registerFcmToken.run({ data: { token: tok('Z') } }); } catch (e) { threw = e.code === 'unauthenticated'; }
   ok('registerFcmToken exige sesión', threw);
