@@ -48,6 +48,11 @@ const driverPushStatus = require('./driver-push-status')({
     zoneName: (id) => HN_ZONE_NAMES.get(String(id || '')) || '',
     wa: () => require('./whatsapp-cloud')
 });
+/** Tiendas · zonas de envío con tarifa fija (ver delivery-zones.js). */
+const deliveryZones = require('./delivery-zones')({
+    db, FieldValue, HttpsError, onCall, onDocumentCreated, onDocumentUpdated, APP_ID,
+    assertCallerCanModerate: (...a) => assertCallerCanModerate(...a)
+});
 const TRIP_OFFER_TIMEOUT_MS = 120 * 1000;
 /** Primer tramo: solo el conductor más cercano. Luego se abre a toda la ciudad. */
 const TRIP_OFFER_EXCLUSIVE_MS = 18 * 1000;
@@ -6308,6 +6313,7 @@ const whatsappCloud = require('./whatsapp-cloud');
 // ───── Panel de supervisor «Viajes» ─────
 Object.assign(exports, viajesPanel.exports);
 Object.assign(exports, driverPushStatus.exports);
+Object.assign(exports, deliveryZones.exports);
 Object.assign(exports, roles.exports);
 
 exports.whatsappWebhook = whatsappCloud.whatsappWebhook;

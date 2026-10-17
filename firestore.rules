@@ -112,6 +112,16 @@ service cloud.firestore {
     }
 
     // Campos del panel Viajes que solo escribe el servidor (callables / Admin SDK).
+    // Colecciones con reglas propias que el catch-all público NO debe abrir.
+    function catchAllExcluded() {
+      return ['stores', 'store_orders', 'delivery_zones', 'delivery_zone_settings', 'store_delivery_fees', 'delivery_zone_history'];
+    }
+
+    // Pedidos de tiendas: campos de la tarifa de envío por zona (solo servidor).
+    function storeOrderZoneKeys() {
+      return ['deliveryZoneId', 'deliveryZoneName', 'deliveryFeeSource', 'deliveryFeeQuotedAtMs'];
+    }
+
     function tripServerOnlyKeys() {
       return ['trashedAtMs', 'trashedBy', 'trashedByName', 'trashPurgeAfterMs', 'trashStatusAtMove',
         'restoredAtMs', 'restoredBy', 'restoredByName',
@@ -598,22 +608,56 @@ service cloud.firestore {
         || resource.data.clientId == requestUid()
         || resource.data.ownerId == requestUid()
       );
-      // Cliente crea su pedido
+      // Cliente crea su pedido. La tarifa de envío por zona la pone el servidor
+      // (onStoreOrderCreatedZoneFee): el cliente no puede mandar esos campos.
       allow create: if isSignedIn()
         && request.resource.data.clientId == requestUid()
         && request.resource.data.status == 'pending'
         && request.resource.data.storeId is string
-        && request.resource.data.ownerId is string;
-      // Cliente puede cancelar; dueño avanza estados; staff todo
+        && request.resource.data.ownerId is string
+        && !request.resource.data.keys().hasAny(storeOrderZoneKeys())
+        && request.resource.data.get('deliveryFee', null) == null;
+      // Cliente puede cancelar; dueño avanza estados; staff todo.
+      // Nadie fuera de staff toca la zona; con tarifa de zona, el dueño tampoco cambia el monto.
       allow update: if isSignedIn() && (
         isStaff(app)
-        || resource.data.ownerId == requestUid()
         || (
-          resource.data.clientId == requestUid()
-          && request.resource.data.status == 'cancelled'
+          (
+            resource.data.ownerId == requestUid()
+            || (
+              resource.data.clientId == requestUid()
+              && request.resource.data.status == 'cancelled'
+            )
+          )
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(storeOrderZoneKeys())
+          && !(
+            resource.data.get('deliveryFeeSource', '') in ['zone_base', 'store_custom']
+            && request.resource.data.diff(resource.data).affectedKeys().hasAny(['deliveryFee'])
+          )
         )
       );
       allow delete: if isSignedIn() && isStaff(app);
+    }
+
+    // ============================================================
+    // ZONAS DE ENVÍO (tarifa fija por zona). Escribe solo el servidor (callables).
+    // ============================================================
+    match /artifacts/{app}/public/data/delivery_zones/{zoneId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+    match /artifacts/{app}/public/data/delivery_zone_settings/{cityId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+    match /artifacts/{app}/public/data/store_delivery_fees/{storeId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+    // Historial (quién, cuándo, antes/después): solo staff lo lee; nadie lo edita ni borra.
+    match /artifacts/{app}/public/data/delivery_zone_history/{entryId} {
+      allow read: if isSignedIn() && isStaff(app);
+      allow write: if false;
     }
 
     // Copa HonduRaite — retos globales conductores (ranking público: todos los logueados leen)
@@ -710,9 +754,12 @@ service cloud.firestore {
     // stores) dejaría que cualquier cuenta leyera tiendas +18.
     // 'users' y 'trips' tampoco se escriben por aquí: este allow write (OR) se saltaba las
     // protecciones de rol/staff del perfil y los campos de papelera del viaje.
+    // 'store_orders' y las colecciones de zonas de envío también quedan fuera: si no, el
+    // historial se leía por cualquier cuenta, cualquiera leía pedidos ajenos (direcciones,
+    // teléfonos) y un docId == uid saltaba el candado de la tarifa por zona.
     match /artifacts/{app}/public/data/{collection}/{docId} {
-      allow read: if isSignedIn() && collection != 'stores';
-      allow write: if isSignedIn() && !(collection in ['stores', 'users', 'trips']) && (isOwner(docId) || isStaff(app));
+      allow read: if isSignedIn() && !(collection in catchAllExcluded());
+      allow write: if isSignedIn() && !(collection in catchAllExcluded() || collection in ['users', 'trips']) && (isOwner(docId) || isStaff(app));
     }
 
     // Seguridad por defecto
