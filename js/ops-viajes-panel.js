@@ -20,6 +20,8 @@ const ONLINE_STALE_MS = 45 * 60 * 1000;
 const TOKEN_MAX_AGE_MS = 60 * DAY;
 const DEFAULT_AUTO_RESEND_S = 10;
 const TRASH_DAYS = 30;
+/** «Ahora · buscando conductor»: a partir de aquí la tarjeta ofrece «Mandar a papelera». */
+const STALE_SEARCH_MS = 2 * 60 * 60 * 1000;
 const PAGE = 10;
 
 // ───────────────────────── Servicios ─────────────────────────
@@ -739,6 +741,7 @@ function liveCard(t, health) {
     const ring = `<span data-ring="${esc(t.id)}">${ringHtml(t)}</span>`;
     const cause = searching && n > 0 && v === 0 && now - c > 20000
         ? (deviceCauseText(t, health) || possibleCause(t).text) : (searching && n === 0 ? possibleCause(t).text : '');
+    const stale = searching && c && now - c > STALE_SEARCH_MS;
     const fdiv = (num, l, bad) => `<div class="${bad ? 'bad' : ''}"><b class="num">${num}</b><span>${l}</span></div>`;
     return `
     <div class="vj-card vj-live">
@@ -753,11 +756,14 @@ function liveCard(t, health) {
       </div>
       ${searching ? `<div class="vj-funnel">${fdiv(n, 'notificados', n === 0)}${fdiv(d, 'les llegó', n > 0 && d === 0 && now - c > 20000)}${fdiv(v, 'lo vieron', n > 0 && v === 0 && now - c > 20000)}${fdiv(b, 'ofertas', false)}</div>` : ''}
       ${cause ? `<div class="vj-warnbar red" style="margin-top:8px">${esc(cause)}</div>` : ''}
+      ${stale ? `<div class="vj-warnbar red" style="margin-top:8px">Lleva ${esc(fmtWait(now - c))} buscando conductor. Si ya no hace falta, mándelo a la papelera: los conductores dejan de verlo.</div>` : ''}
       <div class="vj-actions">
         ${searching ? `<button class="vj-b" data-act="resend" data-id="${esc(t.id)}">${IC_RESEND} Reenviar a más conductores</button>
         <button class="vj-b o" data-act="assign" data-id="${esc(t.id)}">Asignar manual</button>` : `<button class="vj-b o" data-act="detail" data-id="${esc(t.id)}">Ver detalle</button>`}
         <button class="vj-b g" data-act="notifyPassenger" data-id="${esc(t.id)}">Avisar</button>
+        ${stale ? `<button class="vj-b rr" data-act="trashPop" data-id="${esc(t.id)}">Mandar a papelera</button>` : ''}
       </div>
+      ${stale ? trashPopHtml(t) : ''}
     </div>`;
 }
 function renderHealth(health) {
@@ -1211,13 +1217,19 @@ function detailHtml(t, { inDrawer = false } = {}) {
     const trashBtn = t.trashedAtMs
         ? `<button class="vj-b o" data-act="restore" data-id="${esc(t.id)}">Restaurar</button>`
         : `<button class="vj-b rr" data-act="trashPop" data-id="${esc(t.id)}">Mover a papelera</button>`;
-    const pop = popTrashFor === t.id && !t.trashedAtMs ? `
+    const pop = trashPopHtml(t);
+    return detailBody(t, { k, cause, devCause, chat, price, paid, pinVisible, c, trashBtn, pop, inDrawer });
+}
+function trashPopHtml(t) {
+    return popTrashFor === t.id && !t.trashedAtMs ? `
       <div class="vj-pop">
         <div style="font-weight:800;font-size:15px">¿Mover a la papelera?</div>
         <div class="vj-sub" style="font-size:12px;margin-top:4px;color:var(--ink)">El viaje ${shortId(t.id)} sale de esta lista. Se puede <b>recuperar durante ${TRASH_DAYS} días</b> y no cambia las estadísticas.</div>
         <div class="vj-empty" style="text-align:left;margin-top:8px;padding:8px 10px;color:var(--ink)">Borrar para siempre solo desde <b>Papelera</b>, escribiendo <b>BORRAR</b>.</div>
         <div class="vj-row" style="justify-content:flex-end;margin-top:10px"><button class="vj-b g" data-act="trashCancel">Cancelar</button><button class="vj-b red" data-act="trashYes" data-id="${esc(t.id)}">Sí, mover</button></div>
       </div>` : '';
+}
+function detailBody(t, { k, cause, devCause, chat, price, paid, pinVisible, c, trashBtn, pop, inDrawer }) {
     return `
     <div class="vj-row" style="flex-wrap:nowrap;align-items:flex-start">
       ${svcIcon(k, 36)}
@@ -1995,4 +2007,4 @@ export function mountViajesPanelWithData(container, data = {}, opts = {}) {
     return { render, ST, UI };
 }
 
-export const __test = { computeKpis, computeOwing, computeHealth, reviewQueue, reviewKinds, tripCommission, deviceClass, svcKey, possibleCause, ST, UI, PUSH, renderPush, pushRows, pushNudgeTargets };
+export const __test = { liveCard, detailHtml, setPopTrash: (id) => { popTrashFor = id; }, computeKpis, computeOwing, computeHealth, reviewQueue, reviewKinds, tripCommission, deviceClass, svcKey, possibleCause, ST, UI, PUSH, renderPush, pushRows, pushNudgeTargets };
