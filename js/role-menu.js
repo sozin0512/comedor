@@ -192,7 +192,7 @@ function liveCtx(user, profile) {
         name: p.name || user?.displayName || (user?.email || '').split('@')[0] || 'Usuario',
         dark: document.documentElement.getAttribute('data-theme') === 'dark',
         myStore: window.getMyStoreSummary?.() || null,
-        online: !!window.driverLocationWatchId,
+        online: window.isDriverOnlineActive ? !!window.isDriverOnlineActive() : !!window.driverLocationWatchId,
         available: ids.size,
         owed: STATE.owed != null ? STATE.owed : debt,
         pushOn,
