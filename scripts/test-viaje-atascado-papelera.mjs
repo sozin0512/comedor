@@ -1,0 +1,31 @@
+// Tarjeta «Ahora · buscando conductor»: botón «Mandar a papelera» si lleva > 2 h buscando.
+// Uso: node scripts/test-viaje-atascado-papelera.mjs
+import fs from 'fs'; import path from 'path'; import { fileURLToPath, pathToFileURL } from 'url';
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const tmp = path.join('/tmp', `vj-${Date.now()}.mjs`);
+fs.writeFileSync(tmp, fs.readFileSync(path.join(ROOT, 'js', 'ops-viajes-panel.js'), 'utf8'));
+globalThis.window = globalThis.window || {};
+globalThis.sessionStorage = { getItem: () => null, setItem: () => {} };
+const mod = await import(pathToFileURL(tmp).href);
+const { liveCard, detailHtml, setPopTrash, ST } = mod.__test;
+const res = []; const ok = (n, c) => res.push([c ? 'PASS' : 'FAIL', n]);
+const now = Date.now(); ST.now = now; ST.users = new Map(); ST.locs = new Map(); ST.trips = []; ST.config = {}; ST.appSettings = {};
+const health = { groups: [], online: 0 };
+const base = { status: 'pending', serviceType: 'auto', origin: 'A', destination: 'B', clientName: 'Cliente', price: 'L. 99' };
+const fresh = liveCard({ ...base, id: 'fresh1', createdAt: now - 10 * 60e3 }, health);
+ok('viaje de 10 min: sin botón de papelera', !fresh.includes('Mandar a papelera'));
+const old = liveCard({ ...base, id: 'Z24rOieA4z8', createdAt: now - 28 * 3600e3, resendCount: 1 }, health);
+ok('viaje de 28 h: botón «Mandar a papelera»', old.includes('data-act="trashPop" data-id="Z24rOieA4z8"') && old.includes('Mandar a papelera'));
+ok('viaje de 28 h: aviso con el tiempo', /Lleva 28 h 0 min buscando conductor/.test(old));
+setPopTrash('Z24rOieA4z8');
+const pop = liveCard({ ...base, id: 'Z24rOieA4z8', createdAt: now - 28 * 3600e3 }, health);
+ok('al tocar: confirma en la misma tarjeta («Sí, mover»)', pop.includes('data-act="trashYes" data-id="Z24rOieA4z8"') && pop.includes('recuperar durante 30 días'));
+setPopTrash(null);
+const det = detailHtml({ ...base, id: 'd1', createdAt: now - 3600e3 });
+ok('detalle sigue con «Mover a papelera»', det.includes('Mover a papelera'));
+setPopTrash('d1');
+ok('detalle sigue con su confirmación', detailHtml({ ...base, id: 'd1', createdAt: now - 3600e3 }).includes('data-act="trashYes"'));
+for (const r of res) console.log(...r);
+console.log(`${res.filter((r) => r[0] === 'PASS').length}/${res.length} PASS`);
+fs.unlinkSync(tmp);
+process.exit(res.every((r) => r[0] === 'PASS') ? 0 : 1);
