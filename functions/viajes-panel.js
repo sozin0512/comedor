@@ -67,7 +67,8 @@ module.exports = function createViajesPanel(deps) {
     const {
         db, FieldValue, HttpsError, onCall, onSchedule, APP_ID,
         sendPushToUser, assertCallerCanModerate, assertCallerIsSupremeAdmin,
-        notifyEligibleDriversNewTrip, describeTokenDevice, getUserPushMeta
+        notifyEligibleDriversNewTrip, describeTokenDevice, getUserPushMeta,
+        recordPushHealth
     } = deps;
 
     const configRef = (appId) => db.doc(`artifacts/${appId}/public/data/platformConfig/main`);
@@ -333,6 +334,10 @@ module.exports = function createViajesPanel(deps) {
                 tx.update(ref, { [`deliveredTo.${uid}`]: { atMs, via } });
                 out.trip = true;
             }).catch(() => {});
+        }
+        // Pestaña «Avisos»: este celular confirmó que le llegó un aviso.
+        if (recordPushHealth && (out.trip || out.test || type)) {
+            await recordPushHealth(APP_ID, uid, { lastAckAtMs: atMs, lastAckVia: via, lastAckType: type || '' });
         }
         return out;
     });
