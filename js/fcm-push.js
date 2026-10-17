@@ -588,10 +588,12 @@ export async function pingMyPushFromClient() {
  * Web: deleteToken + getToken. Android: unregister (borra el token en el equipo) + un register().
  */
 const PUSH_HEAL_KEY = 'hr_push_heal_at';
-export async function healThisDevicePushToken() {
+export async function healThisDevicePushToken({ force = false } = {}) {
     try {
         const last = Number(localStorage.getItem(PUSH_HEAL_KEY) || 0);
-        if (last && Date.now() - last < 6 * 60 * 60 * 1000) return { healed: false, reason: 'recent' };
+        // force (conductor cuyo token ya no está en el servidor): máx. 1 vez cada 20 min.
+        const minGap = force ? 20 * 60 * 1000 : 6 * 60 * 60 * 1000;
+        if (last && Date.now() - last < minGap) return { healed: false, reason: 'recent' };
         localStorage.setItem(PUSH_HEAL_KEY, String(Date.now()));
     } catch (_) {}
     const old = getThisDevicePushTarget().token || '';
@@ -626,6 +628,74 @@ export async function healThisDevicePushToken() {
     } catch (e) {
         console.warn('[push] heal', e?.message || e);
         return { healed: false, reason: 'error' };
+    }
+}
+
+/**
+ * Conductor: ¿el token de ESTE equipo sigue guardado en su perfil del servidor?
+ * El servidor borra los tokens que FCM da por muertos; el navegador sigue creyendo
+ * que tiene avisos (token en localStorage/IndexedDB) y el conductor no se entera.
+ * - token presente → reclamarlo en el servidor (registerFcmToken) 1 vez por sesión.
+ * - token ausente → pedir uno NUEVO (deleteToken + getToken / unregister + register).
+ * Devuelve { ok, reason, healed }.
+ */
+let driverPushVerifyFlight = null;
+let driverPushClaimedThisSession = '';
+export function tokenInFcmMaps(token, ...docs) {
+    if (!token) return false;
+    const key = String(token).replace(/\./g, '_');
+    for (const d of docs) {
+        if (!d) continue;
+        const map = d.fcmTokens && typeof d.fcmTokens === 'object' ? d.fcmTokens : {};
+        if (map[key]) return true;
+        if (Object.values(map).some((v) => v && (v === token || v.token === token))) return true;
+        if (d.fcmToken === token) return true;
+        if (d[`fcmTokens.${key}`]) return true;
+    }
+    return false;
+}
+export async function verifyThisDevicePushOnServer({ db, appId, uid } = {}) {
+    if (driverPushVerifyFlight) return driverPushVerifyFlight;
+    driverPushVerifyFlight = (async () => {
+        const dbRef = db || window.db;
+        const app = appId || window.appId;
+        const me = uid || window.currentUser?.uid;
+        if (!dbRef || !app || !me) return { ok: true, reason: 'no_context' };
+        const { token, platform } = getThisDevicePushTarget();
+        if (!token) return { ok: false, reason: 'no_local_token' };
+        const read = async (ref) => {
+            try { const s = await getDoc(ref); return s.exists() ? (s.data() || {}) : null; } catch (_) { return null; }
+        };
+        const [pub, priv] = await Promise.all([
+            read(doc(dbRef, 'artifacts', app, 'public', 'data', 'users', me)),
+            read(doc(dbRef, 'artifacts', app, 'users', me, 'profile', 'data'))
+        ]);
+        if (tokenInFcmMaps(token, pub, priv)) {
+            const sig = `${me}|${token.slice(-24)}`;
+            if (driverPushClaimedThisSession !== sig) {
+                driverPushClaimedThisSession = sig;
+                try { localStorage.removeItem(FCM_CLAIM_KEY); } catch (_) {}
+                claimFcmTokenOnServer(me, token, platform, getPushDeviceMeta());
+            }
+            return { ok: true, reason: 'in_profile' };
+        }
+        // El servidor ya no tiene este token: pedir uno nuevo y guardarlo.
+        const healed = await healThisDevicePushToken({ force: true }).catch(() => ({ healed: false }));
+        const fresh = getThisDevicePushTarget().token || healed?.token || '';
+        if (fresh && fresh !== token) {
+            return { ok: true, reason: 'renewed', healed: true };
+        }
+        if (fresh) {
+            // Mismo token (el navegador no lo cambió): al menos volver a guardarlo.
+            const saved = await saveFcmToken(dbRef, app, me, fresh, platform).catch(() => false);
+            return { ok: !!saved, reason: saved ? 'resaved' : 'missing_on_server', healed: false };
+        }
+        return { ok: false, reason: 'missing_on_server', healed: false };
+    })();
+    try {
+        return await driverPushVerifyFlight;
+    } finally {
+        driverPushVerifyFlight = null;
     }
 }
 
@@ -1103,6 +1173,86 @@ export function openNotificationsCenterFromPush() {
     }
 }
 
+/**
+ * Aviso de viaje tocado tarde (TTL 1 h): si el viaje ya no está pendiente
+ * (lo tomó otro, se canceló o terminó) se avisa en vez de abrir una oferta muerta.
+ * Devuelve true si el viaje sigue disponible (o no se pudo saber).
+ */
+const STALE_PUSH_TRIP_TYPES = new Set(['trip_offer', 'ride_demand_alert', 'freight_trip_alert', 'trip_price_boost']);
+const staleTripChecked = new Map();
+export function isStalePushTripType(data = {}) {
+    const type = String(data.type || data.notifType || '');
+    if (STALE_PUSH_TRIP_TYPES.has(type)) return true;
+    const tag = String(data.tag || '');
+    return tag.startsWith('trip-offer-') || tag.startsWith('ride-demand-')
+        || tag.startsWith('freight-alert-') || tag.startsWith('trip-price-boost-');
+}
+export function pushTripAvailability(trip, uid = '') {
+    if (!trip) return { available: false, reason: 'missing' };
+    const status = String(trip.status || '');
+    if (status === 'pending' && !trip.driverId) return { available: true, reason: 'pending' };
+    // Ya es mío (lo acepté): no es "no disponible"
+    if (uid && trip.driverId === uid && ['accepted', 'in_progress'].includes(status)) {
+        return { available: true, reason: 'mine' };
+    }
+    if (status === 'scheduled') return { available: true, reason: 'scheduled' };
+    return { available: false, reason: status || 'unknown' };
+}
+export async function checkPushTripStillAvailable(tripId, { db, appId, uid, toast = true } = {}) {
+    const id = String(tripId || '').trim();
+    if (!id) return true;
+    const dbRef = db || window.db || null;
+    const app = appId || window.appId || '';
+    const me = uid || window.currentUser?.uid || '';
+    if (!dbRef || !app) return true;
+    const prev = staleTripChecked.get(id);
+    if (prev && Date.now() - prev.at < 5000) return prev.available;
+    let result = { available: true, reason: 'unknown' };
+    try {
+        const snap = await getDoc(doc(dbRef, 'artifacts', app, 'public', 'data', 'trips', id));
+        result = pushTripAvailability(snap.exists() ? snap.data() : null, me);
+    } catch (e) {
+        // permission-denied = ya no es pendiente ni mío; red caída = no molestar
+        if (String(e?.code || '').includes('permission-denied')) result = { available: false, reason: 'denied' };
+    }
+    staleTripChecked.set(id, { at: Date.now(), available: result.available });
+    if (!result.available && toast) {
+        try { window.showToast?.('Este viaje ya no está disponible', 'warning'); } catch (_) {}
+    }
+    return result.available;
+}
+
+// Service worker abrió la app en frío desde un aviso de viaje: ?hrPushTrip=<id>
+(function bootStalePushTripFromUrl() {
+    try {
+        if (typeof location === 'undefined') return;
+        const url = new URL(location.href);
+        const tripId = url.searchParams.get('hrPushTrip');
+        if (!tripId) return;
+        url.searchParams.delete('hrPushTrip');
+        try { history.replaceState(history.state, '', url.pathname + (url.search || '') + url.hash); } catch (_) {}
+        let tries = 0;
+        const timer = setInterval(() => {
+            tries += 1;
+            if (window.db && window.appId && window.currentUser?.uid) {
+                clearInterval(timer);
+                checkPushTripStillAvailable(tripId).catch(() => {});
+            } else if (tries > 60) {
+                clearInterval(timer);
+            }
+        }, 500);
+    } catch (_) {}
+})();
+
+function checkTappedPushTrip(data = {}) {
+    try {
+        if (!isStalePushTripType(data)) return;
+        const tripId = data.tripId || '';
+        if (!tripId) return;
+        checkPushTripStillAvailable(tripId).catch(() => {});
+    } catch (_) {}
+}
+
 function handleNotificationNavigation(data = {}) {
     ackPushToServer(data, 'tap');
     const type = String(data.type || '');
@@ -1177,6 +1327,8 @@ function handleNotificationNavigation(data = {}) {
         wakeDriverOffer(true);
         setTimeout(() => wakeDriverOffer(false), 500);
         setTimeout(() => wakeDriverOffer(false), 1500);
+        // App abierta desde el aviso (puede ser hasta 1 h después): ¿sigue pendiente?
+        setTimeout(() => checkTappedPushTrip(data), 1200);
         return;
     }
     if (isPassengerTrip) {

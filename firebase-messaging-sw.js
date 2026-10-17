@@ -1,4 +1,4 @@
-const HR_SW_VERSION = '2026.10.16.2';
+const HR_SW_VERSION = '2026.10.16.3';
 /* HonduRaite — Service Worker de Web Push.
  *
  * No inicializar firebase.messaging() aquí: el SDK registra su propio
@@ -262,6 +262,11 @@ self.addEventListener('notificationclick', (event) => {
                 if ('focus' in client) return client.focus();
             }
             const url = new URL(self.registration.scope);
+            // Aviso de viaje (TTL 1 h): la app confirma al abrir si el viaje sigue pendiente.
+            if (data.tripId && (type === 'trip_offer' || type === 'ride_demand_alert'
+                || type === 'freight_trip_alert' || type === 'trip_price_boost')) {
+                url.searchParams.set('hrPushTrip', String(data.tripId).slice(0, 64));
+            }
             if (openChat) url.hash = 'chat';
             else if (openDeposit) url.hash = 'deposit';
             else if (openDriver) url.hash = 'driver';
