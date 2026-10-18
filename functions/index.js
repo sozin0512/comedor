@@ -6382,6 +6382,8 @@ const accountDeletion = require('./account-deletion')({
     FieldValue, HttpsError, onCall, APP_ID, ADMIN_EMAIL, roles
 });
 Object.assign(exports, accountDeletion.exports);
+/** Entrar con teléfono antes de iniciar sesión (busca el correo en el servidor). Ver phone-login.js. */
+Object.assign(exports, require('./phone-login')({ db, getAuth, HttpsError, onCall, APP_ID }).exports);
 
 exports.whatsappWebhook = whatsappCloud.whatsappWebhook;
 exports.sendWhatsAppCloudText = whatsappCloud.sendWhatsAppCloudText;

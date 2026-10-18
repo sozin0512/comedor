@@ -32,6 +32,7 @@ await env.withSecurityRulesDisabled(async (c) => {
   await setDoc(doc(d, `${P}/balance_adjustments/x1`), { uid: 'pax' });
   await setDoc(doc(d, `${P}/trip_purge_log/x1`), { n: 1 });
   await setDoc(doc(d, `${P}/appSettings/main`), { a: 1 });
+  await setDoc(doc(d, `${P}/auth_phone_index/50411112222`), { uid: 'drv', email: 'drv@x.com' });
 });
 const db = (uid) => env.authenticatedContext(uid).firestore();
 const results = [];
@@ -80,6 +81,14 @@ for (const c of ['whatsapp_cloud_inbox', 'whatsapp_booking_sessions', 'trip_purg
   await t(`staff NO escribe ${c}`, assertFails(addDoc(collection(db('sup'), `${P}/${c}`), { x: 1 })));
 }
 await t('docId == uid ya no abre whatsapp_booking_sessions', assertFails(setDoc(doc(db('504'), `${P}/whatsapp_booking_sessions/504`), { step: 9 })));
+// Índice de teléfonos
+await t('sin sesión NO lee el índice', assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), `${P}/auth_phone_index/50411112222`))));
+await t('otro NO lee el índice ajeno', assertFails(getDoc(doc(db('pax'), `${P}/auth_phone_index/50411112222`))));
+await t('dueño lee su índice', assertSucceeds(getDoc(doc(db('drv'), `${P}/auth_phone_index/50411112222`))));
+await t('pasajero crea el índice de su teléfono', assertSucceeds(setDoc(doc(db('pax'), `${P}/auth_phone_index/50433334444`), { uid: 'pax', email: 'p@x.com' }, { merge: true })));
+await t('pasajero NO pisa el teléfono de otro', assertFails(setDoc(doc(db('pax'), `${P}/auth_phone_index/50411112222`), { uid: 'pax', email: 'p@x.com' }, { merge: true })));
+await t('pasajero NO crea índice a nombre de otro', assertFails(setDoc(doc(db('pax'), `${P}/auth_phone_index/50455556666`), { uid: 'drv', email: 'evil@x.com' })));
+await t('staff rellena el índice de otro', assertSucceeds(setDoc(doc(db('sup'), `${P}/auth_phone_index/50477778888`), { uid: 'drv', email: 'drv@x.com' }, { merge: true })));
 // El catch-all sigue sirviendo para lo demás
 await t('pasajero lee appSettings (catch-all)', assertSucceeds(getDoc(doc(db('pax'), `${P}/appSettings/main`))));
 

@@ -27578,7 +27578,7 @@ window.saveProfileChanges = async () => {
             }
 
             try {
-                const email = await sendPasswordResetForIdentifier(auth, db, appId, identifier);
+                const email = await sendPasswordResetForIdentifier(auth, db, appId, identifier, resolvePhoneLoginEmailServer);
                 modal?.remove();
                 window.showToast(`Enlace enviado a ${maskEmail(email)}. Revisa tu bandeja y spam.`, 'success');
             } catch (e) {
@@ -27848,6 +27848,10 @@ window.saveProfileChanges = async () => {
                     let email = isEmailLike(identifier)
                         ? identifier.toLowerCase()
                         : await resolveLoginEmail(db, appId, identifier);
+                    if (!email && !isEmailLike(identifier)) {
+                        // Sin sesión las reglas no dejan leer el índice de teléfonos: lo busca el servidor.
+                        email = await resolvePhoneLoginEmailServer(identifier);
+                    }
                     if (!email && isEmailLike(identifier)) {
                         email = identifier.toLowerCase();
                     }
@@ -44560,3 +44564,16 @@ async function hrLoadGlobalStatsStub(period, btn) {
 }
 window.loadGlobalStats = hrLoadGlobalStatsStub;
 
+/** Busca en el servidor el correo de un teléfono (para «Entrar con teléfono» sin sesión). */
+async function resolvePhoneLoginEmailServer(identifier) {
+    try {
+        const phone = normalizeHondurasPhone(identifier);
+        if (!phone || !cloudFunctions) return null;
+        const res = await httpsCallable(cloudFunctions, 'resolvePhoneLoginEmail')({ phone });
+        const email = res?.data?.email;
+        return email ? String(email).trim().toLowerCase() : null;
+    } catch (e) {
+        console.warn('resolvePhoneLoginEmail:', e?.code || e?.message || e);
+        return null;
+    }
+}

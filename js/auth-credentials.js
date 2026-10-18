@@ -70,8 +70,12 @@ export function authErrorMessage(err, context = 'login') {
     return err?.message || 'Error de autenticación.';
 }
 
-export async function sendPasswordResetForIdentifier(auth, db, appId, identifier) {
+export async function sendPasswordResetForIdentifier(auth, db, appId, identifier, serverResolve = null) {
     let email = await resolveLoginEmail(db, appId, identifier);
+    // Sin sesión las reglas no dejan leer el índice: el servidor busca el correo del teléfono.
+    if (!email && !isEmailLike(identifier) && typeof serverResolve === 'function') {
+        email = await serverResolve(identifier);
+    }
     if (!email && isEmailLike(identifier)) {
         email = String(identifier).trim().toLowerCase();
     }

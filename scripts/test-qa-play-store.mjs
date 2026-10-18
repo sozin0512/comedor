@@ -69,6 +69,14 @@ t('pedido: anonimiza al cliente', () => {
   if (p.clientName === 'Ana' || p.clientAccountDeleted !== true) throw new Error(JSON.stringify(p));
 });
 
+// Entrar con teléfono (servidor)
+const phone = require('../functions/phone-login.js');
+t('teléfono válido', () => eq(phone.validPhoneKey('50495733866'), '50495733866'));
+t('teléfono con letras = inválido', () => eq(phone.validPhoneKey('504abc'), ''));
+t('ruta inyectada = inválido', () => eq(phone.validPhoneKey('504/../../x'), ''));
+t('límite por IP', () => { const hit = phone.createLimiter(); let ok = 0; for (let i = 0; i < 25; i++) if (hit('ip:1', 20, 1000 + i)) ok++; eq(ok, 20); });
+t('límite se libera a los 10 min', () => { const hit = phone.createLimiter(); for (let i = 0; i < 20; i++) hit('ip:1', 20, 0); eq(hit('ip:1', 20, 11 * 60 * 1000), true); });
+
 let fail = 0;
 for (const r of results) { if (r[0] === 'FAIL') fail++; console.log(r.join(' | ')); }
 console.log(`${results.length - fail}/${results.length} PASS`);
