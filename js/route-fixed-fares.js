@@ -10,7 +10,7 @@ import { haversineKm, findZoneForCoords, findNearestZone, getZoneById } from './
 import {
     normalizeServiceType, isFreightService, isTowService,
     setServiceRateOverrides, getDefaultServiceRates,
-} from './service-types.js?v=2026.10.16.9';
+} from './service-types.js?v=2026.10.16.10';
 
 import { formatLempiras } from './money-format.js';
 const HN_TZ = 'America/Tegucigalpa';

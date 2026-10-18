@@ -8,7 +8,7 @@ import {
     isMalePassengerMotoRideBlocked,
     firstAllowedPassengerTripType,
     DECRETO_91_2012_MSG,
-} from './service-types.js?v=2026.10.16.9';
+} from './service-types.js?v=2026.10.16.10';
 import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.08.28.26';
 import { isUsMarket, isServiceAllowedInMarket, filterTypesForMarket } from './market.js';
 
