@@ -11,7 +11,7 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.07.27.9';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.16.8';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
