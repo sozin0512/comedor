@@ -57,6 +57,12 @@ service firebase.storage {
              || request.resource.contentType == '';
     }
 
+    // Carpetas con datos personales sensibles dentro de users/{uid}/
+    // (resource.name = ruta completa del archivo; si no existe, la lectura se niega igual)
+    function privateFolder() {
+      return resource.name.matches('^artifacts/[^/]+/users/[^/]+/(verification|resubmit|deposits|surveys)/.*$');
+    }
+
     function maxSize(mb) {
       return request.resource.size < mb * 1024 * 1024;
     }
@@ -67,7 +73,7 @@ service firebase.storage {
 
     // Audios de encuesta de cancelación
     match /artifacts/{appId}/users/{userId}/surveys/{allPaths=**} {
-      allow read: if isSignedIn();
+      allow read: if isOwner(userId) || isAdmin();
       allow write: if isOwner(userId)
                    && maxSize(8)
                    && isAudio();
@@ -76,8 +82,10 @@ service firebase.storage {
 
     // Carpeta general de cada usuario
     match /artifacts/{appId}/users/{userId}/{allPaths=**} {
-      // Cualquiera autenticado puede leer (para ver fotos de perfil, verificaciones en panel admin, etc.)
-      allow read: if isSignedIn();
+      // Cualquiera autenticado puede leer fotos de perfil, vehículos y tiendas.
+      // Cédulas, selfies de verificación, comprobantes de depósito y audios NO (ver sus reglas abajo).
+      // El panel de staff los ve con la URL de descarga guardada en el perfil (lleva token; no pasa por aquí).
+      allow read: if isSignedIn() && !privateFolder();
 
       // Solo el dueño puede escribir
       allow write: if isOwner(userId) 
@@ -87,7 +95,7 @@ service firebase.storage {
 
     // Verificación de identidad (selfie, cédula, etc.)
     match /artifacts/{appId}/users/{userId}/verification/{allPaths=**} {
-      allow read: if isSignedIn();
+      allow read: if isOwner(userId) || isAdmin();
       allow write: if isOwner(userId) 
                    && maxSize(10)
                    && isImageOrPdf();
@@ -95,7 +103,7 @@ service firebase.storage {
 
     // Reenvío de verificación
     match /artifacts/{appId}/users/{userId}/resubmit/{allPaths=**} {
-      allow read: if isSignedIn();
+      allow read: if isOwner(userId) || isAdmin();
       allow write: if isOwner(userId) 
                    && maxSize(10)
                    && isImageOrPdf();
@@ -138,7 +146,7 @@ service firebase.storage {
     // ============================================================
 
     match /artifacts/{appId}/users/{userId}/deposits/{allPaths=**} {
-      allow read: if isSignedIn();
+      allow read: if isOwner(userId) || isAdmin();
       allow write: if isOwner(userId) 
                    && maxSize(10)
                    && isImageOrPdf();
