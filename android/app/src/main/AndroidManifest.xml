@@ -101,7 +101,12 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!--
+      Sin ACCESS_BACKGROUND_LOCATION: la app nunca lo pide. El GPS en segundo plano del conductor (y del
+      pasajero durante un viaje) funciona con el servicio en primer plano tipo "location" y su notificación
+      visible, que Android cuenta como uso "mientras la app está en uso". Declararlo obligaba a la revisión
+      de ubicación en segundo plano de Google Play (Play Console → Contenido de la app).
+    -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />

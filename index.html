@@ -56,7 +56,7 @@
     
     <!-- Frameworks Externos -->
     <link rel="stylesheet" href="css/tailwind.css?v=2026.10.16.8">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/app.css?v=2026.10.16.8">
     <link rel="stylesheet" href="css/role-menu.css?v=2026.10.16.8">
@@ -75,7 +75,9 @@
                     if (!key) { resolve(); return; }
                     var s2 = document.createElement('script');
                     s2.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key)
-                        + '&libraries=places,marker,routes&callback=initMap&loading=async';
+                        + '&libraries=places,marker,routes&callback=initMap&loading=async'
+                        // Textos del mapa en español (antes salían en el idioma del navegador, p. ej. inglés)
+                        + '&language=es&region=HN';
                     s2.async = true;
                     s2.crossOrigin = 'anonymous';
                     s2.onerror = function () { window.__mapsLoadError = true; resolve(); };
@@ -1124,6 +1126,13 @@
                     <span>Ver Política de Privacidad</span>
                 </button>
 
+                <!-- Eliminar cuenta (Google Play) -->
+                <button onclick="window.openAccountDeletion ? window.openAccountDeletion() : window.open('eliminar-cuenta.html', '_blank')"
+                        class="w-full flex items-center justify-center gap-3 py-3 border border-red-200 bg-white rounded-2xl text-sm font-bold text-red-700 active:bg-red-50">
+                    <i class="fas fa-user-times text-red-500"></i>
+                    <span>Eliminar mi cuenta</span>
+                </button>
+
                 <button id="btn-resubmit-documents" onclick="window.startDocumentResubmit()" 
                         class="w-full flex items-center justify-center gap-3 py-3 border border-amber-200 bg-amber-50 rounded-2xl text-sm font-bold text-amber-800 active:bg-amber-100 hidden">
                     <i class="fas fa-redo text-amber-600"></i>
@@ -1170,6 +1179,18 @@
                         class="w-full py-3 rounded-2xl bg-violet-600 text-white text-sm font-black flex items-center justify-center gap-2 active:scale-95 hidden">
                     <i class="fas fa-hand-holding-usd"></i> 
                     <span>Mis Pagos Recibidos</span>
+                </button>
+            </div>
+
+            <!-- Privacidad y eliminación de cuenta (Google Play) -->
+            <div class="pt-2 flex flex-col gap-2">
+                <button type="button" id="btn-privacy-account" onclick="window.openPrivacyAndAccount && window.openPrivacyAndAccount()"
+                        class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-black py-3 rounded-2xl text-xs tracking-wider">
+                    PRIVACIDAD Y CUENTA
+                </button>
+                <button type="button" id="btn-delete-account" onclick="window.openAccountDeletion ? window.openAccountDeletion() : window.open('https://honduraite.com/eliminar-cuenta.html','_blank')"
+                        class="w-full bg-white border border-red-300 text-red-600 hover:bg-red-50 font-black py-3 rounded-2xl text-xs tracking-wider">
+                    ELIMINAR MI CUENTA
                 </button>
             </div>
 
@@ -1518,6 +1539,8 @@
     })();
 </script>
 <script>
+    // Chatbot para pedir viajes (+1 469). El soporte es otro número: APP_CONFIG.support.whatsapp (+504).
+    // Si cambias el bot, cambia también js/config.js → support.bookingBotWhatsapp.
     window.HR_WA_INVITE = 'https://wa.me/14693876894?text=' + encodeURIComponent('Hola, quiero pedir un viaje');
     window.openHonduWhatsApp = function (e) {
         if (e) { try { e.preventDefault(); } catch (err) {} }

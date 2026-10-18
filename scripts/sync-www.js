@@ -14,6 +14,7 @@ const COPY_FILES = [
     'index.html',
     'terminos-y-condiciones.html',
     'politica-de-privacidad.html',
+    'eliminar-cuenta.html',
     'manifest.json',
     'version.json',
     'sw.js',

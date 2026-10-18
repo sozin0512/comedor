@@ -32,7 +32,8 @@ const I = {
     bank: ['<path d="M3 9.5L12 4l9 5.5"/><path d="M5 10.5v7M9.6 10.5v7M14.4 10.5v7M19 10.5v7M3 20h18"/>', '#ea8a1c'],
     doc: ['<path d="M6 2.8h8l4.5 4.5V21H6z"/><path d="M14 2.8v4.5h4.5"/><path d="M9 13h6M9 16.5h4"/>', '#4f46e5'],
     bell: ['<path d="M6 9.5a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15.5 6 9.5z"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0"/>', '#16a34a'],
-    swap: ['<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>', '#0f766e']
+    swap: ['<path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5"/>', '#0f766e'],
+    lock: ['<rect x="4.5" y="10.5" width="15" height="10" rx="2.2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>', '#475569']
 };
 const icon = (k) => { const [b, c, f] = I[k]; return svg(b, c, !!f); };
 const LOGO = '<svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true"><defs><linearGradient id="rm-lg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6bf2"/><stop offset="1" stop-color="#173f9e"/></linearGradient></defs><rect width="40" height="40" rx="10" fill="url(#rm-lg)"/><path d="M20 8a8 8 0 0 0-8 8c0 6 8 14 8 14s8-8 8-14a8 8 0 0 0-8-8z" fill="#fff"/><circle cx="20" cy="16" r="3.2" fill="#2554c7"/><path d="M8 32h24" stroke="#7fb0ff" stroke-width="2.4" stroke-linecap="round"/></svg>';
@@ -45,7 +46,7 @@ export const ROLE_META = {
 };
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmtL = (n) => `L ${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtL = (n) => `L. ${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // ───────── Rol de confianza ─────────
 let DEPS = {};
@@ -124,7 +125,8 @@ function passengerItems(ctx) {
 }
 const common = (ctx) => [
     item({ k: 'moon', label: 'Modo noche', act: 'theme', extra: sw(ctx.dark) }),
-    item({ k: 'wa', label: 'Soporte WhatsApp', act: 'whatsapp' })
+    item({ k: 'wa', label: 'Soporte WhatsApp', act: 'whatsapp' }),
+    item({ k: 'lock', label: 'Privacidad y cuenta', act: 'privacy', sub: 'Política, ubicación y eliminar cuenta' })
 ];
 const logout = () => item({ k: 'power', label: 'Cerrar sesión', act: 'logout', color: '#dc2626', cls: 'rm-danger' });
 function staffBox(items) {
@@ -310,6 +312,13 @@ const ACTIONS = {
     theme: () => { window.toggleTheme?.(); renderRoleMenu(); return 'keep'; },
     whatsapp: () => window.openSupportWhatsApp?.(),
     logout: () => window.confirmLogout?.(),
+    privacy: async () => {
+        if (typeof window.openPrivacyAndAccount !== 'function') {
+            try { await import('./account-deletion-ui.js'); } catch (_) {}
+        }
+        if (typeof window.openPrivacyAndAccount === 'function') window.openPrivacyAndAccount();
+        else window.open('https://honduraite.com/eliminar-cuenta.html', '_blank');
+    },
     online: async () => { await window.toggleDriverOnline?.(); setTimeout(renderRoleMenu, 300); return 'keep'; },
     available: () => { document.getElementById('requests-list')?.scrollIntoView?.({ behavior: 'smooth' }); window.toggleDriverEarningsMinimized?.(true); },
     deposits: () => window.showDailyDepositInfo?.({}),

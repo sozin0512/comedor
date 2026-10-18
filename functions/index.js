@@ -6376,6 +6376,12 @@ Object.assign(exports, deliveryZones.exports);
 Object.assign(exports, serviceAvailability.exports);
 Object.assign(exports, storeOrderSync.exports);
 Object.assign(exports, roles.exports);
+/** Eliminar cuenta desde la app (Google Play · Account deletion). Ver account-deletion.js. */
+const accountDeletion = require('./account-deletion')({
+    db, getAuth, getStorage: () => require('firebase-admin/storage').getStorage(),
+    FieldValue, HttpsError, onCall, APP_ID, ADMIN_EMAIL, roles
+});
+Object.assign(exports, accountDeletion.exports);
 
 exports.whatsappWebhook = whatsappCloud.whatsappWebhook;
 exports.sendWhatsAppCloudText = whatsappCloud.sendWhatsAppCloudText;

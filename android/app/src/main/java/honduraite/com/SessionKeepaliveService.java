@@ -7,10 +7,13 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.Manifest;
 import android.os.Build;
 import android.os.IBinder;
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 /**
  * Foreground service estilo Uber:
@@ -147,15 +150,30 @@ public class SessionKeepaliveService extends Service {
     private void promoteToForeground(String title, String body) {
         createChannels();
         Notification notification = buildNotification(title, body);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // En viaje o conductor: LOCATION + DATA_SYNC (GPS en background)
-            int type = (driverMode || tripMode)
-                ? (ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION | ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                : ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
-            startForeground(NOTIFICATION_ID, notification, type);
-        } else {
-            startForeground(NOTIFICATION_ID, notification);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // En viaje o conductor en línea: LOCATION (GPS mientras la app está en segundo plano,
+                // con esta notificación visible). Android 14+ exige que el permiso de ubicación YA esté
+                // concedido para el tipo LOCATION; si no, lanzaría SecurityException (la app se cerraba).
+                boolean wantsLocation = (driverMode || tripMode) && hasLocationPermission();
+                int type = wantsLocation
+                    ? (ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION | ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                    : ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
+                startForeground(NOTIFICATION_ID, notification, type);
+            } else {
+                startForeground(NOTIFICATION_ID, notification);
+            }
+        } catch (RuntimeException e) {
+            // Android 12+: no se puede iniciar un servicio en primer plano desde segundo plano
+            // (p. ej. al reiniciar tras cerrar la app). Mejor parar que tumbar la app.
+            running = false;
+            stopSelf();
         }
+    }
+
+    private boolean hasLocationPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void createChannels() {

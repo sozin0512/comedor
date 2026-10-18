@@ -12,6 +12,7 @@ import {
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { APP_CONFIG } from "./config.js?v=2026.10.16.8";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.16.8";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
@@ -186,6 +187,10 @@ import {
 } from "./route-conditions.js?v=2026.10.16.8";
 import { initTheme, toggleTheme } from "./theme.js?v=2026.10.16.8";
 import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.16.8";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.16.8";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.16.8";
+import { formatLempiras } from "./money-format.js?v=2026.10.16.8";
+import { displayPersonName } from "./display-name.js?v=2026.10.16.8";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
 } from "./demand-heatmap.js?v=2026.10.16.8";
@@ -689,7 +694,7 @@ function renderGuestFollowPanel(t) {
     const driver = t.driverName || t.offeredToDriverName || '';
     const vehicle = [t.vehicleType, t.vehiclePlate || t.driverPlate].filter(Boolean).join(' · ');
     const pin = t.pin ? String(t.pin) : '';
-    const price = t.price || (t.priceNum != null ? `L. ${Number(t.priceNum).toFixed(2)}` : '');
+    const price = t.price || (t.priceNum != null ? `${formatLempiras(Number(t.priceNum))}` : '');
     panel.innerHTML = `
         <div class="rounded-3xl bg-white shadow-2xl border border-slate-200 p-4 max-w-lg mx-auto">
             <p class="text-[10px] font-black uppercase tracking-widest text-emerald-700 m-0">${guestFollowStatusLabel(t)}</p>
@@ -1084,9 +1089,13 @@ function showPermissionHelpModal(reason) {
         overlay.querySelector('#permission-help-close').addEventListener('click', () => overlay.remove());
         overlay.querySelector('#permission-help-contact').addEventListener('click', () => {
             try {
-                const url = typeof getSupportWhatsAppUrl === 'function' ? getSupportWhatsAppUrl('', `Problema permisos: ${reason || ''}`) : 'https://wa.me/';
+                const fallback = `https://wa.me/${String(APP_CONFIG?.support?.whatsapp || '50495733866').replace(/\D/g, '')}`;
+                const url = getSupportWhatsAppUrl(APP_CONFIG, {
+                    subject: `Problema permisos: ${reason || ''}`,
+                    userName: window.userProfile?.name || ''
+                }) || fallback;
                 window.open(url, '_blank');
-            } catch (_) { window.open('https://wa.me/', '_blank'); }
+            } catch (_) { window.open(`https://wa.me/${String(APP_CONFIG?.support?.whatsapp || '50495733866').replace(/\D/g, '')}`, '_blank'); }
         });
         overlay.querySelector('#permission-help-verify').addEventListener('click', () => {
             try { if (typeof showPassengerVerificationSetup === 'function') showPassengerVerificationSetup(); } catch (_) {}
@@ -1739,7 +1748,7 @@ window.renderAdminFixedFaresUI = () => {
                             <p class="text-[10px] font-bold text-slate-400">
                                 ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)} · radio ${p.radiusKm} km
                                 ${p.fixedPrice > 0
-                                    ? ` · <span class="text-amber-300">precio L. ${p.fixedPrice}</span>`
+                                    ? ` · <span class="text-amber-300">precio ${formatLempiras(p.fixedPrice)}</span>`
                                     : ' · <span class="text-slate-500">sin precio (solo rutas)</span>'}
                                 ${p.onlyDaytime ? ' · solo día' : ''}
                                 ${p.enabled ? '' : ' · APAGADO'}
@@ -1787,7 +1796,7 @@ window.renderAdminFixedFaresUI = () => {
                 <div class="flex items-center justify-between gap-2 p-2 rounded-xl border ${r.enabled ? 'border-sky-800/50 bg-sky-950/20' : 'border-slate-800 opacity-60'}">
                     <div class="min-w-0">
                         <p class="text-xs font-black text-white truncate">${escAdminHtml(r.name)}</p>
-                        <p class="text-[10px] font-bold text-slate-400">${escAdminHtml(a)} ↔ ${escAdminHtml(b)} · <span class="text-sky-300">L. ${r.price}</span></p>
+                        <p class="text-[10px] font-bold text-slate-400">${escAdminHtml(a)} ↔ ${escAdminHtml(b)} · <span class="text-sky-300">${formatLempiras(r.price)}</span></p>
                     </div>
                     <div class="flex gap-1 shrink-0">
                         <button type="button" class="ops-btn ops-btn--ghost text-[10px] py-1"
@@ -2284,7 +2293,7 @@ window.adminAddFixedFarePlace = () => {
     }
     window.renderAdminFixedFaresUI?.();
     window.showToast?.(
-        `Punto «${place.name}» listo${place.fixedPrice > 0 ? ` · L. ${place.fixedPrice}` : ''}. Toca «Guardar tarifas».`,
+        `Punto «${place.name}» listo${place.fixedPrice > 0 ? ` · ${formatLempiras(place.fixedPrice)}` : ''}. Toca «Guardar tarifas».`,
         'success'
     );
 };
@@ -2376,7 +2385,7 @@ window.adminSaveFixedFares = async (btn) => {
         window._adminFixedFaresDraft = getFixedFaresConfig();
         window.renderAdminFixedFaresUI?.();
         window.showToast?.(
-            `Tarifas guardadas. Mínimo: ${next.minFareEnabled ? `L. ${next.minFare}` : 'OFF'} · ${next.places.length} puntos · ${next.routes.length} rutas`,
+            `Tarifas guardadas. Mínimo: ${next.minFareEnabled ? `${formatLempiras(next.minFare)}` : 'OFF'} · ${next.places.length} puntos · ${next.routes.length} rutas`,
             'success'
         );
     } catch (e) {
@@ -3960,8 +3969,10 @@ if (document.readyState === 'loading') {
                         name: window.userProfile?.name || 'Conductor de prueba',
                         phone: normalizeHondurasPhone(window.userProfile?.phone || ''),
                         approvalStatus: 'approved',
+                        // Conductor de prueba: el mapa de pasajeros (no staff) lo oculta.
+                        isTestDriver: true,
                         vehicleType: vType,
-                        vehiclePlate: activeVehicle?.vehicle?.plate || window.userProfile?.vehicle?.plate || 'TEST',
+                        vehiclePlate: activeVehicle?.vehicle?.plate || window.userProfile?.vehicle?.plate || '',
                         serviceZoneId: zoneId,
                         serviceZoneName: zone.name,
                         searchRadiusKm: getCityCoverageKm(zoneId),
@@ -4203,6 +4214,19 @@ if (document.readyState === 'loading') {
             });
         }
 
+        // Enlace de honduraite.com/eliminar-cuenta.html → abrir «Eliminar mi cuenta» ya con sesión
+        if (location.hash === '#eliminar-cuenta') {
+            try { history.replaceState(null, '', location.pathname + location.search); } catch (_) {}
+            let tries = 0;
+            // Espera a que haya sesión (si entra recién del login) hasta ~3 min
+            const waitAndOpen = () => {
+                tries += 1;
+                if (window.currentUser && window.userProfile) { openAccountDeletion(); return; }
+                if (tries === 1) window.showToast?.('Inicia sesión para eliminar tu cuenta.', 'info');
+                if (tries < 120) setTimeout(waitAndOpen, 1500);
+            };
+            setTimeout(waitAndOpen, 1400);
+        }
         if (location.hash === '#chat') {
             setTimeout(() => {
                 const chat = document.getElementById('chat-section');
@@ -5492,7 +5516,7 @@ if (document.readyState === 'loading') {
                 return applyPassengerSurcharge(50, svcType, n, baseKm);
             };
             let livePrice = priceForPax(claimPassengers || 1);
-            const priceLabel = () => `L. ${livePrice.toFixed(2)}`;
+            const priceLabel = () => `${formatLempiras(livePrice)}`;
 
             // Fecha/hora mínima y prefill siempre en hora de Honduras (no UTC del toISOString)
             const minParts = isoToHondurasDateTimeParts(new Date(Date.now() + 20 * 60 * 1000));
@@ -5667,7 +5691,7 @@ if (document.readyState === 'loading') {
                     if (!clientDidPickPax) {
                         paxHint.innerHTML = '<span class="text-blue-700 font-black">Toca cuántas personas van (puedes cambiarlo después).</span>';
                     } else if (sur > 0) {
-                        paxHint.textContent = `${formatPassengersLabel(claimPassengers)} · +L. ${sur.toFixed(0)} extra (L. ${fee} c/u). El conductor lo verá.`;
+                        paxHint.textContent = `${formatPassengersLabel(claimPassengers)} · +${formatLempiras(sur)} extra (${formatLempiras(fee)} c/u). El conductor lo verá.`;
                     } else {
                         paxHint.textContent = `1 persona incluida. Toca otro número si quieres cambiar.`;
                     }
@@ -5951,7 +5975,7 @@ if (document.readyState === 'loading') {
                 // Conservar si el staff fijó precio a mano
                 staffManualPrice: t.staffManualPrice === true || opts?.staffManualPrice === true,
                 priceNum,
-                price: priceNum > 0 ? `L. ${priceNum.toFixed(2)}` : (t.price || 'Por confirmar'),
+                price: priceNum > 0 ? `${formatLempiras(priceNum)}` : (t.price || 'Por confirmar'),
                 scheduledFor: scheduledFor || null,
                 clientChoseScheduleAt: serverTimestamp(),
                 origin,
@@ -6789,7 +6813,7 @@ if (document.readyState === 'loading') {
                         <div class="text-[10px] text-gray-500">${paxText}</div>
                     </div>
                     <div class="text-right flex-shrink-0">
-                        <div class="price-value font-black text-base">L. ${price.toFixed(2)}</div>
+                        <div class="price-value font-black text-base">${formatLempiras(price)}</div>
                         <div class="text-[9px] text-gray-400">${subLabel}</div>
                     </div>
                 `;
@@ -8297,7 +8321,7 @@ if (document.readyState === 'loading') {
                     ? `window.declineNegotiation('${tripId}')`
                     : `window.declineDriverBid('${tripId}', '${b.driverId}')`;
                 const counterSentNote = counterAlreadySent
-                    ? `<p class="passenger-offer-counter-sent"><i class="fas fa-hourglass-half"></i> Enviaste <b>L. ${sentCounter.toFixed(2)}</b> — el <b>conductor</b> debe aceptarlo. Tú no puedes aceptar tu propia oferta.</p>`
+                    ? `<p class="passenger-offer-counter-sent"><i class="fas fa-hourglass-half"></i> Enviaste <b>${formatLempiras(sentCounter)}</b> — el <b>conductor</b> debe aceptarlo. Tú no puedes aceptar tu propia oferta.</p>`
                     : '';
                 const listedTag = matchesListed
                     ? '<p class="passenger-offer-listed-tag"><i class="fas fa-check"></i> Mismo precio que pediste</p>'
@@ -8336,7 +8360,7 @@ if (document.readyState === 'loading') {
                 const acceptLabel = counterAlreadySent
                     ? (singleOffer ? 'ESPERANDO AL CONDUCTOR…' : 'Esperando…')
                     : (singleOffer
-                        ? `ACEPTAR L. ${effectivePrice.toFixed(2)} — IR AHORA`
+                        ? `ACEPTAR ${formatLempiras(effectivePrice)} — IR AHORA`
                         : 'Aceptar');
                 const acceptClass = singleOffer
                     ? `passenger-offer-accept passenger-offer-accept--hero${counterAlreadySent ? ' passenger-offer-accept--waiting' : ''}`
@@ -8346,10 +8370,10 @@ if (document.readyState === 'loading') {
                     ? `<button type="button" class="${acceptClass}" disabled aria-disabled="true" title="El conductor debe aceptar tu contraoferta">${acceptLabel}</button>`
                     : `<button type="button" onclick="${acceptFn}" class="${acceptClass}">${acceptLabel}</button>`;
                 const priceDisplay = counterAlreadySent
-                    ? `L. ${sentCounter.toFixed(2)}`
-                    : `L. ${effectivePrice.toFixed(2)}`;
+                    ? `${formatLempiras(sentCounter)}`
+                    : `${formatLempiras(effectivePrice)}`;
                 const driverOfferLine = counterAlreadySent && !Number.isNaN(driverOffer)
-                    ? `<p class="passenger-offer-driver-ask">Su oferta era L. ${driverOffer.toFixed(2)}</p>`
+                    ? `<p class="passenger-offer-driver-ask">Su oferta era ${formatLempiras(driverOffer)}</p>`
                     : '';
                 return `
                     <article class="passenger-offer-card${idx === 0 ? ' passenger-offer-card--top' : ''}${counterAlreadySent ? ' passenger-offer-card--waiting-driver' : ''}">
@@ -8549,7 +8573,7 @@ if (document.readyState === 'loading') {
             const renderBtn = (p) => `
                 <button type="button" data-quick-bid="${tripId}" data-bid-price="${p}"
                         class="driver-offer-quick-btn driver-offer-quick-btn--more trip-touch-btn">
-                    <span class="pointer-events-none">L. ${p}</span>
+                    <span class="pointer-events-none">${formatLempiras(p)}</span>
                 </button>`;
 
             return `<div class="driver-offer-quick">
@@ -8597,7 +8621,7 @@ if (document.readyState === 'loading') {
                 modeClass = 'driver-offer-decision--rejected';
             } else if (negotiationEnabled && waitingOnPax) {
                 statusLabel = 'Esperando al pasajero';
-                statusSub = `Enviaste L. ${parseFloat(myBid.price).toFixed(0)}`;
+                statusSub = `Enviaste ${formatLempiras(parseFloat(myBid.price))}`;
                 modeClass = 'driver-offer-decision--waiting';
             } else if (negotiationEnabled && !priceFair) {
                 statusLabel = 'Precio del viaje';
@@ -8627,15 +8651,15 @@ if (document.readyState === 'loading') {
                 : '';
 
             const negPlaceholder = passengerRejectedMyPrice && rejectedPriceNum
-                ? `Mejor que L. ${Math.round(rejectedPriceNum)}`
+                ? `Mejor que ${formatLempiras(Math.round(rejectedPriceNum))}`
                 : (distSummary?.suggestPrice
-                    ? `Ej. L. ${Math.round(distSummary.suggestPrice)}`
+                    ? `Ej. ${formatLempiras(Math.round(distSummary.suggestPrice))}`
                     : 'Tu precio');
             const kbdPrefill = hasPassengerCounter
                 ? Math.ceil(passengerCounterPrice)
                 : (distSummary?.suggestPrice ? Math.round(distSummary.suggestPrice) : '');
 
-            const acceptDisplay = `L. ${Math.round(acceptPriceNum)}`;
+            const acceptDisplay = `${formatLempiras(Math.round(acceptPriceNum))}`;
             const primaryBtn = `<button type="button" data-accept-trip="${tripId}" class="driver-offer-decision-accept driver-offer-decision-accept--go trip-touch-btn" title="Aceptar viaje a este precio">
                         <span class="pointer-events-none driver-offer-decision-accept-big"><i class="fas fa-check"></i> ACEPTAR · ${acceptDisplay}</span>
                    </button>`;
@@ -9938,7 +9962,7 @@ if (document.readyState === 'loading') {
                 parts.push(`<span class="driver-offer-stat driver-offer-stat--time"><i class="fas fa-hourglass-half"></i> ${summary.tripMin} min</span>`);
             }
             if (summary.suggestPrice) {
-                parts.push(`<span class="driver-offer-stat driver-offer-stat--ref"><i class="fas fa-tag"></i> ref. L. ${summary.suggestPrice.toFixed(0)}</span>`);
+                parts.push(`<span class="driver-offer-stat driver-offer-stat--ref"><i class="fas fa-tag"></i> ref. ${formatLempiras(summary.suggestPrice)}</span>`);
             }
             return parts.length ? parts.join('') : `<span class="driver-offer-stat driver-offer-stat--loading"><i class="fas fa-spinner fa-spin"></i> Calculando…</span>`;
         }
@@ -10357,9 +10381,9 @@ if (document.readyState === 'loading') {
                     : listedPriceNum);
             const showDirectAccept = hasPassengerCounter || (priceFair && acceptPriceNum > 0);
             const priceLabel = hasPassengerCounter
-                ? `L. ${passengerCounterPrice.toFixed(2)}`
+                ? `${formatLempiras(passengerCounterPrice)}`
                 : (t.negotiatedPrice != null
-                    ? `L. ${parseFloat(t.negotiatedPrice).toFixed(2)}`
+                    ? `${formatLempiras(parseFloat(t.negotiatedPrice))}`
                     : (t.price || '—'));
             const passengerRejectedMyPrice = t.lastRejectedDriverPrice != null
                 && t.lastRejectedDriverId === currentUser?.uid
@@ -10437,7 +10461,7 @@ if (document.readyState === 'loading') {
 
                 document.querySelectorAll(`[data-neg-price-for="${t.id}"]`).forEach((negInp) => {
                     if (summary.suggestPrice && !negInp.value) {
-                        negInp.placeholder = `Ej. L. ${Math.round(summary.suggestPrice)}`;
+                        negInp.placeholder = `Ej. ${formatLempiras(Math.round(summary.suggestPrice))}`;
                     }
                 });
             }));
@@ -10559,11 +10583,11 @@ if (document.readyState === 'loading') {
                     : listedPriceNum);
             const showDirectAccept = hasPassengerCounter || (priceFair && acceptPriceNum > 0);
             const priceLabel = hasPassengerCounter
-                ? `L. ${passengerCounterPrice.toFixed(2)}`
+                ? `${formatLempiras(passengerCounterPrice)}`
                 : (t.negotiatedPrice != null
-                    ? `L. ${parseFloat(t.negotiatedPrice).toFixed(2)}`
+                    ? `${formatLempiras(parseFloat(t.negotiatedPrice))}`
                     : (listedPriceNum > 0
-                        ? `L. ${listedPriceNum.toFixed(2)}`
+                        ? `${formatLempiras(listedPriceNum)}`
                         : (t.price && t.price !== 'Por confirmar' ? t.price : '—')));
             const isUnverified = t.clientVerified === false || t.clientApprovalStatus === 'pending';
             const isFirstTrip = isClientFirstTripFlag(t);
@@ -10639,7 +10663,7 @@ if (document.readyState === 'loading') {
                 const tripKm = Number(t.distanceKmForCharge ?? t.tripDistanceKm ?? t.km ?? 0);
                 const surcharge = getPassengerSurcharge(t.serviceType, paxN, tripKm);
                 if (t.serviceType !== 'delivery' && !isFreightService(t.serviceType) && t.serviceType !== 'grua') {
-                    const surchargeText = surcharge > 0 ? ` · +L. ${surcharge.toFixed(0)} extra` : '';
+                    const surchargeText = surcharge > 0 ? ` · +${formatLempiras(surcharge)} extra` : '';
                     const label = paxN === 1 ? '1 PERSONA' : `${paxN} PERSONAS`;
                     detailParts.push(
                         `<p class="driver-offer-detail-line driver-offer-detail-line--pax" style="color:#b45309;font-weight:900;background:rgba(251,191,36,0.15);padding:0.35rem 0.5rem;border-radius:0.5rem;">`
@@ -10699,7 +10723,7 @@ if (document.readyState === 'loading') {
             // Popup Uber: tarjeta baja. Muestra ruta completa (ti→cliente + ruta del cliente).
             if (compact) {
                 const clientShort = escapeViewerText(
-                    String(t.clientName || 'Pasajero').trim().split(/\s+/)[0] || 'Pasajero'
+                    String(displayPersonName(t.clientName, 'Pasajero')).trim().split(/\s+/)[0] || 'Pasajero'
                 );
                 // Solo distancia conductor → pasajero (punto de recogida)
                 const pickupKmNum = (dist != null && Number.isFinite(Number(dist))) ? Number(dist) : null;
@@ -10724,7 +10748,7 @@ if (document.readyState === 'loading') {
                 const paxChipHtml = showPaxCompact
                     ? `<span class="uber-vert-pax" title="Personas en el viaje"><i class="fas fa-users"></i> ${paxNCompact === 1 ? '1 pers.' : `${paxNCompact} pers.`}</span>`
                     : '';
-                const acceptDisplay = `L. ${Math.round(acceptPriceNum)}`;
+                const acceptDisplay = `${formatLempiras(Math.round(acceptPriceNum))}`;
                 const primaryBtn = `<button type="button" data-accept-trip="${tripId}" class="uber-vert-btn uber-vert-btn--go trip-touch-btn">
                             <i class="fas fa-check pointer-events-none"></i>
                             <span class="pointer-events-none">Aceptar ${acceptDisplay}</span>
@@ -10774,7 +10798,7 @@ if (document.readyState === 'loading') {
             return `
                 <div class="trip-request-card driver-offer-card${getScheduledTripMs(t) ? ' driver-offer-card--scheduled' : ''}" data-preview-offer="${tripId}" data-offer-id-prefix="${pfx}">
                     <div class="driver-offer-top">
-                        <p class="driver-offer-name client-name-${tripId}">${t.clientName || 'Pasajero'}</p>
+                        <p class="driver-offer-name client-name-${tripId}">${escapeViewerText(displayPersonName(t.clientName, 'Pasajero'))}</p>
                         <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${storeOfferBadgesHtml(t)}${serviceBadge}${paxBadge}${distBadge}</div>
                     </div>
                     ${schedBanner}
@@ -11027,7 +11051,7 @@ if (document.readyState === 'loading') {
                 }
                 await updateDoc(tripRef, bidPatch);
 
-                window.showToast(`Oferta de L. ${newPrice} enviada. El pasajero elige con quién irse.`, 'success');
+                window.showToast(`Oferta de ${formatLempiras(newPrice)} enviada. El pasajero elige con quién irse.`, 'success');
                 if (btnEl) {
                     btnEl.disabled = false;
                     btnEl.innerHTML = btnEl.dataset.origHtml || btnEl.innerHTML;
@@ -12320,7 +12344,7 @@ if (document.readyState === 'loading') {
                     document.getElementById('edit-payout-type').value = window.userProfile.payoutAccountType || 'Ahorro';
                     document.getElementById('edit-payout-email').value = window.userProfile.payoutEmail || currentUser?.email || '';
                     const walletEl = document.getElementById('driver-wallet-balance');
-                    if (walletEl) walletEl.innerText = `L. ${parseFloat(window.userProfile.driverBalance || 0).toFixed(2)}`;
+                    if (walletEl) walletEl.innerText = `${formatLempiras(parseFloat(window.userProfile.driverBalance || 0))}`;
                 } else {
                     payoutSection.classList.add('hidden');
                 }
@@ -12335,7 +12359,7 @@ if (document.readyState === 'loading') {
             
             if (balanceSection && balanceEl && canUsePassengerSaldo(window.userProfile)) {
                 const balance = window.userProfile.balance || 0;
-                balanceEl.innerText = `L. ${parseFloat(balance).toFixed(2)}`;
+                balanceEl.innerText = `${formatLempiras(parseFloat(balance))}`;
                 balanceSection.classList.remove('hidden');
                 balanceSection.classList.add('flex');
             } else if (balanceSection) {
@@ -12371,7 +12395,7 @@ if (document.readyState === 'loading') {
 
                 if (earningsEl) {
                     const earned = window.userProfile.referralEarnings || 0;
-                    earningsEl.innerText = `L. ${parseFloat(earned).toFixed(0)}`;
+                    earningsEl.innerText = `${formatLempiras(parseFloat(earned))}`;
                 }
             }
 
@@ -13028,7 +13052,7 @@ if (document.readyState === 'loading') {
             }
             const priceNum = parseTripPrice(t);
             const hint = priceNum > 0
-                ? ` · L. ${priceNum.toFixed(2)}`
+                ? ` · ${formatLempiras(priceNum)}`
                 : '';
             return `<div class="ops-trip-actions flex flex-wrap gap-2">
                 ${U.btn(`Finalizar manualmente${hint}`, `window.staffManualCompleteTrip('${t.id}')`, { variant: 'emerald', icon: 'fa-check-double' })}
@@ -13260,7 +13284,7 @@ if (document.readyState === 'loading') {
 
         function buildStaffActiveTripCompactRow(t, phase, cardOpts = {}) {
             const meta = getStaffActiveTripPhaseMeta(phase);
-            const client = escapeViewerText(t.clientName || 'Pasajero');
+            const client = escapeViewerText(displayPersonName(t.clientName, 'Pasajero'));
             const waitingClient = !!(t.staffCreatedBy && t.staffCreatedClientClaimed !== true && t.status === 'pending');
             const driver = escapeViewerText(
                 t.driverName
@@ -14502,7 +14526,7 @@ if (document.readyState === 'loading') {
                         ? `<span class="text-[9px] px-2 py-0.5 rounded-full font-black ml-1 bg-blue-500/20 text-blue-300">${age}a</span>`
                         : '';
                     const clientBalance = parseFloat(u.balance || 0);
-                    balanceBadge = `<p class="text-purple-300 text-xs font-black mt-1"><i class="fas fa-wallet"></i> Saldo: L. ${clientBalance.toFixed(2)}</p>`;
+                    balanceBadge = `<p class="text-purple-300 text-xs font-black mt-1"><i class="fas fa-wallet"></i> Saldo: ${formatLempiras(clientBalance)}</p>`;
                     approvalBadge = `<span class="text-[9px] px-2.5 py-0.5 rounded-full font-black ${badgeClass}">${badgeText}</span>${restrictedBadge}${ageBadge}${alertBadge}`;
                     actionBtn = `
                         <div class="flex flex-wrap gap-2 w-full mt-2">
@@ -15240,7 +15264,7 @@ if (document.readyState === 'loading') {
             });
 
             const basePrice = t.priceNum != null
-                ? `L. ${parseFloat(t.priceNum).toFixed(2)}`
+                ? `${formatLempiras(parseFloat(t.priceNum))}`
                 : (t.price || '—');
             const hasPending = t.negotiatedPrice != null && t.negotiatedBy;
             const pendingPrice = hasPending ? parseFloat(t.negotiatedPrice).toFixed(2) : null;
@@ -15249,18 +15273,18 @@ if (document.readyState === 'loading') {
             if (hasPending) {
                 const who = t.negotiatedBy === 'driver'
                     ? escapeViewerText(t.offeredToDriverName || 'Conductor')
-                    : escapeViewerText(t.clientName || 'Pasajero');
+                    : escapeViewerText(displayPersonName(t.clientName, 'Pasajero'));
                 const roleLabel = t.negotiatedBy === 'driver' ? 'Conductor propone' : 'Pasajero contraoferta';
-                pendingLine = `<p class="ops-trip-neg-pending"><i class="fas fa-hand-holding-usd"></i> <b>${roleLabel}:</b> ${who} · <b>L. ${pendingPrice}</b></p>`;
+                pendingLine = `<p class="ops-trip-neg-pending"><i class="fas fa-hand-holding-usd"></i> <b>${roleLabel}:</b> ${who} · <b>${formatLempiras(pendingPrice)}</b></p>`;
             }
 
             const logHtml = log.length
                 ? log.map((entry) => {
                     const isDriver = entry.by === 'driver';
                     const name = escapeViewerText(
-                        entry.name || (isDriver ? (t.offeredToDriverName || 'Conductor') : (t.clientName || 'Pasajero'))
+                        entry.name || (isDriver ? (t.offeredToDriverName || 'Conductor') : (displayPersonName(t.clientName, 'Pasajero')))
                     );
-                    const price = entry.price != null ? `L. ${parseFloat(entry.price).toFixed(2)}` : '—';
+                    const price = entry.price != null ? `${formatLempiras(parseFloat(entry.price))}` : '—';
                     const when = formatStaffViewerTime(getNegEntryTime(entry));
                     const roleClass = isDriver ? 'ops-trip-neg-row--driver' : 'ops-trip-neg-row--passenger';
                     const icon = isDriver ? 'fa-motorcycle' : 'fa-user';
@@ -15279,9 +15303,9 @@ if (document.readyState === 'loading') {
             const bidsHtml = bidRows.length
                 ? bidRows.map((b) => {
                     const name = escapeViewerText(b.name || 'Conductor');
-                    const price = b.price != null ? `L. ${b.price.toFixed(2)}` : '—';
+                    const price = b.price != null ? `${formatLempiras(b.price)}` : '—';
                     const counter = b.counter != null
-                        ? ` · pasajero ofrece L. ${b.counter.toFixed(2)}`
+                        ? ` · pasajero ofrece ${formatLempiras(b.counter)}`
                         : '';
                     return `
                         <div class="ops-trip-neg-row ops-trip-neg-row--driver">
@@ -15436,7 +15460,7 @@ if (document.readyState === 'loading') {
                 }
 
                 const driverName = escapeViewerText(trip.driverName || 'Conductor');
-                const clientName = escapeViewerText(trip.clientName || 'Pasajero');
+                const clientName = escapeViewerText(displayPersonName(trip.clientName, 'Pasajero'));
                 const alreadyDriver = !!trip.ratedByClient;
                 const alreadyPax = !!trip.ratedByDriver;
                 const assignedNote = trip.staffAssignedByName
@@ -15816,13 +15840,13 @@ if (document.readyState === 'loading') {
                 const split = calcTripCommissionSplit(priceNum, commissionPercent);
                 const freeDayNote = commissionResolved.commissionFreeDay ? ' · DÍA SIN COMISIÓN' : '';
                 const commissionLine = isBirthdayGift || trip.paymentMethod === 'saldo'
-                    ? `Comisión plataforma: L. ${split.commissionAmount.toFixed(2)}${freeDayNote}`
-                    : `Comisión a depositar (efectivo): L. ${split.commissionAmount.toFixed(2)}${freeDayNote}`;
+                    ? `Comisión plataforma: ${formatLempiras(split.commissionAmount)}${freeDayNote}`
+                    : `Comisión a depositar (efectivo): ${formatLempiras(split.commissionAmount)}${freeDayNote}`;
 
                 if (!confirm(
                     `¿Finalizar manualmente este viaje cancelado?\n\n`
                     + `Conductor: ${trip.driverName || '—'}\n`
-                    + `Precio: L. ${priceNum.toFixed(2)} (${payLabel})\n`
+                    + `Precio: ${formatLempiras(priceNum)} (${payLabel})\n`
                     + `${commissionLine}\n\n`
                     + `Se registrará como completado y se cargará la comisión al conductor.`
                 )) return;
@@ -15840,13 +15864,13 @@ if (document.readyState === 'loading') {
                     staffCompletedAt: serverTimestamp(),
                     staffCompletedFromCancelled: true
                 };
-                let toastMsg = `Viaje finalizado manualmente. Precio L. ${priceNum.toFixed(2)}.`;
+                let toastMsg = `Viaje finalizado manualmente. Precio ${formatLempiras(priceNum)}.`;
 
                 if (trip.paymentMethod === 'saldo' || isBirthdayGift) {
                     const settlement = await settleSaldoTripOnComplete(trip, tripId);
                     if (settlement) {
                         tripUpdate = { ...tripUpdate, ...settlement.tripUpdate };
-                        toastMsg = `Viaje finalizado. Conductor recibió L. ${settlement.driverNet.toFixed(2)} (comisión L. ${settlement.commissionAmount.toFixed(2)}).`;
+                        toastMsg = `Viaje finalizado. Conductor recibió ${formatLempiras(settlement.driverNet)} (comisión ${formatLempiras(settlement.commissionAmount)}).`;
                     }
                 } else {
                     tripUpdate.commissionPercent = commissionPercent;
@@ -15854,7 +15878,7 @@ if (document.readyState === 'loading') {
                     tripUpdate.commissionWaivedBirthday = false;
                     Object.assign(tripUpdate, commissionFreeDayTripFields(commissionResolved));
                     // Comisión del día (no deuda aún): solo se consolida a deuda al vencer el plazo o al cerrar turno.
-                    toastMsg = `Viaje finalizado. Comisión a depositar L. ${split.commissionAmount.toFixed(2)} (pendiente del día, no deuda vencida).`;
+                    toastMsg = `Viaje finalizado. Comisión a depositar ${formatLempiras(split.commissionAmount)} (pendiente del día, no deuda vencida).`;
                 }
 
                 await updateDoc(tripRef, tripUpdate);
@@ -16188,7 +16212,7 @@ if (document.readyState === 'loading') {
                             ${escapeViewerText(when)}${escapeViewerText(until)}
                         </p>
                         <p style="margin:0.35rem 0 0;font-size:12px;font-weight:800;color:#e2e8f0;">
-                            ${escapeViewerText(t.clientName || 'Cliente')} → ${escapeViewerText(t.driverName || 'Conductor')}
+                            ${escapeViewerText(displayPersonName(t.clientName, 'Cliente'))} → ${escapeViewerText(t.driverName || 'Conductor')}
                         </p>
                         <p style="margin:0.2rem 0 0;font-size:11px;font-weight:700;color:#94a3b8;">
                             ${escapeViewerText(origin)} → ${escapeViewerText(dest)}
@@ -16338,7 +16362,7 @@ if (document.readyState === 'loading') {
                 }
 
                 if (trip.negotiatedPrice != null) {
-                    acceptPatch.price = `L. ${priceNum.toFixed(2)}`;
+                    acceptPatch.price = `${formatLempiras(priceNum)}`;
                     acceptPatch.priceNum = priceNum;
                 }
 
@@ -16432,10 +16456,10 @@ if (document.readyState === 'loading') {
 
                 drivers.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
 
-                const clientLabel = escapeViewerText(trip.clientName || 'Pasajero');
+                const clientLabel = escapeViewerText(displayPersonName(trip.clientName, 'Pasajero'));
                 const originLabel = escapeViewerText((trip.origin || '—').toString().slice(0, 48));
                 const destLabel = escapeViewerText((trip.destination || '—').toString().slice(0, 48));
-                const priceLabel = escapeViewerText(String(trip.price || (trip.priceNum != null ? `L. ${trip.priceNum}` : '—')));
+                const priceLabel = escapeViewerText(String(trip.price || (trip.priceNum != null ? `${formatLempiras(trip.priceNum)}` : '—')));
 
                 document.getElementById('staff-assign-any-driver-modal')?.remove();
                 const modal = document.createElement('div');
@@ -16633,13 +16657,13 @@ if (document.readyState === 'loading') {
                 staffDestinationAt: serverTimestamp(),
                 ...staffMeta.extra
             };
-            let toastMsg = `Viaje finalizado en destino. Precio L. ${priceNum.toFixed(2)}.`;
+            let toastMsg = `Viaje finalizado en destino. Precio ${formatLempiras(priceNum)}.`;
 
             if (trip.paymentMethod === 'saldo' || isBirthdayGift) {
                 const settlement = await settleSaldoTripOnComplete(trip, tripId);
                 if (settlement) {
                     tripUpdate = { ...tripUpdate, ...settlement.tripUpdate };
-                    toastMsg = `Viaje finalizado. Conductor recibió L. ${settlement.driverNet.toFixed(2)} (comisión L. ${settlement.commissionAmount.toFixed(2)}).`;
+                    toastMsg = `Viaje finalizado. Conductor recibió ${formatLempiras(settlement.driverNet)} (comisión ${formatLempiras(settlement.commissionAmount)}).`;
                 }
             } else {
                 const commissionResolved = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: 15 }));
@@ -16652,7 +16676,7 @@ if (document.readyState === 'loading') {
                 // Comisión del día (no deuda aún): se consolida al vencer plazo o cerrar turno.
                 toastMsg = commissionResolved.commissionFreeDay
                     ? `Viaje finalizado. 🎉 Día sin comisión (${commissionResolved.freeDayLabel || 'hoy'}): L. 0.00 a depositar.`
-                    : `Viaje finalizado. Comisión a depositar L. ${split.commissionAmount.toFixed(2)} (pendiente del día).`;
+                    : `Viaje finalizado. Comisión a depositar ${formatLempiras(split.commissionAmount)} (pendiente del día).`;
             }
 
             await updateDoc(tripRef, tripUpdate);
@@ -16881,7 +16905,7 @@ if (document.readyState === 'loading') {
             const next = Math.round(Math.max(0, parseFloat(priceNum) || 0) * 100) / 100;
             const patch = {
                 priceNum: next,
-                price: `L. ${next.toFixed(2)}`,
+                price: `${formatLempiras(next)}`,
                 staffPricePrevious: prev,
                 staffPriceUpdatedBy: meta.uid || currentUser?.uid || null,
                 staffPriceUpdatedByName: meta.name || 'Staff',
@@ -16909,8 +16933,8 @@ if (document.readyState === 'loading') {
             const { patch, prev, next } = staffBuildPricePatch(trip, priceNum, meta);
             if (trip.paymentMethod === 'saldo' && trip.saldoCharged && Math.abs(next - prev) > 0.009) {
                 const ok = confirm(
-                    `Este viaje ya cobró saldo al pasajero (precio anterior L. ${prev.toFixed(2)}).\n\n`
-                    + `Nuevo precio: L. ${next.toFixed(2)}.\n\n`
+                    `Este viaje ya cobró saldo al pasajero (precio anterior ${formatLempiras(prev)}).\n\n`
+                    + `Nuevo precio: ${formatLempiras(next)}.\n\n`
                     + 'El cobro de saldo NO se ajusta solo. ¿Continuar solo actualizando el precio del viaje?'
                 );
                 if (!ok) return null;
@@ -16969,7 +16993,7 @@ if (document.readyState === 'loading') {
                 modal.id = 'staff-trip-price-modal';
                 modal.className = 'fixed inset-0 bg-black/70 z-[40000] flex items-center justify-center p-4';
                 const suggestedHtml = suggested != null
-                    ? `<p class="text-xs text-emerald-700 font-bold mt-1">Sugerido por km${suggestedKm != null ? ` (${Number(suggestedKm).toFixed(1)} km)` : ''}: <b>L. ${Number(suggested).toFixed(2)}</b></p>`
+                    ? `<p class="text-xs text-emerald-700 font-bold mt-1">Sugerido por km${suggestedKm != null ? ` (${Number(suggestedKm).toFixed(1)} km)` : ''}: <b>${formatLempiras(Number(suggested))}</b></p>`
                     : '<p class="text-xs text-slate-500 mt-1">Sin sugerencia aún (falta calcular ruta/km).</p>';
 
                 modal.innerHTML = `
@@ -16977,13 +17001,13 @@ if (document.readyState === 'loading') {
                         <div class="flex items-start justify-between gap-3 mb-3">
                             <div>
                                 <h3 class="font-black text-lg text-gray-900">Precio del viaje</h3>
-                                <p class="text-xs text-gray-500 mt-0.5">${escapeViewerText(trip.clientName || 'Pasajero')} · ${escapeViewerText(trip.driverName || 'Sin conductor')}</p>
+                                <p class="text-xs text-gray-500 mt-0.5">${escapeViewerText(displayPersonName(trip.clientName, 'Pasajero'))} · ${escapeViewerText(trip.driverName || 'Sin conductor')}</p>
                             </div>
                             <button type="button" id="staff-price-close" class="text-2xl text-gray-400 hover:text-red-500 leading-none">&times;</button>
                         </div>
                         <div class="mb-3 p-3 rounded-2xl bg-emerald-50 border border-emerald-200">
                             <p class="text-[10px] font-black uppercase text-emerald-700">Precio actual</p>
-                            <p class="text-2xl font-black text-emerald-900">L. ${currentPrice.toFixed(2)}</p>
+                            <p class="text-2xl font-black text-emerald-900">${formatLempiras(currentPrice)}</p>
                             ${suggestedHtml}
                             ${trip.paymentMethod === 'saldo' && trip.saldoCharged
                                 ? '<p class="text-[10px] text-amber-700 font-bold mt-2">⚠️ Ya se cobró saldo al aceptar. El ajuste de saldo no es automático.</p>'
@@ -17044,7 +17068,7 @@ if (document.readyState === 'loading') {
                         }
                         close();
                         window.showToast?.(
-                            `Precio actualizado: L. ${result.prev.toFixed(2)} → L. ${result.next.toFixed(2)} (${mode === 'recalc' ? 'recálculo' : 'manual'}).`,
+                            `Precio actualizado: ${formatLempiras(result.prev)} → ${formatLempiras(result.next)} (${mode === 'recalc' ? 'recálculo' : 'manual'}).`,
                             'success'
                         );
                     } catch (e) {
@@ -17304,10 +17328,10 @@ if (document.readyState === 'loading') {
 
                             <div class="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
                                 <p class="text-[10px] font-black uppercase text-emerald-700">Precio del viaje</p>
-                                <p class="text-sm font-bold text-emerald-900">Actual: L. ${currentPrice.toFixed(2)}</p>
+                                <p class="text-sm font-bold text-emerald-900">Actual: ${formatLempiras(currentPrice)}</p>
                                 <p id="staff-route-suggested-label" class="text-[11px] font-bold text-emerald-800">
                                     ${initialSuggested != null
-                                        ? `Sugerido por tarifa/km: L. ${Number(initialSuggested).toFixed(2)}`
+                                        ? `Sugerido por tarifa/km: ${formatLempiras(Number(initialSuggested))}`
                                         : 'Al calcular la ruta se sugiere el precio por km. Puedes dejarlo manual.'}
                                 </p>
                                 <label class="text-[10px] font-black uppercase text-slate-500">Nuevo precio (L.) — manual o recálculo</label>
@@ -17347,7 +17371,7 @@ if (document.readyState === 'loading') {
                     const v = Math.round(Number(fare) * 100) / 100;
                     modal.dataset.suggestedPrice = String(v);
                     if (suggestedLabel) {
-                        suggestedLabel.textContent = `Sugerido por tarifa/km${km != null ? ` (${Number(km).toFixed(1)} km)` : ''}: L. ${v.toFixed(2)}`;
+                        suggestedLabel.textContent = `Sugerido por tarifa/km${km != null ? ` (${Number(km).toFixed(1)} km)` : ''}: ${formatLempiras(v)}`;
                     }
                     // Si el staff quiere recálculo automático, rellenar el input
                     if (modal.dataset.priceMode === 'recalc' && priceInput) {
@@ -17608,8 +17632,8 @@ if (document.readyState === 'loading') {
                                     && Math.abs(nextPrice - currentPrice) > 0.009
                                 ) {
                                     const okSaldo = confirm(
-                                        `Este viaje ya cobró saldo (L. ${currentPrice.toFixed(2)}).\n`
-                                        + `Nuevo precio L. ${nextPrice.toFixed(2)}.\n\n`
+                                        `Este viaje ya cobró saldo (${formatLempiras(currentPrice)}).\n`
+                                        + `Nuevo precio ${formatLempiras(nextPrice)}.\n\n`
                                         + 'El saldo NO se ajusta solo. ¿Actualizar solo el precio del viaje?'
                                     );
                                     if (!okSaldo) {
@@ -17631,12 +17655,12 @@ if (document.readyState === 'loading') {
                                     Object.assign(patch, pricePatch);
                                     if (Math.abs(next - prev) > 0.009) {
                                         const modeLabel = mode === 'recalc' ? 'recálculo' : (mode === 'keep' ? 'igual' : 'manual');
-                                        priceNote = ` Precio L. ${prev.toFixed(2)} → L. ${next.toFixed(2)} (${modeLabel}).`;
+                                        priceNote = ` Precio ${formatLempiras(prev)} → ${formatLempiras(next)} (${modeLabel}).`;
                                     } else {
-                                        priceNote = ` Precio se mantiene en L. ${next.toFixed(2)}.`;
+                                        priceNote = ` Precio se mantiene en ${formatLempiras(next)}.`;
                                     }
                                 } else {
-                                    priceNote = ` Precio se mantiene en L. ${currentPrice.toFixed(2)}.`;
+                                    priceNote = ` Precio se mantiene en ${formatLempiras(currentPrice)}.`;
                                 }
                             }
                         }
@@ -19051,7 +19075,7 @@ if (document.readyState === 'loading') {
             const servicioLabel = hrInvoiceServiceLabel(servicio);
             const paid = !['cancelled', 'pending'].includes(String(trip.status || 'completed'));
 
-            const clientName = client?.name || trip.clientName || 'Pasajero';
+            const clientName = client?.name || displayPersonName(trip.clientName, 'Pasajero');
             const clientRtn = client?.rtn || client?.taxId || trip.clientRtn || extras.rtn || '';
             const driverName = driver?.name || trip.driverName || 'Conductor';
             const placa = driver?.vehicle?.plate || trip.vehiclePlate || trip.vehicle?.plate || '—';
@@ -19229,7 +19253,7 @@ if (document.readyState === 'loading') {
             
             const facturaHTML = window.generateFacturaHTML(
                 tripData,
-                client || { name: tripData.clientName || 'Pasajero de prueba', email: targetEmail, rtn: tripData.clientRtn || tripData.rtn },
+                client || { name: displayPersonName(tripData.clientName, 'Pasajero'), email: targetEmail, rtn: tripData.clientRtn || tripData.rtn },
                 driver || { name: tripData.driverName || 'Conductor', vehicle: tripData.vehicle || {} }
             );
 
@@ -19327,9 +19351,9 @@ if (document.readyState === 'loading') {
                         `Aquí tienes la FACTURA de tu viaje en HonduRaite.\n\n` +
                         `📅 ${fecha}\n` +
                         `🚗 ${trip.origin || ''} → ${trip.destination || ''}\n` +
-                        `💰 Total: L. ${price}\n\n` +
+                        `💰 Total: ${formatLempiras(price)}\n\n` +
                         `Por favor adjunta el PDF que te descargaré ahora.\n\n` +
-                        `Gracias por viajar con nosotros.\nSoporte HonduRaite: 50495733866`;
+                        `Gracias por viajar con nosotros.\nSoporte HonduRaite: +${String(APP_CONFIG?.support?.whatsapp || '50495733866').replace(/\D/g, '')}`;
 
             // Generar PDF
             try {
@@ -19353,7 +19377,7 @@ if (document.readyState === 'loading') {
                 doc.text(`Destino: ${trip.destination || '—'}`, 20, 82);
 
                 doc.setFontSize(14);
-                doc.text(`TOTAL PAGADO: L. ${price}`, 20, 100);
+                doc.text(`TOTAL PAGADO: ${formatLempiras(price)}`, 20, 100);
 
                 // Agregar cuentas bancarias si disponibles (para pagos/depósitos)
                 try {
@@ -19490,14 +19514,8 @@ if (document.readyState === 'loading') {
 
                 window.showTestFacturaModal(trip, targetEmail);
 
-                // Guardar registro de factura enviada / generada
-                try {
-                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId), {
-                        facturaGenerated: true,
-                        lastFacturaEmail: targetEmail || null,
-                        lastFacturaAt: serverTimestamp()
-                    });
-                } catch (_) {}
+                // Ver la factura es solo lectura: no se escribe nada en el viaje
+                // (antes guardaba facturaGenerated/lastFacturaEmail/lastFacturaAt al abrirla).
             } catch (e) {
                 console.error('sendInvoiceForTrip', e);
                 window.showToast('Error al cargar datos del viaje.');
@@ -19672,7 +19690,7 @@ if (document.readyState === 'loading') {
                     window.stopTripSimMovement();
                     const priceNum = parseTripPrice(trip);
                     let completeFields = { status: 'completed', priceNum, completedAt: serverTimestamp() };
-                    let toastMsg = `Viaje finalizado. Ganancia registrada: L. ${priceNum.toFixed(2)}`;
+                    let toastMsg = `Viaje finalizado. Ganancia registrada: ${formatLempiras(priceNum)}`;
 
                     const isBirthdayGift = trip.birthdayFree || trip.paymentMethod === 'birthday_gift';
                     if (trip.paymentMethod === 'saldo' || isBirthdayGift) {
@@ -19680,8 +19698,8 @@ if (document.readyState === 'loading') {
                         if (settlement) {
                             completeFields = { ...completeFields, ...settlement.tripUpdate };
                             toastMsg = isBirthdayGift
-                                ? `Viaje finalizado. Conductor recibió L. ${settlement.driverNet.toFixed(2)} (regalo cumpleaños).`
-                                : `Viaje finalizado. Conductor recibió L. ${settlement.driverNet.toFixed(2)} (comisión L. ${settlement.commissionAmount.toFixed(2)} ya pagada).`;
+                                ? `Viaje finalizado. Conductor recibió ${formatLempiras(settlement.driverNet)} (regalo cumpleaños).`
+                                : `Viaje finalizado. Conductor recibió ${formatLempiras(settlement.driverNet)} (comisión ${formatLempiras(settlement.commissionAmount)} ya pagada).`;
                         }
                     } else {
                         const commissionResolved = await resolveCommissionForTrip(trip);
@@ -21619,26 +21637,26 @@ if (document.readyState === 'loading') {
                     <div class="staff-driver-finance-kpis">
                         <div class="staff-driver-finance-kpi">
                             <p class="staff-driver-finance-kpi-label">Ganado hoy</p>
-                            <p class="staff-driver-finance-kpi-value">L. ${earned.toFixed(2)}</p>
+                            <p class="staff-driver-finance-kpi-value">${formatLempiras(earned)}</p>
                             <p class="staff-driver-finance-kpi-meta">${trips} viaje${trips !== 1 ? 's' : ''}</p>
                         </div>
                         <div class="staff-driver-finance-kpi ${debtClass}">
                             <p class="staff-driver-finance-kpi-label">Total a depositar</p>
-                            <p class="staff-driver-finance-kpi-value">L. ${totalOwed.toFixed(2)}</p>
+                            <p class="staff-driver-finance-kpi-value">${formatLempiras(totalOwed)}</p>
                             <p class="staff-driver-finance-kpi-meta">Com. ${commissionPct}%</p>
                         </div>
                     </div>
 
                     <div class="staff-driver-finance-grid">
-                        <div><span>Efectivo hoy</span><b>L. ${cash.toFixed(2)}</b></div>
-                        <div><span>Saldo recibido</span><b>L. ${saldo.toFixed(2)}</b></div>
-                        <div><span>Com. efectivo</span><b>L. ${cashComm.toFixed(2)}</b></div>
-                        <div><span>Cubierta (saldo)</span><b>L. ${covered.toFixed(2)}</b></div>
-                        <div><span>Deuda acumulada</span><b class="${debt > 0 ? 'text-rose' : ''}">L. ${debt.toFixed(2)}</b></div>
-                        <div><span>Pendiente de hoy</span><b>L. ${remainToday.toFixed(2)}</b></div>
-                        <div><span>Depósitos validados hoy</span><b>L. ${validated.toFixed(2)}</b></div>
-                        <div><span>En revisión</span><b>L. ${pendingVal.toFixed(2)}</b></div>
-                        <div><span>Billetera conductor</span><b>L. ${wallet.toFixed(2)}</b></div>
+                        <div><span>Efectivo hoy</span><b>${formatLempiras(cash)}</b></div>
+                        <div><span>Saldo recibido</span><b>${formatLempiras(saldo)}</b></div>
+                        <div><span>Com. efectivo</span><b>${formatLempiras(cashComm)}</b></div>
+                        <div><span>Cubierta (saldo)</span><b>${formatLempiras(covered)}</b></div>
+                        <div><span>Deuda acumulada</span><b class="${debt > 0 ? 'text-rose' : ''}">${formatLempiras(debt)}</b></div>
+                        <div><span>Pendiente de hoy</span><b>${formatLempiras(remainToday)}</b></div>
+                        <div><span>Depósitos validados hoy</span><b>${formatLempiras(validated)}</b></div>
+                        <div><span>En revisión</span><b>${formatLempiras(pendingVal)}</b></div>
+                        <div><span>Billetera conductor</span><b>${formatLempiras(wallet)}</b></div>
                         <div><span>Viajes hoy</span><b>${trips}</b></div>
                     </div>
 
@@ -21770,7 +21788,7 @@ if (document.readyState === 'loading') {
             const driverId = opts.driverId || trip.driverId || '';
             let driverName = opts.driverName || trip.driverName || 'Conductor';
             let driverPhone = trip.driverPhone || '';
-            let clientName = trip.clientName || 'Pasajero';
+            let clientName = displayPersonName(trip.clientName, 'Pasajero');
             let clientPhone = trip.clientPhone || trip.phone || '';
 
             // Completar teléfonos desde perfiles si faltan
@@ -21809,7 +21827,7 @@ if (document.readyState === 'loading') {
                     : (phase === 'to_pickup'
                         ? '🚗 Verde = en camino al pasajero'
                         : 'Colores: verde pickup · morado espera · rojo destino'));
-            const price = trip.price || (trip.priceNum != null ? `L. ${Number(trip.priceNum).toFixed(2)}` : '—');
+            const price = trip.price || (trip.priceNum != null ? `${formatLempiras(Number(trip.priceNum))}` : '—');
             const statusLabel = phaseMeta.title || trip.status || 'Viaje';
             const origin = trip.origin || '—';
             const dest = trip.destination || '—';
@@ -22119,7 +22137,7 @@ if (document.readyState === 'loading') {
                         </div>
                         <div class="bg-emerald-50 rounded-2xl p-4 text-center">
                             <p class="text-xs text-emerald-600 font-black">GANADO HOY</p>
-                            <p class="text-4xl font-black text-emerald-700">L. ${Number(todayEarned).toFixed(2)}</p>
+                            <p class="text-4xl font-black text-emerald-700">${formatLempiras(Number(todayEarned))}</p>
                         </div>
                     </div>
                 `;
@@ -22133,37 +22151,37 @@ if (document.readyState === 'loading') {
                         <div class="grid grid-cols-2 gap-2 text-xs">
                             <div class="bg-white/80 rounded-xl p-2.5">
                                 <p class="text-slate-500 font-bold">Efectivo hoy</p>
-                                <p class="font-black text-slate-800">L. ${Number(dayStats.cashEarnedToday || 0).toFixed(2)}</p>
+                                <p class="font-black text-slate-800">${formatLempiras(Number(dayStats.cashEarnedToday || 0))}</p>
                             </div>
                             <div class="bg-white/80 rounded-xl p-2.5">
                                 <p class="text-slate-500 font-bold">Saldo recibido</p>
-                                <p class="font-black text-slate-800">L. ${Number(dayStats.saldoEarnedToday || 0).toFixed(2)}</p>
+                                <p class="font-black text-slate-800">${formatLempiras(Number(dayStats.saldoEarnedToday || 0))}</p>
                             </div>
                             <div class="bg-white/80 rounded-xl p-2.5">
                                 <p class="text-slate-500 font-bold">Com. efectivo</p>
-                                <p class="font-black text-slate-800">L. ${Number(dayStats.cashCommissionOwed || 0).toFixed(2)}</p>
+                                <p class="font-black text-slate-800">${formatLempiras(Number(dayStats.cashCommissionOwed || 0))}</p>
                             </div>
                             <div class="bg-white/80 rounded-xl p-2.5">
                                 <p class="text-slate-500 font-bold">Cubierta</p>
-                                <p class="font-black text-emerald-700">L. ${Number(dayStats.saldoCommissionCovered || 0).toFixed(2)}</p>
+                                <p class="font-black text-emerald-700">${formatLempiras(Number(dayStats.saldoCommissionCovered || 0))}</p>
                             </div>
                             <div class="bg-white/80 rounded-xl p-2.5">
                                 <p class="text-slate-500 font-bold">Deuda acumulada</p>
-                                <p class="font-black ${Number(dayStats.pendingDepositDebt || 0) > 0 ? 'text-rose-600' : 'text-slate-800'}">L. ${Number(dayStats.pendingDepositDebt || 0).toFixed(2)}</p>
+                                <p class="font-black ${Number(dayStats.pendingDepositDebt || 0) > 0 ? 'text-rose-600' : 'text-slate-800'}">${formatLempiras(Number(dayStats.pendingDepositDebt || 0))}</p>
                             </div>
                             <div class="bg-white/80 rounded-xl p-2.5">
                                 <p class="text-slate-500 font-bold">Pendiente hoy</p>
-                                <p class="font-black text-slate-800">L. ${Number(dayStats.remainingToDeposit || 0).toFixed(2)}</p>
+                                <p class="font-black text-slate-800">${formatLempiras(Number(dayStats.remainingToDeposit || 0))}</p>
                             </div>
                         </div>
                         <p class="mt-3 text-center font-black text-sm ${totalOwed > 0 ? (graceOn ? 'text-sky-800' : 'text-rose-700') : 'text-emerald-700'}">
-                            TOTAL A DEPOSITAR: L. ${totalOwed.toFixed(2)}
+                            TOTAL A DEPOSITAR: ${formatLempiras(totalOwed)}
                             ${graceOn ? ` · Prórroga ${escapeViewerText(formatDepositGraceLabel(userData) || 'activa')}` : ''}
                         </p>
                         <p class="text-center text-[10px] text-slate-500 font-bold mt-1">
-                            Billetera: L. ${Number(userData.driverBalance || 0).toFixed(2)}
-                            · Dep. validados hoy: L. ${Number(dayStats.validatedDepositsToday || 0).toFixed(2)}
-                            ${Number(dayStats.pendingDepositsToday || 0) > 0 ? ` · En revisión: L. ${Number(dayStats.pendingDepositsToday).toFixed(2)}` : ''}
+                            Billetera: ${formatLempiras(Number(userData.driverBalance || 0))}
+                            · Dep. validados hoy: ${formatLempiras(Number(dayStats.validatedDepositsToday || 0))}
+                            ${Number(dayStats.pendingDepositsToday || 0) > 0 ? ` · En revisión: ${formatLempiras(Number(dayStats.pendingDepositsToday))}` : ''}
                         </p>
                         <p class="text-center text-[10px] text-slate-500 font-bold mt-1">
                             No se cortan viajes solo por deber el depósito del día; el bloqueo es si vence la <b>deuda acumulada</b> (o sin prórroga).
@@ -22171,7 +22189,7 @@ if (document.readyState === 'loading') {
                         ${Number(dayStats.pendingDepositDebt || 0) > 0.009 ? `
                         <button type="button" onclick="window.staffClearDriverAccumulatedDebt('${driverId}', '${String(driverName || '').replace(/'/g, "\\'")}')"
                             class="mt-3 w-full bg-rose-600 hover:bg-rose-500 text-white text-[11px] font-black uppercase py-2.5 rounded-xl">
-                            <i class="fas fa-eraser"></i> Borrar deuda acumulada (L. ${Number(dayStats.pendingDepositDebt).toFixed(2)})
+                            <i class="fas fa-eraser"></i> Borrar deuda acumulada (${formatLempiras(Number(dayStats.pendingDepositDebt))})
                         </button>` : ''}
                     </div>`;
                 }
@@ -22201,7 +22219,7 @@ if (document.readyState === 'loading') {
                             html += `
                                 <div class="flex justify-between items-center bg-gray-50 rounded-xl px-4 py-3 text-sm">
                                     <div>
-                                        <span class="font-bold">L. ${(d.amount || 0).toFixed(2)}</span>
+                                        <span class="font-bold">${formatLempiras((d.amount || 0))}</span>
                                         <span class="text-xs text-gray-500 ml-2">${date}</span>
                                     </div>
                                     <span class="text-xs text-emerald-600 font-bold">${d.commissionPercentage != null ? d.commissionPercentage : '—'}%</span>
@@ -22715,7 +22733,7 @@ if (document.readyState === 'loading') {
                     el.parentNode.appendChild(balEl);
                 }
                 const b = parseFloat(window.userProfile.balance || 0);
-                balEl.innerText = `Saldo: L. ${b.toFixed(2)}`;
+                balEl.innerText = `Saldo: ${formatLempiras(b)}`;
                 balEl.style.display = '';
             } else if (headerBalEl) {
                 headerBalEl.style.display = 'none';
@@ -22859,7 +22877,7 @@ if (document.readyState === 'loading') {
             const lowBalWarn = document.getElementById('passenger-low-balance-warn');
 
             if (profileBalance && isClient) {
-                profileBalance.innerText = `L. ${bal.toFixed(2)}`;
+                profileBalance.innerText = `${formatLempiras(bal)}`;
             }
 
             if (profSection) {
@@ -22925,7 +22943,7 @@ if (document.readyState === 'loading') {
 
             const headerBal = document.getElementById('header-balance');
             if (headerBal && isClient) {
-                headerBal.innerText = `Saldo: L. ${bal.toFixed(2)}`;
+                headerBal.innerText = `Saldo: ${formatLempiras(bal)}`;
             }
 
             const histBtn = document.getElementById('btn-recharge-history');
@@ -23295,7 +23313,7 @@ if (document.readyState === 'loading') {
             // Aviso 2 horas antes (una sola vez) — aún es "pendiente", no deuda vencida
             if (msLeft > 0 && msLeft <= twoH && !window.userProfile?.depositWarning2hSent) {
                 const hoursLabel = Math.max(1, Math.ceil(msLeft / (60 * 60 * 1000)));
-                const body = `Tienes ${hoursLabel === 1 ? '1 hora' : '2 horas'} para el depósito (L. ${debt.toFixed(2)}). Si no, tu cuenta será inhabilitada. Plazo: ${formatDepositDeadlineLabel(window.userProfile)}.`;
+                const body = `Tienes ${hoursLabel === 1 ? '1 hora' : '2 horas'} para el depósito (${formatLempiras(debt)}). Si no, tu cuenta será inhabilitada. Plazo: ${formatDepositDeadlineLabel(window.userProfile)}.`;
                 try {
                     await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), {
                         depositWarning2hSent: true,
@@ -23363,7 +23381,7 @@ if (document.readyState === 'loading') {
                     window.updateDriverOnlineBadge?.(false);
                 } catch (_) {}
 
-                const msg = `Tu cuenta fue inhabilitada: no depositaste L. ${debt.toFixed(2)} a tiempo (plazo: 12:00 p.m. del día siguiente). Eso ya es deuda vencida. Envía tu comprobante para reactivarte.`;
+                const msg = `Tu cuenta fue inhabilitada: no depositaste ${formatLempiras(debt)} a tiempo (plazo: 12:00 p.m. del día siguiente). Eso ya es deuda vencida. Envía tu comprobante para reactivarte.`;
                 window.showToast?.(msg, 'error');
                 notifyTripEvent?.({
                     title: 'Cuenta inhabilitada — deuda vencida',
@@ -23440,7 +23458,7 @@ if (document.readyState === 'loading') {
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
                         targetUserId: driverId,
-                        message: `Prórroga de depósito por ${hours} h (hasta ${until.toLocaleString('es-HN')}). Ya puedes activarte. Deuda unificada a pagar: L. ${totalDebtAfter.toFixed(2)}.`,
+                        message: `Prórroga de depósito por ${hours} h (hasta ${until.toLocaleString('es-HN')}). Ya puedes activarte. Deuda unificada a pagar: ${formatLempiras(totalDebtAfter)}.`,
                         sentBy: currentUser.uid,
                         sentByName: staffName,
                         createdAt: serverTimestamp(),
@@ -23449,7 +23467,7 @@ if (document.readyState === 'loading') {
                 } catch (_) {}
 
                 window.showToast?.(
-                    `Prórroga ${hours} h · disponible. Deuda unificada: L. ${totalDebtAfter.toFixed(2)}${rolledToday > 0 ? ` (incluyó L. ${rolledToday.toFixed(2)} de hoy)` : ''}.`,
+                    `Prórroga ${hours} h · disponible. Deuda unificada: ${formatLempiras(totalDebtAfter)}${rolledToday > 0 ? ` (incluyó ${formatLempiras(rolledToday)} de hoy)` : ''}.`,
                     'success'
                 );
 
@@ -23507,7 +23525,7 @@ if (document.readyState === 'loading') {
 
                 if (!confirm(
                     `¿BORRAR la cuenta pendiente de ${label}?\n\n`
-                    + `Monto a limpiar: L. ${clearAmount.toFixed(2)}\n\n`
+                    + `Monto a limpiar: ${formatLempiras(clearAmount)}\n\n`
                     + '• Se pone en L. 0.00 la deuda acumulada\n'
                     + '• Se registra un depósito de staff (condonación / pago en persona)\n'
                     + '• Desaparece de “Sin depositar” en Estadísticas\n'
@@ -23565,7 +23583,7 @@ if (document.readyState === 'loading') {
                             receiptPhoto: null,
                             status: 'approved',
                             type: 'staff_pending_clear',
-                            note: `Cuenta pendiente borrada por staff (L. ${clearAmount.toFixed(2)})`,
+                            note: `Cuenta pendiente borrada por staff (${formatLempiras(clearAmount)})`,
                             validatedAt: serverTimestamp(),
                             validatedBy: currentUser.uid,
                             validatedByName: staffName,
@@ -23579,7 +23597,7 @@ if (document.readyState === 'loading') {
                         commissionPercentage: commissionPct,
                         status: 'approved',
                         type: 'staff_pending_clear',
-                        note: `Cuenta pendiente borrada por staff (L. ${clearAmount.toFixed(2)})`,
+                        note: `Cuenta pendiente borrada por staff (${formatLempiras(clearAmount)})`,
                         clearedAmount: clearAmount,
                         clearedBy: currentUser.uid,
                         clearedByName: staffName,
@@ -23598,7 +23616,7 @@ if (document.readyState === 'loading') {
                             driverName: label,
                             amount: clearAmount,
                             type: 'staff_pending_clear',
-                            note: `Cuenta pendiente borrada por staff (L. ${clearAmount.toFixed(2)})`,
+                            note: `Cuenta pendiente borrada por staff (${formatLempiras(clearAmount)})`,
                             clearedAmount: clearAmount,
                             clearedBy: currentUser.uid,
                             clearedByName: staffName,
@@ -23609,7 +23627,7 @@ if (document.readyState === 'loading') {
                 }
 
                 window.showToast?.(
-                    `Cuenta pendiente borrada: L. ${clearAmount.toFixed(2)} · ${label}`,
+                    `Cuenta pendiente borrada: ${formatLempiras(clearAmount)} · ${label}`,
                     'success'
                 );
 
@@ -23673,7 +23691,7 @@ if (document.readyState === 'loading') {
                 const label = driverName || u.name || 'conductor';
                 if (!confirm(
                     `¿Borrar la DEUDA ACUMULADA de ${label}?\n\n`
-                    + `Monto: L. ${currentDebt.toFixed(2)}\n\n`
+                    + `Monto: ${formatLempiras(currentDebt)}\n\n`
                     + 'Queda en L. 0.00 la deuda acumulada.\n'
                     + 'La comisión de viajes de HOY (si aún no deposita) se calcula aparte.\n'
                     + 'No se puede deshacer.'
@@ -23721,7 +23739,7 @@ if (document.readyState === 'loading') {
                         driverName: label,
                         amount: 0,
                         type: 'staff_debt_clear',
-                        note: `Deuda acumulada condonada por staff (era L. ${currentDebt.toFixed(2)})`,
+                        note: `Deuda acumulada condonada por staff (era ${formatLempiras(currentDebt)})`,
                         clearedAmount: currentDebt,
                         clearedBy: currentUser.uid,
                         clearedByName: staffName,
@@ -23731,7 +23749,7 @@ if (document.readyState === 'loading') {
                 } catch (_) {}
 
                 window.showToast?.(
-                    `Deuda acumulada borrada: L. ${currentDebt.toFixed(2)} · ${label}`,
+                    `Deuda acumulada borrada: ${formatLempiras(currentDebt)} · ${label}`,
                     'success'
                 );
 
@@ -23992,7 +24010,7 @@ if (document.readyState === 'loading') {
                     return;
                 }
                 note.classList.remove('hidden');
-                note.innerHTML = `🎁 Promo <strong>${best.promo.code || ''}</strong>: pagas <strong>L. ${best.calc.passengerPays.toFixed(2)}</strong> con saldo (ahorro L. ${best.calc.discountApplied.toFixed(2)})`;
+                note.innerHTML = `🎁 Promo <strong>${best.promo.code || ''}</strong>: pagas <strong>${formatLempiras(best.calc.passengerPays)}</strong> con saldo (ahorro ${formatLempiras(best.calc.discountApplied)})`;
             } catch (_) {
                 note.classList.add('hidden');
                 note.textContent = '';
@@ -24638,7 +24656,7 @@ if (document.readyState === 'loading') {
                     const pendingDebt = u.pendingDepositDebt || 0;
                     if (pendingDebt > 0) {
                         pdf.setFontSize(10);
-                        pdf.text(`Deuda pendiente de depósitos: L. ${pendingDebt.toFixed(2)}`, 20, y);
+                        pdf.text(`Deuda pendiente de depósitos: ${formatLempiras(pendingDebt)}`, 20, y);
                         y += 8;
                     }
 
@@ -24869,7 +24887,7 @@ if (document.readyState === 'loading') {
                             <div class="driver-earnings-min-pill">
                                 <i class="fas fa-grip-vertical trip-float-grip" aria-hidden="true"></i>
                                 <i class="fas fa-coins"></i>
-                                <span>L. ${s.totalEarnedToday.toFixed(0)} hoy</span>
+                                <span>${formatLempiras(s.totalEarnedToday)} hoy</span>
                             </div>
                         </div>
                     `;
@@ -24889,46 +24907,46 @@ if (document.readyState === 'loading') {
                                 </div>
                                 <div class="driver-earnings-total text-center mb-2">
                                     <p class="driver-earnings-total-label">Total ganado hoy</p>
-                                    <p class="driver-earnings-total-value">L. ${s.totalEarnedToday.toFixed(2)}</p>
+                                    <p class="driver-earnings-total-value">${formatLempiras(s.totalEarnedToday)}</p>
                                     ${(() => {
                                         const zid = resolveZoneIdForCommission(null, window.userProfile) || window.activeServiceZoneId || getDefaultZoneId();
                                         const did = currentUser?.uid;
                                         if (!did || !isCommissionFreeDayActive(zid, did)) return '';
                                         return `<p class="text-[10px] font-black text-emerald-600 mt-1">🎉 Hoy es TU día sin comisión · 100%</p>`;
                                     })()}
-                                    <p class="driver-earnings-total-meta">${s.tripCount} viaje${s.tripCount !== 1 ? 's' : ''} · saldo: L. ${parseFloat(driverWallet).toFixed(2)}</p>
+                                    <p class="driver-earnings-total-meta">${s.tripCount} viaje${s.tripCount !== 1 ? 's' : ''} · saldo: ${formatLempiras(parseFloat(driverWallet))}</p>
                                 </div>
                                 <div class="driver-earnings-split">
                                     <div>
                                         <p class="driver-earnings-stat-label">Efectivo</p>
-                                        <p class="driver-earnings-stat-value driver-earnings-stat-value--blue">L. ${s.cashEarnedToday.toFixed(2)}</p>
+                                        <p class="driver-earnings-stat-value driver-earnings-stat-value--blue">${formatLempiras(s.cashEarnedToday)}</p>
                                     </div>
                                     <div>
                                         <p class="driver-earnings-stat-label">Saldo recibido</p>
-                                        <p class="driver-earnings-stat-value driver-earnings-stat-value--violet">L. ${s.saldoEarnedToday.toFixed(2)}</p>
+                                        <p class="driver-earnings-stat-value driver-earnings-stat-value--violet">${formatLempiras(s.saldoEarnedToday)}</p>
                                     </div>
                                 </div>
                                 <div class="driver-earnings-commission">
                                     <div>
                                         <p class="driver-earnings-comm-label">Com. efectivo</p>
-                                        <p class="driver-earnings-comm-value">L. ${s.cashCommissionOwed.toFixed(2)}</p>
+                                        <p class="driver-earnings-comm-value">${formatLempiras(s.cashCommissionOwed)}</p>
                                     </div>
                                     <div>
                                         <p class="driver-earnings-comm-label">Cubierta</p>
-                                        <p class="driver-earnings-comm-value driver-earnings-comm-value--ok">L. ${s.saldoCommissionCovered.toFixed(2)}</p>
+                                        <p class="driver-earnings-comm-value driver-earnings-comm-value--ok">${formatLempiras(s.saldoCommissionCovered)}</p>
                                     </div>
                                     <div>
                                         <p class="driver-earnings-comm-label">Hoy a dep.</p>
-                                        <p class="driver-earnings-comm-value">L. ${(s.remainingToDeposit || 0).toFixed(2)}</p>
+                                        <p class="driver-earnings-comm-value">${formatLempiras((s.remainingToDeposit || 0))}</p>
                                     </div>
                                     <div>
                                         <p class="driver-earnings-comm-label driver-earnings-comm-label--debt">Deuda</p>
-                                        <p class="driver-earnings-comm-value driver-earnings-comm-value--debt">L. ${(s.pendingDepositDebt || 0).toFixed(2)}</p>
+                                        <p class="driver-earnings-comm-value driver-earnings-comm-value--debt">${formatLempiras((s.pendingDepositDebt || 0))}</p>
                                     </div>
                                 </div>
                                 ${(s.totalOwed || ((s.pendingDepositDebt || 0) + (s.remainingToDeposit || 0))) > 0 ? `
-                                <p class="driver-earnings-owed">TOTAL A DEPOSITAR: L. ${((s.totalOwed != null ? s.totalOwed : ((s.pendingDepositDebt || 0) + (s.remainingToDeposit || 0)))).toFixed(2)}</p>` : ''}
-                                ${s.pendingDepositsToday > 0 ? `<p class="driver-earnings-pending"><i class="fas fa-clock"></i> L. ${s.pendingDepositsToday.toFixed(2)} en revisión</p>` : ''}
+                                <p class="driver-earnings-owed">TOTAL A DEPOSITAR: ${formatLempiras(((s.totalOwed != null ? s.totalOwed : ((s.pendingDepositDebt || 0) + (s.remainingToDeposit || 0)))))}</p>` : ''}
+                                ${s.pendingDepositsToday > 0 ? `<p class="driver-earnings-pending"><i class="fas fa-clock"></i> ${formatLempiras(s.pendingDepositsToday)} en revisión</p>` : ''}
                             </div>
                         </div>
                     `;
@@ -25085,19 +25103,19 @@ if (document.readyState === 'loading') {
 
                         <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
                             <p class="text-emerald-600 text-xs font-black">GANADO HOY (TOTAL)</p>
-                            <p class="text-3xl font-black text-emerald-700">L. ${s.totalEarnedToday.toFixed(2)}</p>
-                            <p class="text-xs text-emerald-600 mt-1">${s.tripCount} viaje${s.tripCount !== 1 ? 's' : ''} · saldo conductor: L. ${parseFloat(driverWallet).toFixed(2)}</p>
+                            <p class="text-3xl font-black text-emerald-700">${formatLempiras(s.totalEarnedToday)}</p>
+                            <p class="text-xs text-emerald-600 mt-1">${s.tripCount} viaje${s.tripCount !== 1 ? 's' : ''} · saldo conductor: ${formatLempiras(parseFloat(driverWallet))}</p>
                         </div>
 
                         <div class="bg-violet-50 border border-violet-200 rounded-2xl p-4 text-center">
                             <p class="text-violet-600 text-xs font-black">VIAJES CON SALDO — NETO AL CONDUCTOR</p>
-                            <p class="text-2xl font-black text-violet-700">L. ${s.saldoEarnedToday.toFixed(2)}</p>
-                            <p class="text-[10px] text-violet-700 mt-1">Ej: L. 109 con ${s.commission}% → recibes L. ${(109 * (100 - s.commission) / 100).toFixed(2)} · comisión ya pagada por el pasajero</p>
+                            <p class="text-2xl font-black text-violet-700">${formatLempiras(s.saldoEarnedToday)}</p>
+                            <p class="text-[10px] text-violet-700 mt-1">Ej: L. 109 con ${s.commission}% → recibes ${formatLempiras((109 * (100 - s.commission) / 100))} · comisión ya pagada por el pasajero</p>
                         </div>
 
                         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
                             <p class="text-amber-600 text-xs font-black">COMISIÓN DE VIAJES EN EFECTIVO (${s.commission}%)</p>
-                            <p class="text-3xl font-black text-amber-600">L. ${s.cashCommissionOwed.toFixed(2)}</p>
+                            <p class="text-3xl font-black text-amber-600">${formatLempiras(s.cashCommissionOwed)}</p>
                         </div>
 
                         ${(() => {
@@ -25120,37 +25138,37 @@ if (document.readyState === 'loading') {
 
                         <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-center">
                             <p class="text-[10px] text-emerald-700 font-black uppercase">Comisión cubierta por viajes con saldo</p>
-                            <p class="text-xl font-black text-emerald-700">L. ${s.saldoCommissionCovered.toFixed(2)}</p>
+                            <p class="text-xl font-black text-emerald-700">${formatLempiras(s.saldoCommissionCovered)}</p>
                             <p class="text-[9px] text-gray-500">Se descuenta de lo que debes depositar en efectivo</p>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3 text-center">
                                 <p class="text-[10px] text-emerald-700 font-black uppercase">Validado hoy</p>
-                                <p class="text-xl font-black text-emerald-700">L. ${s.validatedDepositsToday.toFixed(2)}</p>
+                                <p class="text-xl font-black text-emerald-700">${formatLempiras(s.validatedDepositsToday)}</p>
                                 <p class="text-[9px] text-gray-500">Solo tras aprobación</p>
                             </div>
                             <div class="bg-red-50 border border-red-200 rounded-2xl p-3 text-center">
                                 <p class="text-[10px] text-red-700 font-black uppercase">Deuda consolidada (vencida / días ant.)</p>
-                                <p class="text-xl font-black text-red-700">L. ${(s.pendingDepositDebt || 0).toFixed(2)}</p>
+                                <p class="text-xl font-black text-red-700">${formatLempiras((s.pendingDepositDebt || 0))}</p>
                             </div>
                         </div>
 
                         <div class="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-center">
                             <p class="text-[10px] text-amber-800 font-black uppercase">Pendiente de hoy (aún no es deuda vencida)</p>
-                            <p class="text-xl font-black text-amber-700">L. ${(s.remainingToDeposit || 0).toFixed(2)}</p>
+                            <p class="text-xl font-black text-amber-700">${formatLempiras((s.remainingToDeposit || 0))}</p>
                             <p class="text-[9px] text-amber-700 mt-0.5">Se vuelve deuda si no depositas antes de las 12:00 p.m. del día siguiente o al cerrar turno</p>
                         </div>
 
                         <div class="bg-red-100 border-2 border-red-500 rounded-2xl p-4 text-center mt-1">
                             <p class="text-[10px] text-red-800 font-black uppercase tracking-widest">TOTAL QUE DEBES DEPOSITAR</p>
-                            <p class="text-3xl font-black text-red-700">L. ${totalOwed.toFixed(2)}</p>
+                            <p class="text-3xl font-black text-red-700">${formatLempiras(totalOwed)}</p>
                             <p class="text-[10px] text-red-600 mt-0.5">Incluye deuda, pendiente de hoy y viajes recientes sin depositar</p>
                         </div>
 
                         ${s.pendingDepositsToday > 0 ? `
                             <div class="bg-amber-50 border border-amber-300 rounded-2xl p-3 text-center">
-                                <p class="text-xs font-black text-amber-800"><i class="fas fa-hourglass-half"></i> L. ${s.pendingDepositsToday.toFixed(2)} en revisión</p>
+                                <p class="text-xs font-black text-amber-800"><i class="fas fa-hourglass-half"></i> ${formatLempiras(s.pendingDepositsToday)} en revisión</p>
                                 <p class="text-[10px] text-amber-700">Un supervisor está verificando tu comprobante</p>
                             </div>
                         ` : ''}
@@ -25166,10 +25184,10 @@ if (document.readyState === 'loading') {
                             <div class="border-t border-gray-200 pt-4 space-y-3">
                                 <p class="text-xs font-black text-gray-600 uppercase">Enviar comprobante (baucher) a revisión</p>
                                 <div class="bg-red-50 border border-red-200 rounded-xl p-2 text-xs mb-2">
-                                    <span class="font-black text-red-700">Deuda acumulada:</span> L. ${(s.pendingDepositDebt || 0).toFixed(2)}
-                                    + <span class="font-black">hoy:</span> L. ${(s.remainingToDeposit || 0).toFixed(2)}
-                                    ${lookbackOwed > dayTotal + 0.01 ? ` · <span class="font-black">últ. 7 d:</span> L. ${lookbackOwed.toFixed(2)}` : ''}
-                                    = <span class="font-black text-red-700">L. ${totalOwed.toFixed(2)}</span>
+                                    <span class="font-black text-red-700">Deuda acumulada:</span> ${formatLempiras((s.pendingDepositDebt || 0))}
+                                    + <span class="font-black">hoy:</span> ${formatLempiras((s.remainingToDeposit || 0))}
+                                    ${lookbackOwed > dayTotal + 0.01 ? ` · <span class="font-black">últ. 7 d:</span> ${formatLempiras(lookbackOwed)}` : ''}
+                                    = <span class="font-black text-red-700">${formatLempiras(totalOwed)}</span>
                                 </div>
                                 <label class="text-[10px] font-black text-gray-500 uppercase">Monto depositado (L.)</label>
                                 <input type="number" id="driver-deposit-amount" step="0.01" min="0.01"
@@ -25595,7 +25613,7 @@ if (document.readyState === 'loading') {
                         <div class="border border-gray-200 rounded-2xl p-4">
                             <div class="flex justify-between items-center">
                                 <div>
-                                    <p class="font-black text-lg">L. ${(d.amount || 0).toFixed(2)}</p>
+                                    <p class="font-black text-lg">${formatLempiras((d.amount || 0))}</p>
                                     <p class="text-xs text-gray-500">${date}</p>
                                 </div>
                                 <div class="text-right">
@@ -25609,7 +25627,7 @@ if (document.readyState === 'loading') {
                 html = `
                     <div class="bg-emerald-50 rounded-2xl p-3 mb-4 text-center">
                         <p class="text-xs text-emerald-600">TOTAL DEPOSITADO EN ESTE PERÍODO</p>
-                        <p class="text-2xl font-black text-emerald-700">L. ${total.toFixed(2)}</p>
+                        <p class="text-2xl font-black text-emerald-700">${formatLempiras(total)}</p>
                     </div>
                 ` + html;
 
@@ -25668,7 +25686,7 @@ if (document.readyState === 'loading') {
     const message = `¡Hola! Te invito a usar *HonduRaite*.\n\n` +
                     `Usa mi código de referido: *${window.userProfile.referralCode}*\n\n` +
                     `Enlace directo: ${referralLink}\n\n` +
-                    `Recibes L. ${guestBonus} al meter el código. Yo gano L. ${refBonus} cuando completes tu *primer viaje*.`;
+                    `Recibes ${formatLempiras(guestBonus)} al meter el código. Yo gano ${formatLempiras(refBonus)} cuando completes tu *primer viaje*.`;
 
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
@@ -25714,7 +25732,7 @@ if (document.readyState === 'loading') {
                     <i class="fas fa-users text-5xl text-gray-300 mb-4"></i>
                     <h4 class="font-black text-lg text-gray-700">Aún no has referido a nadie.</h4>
                     <p class="text-sm text-gray-500 mt-2 max-w-[220px] mx-auto">
-                        Comparte tu código. La recompensa (L. ${APP_CONFIG.referrals.referrerAmount}) se acredita cuando tu referido completa su primer viaje.
+                        Comparte tu código. La recompensa (${formatLempiras(APP_CONFIG.referrals.referrerAmount)}) se acredita cuando tu referido completa su primer viaje.
                     </p>
                 </div>
             `;
@@ -25724,7 +25742,7 @@ if (document.readyState === 'loading') {
             const totalEarned = paidReferrals.reduce((sum, r) => sum + (r.reward || 0), 0);
             let html = `
                 <p class="text-sm text-gray-500 mb-2 w-full text-left">
-                    <b>${referrals.length}</b> referido(s) · Cobrado: <b>L. ${totalEarned}</b>
+                    <b>${referrals.length}</b> referido(s) · Cobrado: <b>${formatLempiras(totalEarned)}</b>
                     ${pendingReferrals.length ? ` · <span class="text-amber-600">${pendingReferrals.length} pendiente(s)</span>` : ''}
                 </p>
             `;
@@ -25743,7 +25761,7 @@ if (document.readyState === 'loading') {
                             <p class="font-bold text-sm truncate">${ref.name}</p>
                             <p class="text-xs text-gray-500">${dateStr} · ${ref.statusLabel || (ref.claimed ? 'Pagado' : 'Pendiente')}</p>
                         </div>
-                        <span class="text-xs font-black ${statusCls}">${ref.claimed ? '+' : ''}L. ${ref.reward}</span>
+                        <span class="text-xs font-black ${statusCls}">${ref.claimed ? '+' : ''}${formatLempiras(ref.reward)}</span>
                     </div>
                 `;
             });
@@ -25768,7 +25786,7 @@ if (document.readyState === 'loading') {
                     window.refreshPassengerBalanceUI?.();
                 }
                 window.showToast(
-                    `¡Código aplicado! +L. ${result.newUserReward} en tu saldo. ${result.referrerName} ganará L. ${result.referrerReward} cuando completes tu primer viaje.`,
+                    `¡Código aplicado! +${formatLempiras(result.newUserReward)} en tu saldo. ${result.referrerName} ganará ${formatLempiras(result.referrerReward)} cuando completes tu primer viaje.`,
                     "success"
                 );
             } else if (result.reason === 'invalid_code') {
@@ -25986,7 +26004,7 @@ if (document.readyState === 'loading') {
                         <div class="border border-gray-200 rounded-2xl p-3">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <p class="font-black text-lg">L. ${parseFloat(r.amount || 0).toFixed(2)}</p>
+                                    <p class="font-black text-lg">${formatLempiras(parseFloat(r.amount || 0))}</p>
                                     <p class="text-xs text-gray-500">${date}</p>
                                 </div>
                                 <div class="text-right">
@@ -26061,7 +26079,7 @@ if (document.readyState === 'loading') {
                                     <p class="text-xs text-gray-500 mt-1">${date}</p>
                                 </div>
                                 <div class="text-right">
-                                    <p class="text-2xl font-black text-white">L. ${req.amount}</p>
+                                    <p class="text-2xl font-black text-white">${formatLempiras(req.amount)}</p>
                                     ${statusBadge}
                                 </div>
                             </div>
@@ -26250,7 +26268,7 @@ window.saveProfileChanges = async () => {
                     approvedBy: currentUser.uid
                 });
 
-                window.showToast(`Recarga aprobada. Se sumaron L. ${amount} al saldo del pasajero.`, "success");
+                window.showToast(`Recarga aprobada. Se sumaron ${formatLempiras(amount)} al saldo del pasajero.`, "success");
 
                 // Notificar al pasajero (el listener de notificaciones puede refrescar saldo en algunos flujos)
                 try {
@@ -26259,7 +26277,7 @@ window.saveProfileChanges = async () => {
                         targetRole: 'client',
                         type: 'recharge_approved',
                         title: 'Recarga aprobada',
-                        message: `Se agregaron L. ${amount} a tu saldo.`,
+                        message: `Se agregaron ${formatLempiras(amount)} a tu saldo.`,
                         amount: amount,
                         createdAt: serverTimestamp(),
                         sentBy: currentUser.uid
@@ -26326,7 +26344,7 @@ window.saveProfileChanges = async () => {
                     </div>
                     <div class="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-2xl">
                         <p class="text-[10px] font-black text-purple-700 uppercase tracking-widest">Saldo actual</p>
-                        <p class="text-2xl font-black text-purple-900">L. ${bal.toFixed(2)}</p>
+                        <p class="text-2xl font-black text-purple-900">${formatLempiras(bal)}</p>
                     </div>
                     <div class="space-y-4">
                         <div>
@@ -26393,7 +26411,7 @@ window.saveProfileChanges = async () => {
                 if (mode === 'add') next = bal + amt;
                 else if (mode === 'subtract') next = Math.max(0, bal - amt);
                 else next = amt;
-                preview.textContent = `Nuevo saldo: L. ${next.toFixed(2)}`;
+                preview.textContent = `Nuevo saldo: ${formatLempiras(next)}`;
             };
 
             modeBtns.forEach((btn) => {
@@ -26433,7 +26451,7 @@ window.saveProfileChanges = async () => {
                 newBal = prevBal + amount;
             } else if (mode === 'subtract') {
                 if (amount > prevBal) {
-                    return window.showToast?.(`No puedes restar más que el saldo actual (L. ${prevBal.toFixed(2)}).`);
+                    return window.showToast?.(`No puedes restar más que el saldo actual (${formatLempiras(prevBal)}).`);
                 }
                 delta = -amount;
                 newBal = prevBal - amount;
@@ -26444,8 +26462,8 @@ window.saveProfileChanges = async () => {
 
             const modeLabels = { add: 'sumar', subtract: 'restar', set: 'fijar' };
             const confirmMsg = mode === 'set'
-                ? `¿Fijar el saldo de ${clientName} en L. ${newBal.toFixed(2)}? (antes: L. ${prevBal.toFixed(2)})`
-                : `¿${modeLabels[mode] || 'ajustar'} L. ${amount.toFixed(2)} al saldo de ${clientName}? Nuevo saldo: L. ${newBal.toFixed(2)}`;
+                ? `¿Fijar el saldo de ${clientName} en ${formatLempiras(newBal)}? (antes: ${formatLempiras(prevBal)})`
+                : `¿${modeLabels[mode] || 'ajustar'} ${formatLempiras(amount)} al saldo de ${clientName}? Nuevo saldo: ${formatLempiras(newBal)}`;
             if (!confirm(confirmMsg)) return;
 
             const submitBtn = btn || document.getElementById('admin-points-submit');
@@ -26494,8 +26512,8 @@ window.saveProfileChanges = async () => {
                     const actionWord = delta > 0 ? 'agregaron' : (delta < 0 ? 'restaron' : 'ajustaron');
                     const absDelta = Math.abs(delta);
                     const msg = delta === 0
-                        ? `Tu saldo se actualizó a L. ${(result?.newBalance ?? newBal).toFixed(2)}.`
-                        : `Se ${actionWord} L. ${absDelta.toFixed(2)} a tu saldo. Nuevo total: L. ${(result?.newBalance ?? newBal).toFixed(2)}.`;
+                        ? `Tu saldo se actualizó a ${formatLempiras((result?.newBalance ?? newBal))}.`
+                        : `Se ${actionWord} ${formatLempiras(absDelta)} a tu saldo. Nuevo total: ${formatLempiras((result?.newBalance ?? newBal))}.`;
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
                         targetUserId: clientId,
                         targetRole: 'client',
@@ -26511,7 +26529,7 @@ window.saveProfileChanges = async () => {
                 } catch (_) {}
 
                 modal.remove();
-                window.showToast?.(`Saldo actualizado: L. ${(result?.newBalance ?? newBal).toFixed(2)}`, 'success');
+                window.showToast?.(`Saldo actualizado: ${formatLempiras((result?.newBalance ?? newBal))}`, 'success');
 
                 if (window.currentAdminTab === 'client' && typeof window.renderAdminTab === 'function') {
                     window.renderAdminTab('client');
@@ -26596,7 +26614,7 @@ window.saveProfileChanges = async () => {
                                             : `<p class="text-[10px] text-red-300 font-bold mt-1">Deuda acumulada · se bloquea al vencer el plazo</p>`}
                                     </div>
                                     <div class="text-right flex flex-col items-stretch sm:items-end gap-1.5">
-                                        <p class="${graceOn ? 'text-amber-300' : 'text-red-400'} font-black text-lg">L. ${debt.toFixed(2)}</p>
+                                        <p class="${graceOn ? 'text-amber-300' : 'text-red-400'} font-black text-lg">${formatLempiras(debt)}</p>
                                         <p class="text-[9px] text-gray-400">${graceOn ? 'Deuda unificada (paga al vencer prórroga)' : 'Deuda pendiente (bloquea al vencer plazo)'}</p>
                                         <div class="flex flex-wrap gap-1.5 justify-end">
                                         ${graceOn
@@ -26737,7 +26755,7 @@ window.saveProfileChanges = async () => {
                                     <div class="text-[9px] text-slate-500 dark:text-slate-400 mt-0.5">${date}</div>
                                 </div>
                                 <div class="text-right flex-shrink-0">
-                                    <div class="font-black text-lg text-slate-900 dark:text-white">L. ${(req.amount || 0).toFixed(2)}</div>
+                                    <div class="font-black text-lg text-slate-900 dark:text-white">${formatLempiras((req.amount || 0))}</div>
                                     <div class="mt-0.5">${statusBadge}</div>
                                 </div>
                             </div>
@@ -26796,7 +26814,7 @@ window.saveProfileChanges = async () => {
                     </div>
                     <div class="text-right">
                         <span class="text-[10px] text-slate-500">Por verificar</span><br>
-                        <span class="font-black text-base text-amber-600">L. ${sumPend.toFixed(2)}</span>
+                        <span class="font-black text-base text-amber-600">${formatLempiras(sumPend)}</span>
                     </div>
                 </div>`;
 
@@ -26903,7 +26921,7 @@ window.saveProfileChanges = async () => {
                         targetRole: 'driver',
                         type: 'deposit_verified',
                         title: 'Depósito verificado',
-                        message: `✅ Tu depósito de L. ${amount.toFixed(2)} ha sido verificado. Deuda actualizada.`,
+                        message: `✅ Tu depósito de ${formatLempiras(amount)} ha sido verificado. Deuda actualizada.`,
                         amount: amount,
                         createdAt: serverTimestamp(),
                         sentBy: currentUser.uid,
@@ -26917,7 +26935,7 @@ window.saveProfileChanges = async () => {
                     const statusArea = card.querySelector('.text-right');
                     if (statusArea) {
                         statusArea.innerHTML = `
-                            <p class="text-2xl font-black text-emerald-300">L. ${amount.toFixed(2)}</p>
+                            <p class="text-2xl font-black text-emerald-300">${formatLempiras(amount)}</p>
                             <span class="px-3 py-1 text-xs rounded-full bg-emerald-500/20 text-emerald-400 font-black">VALIDADO</span>
                         `;
                     }
@@ -26926,7 +26944,7 @@ window.saveProfileChanges = async () => {
                     card.style.borderColor = '#10b981';
                 }
 
-                window.showToast(`Depósito validado: L. ${amount.toFixed(2)}`, 'success');
+                window.showToast(`Depósito validado: ${formatLempiras(amount)}`, 'success');
                 window.loadDriverDepositRequests();
                 window.loadSupervisorDeposits?.();
             } catch (e) {
@@ -26990,7 +27008,7 @@ window.saveProfileChanges = async () => {
                     <p class="text-gray-500 text-xs mb-3">Depósitos de la plataforma por viajes pagados con saldo de la app</p>
                     <div class="p-3 bg-violet-50 border border-violet-200 rounded-2xl text-center mb-4">
                         <p class="text-[10px] font-black text-violet-700 uppercase">Saldo pendiente de pago</p>
-                        <p class="text-2xl font-black text-violet-800">L. ${pending.toFixed(2)}</p>
+                        <p class="text-2xl font-black text-violet-800">${formatLempiras(pending)}</p>
                         <p class="text-[9px] text-violet-600 mt-1">Los fines de semana a tu cuenta BAC</p>
                     </div>
                     <div id="driver-my-payouts-list" class="space-y-3 min-h-[80px]">
@@ -27043,7 +27061,7 @@ window.saveProfileChanges = async () => {
                 container.innerHTML = `
                     <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-center mb-3">
                         <p class="text-[10px] font-black text-emerald-700 uppercase">Total recibido (historial)</p>
-                        <p class="text-xl font-black text-emerald-800">L. ${totalPaid.toFixed(2)}</p>
+                        <p class="text-xl font-black text-emerald-800">${formatLempiras(totalPaid)}</p>
                         <p class="text-[9px] text-emerald-600">${records.length} pago${records.length !== 1 ? 's' : ''}</p>
                     </div>
                     ${records.map((rec) => {
@@ -27058,7 +27076,7 @@ window.saveProfileChanges = async () => {
                                         <p class="text-[10px] text-gray-400">${bankLine}</p>
                                         ${rec.paidByName ? `<p class="text-[9px] text-gray-400">Registrado por ${rec.paidByName}</p>` : ''}
                                     </div>
-                                    <p class="text-xl font-black text-violet-700 shrink-0">L. ${(rec.amount || 0).toFixed(2)}</p>
+                                    <p class="text-xl font-black text-violet-700 shrink-0">${formatLempiras((rec.amount || 0))}</p>
                                 </div>
                                 ${rec.receiptPhoto ? `
                                     <img src="${rec.receiptPhoto}" onclick="window.openImageModal(this.src)"
@@ -27078,7 +27096,7 @@ window.saveProfileChanges = async () => {
         function refreshDriverWalletUI() {
             const walletEl = document.getElementById('driver-wallet-balance');
             if (walletEl && window.userProfile?.role === 'driver') {
-                walletEl.innerText = `L. ${parseFloat(window.userProfile.driverBalance || 0).toFixed(2)}`;
+                walletEl.innerText = `${formatLempiras(parseFloat(window.userProfile.driverBalance || 0))}`;
             }
         }
 
@@ -27109,10 +27127,10 @@ window.saveProfileChanges = async () => {
                             scheduleDriverEarningsRefresh();
                         }
 
-                        window.showToast(`¡Pago recibido! L. ${amt.toFixed(2)} depositados a tu cuenta.`, 'success');
+                        window.showToast(`¡Pago recibido! ${formatLempiras(amt)} depositados a tu cuenta.`, 'success');
                         notifyTripEvent({
                             title: 'Pago recibido',
-                            body: `Te depositamos L. ${amt.toFixed(2)} por viajes con saldo. Revisa tu cuenta ${rec.payoutBank || ''}.`,
+                            body: `Te depositamos ${formatLempiras(amt)} por viajes con saldo. Revisa tu cuenta ${rec.payoutBank || ''}.`,
                             tag: `payout-${rec.id}`,
                             force: true,
                         });
@@ -27168,10 +27186,10 @@ window.saveProfileChanges = async () => {
 
                             const amt = parseFloat(d.amount) || 0;
                             if (d.status === 'approved') {
-                                window.showToast(`Depósito validado: L. ${amt.toFixed(2)}`, 'success');
+                                window.showToast(`Depósito validado: ${formatLempiras(amt)}`, 'success');
                                 notifyTripEvent({
                                     title: 'Depósito validado',
-                                    body: `Tu depósito de L. ${amt.toFixed(2)} fue confirmado por un supervisor.`,
+                                    body: `Tu depósito de ${formatLempiras(amt)} fue confirmado por un supervisor.`,
                                     tag: `deposit-${id}`,
                                     force: true
                                 });
@@ -27294,22 +27312,22 @@ window.saveProfileChanges = async () => {
                         </div>
                         <div>
                             <p class="text-xs text-gray-500">GANADO</p>
-                            <p class="text-3xl font-black text-emerald-600">L. ${totalEarned.toFixed(2)}</p>
+                            <p class="text-3xl font-black text-emerald-600">${formatLempiras(totalEarned)}</p>
                         </div>
                     </div>
 
                     <div class="mt-4 pt-4 border-t text-xs space-y-1">
                         <div class="flex justify-between">
                             <span class="text-emerald-600">• En Efectivo:</span>
-                            <span class="font-bold">L. ${cashEarned.toFixed(2)} (${cashTrips})</span>
+                            <span class="font-bold">${formatLempiras(cashEarned)} (${cashTrips})</span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-purple-600">• En Saldo:</span>
-                            <span class="font-bold">L. ${saldoEarned.toFixed(2)} (${saldoTrips})</span>
+                            <span class="font-bold">${formatLempiras(saldoEarned)} (${saldoTrips})</span>
                         </div>
                         <div class="flex justify-between pt-2 border-t mt-2">
                             <span class="font-bold">Comisión generada (${platformPct}%):</span>
-                            <span class="font-black text-amber-600">L. ${commissionGenerated.toFixed(2)}</span>
+                            <span class="font-black text-amber-600">${formatLempiras(commissionGenerated)}</span>
                         </div>
                         <p class="text-[10px] text-slate-500 font-bold pt-1">% de Cuentas bancarias → Comisión de plataforma</p>
                     </div>
@@ -28364,6 +28382,13 @@ window.saveProfileChanges = async () => {
             if (!tripId || !currentUser || window.userProfile?.role !== 'client') return;
             if (!navigator.geolocation) return;
             if (window._passengerLiveTripId === tripId && window.passengerLiveWatchId != null) return;
+            // Google Play: aviso destacado antes de compartir la ubicación en vivo (sigue en segundo plano).
+            if (!hasLocationDisclosure('client')) {
+                showLocationDisclosure({ role: 'client' }).then((ok) => {
+                    if (ok) window.startPassengerLiveLocationSharing?.(tripId);
+                }).catch(() => {});
+                return;
+            }
 
             window.stopPassengerLiveLocationSharing?.();
             window._passengerLiveTripId = tripId;
@@ -29691,7 +29716,7 @@ onAuthStateChanged(auth, async (user) => {
                 try {
                     const signupBonus = await creditReferralSignupBonus(db, appId, authUser.uid);
                     if (signupBonus.credited) {
-                        window.showToast(`¡Bono de referido acreditado! +L. ${signupBonus.newUserReward}`, 'success');
+                        window.showToast(`¡Bono de referido acreditado! +${formatLempiras(signupBonus.newUserReward)}`, 'success');
                     }
                 } catch (e) {
                     console.warn('creditReferralSignupBonus:', e);
@@ -30326,13 +30351,13 @@ onAuthStateChanged(auth, async (user) => {
                                     if (debt > 0 && isDriverDepositGraceActive(window.userProfile)) {
                                         const until = formatDepositGraceLabel(window.userProfile);
                                         window.showToast(
-                                            `Prórroga activa${until ? ` hasta ${until}` : ''}. Puedes activarte; depositar L. ${debt.toFixed(2)} sigue pendiente.`,
+                                            `Prórroga activa${until ? ` hasta ${until}` : ''}. Puedes activarte; depositar ${formatLempiras(debt)} sigue pendiente.`,
                                             'info'
                                         );
                                     } else if (debt > 0) {
                                         const dl = formatDepositDeadlineLabel(window.userProfile);
                                         window.showToast(
-                                            `Puedes activarte. Deposita L. ${debt.toFixed(2)} antes de ${dl || 'las 12:00 p.m. del día siguiente'}.`,
+                                            `Puedes activarte. Deposita ${formatLempiras(debt)} antes de ${dl || 'las 12:00 p.m. del día siguiente'}.`,
                                             'info'
                                         );
                                     }
@@ -30340,18 +30365,18 @@ onAuthStateChanged(auth, async (user) => {
                                     // Keep on break and remind
                                     const dl = formatDepositDeadlineLabel(window.userProfile);
                                     window.showToast(
-                                        `Tienes deuda de L. ${debt.toFixed(2)}${dl ? ` (plazo vencido: ${dl})` : ''}. Debes depositar para reactivarte.`,
+                                        `Tienes deuda de ${formatLempiras(debt)}${dl ? ` (plazo vencido: ${dl})` : ''}. Debes depositar para reactivarte.`,
                                         'warning'
                                     );
                                     
                                     // Check days passed since last logout for stronger reminder
                                     const lastLogout = window.userProfile.driverLastLogoutAt?.toDate ? window.userProfile.driverLastLogoutAt.toDate() : null;
                                     let daysOnBreak = 0;
-                                    let reminderBody = `Sigues con deuda de L. ${debt.toFixed(2)}. Haz tu depósito para volver a activarte.`;
+                                    let reminderBody = `Sigues con deuda de ${formatLempiras(debt)}. Haz tu depósito para volver a activarte.`;
                                     if (lastLogout) {
                                         daysOnBreak = Math.floor((Date.now() - lastLogout.getTime()) / (1000 * 3600 * 24));
                                         if (daysOnBreak >= 1) {
-                                            reminderBody = `Llevas ${daysOnBreak} día(s) con deuda pendiente de L. ${debt.toFixed(2)}. Deposita para reactivarte.`;
+                                            reminderBody = `Llevas ${daysOnBreak} día(s) con deuda pendiente de ${formatLempiras(debt)}. Deposita para reactivarte.`;
                                         }
                                     }
                                     
@@ -30368,7 +30393,7 @@ onAuthStateChanged(auth, async (user) => {
                                         try {
                                             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
                                                 targetRole: 'supervisor',
-                                                message: `⚠️ Conductor ${window.userProfile?.name || 'N/D'} lleva ${daysOnBreak} día(s) en descanso con deuda pendiente de L. ${debt.toFixed(2)}. Revisa su depósito.`,
+                                                message: `⚠️ Conductor ${window.userProfile?.name || 'N/D'} lleva ${daysOnBreak} día(s) en descanso con deuda pendiente de ${formatLempiras(debt)}. Revisa su depósito.`,
                                                 sentBy: currentUser.uid,
                                                 sentByName: 'Sistema',
                                                 createdAt: serverTimestamp(),
@@ -30766,7 +30791,7 @@ window.passengerConfirmDestinationArrival = async function() {
         payMsg.style.cssText = 'position:fixed;bottom:110px;left:50%;transform:translateX(-50%);background:#fefce8;border:2px solid #854d0e;padding:12px 14px;border-radius:10px;z-index:999999;max-width:280px;text-align:center;font-size:13px;';
         payMsg.innerHTML = `
           <strong style="color:#854d0e;">¡VIAJE FINALIZADO!</strong><br>
-          Paga <strong style="font-size:18px;">L. ${priceNum.toFixed(2)}</strong> en <strong>EFECTIVO</strong> al conductor ahora.
+          Paga <strong style="font-size:18px;">${formatLempiras(priceNum)}</strong> en <strong>EFECTIVO</strong> al conductor ahora.
         `;
         document.body.appendChild(payMsg);
         setTimeout(() => payMsg.remove(), 9000);
@@ -33002,7 +33027,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             panel.classList.remove('hidden');
             const priceNum = parseTripPrice(data);
-            const label = data.price || (priceNum > 0 ? `L. ${priceNum.toFixed(2)}` : '—');
+            const label = data.price || (priceNum > 0 ? `${formatLempiras(priceNum)}` : '—');
             if (curEl) {
                 const boosts = Number(data.priceBoostCount) || 0;
                 curEl.textContent = boosts > 0
@@ -33036,7 +33061,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             let next = null;
             if (options.promptCustom) {
-                const raw = prompt(`Tu tarifa actual es L. ${current.toFixed(2)}.\n¿A cuánto quieres subirla?`, String(Math.ceil(current + 20)));
+                const raw = prompt(`Tu tarifa actual es ${formatLempiras(current)}.\n¿A cuánto quieres subirla?`, String(Math.ceil(current + 20)));
                 if (raw == null) return;
                 next = parseFloat(String(raw).replace(/,/g, '.').trim());
             } else if (options.newPrice != null) {
@@ -33047,10 +33072,10 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             next = Math.round((Number(next) || 0) * 100) / 100;
             if (!(next > current)) {
-                return window.showToast(`El nuevo precio debe ser mayor a L. ${current.toFixed(2)}.`);
+                return window.showToast(`El nuevo precio debe ser mayor a ${formatLempiras(current)}.`);
             }
             if (next > current * 4 && next > current + 200) {
-                if (!confirm(`Vas a subir de L. ${current.toFixed(2)} a L. ${next.toFixed(2)}. ¿Confirmas?`)) return;
+                if (!confirm(`Vas a subir de ${formatLempiras(current)} a ${formatLempiras(next)}. ¿Confirmas?`)) return;
             }
 
             // Saldo: validar que alcance el nuevo monto
@@ -33062,7 +33087,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 // Al subir tarifa con saldo, el cobro será el nuevo precio (promos fijas se recalculan simple)
                 const needPay = next;
                 if (bal < needPay) {
-                    window.showToast(`Saldo insuficiente para L. ${needPay.toFixed(2)}. Recarga o elige efectivo al cancelar y volver a pedir.`, 'warning');
+                    window.showToast(`Saldo insuficiente para ${formatLempiras(needPay)}. Recarga o elige efectivo al cancelar y volver a pedir.`, 'warning');
                     setTimeout(() => window.showRechargeModal?.(), 900);
                     return;
                 }
@@ -33176,7 +33201,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
             } else if (data.negotiatedBy === 'passenger' && data.negotiatedPrice != null) {
                 statusLine = 'Esperando al conductor';
-                subLine = `Tu contraoferta: L. ${parseFloat(data.negotiatedPrice).toFixed(2)} — debe aceptarla el conductor`;
+                subLine = `Tu contraoferta: ${formatLempiras(parseFloat(data.negotiatedPrice))} — debe aceptarla el conductor`;
             } else if (waitingForOffer) {
                 // “Estos N conductores están siendo notificados” + mensajes volando a fotos
                 if (isGuestPassengerTrip(data)) {
@@ -33369,7 +33394,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     : parseTripPrice(trip);
                 const skipConfirm = options.skipConfirm === true
                     || getPassengerDriverOffers({ ...trip, id: tripId }).length === 1;
-                if (!skipConfirm && !confirm(`¿Irte con ${driverName} por L. ${effectivePrice.toFixed(2)}?`)) return;
+                if (!skipConfirm && !confirm(`¿Irte con ${driverName} por ${formatLempiras(effectivePrice)}?`)) return;
 
                 const rating = d.ratingCount > 0 ? (d.ratingSum / d.ratingCount).toFixed(1) : (bid.rating || '5.0');
                 const pin = Math.floor(1000 + Math.random() * 9000).toString();
@@ -33405,7 +33430,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     driverRating: rating,
                     pin,
                     driverArrived: false,
-                    price: `L. ${priceNum.toFixed(2)}`,
+                    price: `${formatLempiras(priceNum)}`,
                     priceNum,
                     negotiatedPrice: null,
                     negotiatedBy: null,
@@ -33573,7 +33598,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (list) delete list.dataset.offersStructuralSig;
 
                 const driverName = (bid.name || 'El conductor').split(' ')[0];
-                window.showToast(`Contraoferta de L. ${newP.toFixed(2)} enviada a ${driverName}. Esperando respuesta…`, 'success');
+                window.showToast(`Contraoferta de ${formatLempiras(newP)} enviada a ${driverName}. Esperando respuesta…`, 'success');
             } catch (e) {
                 console.error('submitPassengerCounter:', e);
                 window.showToast('No se pudo enviar la contraoferta.');
@@ -33607,7 +33632,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }),
                 lastNegotiationAt: serverTimestamp()
             }).then(() => {
-                window.showToast(`Contraoferta de L. ${newP.toFixed(2)} enviada.`, 'success');
+                window.showToast(`Contraoferta de ${formatLempiras(newP)} enviada.`, 'success');
             }).catch(e => {
                 console.error(e);
                 window.showToast('Error al enviar contraoferta.');
@@ -33796,7 +33821,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 // Radar de ofertas: no tapa la tarjeta; se puede seguir viendo debajo
                 if (detailEl) {
                     detailEl.innerHTML = `
-                        <p class="text-xs font-bold text-amber-900 mt-2">Pasajero: <b>${escapeViewerText(data.clientName || 'Cliente')}</b></p>
+                        <p class="text-xs font-bold text-amber-900 mt-2">Pasajero: <b>${escapeViewerText(displayPersonName(data.clientName, 'Cliente'))}</b></p>
                         <p class="text-[11px] text-amber-800 mt-1"><i class="fas fa-map-marker-alt"></i> ${escapeViewerText(data.origin || 'Origen')}</p>
                         <p class="text-[11px] text-amber-800"><i class="fas fa-flag-checkered"></i> ${escapeViewerText(data.destination || 'Destino')}</p>
                         <p class="text-[11px] text-amber-900 font-black mt-2">${data.price || ''}</p>
@@ -34382,7 +34407,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     if (currentUser && data.driverId === currentUser.uid && (data.paymentMethod === 'efectivo' || !data.paymentMethod)) {
                         const p = parseFloat(data.priceNum || 0);
                         setTimeout(() => {
-                            window.showToast?.(`¡Viaje finalizado! Recibe L. ${p.toFixed(2)} en EFECTIVO del pasajero ahora.`);
+                            window.showToast?.(`¡Viaje finalizado! Recibe ${formatLempiras(p)} en EFECTIVO del pasajero ahora.`);
                         }, 500);
                     }
                         window.stopClientTracking?.();
@@ -34390,7 +34415,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         if (data.paymentMethod === 'efectivo' || !data.paymentMethod) {
                             const p = parseFloat(data.priceNum || 0);
                             setTimeout(() => {
-                                window.showToast?.(`Paga L. ${p.toFixed(2)} en EFECTIVO al conductor.`);
+                                window.showToast?.(`Paga ${formatLempiras(p)} en EFECTIVO al conductor.`);
                             }, 300);
                         }
                     }
@@ -34795,7 +34820,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                     } else if (showPax) {
                         // Conductor y pasajero ven cuántas van (solo info, sin selector)
                         const sur = Number(data.passengerSurcharge) > 0
-                            ? ` · +L. ${Number(data.passengerSurcharge).toFixed(0)}`
+                            ? ` · +${formatLempiras(Number(data.passengerSurcharge))}`
                             : '';
                         const isDriver = window.userProfile?.role === 'driver';
                         setElementHTML(
@@ -35376,7 +35401,7 @@ function showSimplePassengerSetup() {
             <div>
                 <label class="block text-[10px] font-bold text-emerald-700 mb-1 ml-0.5">Código de Referido (opcional)</label>
                 <input id="passenger-referral-code" type="text" maxlength="12" class="w-full px-4 py-3 border border-emerald-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm bg-emerald-50 uppercase tracking-widest font-bold" placeholder="Ej: JUAN1234">
-                <p class="text-[9px] text-emerald-600 mt-0.5 ml-0.5">Recibes L. ${APP_CONFIG.referrals.newUserAmount} al meter un código válido</p>
+                <p class="text-[9px] text-emerald-600 mt-0.5 ml-0.5">Recibes ${formatLempiras(APP_CONFIG.referrals.newUserAmount)} al meter un código válido</p>
             </div>
         </div>
         <button onclick="saveSimplePassengerProfile()" class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all uppercase tracking-widest text-xs flex items-center justify-center gap-2">
@@ -35385,7 +35410,7 @@ function showSimplePassengerSetup() {
         </button>
         <div class="login-wa-cta">
             <p class="login-wa-slogan">¿Apurado? Pide un viaje por WhatsApp</p>
-            <a class="login-wa-btn" href="https://wa.me/14693876894?text=Hola%2C%20quiero%20pedir%20un%20viaje" onclick="return window.openHonduWhatsApp(event)">
+            <a class="login-wa-btn" href="https://wa.me/${String(APP_CONFIG?.support?.bookingBotWhatsapp || '14693876894').replace(/\D/g, '')}?text=Hola%2C%20quiero%20pedir%20un%20viaje" onclick="return window.openHonduWhatsApp(event)">
                 <i class="fab fa-whatsapp"></i>
                 <span>Pedir viaje por WhatsApp</span>
             </a>
@@ -35459,6 +35484,7 @@ function buildLegalAcceptanceCardHtml() {
             <i class="fas fa-user-shield"></i>
             <span>Leer Política de Privacidad</span>
         </a>
+        <p style="margin:-6px 0 12px;text-align:center;font-size:11px;"><a href="eliminar-cuenta.html" target="_blank" rel="noopener" style="color:#64748b;text-decoration:underline">Cómo eliminar tu cuenta</a></p>
 
         <label style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;cursor:pointer;font-size:12px;color:#334155;line-height:1.35;">
             <input type="checkbox" id="legal-check-terms" style="margin-top:3px;width:18px;height:18px;accent-color:#2563eb;flex-shrink:0;">
@@ -35998,8 +36024,8 @@ window.saveSimplePassengerProfile = async () => {
                                 Tu saldo no alcanza este viaje
                             </p>
                             <p class="text-[11px] font-semibold text-amber-800 mt-0.5 leading-snug">
-                                Viaje L. ${priceNum.toFixed(2)} · Saldo L. ${bal.toFixed(2)}
-                                ${shortfall > 0 ? ` · Faltan L. ${shortfall.toFixed(2)}` : ''}
+                                Viaje ${formatLempiras(priceNum)} · Saldo ${formatLempiras(bal)}
+                                ${shortfall > 0 ? ` · Faltan ${formatLempiras(shortfall)}` : ''}
                             </p>
                             <p class="text-[11px] text-amber-700 mt-1 leading-snug">
                                 Puedes pagar en <b>efectivo</b> al conductor, o recargar y usar puntos.
@@ -36008,7 +36034,7 @@ window.saveSimplePassengerProfile = async () => {
                     : (priceNum > 0
                         ? `<div class="mb-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
                                 <p class="text-[11px] font-bold text-slate-600">
-                                    Tarifa L. ${priceNum.toFixed(2)} · Tu saldo L. ${bal.toFixed(2)}
+                                    Tarifa ${formatLempiras(priceNum)} · Tu saldo ${formatLempiras(bal)}
                                 </p>
                            </div>`
                         : '');
@@ -36017,8 +36043,8 @@ window.saveSimplePassengerProfile = async () => {
                     ? 'w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-purple-200 bg-purple-50/60 opacity-70'
                     : 'w-full flex items-center justify-center gap-3 py-4 rounded-2xl border-2 border-gray-200 hover:border-purple-500 active:bg-purple-50';
                 const saldoSub = saldoShort
-                    ? `Saldo L. ${bal.toFixed(2)} — no alcanza (recarga primero)`
-                    : `Usar saldo de recargas (L. ${bal.toFixed(2)})`;
+                    ? `Saldo ${formatLempiras(bal)} — no alcanza (recarga primero)`
+                    : `Usar saldo de recargas (${formatLempiras(bal)})`;
 
                 modal.innerHTML = `
                     <div class="bg-white rounded-3xl w-full max-w-sm p-6">
@@ -36349,8 +36375,8 @@ window.saveSimplePassengerProfile = async () => {
                         </div>
                         <div class="text-right shrink-0">
                             <p class="text-[9px] text-violet-300 font-bold uppercase">Le debemos</p>
-                            <p class="text-2xl font-black text-violet-300">L. ${owed.toFixed(2)}</p>
-                            ${depositOwed > 0 ? `<p class="text-[9px] text-amber-400 mt-1">Debe depositar: L. ${depositOwed.toFixed(2)}</p>` : ''}
+                            <p class="text-2xl font-black text-violet-300">${formatLempiras(owed)}</p>
+                            ${depositOwed > 0 ? `<p class="text-[9px] text-amber-400 mt-1">Debe depositar: ${formatLempiras(depositOwed)}</p>` : ''}
                         </div>
                     </div>
                     <div class="mt-3 p-3 bg-gray-800 rounded-xl text-[10px] text-gray-300 space-y-1">
@@ -36395,7 +36421,7 @@ window.saveSimplePassengerProfile = async () => {
                 let html = `
                     <div class="bg-violet-900/40 rounded-2xl p-4 mb-4 text-center border border-violet-700/40">
                         <p class="text-violet-300 text-xs font-black uppercase">Total a pagar a conductores</p>
-                        <p class="text-3xl font-black text-violet-200">L. ${totalOwed.toFixed(2)}</p>
+                        <p class="text-3xl font-black text-violet-200">${formatLempiras(totalOwed)}</p>
                         <p class="text-[10px] text-gray-400 mt-1">${withOwed.length} conductor${withOwed.length !== 1 ? 'es' : ''} con saldo pendiente</p>
                     </div>
                 `;
@@ -36460,7 +36486,7 @@ window.saveSimplePassengerProfile = async () => {
             modal.innerHTML = `
                 <div class="bg-white rounded-3xl w-full max-w-md p-6">
                     <h3 class="font-black text-xl text-gray-900 mb-1">Pago a conductor</h3>
-                    <p class="text-gray-500 text-xs mb-4">${driverName} · saldo pendiente L. ${parseFloat(owedAmount).toFixed(2)}</p>
+                    <p class="text-gray-500 text-xs mb-4">${driverName} · saldo pendiente ${formatLempiras(parseFloat(owedAmount))}</p>
                     <div class="space-y-4">
                         <div>
                             <label class="text-xs font-black text-gray-500">MONTO DEPOSITADO (Lempiras)</label>
@@ -36532,7 +36558,7 @@ window.saveSimplePassengerProfile = async () => {
                 if (!driverSnap.exists()) throw new Error('Conductor no encontrado.');
                 const d = driverSnap.data();
                 const currentOwed = parseFloat(d.driverBalance) || 0;
-                if (amount > currentOwed + 0.01) throw new Error(`El monto excede el saldo pendiente (L. ${currentOwed.toFixed(2)}).`);
+                if (amount > currentOwed + 0.01) throw new Error(`El monto excede el saldo pendiente (${formatLempiras(currentOwed)}).`);
 
                 const newBal = await deductDriverSaldoBalance(driverId, amount);
 
@@ -36555,7 +36581,7 @@ window.saveSimplePassengerProfile = async () => {
 
                 window._payoutReceiptBase64 = null;
                 window._payoutModalDriverId = null;
-                window.showToast(`Pago registrado: L. ${amount.toFixed(2)} · saldo restante L. ${newBal.toFixed(2)}`, 'success');
+                window.showToast(`Pago registrado: ${formatLempiras(amount)} · saldo restante ${formatLempiras(newBal)}`, 'success');
                 btn.closest('.fixed')?.remove();
 
                 const idx = (window.allUsersData || []).findIndex((u) => u.uid === driverId);
@@ -36600,7 +36626,7 @@ window.saveSimplePassengerProfile = async () => {
                                     <p class="text-[10px] text-gray-400">${rec.payoutBank || ''} · ${rec.payoutAccount || ''}</p>
                                     <p class="text-[10px] text-gray-500">${date} · por ${rec.paidByName || 'Admin'}</p>
                                 </div>
-                                <p class="text-xl font-black text-violet-300 shrink-0">L. ${(rec.amount || 0).toFixed(2)}</p>
+                                <p class="text-xl font-black text-violet-300 shrink-0">${formatLempiras((rec.amount || 0))}</p>
                             </div>
                             ${rec.receiptPhoto ? `
                                 <img src="${rec.receiptPhoto}" onclick="window.openImageModal(this.src)"
@@ -36736,21 +36762,21 @@ window.saveSimplePassengerProfile = async () => {
                     <h1>HonduRaite — Reporte contable ${data.periodLabel}</h1>
                     <p style="font-size:12px;color:#666">Generado: ${new Date().toLocaleString('es-HN')}</p>
 
-                    <h2>Conductores a pagar (le debemos) — Total: L. ${data.totalPayable.toFixed(2)}</h2>
+                    <h2>Conductores a pagar (le debemos) — Total: ${formatLempiras(data.totalPayable)}</h2>
                     <table><thead><tr><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Banco</th><th>Cuenta</th><th>Titular</th><th>Le debemos</th></tr></thead><tbody>
-                    ${data.payables.map((r) => rowHtml([r.name, r.phone, r.email, r.bank, r.account, r.holder, `L. ${r.owed.toFixed(2)}`])).join('')}
+                    ${data.payables.map((r) => rowHtml([r.name, r.phone, r.email, r.bank, r.account, r.holder, `${formatLempiras(r.owed)}`])).join('')}
                     </tbody></table>
 
-                    <h2>Conductores que deben depositar — Total: L. ${data.totalReceivable.toFixed(2)}</h2>
+                    <h2>Conductores que deben depositar — Total: ${formatLempiras(data.totalReceivable)}</h2>
                     <table><thead><tr><th>Nombre</th><th>WhatsApp</th><th>Email</th><th>Banco</th><th>Cuenta</th><th>Titular</th><th>Debe depositar</th></tr></thead><tbody>
-                    ${data.receivables.map((r) => rowHtml([r.name, r.phone, r.email, r.bank, r.account, r.holder, `L. ${r.depositOwed.toFixed(2)}`])).join('')}
+                    ${data.receivables.map((r) => rowHtml([r.name, r.phone, r.email, r.bank, r.account, r.holder, `${formatLempiras(r.depositOwed)}`])).join('')}
                     </tbody></table>
 
-                    <h2>Pagos realizados en ${data.periodLabel} — Total: L. ${data.totalPaidMonth.toFixed(2)}</h2>
+                    <h2>Pagos realizados en ${data.periodLabel} — Total: ${formatLempiras(data.totalPaidMonth)}</h2>
                     <table><thead><tr><th>Fecha</th><th>Conductor</th><th>WhatsApp</th><th>Email</th><th>Banco</th><th>Cuenta</th><th>Monto</th><th>Por</th></tr></thead><tbody>
                     ${data.payoutsInMonth.map((r) => {
                         const dt = r.createdAt?.toDate?.() ? r.createdAt.toDate().toLocaleString('es-HN') : '';
-                        return rowHtml([dt, r.driverName, r.driverPhone, r.driverEmail, r.payoutBank, r.payoutAccount, `L. ${(r.amount || 0).toFixed(2)}`, r.paidByName]);
+                        return rowHtml([dt, r.driverName, r.driverPhone, r.driverEmail, r.payoutBank, r.payoutAccount, `${formatLempiras((r.amount || 0))}`, r.paidByName]);
                     }).join('')}
                     </tbody></table>
                     </body></html>`;
@@ -36785,11 +36811,11 @@ window.saveSimplePassengerProfile = async () => {
                     <div class="space-y-3 mb-4 text-sm">
                         <div class="p-3 bg-amber-50 border border-amber-200 rounded-2xl">
                             <p class="text-[10px] font-black text-amber-800 uppercase">Comisión / deuda a depositar</p>
-                            <p class="text-2xl font-black text-amber-700">L. ${(stats.totalOwed || stats.remainingToDeposit || 0).toFixed(2)}</p>
+                            <p class="text-2xl font-black text-amber-700">${formatLempiras((stats.totalOwed || stats.remainingToDeposit || 0))}</p>
                         </div>
                         <div class="p-3 bg-violet-50 border border-violet-200 rounded-2xl">
                             <p class="text-[10px] font-black text-violet-800 uppercase">Te pagaremos (saldo app)</p>
-                            <p class="text-xl font-black text-violet-700">L. ${owed.toFixed(2)}</p>
+                            <p class="text-xl font-black text-violet-700">${formatLempiras(owed)}</p>
                             <p class="text-[9px] text-violet-600">Fin de semana a tu cuenta BAC</p>
                         </div>
                     </div>
@@ -36892,17 +36918,17 @@ window.saveSimplePassengerProfile = async () => {
                 }
 
                 if (type === 'deposit') {
-                    window.showToast(`Cierra turno. Deposita L. ${depositOwed.toFixed(2)}. Supervisores notificados.`, 'success');
+                    window.showToast(`Cierra turno. Deposita ${formatLempiras(depositOwed)}. Supervisores notificados.`, 'success');
                     notifyTripEvent({
                         title: 'Recordatorio de depósito',
-                        body: `Al cerrar turno debes depositar L. ${depositOwed.toFixed(2)}. Supervisores ya fueron avisados.`,
+                        body: `Al cerrar turno debes depositar ${formatLempiras(depositOwed)}. Supervisores ya fueron avisados.`,
                         tag: `logout-deposit-${currentUser.uid}`,
                         force: true
                     });
                 } else {
                     window.showToast('Descanso registrado. Supervisores notificados y se te recordará.', 'success');
 
-                    let body = `Descanso registrado. Tienes deuda de L. ${depositOwed.toFixed(2)}.`;
+                    let body = `Descanso registrado. Tienes deuda de ${formatLempiras(depositOwed)}.`;
                     if (depositOwed > 0) {
                         body += ` Recuerda depositar antes de volver a activarte.`;
                     }
@@ -36917,7 +36943,7 @@ window.saveSimplePassengerProfile = async () => {
                         try {
                             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
                                 targetRole: 'supervisor',
-                                message: `Conductor ${window.userProfile?.name || 'N/D'} eligió descanso con deuda pendiente de L. ${depositOwed.toFixed(2)}. Monitorear depósito.`,
+                                message: `Conductor ${window.userProfile?.name || 'N/D'} eligió descanso con deuda pendiente de ${formatLempiras(depositOwed)}. Monitorear depósito.`,
                                 sentBy: currentUser.uid,
                                 sentByName: window.userProfile?.name || 'Sistema',
                                 createdAt: serverTimestamp(),
@@ -38037,7 +38063,7 @@ window.cancelSetupAndLogout = () => {
                 if (!chosen) {
                     badgeEl.textContent = svc === 'moto' ? 'Toca para elegir · máx 2' : 'Toca para elegir · máx 4';
                 } else if (surcharge > 0) {
-                    badgeEl.textContent = `+L. ${surcharge.toFixed(0)} extra`;
+                    badgeEl.textContent = `+${formatLempiras(surcharge)} extra`;
                 } else {
                     badgeEl.textContent = 'Listo · toca para cambiar';
                 }
@@ -38047,7 +38073,7 @@ window.cancelSetupAndLogout = () => {
                 if (!chosen) {
                     hint.innerHTML = '<span class="text-red-600 font-black">Obligatorio:</span> toca cuántas personas van (1–4). Luego se despliega el siguiente paso.';
                 } else if (surcharge > 0) {
-                    hint.innerHTML = `<span class="text-amber-800 font-black">Van ${current} · +L. ${surcharge.toFixed(0)} extra</span> (L. ${fee} c/u). El conductor verá <b>${current} personas</b>.`;
+                    hint.innerHTML = `<span class="text-amber-800 font-black">Van ${current} · +${formatLempiras(surcharge)} extra</span> (${formatLempiras(fee)} c/u). El conductor verá <b>${current} personas</b>.`;
                 } else {
                     hint.innerHTML = svc === 'moto'
                         ? `<span class="text-emerald-800 font-black">✓ ${current} persona${current > 1 ? 's' : ''}</span> (moto máx. 2). El conductor lo verá.`
@@ -39232,8 +39258,8 @@ window.cancelSetupAndLogout = () => {
                     const chargeAmount = Math.round((parseFloat(promoFields.passengerPaysAmount ?? priceNum) || 0) * 100) / 100;
                     if (balNow < chargeAmount) {
                         const promoHint = promoFields.promoDiscountApplied
-                            ? ` (con promo necesitas L. ${chargeAmount.toFixed(2)})`
-                            : ` (viaje L. ${chargeAmount.toFixed(2)}, saldo L. ${balNow.toFixed(2)})`;
+                            ? ` (con promo necesitas ${formatLempiras(chargeAmount)})`
+                            : ` (viaje ${formatLempiras(chargeAmount)}, saldo ${formatLempiras(balNow)})`;
                         window.showToast(`Tu saldo no alcanza este viaje${promoHint}. Recarga o elige efectivo.`, 'warning');
                         setTimeout(() => {
                             if (window.showRechargeModal) window.showRechargeModal();
@@ -39241,12 +39267,12 @@ window.cancelSetupAndLogout = () => {
                         return;
                     }
                     if (promoFields.promoDiscountApplied) {
-                        window.showToast(`🎁 Promo ${promoFields.promoCode}: pagarás L. ${chargeAmount.toFixed(2)} con saldo.`, 'success');
+                        window.showToast(`🎁 Promo ${promoFields.promoCode}: pagarás ${formatLempiras(chargeAmount)} con saldo.`, 'success');
                     }
                 } else if (paymentMethod === 'efectivo' && balNow > 0 && balNow < priceNum) {
                     // Aviso claro: puede pedir en efectivo, pero el saldo no cubre la tarifa
                     window.showToast(
-                        `Tu saldo (L. ${balNow.toFixed(2)}) no alcanza este viaje (L. ${priceNum.toFixed(2)}). Pagarás en efectivo al conductor.`,
+                        `Tu saldo (${formatLempiras(balNow)}) no alcanza este viaje (${formatLempiras(priceNum)}). Pagarás en efectivo al conductor.`,
                         'info'
                     );
                 }
@@ -39428,7 +39454,7 @@ window.cancelSetupAndLogout = () => {
                         const b = Number(vfData.balance) || 0;
                         const c = Number(vfData.chargeAmount) || priceNum;
                         window.showToast(
-                            `Tu saldo (L. ${b.toFixed(2)}) no alcanza este viaje (L. ${c.toFixed(2)}). Pagarás en efectivo.`,
+                            `Tu saldo (${formatLempiras(b)}) no alcanza este viaje (${formatLempiras(c)}). Pagarás en efectivo.`,
                             'info'
                         );
                     }
@@ -39873,7 +39899,7 @@ window.cancelSetupAndLogout = () => {
                     completedBy: currentUser?.uid || null,
                     completedByRole: window.userProfile?.role || null
                 };
-                let toastMsg = `Viaje finalizado. Ganancia en efectivo: L. ${priceNum.toFixed(2)}`;
+                let toastMsg = `Viaje finalizado. Ganancia en efectivo: ${formatLempiras(priceNum)}`;
 
                 // Liquidación de saldo (puede fallar por reglas de otro usuario): no bloquear el complete
                 if (activeTrip.paymentMethod === 'saldo' || isBirthdayGift) {
@@ -39882,13 +39908,13 @@ window.cancelSetupAndLogout = () => {
                         if (settlement) {
                             tripUpdate = { ...tripUpdate, ...settlement.tripUpdate };
                             if (settlement.commissionWaivedBirthday) {
-                                toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
+                                toastMsg = `Viaje finalizado. Recibiste ${formatLempiras(settlement.driverNet)} — ¡sin comisión por tu cumpleaños!`;
                             } else if (settlement.commissionFreeDay) {
-                                toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} — ¡día sin comisión!`;
+                                toastMsg = `Viaje finalizado. Recibiste ${formatLempiras(settlement.driverNet)} — ¡día sin comisión!`;
                             } else if (isBirthdayGift) {
-                                toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} (regalo de cumpleaños del pasajero).`;
+                                toastMsg = `Viaje finalizado. Recibiste ${formatLempiras(settlement.driverNet)} (regalo de cumpleaños del pasajero).`;
                             } else {
-                                toastMsg = `Viaje finalizado. Recibiste L. ${settlement.driverNet.toFixed(2)} en tu saldo (comisión L. ${settlement.commissionAmount.toFixed(2)} ya pagada).`;
+                                toastMsg = `Viaje finalizado. Recibiste ${formatLempiras(settlement.driverNet)} en tu saldo (comisión ${formatLempiras(settlement.commissionAmount)} ya pagada).`;
                             }
                         }
                     } catch (settleErr) {
@@ -39905,9 +39931,9 @@ window.cancelSetupAndLogout = () => {
                         tripUpdate.commissionWaivedBirthday = commissionWaivedBirthday || false;
                         Object.assign(tripUpdate, commissionFreeDayTripFields(commissionResolved));
                         if (commissionWaivedBirthday) {
-                            toastMsg = `Viaje finalizado. Ganancia: L. ${priceNum.toFixed(2)} — ¡sin comisión por tu cumpleaños!`;
+                            toastMsg = `Viaje finalizado. Ganancia: ${formatLempiras(priceNum)} — ¡sin comisión por tu cumpleaños!`;
                         } else if (commissionResolved.commissionFreeDay) {
-                            toastMsg = `Viaje finalizado. Ganancia: L. ${priceNum.toFixed(2)} — ¡día sin comisión (${commissionResolved.freeDayLabel || 'hoy'})!`;
+                            toastMsg = `Viaje finalizado. Ganancia: ${formatLempiras(priceNum)} — ¡día sin comisión (${commissionResolved.freeDayLabel || 'hoy'})!`;
                         }
                     } catch (commErr) {
                         console.warn('resolveCommissionForTrip:', commErr);
@@ -40066,7 +40092,7 @@ window.cancelSetupAndLogout = () => {
                         </button>
                     </div>
 
-                    <div class="mt-4 text-[10px] text-gray-400">Total del viaje: <b class="text-gray-700">L. ${price}</b></div>
+                    <div class="mt-4 text-[10px] text-gray-400">Total del viaje: <b class="text-gray-700">${formatLempiras(price)}</b></div>
                 </div>
             `;
             document.body.appendChild(modal);
@@ -40095,7 +40121,7 @@ window.cancelSetupAndLogout = () => {
                 <div class="bg-white rounded-3xl w-full max-w-md p-6 text-center">
                     <div class="text-4xl mb-3">${isBirthdayGift ? '🎂' : '✅'}</div>
                     <h2 class="text-xl font-black mb-1">${isBirthdayGift ? '¡Viaje cubierto!' : '¡Ya pagaste!'}</h2>
-                    <p class="text-3xl font-black text-violet-600 my-3">${isBirthdayGift ? 'L. 0.00' : `L. ${charged}`}</p>
+                    <p class="text-3xl font-black text-violet-600 my-3">${isBirthdayGift ? 'L. 0.00' : `${formatLempiras(charged)}`}</p>
                     <p class="text-sm text-gray-600 mb-5 leading-snug">
                         ${isBirthdayGift
                             ? 'Este viaje fue un regalo de cumpleaños. No debes pagar nada al conductor.'
@@ -40126,7 +40152,7 @@ window.cancelSetupAndLogout = () => {
                 <div class="bg-white rounded-3xl w-full max-w-md p-6 text-center">
                     <div class="text-4xl mb-3">💰</div>
                     <h2 class="text-xl font-black mb-1">¡Llegaste a tu destino!</h2>
-                    <p class="text-3xl font-black text-emerald-600 my-3">L. ${price}</p>
+                    <p class="text-3xl font-black text-emerald-600 my-3">${formatLempiras(price)}</p>
                     <p class="text-sm text-gray-600 mb-5">Debes pagar en efectivo al conductor.</p>
 
                     <div class="space-y-2">
@@ -40296,7 +40322,7 @@ window.cancelSetupAndLogout = () => {
                             <div class="flex justify-between">
                                 <div>
                                     <div class="font-black">${t.origin || 'Origen'} → ${t.destination || 'Destino'}</div>
-                                    <div class="text-xs text-gray-400">${date} · L. ${price} · ${t.serviceType || 'auto'}</div>
+                                    <div class="text-xs text-gray-400">${date} · ${formatLempiras(price)} · ${t.serviceType || 'auto'}</div>
                                 </div>
                                 <div class="text-right text-xs">
                                     ${isMineAsClient ? '<span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">Pasajero</span>' : '<span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">Conductor</span>'}
@@ -40413,13 +40439,7 @@ window.cancelSetupAndLogout = () => {
                 // Reutilizamos la función de preview (ahora general)
                 window.showTestFacturaModal(trip, emailToUse);
 
-                // Marcar como enviada / vista
-                if (emailToUse) {
-                    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId), {
-                        facturaViewedAt: serverTimestamp(),
-                        lastFacturaEmail: emailToUse
-                    }).catch(() => {});
-                }
+                // Solo lectura: abrir la factura ya no escribe facturaViewedAt/lastFacturaEmail en el viaje.
             } catch (e) {
                 console.error(e);
             }
@@ -40490,7 +40510,7 @@ window.cancelSetupAndLogout = () => {
                 if (isClient && activeTrip?.driverId) {
                     tipSection.classList.remove('hidden');
                     const hint = document.getElementById('tip-balance-hint');
-                    if (hint) hint.innerText = `Tu saldo: L. ${clientBalance.toFixed(2)}`;
+                    if (hint) hint.innerText = `Tu saldo: ${formatLempiras(clientBalance)}`;
                     const custom = document.getElementById('tip-custom-amount');
                     if (custom) custom.value = '';
                     window.selectTip(0);
@@ -41285,10 +41305,13 @@ window.cancelSetupAndLogout = () => {
                 // refrescar cache de registrados en background (no bloquear render)
                 ensureRegisteredDriverZonesCache().catch(() => {});
 
+                const viewerIsStaff = isStaffUser(currentUser, window.userProfile);
                 snap.forEach((d) => {
                     const data = d.data();
                     if (!isDriverOnline(data)) return;
                     if (data.approvalStatus && data.approvalStatus !== 'approved') return;
+                    // Datos de prueba: el conductor de prueba no se muestra a pasajeros reales.
+                    if ((data.isTestDriver === true || data.isTestAccount === true) && !viewerIsStaff) return;
                     const passengerSvc = window.currentServiceType || 'auto';
                     if (isFreightService(passengerSvc) && !locCanServePassengerService(data, passengerSvc)) return;
 
@@ -41454,7 +41477,7 @@ window.cancelSetupAndLogout = () => {
                 activeVehicle = {
                     type: window.userProfile?.vehicleType || 'moto',
                     approvalStatus: 'approved',
-                    vehicle: window.userProfile?.vehicle || { plate: 'TEST', model: 'Prueba' }
+                    vehicle: window.userProfile?.vehicle || { plate: '', model: '' }
                 };
             }
             if (activeVehicle.type === 'taxi' && !isUsMarket() && !isValidTaxiPlate(activeVehicle.vehicle?.plate)) {
@@ -41478,7 +41501,7 @@ window.cancelSetupAndLogout = () => {
                     if (isDriverBlockedByDepositDebt(debt, window.userProfile)) {
                         const dl = formatDepositDeadlineLabel(window.userProfile);
                         window.showToast(
-                            `No puedes activarte. Debes L. ${debt.toFixed(2)} y el plazo${dl ? ` (${dl})` : ''} ya venció. Envía tu comprobante en "Depósito".`,
+                            `No puedes activarte. Debes ${formatLempiras(debt)} y el plazo${dl ? ` (${dl})` : ''} ya venció. Envía tu comprobante en "Depósito".`,
                             'warning'
                         );
                         setTimeout(() => { try { window.showDailyDepositInfo(); } catch(_) {} }, 1200);
@@ -41487,17 +41510,30 @@ window.cancelSetupAndLogout = () => {
                     if (debt > 0 && isDriverDepositGraceActive(window.userProfile)) {
                         const until = formatDepositGraceLabel(window.userProfile);
                         window.showToast(
-                            `Prórroga del staff activa${until ? ` hasta ${until}` : ''}. Puedes trabajar; depositar L. ${debt.toFixed(2)} sigue pendiente.`,
+                            `Prórroga del staff activa${until ? ` hasta ${until}` : ''}. Puedes trabajar; depositar ${formatLempiras(debt)} sigue pendiente.`,
                             'info'
                         );
                     } else if (debt > 0) {
                         const dl = formatDepositDeadlineLabel(window.userProfile);
                         window.showToast(
-                            `Puedes trabajar. Tienes hasta ${dl || 'las 12:00 p.m. del día siguiente'} para depositar L. ${debt.toFixed(2)}.`,
+                            `Puedes trabajar. Tienes hasta ${dl || 'las 12:00 p.m. del día siguiente'} para depositar ${formatLempiras(debt)}.`,
                             'info'
                         );
                     }
                 } catch (_) {}
+            }
+
+            // Google Play: aviso destacado ANTES de mandar la ubicación (sigue con la app en segundo plano).
+            if (!hasLocationDisclosure('driver')) {
+                // Si llaman dos veces mientras el aviso está abierto, solo sigue la última (locGen).
+                let okLoc = false;
+                try { okLoc = await showLocationDisclosure({ role: 'driver', force: true }); } catch (_) { okLoc = false; }
+                if (locGen !== window.__hrDriverLocGen) return;
+                if (!okLoc) {
+                    window.showToast?.('Sin permiso para usar tu ubicación no puedes ponerte en línea.', 'warning');
+                    return;
+                }
+                if (window.driverLocationWatchId != null) return;
             }
 
             bindDriverAppVisibilitySync();
@@ -43894,7 +43930,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                 const badgeHtml = [
                     isSuspended ? '<span class="ops-badge ops-badge--red">SUSPENDIDO</span>' : '',
                     onBreak ? '<span class="ops-badge ops-badge--amber">DESCANSANDO</span>' : '',
-                    pendingDeposit > 0 ? `<span class="ops-badge ops-badge--red">Pend. L. ${pendingDeposit.toFixed(2)}</span>` : '',
+                    pendingDeposit > 0 ? `<span class="ops-badge ops-badge--red">Pend. ${formatLempiras(pendingDeposit)}</span>` : '',
                     u.freightEnabled || u.canDoFreight
                         ? '<span class="ops-badge ops-badge--emerald">FLETES ON</span>'
                         : '',
@@ -44385,7 +44421,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                                     onclick="window.openDriverDepositFromReminder(${depositAmt > 0 ? depositAmt.toFixed(2) : '0'})"
                                     class="mt-3 w-full py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-black active:scale-[0.98]">
                                     <i class="fas fa-wallet"></i> Depositar ahora
-                                    ${depositAmt > 0 ? ` · L. ${depositAmt.toFixed(2)}` : ''}
+                                    ${depositAmt > 0 ? ` · ${formatLempiras(depositAmt)}` : ''}
                                </button>
                                <p class="text-[10px] text-emerald-700 font-bold text-center mt-1.5 leading-snug">
                                    Abre cuentas bancarias + envío del baucher a revisión

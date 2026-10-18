@@ -4,6 +4,7 @@ import { APP_CONFIG } from './config.js';
 import { getCustomTones, saveTonePrefs, listTones, getMaxCustomBytes, getPlatformToneLabel } from './notification-tones.js';
 import { storeReferralFromURL, showReferralInviteModal, getPendingReferralCode } from './referrals.js';
 import { isCapacitorNative } from './capacitor-native.js';
+import { showEnlargedPhoto } from './photo-viewer.js';
 
 export function installStaffRuntime() {
     if (window.__hrStaffRuntime) return;
@@ -621,44 +622,8 @@ setTimeout(() => {
             }
         }, 3000);
 
-        // Función mejorada para ver foto ampliada + botón de descarga
-        window.showEnlargedPhoto = (src, labelOrMeta = null) => {
-            if (!src) return;
-            let label = 'Imagen de registro';
-            let personName = '';
-            let dType = 'registro';
-
-            if (typeof labelOrMeta === 'string' && labelOrMeta) {
-                label = labelOrMeta;
-            } else if (labelOrMeta && typeof labelOrMeta === 'object') {
-                label = labelOrMeta.label || label;
-                personName = labelOrMeta.name || personName;
-                dType = labelOrMeta.type || dType;
-            }
-
-            const safeName = (personName || 'usuario').replace(/[^a-z0-9]/gi, '_');
-            const modal = document.createElement('div');
-            modal.className = `fixed inset-0 bg-black/90 z-[50000] flex items-center justify-center p-4`;
-            modal.innerHTML = `
-                <div class="max-w-[94vw] max-h-[94vh] w-full flex flex-col items-center" onclick="event.target === this && this.remove()">
-                    <div class="w-full flex justify-between items-center mb-2 px-1">
-                        <div class="text-white text-sm font-black truncate">
-                            ${label} ${personName ? `<span class="text-gray-400 font-normal">· ${personName}</span>` : ''}
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button onclick="event.stopImmediatePropagation(); window.downloadRefImage('${src}', '${safeName}', '${dType}');" 
-                                    class="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-black px-3 py-1.5 rounded-full flex items-center gap-1">
-                                ⬇ DESCARGAR
-                            </button>
-                            <button onclick="this.closest('.fixed').remove()" class="text-white text-3xl leading-none px-2">&times;</button>
-                        </div>
-                    </div>
-                    <img src="${src}" class="max-w-full max-h-[82vh] rounded-3xl shadow-2xl border border-white/30 object-contain" style="background:#111;" />
-                    <div class="mt-2 text-[10px] text-gray-400">Toca la X o fondo para cerrar. Usa el botón para descargar con nombre de referencia.</div>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        };
+        // Foto ampliada: ahora es compartida (js/photo-viewer.js) para que funcione también sin staff.
+        window.showEnlargedPhoto = showEnlargedPhoto;
 
       // === PERSONALIZACIÓN DEL LOGIN (Admin) ===
 window.loadCurrentLoginCustomization = async () => {

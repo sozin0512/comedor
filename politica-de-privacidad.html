@@ -6,7 +6,7 @@
     <title>Política de Privacidad • HonduRaite</title>
     <meta name="description" content="Política de Privacidad de HonduRaite (Empresa SOZIN). Cómo recopilamos, usamos y protegemos tus datos en Honduras.">
     <meta name="robots" content="index,follow">
-    <link rel="canonical" href="https://comedor-86278.web.app/politica-de-privacidad.html">
+    <link rel="canonical" href="https://honduraite.com/politica-de-privacidad.html">
     <link rel="icon" href="icons/favicon-32.png" type="image/png">
     <link rel="stylesheet" href="css/tailwind.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -63,7 +63,7 @@
             <div class="flex flex-wrap items-center justify-center gap-x-4 mt-5 text-sm text-slate-600">
                 <span class="font-semibold text-emerald-700"><i class="fas fa-map-marker-alt"></i> Honduras</span>
                 <span class="h-1 w-1 bg-slate-300 rounded-full"></span>
-                <span>Última actualización: <strong>3 de agosto de 2026</strong></span>
+                <span>Última actualización: <strong>18 de octubre de 2026</strong></span>
                 <span class="h-1 w-1 bg-slate-300 rounded-full"></span>
                 <span class="font-medium">Versión 1.0</span>
             </div>
@@ -120,7 +120,7 @@
                         <a class="text-blue-600 font-semibold" href="mailto:josuesoza0513@gmail.com">josuesoza0513@gmail.com</a>
                     </li>
                     <li><strong>Sitio / app:</strong>
-                        <a class="text-blue-600 font-semibold" href="https://comedor-86278.web.app/">https://comedor-86278.web.app/</a>
+                        <a class="text-blue-600 font-semibold" href="https://honduraite.com/">https://honduraite.com/</a>
                     </li>
                 </ul>
             </section>
@@ -147,7 +147,9 @@
                 <h3 class="font-bold text-base mt-4 mb-2">3.1 Datos de cuenta e identidad</h3>
                 <ul class="legal-list">
                     <li>Nombre, teléfono, correo electrónico.</li>
-                    <li>Foto de perfil y, cuando aplique, documentos o fotos de verificación (identidad / rostro) para seguridad de la comunidad.</li>
+                    <li>Foto de perfil y, cuando aplique, verificación de identidad: selfie, foto de la cédula (frente y reverso) y número de identidad, para seguridad de la comunidad.</li>
+                        <li>Fecha de nacimiento (para confirmar mayoría de edad), género (opcional) y contacto de emergencia (opcional).</li>
+                        <li>Conductores: documentos del vehículo, fotos del vehículo y del casco, placa, y cuenta bancaria para recibir pagos.</li>
                     <li>Rol de usuario (pasajero, conductor, supervisor, administrador).</li>
                 </ul>
                 <h3 class="font-bold text-base mt-4 mb-2">3.2 Datos de viajes y servicio</h3>
@@ -158,7 +160,9 @@
                 </ul>
                 <h3 class="font-bold text-base mt-4 mb-2">3.3 Ubicación y dispositivo</h3>
                 <ul class="legal-list">
-                    <li>Ubicación GPS (precisa o aproximada) mientras usas funciones de mapa, solicitud de viaje o navegación.</li>
+                    <li>Ubicación GPS precisa o aproximada mientras usas el mapa, pides un viaje o navegas.</li>
+                        <li><strong>Conductores:</strong> ubicación precisa <strong>también en segundo plano</strong> (con la app cerrada o sin usarse) mientras estén <strong>En línea</strong> o en un viaje. Ver la sección 5.</li>
+                        <li><strong>Pasajeros:</strong> ubicación precisa en segundo plano solo durante un viaje activo, si aceptan compartirla.</li>
                     <li>Identificadores de dispositivo, tokens de notificaciones push, tipo de navegador/app y datos técnicos de conexión.</li>
                 </ul>
                 <h3 class="font-bold text-base mt-4 mb-2">3.4 Pagos y operaciones</h3>
@@ -189,19 +193,38 @@
             </section>
 
             <section id="5" class="legal-section bg-white border rounded-3xl p-7 shadow-sm">
-                <span class="section-number">SECCIÓN 5</span>
-                <h2 class="text-2xl font-semibold heading-font mb-3">Ubicación y mapas</h2>
-                <p class="legal-p">
-                    HonduRaite solicita acceso a la ubicación del dispositivo porque es <strong>necesaria</strong>
-                    para el funcionamiento del servicio (por ejemplo: punto de recogida, destino, posición del conductor
-                    durante un viaje activo y navegación).
-                </p>
-                <ul class="legal-list mb-0">
-                    <li>Puedes denegar o revocar el permiso de ubicación en la configuración de tu teléfono o navegador; algunas funciones dejarán de operar correctamente.</li>
-                    <li>Durante un viaje, la ubicación del conductor puede compartirse con el pasajero (y la del pasajero con el conductor, según la fase del viaje) para coordinar la recogida y el trayecto.</li>
-                    <li>Los mapas y geocodificación pueden ser proveídos por proveedores de mapas (p. ej. Google Maps / Google platform), sujetos a sus propias políticas.</li>
-                </ul>
-            </section>
+                    <span id="ubicacion"></span>
+                    <span class="section-number">SECCIÓN 5</span>
+                    <h2 class="text-2xl font-semibold heading-font mb-3">Ubicación y mapas (incluye segundo plano)</h2>
+                    <p class="legal-p">
+                        HonduRaite usa la ubicación del dispositivo porque es <strong>necesaria</strong> para el servicio:
+                        punto de recogida, destino, asignar viajes cercanos, la posición del conductor durante el viaje y la navegación.
+                    </p>
+                    <h3 class="font-bold text-base mt-4 mb-2">5.1 Conductores: ubicación en segundo plano</h3>
+                    <ul class="legal-list">
+                        <li><strong>Qué:</strong> ubicación precisa (GPS), rumbo, precisión y hora, cada pocos segundos.</li>
+                        <li><strong>Cuándo:</strong> desde que el conductor se pone <strong>En línea</strong> hasta que se pone en <strong>Pausa</strong> o cierra sesión, y durante cada viaje,
+                            <strong>incluso cuando la app está cerrada o no se está usando</strong>. En Android se ve una notificación fija («HonduRaite activo» o «Viaje en curso») mientras pasa.</li>
+                        <li><strong>Para qué:</strong> mostrar y asignar viajes cercanos, mostrar al pasajero dónde viene su conductor, calcular distancia y tarifa,
+                            la seguridad del viaje (soporte y emergencias) y prevenir fraudes.</li>
+                        <li><strong>Con quién se comparte:</strong> con el pasajero del viaje (solo durante ese viaje), con supervisores de HonduRaite y con
+                            nuestros proveedores de infraestructura (Google Firebase / Google Maps). No se vende ni se usa para publicidad.</li>
+                        <li><strong>Cuánto tiempo:</strong> la última posición se reemplaza con cada actualización y se borra al eliminar la cuenta;
+                            la ruta y los puntos de llegada de cada viaje se guardan con el registro del viaje hasta 5 años (contabilidad, disputas y seguridad).</li>
+                        <li>Antes de empezar, la app muestra un aviso y el conductor decide si acepta. Sin aceptar, no puede ponerse en línea.</li>
+                    </ul>
+                    <h3 class="font-bold text-base mt-4 mb-2">5.2 Pasajeros</h3>
+                    <ul class="legal-list">
+                        <li>Mientras pides un viaje usamos tu ubicación para el punto de recogida.</li>
+                        <li>Durante un viaje activo, si aceptas el aviso de la app, compartimos tu ubicación en vivo con el conductor y supervisores
+                            (también con la app en segundo plano) hasta que el viaje termine o se cancele.</li>
+                    </ul>
+                    <h3 class="font-bold text-base mt-4 mb-2">5.3 Tus opciones</h3>
+                    <ul class="legal-list mb-0">
+                        <li>Puedes denegar o quitar el permiso de ubicación en los ajustes del teléfono o del navegador; algunas funciones dejarán de funcionar.</li>
+                        <li>Los mapas y la geocodificación los provee Google Maps Platform, con su propia política de privacidad.</li>
+                    </ul>
+                </section>
 
             <section id="6" class="legal-section bg-white border rounded-3xl p-7 shadow-sm">
                 <span class="section-number">SECCIÓN 6</span>
@@ -247,9 +270,10 @@
                 <span class="section-number">SECCIÓN 9</span>
                 <h2 class="text-2xl font-semibold heading-font mb-3">Conservación y seguridad</h2>
                 <p class="legal-p">
-                    Conservamos los datos mientras tu cuenta esté activa y el tiempo adicional necesario para
-                    obligaciones legales, contables, resolución de disputas y seguridad. Luego pueden eliminarse
-                    o anonimizarse según corresponda.
+                    Conservamos los datos mientras tu cuenta esté activa. Al eliminar la cuenta borramos el perfil,
+                    la verificación de identidad, documentos, fotos y la última ubicación; el registro de viajes, pedidos y pagos se conserva
+                    <strong>anonimizado</strong> (sin nombre, teléfono, correo ni fotos) hasta 5 años por obligaciones legales, contables,
+                    disputas y seguridad. Detalle en <a class="text-blue-600 font-semibold" href="https://honduraite.com/eliminar-cuenta.html">Eliminar cuenta</a>.
                 </p>
                 <p class="legal-p mb-0">
                     Aplicamos medidas técnicas y organizativas razonables (control de acceso, comunicaciones cifradas
@@ -265,7 +289,8 @@
                 <ul class="legal-list">
                     <li>Acceso a los datos personales que tenemos sobre ti.</li>
                     <li>Corrección de datos inexactos o incompletos.</li>
-                    <li>Eliminación o desactivación de cuenta, cuando proceda y no existan obligaciones de retención.</li>
+                    <li>Eliminación de la cuenta: desde la app (menú ⋮ → Privacidad y cuenta → Eliminar mi cuenta) o como explica
+                        <a class="text-blue-600 font-semibold" href="https://honduraite.com/eliminar-cuenta.html">honduraite.com/eliminar-cuenta.html</a>.</li>
                     <li>Información sobre el tratamiento y finalidades.</li>
                     <li>Retiro de consentimientos de permisos del dispositivo (ubicación, notificaciones, cámara) desde tu sistema operativo.</li>
                 </ul>
@@ -336,7 +361,7 @@
                     </p>
                     <p class="text-slate-600 mb-0">
                         App:
-                        <a class="text-blue-600 font-semibold" href="https://comedor-86278.web.app/">https://comedor-86278.web.app/</a>
+                        <a class="text-blue-600 font-semibold" href="https://honduraite.com/">https://honduraite.com/</a>
                     </p>
                 </div>
             </section>

@@ -68,7 +68,13 @@ export const APP_CONFIG = {
     },
     /** Único admin de la app (permisos supremos). No se puede asignar desde la app; solo este correo. */
     adminEmails: ["josuesoza0513@gmail.com"],
-    commissionPercent: 25, // 25% (referencia Uber: históricamente 25%, efectiva ~25-42% según estudios 2025-26). Misma comisión se aplica a viajes estándar y reservas por horas.
+    /**
+     * SOLO RESPALDO. El % de comisión que se cobra y se muestra sale de Firestore
+     * (platformConfig/main.commissionPercentage, y commissionByService por servicio), que se cambia en
+     * Admin → Comisión de plataforma / Panel Viajes → Ajustes › Comisiones. Este número solo se usa si
+     * ese documento no carga. Mantenlo igual al valor real para que nunca se vean dos números distintos.
+     */
+    commissionPercent: 25,
     referrals: {
         /** Quien ingresa con código — al meter el código (registro) */
         newUserAmount: 20,
@@ -76,9 +82,22 @@ export const APP_CONFIG = {
         referrerAmount: 50
     },
     support: {
+        /** Soporte humano (Honduras +504). Único número de soporte de la app. */
         whatsapp: '50495733866',
+        /**
+         * Chatbot para PEDIR viajes por WhatsApp (+1 469-387-6894). No es soporte:
+         * los botones «Pedir viaje por WhatsApp» del login/home usan este.
+         */
+        bookingBotWhatsapp: '14693876894',
         label: 'Soporte HonduRaite',
         hours: '24/7',
+    },
+    stores: {
+        /**
+         * Zona +18 de Tiendas. Solo la ven mayores de edad confirmados (fecha de nacimiento) y staff.
+         * Pon false para ocultarla a todos (p. ej. si Google Play pide otra clasificación de contenido).
+         */
+        adultZoneEnabled: true,
     },
     /**
      * Tutoriales en YouTube (se abren desde Perfil y el menú).

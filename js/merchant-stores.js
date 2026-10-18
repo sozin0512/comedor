@@ -614,15 +614,20 @@ function storeAvatarHtml(s, extraCls = '') {
 
 /**
  * ¿Mostrar el chip / la entrada "Zona +18"?
- * Mayores de edad y staff: sí. Sin fecha de nacimiento: sí, con candado (pide la fecha).
- * Menores: no aparece. El contenido +18 lo sigue filtrando el servidor (firestore.rules).
+ * Solo mayores de edad confirmados (fecha de nacimiento del perfil) y staff.
+ * Antes también salía (con candado) a cuentas sin fecha de nacimiento → QA: «visible para todos».
+ * Sin fecha: no aparece; la persona la agrega en Mi perfil. Menores: nunca.
+ * Interruptor general: APP_CONFIG.stores.adultZoneEnabled = false la apaga para todos (excepto staff).
+ * El contenido +18 lo sigue filtrando el servidor (firestore.rules).
  */
 function adultZoneVisible() {
-    if (canSeeAdultStores()) return true;
-    return !!getCurrentUser()?.uid && getUserAgeYears() == null;
+    if (isStoresStaff()) return true;
+    if (APP_CONFIG?.stores?.adultZoneEnabled === false) return false;
+    return userIsAdult18();
 }
 
 function openAdultZone() {
+    if (!adultZoneVisible() && canSeeAdultStores()) return toast('La Zona +18 no está disponible por ahora.', 'info');
     if (canSeeAdultStores()) {
         storesCategoryFilter = ADULT_ZONE_CHIP.id;
         marketplaceView = 'list';
