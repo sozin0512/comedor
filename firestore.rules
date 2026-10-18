@@ -114,7 +114,11 @@ service cloud.firestore {
     // Campos del panel Viajes que solo escribe el servidor (callables / Admin SDK).
     // Colecciones con reglas propias que el catch-all público NO debe abrir.
     function catchAllExcluded() {
-      return ['stores', 'store_orders', 'delivery_zones', 'delivery_zone_settings', 'store_delivery_fees', 'delivery_zone_history'];
+      return ['stores', 'store_orders', 'delivery_zones', 'delivery_zone_settings', 'store_delivery_fees', 'delivery_zone_history',
+        'support_tickets', 'verification_alerts', 'driver_payout_records', 'driver_payout_bank_events', 'driver_deposits',
+        'balance_adjustments', 'permission_logs', 'notification_campaigns', 'wa_invite_contacted', 'trip_purge_log',
+        'whatsapp_cloud_inbox', 'whatsapp_cloud_outbox', 'whatsapp_cloud_statuses', 'whatsapp_cloud_events',
+        'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions'];
     }
 
     // Pedidos de tiendas: campos de la tarifa de envío por zona (solo servidor).
@@ -747,6 +751,59 @@ service cloud.firestore {
         || resource.data.referrerUid == requestUid()
       );
       allow delete: if isStaff(app);
+    }
+
+    // ============================================================
+    // DATOS SENSIBLES (antes los abría el catch-all a cualquier cuenta)
+    // ============================================================
+
+    // Soporte: cada quien crea su ticket; solo staff lo lee y lo resuelve.
+    match /artifacts/{app}/public/data/support_tickets/{ticketId} {
+      allow create: if isSignedIn() && (request.resource.data.get('userId', null) == requestUid() || isStaff(app));
+      allow read: if isSignedIn() && (isStaff(app) || resource.data.get('userId', null) == requestUid());
+      allow update, delete: if isSignedIn() && isStaff(app);
+    }
+
+    // Alertas de verificación (fotos de identidad, teléfono): crea el dueño; lee staff.
+    match /artifacts/{app}/public/data/verification_alerts/{alertId} {
+      allow create: if isSignedIn() && (request.resource.data.get('uid', null) == requestUid() || isStaff(app));
+      allow read, update, delete: if isSignedIn() && isStaff(app);
+    }
+
+    // Cambios de cuenta bancaria del conductor: los registra el propio conductor; lee staff.
+    match /artifacts/{app}/public/data/driver_payout_bank_events/{eventId} {
+      allow create: if isSignedIn() && (request.resource.data.get('driverId', null) == requestUid() || isStaff(app));
+      allow read, update, delete: if isSignedIn() && isStaff(app);
+    }
+
+    // Errores de permisos (diagnóstico): cada quien registra el suyo; lee staff.
+    match /artifacts/{app}/public/data/permission_logs/{logId} {
+      allow create: if isSignedIn() && request.resource.data.get('uid', null) == requestUid();
+      allow read, update, delete: if isSignedIn() && isStaff(app);
+    }
+
+    // Depósitos y pagos a conductores: el conductor ve los suyos; escribe staff.
+    match /artifacts/{app}/public/data/driver_deposits/{depositId} {
+      allow read: if isSignedIn() && (isStaff(app) || resource.data.get('driverId', null) == requestUid());
+      allow write: if isSignedIn() && isStaff(app);
+    }
+
+    match /artifacts/{app}/public/data/driver_payout_records/{recordId} {
+      allow read: if isSignedIn() && (isStaff(app) || resource.data.get('driverId', null) == requestUid());
+      allow write: if isSignedIn() && isStaff(app);
+    }
+
+    // Herramientas internas de staff.
+    match /artifacts/{app}/public/data/{collection}/{docId} {
+      allow read, write: if isSignedIn() && isStaff(app)
+        && collection in ['balance_adjustments', 'notification_campaigns', 'wa_invite_contacted'];
+    }
+
+    // Solo servidor (Cloud Functions): staff puede leer, nadie escribe desde la app.
+    match /artifacts/{app}/public/data/{collection}/{docId} {
+      allow read: if isSignedIn() && isStaff(app)
+        && collection in ['trip_purge_log', 'whatsapp_cloud_inbox', 'whatsapp_cloud_outbox', 'whatsapp_cloud_statuses',
+          'whatsapp_cloud_events', 'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions'];
     }
 
     // Catch-all para otras colecciones públicas

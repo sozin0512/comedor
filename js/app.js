@@ -22203,7 +22203,7 @@ if (document.readyState === 'loading') {
                 `;
 
                 try {
-                    const depositsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'));
+                    const depositsSnap = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'), where('driverId', '==', driverId)));
                     let recentDeposits = [];
                     depositsSnap.forEach((d) => {
                         const dep = d.data();
@@ -24447,7 +24447,7 @@ if (document.readyState === 'loading') {
                     doc.text('Depósitos (últimos):', 20, 50);
                     let y=57;
                     try {
-                        const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'));
+                        const snap = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'), where('driverId', '==', driverId)));
                         let c=0;
                         snap.forEach(d=>{
                             const r=d.data(); if(r.driverId!==driverId || c>6) return;
@@ -24709,7 +24709,7 @@ if (document.readyState === 'loading') {
                     // Historial de depósitos recientes
                     let recentDeposits = [];
                     try {
-                        const depSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'));
+                        const depSnap = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'), where('driverId', '==', uid)));
                         depSnap.forEach(d => {
                             const dep = d.data();
                             if (dep.driverId === uid) recentDeposits.push(dep);
@@ -25644,7 +25644,7 @@ if (document.readyState === 'loading') {
             listContainer.innerHTML = '<div class="text-center py-6"><i class="fas fa-spinner fa-spin text-emerald-500"></i></div>';
 
             try {
-                const snap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'));
+                const snap = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposits'), where('driverId', '==', driverId)));
                 let deposits = [];
 
                 let startDate = new Date(0);
