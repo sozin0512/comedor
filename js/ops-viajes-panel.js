@@ -320,7 +320,7 @@ function rulePct(key) {
     const v = Number(by[key]);
     if (by[key] != null && by[key] !== '' && Number.isFinite(v)) return v;
     const g = Number(ST.config.commissionPercentage);
-    return Number.isFinite(g) ? g : 25;
+    return Number.isFinite(g) ? g : (Number(window.APP_CONFIG?.commissionPercent) || 0);
 }
 function tripCommission(t) {
     const price = priceOf(t);
@@ -1525,7 +1525,7 @@ function refreshDrawer() {
 function openSettings() {
     const admin = isAdmin();
     const by = ST.config.commissionByService || {};
-    const general = Number.isFinite(Number(ST.config.commissionPercentage)) ? Number(ST.config.commissionPercentage) : 25;
+    const general = Number.isFinite(Number(ST.config.commissionPercentage)) ? Number(ST.config.commissionPercentage) : (Number(window.APP_CONFIG?.commissionPercent) || 0);
     const rows = SVC_ORDER.map((k) => `<div class="row"><span class="vj-row" style="gap:8px">${svcIcon(k, 24)}<b>${SVC[k].label}</b></span>
       <span><input type="number" min="0" max="100" step="0.5" data-svc="${k}" value="${by[k] != null ? esc(by[k]) : ''}" placeholder="${general} (general)" ${admin ? '' : 'disabled'}> %</span></div>`).join('');
     openModal(`

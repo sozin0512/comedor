@@ -13969,7 +13969,7 @@ if (document.readyState === 'loading') {
                     U.hero('Cuentas bancarias', 'Recargas pasajeros · depósitos conductores') +
                     U.formPanel('Comisión de plataforma', 'Este % se aplica al instante a depósitos y comisiones a depositar', `
                         <div class="flex items-center gap-3 flex-wrap">
-                            <input type="number" id="commission-input" value="${APP_CONFIG.commissionPercent ?? 25}" min="0" max="100" step="0.1" class="ops-input w-24 text-xl font-black text-center">
+                            <input type="number" id="commission-input" value="${commissionFallbackPct()}" min="0" max="100" step="0.1" class="ops-input w-24 text-xl font-black text-center">
                             <span class="text-2xl text-white font-black">%</span>
                             ${U.btn('Guardar', 'window.saveCommission()', { variant: 'emerald' })}
                         </div>
@@ -15835,7 +15835,7 @@ if (document.readyState === 'loading') {
                 const priceNum = parseTripPrice(trip);
                 const isBirthdayGift = trip.birthdayFree || trip.paymentMethod === 'birthday_gift';
                 const payLabel = trip.paymentMethod === 'saldo' ? 'saldo' : (isBirthdayGift ? 'regalo cumpleaños' : 'efectivo');
-                const commissionResolved = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: 15 }));
+                const commissionResolved = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: platformCommissionForSync(trip) }));
                 const commissionPercent = commissionResolved.commissionPercent;
                 const split = calcTripCommissionSplit(priceNum, commissionPercent);
                 const freeDayNote = commissionResolved.commissionFreeDay ? ' · DÍA SIN COMISIÓN' : '';
@@ -16666,7 +16666,7 @@ if (document.readyState === 'loading') {
                     toastMsg = `Viaje finalizado. Conductor recibió ${formatLempiras(settlement.driverNet)} (comisión ${formatLempiras(settlement.commissionAmount)}).`;
                 }
             } else {
-                const commissionResolved = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: 15 }));
+                const commissionResolved = await resolveCommissionForTrip(trip).catch(() => ({ commissionPercent: platformCommissionForSync(trip) }));
                 const commissionPercent = commissionResolved.commissionPercent;
                 const split = calcTripCommissionSplit(priceNum, commissionPercent);
                 tripUpdate.commissionPercent = commissionPercent;
@@ -21609,7 +21609,7 @@ if (document.readyState === 'loading') {
                 const wallet = Number(userData.driverBalance || 0) || 0;
                 const graceActive = !!stats.graceActive || isDriverDepositGraceActive(userData);
                 const graceLabel = graceActive ? (formatDepositGraceLabel(userData) || 'activa') : '';
-                const commissionPct = stats.commission != null ? Number(stats.commission) : (APP_CONFIG.commissionPercent ?? 25);
+                const commissionPct = stats.commission != null ? Number(stats.commission) : commissionFallbackPct();
                 const safeName = name.replace(/'/g, "\\'");
                 const debtClass = totalOwed > 0
                     ? (graceActive ? 'staff-driver-finance-debt--grace' : 'staff-driver-finance-debt--due')
@@ -21643,7 +21643,7 @@ if (document.readyState === 'loading') {
                         <div class="staff-driver-finance-kpi ${debtClass}">
                             <p class="staff-driver-finance-kpi-label">Total a depositar</p>
                             <p class="staff-driver-finance-kpi-value">${formatLempiras(totalOwed)}</p>
-                            <p class="staff-driver-finance-kpi-meta">Com. ${commissionPct}%</p>
+                            <p class="staff-driver-finance-kpi-meta">Com. ${platformCommissionForSync(userData.vehicleType || 'auto', commissionPct)}% ${escapeViewerText(String(userData.vehicleType || ''))}</p>
                         </div>
                     </div>
 
@@ -22506,7 +22506,7 @@ if (document.readyState === 'loading') {
                 <div class="mb-5 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
                     <p class="text-xs font-black text-emerald-600">COMISIÓN ACTUAL DE LA PLATAFORMA</p>
                     <p id="bank-modal-commission-pct" class="text-4xl font-black text-emerald-700 mt-1">—%</p>
-                    <p class="text-xs text-emerald-600 mt-1">Los conductores depositan este porcentaje de sus viajes en efectivo (se actualiza al valor que ponga el admin).</p>
+                    <p class="text-xs text-emerald-600 mt-1">Los conductores depositan este porcentaje de sus viajes en efectivo. Cada servicio puede tener su propio % (lo pone el admin).</p>
                 </div>
 
                 <!-- Cuentas Bancarias -->
@@ -22528,12 +22528,24 @@ if (document.readyState === 'loading') {
 
     // Comisión real del admin (no un % fijo en el HTML)
     try {
-        const pct = await getPlatformCommission();
+        const pct = await (window.getPlatformCommission ? window.getPlatformCommission() : Promise.reject(new Error('sin comisión')));
         const pctEl = modal.querySelector('#bank-modal-commission-pct');
-        if (pctEl) pctEl.textContent = `${Number(pct).toFixed(Number(pct) % 1 === 0 ? 0 : 1)}%`;
+        const fmtPct = (v) => `${Number(v).toFixed(Number(v) % 1 === 0 ? 0 : 1)}%`;
+        const rows = window.commissionServiceRows ? window.commissionServiceRows() : [];
+        const distinct = new Set(rows.map((r) => r.pct));
+        if (pctEl) {
+            if (distinct.size <= 1) {
+                pctEl.textContent = fmtPct(rows[0]?.pct ?? pct);
+            } else {
+                // Cada servicio tiene su %: se muestran todos (antes salía un solo número).
+                pctEl.className = 'text-sm font-black text-emerald-700 mt-1 leading-6';
+                pctEl.innerHTML = rows.map((r) => `${String(r.label).replace(/[<>&]/g, '')}: <b>${fmtPct(r.pct)}</b>`).join(' · ');
+            }
+        }
     } catch (_) {
         const pctEl = modal.querySelector('#bank-modal-commission-pct');
-        if (pctEl) pctEl.textContent = `${APP_CONFIG.commissionPercent || 25}%`;
+        const fb = Number(APP_CONFIG.commissionPercent);
+        if (pctEl) pctEl.textContent = Number.isFinite(fb) ? `${fb}%` : '—%';
     }
 
     // Cargar las cuentas bancarias
@@ -23537,7 +23549,7 @@ if (document.readyState === 'loading') {
                     || (isAdminUser(currentUser, window.userProfile) ? 'Administrador' : 'Supervisor');
                 const wasAutoBlocked = !!u.depositAutoBlocked
                     || u.depositAutoBlockedReason === 'deposit_deadline_missed';
-                const commissionPct = await getPlatformCommission().catch(() => APP_CONFIG.commissionPercent || 25);
+                const commissionPct = await getPlatformCommission().catch(() => commissionFallbackPct());
 
                 // 1) Cero deuda + desbloqueo
                 const patch = {
@@ -24098,9 +24110,77 @@ if (document.readyState === 'loading') {
                 return tripOrType;
             }
             if (tripOrType.bookingType === 'hourly') return 'hourly';
+            // Envío de un pedido de tienda: su propio % («tiendas»); si no tiene, usa el de Envío.
+            if (tripOrType.storeOrderId || tripOrType.createdByMerchant) return 'tiendas';
             return commissionServiceKey(String(tripOrType.serviceType || 'auto'));
         }
+        /** Si un servicio no tiene % propio, a cuál se parece antes de caer al general. */
+        const COMMISSION_KEY_PARENT = { tiendas: 'delivery' };
+        function commissionFromByService(by, key) {
+            let k = key;
+            for (let i = 0; k && i < 3; i++) {
+                const raw = by?.[k];
+                const v = raw != null && raw !== '' ? Number(raw) : NaN;
+                if (Number.isFinite(v) && v >= 0 && v <= 100) return v;
+                k = COMMISSION_KEY_PARENT[k];
+            }
+            return null;
+        }
         window.commissionServiceKey = commissionServiceKey;
+
+        /** % de respaldo configurado (js/config.js) si platformConfig no carga. Nunca un número fijo en el código. */
+        function commissionFallbackPct() {
+            const v = Number(APP_CONFIG.commissionPercent);
+            return Number.isFinite(v) && v >= 0 && v <= 100 ? v : 0;
+        }
+        window.commissionFallbackPct = commissionFallbackPct;
+
+        /**
+         * % de un servicio con lo que ya está en caché (sin leer Firestore): el del servicio si el admin lo puso,
+         * si no el % general vigente, si no el respaldo de config. Para cálculos síncronos en bucles.
+         */
+        function platformCommissionForSync(tripOrService, livePlatformPercent = null) {
+            const v = commissionFromByService(_platformCommissionCache?.byService || {}, commissionServiceKey(tripOrService));
+            if (v != null) return v;
+            const live = Number(livePlatformPercent);
+            if (livePlatformPercent != null && Number.isFinite(live) && live >= 0 && live <= 100) return live;
+            const g = Number(_platformCommissionCache?.value);
+            if (_platformCommissionCache?.value != null && Number.isFinite(g)) return g;
+            return commissionFallbackPct();
+        }
+        window.platformCommissionForSync = platformCommissionForSync;
+
+        /** Servicios con comisión propia (mismo orden y nombres del panel). */
+        const COMMISSION_SERVICES = [
+            ['moto', 'Moto'], ['auto', 'Taxi VIP'], ['taxi', 'Taxi tradicional'], ['hourly', 'Viaje por horas'],
+            ['delivery', 'Envío'], ['flete', 'Flete'], ['grua', 'Grúa'], ['tiendas', 'Tiendas']
+        ];
+        window.COMMISSION_SERVICES = COMMISSION_SERVICES;
+        function commissionServiceRows() {
+            return COMMISSION_SERVICES.map(([key, label]) => ({ key, label, pct: platformCommissionForSync(key) }));
+        }
+        window.commissionServiceRows = commissionServiceRows;
+        /** % del servicio del conductor (vehículo activo), para los textos de su panel. */
+        function myServicePct(stats) {
+            const type = getActiveVehicleType(window.userProfile) || window.userProfile?.vehicleType || 'auto';
+            return platformCommissionForSync(type, stats?.commission);
+        }
+        function myServiceLabel() {
+            const type = getActiveVehicleType(window.userProfile) || window.userProfile?.vehicleType || 'auto';
+            const row = COMMISSION_SERVICES.find(([k]) => k === commissionServiceKey(type));
+            return row ? `· ${row[1]}` : '';
+        }
+
+        /** Textos con data-commission-service="hourly" etc.: muestran el % vigente de ese servicio. */
+        function paintCommissionLabels() {
+            try {
+                document.querySelectorAll('[data-commission-service]').forEach((el) => {
+                    el.textContent = `Comisión ${platformCommissionForSync(el.getAttribute('data-commission-service'))}%.`;
+                });
+            } catch (_) {}
+        }
+        window.paintCommissionLabels = paintCommissionLabels;
+        setTimeout(() => { getPlatformCommission().catch(() => {}); }, 4000);
 
         /**
          * % de plataforma. Sin argumento: el % general (platformConfig/main.commissionPercentage).
@@ -24109,15 +24189,13 @@ if (document.readyState === 'loading') {
         async function getPlatformCommission(tripOrService = null) {
             const now = Date.now();
             const pick = () => {
-                const key = commissionServiceKey(tripOrService);
-                const v = key ? Number(_platformCommissionCache.byService?.[key]) : NaN;
-                return Number.isFinite(v) && v >= 0 && v <= 100 ? v : _platformCommissionCache.value;
+                const v = commissionFromByService(_platformCommissionCache.byService, commissionServiceKey(tripOrService));
+                return v != null ? v : _platformCommissionCache.value;
             };
             if (_platformCommissionCache.value != null && (now - _platformCommissionCache.at) < 8000) {
                 return pick();
             }
-            const fallback = Number(APP_CONFIG.commissionPercent);
-            const safeFallback = Number.isFinite(fallback) && fallback >= 0 && fallback <= 100 ? fallback : 25;
+            const safeFallback = commissionFallbackPct();
             try {
                 const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'platformConfig', 'main'));
                 if (snap.exists()) {
@@ -24128,6 +24206,7 @@ if (document.readyState === 'loading') {
                         : {};
                     const value = Number.isFinite(raw) && raw >= 0 && raw <= 100 ? raw : safeFallback;
                     _platformCommissionCache = { value, at: now, byService };
+                    paintCommissionLabels();
                     return pick();
                 }
             } catch (_) {}
@@ -24153,9 +24232,8 @@ if (document.readyState === 'loading') {
             const stored = Number(trip?.commissionPercent);
             if (Number.isFinite(stored) && stored >= 0 && stored <= 100) return stored;
 
-            const live = Number(livePlatformPercent);
-            if (Number.isFinite(live) && live >= 0 && live <= 100) return live;
-            return Number(APP_CONFIG.commissionPercent) || 25;
+            // % de ESE servicio (moto, taxi, por horas, envío, flete, grúa…); si no tiene, el general.
+            return platformCommissionForSync(trip, livePlatformPercent);
         }
 
         async function computeDriverDepositStats(driverId, today, tomorrow) {
@@ -25110,11 +25188,11 @@ if (document.readyState === 'loading') {
                         <div class="bg-violet-50 border border-violet-200 rounded-2xl p-4 text-center">
                             <p class="text-violet-600 text-xs font-black">VIAJES CON SALDO — NETO AL CONDUCTOR</p>
                             <p class="text-2xl font-black text-violet-700">${formatLempiras(s.saldoEarnedToday)}</p>
-                            <p class="text-[10px] text-violet-700 mt-1">Ej: L. 109 con ${s.commission}% → recibes ${formatLempiras((109 * (100 - s.commission) / 100))} · comisión ya pagada por el pasajero</p>
+                            <p class="text-[10px] text-violet-700 mt-1">Ej: L. 109 con ${myServicePct(s)}% → recibes ${formatLempiras((109 * (100 - myServicePct(s)) / 100))} · comisión ya pagada por el pasajero</p>
                         </div>
 
                         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
-                            <p class="text-amber-600 text-xs font-black">COMISIÓN DE VIAJES EN EFECTIVO (${s.commission}%)</p>
+                            <p class="text-amber-600 text-xs font-black">COMISIÓN DE VIAJES EN EFECTIVO (${myServicePct(s)}% ${escapeViewerText(myServiceLabel())})</p>
                             <p class="text-3xl font-black text-amber-600">${formatLempiras(s.cashCommissionOwed)}</p>
                         </div>
 
@@ -26901,7 +26979,7 @@ window.saveProfileChanges = async () => {
                     amount,
                     commissionPercentage: reqData.commissionPercentage != null
                         ? reqData.commissionPercentage
-                        : (await getPlatformCommission().catch(() => APP_CONFIG.commissionPercent || 25)),
+                        : (await getPlatformCommission().catch(() => commissionFallbackPct())),
                     status: 'approved',
                     date: new Date().toISOString(),
                     requestId,
@@ -27267,6 +27345,9 @@ window.saveProfileChanges = async () => {
                 let saldoEarned = 0;
                 let cashTrips = 0;
                 let saldoTrips = 0;
+                const statTrips = [];
+                // Carga el % general y el de cada servicio (caché) antes de sumar
+                const platformPct = await getPlatformCommission().catch(() => commissionFallbackPct());
 
                 tripsSnap.forEach(d => {
                     const t = d.data();
@@ -27278,6 +27359,7 @@ window.saveProfileChanges = async () => {
                             
                             totalEarned += price;
                             totalTrips++;
+                            statTrips.push({ t, price });
 
                             if (t.paymentMethod === 'saldo') {
                                 saldoEarned += price;
@@ -27290,18 +27372,16 @@ window.saveProfileChanges = async () => {
                     }
                 });
 
-                // % real de platformConfig (ej. 18%), no 30% fijo
-                let platformPct = 25;
-                try {
-                    platformPct = await getPlatformCommission();
-                } catch (_) {
-                    platformPct = Number(APP_CONFIG.commissionPercent) || 25;
-                }
-                if (!Number.isFinite(platformPct) || platformPct < 0 || platformPct > 100) {
-                    platformPct = Number(APP_CONFIG.commissionPercent) || 25;
-                }
-                const cashComm = Math.round(cashEarned * (platformPct / 100) * 100) / 100;
-                const saldoComm = Math.round(saldoEarned * (platformPct / 100) * 100) / 100;
+                // % de cada viaje: el congelado del viaje o el de su servicio (no un % único para todo)
+                let cashComm = 0;
+                let saldoComm = 0;
+                statTrips.forEach(({ t, price }) => {
+                    const pct = resolveDepositCommissionPercent(t, platformPct);
+                    const c = price * pct / 100;
+                    if (t.paymentMethod === 'saldo') saldoComm += c; else cashComm += c;
+                });
+                cashComm = Math.round(cashComm * 100) / 100;
+                saldoComm = Math.round(saldoComm * 100) / 100;
                 const commissionGenerated = Math.round((cashComm + saldoComm) * 100) / 100;
 
                 contentDiv.innerHTML = `
@@ -27326,7 +27406,7 @@ window.saveProfileChanges = async () => {
                             <span class="font-bold">${formatLempiras(saldoEarned)} (${saldoTrips})</span>
                         </div>
                         <div class="flex justify-between pt-2 border-t mt-2">
-                            <span class="font-bold">Comisión generada (${platformPct}%):</span>
+                            <span class="font-bold">Comisión generada (${totalEarned > 0 ? `${Math.round((cashComm + saldoComm) / totalEarned * 1000) / 10}% prom. · % de cada servicio` : `${platformPct}%`}):</span>
                             <span class="font-black text-amber-600">${formatLempiras(commissionGenerated)}</span>
                         </div>
                         <p class="text-[10px] text-slate-500 font-bold pt-1">% de Cuentas bancarias → Comisión de plataforma</p>
@@ -30770,7 +30850,7 @@ window.passengerConfirmDestinationArrival = async function() {
     } else {
       tripUpdate.paymentMethod = payMethod;
       if (!isBirthdayGift) {
-        const commissionResolved = await resolveCommissionForTrip(activeTrip).catch(() => ({ commissionPercent: 15 }));
+        const commissionResolved = await resolveCommissionForTrip(activeTrip).catch(() => ({ commissionPercent: platformCommissionForSync(activeTrip) }));
         const commissionPercent = commissionResolved.commissionPercent;
         const split = calcTripCommissionSplit(priceNum, commissionPercent);
         tripUpdate.commissionPercent = commissionPercent;

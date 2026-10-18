@@ -117,16 +117,16 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
         tripRows.sort((a, b) => b.date - a.date);
 
         // % real de Cuentas bancarias / platformConfig (ej. 18%). Antes estaba hardcodeado 30%.
-        let platformPct = 25;
+        let platformPct = Number(APP_CONFIG.commissionPercent) || 0;
         try {
             platformPct = typeof window.getPlatformCommission === 'function'
                 ? await window.getPlatformCommission()
-                : (Number(APP_CONFIG.commissionPercent) || 25);
+                : ((Number.isFinite(Number(APP_CONFIG.commissionPercent)) ? Number(APP_CONFIG.commissionPercent) : 0));
         } catch (_) {
-            platformPct = Number(APP_CONFIG.commissionPercent) || 25;
+            platformPct = (Number.isFinite(Number(APP_CONFIG.commissionPercent)) ? Number(APP_CONFIG.commissionPercent) : 0);
         }
         if (!Number.isFinite(platformPct) || platformPct < 0 || platformPct > 100) {
-            platformPct = Number(APP_CONFIG.commissionPercent) || 25;
+            platformPct = (Number.isFinite(Number(APP_CONFIG.commissionPercent)) ? Number(APP_CONFIG.commissionPercent) : 0);
         }
         // % por viaje: el que quedó guardado al completar; si no, el del servicio; si no, el general.
         const svcPctCache = {};

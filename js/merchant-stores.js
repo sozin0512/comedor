@@ -216,9 +216,14 @@ function roundMoney(n) {
 }
 
 /**
- * Tarifa del momento = comisión de plataforma (%).
- * Misma fuente que viajes: platformConfig/main → commissionPercentage.
+ * Tarifa del momento = comisión de plataforma (%) del servicio «Tiendas».
+ * Fuente: platformConfig/main → commissionByService.tiendas; si no está, la de Envío (delivery);
+ * si tampoco, el % general (commissionPercentage); si no carga, el respaldo de js/config.js.
  */
+function configuredCommissionFallback() {
+    const fb = Number(APP_CONFIG?.commissionPercent);
+    return Number.isFinite(fb) && fb >= 0 && fb <= 100 ? fb : 0;
+}
 async function getTarifaDelMomento() {
     const now = Date.now();
     if (cachedTariffPercent != null && (now - cachedTariffAt) < 12000) {
@@ -226,7 +231,7 @@ async function getTarifaDelMomento() {
     }
     try {
         if (typeof window.getPlatformCommission === 'function') {
-            const v = await window.getPlatformCommission();
+            const v = await window.getPlatformCommission('tiendas');
             if (Number.isFinite(Number(v))) {
                 cachedTariffPercent = Number(v);
                 cachedTariffAt = now;
@@ -238,7 +243,12 @@ async function getTarifaDelMomento() {
         if (dbRef && appIdRef) {
             const snap = await getDoc(publicDoc('platformConfig', 'main'));
             if (snap.exists()) {
-                const raw = parseFloat(snap.data().commissionPercentage);
+                const data = snap.data() || {};
+                const by = data.commissionByService || {};
+                const pickN = (v) => (v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : NaN);
+                let raw = pickN(by.tiendas);
+                if (!(raw >= 0 && raw <= 100)) raw = pickN(by.delivery);
+                if (!(raw >= 0 && raw <= 100)) raw = parseFloat(data.commissionPercentage);
                 if (Number.isFinite(raw) && raw >= 0 && raw <= 100) {
                     cachedTariffPercent = raw;
                     cachedTariffAt = now;
@@ -247,16 +257,14 @@ async function getTarifaDelMomento() {
             }
         }
     } catch (_) {}
-    const fb = Number(APP_CONFIG?.commissionPercent);
-    cachedTariffPercent = Number.isFinite(fb) && fb >= 0 && fb <= 100 ? fb : 25;
+    cachedTariffPercent = configuredCommissionFallback();
     cachedTariffAt = now;
     return cachedTariffPercent;
 }
 
 function getTarifaDelMomentoSync() {
     if (cachedTariffPercent != null) return cachedTariffPercent;
-    const fb = Number(APP_CONFIG?.commissionPercent);
-    return Number.isFinite(fb) && fb >= 0 && fb <= 100 ? fb : 25;
+    return configuredCommissionFallback();
 }
 
 /**
