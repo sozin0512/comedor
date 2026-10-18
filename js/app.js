@@ -13967,13 +13967,22 @@ if (document.readyState === 'loading') {
                 const ff = getFixedFaresConfig();
                 container.innerHTML = U.page(
                     U.hero('Cuentas bancarias', 'Recargas pasajeros · depósitos conductores') +
-                    U.formPanel('Comisión de plataforma', 'Este % se aplica al instante a depósitos y comisiones a depositar', `
-                        <div class="flex items-center gap-3 flex-wrap">
-                            <input type="number" id="commission-input" value="${commissionFallbackPct()}" min="0" max="100" step="0.1" class="ops-input w-24 text-xl font-black text-center">
-                            <span class="text-2xl text-white font-black">%</span>
-                            ${U.btn('Guardar', 'window.saveCommission()', { variant: 'emerald' })}
+                    U.formPanel('Comisión de plataforma', 'Un % por servicio. Vacío = usa el % general. Aplica a viajes nuevos; los completados conservan su %.', `
+                        <div class="flex items-center gap-3 flex-wrap mb-2">
+                            <span class="text-xs text-slate-300 font-black w-36">% general</span>
+                            <input type="number" id="commission-input" value="${commissionFallbackPct()}" min="0" max="100" step="0.1" class="ops-input w-24 text-xl font-black text-center" aria-label="Porcentaje general">
+                            <span class="text-xl text-white font-black">%</span>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2 font-bold">Si pones 18%, el conductor ve y debe depositar al 18% (no un % viejo del viaje).</p>
+                        <div id="commission-by-service" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            ${(window.COMMISSION_SERVICES || []).map(([key, label]) => `
+                                <label class="flex items-center gap-2 flex-wrap">
+                                    <span class="text-xs text-slate-300 font-bold w-36">${label}</span>
+                                    <input type="number" data-commission-svc="${key}" value="" min="0" max="100" step="0.1" placeholder="${key === 'tiendas' ? 'Envío' : 'general'}" class="ops-input w-24 text-base font-black text-center" aria-label="Porcentaje ${label}">
+                                    <span class="text-white font-black">%</span>
+                                </label>`).join('')}
+                        </div>
+                        <div class="mt-3">${U.btn('Guardar comisiones', 'window.saveCommission()', { variant: 'emerald' })}</div>
+                        <p class="text-[10px] text-slate-400 mt-2 font-bold">Si pones 18% en Moto, el conductor de moto ve y deposita al 18% de cada viaje de moto. Tiendas vacío = usa el % de Envío.</p>
                     `) +
                     U.formPanel(
                         'Tarifas fijas y viaje mínimo',
@@ -25461,11 +25470,18 @@ if (document.readyState === 'loading') {
                 try {
                     const configSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'platformConfig', 'main'));
                     if (configSnap.exists()) {
-                        const config = configSnap.data();
+                        const config = configSnap.data() || {};
+                        window._bankCommissionConfig = config;
                         const input = document.getElementById('commission-input');
-                        if (input && config.commissionPercentage) {
-                            input.value = config.commissionPercentage;
+                        const g = Number(config.commissionPercentage);
+                        if (input && config.commissionPercentage != null && Number.isFinite(g)) {
+                            input.value = g;
                         }
+                        const by = (config.commissionByService && typeof config.commissionByService === 'object') ? config.commissionByService : {};
+                        document.querySelectorAll('#commission-by-service [data-commission-svc]').forEach((el) => {
+                            const v = by[el.getAttribute('data-commission-svc')];
+                            el.value = v != null && v !== '' && Number.isFinite(Number(v)) ? Number(v) : '';
+                        });
                     }
                 } catch (_) {}
 
@@ -25549,36 +25565,46 @@ if (document.readyState === 'loading') {
 
         window.saveCommission = async () => {
             const input = document.getElementById('commission-input');
-            const value = parseFloat(input.value);
-            
+            const value = parseFloat(input?.value);
             if (isNaN(value) || value < 0 || value > 100) {
-                return window.showToast("Ingresa un porcentaje válido (0-100).");
+                return window.showToast('Ingresa un % general válido (0-100).');
             }
+            const byService = {};
+            let bad = '';
+            document.querySelectorAll('#commission-by-service [data-commission-svc]').forEach((el) => {
+                const raw = String(el.value || '').trim();
+                if (raw === '') return;
+                const n = Number(raw);
+                if (!Number.isFinite(n) || n < 0 || n > 100) { bad = el.getAttribute('aria-label') || 'servicio'; return; }
+                byService[el.getAttribute('data-commission-svc')] = n;
+            });
+            if (bad) return window.showToast(`${bad}: pon un número de 0 a 100 o déjalo vacío.`);
 
             try {
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'platformConfig', 'main'), {
-                    commissionPercentage: value,
-                    updatedAt: serverTimestamp(),
-                    updatedBy: currentUser?.uid || null
-                }, { merge: true });
+                // Mismo callable que el panel Viajes (solo el admin principal). Se manda el reenvío actual para no cambiarlo.
+                const payload = { commissionByService: byService, commissionPercentage: value };
+                const sec = Number(window._bankCommissionConfig?.autoResendSeconds);
+                if (Number.isFinite(sec) && sec > 0) payload.autoResendSeconds = sec;
+                const res = await httpsCallable(cloudFunctions, 'adminSetTripsPanelConfig')(payload);
+                const saved = res?.data?.commissionByService || byService;
+                window._bankCommissionConfig = { ...(window._bankCommissionConfig || {}), commissionByService: saved, commissionPercentage: value };
 
                 invalidatePlatformCommissionCache();
-                // Refrescar paneles de depósitos/ganancias si hay conductores o admin viendo stats
-                try {
-                    window.renderDriverEarningsToday?.();
-                } catch (_) {}
-                try {
-                    if (typeof window.loadBankAccountsForAdmin === 'function') {
-                        // re-lee el input desde Firestore en la próxima carga
-                    }
-                } catch (_) {}
+                try { await getPlatformCommission(); } catch (_) {}
+                try { window.renderDriverEarningsToday?.(); } catch (_) {}
 
+                const parts = (window.COMMISSION_SERVICES || [])
+                    .filter(([k]) => saved[k] != null)
+                    .map(([k, label]) => `${label} ${saved[k]}%`);
                 window.showToast(
-                    `Comisión de plataforma: ${value}%. Los depósitos y la comisión a depositar ya se calculan al ${value}%.`,
+                    `Comisión guardada: general ${value}%${parts.length ? ` · ${parts.join(' · ')}` : ' para todos los servicios'}.`,
                     'success'
                 );
-            } catch(e) {
-                window.showToast("Error al guardar la comisión.");
+            } catch (e) {
+                const code = String(e?.code || '');
+                window.showToast(code.includes('permission-denied')
+                    ? 'Solo el administrador principal puede cambiar la comisión.'
+                    : `Error al guardar la comisión${e?.message ? `: ${e.message}` : '.'}`);
             }
         };
 

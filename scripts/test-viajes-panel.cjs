@@ -128,6 +128,13 @@ const get = async (p) => (await db.doc(p).get()).data();
   await fx.adminSetTripsPanelConfig.run({ auth: ADM, data: { commissionByService: { moto: 12 }, autoResendSeconds: 10, commissionPercentage: 18 } });
   const pc2 = await get(`${B}/platformConfig/main`);
   ok('ajustes: % general y reemplazo del mapa', pc2.commissionPercentage === 18 && JSON.stringify(pc2.commissionByService) === '{"moto":12}' && pc2.autoResendSeconds === 10);
+  // Editor de Cuentas bancarias: % de Tiendas y sin mandar el reenvío (no debe cambiarlo)
+  await db.doc(`${B}/platformConfig/main`).update({ autoResendSeconds: 37 });
+  await fx.adminSetTripsPanelConfig.run({ auth: ADM, data: { commissionByService: { moto: 11, tiendas: 7 }, commissionPercentage: 18 } });
+  const pc3 = (await db.doc(`${B}/platformConfig/main`).get()).data();
+  ok('ajustes: acepta % de Tiendas', pc3.commissionByService.tiendas === 7 && pc3.commissionByService.moto === 11);
+  ok('ajustes: sin autoResendSeconds no toca el reenvío', pc3.autoResendSeconds === 37);
+  await fx.adminSetTripsPanelConfig.run({ auth: ADM, data: { commissionByService: { moto: 12 }, autoResendSeconds: 10, commissionPercentage: 18 } });
   ok('ajustes: % general fuera de rango', (await code(fx.adminSetTripsPanelConfig.run({ auth: ADM, data: { commissionPercentage: 150 } }))) === 'invalid-argument');
   const gc = await H.getTripsPanelConfig(APP);
   ok('config: lee 10 s y mapa', gc.autoResendSeconds === 10 && gc.commissionByService.moto === 12);

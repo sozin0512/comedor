@@ -36,6 +36,11 @@ const SVC = {
     hourly: { label: 'Por hora', color: '#12A150', bg: '#E3F6EA', p: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' }
 };
 const SVC_ORDER = ['moto', 'auto', 'taxi', 'delivery', 'flete', 'grua', 'hourly'];
+// Comisión: además, «Tiendas» (envíos de pedidos de tienda; vacío = usa el % de Envío).
+const COMMISSION_ORDER = [...SVC_ORDER, 'tiendas'];
+const COMMISSION_LABEL = (k) => (k === 'tiendas' ? 'Tiendas' : SVC[k]?.label || k);
+const COMMISSION_PARENT = { tiendas: 'delivery' };
+function commKey(t) { return t && (t.storeOrderId || t.createdByMerchant) ? 'tiendas' : svcKey(t); }
 const PIN_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s7-7.2 7-12.5A7 7 0 0 0 5 9.5C5 14.8 12 22 12 22z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
 
 function svcKey(t) {
@@ -319,6 +324,7 @@ function rulePct(key) {
     const by = ST.config.commissionByService || {};
     const v = Number(by[key]);
     if (by[key] != null && by[key] !== '' && Number.isFinite(v)) return v;
+    if (COMMISSION_PARENT[key]) return rulePct(COMMISSION_PARENT[key]);
     const g = Number(ST.config.commissionPercentage);
     return Number.isFinite(g) ? g : (Number(window.APP_CONFIG?.commissionPercent) || 0);
 }
@@ -326,9 +332,9 @@ function tripCommission(t) {
     const price = priceOf(t);
     const stored = Number(t.commissionPercent);
     const hasStored = t.commissionPercent != null && Number.isFinite(stored);
-    const p = hasStored ? stored : rulePct(svcKey(t));
+    const p = hasStored ? stored : rulePct(commKey(t));
     const amt = t.commissionAmount != null && Number.isFinite(Number(t.commissionAmount)) ? Number(t.commissionAmount) : price * p / 100;
-    const rule = rulePct(svcKey(t));
+    const rule = rulePct(commKey(t));
     // 0% por cumpleaños / día libre no es «distinto a la regla»
     const waived = !!(t.commissionFreeDay || t.commissionWaivedBirthday || t.birthdayFree);
     return { pct: p, amount: n2(amt), rule, differs: hasStored && !waived && Math.abs(stored - rule) > 0.01 };
@@ -661,7 +667,7 @@ function renderKpis(k) {
     const s = Math.round((avg % 60000) / 1000);
     const commHead = (() => {
         const by = ST.config.commissionByService || {};
-        const vals = new Set(SVC_ORDER.map((x) => rulePct(x)));
+        const vals = new Set(COMMISSION_ORDER.map((x) => rulePct(x)));
         return vals.size === 1 && !Object.keys(by).length ? `Comisión ${rulePct('auto')}%` : 'Comisión';
     })();
     const owing = computeOwing();
@@ -690,7 +696,7 @@ function renderKpis(k) {
 
 function renderCommissionBar(k) {
     const by = ST.config.commissionByService || {};
-    const rules = SVC_ORDER.filter((x) => by[x] != null && by[x] !== '').map((x) => `${SVC[x].label} ${rulePct(x)}%`);
+    const rules = COMMISSION_ORDER.filter((x) => by[x] != null && by[x] !== '').map((x) => `${COMMISSION_LABEL(x)} ${rulePct(x)}%`);
     const general = rulePct('__general__');
     const admin = isAdmin();
     const link = admin ? '<a data-act="settings">Ajustes › Comisiones</a>' : '<b>Ajustes › Comisiones</b> (solo admin)';
@@ -1526,8 +1532,8 @@ function openSettings() {
     const admin = isAdmin();
     const by = ST.config.commissionByService || {};
     const general = Number.isFinite(Number(ST.config.commissionPercentage)) ? Number(ST.config.commissionPercentage) : (Number(window.APP_CONFIG?.commissionPercent) || 0);
-    const rows = SVC_ORDER.map((k) => `<div class="row"><span class="vj-row" style="gap:8px">${svcIcon(k, 24)}<b>${SVC[k].label}</b></span>
-      <span><input type="number" min="0" max="100" step="0.5" data-svc="${k}" value="${by[k] != null ? esc(by[k]) : ''}" placeholder="${general} (general)" ${admin ? '' : 'disabled'}> %</span></div>`).join('');
+    const rows = COMMISSION_ORDER.map((k) => `<div class="row"><span class="vj-row" style="gap:8px">${svcIcon(k === 'tiendas' ? 'delivery' : k, 24)}<b>${COMMISSION_LABEL(k)}</b></span>
+      <span><input type="number" min="0" max="100" step="0.5" data-svc="${k}" value="${by[k] != null ? esc(by[k]) : ''}" placeholder="${k === 'tiendas' ? `${rulePct('delivery')} (Envío)` : `${general} (general)`}" ${admin ? '' : 'disabled'}> %</span></div>`).join('');
     openModal(`
       <h4>Ajustes › Comisiones y reenvío</h4>
       <p class="vj-sub" style="margin:0 0 8px">Usted elige el % de cada servicio. Vacío = usa el % general. Aplica a viajes nuevos; los completados conservan el % con que se cobraron.${admin ? '' : ' <b>Solo el administrador puede cambiarlos.</b>'}</p>

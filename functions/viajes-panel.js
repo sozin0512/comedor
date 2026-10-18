@@ -16,7 +16,8 @@
  */
 'use strict';
 
-const SERVICE_KEYS = ['moto', 'auto', 'taxi', 'delivery', 'flete', 'grua', 'hourly'];
+// tiendas = envíos de pedidos de tienda (si no tiene % propio, la app usa el de Envío).
+const SERVICE_KEYS = ['moto', 'auto', 'taxi', 'delivery', 'flete', 'grua', 'hourly', 'tiendas'];
 const DEFAULT_AUTO_RESEND_SECONDS = 10;
 const MIN_AUTO_RESEND_SECONDS = 5;
 const MAX_AUTO_RESEND_SECONDS = 100;
@@ -381,15 +382,17 @@ module.exports = function createViajesPanel(deps) {
     const adminSetTripsPanelConfig = onCall(async (request) => {
         const uid = await assertCallerIsSupremeAdmin(request.auth);
         const map = sanitizeCommissionByService(request.data?.commissionByService);
-        const sec = clampAutoResendSeconds(request.data?.autoResendSeconds ?? DEFAULT_AUTO_RESEND_SECONDS);
+        // Sin autoResendSeconds (p. ej. desde Cuentas bancarias → Comisión) no se toca el reenvío.
+        const hasSec = request.data?.autoResendSeconds != null && request.data?.autoResendSeconds !== '';
+        const sec = hasSec ? clampAutoResendSeconds(request.data.autoResendSeconds) : null;
         // mergeFields: reemplaza el mapa completo (quitar un servicio = vuelve al % general).
         const patch = {
             commissionByService: map,
-            autoResendSeconds: sec,
             tripsPanelConfigUpdatedAtMs: Date.now(),
             tripsPanelConfigUpdatedBy: uid
         };
-        const fields = ['commissionByService', 'autoResendSeconds', 'tripsPanelConfigUpdatedAtMs', 'tripsPanelConfigUpdatedBy'];
+        const fields = ['commissionByService', 'tripsPanelConfigUpdatedAtMs', 'tripsPanelConfigUpdatedBy'];
+        if (hasSec) { patch.autoResendSeconds = sec; fields.push('autoResendSeconds'); }
         // % general opcional (el mismo campo que ya usa la app: commissionPercentage)
         const rawGeneral = request.data?.commissionPercentage;
         if (rawGeneral != null && rawGeneral !== '') {
