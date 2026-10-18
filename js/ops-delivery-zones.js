@@ -9,7 +9,7 @@ import { getAllKnownZones } from './zones.js?v=2026.07.27.9';
 import {
     esc, money, numOrNull, polygonAreaKm2, validateZoneForm, zonesSvg, zoneColor, rangeLabel,
     polygonToText, textToPolygon, squareAround, addMidpoint, CHANGE_LABELS, changeValueText,
-} from './delivery-zones-shared.js?v=2026.10.16.7';
+} from './delivery-zones-shared.js?v=2026.10.16.9';
 
 const FN_URL = 'https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js';
 const DEFAULT_CITY = 'comayagua';
