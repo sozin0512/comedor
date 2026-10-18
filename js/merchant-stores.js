@@ -23,7 +23,7 @@ import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.09.10.2';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
-} from './store-delivery-zones.js?v=2026.10.17.1';
+} from './store-delivery-zones.js?v=2026.10.16.7';
 
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
