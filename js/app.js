@@ -154,6 +154,11 @@ import {
     unavailableMessage, AVAIL_SERVICES
 } from "./service-availability.js?v=2026.10.16.8";
 import * as HrAvail from "./service-availability.js?v=2026.10.16.8";
+import {
+    tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
+    injectWaitChipCss, startWaitTicker
+} from "./trip-wait.js?v=2026.10.16.8";
+try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
     if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
         const st = document.createElement('style');
@@ -10510,7 +10515,7 @@ if (document.readyState === 'loading') {
                 mainEl.textContent = `${count} cliente(s) pidiendo viaje`;
                 subEl.textContent = count > 1
                     ? `Toca «Ver ruta en mapa» en un cliente para orientarte${zoneName ? ` · ${zoneName}` : ''}`
-                    : `Ordenados del más antiguo al más nuevo${zoneName ? ` · ${zoneName}` : ''}`;
+                    : `Mira cuánto lleva esperando el cliente${zoneName ? ` · ${zoneName}` : ''}`;
             } else {
                 mainEl.textContent = 'Buscando clientes pidiendo viaje';
                 subEl.textContent = incompatibleVehicle
@@ -10558,9 +10563,12 @@ if (document.readyState === 'loading') {
                 : (t.paymentMethod === 'birthday_gift'
                     ? '<span class="trip-pay-badge trip-pay-saldo">Cumpleaños</span>'
                     : '<span class="trip-pay-badge trip-pay-cash">Efectivo</span>');
+            const longWait = isLongWaitPriority(t);
             const queueBadge = queueIndex != null
-                ? `<span class="trip-queue-badge">${queueIndex === 1 ? 'Más cercano' : '#' + queueIndex}</span>`
+                ? `<span class="trip-queue-badge">${longWait ? 'Espera más' : (queueIndex === 1 ? 'Más cercano' : '#' + queueIndex)}</span>`
                 : '';
+            // «Pidió hace X min» en vivo (programados: hora programada)
+            const waitChip = tripWaitChipHtml(t, { scheduledLabel: getScheduledTripMs(t) ? formatScheduledTripWhen(t) : '' });
             const distBadge = dist != null
                 ? `<span class="driver-offer-direct-badge"><i class="fas fa-location-arrow"></i> ${parseFloat(dist).toFixed(1)} km</span>`
                 : '';
@@ -10772,6 +10780,7 @@ if (document.readyState === 'loading') {
                     <div class="uber-vert-head">
                         <p class="uber-vert-name client-name-${tripId}">${clientShort}</p>
                         <div class="uber-vert-chips">
+                            ${waitChip}
                             ${starsHtml}
                             ${paxChipHtml}
                             <span class="uber-vert-dist" data-pickup-km-for="${tripId}" title="Distancia de ti al pasajero (recogida)">
@@ -10801,6 +10810,7 @@ if (document.readyState === 'loading') {
                         <p class="driver-offer-name client-name-${tripId}">${escapeViewerText(displayPersonName(t.clientName, 'Pasajero'))}</p>
                         <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${storeOfferBadgesHtml(t)}${serviceBadge}${paxBadge}${distBadge}</div>
                     </div>
+                    ${waitChip && !getScheduledTripMs(t) ? `<div class="hr-wait-row">${waitChip}</div>` : ''}
                     ${schedBanner}
                     ${storeCollectHtml(t, acceptPriceNum)}
                     <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Dibuja la ruta en el mapa (solo orientación)">
@@ -11583,6 +11593,11 @@ if (document.readyState === 'loading') {
             } catch (_) {}
 
             const handleDriverTripSnap = async (snap) => {
+                // Reloj del servidor para «Pidió hace X min» (una vez por snapshot; el timer re-usa el mismo)
+                if (snap && window._hrClockLearnedSnap !== snap) {
+                    try { learnClockFromTripSnap(snap, { isFirst: !window._hrClockLearnedSnap }); } catch (_) {}
+                    window._hrClockLearnedSnap = snap;
+                }
                 window._driverLastTripSnap = snap;
                 const driverZoneId = window.activeServiceZoneId
                     || window.userProfile?.serviceZoneId
@@ -11658,12 +11673,13 @@ if (document.readyState === 'loading') {
                         const t = d.data();
                         const pickupKm = getLiveDriverPickupKm(t);
                         return { id: d.id, ...t, offerDistanceKm: pickupKm ?? t.offerDistanceKm };
-                    })
-                    .sort((a, b) => {
-                        const distDiff = (a.offerDistanceKm ?? 999) - (b.offerDistanceKm ?? 999);
-                        if (distDiff !== 0) return distDiff;
-                        return getTripCreatedAtMs(a) - getTripCreatedAtMs(b);
                     });
+                // Primero quien lleva ≥15 min esperando con recogida a ≤5 km; luego por cercanía y antigüedad.
+                {
+                    const sortedOffers = sortDriverOffers(myOffers);
+                    myOffers.length = 0;
+                    myOffers.push(...sortedOffers);
+                }
 
                 // Aviso al conductor aunque el panel de solicitudes no esté montado
                 if (lockTrip) {

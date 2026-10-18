@@ -6,6 +6,7 @@
  */
 import { collection, onSnapshot, query, where, orderBy, limit, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { esc, money } from './delivery-zones-shared.js?v=2026.10.16.7';
+import { orderWaitChipHtml, injectWaitChipCss, startWaitTicker } from './trip-wait.js?v=2026.10.16.8';
 
 export const STAGES = [
     { id: 'recibido', label: 'Recibido', statuses: ['pending', 'accepted'], color: '#2563EB', limitMin: 10 },
@@ -158,6 +159,7 @@ function liveCardHtml(o, now) {
         ${st ? `<div class="pd-stuck">⚠ ${esc(st.text)}</div>` : ''}
         <div class="pd-top"><code>${esc(shortId(o.id))}</code><span class="tz-tag ${o.status === 'cancelled' ? 'bad' : o.status === 'delivered' ? 'ok' : o.status === 'ready' ? 'pur' : 'blue'}">${esc(STATUS_LABEL[o.status] || o.status)}</span></div>
         <b class="pd-store">${esc(o.storeName || 'Tienda')}</b>
+        ${o.status === 'delivered' || o.status === 'cancelled' ? '' : `<div class="hr-wait-row">${orderWaitChipHtml(o)}</div>`}
         <div class="pd-sub">${esc(o.clientName || o.recipientName || 'Cliente')} · ${esc(items)}</div>
         <div>${zoneTagHtml(o)}</div>
         <div class="pd-money"><span>Envío <b>${fee == null ? '—' : esc(money(fee))}</b></span><b>${esc(money(Number(o.itemsTotal || 0) + (fee || 0)))}</b></div>
@@ -373,6 +375,7 @@ export function mountStoreOrders(container, { live = true } = {}) {
     container.innerHTML = '';
     const root = document.createElement('div'); container.appendChild(root);
     root.addEventListener('click', onClick); root.addEventListener('change', onChange); root.addEventListener('input', onChange);
+    try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
     M = { root, unsubs: [], timer: setInterval(() => { S.now = Date.now(); if (S.tab === 'live' && document.activeElement?.tagName !== 'SELECT') render(); }, 30000) };
     render();
     if (live && DEPS.db) subscribe();

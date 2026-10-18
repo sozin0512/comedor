@@ -12,6 +12,7 @@ import {
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.16.8';
+import { orderWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.16.8';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
@@ -2137,6 +2138,7 @@ function orderCardHtml(o, { merchant = false } = {}) {
                 <div>
                     <p class="order-card-title">${esc(merchant ? (o.clientName || 'Cliente') : (o.storeName || 'Tienda'))}</p>
                     <p class="order-card-sub">${esc(itemsLine || 'Pedido')}</p>
+                    ${merchant ? orderWaitChipHtml(o) : ''}
                 </div>
                 <span class="order-status order-status--${st.tone}">${esc(st.label)}</span>
             </div>
@@ -3743,6 +3745,8 @@ async function createDeliveryTripForOrder(order) {
             storeName: order.storeName || myStore?.name || 'Tienda',
             storePhone: order.storePhone || myStore?.phone || '',
             deliveryNotes: String(order.notes || '').slice(0, 200),
+            // «Pedido hace X min» al conductor: desde que el cliente pidió (no desde que la tienda pidió la moto)
+            orderCreatedAtMs: waitTsMs(order.createdAt) || null,
         },
         deliveryZoneId: order.deliveryZoneId || null,
         deliveryZoneName: order.deliveryZoneName || null,
