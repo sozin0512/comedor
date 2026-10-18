@@ -147,6 +147,20 @@ import {
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
 } from "./service-types.js?v=2026.10.16.7";
 import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.16.7";
+import { isStoreOrderTrip, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.16.7";
+import {
+    resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
+    unavailableMessage, AVAIL_SERVICES
+} from "./service-availability.js?v=2026.10.16.7";
+import * as HrAvail from "./service-availability.js?v=2026.10.16.7";
+try {
+    if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
+        const st = document.createElement('style');
+        st.id = 'hr-store-trip-css';
+        st.textContent = STORE_TRIP_CSS;
+        document.head.appendChild(st);
+    }
+} catch (_) {}
 import {
     createVehicleId, normalizeDriverProfileVehicles, getActiveVehicle, getApprovedVehicles,
     getApprovedVehicleTypes, getRegisteredVehicleTypes,
@@ -412,7 +426,9 @@ function loadHeavyUiAfterAuth() {
                 getCurrentUser: () => currentUser || window.currentUser || null,
                 getUserProfile: () => window.userProfile,
                 isAdminUser: (u, p) => isAdminUser(u, p),
-                isStaffUser: (u, p) => isStaffUser(u, p)
+                isStaffUser: (u, p) => isStaffUser(u, p),
+                avail: HrAvail,
+                getZoneById: (id) => getZoneById(id)
             });
         }).catch((e) => console.warn(e)));
         vLoad.push(hrLazy('ops-delivery-zones.js').then((m) => {
@@ -1216,6 +1232,10 @@ function applyCustomZonesFromSettings(data) {
         if (data && Object.prototype.hasOwnProperty.call(data, 'disabledServicesByCity')) {
             setDisabledServicesByCity(data.disabledServicesByCity || {});
         }
+        // Disponibilidad por servicio y ciudad (Panel Viajes › Disponibilidad)
+        if (data && Object.prototype.hasOwnProperty.call(data, 'serviceAvailability')) {
+            window.__HR_SERVICE_AVAIL_CONFIG = normalizeAvailabilityConfig(data.serviceAvailability || {});
+        }
         // Día sin comisión rotativo (incentivo conductores)
         if (data && Object.prototype.hasOwnProperty.call(data, 'commissionFreeDay')) {
             setCommissionFreeDayConfig(data.commissionFreeDay || {});
@@ -1402,6 +1422,48 @@ window.renderAdminCustomZonesList = () => {
 };
 
 /**
+ * ¿Se puede pedir este servicio ahora en esta ciudad? Lo consulta service-types.isServiceTypeDisabledInCity.
+ * - modo de la ciudad (auto / siempre abierto / cerrado) en appSettings/main.serviceAvailability
+ * - en «auto»: conductores en línea de ese tipo, contados del mismo listener de drivers_location del mapa
+ *   (sin lecturas extra). Si aún no hay datos, no se bloquea.
+ */
+window.__hrServiceAvailability = (serviceType, zoneId, opts = {}) => {
+    const svc = String(serviceType || '');
+    if (!AVAIL_SERVICES.includes(svc)) return null;
+    const zid = zoneId || window.activeServiceZoneId || getDefaultZoneId();
+    const online = window.__HR_SERVICE_ONLINE;
+    const counts = online && online.zoneId === zid && Date.now() - online.at < 3 * 60 * 1000 ? online.counts : null;
+    const config = window.__HR_SERVICE_AVAIL_CONFIG || {};
+    const r = resolveServiceAvailability({ config, zoneId: zid, svc, counts, scheduled: !!opts.scheduled });
+    if (r.available) return r;
+    const zoneName = getZoneById(zid)?.name || '';
+    return { ...r, message: unavailableMessage(svc, zoneName, r.reason, getServiceCustomMessage(config, zid, svc)) };
+};
+
+/** Recalcula conductores en línea por tipo para la ciudad activa (desde el snapshot del mapa). */
+window.updateServiceOnlineCountsFromSnap = (snap) => {
+    try {
+        if (!snap) return;
+        const zoneId = window.activeServiceZoneId || getDefaultZoneId();
+        const zone = getZoneById(zoneId);
+        const locs = [];
+        snap.forEach((d) => locs.push(d.data() || {}));
+        const counts = countOnlineByVehicle(locs, { zoneId, center: zone?.center || null, now: Date.now() });
+        const prev = window.__HR_SERVICE_ONLINE;
+        const key = JSON.stringify(counts);
+        window.__HR_SERVICE_ONLINE = { zoneId, counts, at: Date.now() };
+        if (!prev || prev.zoneId !== zoneId || prev.key !== key) {
+            window.__HR_SERVICE_ONLINE.key = key;
+            window.applyCityServiceAvailabilityToUI?.();
+        } else {
+            window.__HR_SERVICE_ONLINE.key = key;
+        }
+    } catch (e) {
+        console.warn('[disponibilidad] conteo', e);
+    }
+};
+
+/**
  * Oculta/muestra botones de taxi normal, fletes y grúa según la ciudad activa.
  * También cambia el tipo seleccionado si quedó deshabilitado.
  * @param {{ skipHomeRefresh?: boolean }} opts
@@ -1420,13 +1482,20 @@ window.applyCityServiceAvailabilityToUI = (opts = {}) => {
             const btn = document.getElementById(`svc-btn-${type}`);
             if (btn) {
                 // No forzar visible si el home mode lo ocultó (solo ocultar si deshabilitado)
-                if (disabled) {
+                const marketOff = !isServiceAllowedInMarket(type);
+                btn.classList.toggle('hr-svc-unavailable', disabled && !marketOff);
+                if (disabled && marketOff) {
                     btn.classList.add('hidden');
                     btn.disabled = true;
                     btn.setAttribute('aria-disabled', 'true');
-                    btn.title = !isServiceAllowedInMarket(type)
-                        ? 'No disponible en Estados Unidos'
-                        : getCityServiceDisabledMessage(type, zoneName);
+                    btn.title = 'No disponible en Estados Unidos';
+                } else if (disabled) {
+                    // Se ve en gris con «No disponible»; al tocarlo, selectServiceType muestra el mensaje.
+                    btn.disabled = false;
+                    btn.setAttribute('aria-disabled', 'true');
+                    btn.style.opacity = '';
+                    btn.style.pointerEvents = '';
+                    btn.title = getCityServiceDisabledMessage(type, zoneName, zoneId);
                 } else if (type === 'moto' && isMalePassengerMotoRideBlocked()) {
                     btn.disabled = true;
                     btn.setAttribute('aria-disabled', 'true');
@@ -6763,7 +6832,12 @@ if (document.readyState === 'loading') {
                 const zoneId = window.activeServiceZoneId || getDefaultZoneId();
                 if (isServiceTypeDisabledInCity(normalizedType, zoneId)) {
                     const zoneName = getZoneById(zoneId)?.name || '';
-                    window.showToast?.(getCityServiceDisabledMessage(normalizedType, zoneName), 'warning');
+                    const msg = getCityServiceDisabledMessage(normalizedType, zoneName, zoneId);
+                    if (typeof window.showServiceUnavailableSheet === 'function') {
+                        window.showServiceUnavailableSheet(normalizedType, msg);
+                    } else {
+                        window.showToast?.(msg, 'warning');
+                    }
                     return;
                 }
             }
@@ -10682,7 +10756,9 @@ if (document.readyState === 'loading') {
                             ${unverifiedHtml}
                         </div>
                     </div>
+                    ${isStoreOrderTrip(t) ? `<div class="uber-vert-chips" style="margin:4px 0">${storeOfferBadgesHtml(t)}</div>` : ''}
                     ${fullRouteHtml}
+                    ${storeCollectHtml(t, acceptPriceNum)}
                     <div class="uber-vert-price-row">
                         <span class="uber-vert-price">${priceLabel}</span>
                         ${paymentBadge}
@@ -10699,9 +10775,10 @@ if (document.readyState === 'loading') {
                 <div class="trip-request-card driver-offer-card${getScheduledTripMs(t) ? ' driver-offer-card--scheduled' : ''}" data-preview-offer="${tripId}" data-offer-id-prefix="${pfx}">
                     <div class="driver-offer-top">
                         <p class="driver-offer-name client-name-${tripId}">${t.clientName || 'Pasajero'}</p>
-                        <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${serviceBadge}${paxBadge}${distBadge}</div>
+                        <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${storeOfferBadgesHtml(t)}${serviceBadge}${paxBadge}${distBadge}</div>
                     </div>
                     ${schedBanner}
+                    ${storeCollectHtml(t, acceptPriceNum)}
                     <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Dibuja la ruta en el mapa (solo orientación)">
                         <i class="fas fa-map-marked-alt" aria-hidden="true"></i> Ver en el mapa
                     </button>
@@ -33955,7 +34032,9 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             const isMine = data?.driverId === currentUser?.uid;
             const active = isDriver && isMine && data && ['accepted', 'in_progress'].includes(data.status);
 
+            const storePanelEl = document.getElementById('driver-store-order-panel');
             if (!active) {
+                storePanelEl?.classList.add('hidden');
                 routeHero?.classList.add('hidden');
                 destControls?.classList.add('hidden');
                 tripActions?.classList.add('hidden');
@@ -33980,6 +34059,26 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             const wasRouteHidden = routeHero?.classList.contains('hidden');
             routeHero?.classList.remove('hidden');
+
+            // Pedido de tienda: productos, teléfono de quien recibe y total, siempre a la vista
+            try {
+                let sp = storePanelEl;
+                if (!sp && routeHero?.parentNode && isStoreOrderTrip(data)) {
+                    sp = document.createElement('div');
+                    sp.id = 'driver-store-order-panel';
+                    routeHero.parentNode.insertBefore(sp, routeHero.nextSibling);
+                }
+                if (sp) {
+                    if (isStoreOrderTrip(data)) {
+                        const fee = data.negotiatedPrice ?? data.priceNum ?? data.price;
+                        const html = storeAcceptedPanelHtml(data, fee);
+                        if (sp.dataset.html !== html) { sp.innerHTML = html; sp.dataset.html = html; }
+                        sp.classList.remove('hidden');
+                    } else {
+                        sp.classList.add('hidden');
+                    }
+                }
+            } catch (e) { console.warn('[store panel]', e); }
 
             const isInProgress = data.status === 'in_progress';
             const waitingPin = data.status === 'accepted' && !!data.driverArrived;
@@ -39000,9 +39099,16 @@ window.cancelSetupAndLogout = () => {
                 const tripZoneId = window.activeServiceZoneId
                     || window.currentTripQuote?.serviceZoneId
                     || getDefaultZoneId();
-                if (isServiceTypeDisabledInCity(serviceType, tripZoneId)) {
+                let schedFlag = false;
+                try { schedFlag = !!buildTripOptionsFromUI()?.scheduledFor; } catch (_) {}
+                if (isServiceTypeDisabledInCity(serviceType, tripZoneId, { scheduled: schedFlag })) {
                     const zoneName = getZoneById(tripZoneId)?.name || '';
-                    return window.showToast?.(getCityServiceDisabledMessage(serviceType, zoneName), 'warning');
+                    const msg = getCityServiceDisabledMessage(serviceType, zoneName, tripZoneId);
+                    if (typeof window.showServiceUnavailableSheet === 'function') {
+                        window.showServiceUnavailableSheet(serviceType, msg);
+                        return;
+                    }
+                    return window.showToast?.(msg, 'warning');
                 }
             }
             if (window.currentTripQuote) {
@@ -41161,6 +41267,7 @@ window.cancelSetupAndLogout = () => {
             if (activeTrip && ['accepted', 'in_progress'].includes(activeTrip.status)) return;
 
             window.lastDriversLocationSnap = snap;
+            window.updateServiceOnlineCountsFromSnap?.(snap);
 
             if (nearbyRenderTimer) clearTimeout(nearbyRenderTimer);
             const delay = shouldUseLowPowerMode() ? 1400 : 500;

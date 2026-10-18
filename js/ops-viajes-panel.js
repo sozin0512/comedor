@@ -600,7 +600,9 @@ function tabsCounts() {
         sched: all.filter((t) => isFutureScheduled(t, now)).length,
         review: reviewQueue().length,
         trash: baseTrips().filter((t) => t.trashedAtMs && passCity(t) && passSvc(t)).length,
-        push: PUSH.data ? (PUSH.data.counts.total - PUSH.data.counts.active) : 0
+        push: PUSH.data ? (PUSH.data.counts.total - PUSH.data.counts.active) : 0,
+        rate: (() => { try { const r = rateStats(); return r && r.total.rate != null ? `${Math.round(r.total.rate)}%` : '—'; } catch (_) { return '—'; } })(),
+        avail: (() => { try { return DEPS.avail ? availRows(availCityKey()).filter((x) => !x.r.available).length : 0; } catch (_) { return 0; } })()
     };
 }
 function periodLabel() {
@@ -649,7 +651,7 @@ function renderTop() {
       </div>
     </div>
     <div class="vj-tabs">
-      ${tab('live', 'En vivo', counts.live)}${tab('hist', 'Historial', counts.hist)}${tab('sched', 'Programados', counts.sched)}${tab('review', 'Por revisar', counts.review, true)}${tab('trash', 'Papelera', counts.trash)}${tab('push', 'Avisos', counts.push, true)}
+      ${tab('live', 'En vivo', counts.live)}${tab('hist', 'Historial', counts.hist)}${tab('sched', 'Programados', counts.sched)}${tab('review', 'Por revisar', counts.review, true)}${tab('trash', 'Papelera', counts.trash)}${tab('push', 'Avisos', counts.push, true)}${tab('rate', 'Tasa de aceptación', counts.rate)}${tab('avail', 'Disponibilidad', counts.avail, true)}
     </div>`;
 }
 
@@ -1063,6 +1065,157 @@ function renderPush() {
       ${rows.map(pushRow).join('') || '<div class="vj-empty">Ningún conductor con estos filtros.</div>'}
     </div>`;
 }
+
+// ───────────────────────── Tasa de aceptación por categoría ─────────────────────────
+// Lógica en js/service-availability.js (la inyecta app.js en DEPS.avail; también la usa el servidor).
+const RATE_EMOJI = { auto: '🚘', taxi: '🚕', moto: '🏍️', delivery: '📦', tienda: '🛍️', flete: '🛻', grua: '🪝', hourly: '⏱️' };
+const TONE_COLOR = { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--bad)', none: 'var(--mut)' };
+function rateStats() {
+    const A = DEPS.avail;
+    if (!A) return null;
+    return A.computeAcceptanceStats(filtered({ trash: 'exclude' }));
+}
+function fmtRate(r) { return r == null ? '—' : `${Math.round(r)}%`; }
+function fmtRateWait(ms) { return ms == null ? '—' : fmtWait(ms); }
+function renderRate() {
+    const A = DEPS.avail;
+    const st = rateStats();
+    if (!A || !st) return '<div class="vj-card"><div class="vj-empty">Actualiza la app para ver la tasa de aceptación.</div></div>';
+    const tone = (r) => TONE_COLOR[A.acceptanceTone(r)];
+    const T = st.total;
+    const low = st.lowest;
+    const lowRow = low ? st.byCat[low] : null;
+    const rows = A.ACCEPT_CATEGORIES.filter((c) => st.byCat[c].requests || st.byCat[c].searching).map((c) => {
+        const r = st.byCat[c];
+        const w = r.rate == null ? 0 : Math.max(2, r.rate);
+        return `<tr><td>${RATE_EMOJI[c] || ''} <b>${esc(A.ACCEPT_LABELS[c])}</b></td><td class="r">${r.requests}</td><td class="r">${r.accepted}</td>
+          <td style="min-width:140px"><div class="vj-bar"><i style="width:${w}%;background:${tone(r.rate)}"></i></div></td>
+          <td class="r"><b style="color:${tone(r.rate)};font-size:15px">${fmtRate(r.rate)}</b></td>
+          <td class="r">${r.noDriver}</td><td class="r vj-mut">${r.clientCancelled}</td><td class="r">${fmtRateWait(r.waitAvgMs)}</td><td class="r vj-mut">${r.searching || ''}</td></tr>`;
+    }).join('');
+    const drivers = st.drivers.slice(0, 25).map((d) => {
+        const u = ST.users.get(d.uid) || {};
+        const name = u.name || u.displayName || d.name || d.uid.slice(0, 6);
+        return `<tr><td>${esc(name)}</td><td class="r">${d.offers}</td><td class="r">${d.accepted}</td><td class="r"><b style="color:${tone(d.rate)}">${fmtRate(d.rate)}</b></td></tr>`;
+    }).join('');
+    return `
+    <div class="vj-kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+      <div class="vj-kpi"><div class="l">Tasa de aceptación general</div><div class="v num" style="color:${tone(T.rate)}">${fmtRate(T.rate)}</div><div class="d">${T.accepted} de ${T.requests} solicitudes${T.searching ? ` · ${T.searching} buscando ahora` : ''}</div></div>
+      <div class="vj-kpi ${T.noDriver ? 'alert' : ''}"><div class="l">Sin conductor</div><div class="v num">${T.noDriver}</div><div class="d">Se vencieron o se cancelaron sin que nadie aceptara</div></div>
+      <div class="vj-kpi"><div class="l">El cliente canceló antes</div><div class="v num">${T.clientCancelled}</div><div class="d">Antes de que alguien aceptara</div></div>
+      <div class="vj-kpi ${lowRow && A.acceptanceTone(lowRow.rate) === 'bad' ? 'alert' : ''}"><div class="l">Categoría más baja</div><div class="v num" style="font-size:19px">${low ? `${esc(A.ACCEPT_LABELS[low])} ${fmtRate(lowRow.rate)}` : '—'}</div><div class="d">${low ? `${lowRow.accepted} de ${lowRow.requests}` : 'Mínimo 3 solicitudes'}</div></div>
+    </div>
+    <div class="vj-card">
+      <div class="vj-row" style="justify-content:space-between"><b>Por categoría</b><span class="vj-sub">Tasa = aceptadas ÷ solicitudes que ya se decidieron (sin papelera ni simulaciones). Usa los filtros de arriba.</span></div>
+      <div class="vj-table-wrap"><table class="vj-rate-t"><thead><tr><th>Categoría</th><th class="r">Solicitudes</th><th class="r">Aceptadas</th><th></th><th class="r">Tasa</th><th class="r">Sin conductor</th><th class="r">Cliente canceló</th><th class="r">Espera hasta aceptar</th><th class="r">Buscando</th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="9" class="vj-empty">Sin solicitudes en este periodo.</td></tr>'}</tbody>
+      ${rows ? `<tfoot><tr><td><b>Total</b></td><td class="r"><b>${T.requests}</b></td><td class="r"><b>${T.accepted}</b></td><td></td><td class="r"><b>${fmtRate(T.rate)}</b></td><td class="r">${T.noDriver}</td><td class="r">${T.clientCancelled}</td><td class="r">${fmtRateWait(T.waitAvgMs)}</td><td class="r">${T.searching || ''}</td></tr></tfoot>` : ''}</table></div>
+    </div>
+    <div class="vj-card">
+      <div class="vj-row" style="justify-content:space-between"><b>Por conductor</b><span class="vj-sub">Solicitudes que vio, pasó o tomó vs. las que aceptó</span></div>
+      <div class="vj-table-wrap"><table class="vj-rate-t"><thead><tr><th>Conductor</th><th class="r">Le llegaron</th><th class="r">Aceptó</th><th class="r">Tasa</th></tr></thead>
+      <tbody>${drivers || '<tr><td colspan="4" class="vj-empty">Sin datos de conductores en este periodo.</td></tr>'}</tbody></table></div>
+      <div class="vj-sub" style="margin-top:8px">Verde 80% o más · amarillo 55–79% · rojo menos de 55%: la gente pide y no llega nadie; conviene ponerlo «No disponible» en la pestaña Disponibilidad o reclutar.</div>
+    </div>`;
+}
+
+// ───────────────────────── Disponibilidad de servicios ─────────────────────────
+const AVAIL_UI = { city: '', saving: '' };
+const AVAIL_EMOJI = { auto: '🚘', taxi: '🚕', moto: '🏍️', delivery: '📦', flete_paila: '🛻', flete_camion: '🚚', grua: '🪝' };
+function availConfig() {
+    const A = DEPS.avail;
+    return A ? A.normalizeAvailabilityConfig(ST.appSettings.serviceAvailability || {}) : {};
+}
+function availCities() {
+    const m = new Map();
+    cityList().forEach((c) => m.set(c.key, c.name));
+    ST.locs.forEach((l) => { const z = l.serviceZoneId; if (z && !m.has(z)) m.set(z, DEPS.getZoneById?.(z)?.name || z); });
+    Object.keys(availConfig()).forEach((z) => { if (z !== '_all' && !m.has(z)) m.set(z, DEPS.getZoneById?.(z)?.name || z); });
+    return [...m.entries()].filter(([k]) => k && k !== 'sin-ciudad').map(([key, name]) => ({ key, name }));
+}
+function availCityKey() {
+    const cities = availCities();
+    if (AVAIL_UI.city && (AVAIL_UI.city === '_all' || cities.some((c) => c.key === AVAIL_UI.city))) return AVAIL_UI.city;
+    if (UI.city !== 'all' && cities.some((c) => c.key === UI.city)) return UI.city;
+    return cities[0]?.key || '_all';
+}
+function availRows(zoneKey) {
+    const A = DEPS.avail;
+    const cfg = availConfig();
+    const legacy = ST.appSettings.disabledServicesByCity || null;
+    const zoneId = zoneKey === '_all' ? null : zoneKey;
+    const center = zoneId ? (DEPS.getZoneById?.(zoneId)?.center || null) : null;
+    const counts = A.countOnlineByVehicle([...ST.locs.values()], { zoneId, center, now: Date.now() });
+    return A.AVAIL_SERVICES.map((svc) => {
+        const mode = zoneKey === '_all'
+            ? ((cfg._all && cfg._all[svc] && cfg._all[svc].mode) || A.DEFAULT_SERVICE_MODES[svc])
+            : A.getServiceMode(cfg, zoneId, svc, legacy);
+        const r = A.resolveServiceAvailability({ config: cfg, legacyByCity: legacy, zoneId, svc, counts });
+        const custom = A.getServiceCustomMessage(cfg, zoneId, svc);
+        const veh = A.availVehicleForService(svc);
+        return { svc, mode, r, online: counts[veh] || 0, custom, explicit: !!(zoneId ? cfg[zoneId]?.[svc]?.mode : cfg._all?.[svc]?.mode) };
+    });
+}
+function renderAvail() {
+    const A = DEPS.avail;
+    if (!A) return '<div class="vj-card"><div class="vj-empty">Actualiza la app para ver la disponibilidad.</div></div>';
+    const key = availCityKey();
+    const cities = availCities();
+    const zoneName = key === '_all' ? 'todas las ciudades' : (cities.find((c) => c.key === key)?.name || key);
+    const rows = availRows(key).map(({ svc, mode, r, online, custom, explicit }) => {
+        const badge = r.available
+            ? '<span class="vj-tag" style="background:#D1FAE5;color:#047857">Disponible</span>'
+            : (r.reason === 'closed'
+                ? '<span class="vj-tag" style="background:#FEE2E2;color:var(--bad)">No disponible · cerrado</span>'
+                : '<span class="vj-tag" style="background:#FEF3C7;color:#92400E">No disponible · sin conductores</span>');
+        const seg = [['auto', 'Automático'], ['on', 'Siempre abierto'], ['off', 'Cerrado']].map(([m, l]) =>
+            `<button class="${mode === m ? 'on' : ''} vj-av-${m}" data-act="availMode" data-svc="${svc}" data-v="${m}" ${AVAIL_UI.saving ? 'disabled' : ''}>${l}</button>`).join('');
+        return `<tr><td>${AVAIL_EMOJI[svc] || ''} <b>${esc(A.AVAIL_SERVICE_LABELS[svc])}</b>${explicit ? '' : ' <span class="vj-mut" style="font-size:10.5px">(por defecto)</span>'}</td>
+          <td>${key === '_all' ? '<span class="vj-mut">—</span>' : badge}</td><td class="vj-mut">${key === '_all' ? '—' : `${online} en línea`}</td>
+          <td><div class="vj-seg vj-avail-seg">${seg}</div></td>
+          <td><span class="vj-link" data-act="availMsg" data-svc="${svc}">${custom ? 'Editar mensaje' : 'Mensaje…'}</span></td></tr>`;
+    }).join('');
+    const opts = [`<option value="_all" ${key === '_all' ? 'selected' : ''}>Todas las ciudades (por defecto)</option>`]
+        .concat(cities.map((c) => `<option value="${esc(c.key)}" ${key === c.key ? 'selected' : ''}>${esc(c.name)}</option>`)).join('');
+    return `
+    <div class="vj-card">
+      <div class="vj-row" style="justify-content:space-between">
+        <label class="vj-sel">${IC_PIN}<select data-act="availCity" aria-label="Ciudad">${opts}</select></label>
+        <span class="vj-sub">Lo que ve el cliente al abrir la app y en WhatsApp · se actualiza en vivo</span>
+      </div>
+      <div class="vj-table-wrap" style="margin-top:10px"><table class="vj-rate-t"><thead><tr><th>Servicio en ${esc(zoneName)}</th><th>Estado ahora</th><th>Conductores</th><th>Modo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    </div>
+    <div class="vj-card vj-sub" style="line-height:1.5">
+      <b>Automático:</b> se pone «No disponible» solo cuando no hay ningún conductor aprobado de ese tipo en línea en la ciudad, y vuelve solo cuando alguien se conecta. Los viajes programados sí se pueden pedir.<br>
+      <b>Siempre abierto:</b> se puede pedir aunque no haya nadie en línea (se avisa a los conductores fuera de línea, como hoy).<br>
+      <b>Cerrado:</b> nadie lo puede pedir en esa ciudad hasta que lo vuelvas a abrir.<br>
+      «Todas las ciudades» es el valor por defecto; lo que pongas en una ciudad gana. Queda registrado quién lo cambió.
+    </div>`;
+}
+async function saveAvail(svc, mode, message) {
+    const zoneId = availCityKey();
+    const cfg = availConfig();
+    const prevMsg = DEPS.avail.getServiceCustomMessage(cfg, zoneId === '_all' ? null : zoneId, svc);
+    const curMode = zoneId === '_all'
+        ? ((cfg._all && cfg._all[svc] && cfg._all[svc].mode) || DEPS.avail.DEFAULT_SERVICE_MODES[svc])
+        : DEPS.avail.getServiceMode(cfg, zoneId, svc, ST.appSettings.disabledServicesByCity || null);
+    AVAIL_UI.saving = svc;
+    render();
+    try {
+        const res = await callFn('staffSetServiceAvailability', {
+            zoneId, service: svc, mode: mode || curMode, message: message != null ? message : (zoneId !== '_all' && cfg[zoneId]?.[svc]?.message) || (zoneId === '_all' ? prevMsg : '') || ''
+        });
+        if (res?.config) ST.appSettings = { ...ST.appSettings, serviceAvailability: res.config };
+        toast('Guardado. La app de los clientes se actualiza sola.', 'success');
+        reloadSlow();
+    } catch (e) {
+        toast(errMsg(e), 'error');
+    } finally {
+        AVAIL_UI.saving = '';
+        render();
+    }
+}
+
 function applyNudgeResults(results = []) {
     const by = new Map((PUSH.data?.drivers || []).map((d) => [d.uid, d]));
     const name = myProfile()?.name || 'Tú';
@@ -1746,6 +1899,15 @@ function onClick(e, scope) {
         case 'pushStatus': PUSH.status = v || 'all'; render(); break;
         case 'pushNudge': pushNudge([el.dataset.uid]); break;
         case 'pushNudgeAll': pushNudgeAll(); break;
+        case 'availMode': if (!AVAIL_UI.saving) saveAvail(el.dataset.svc, v, null); break;
+        case 'availMsg': {
+            const A = DEPS.avail;
+            const zk = availCityKey();
+            const cur = A ? A.getServiceCustomMessage(availConfig(), zk === '_all' ? null : zk, el.dataset.svc) : '';
+            const msg = window.prompt('Mensaje que verá el cliente cuando este servicio no esté disponible (vacío = mensaje normal):', cur || '');
+            if (msg !== null) saveAvail(el.dataset.svc, null, msg);
+            break;
+        }
         default: break;
     }
 }
@@ -1754,6 +1916,7 @@ function onChange(e) {
     if (!el) return;
     const act = el.dataset.act;
     if (act === 'city') { UI.city = el.value; UI.histPage = 1; saveUi(); render(); }
+    if (act === 'availCity') { AVAIL_UI.city = el.value; render(); }
     if (act === 'from' || act === 'to') { UI[act] = el.value; UI.period = 'range'; UI.histPage = 1; saveUi(); render(); }
     if (act === 'testDriver') {
         const lab = mounted?.root?.querySelector('#vj-test-label');
@@ -1795,6 +1958,8 @@ function bodyHtml() {
         case 'review': return renderReview();
         case 'trash': return renderTrash();
         case 'push': return renderPush();
+        case 'rate': return renderRate();
+        case 'avail': return renderAvail();
         default: return renderLive();
     }
 }
@@ -2007,4 +2172,4 @@ export function mountViajesPanelWithData(container, data = {}, opts = {}) {
     return { render, ST, UI };
 }
 
-export const __test = { liveCard, detailHtml, setPopTrash: (id) => { popTrashFor = id; }, computeKpis, computeOwing, computeHealth, reviewQueue, reviewKinds, tripCommission, deviceClass, svcKey, possibleCause, ST, UI, PUSH, renderPush, pushRows, pushNudgeTargets };
+export const __test = { renderRate, renderAvail, availRows, AVAIL_UI, setDeps: (d) => { DEPS = { ...DEPS, ...d }; }, liveCard, detailHtml, setPopTrash: (id) => { popTrashFor = id; }, computeKpis, computeOwing, computeHealth, reviewQueue, reviewKinds, tripCommission, deviceClass, svcKey, possibleCause, ST, UI, PUSH, renderPush, pushRows, pushNudgeTargets };

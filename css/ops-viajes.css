@@ -188,3 +188,12 @@
   .vj-search{max-width:none}
   .vj-step b{font-size:10px}.vj-step span{font-size:9px}
 }
+/* Tasa de aceptación + Disponibilidad */
+.vj-rate-t{width:100%;border-collapse:collapse;font-size:13px}
+.vj-rate-t th{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);text-align:left;font-weight:700;padding:8px 10px;border-bottom:1px solid #E2E8F0;white-space:nowrap}
+.vj-rate-t td{padding:9px 10px;border-bottom:1px solid #EEF2F7;vertical-align:middle;white-space:nowrap}
+.vj-rate-t .r{text-align:right}
+.vj-rate-t tfoot td{background:#F8FAFC;border-bottom:0}
+.vj-avail-seg button{font-size:11.5px;padding:5px 10px}
+.vj-avail-seg button.on.vj-av-on{background:var(--ok);color:#fff}
+.vj-avail-seg button.on.vj-av-off{background:var(--bad);color:#fff}

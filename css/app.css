@@ -24215,3 +24215,20 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
 }
 #stores-marketplace-panel .store-detail-meta { color: var(--hr-mut); font-weight: 500; }
 .hr-staff-kpis { margin-top: 0; }
+
+/* ===== Servicio «No disponible» (Panel Viajes › Disponibilidad) ===== */
+.passenger-home-card--off { filter: grayscale(1); opacity: .55; border-style: dashed !important; }
+.passenger-home-card--off .passenger-home-off { font-style: normal; font-weight: 800; color: #FCA5A5; }
+.hr-svc-unavailable { filter: grayscale(1); opacity: .5; position: relative; border-style: dashed !important; }
+.hr-svc-unavailable::after { content: 'No disponible'; position: absolute; top: 4px; right: 6px; font-size: 9px; font-weight: 800;
+  background: #334155; color: #FECACA; padding: 1px 5px; border-radius: 5px; letter-spacing: .02em; pointer-events: none; }
+.hr-unavail-wrap { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: flex-end; justify-content: center; }
+.hr-unavail-dim { position: absolute; inset: 0; background: rgba(2, 6, 23, .6); }
+.hr-unavail-sheet { position: relative; width: 100%; max-width: 480px; background: #fff; color: #0F172A; border-radius: 24px 24px 0 0;
+  padding: 12px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; text-align: center; }
+.hr-unavail-grab { width: 40px; height: 4px; border-radius: 3px; background: #CBD5E1; margin: 0 auto 4px; }
+.hr-unavail-sheet h3 { font-size: 18px; font-weight: 800; margin: 0; }
+.hr-unavail-sheet p { margin: 0; color: #64748B; font-size: 14px; }
+.hr-unavail-ok { background: #2563EB; color: #fff; font-weight: 800; border: 0; border-radius: 14px; padding: 13px; font-size: 14px; }
+.hr-unavail-wa { display: block; border: 1px solid #E2E8F0; border-radius: 14px; padding: 12px; font-weight: 800; color: #0F172A; text-decoration: none; }
+.hr-unavail-sheet small { color: #94A3B8; font-size: 11px; }

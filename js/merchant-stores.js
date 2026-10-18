@@ -2104,8 +2104,17 @@ function renderClientOrdersHtml() {
     return `<div class="orders-list">${clientOrders.map(orderCardHtml).join('')}</div>`;
 }
 
+/** Estado visible: «Listo» con viaje pedido = «Buscando conductor» (nadie lo aceptó todavía). */
+export function orderStatusView(o) {
+    if (o?.status === 'ready' && o?.tripId) return { label: 'Buscando conductor', tone: 'amber' };
+    if (o?.status === 'out_for_delivery' && o?.driverName) {
+        return { label: `En camino · ${String(o.driverName).split(/\s+/)[0]}`, tone: 'blue' };
+    }
+    return ORDER_STATUS[o?.status] || ORDER_STATUS.pending;
+}
+
 function orderCardHtml(o, { merchant = false } = {}) {
-    const st = ORDER_STATUS[o.status] || ORDER_STATUS.pending;
+    const st = orderStatusView(o);
     const items = Array.isArray(o.items) ? o.items : [];
     const itemsLine = items.map((i) => `${i.qty}× ${i.name}`).join(', ');
     const actions = merchant ? merchantOrderActionsHtml(o) : clientOrderActionsHtml(o);
@@ -2147,8 +2156,11 @@ function clientOrderActionsHtml(o) {
     if (o.status === 'pending' || o.status === 'accepted') {
         return `<button type="button" class="stores-danger-btn mt-2" data-stores-action="cancel-order" data-order-id="${esc(o.id)}">Cancelar pedido</button>`;
     }
+    if (o.status === 'ready' && o.tripId) {
+        return `<p class="text-[11px] text-amber-700 font-bold mt-2"><i class="fas fa-search"></i> Buscando conductor… te avisamos cuando alguien lo acepte</p>`;
+    }
     if (o.tripId) {
-        return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> Envío activo · sigue el viaje en el mapa</p>`;
+        return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> ${o.driverName ? `${esc(String(o.driverName).split(/\s+/)[0])} va con tu pedido` : 'Envío activo'} · sigue el viaje en el mapa</p>`;
     }
     return '';
 }
@@ -2173,9 +2185,21 @@ function merchantOrderActionsHtml(o) {
             </button>
         </div>`;
     }
-    if (o.status === 'ready' || o.status === 'out_for_delivery') {
-        return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-check"></i> ${o.tripId ? 'Moto solicitada' : 'Listo para recolectar'}</p>
-            ${o.status !== 'delivered' ? `<button type="button" class="stores-secondary-btn mt-2" data-merchant-action="delivered-order" data-order-id="${id}">Marcar entregado</button>` : ''}`;
+    if (o.status === 'ready' && !o.tripId) {
+        const why = o.deliveryStage === 'trip_cancelled' ? 'El viaje anterior se canceló. ' : '';
+        return `<p class="text-[11px] text-amber-700 font-bold mt-2"><i class="fas fa-exclamation-circle"></i> ${why}Listo · sin conductor</p>
+            <div class="order-actions">
+                <button type="button" class="stores-primary-btn" data-merchant-action="ready-order" data-order-id="${id}">
+                    <i class="fas fa-shipping-fast"></i> Pedir moto o Taxi VIP
+                </button>
+            </div>`;
+    }
+    if (o.status === 'ready') {
+        return `<p class="text-[11px] text-amber-700 font-bold mt-2"><i class="fas fa-search"></i> Buscando conductor · aún nadie lo acepta</p>`;
+    }
+    if (o.status === 'out_for_delivery') {
+        return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> En camino${o.driverName ? ` con ${esc(o.driverName)}` : ''} · se marca entregado solo cuando el conductor termina</p>
+            <button type="button" class="stores-secondary-btn mt-2" data-merchant-action="delivered-order" data-order-id="${id}">Marcar entregado a mano</button>`;
     }
     return '';
 }
@@ -3695,7 +3719,20 @@ async function createDeliveryTripForOrder(order) {
             storeOrderId: order.id,
             itemsTotal: order.itemsTotal || 0,
             storeDelivery: true,
+            // Lo que el conductor ve al aceptar (productos, total y si ya se pagaron)
+            items: (order.items || []).slice(0, 40).map((i) => ({
+                name: String(i.name || '').slice(0, 80),
+                qty: Number(i.qty) || 1,
+                price: Number(i.price) || 0,
+            })),
+            productsPaymentMethod: order.paymentMethod === 'saldo' ? 'saldo' : 'efectivo',
+            productsPaid: order.paymentMethod === 'saldo' && order.paymentStatus === 'paid',
+            storeName: order.storeName || myStore?.name || 'Tienda',
+            storePhone: order.storePhone || myStore?.phone || '',
+            deliveryNotes: String(order.notes || '').slice(0, 200),
         },
+        deliveryZoneId: order.deliveryZoneId || null,
+        deliveryZoneName: order.deliveryZoneName || null,
         deliverySlaMinutes: sla,
         freightDetails: null,
         origin: order.storeAddress || myStore?.address || 'Tienda',
@@ -3737,8 +3774,10 @@ async function createDeliveryTripForOrder(order) {
     };
 
     const tripRef = await addDoc(publicCol('trips'), tripPayload);
+    // Sigue «Listo» hasta que un conductor acepte: el servidor lo pasa a «En camino» (store-order-sync.js).
     await updateDoc(publicDoc('store_orders', order.id), {
-        status: 'out_for_delivery',
+        status: 'ready',
+        deliveryStage: 'searching_driver',
         tripId: tripRef.id,
         deliveryFee: priceNum,
         readyAt: serverTimestamp(),
@@ -3829,9 +3868,10 @@ async function onMerchantClick(e) {
     if (action === 'ready-order' && orderId) {
         const order = merchantOrders.find((o) => o.id === orderId);
         if (!order) return;
+        if (order.tripId) return toast('Ya se pidió un conductor para este pedido.', 'info');
         t.disabled = true;
         try {
-            await setOrderStatus(orderId, 'ready', { readyAt: serverTimestamp() });
+            if (order.status !== 'ready') await setOrderStatus(orderId, 'ready', { readyAt: serverTimestamp() });
             const tripId = await createDeliveryTripForOrder(order);
             toast('Pedido listo · se pidió entrega (moto o Taxi VIP) · ' + tripId.slice(0, 6) + '…', 'success');
         } catch (err) {
@@ -3843,7 +3883,8 @@ async function onMerchantClick(e) {
         return;
     }
     if (action === 'delivered-order' && orderId) {
-        await setOrderStatus(orderId, 'delivered', { deliveredAt: serverTimestamp() });
+        if (!window.confirm('El pedido se marca entregado solo cuando el conductor termina el viaje. ¿Marcarlo entregado ahora?')) return;
+        await setOrderStatus(orderId, 'delivered', { deliveredAt: serverTimestamp(), deliveredBy: 'merchant' });
         return toast('Pedido marcado entregado', 'success');
     }
 }

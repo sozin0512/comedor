@@ -1836,6 +1836,23 @@ async function alreadyReplied(messageId) {
 }
 
 async function finishTripAndSendLink(to, session, contactName) {
+    // Servicio cerrado o sin conductores en la ciudad (Panel Viajes › Disponibilidad): no crear el viaje.
+    try {
+        const zoneCheck = resolveTripZone(session.origin, session.dest);
+        const avail = await require('./service-availability').checkServiceAvailable(db(), APP_ID, {
+            serviceType: session.serviceType || 'auto',
+            zoneId: zoneCheck?.id || null,
+            zoneName: zoneCheck?.name || '',
+            center: zoneCheck?.lat != null ? { lat: zoneCheck.lat, lng: zoneCheck.lng } : null,
+            scheduled: !!session.scheduledFor
+        });
+        if (avail && avail.available === false) {
+            await clearSession(to);
+            return sendCloudText(to, `${avail.message} 🙏\n\n¿Te ayudo con otro servicio? Escribe *viaje* para empezar de nuevo.`);
+        }
+    } catch (e) {
+        console.warn('[wa] availability check', e?.message || e);
+    }
     const created = await createWhatsAppTrip({
         phone: to,
         name: contactName,

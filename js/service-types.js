@@ -1474,7 +1474,12 @@ export function getDisabledServicesByCity() {
 
 export function getCityDisabledCategories(zoneId) {
     if (!zoneId) return {};
-    const entry = disabledServicesByCity[zoneId];
+    // Varios módulos importan service-types con distinto ?v= (instancias separadas): el mapa vive en window.
+    let map = disabledServicesByCity;
+    try {
+        if (!Object.keys(map).length && window.__HR_DISABLED_SERVICES_BY_CITY) map = window.__HR_DISABLED_SERVICES_BY_CITY;
+    } catch (_) {}
+    const entry = map[zoneId];
     return entry && typeof entry === 'object' ? { ...entry } : {};
 }
 
@@ -1489,16 +1494,27 @@ export function isCityServiceCategoryDisabled(categoryId, zoneId) {
  * @param {string} serviceType
  * @param {string|null} zoneId
  */
-export function isServiceTypeDisabledInCity(serviceType, zoneId) {
+/** Disponibilidad nueva (Panel Viajes › Disponibilidad: cerrado / sin conductores en línea). La pone app.js. */
+export function getServiceAvailabilityInfo(serviceType, zoneId, opts = {}) {
+    try {
+        const fn = typeof window !== 'undefined' ? window.__hrServiceAvailability : null;
+        return typeof fn === 'function' ? fn(serviceType, zoneId, opts) : null;
+    } catch (_) {
+        return null;
+    }
+}
+
+export function isServiceTypeDisabledInCity(serviceType, zoneId, opts = {}) {
     if (!zoneId) return false;
     const t = normalizeServiceType(serviceType);
     const flags = getCityDisabledCategories(zoneId);
-    if (!flags || !Object.keys(flags).length) return false;
-
-    for (const cat of Object.values(CITY_SERVICE_DISABLE_CATEGORIES)) {
-        if (flags[cat.id] && cat.serviceTypes.includes(t)) return true;
+    if (flags && Object.keys(flags).length) {
+        for (const cat of Object.values(CITY_SERVICE_DISABLE_CATEGORIES)) {
+            if (flags[cat.id] && cat.serviceTypes.includes(t)) return true;
+        }
     }
-    return false;
+    const info = getServiceAvailabilityInfo(t, zoneId, opts);
+    return !!(info && info.available === false);
 }
 
 /**
@@ -1527,8 +1543,10 @@ export function firstAllowedPassengerTripType(types = ['auto', 'taxi', 'moto'], 
 }
 
 /** Mensaje corto para toast/UI. */
-export function getCityServiceDisabledMessage(serviceType, zoneName = '') {
+export function getCityServiceDisabledMessage(serviceType, zoneName = '', zoneId = null) {
     const t = normalizeServiceType(serviceType);
+    const info = getServiceAvailabilityInfo(t, zoneId || (typeof window !== 'undefined' ? window.activeServiceZoneId : null));
+    if (info && info.available === false && info.message) return info.message;
     let what = getServiceLabel(t) || 'Este servicio';
     if (t === 'auto') what = 'Taxi VIP';
     else if (t === 'taxi') what = 'Taxi normal (tradicional)';
@@ -1536,7 +1554,7 @@ export function getCityServiceDisabledMessage(serviceType, zoneName = '') {
     else if (t === 'flete_paila' || t === 'flete_camion') what = 'Los fletes';
     else if (t === 'grua') what = 'El servicio de grúa';
     const city = zoneName ? ` en ${zoneName}` : ' en esta ciudad';
-    return `${what} no está disponible${city}. El administrador lo desactivó.`;
+    return `${what} no está disponible${city} por ahora.`;
 }
 
 /** Lista de serviceTypes bloqueados en una ciudad (para filtrar UI). */

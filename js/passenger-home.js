@@ -5,7 +5,6 @@
 import {
     isServiceTypeDisabledInCity,
     getCityServiceDisabledMessage,
-    isCityServiceCategoryDisabled,
     isMalePassengerMotoRideBlocked,
     firstAllowedPassengerTripType,
     DECRETO_91_2012_MSG,
@@ -207,31 +206,96 @@ function filterTypesByCity(types = []) {
     return allowed.filter((t) => !isServiceTypeDisabledInCity(t, zoneId));
 }
 
-/** Oculta tarjetas del menú inicio si fletes/grúa/viaje están apagados en la ciudad. */
+const HOME_CARD_TYPES = {
+    trip: ['moto', 'auto', 'taxi'],
+    delivery: ['delivery'],
+    freight: ['flete_paila', 'flete_camion'],
+    tow: ['grua'],
+};
+const HOME_CARD_SUB = { trip: 'Moto · VIP · Taxi', delivery: 'Mensajería', freight: 'Paila · Camión', tow: 'Remolque' };
+
+/** ¿La tarjeta del inicio no tiene ningún servicio disponible en la ciudad? (cerrado o sin conductores) */
+function homeCardUnavailable(mode, zoneId = getActiveCityId()) {
+    const types = filterTypesForMarket(HOME_CARD_TYPES[mode] || []);
+    if (!types.length) return false;
+    return types.every((t) => isServiceTypeDisabledInCity(t, zoneId));
+}
+
+/** Mensaje del primer servicio no disponible de la tarjeta. */
+function homeCardMessage(mode, zoneId = getActiveCityId()) {
+    const zoneName = getZoneById(zoneId)?.name || '';
+    const types = filterTypesForMarket(HOME_CARD_TYPES[mode] || []);
+    if (mode === 'trip') {
+        return `No hay viajes (moto / Taxi VIP / taxi) disponibles${zoneName ? ` en ${zoneName}` : ' en esta ciudad'} por ahora. Intenta más tarde o escríbenos por WhatsApp.`;
+    }
+    return getCityServiceDisabledMessage(types[0] || 'auto', zoneName, zoneId);
+}
+
+const SHEET_TITLES = { trip: 'Viajes', delivery: 'Envíos', freight: 'Fletes', tow: 'Grúa', flete_paila: 'Flete en paila', flete_camion: 'Flete en camión', grua: 'Grúa', moto: 'Moto', auto: 'Taxi VIP', taxi: 'Taxi tradicional' };
+// Mismo número del asistente de WhatsApp que el botón del login
+const WA_LINK = 'https://wa.me/14693876894?text=Hola%2C%20quiero%20pedir%20un%20servicio';
+
+/** Hoja «No disponible»: explica y no deja pedir. */
+export function showServiceUnavailableSheet(what, message) {
+    document.getElementById('hr-unavail-sheet')?.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'hr-unavail-sheet';
+    wrap.className = 'hr-unavail-wrap';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    const title = `${SHEET_TITLES[what] || 'Servicio'} no disponible`;
+    const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    wrap.innerHTML = `<div class="hr-unavail-dim" data-unavail-close></div>
+        <div class="hr-unavail-sheet">
+            <div class="hr-unavail-grab"></div>
+            <h3>${esc(title)}</h3>
+            <p>${esc(message || 'Este servicio no está disponible por ahora.')}</p>
+            <button type="button" class="hr-unavail-ok" data-unavail-close>Entendido</button>
+            <a class="hr-unavail-wa" href="${WA_LINK}" target="_blank" rel="noopener" onclick="return window.openHonduWhatsApp ? window.openHonduWhatsApp(event) : true"><i class="fab fa-whatsapp"></i> Escribir por WhatsApp</a>
+            <small>No se creó ninguna solicitud</small>
+        </div>`;
+    wrap.addEventListener('click', (e) => {
+        if (e.target.closest('[data-unavail-close]')) wrap.remove();
+    });
+    document.body.appendChild(wrap);
+}
+try { window.showServiceUnavailableSheet = showServiceUnavailableSheet; } catch (_) {}
+
+/** Tarjetas del inicio: en gris con «No disponible» si no hay servicio en la ciudad (ya no se esconden). */
 function syncHomeCardsForCity() {
     const hub = document.getElementById('passenger-home-hub');
     if (!hub) return;
     const zoneId = getActiveCityId();
-    const hideFreight = isCityServiceCategoryDisabled('fletes', zoneId);
-    const hideTow = isCityServiceCategoryDisabled('grua', zoneId);
-    // Viaje = moto + VIP + taxi tradicional; si los 3 están off, ocultar tarjeta
-    const tripTypesLeft = filterTypesByCity(['moto', 'auto', 'taxi']);
-    const hideTrip = tripTypesLeft.length === 0;
-
-    hub.querySelector('[data-home-mode="trip"]')?.classList.toggle('hidden', hideTrip);
-    hub.querySelector('[data-home-mode="freight"]')?.classList.toggle('hidden', hideFreight);
-    hub.querySelector('[data-home-mode="tow"]')?.classList.toggle('hidden', hideTow);
-
-    // Subtítulo del card Viaje según lo disponible
-    const tripCard = hub.querySelector('[data-home-mode="trip"] small');
-    if (tripCard && !hideTrip) {
-        const parts = [];
-        if (!isCityServiceCategoryDisabled('moto', zoneId)) parts.push('Moto');
-        if (!isCityServiceCategoryDisabled('auto', zoneId)) parts.push('VIP');
-        if (!isUsMarket() && !isCityServiceCategoryDisabled('taxi', zoneId)) parts.push('Taxi');
-        tripCard.textContent = parts.length ? parts.join(' · ') : 'Viajes';
-    }
+    Object.keys(HOME_CARD_TYPES).forEach((mode) => {
+        const card = hub.querySelector(`[data-home-mode="${mode}"]`);
+        if (!card) return;
+        const off = homeCardUnavailable(mode, zoneId);
+        card.classList.remove('hidden');
+        card.classList.toggle('passenger-home-card--off', off);
+        card.setAttribute('aria-disabled', off ? 'true' : 'false');
+        const small = card.querySelector('small');
+        if (!small) return;
+        if (off) {
+            small.innerHTML = '<em class="passenger-home-off">No disponible</em>';
+            return;
+        }
+        if (mode === 'trip') {
+            const parts = [];
+            if (!isServiceTypeDisabledInCity('moto', zoneId)) parts.push('Moto');
+            if (!isServiceTypeDisabledInCity('auto', zoneId)) parts.push('VIP');
+            if (!isUsMarket() && !isServiceTypeDisabledInCity('taxi', zoneId)) parts.push('Taxi');
+            small.textContent = parts.length ? parts.join(' · ') : 'Viajes';
+        } else if (mode === 'freight') {
+            const parts = [];
+            if (!isServiceTypeDisabledInCity('flete_paila', zoneId)) parts.push('Paila');
+            if (!isServiceTypeDisabledInCity('flete_camion', zoneId)) parts.push('Camión');
+            small.textContent = parts.join(' · ') || HOME_CARD_SUB.freight;
+        } else {
+            small.textContent = HOME_CARD_SUB[mode];
+        }
+    });
 }
+try { window.refreshPassengerHomeCityServices = () => { try { syncHomeCardsForCity(); } catch (_) {} }; } catch (_) {}
 
 function setChipVisible(btn, show) {
     if (!btn) return;
@@ -258,8 +322,10 @@ function setServicePickerFilter(allowedTypes) {
         }
         const cityBlocked = type && type !== 'stores' && isServiceTypeDisabledInCity(type, zoneId);
         const marketBlocked = type && !isServiceAllowedInMarket(type);
-        const show = allowedTypes.includes(type) && !cityBlocked && !marketBlocked;
+        // No disponible en la ciudad: se muestra en gris (al tocarlo sale el mensaje), no se esconde
+        const show = allowedTypes.includes(type) && !marketBlocked;
         setChipVisible(btn, show);
+        btn.classList.toggle('hr-svc-unavailable', !!(show && cityBlocked));
         if (type === 'moto' && show && maleMotoBlocked) {
             btn.disabled = true;
             btn.setAttribute('aria-disabled', 'true');
@@ -415,21 +481,12 @@ export function setPassengerHomeMode(mode) {
         return;
     }
 
-    // Admin: no entrar a modos sin servicios disponibles en la ciudad
+    // No entrar a modos sin servicios disponibles en la ciudad (cerrado o sin conductores en línea)
     const zoneId = getActiveCityId();
-    const zoneName = getZoneById(zoneId)?.name || '';
-    if (next === 'trip' && filterTypesByCity(['moto', 'auto', 'taxi']).length === 0) {
-        window.showToast?.(
-            `No hay viajes (moto / Taxi VIP / taxi) disponibles${zoneName ? ` en ${zoneName}` : ' en esta ciudad'}. El admin los desactivó.`,
-            'warning'
-        );
-        next = 'home';
-    } else if (next === 'freight' && isCityServiceCategoryDisabled('fletes', zoneId)) {
-        window.showToast?.(getCityServiceDisabledMessage('flete_paila', zoneName), 'warning');
-        next = 'home';
-    } else if (next === 'tow' && isCityServiceCategoryDisabled('grua', zoneId)) {
-        window.showToast?.(getCityServiceDisabledMessage('grua', zoneName), 'warning');
-        next = 'home';
+    if (HOME_CARD_TYPES[next] && homeCardUnavailable(next, zoneId)) {
+        showServiceUnavailableSheet(next, homeCardMessage(next, zoneId));
+        next = currentMode === next ? 'home' : (currentMode || 'home');
+        if (next === currentMode && next !== 'home') return;
     }
 
     currentMode = next;
@@ -488,9 +545,7 @@ export function syncPassengerHomeForRole() {
 
     // Si el modo guardado quedó deshabilitado por ciudad, volver a inicio
     const zoneId = getActiveCityId();
-    if (saved === 'trip' && filterTypesByCity(['moto', 'auto', 'taxi']).length === 0) saved = 'home';
-    if (saved === 'freight' && isCityServiceCategoryDisabled('fletes', zoneId)) saved = 'home';
-    if (saved === 'tow' && isCityServiceCategoryDisabled('grua', zoneId)) saved = 'home';
+    if (HOME_CARD_TYPES[saved] && homeCardUnavailable(saved, zoneId)) saved = 'home';
 
     currentMode = saved;
     applyMode(saved);

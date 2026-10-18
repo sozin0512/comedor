@@ -53,6 +53,13 @@ const deliveryZones = require('./delivery-zones')({
     db, FieldValue, HttpsError, onCall, onDocumentCreated, onDocumentUpdated, APP_ID,
     assertCallerCanModerate: (...a) => assertCallerCanModerate(...a)
 });
+/** Viajes › Disponibilidad: modo por servicio y ciudad + bloqueo en WhatsApp (ver service-availability.js). */
+const serviceAvailability = require('./service-availability')({
+    db, FieldValue, HttpsError, onCall, APP_ID,
+    assertCallerCanModerate: (...a) => assertCallerCanModerate(...a)
+});
+/** Pedido de tienda sigue al viaje: En camino al aceptar, Entregado al completar (ver store-order-sync.js). */
+const storeOrderSync = require('./store-order-sync')({ db, FieldValue, onDocumentUpdated });
 const TRIP_OFFER_TIMEOUT_MS = 120 * 1000;
 /** Primer tramo: solo el conductor más cercano. Luego se abre a toda la ciudad. */
 const TRIP_OFFER_EXCLUSIVE_MS = 18 * 1000;
@@ -1550,9 +1557,26 @@ function resolveTripZoneMeta(trip) {
     };
 }
 
-function driverCanServeTrip(driverVehicleType, tripServiceType) {
+/** Pedido de tienda virtual: lo entregan moto o Taxi VIP (igual que la app, js/service-types.js). */
+function isStoreDeliveryTrip(t) {
+    if (!t || typeof t !== 'object') return false;
+    return !!(t.storeOrderId || t.storeDelivery === true || t.createdByMerchant === true || t.deliveryDetails?.storeOrderId);
+}
+
+/** Tipos de vehículo que pueden tomar el viaje (pedido de tienda = moto + Taxi VIP). */
+function requiredVehicleTypesForTrip(t) {
+    const svc = String(t?.serviceType || 'auto').toLowerCase();
+    if (svc === 'delivery' && isStoreDeliveryTrip(t)) return ['moto', 'auto'];
+    const one = requiredVehicleTypeForTrip(svc);
+    return one ? [one] : [];
+}
+
+function driverCanServeTrip(driverVehicleType, tripServiceType, tripDoc = null) {
     const driverRaw = (driverVehicleType || 'auto').toLowerCase();
     const trip = tripServiceType || 'auto';
+    if (trip === 'delivery' && isStoreDeliveryTrip(tripDoc)) {
+        return driverRaw === 'moto' || driverRaw === 'auto' || driverRaw === 'vip' || driverRaw === 'taxi_vip';
+    }
     const isVipTrip = (trip === 'auto' || trip === 'vip' || trip === 'taxi_vip');
     const isVipDriver = (driverRaw === 'auto' || driverRaw === 'vip' || driverRaw === 'taxi_vip');
     if (trip === 'taxi') return driverRaw === 'taxi';
@@ -1572,9 +1596,12 @@ function requiredVehicleTypeForTrip(tripServiceType) {
 }
 
 /** Activo + vehículos registrados (paila/camión de flete aunque hoy opere en auto). */
-function locOrProfileCanServeTrip(loc, userData, tripServiceType) {
+function locOrProfileCanServeTrip(loc, userData, tripServiceType, tripDoc = null) {
     const trip = tripServiceType || 'auto';
-    if (driverCanServeTrip(loc?.vehicleType || userData?.vehicleType, trip)) return true;
+    if (driverCanServeTrip(loc?.vehicleType || userData?.vehicleType, trip, tripDoc)) return true;
+    if (tripDoc && isStoreDeliveryTrip(tripDoc) && trip === 'delivery') {
+        return requiredVehicleTypesForTrip(tripDoc).some((t) => locOrProfileCanServeTrip(loc, userData, t === 'auto' ? 'auto' : 'moto'));
+    }
     const required = requiredVehicleTypeForTrip(trip);
     if (!required) return false;
     const locTypes = [
@@ -2048,6 +2075,7 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
 
     const requiredType = requiredRideVehicleType(serviceType);
     if (!requiredType) return;
+    const requiredTypes = isStoreDeliveryTrip(trip) ? requiredVehicleTypesForTrip(trip) : [requiredType];
 
     // Varios onUpdate del mismo viaje llegaban casi juntos y cada uno mandaba
     // ride_demand_alert (3 avisos por conductor en segundos). Se reclama el envío
@@ -2095,7 +2123,7 @@ async function notifyOfflineRideDriversWhenNoCoverage(appId, tripId, trip) {
 
         const u = userDoc.data() || {};
         if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
-        if (!driverHasApprovedVehicleType(u, requiredType)) continue;
+        if (!requiredTypes.some((rt) => driverHasApprovedVehicleType(u, rt))) continue;
 
         // Misma ciudad o cercana del mismo departamento (sin filtrar por GPS viejo)
         if (!driverNewTripAlertTier(u, loc, trip)) continue;
@@ -2359,7 +2387,7 @@ async function collectDriversForTripOffer(appId, trip, tripDocs, {
         }
 
         const userData = userById.get(driverId) || {};
-        if (!locOrProfileCanServeTrip(loc, userData, trip.serviceType || 'auto')) continue;
+        if (!locOrProfileCanServeTrip(loc, userData, trip.serviceType || 'auto', trip)) continue;
         if (!driverLocCanServeTripZone(loc, tripZone, dist, { allowSpill, maxDistKm: limitKm })) {
             continue;
         }
@@ -3066,6 +3094,7 @@ async function notifyDriversTripPriceBoost(appId, tripId, after, before) {
         const serviceType = after.serviceType || 'auto';
         if (isRideService(serviceType)) {
             const requiredType = requiredRideVehicleType(serviceType);
+            const requiredTypes = isStoreDeliveryTrip(after) ? requiredVehicleTypesForTrip(after) : [requiredType];
             const tripZone = resolveTripZoneId(after);
             const radius = after.searchRadiusKm || 25;
             const [driversLocSnap, usersSnap] = await Promise.all([
@@ -3078,7 +3107,7 @@ async function notifyDriversTripPriceBoost(appId, tripId, after, before) {
                 const uid = userDoc.id;
                 const u = userDoc.data() || {};
                 if (u.approvalStatus && u.approvalStatus !== 'approved') continue;
-                if (requiredType && !driverHasApprovedVehicleType(u, requiredType)) continue;
+                if (requiredType && !requiredTypes.some((rt) => driverHasApprovedVehicleType(u, rt))) continue;
                 const loc = locByDriver.get(uid);
                 if (tripZone && !driverIsInTripCity(u, loc, after)) continue;
                 if (loc && isDriverOnline(loc)) {
@@ -3289,6 +3318,8 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
     const requiredType = freight
         ? requiredFreightVehicleType(serviceType)
         : requiredRideVehicleType(serviceType);
+    // Pedido de tienda: avisar a motos y a Taxi VIP (antes solo motos).
+    const requiredTypes = isStoreDeliveryTrip(trip) ? requiredVehicleTypesForTrip(trip) : [requiredType];
 
     const tripZone = resolveTripZoneId(trip);
     const tripDept = getDepartmentForZone(tripZone);
@@ -3301,12 +3332,16 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
 
     const price = trip.price || 'Nuevo';
     const originShort = (trip.origin || '').slice(0, 42);
-    const svcLabel = staffTripNotificationLabel(serviceType);
+    const storeTrip = isStoreDeliveryTrip(trip);
+    const svcLabel = storeTrip ? '🛍️ Pedido de tienda' : staffTripNotificationLabel(serviceType);
     const titleCity = `🆕 ${svcLabel} en tu ciudad`;
     const titleNearby = freight
         ? `🆕 ${svcLabel} en tu zona`
         : `🆕 ${svcLabel} cerca, en tu departamento`;
-    const body = `${price} · ${originShort || 'Ubicación'} — ¡Entrá a aceptar!`;
+    const zoneTag = storeTrip && trip.deliveryZoneName ? ` · ${String(trip.deliveryZoneName).slice(0, 30)}` : '';
+    const body = storeTrip
+        ? `${price}${zoneTag} · ${String(trip.deliveryDetails?.restaurant || trip.originPlaceName || originShort || 'Tienda').slice(0, 40)} → ${String(trip.destination || '').slice(0, 40)} — ¡Entrá a aceptar!`
+        : `${price} · ${originShort || 'Ubicación'} — ¡Entrá a aceptar!`;
 
     // Igual que staff: leer todos los perfiles públicos. El where role==driver
     // se saltaba choferes con rol público 'client' (el mismo bug de Pasar).
@@ -3356,7 +3391,7 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
         }
 
         if (closedAppOnly && isDriverOnline(loc)) continue;
-        if (requiredType && !driverCanReceiveTripAlert(u, loc, requiredType)) {
+        if (requiredType && !requiredTypes.some((rt) => driverCanReceiveTripAlert(u, loc, rt))) {
             skipVehicle += 1;
             continue;
         }
@@ -4110,7 +4145,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 : '';
             const offerTitle = minsUntilPickup > 0
                 ? '📅 Viaje programado'
-                : (isFreight ? '🚛 ¡Flete disponible!' : tripOfferPushTitle(after.serviceType));
+                : (isFreight ? '🚛 ¡Flete disponible!' : (isStoreDeliveryTrip(after) ? '🛍️ Pedido de tienda' : tripOfferPushTitle(after.serviceType)));
             const offerBody = `${bodyCore}${bodyExtra ? ` · ${bodyExtra}` : ''}${scheduledHint}${busyHint}`;
             const offerData = {
                 type: 'trip_offer',
@@ -4605,7 +4640,8 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
         const before = event.data.before.data() || {};
         const after = event.data.after.data() || {};
         const { appId, orderId } = event.params;
-        if (!after || before.status === after.status) return;
+        const tripCancelledNow = after.deliveryStage === 'trip_cancelled' && before.deliveryStage !== 'trip_cancelled';
+        if (!after || (before.status === after.status && !tripCancelledNow)) return;
 
         const status = String(after.status || '');
         const storeName = after.storeName ? String(after.storeName).slice(0, 40) : 'Tienda';
@@ -4621,8 +4657,13 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
         const labels = {
             accepted: { title: '✅ Pedido aceptado', body: `${storeName} aceptó tu pedido y lo está preparando.` },
             preparing: { title: '👨‍🍳 Preparando tu pedido', body: `${storeName} está preparando tu pedido.` },
-            ready: { title: '📦 Pedido listo', body: `${storeName}: tu pedido está listo. Pronto sale la entrega.` },
-            out_for_delivery: { title: '🛵 Pedido en camino', body: `${storeName}: un conductor va con tu pedido.` },
+            ready: { title: '📦 Pedido listo', body: `${storeName}: tu pedido está listo. Buscando conductor…` },
+            out_for_delivery: {
+                title: '🛵 Pedido en camino',
+                body: after.driverName
+                    ? `${String(after.driverName).split(/\s+/)[0].slice(0, 24)} aceptó y va con tu pedido de ${storeName}.`
+                    : `${storeName}: un conductor aceptó y va con tu pedido.`
+            },
             delivered: { title: '🎉 Pedido entregado', body: `${storeName}: ¡pedido entregado! Gracias por usar HonduRaite.` },
             cancelled: {
                 title: '❌ Pedido cancelado',
@@ -4631,6 +4672,21 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
                     : `${storeName}: el pedido fue cancelado.`
             }
         };
+        // El viaje de entrega se canceló del todo: avisar a la tienda para que pida otro conductor.
+        if (status === 'ready' && tripCancelledNow) {
+            if (after.ownerId) {
+                await sendPushToUser(appId, after.ownerId, {
+                    title: '⚠️ Entrega sin conductor',
+                    body: `El viaje del pedido de ${after.clientName || 'tu cliente'} se canceló. Abre el pedido y pide otro conductor.`,
+                    data: { type: 'store_order_update', toneEvent: 'store_order_update', orderId, storeId: after.storeId || '', status, tag: `store-order-trip-${orderId}`, openMerchant: 'true' },
+                    highPriority: true
+                }).catch(() => {});
+            }
+            return;
+        }
+        // Un conductor canceló y el viaje se reofrece: el cliente ya sabe que está listo, no repetir aviso.
+        if (status === 'ready' && after.deliveryStage === 'driver_requeued') return;
+
         const copy = labels[status];
         if (!copy) return;
 
@@ -6317,6 +6373,8 @@ const whatsappCloud = require('./whatsapp-cloud');
 Object.assign(exports, viajesPanel.exports);
 Object.assign(exports, driverPushStatus.exports);
 Object.assign(exports, deliveryZones.exports);
+Object.assign(exports, serviceAvailability.exports);
+Object.assign(exports, storeOrderSync.exports);
 Object.assign(exports, roles.exports);
 
 exports.whatsappWebhook = whatsappCloud.whatsappWebhook;
