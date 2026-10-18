@@ -33,6 +33,7 @@ await env.withSecurityRulesDisabled(async (c) => {
   await setDoc(doc(d, `${P}/trip_purge_log/x1`), { n: 1 });
   await setDoc(doc(d, `${P}/appSettings/main`), { a: 1 });
   await setDoc(doc(d, `${P}/auth_phone_index/50411112222`), { uid: 'drv', email: 'drv@x.com' });
+  await setDoc(doc(d, `${P}/platformConfig/main`), { commissionPercentage: 10 });
 });
 const db = (uid) => env.authenticatedContext(uid).firestore();
 const results = [];
@@ -89,6 +90,11 @@ await t('pasajero crea el índice de su teléfono', assertSucceeds(setDoc(doc(db
 await t('pasajero NO pisa el teléfono de otro', assertFails(setDoc(doc(db('pax'), `${P}/auth_phone_index/50411112222`), { uid: 'pax', email: 'p@x.com' }, { merge: true })));
 await t('pasajero NO crea índice a nombre de otro', assertFails(setDoc(doc(db('pax'), `${P}/auth_phone_index/50455556666`), { uid: 'drv', email: 'evil@x.com' })));
 await t('staff rellena el índice de otro', assertSucceeds(setDoc(doc(db('sup'), `${P}/auth_phone_index/50477778888`), { uid: 'drv', email: 'drv@x.com' }, { merge: true })));
+// Comisión
+await t('conductor lee la comisión', assertSucceeds(getDoc(doc(db('drv'), `${P}/platformConfig/main`))));
+await t('supervisor NO cambia la comisión', assertFails(setDoc(doc(db('sup'), `${P}/platformConfig/main`), { commissionPercentage: 1 }, { merge: true })));
+await t('conductor NO cambia la comisión', assertFails(setDoc(doc(db('drv'), `${P}/platformConfig/main`), { commissionPercentage: 0 }, { merge: true })));
+await t('admin cambia la comisión', assertSucceeds(setDoc(doc(env.authenticatedContext('adm', { email: 'josuesoza0513@gmail.com' }).firestore(), `${P}/platformConfig/main`), { commissionPercentage: 10 }, { merge: true })));
 // El catch-all sigue sirviendo para lo demás
 await t('pasajero lee appSettings (catch-all)', assertSucceeds(getDoc(doc(db('pax'), `${P}/appSettings/main`))));
 

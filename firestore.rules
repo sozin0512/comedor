@@ -118,7 +118,7 @@ service cloud.firestore {
         'support_tickets', 'verification_alerts', 'driver_payout_records', 'driver_payout_bank_events', 'driver_deposits',
         'balance_adjustments', 'permission_logs', 'notification_campaigns', 'wa_invite_contacted', 'trip_purge_log',
         'whatsapp_cloud_inbox', 'whatsapp_cloud_outbox', 'whatsapp_cloud_statuses', 'whatsapp_cloud_events',
-        'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions', 'auth_phone_index'];
+        'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions', 'auth_phone_index', 'platformConfig'];
     }
 
     // Pedidos de tiendas: campos de la tarifa de envío por zona (solo servidor).
@@ -804,6 +804,13 @@ service cloud.firestore {
       allow read: if isSignedIn() && isStaff(app)
         && collection in ['trip_purge_log', 'whatsapp_cloud_inbox', 'whatsapp_cloud_outbox', 'whatsapp_cloud_statuses',
           'whatsapp_cloud_events', 'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions'];
+    }
+
+    // Comisión y ajustes del panel Viajes: los lee la app; solo el admin los cambia
+    // (antes cualquier supervisor podía cambiar el % por el catch-all). El panel guarda vía callable.
+    match /artifacts/{app}/public/data/platformConfig/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin(app);
     }
 
     // Índice teléfono → correo para «Entrar con teléfono». El ID es el teléfono (no el uid), así que el
