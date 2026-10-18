@@ -18,6 +18,8 @@
 'use strict';
 
 const MAX_FEE = 2000;
+/** «L. 1,234.00», igual que js/money-format.js y js/delivery-zones-shared.js. */
+const lmoney = (n) => 'L. ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MAX_POINTS = 80;
 const OUTSIDE = new Set(['distance', 'block']);
 const ZONE_SOURCES = new Set(['zone_base', 'store_custom']);
@@ -73,9 +75,9 @@ function validateZoneInput(raw = {}) {
     const cityId = String(raw.cityId || '').trim();
     if (!/^[a-z0-9-]{2,60}$/.test(cityId)) return { ok: false, error: 'Falta la ciudad.' };
     const baseFee = feeOrNull(raw.baseFee);
-    if (baseFee === null || Number.isNaN(baseFee)) return { ok: false, error: `La tarifa base debe ser entre L 0 y L ${MAX_FEE}.` };
+    if (baseFee === null || Number.isNaN(baseFee)) return { ok: false, error: `La tarifa base debe ser entre ${lmoney(0)} y ${lmoney(MAX_FEE)}.` };
     const minFee = feeOrNull(raw.minFee); const maxFee = feeOrNull(raw.maxFee);
-    if (Number.isNaN(minFee) || Number.isNaN(maxFee)) return { ok: false, error: `Mínimo y máximo deben ser entre L 0 y L ${MAX_FEE}.` };
+    if (Number.isNaN(minFee) || Number.isNaN(maxFee)) return { ok: false, error: `Mínimo y máximo deben ser entre ${lmoney(0)} y ${lmoney(MAX_FEE)}.` };
     if (minFee != null && minFee > baseFee) return { ok: false, error: 'El mínimo no puede ser mayor que la tarifa base.' };
     if (maxFee != null && maxFee < baseFee) return { ok: false, error: 'El máximo no puede ser menor que la tarifa base.' };
     const polygon = cleanPolygon(raw.polygon);
@@ -106,11 +108,11 @@ function validateStoreFee(zone, mode, fee) {
     if (mode === 'base') return null;
     if (mode !== 'custom') return 'Elige «Usar tarifa base» o «Mi tarifa».';
     const n = feeOrNull(fee);
-    if (n === null || Number.isNaN(n)) return `Escribe un monto entre L 0 y L ${MAX_FEE}.`;
+    if (n === null || Number.isNaN(n)) return `Escribe un monto entre ${lmoney(0)} y ${lmoney(MAX_FEE)}.`;
     const lo = zone?.minFee; const hi = zone?.maxFee;
-    if (lo != null && hi != null && (n < lo || n > hi)) return `Debe estar entre L ${lo} y L ${hi}.`;
-    if (lo != null && n < lo) return `No puede ser menos de L ${lo}.`;
-    if (hi != null && n > hi) return `No puede ser más de L ${hi}.`;
+    if (lo != null && hi != null && (n < lo || n > hi)) return `Debe estar entre ${lmoney(lo)} y ${lmoney(hi)}.`;
+    if (lo != null && n < lo) return `No puede ser menos de ${lmoney(lo)}.`;
+    if (hi != null && n > hi) return `No puede ser más de ${lmoney(hi)}.`;
     return null;
 }
 /** Tarifa final de una tienda en una zona. Una tarifa propia fuera del rango cae a la base. */

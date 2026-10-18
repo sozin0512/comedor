@@ -72,7 +72,7 @@ const createdMs = (t) => tsMs(t.createdAt) || Number(t.createdAtMs) || 0;
 const n2 = (n) => (Math.round((Number(n) || 0) * 100) / 100);
 function fmtL(n, dec = 2) {
     const v = Number(n) || 0;
-    return `L ${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
+    return `L. ${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
 }
 function fmtL0(n) {
     const v = Number(n) || 0;

@@ -47,27 +47,27 @@ ok('zonas: sin zonas → botón de propuesta', h.includes('data-tz="seed"'));
 OZ.__test.S.history = [{ atMs: Date.parse('2026-10-17T09:05:00-06:00'), byName: 'Admin Ejemplo', byRole: 'admin', zoneName: 'Céntrica', cityId: 'comayagua', action: 'update', changes: [{ field: 'baseFee', before: 35, after: 40 }] },
   { atMs: 1, byName: 'Tere', byRole: 'owner', storeName: 'Baleadas', cityId: 'comayagua', action: 'update', changes: [{ field: 'fee:Fuera', before: 'base', after: 115 }] }];
 h = OZ.viewHtml(OZ.__test.S);
-ok('historial: quién, antes → después', h.includes('Admin Ejemplo') && h.includes('L 35') && h.includes('L 40') && h.includes('Tarifa base'));
-ok('historial: cambio de tienda legible', h.includes('Tarifa · Fuera') && h.includes('tarifa base') && h.includes('L 115'));
+ok('historial: quién, antes → después', h.includes('Admin Ejemplo') && h.includes('L. 35.00') && h.includes('L. 40.00') && h.includes('Tarifa base'));
+ok('historial: cambio de tienda legible', h.includes('Tarifa · Fuera') && h.includes('tarifa base') && h.includes('L. 115.00'));
 
 // ── pestaña Envíos ──
 Object.assign(SZ.__test.T, { store: { id: 's', name: 'T', cityName: 'Comayagua' }, zones: [{ id: 'f', name: 'Fuera', baseFee: 110, minFee: 100, maxFee: 120 }], saved: { f: { mode: 'base', fee: null } }, draft: { f: { mode: 'custom', fee: 95 } }, loading: false, error: '' });
 h = SZ.merchantZonesHtml(SZ.__test.T);
-ok('tienda: error de rango y «queda la base»', h.includes('Debe estar entre L 100 y L 120') && h.includes('queda la base'));
+ok('tienda: error de rango y «queda la base»', h.includes('Debe estar entre L. 100.00 y L. 120.00') && h.includes('queda la base'));
 ok('tienda: no deja guardar con error', /data-sz="save" disabled/.test(h));
 SZ.__test.T.draft = { f: { mode: 'custom', fee: 115 } }; h = SZ.merchantZonesHtml(SZ.__test.T);
-ok('tienda: válido se puede guardar', /data-sz="save" >/.test(h) && h.includes('L 115'));
+ok('tienda: válido se puede guardar', /data-sz="save" >/.test(h) && h.includes('L. 115.00'));
 SZ.__test.T.zones = []; ok('tienda: sin zonas activas → como siempre', SZ.merchantZonesHtml(SZ.__test.T).includes('por distancia'));
 
 // ── confirmar pedido ──
 const Q = (q) => SZ.checkoutFeeHtml({ status: 'ok', quote: q });
-ok('pedido: «Envío a <zona>: L X»', Q({ inZone: true, zoneName: 'Comayagua céntrica', fee: 40, source: 'zone_base' }).includes('Envío a Comayagua céntrica: L 40'));
+ok('pedido: «Envío a <zona>: L X»', Q({ inZone: true, zoneName: 'Comayagua céntrica', fee: 40, source: 'zone_base' }).includes('Envío a Comayagua céntrica: L. 40.00'));
 ok('pedido: fuera → por distancia', Q({ inZone: false, reason: 'outside', blocked: false }).includes('se calcula por distancia'));
 ok('pedido: bloqueado', Q({ inZone: false, reason: 'outside', blocked: true }).includes('no llegamos'));
 ok('pedido: sin ubicación → botón GPS', Q({ inZone: false, reason: 'no_location' }).includes('data-sz-checkout="gps"'));
 ok('viaje: tarifa de zona manda', SZ.deliveryTripPrice({ deliveryFee: 40, deliveryFeeSource: 'zone_base' }, 61.5).priceNum === 40);
 ok('viaje: sin zona → distancia', SZ.deliveryTripPrice({ deliveryFee: null, deliveryFeeSource: 'distance' }, 61.5).priceNum === 61.5);
-ok('tarjeta del pedido: línea de envío', SZ.orderFeeLineHtml({ deliveryFee: 110, deliveryFeeSource: 'store_custom', deliveryZoneName: 'Fuera' }).includes('Envío a Fuera: L 110'));
+ok('tarjeta del pedido: línea de envío', SZ.orderFeeLineHtml({ deliveryFee: 110, deliveryFeeSource: 'store_custom', deliveryZoneName: 'Fuera' }).includes('Envío a Fuera: L. 110.00'));
 
 // ── panel Pedidos ──
 const now = Date.parse('2026-10-17T10:15:00-06:00'); const m = (x) => now - x * 60e3;

@@ -106,9 +106,9 @@ ok('pagado con puntos: solo el envío', paid.cashToCollect === 110 && paid.produ
 const badges = U.storeOfferBadgesHtml(storeTrip);
 ok('insignia «Pedido de tienda» + zona', badges.includes('Pedido de tienda') && badges.includes('Comayagua céntrica'));
 const collect = U.storeCollectHtml(storeTrip, 40);
-ok('caja de cobro con total L 225', collect.includes('Total a cobrar') && collect.includes('L 225') && collect.includes('Le pasas L 185'));
+ok('caja de cobro con total L. 225.00', collect.includes('Total a cobrar') && collect.includes('L. 225.00') && collect.includes('Le pasas L. 185.00'));
 const panel = U.storeAcceptedPanelHtml(storeTrip, 40);
-ok('aceptado: productos, teléfono, WhatsApp y total', panel.includes('3× Baleada') && panel.includes('L 105') && panel.includes('tel:98765432') && panel.includes('wa.me/50498765432') && panel.includes('Total de la tienda') && panel.includes('Portón negro'));
+ok('aceptado: productos, teléfono, WhatsApp y total', panel.includes('3× Baleada') && panel.includes('L. 105.00') && panel.includes('tel:98765432') && panel.includes('wa.me/50498765432') && panel.includes('Total de la tienda') && panel.includes('Portón negro'));
 ok('escapa HTML del nombre de la tienda', panel.includes('Baleadas &lt;Tere&gt;') && !panel.includes('<Tere>'));
 const old = U.storeOrderSummary({ serviceType: 'delivery', storeDelivery: true, priceNum: 40, deliveryDetails: { packageDescription: 'Pedido tienda: 2× Pollo chuco, 1× Coca', itemsTotal: 300 } });
 ok('viaje viejo sin items: lee la descripción', old.items.length === 2 && old.items[0].qty === 2 && old.items[0].name === 'Pollo chuco');

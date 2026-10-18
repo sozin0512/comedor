@@ -13,8 +13,9 @@ function num(v) {
     return Number.isFinite(n) ? n : 0;
 }
 function money(n) {
+    // Mismo formato que el resto de la app (js/money-format.js): «L. 1,234.00».
     const v = Math.round(num(n) * 100) / 100;
-    return `L ${Number.isInteger(v) ? v : v.toFixed(2)}`;
+    return `L. ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function digits(p) { return String(p || '').replace(/\D/g, ''); }
 

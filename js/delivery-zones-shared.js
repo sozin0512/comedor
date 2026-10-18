@@ -12,10 +12,11 @@ export function zoneColor(z, i = 0) {
     return ZONE_COLORS[Math.abs(k) % ZONE_COLORS.length];
 }
 
-export function money(n, d = 0) {
+// Mismo formato que el resto de la app (js/money-format.js): «L. 1,234.00».
+export function money(n, d = 2) {
     const v = Number(n);
-    if (!Number.isFinite(v)) return 'L —';
-    return 'L ' + v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+    if (!Number.isFinite(v)) return 'L. —';
+    return 'L. ' + v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
 export function esc(s) {
@@ -59,7 +60,7 @@ export function findZoneForPoint(zones, lat, lng, cityId = null) {
 export function rangeLabel(z) {
     const mn = z?.minFee, mx = z?.maxFee;
     if (mn == null && mx == null) return 'sin límite';
-    if (mn != null && mx != null) return `permitido ${money(mn)}–${money(mx).replace('L ', '')}`;
+    if (mn != null && mx != null) return `permitido ${money(mn)}–${money(mx).replace('L. ', '')}`;
     return mn != null ? `mínimo ${money(mn)}` : `máximo ${money(mx)}`;
 }
 
@@ -67,11 +68,11 @@ export function rangeLabel(z) {
 export function validateStoreFee(zone, mode, fee) {
     if (mode !== 'custom') return null;
     const n = Number(fee);
-    if (fee === '' || fee == null || !Number.isFinite(n) || n < 0 || n > MAX_FEE) return `Escribe un monto entre L 0 y L ${MAX_FEE}.`;
+    if (fee === '' || fee == null || !Number.isFinite(n) || n < 0 || n > MAX_FEE) return `Escribe un monto entre ${money(0)} y ${money(MAX_FEE)}.`;
     const mn = zone?.minFee, mx = zone?.maxFee;
-    if (mn != null && mx != null && (n < mn || n > mx)) return `Debe estar entre L ${mn} y L ${mx}.`;
-    if (mn != null && n < mn) return `No puede ser menos de L ${mn}.`;
-    if (mx != null && n > mx) return `No puede ser más de L ${mx}.`;
+    if (mn != null && mx != null && (n < mn || n > mx)) return `Debe estar entre ${money(mn)} y ${money(mx)}.`;
+    if (mn != null && n < mn) return `No puede ser menos de ${money(mn)}.`;
+    if (mx != null && n > mx) return `No puede ser más de ${money(mx)}.`;
     return null;
 }
 
@@ -90,7 +91,7 @@ export function validateZoneForm(f) {
     if (name.length < 2 || name.length > 60) e.name = 'Nombre de 2 a 60 letras.';
     if (!/^[a-z0-9-]{2,40}$/.test(String(f?.cityId || ''))) e.cityId = 'Elige la ciudad.';
     const base = numOrNull(f?.baseFee), mn = numOrNull(f?.minFee), mx = numOrNull(f?.maxFee);
-    if (base == null || Number.isNaN(base) || base < 0 || base > MAX_FEE) e.baseFee = `Tarifa entre L 0 y L ${MAX_FEE}.`;
+    if (base == null || Number.isNaN(base) || base < 0 || base > MAX_FEE) e.baseFee = `Tarifa entre ${money(0)} y ${money(MAX_FEE)}.`;
     if (Number.isNaN(mn) || (mn != null && (mn < 0 || mn > MAX_FEE))) e.minFee = 'Mínimo inválido.';
     if (Number.isNaN(mx) || (mx != null && (mx < 0 || mx > MAX_FEE))) e.maxFee = 'Máximo inválido.';
     if (!e.baseFee && !e.minFee && mn != null && mn > base) e.minFee = 'El mínimo no puede ser mayor que la tarifa base.';

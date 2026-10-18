@@ -208,7 +208,7 @@ function esc(s) {
 
 function money(n) {
     const v = Math.round((Number(n) || 0) * 100) / 100;
-    return `L. ${v.toFixed(2)}`;
+    return `L. ${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function roundMoney(n) {
