@@ -75,14 +75,15 @@ function tsMs(v) {
 }
 const createdMs = (t) => tsMs(t.createdAt) || Number(t.createdAtMs) || 0;
 const n2 = (n) => (Math.round((Number(n) || 0) * 100) / 100);
-function fmtL(n, dec = 2) {
+// Formato único de la app (js/money-format.js → window.formatLempiras): «L. 1,234.00».
+// Este archivo se prueba suelto en Node (sin window), por eso el respaldo con el mismo formato.
+function fmtL(n) {
     const v = Number(n) || 0;
-    return `L. ${v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec })}`;
+    if (typeof window !== 'undefined' && typeof window.formatLempiras === 'function') return window.formatLempiras(v);
+    return `${v < 0 ? '-' : ''}L. ${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
-function fmtL0(n) {
-    const v = Number(n) || 0;
-    return Math.abs(v - Math.round(v)) < 0.005 ? fmtL(v, 0) : fmtL(v, 2);
-}
+// Antes mostraba «L. 83» (sin decimales); ahora igual que el resto: «L. 83.00».
+const fmtL0 = fmtL;
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 function fmtTime(ms, withSec = false) {
     if (!ms) return '—';
@@ -421,7 +422,7 @@ function computeOwing() {
             if (!free) saldo[t.driverId] = (saldo[t.driverId] || 0) + c.amount;
             return;
         }
-        const r = cash[t.driverId] || (cash[t.driverId] = { due: 0, oldest: at, name: t.driverName || '' });
+        const r = cash[t.driverId] || (cash[t.driverId] = { due: 0, oldest: at, name: cleanName(t.driverName) || '' });
         r.due += c.amount;
         r.oldest = Math.min(r.oldest, at);
     });
@@ -562,12 +563,33 @@ function reviewQueue() {
         .filter((t) => !t.staffReviewedAtMs && reviewKinds(t).length)
         .sort((a, b) => createdMs(b) - createdMs(a));
 }
+// Mismos filtros que js/display-name.js (nombres invisibles «ᅟ» y de relleno «HonduRaite», «Pasajero de prueba», «test»).
+// Copia local porque este archivo se prueba suelto en Node; en la app usa window.displayPersonName.
+const NAME_INVISIBLE = /[\u115F\u1160\u3164\uFFA0\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\u00AD\u034F\u180E]/g;
+const NAME_PLACEHOLDER = /^(honduraite|pasajero de prueba|conductor de prueba|test|prueba|usuario)$/i;
+function cleanName(name) {
+    if (typeof window !== 'undefined' && typeof window.displayPersonName === 'function') return window.displayPersonName(name, '');
+    const c = String(name ?? '').replace(NAME_INVISIBLE, '').replace(/\s+/g, ' ').trim();
+    return !c || NAME_PLACEHOLDER.test(c) ? '' : c;
+}
 function personName(uid, fallback) {
     const u = uid ? ST.users.get(uid) : null;
-    return u?.name || u?.displayName || fallback || '—';
+    return cleanName(u?.name) || cleanName(u?.displayName) || fallback || '—';
 }
-const clientName = (t) => t.clientName || personName(t.clientId, 'Pasajero');
-const driverName = (t) => t.driverName || personName(t.driverId, '');
+/** Nombre para el staff: el del viaje si es real, si no el del perfil; si no, «Pasajero #ABC123» (o «Cuenta de prueba»). */
+function tripPersonName(t, role) {
+    const uid = role === 'client' ? t.clientId : t.driverId;
+    const raw = role === 'client' ? t.clientName : t.driverName;
+    const named = cleanName(raw) || personName(uid, '');
+    if (named && named !== '—') return named;
+    if (!uid) return role === 'client' ? 'Pasajero' : '';
+    const ti = testInfo(uid);
+    if (ti && ti.kind === 'test') return 'Cuenta de prueba';
+    if (ti && ti.kind === 'company') return 'Cuenta empresa';
+    return `${role === 'client' ? 'Pasajero' : 'Conductor'} ${shortId(uid)}`;
+}
+const clientName = (t) => tripPersonName(t, 'client');
+const driverName = (t) => tripPersonName(t, 'driver');
 function statusTag(t) {
     if (t.trashedAtMs) return '<span class="vj-tag dark">En papelera</span>';
     if (t.status === 'completed') return '<span class="vj-tag ok">Completado</span>';
