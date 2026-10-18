@@ -14,6 +14,7 @@ import {
 import { APP_CONFIG } from './config.js';
 import { isPassengerVerified } from './passenger-verification.js';
 
+import { formatLempiras } from './money-format.js';
 let dbRef = null;
 let appIdRef = null;
 let getCurrentUser = () => null;
@@ -290,8 +291,13 @@ function parseRewardAmountLps(value, fallback = 0) {
 }
 
 function formatLps(n) {
-    const v = Number(n) || 0;
-    return `L. ${v.toLocaleString('es-HN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+    // Formato único de la app (js/money-format.js): «L. 1,234.00». Antes daba «L. 83» / «L. 174.2».
+    return formatLempiras(Number(n) || 0);
+}
+
+/** Texto libre del premio («L. 1500 — Campeón») con los montos en el formato único («L. 1,500.00 — Campeón»). */
+function rewardText(text) {
+    return String(text ?? '').replace(/L\.\s?(\d[\d,]*(?:\.\d+)?)/g, (_, num) => formatLps(parseFloat(num.replace(/,/g, ''))));
 }
 
 function getDefaultCommissionPercent() {
@@ -1081,7 +1087,7 @@ function renderTierPills(tiers, progress, entry) {
         else if (claimed) cls += ' pcopa-tier-pill--claimed';
         else if (reached) cls += ' pcopa-tier-pill--ready';
         else cls += ' pcopa-tier-pill--locked';
-        return `<span class="${cls}" title="${escHtml(t.reward)}">${escHtml(t.label)} ${t.targetTrips}</span>`;
+        return `<span class="${cls}" title="${escHtml(rewardText(t.reward))}">${escHtml(t.label)} ${t.targetTrips}</span>`;
     }).join('');
 }
 
@@ -1260,7 +1266,7 @@ function renderActiveCopaWidget(ch, entry) {
                 claimHtml = `
                     <button type="button" class="copa-claim-btn" data-no-drag
                         onclick="window.claimPassengerCopaTier('${ch.id}', '${t.id}')">
-                        <i class="fas fa-gift"></i> Reclamar ${escHtml(t.label)} — ${escHtml(t.reward)}
+                        <i class="fas fa-gift"></i> Reclamar ${escHtml(t.label)} — ${escHtml(rewardText(t.reward))}
                     </button>
                 `;
             }
@@ -1462,7 +1468,7 @@ async function openPassengerCopaModal(challengeId, opts = {}) {
                             <div class="pcopa-tier-card ${ok ? 'pcopa-tier-card--ok' : ''}">
                                 <p class="pcopa-tier-card-label">${escHtml(t.label)}</p>
                                 <p class="pcopa-tier-card-target">${t.targetTrips} viajes</p>
-                                <p class="pcopa-tier-card-reward">${escHtml(t.reward)}</p>
+                                <p class="pcopa-tier-card-reward">${escHtml(rewardText(t.reward))}</p>
                                 <p class="pcopa-tier-card-st">${escHtml(st)}</p>
                             </div>
                         `;
@@ -1483,7 +1489,7 @@ async function openPassengerCopaModal(challengeId, opts = {}) {
                         <div class="pcopa-tier-card">
                             <p class="pcopa-tier-card-label">${escHtml(t.label)}</p>
                             <p class="pcopa-tier-card-target">${t.targetTrips} viajes</p>
-                            <p class="pcopa-tier-card-reward">${escHtml(t.reward)}</p>
+                            <p class="pcopa-tier-card-reward">${escHtml(rewardText(t.reward))}</p>
                         </div>
                     `).join('')}
                 </div>
@@ -1738,7 +1744,7 @@ function renderStaffChallengeCard(ch, entries = []) {
                 <div class="ops-objective-response-row">
                     <div class="min-w-0 flex-1">
                         <p class="ops-objective-response-name">${escHtml(e.passengerName || 'Pasajero')}</p>
-                        <p class="ops-objective-response-progress">Meta ${escHtml(tier?.label || tid)} · ${escHtml(tier?.reward || '')}</p>
+                        <p class="ops-objective-response-progress">Meta ${escHtml(tier?.label || tid)} · ${escHtml(rewardText(tier?.reward || ''))}</p>
                     </div>
                     ${U.badge('Por pagar', 'amber')}
                     ${U.btn('Marcar pagada', `window.markPassengerCopaRewardPaid('${ch.id}', '${e.passengerUid || e.id}', '${tid}')`, { variant: 'emerald', icon: 'fa-hand-holding-usd' })}
@@ -2089,8 +2095,8 @@ async function finalizeChallengePodium(challengeId, opts = {}) {
                 personal: true,
                 threadId: newRef.id,
                 message: reason === 'goal_reached'
-                    ? `🏁 ¡Se cumplió la meta en «${ch.title || 'la Copa'}»! Quedaste #${w.place}. Premio: ${w.reward}. Reclamalo en la app.`
-                    : `🥇 ¡Quedaste #${w.place} en «${ch.title || 'la Copa'}»! Premio: ${w.reward}. Reclamalo en la app.`,
+                    ? `🏁 ¡Se cumplió la meta en «${ch.title || 'la Copa'}»! Quedaste #${w.place}. Premio: ${rewardText(w.reward)}. Reclamalo en la app.`
+                    : `🥇 ¡Quedaste #${w.place} en «${ch.title || 'la Copa'}»! Premio: ${rewardText(w.reward)}. Reclamalo en la app.`,
                 sentBy: getCurrentUser()?.uid || 'system',
                 sentByName: getSenderName() || 'HonduRaite',
                 createdAt: serverTimestamp(),

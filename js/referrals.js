@@ -4,6 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { APP_CONFIG } from "./config.js";
 
+import { formatLempiras } from './money-format.js';
 const REWARDS = APP_CONFIG.referrals;
 
 const PENDING_KEY = "pendingReferralCode";
@@ -383,7 +384,7 @@ export async function creditReferralOnFirstTrip(db, appId, clientUid) {
                     Object.assign(window.userProfile, refUpdates);
                 }
                 window.showToast?.(
-                    `¡Tu referido completó su primer viaje! +L. ${referrerReward.toFixed(2)}`,
+                    `¡Tu referido completó su primer viaje! +${formatLempiras(referrerReward)}`,
                     "success"
                 );
                 window.refreshPassengerBalanceUI?.();
@@ -469,7 +470,7 @@ export function showReferralInviteModal(code) {
                     <h3 class="font-black text-xl mb-2">¡Fuiste invitado!</h3>
                     <p class="text-gray-600 mb-1">Código de referido detectado:</p>
                     <p class="font-black text-2xl text-emerald-600 tracking-widest mb-4">${code}</p>
-                    <p class="text-sm text-gray-500 mb-4">Recibes <strong>L. ${REWARDS.newUserAmount}</strong> al usar el código. Quien te invitó gana <strong>L. ${REWARDS.referrerAmount}</strong> cuando completes tu <strong>primer viaje</strong>.</p>
+                    <p class="text-sm text-gray-500 mb-4">Recibes <strong>${formatLempiras(REWARDS.newUserAmount)}</strong> al usar el código. Quien te invitó gana <strong>${formatLempiras(REWARDS.referrerAmount)}</strong> cuando completes tu <strong>primer viaje</strong>.</p>
                     <button onclick="this.closest('.fixed').remove()"
                             class="w-full bg-emerald-600 text-white font-black py-3 rounded-2xl text-sm">
                         ENTENDIDO

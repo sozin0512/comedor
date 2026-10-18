@@ -12,6 +12,7 @@ import {
     setServiceRateOverrides, getDefaultServiceRates,
 } from './service-types.js?v=2026.10.16.9';
 
+import { formatLempiras } from './money-format.js';
 const HN_TZ = 'America/Tegucigalpa';
 
 /** Defaults de fábrica (Comayagua). El admin puede cambiarlos y se guardan en Firestore. */
@@ -601,7 +602,7 @@ export function resolveFixedRouteFare({
         candidates.push({
             dayPrice: Number(place.fixedPrice) || 0,
             ruleId: `place:${place.id}`,
-            label: place.name || `Tarifa L. ${place.fixedPrice}`,
+            label: place.name || `Tarifa ${formatLempiras(place.fixedPrice)}`,
         });
     }
 
@@ -646,7 +647,7 @@ export function resolveFixedRouteFare({
                     price: floor,
                     fixed: false,
                     ruleId: 'min_fare',
-                    label: `Viaje mínimo L. ${cfg.minFare}`,
+                    label: `Viaje mínimo ${formatLempiras(cfg.minFare)}`,
                     minApplied: true,
                     isNight: nightMin.isNight,
                     nightPercent: nightMin.nightPercent,

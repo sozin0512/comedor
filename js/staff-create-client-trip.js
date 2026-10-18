@@ -30,6 +30,7 @@ import {
     buildZoneSelectOptionsHtml
 } from './zones.js';
 
+import { formatLempiras } from './money-format.js';
 /** Host público siempre (WhatsApp no linkifica capacitor:// ni localhost). */
 const STAFF_TRIP_PUBLIC_BASE = 'https://comedor-86278.web.app';
 
@@ -964,16 +965,16 @@ export function installStaffCreateClientTrip({
                 if (routeBox) routeBox.style.display = 'block';
                 if (routeKmEl) routeKmEl.textContent = km > 0 ? `${km.toFixed(1)} km` : '—';
                 if (routeTimeEl) routeTimeEl.textContent = durationMs > 0 ? formatDuration(durationMs) : '—';
-                if (routeFareEl) routeFareEl.textContent = fare > 0 ? `L. ${fare.toFixed(2)}` : '—';
+                if (routeFareEl) routeFareEl.textContent = fare > 0 ? `${formatLempiras(fare)}` : '—';
                 if (priceInput && fare > 0) {
-                    priceInput.placeholder = `Auto: L. ${fare.toFixed(2)}`;
+                    priceInput.placeholder = `Auto: ${formatLempiras(fare)}`;
                 }
                 const override = parseFloat(priceInput?.value || '');
                 if (routeStatusEl) {
                     if (override > 0) {
-                        routeStatusEl.textContent = `Publicarás L. ${override.toFixed(2)} (manual). Ruta: ${km.toFixed(1)} km.`;
+                        routeStatusEl.textContent = `Publicarás ${formatLempiras(override)} (manual). Ruta: ${km.toFixed(1)} km.`;
                     } else if (fare > 0) {
-                        routeStatusEl.textContent = `Se publicará L. ${fare.toFixed(2)} según la ruta (${km.toFixed(1)} km).`;
+                        routeStatusEl.textContent = `Se publicará ${formatLempiras(fare)} según la ruta (${km.toFixed(1)} km).`;
                     } else {
                         routeStatusEl.textContent = 'Sin tarifa aún.';
                     }
@@ -1083,7 +1084,7 @@ export function installStaffCreateClientTrip({
 
                     applyFareToUi(km, durationMs, fare);
                     if (routeStatusEl && clientChoosesPax && fare > 0) {
-                        routeStatusEl.textContent = `Tarifa base (1 pers.) L. ${fare.toFixed(2)}. El cliente elige cuántas van.`;
+                        routeStatusEl.textContent = `Tarifa base (1 pers.) ${formatLempiras(fare)}. El cliente elige cuántas van.`;
                     }
                     return { km, durationMs, fare, originLat, originLng, destLat, destLng, passengers: pax };
                 } catch (e) {
@@ -1171,7 +1172,7 @@ export function installStaffCreateClientTrip({
                     } else {
                         const sur = getPassengerSurcharge(svc, staffPassengers, routeState.km);
                         paxHint.textContent = sur > 0
-                            ? `${formatPassengersLabel(staffPassengers)} · +L. ${sur.toFixed(0)} extra (L. ${fee} c/u). El conductor verá que van ${staffPassengers}.`
+                            ? `${formatPassengersLabel(staffPassengers)} · +${formatLempiras(sur)} extra (${formatLempiras(fee)} c/u). El conductor verá que van ${staffPassengers}.`
                             : `Fijaste 1 persona. El cliente aún puede cambiar al confirmar.`;
                     }
                 }
@@ -1949,8 +1950,8 @@ export function installStaffCreateClientTrip({
 
             if (hint) {
                 hint.textContent = tripDistanceKm > 0
-                    ? `Ruta ${tripDistanceKm.toFixed(1)} km · tarifa L. ${priceNum.toFixed(2)}${staffManualPrice ? ' (manual)' : ''}`
-                    : `Guardando con tarifa L. ${priceNum.toFixed(2)}…`;
+                    ? `Ruta ${tripDistanceKm.toFixed(1)} km · tarifa ${formatLempiras(priceNum)}${staffManualPrice ? ' (manual)' : ''}`
+                    : `Guardando con tarifa ${formatLempiras(priceNum)}…`;
             }
 
             let zoneName = zoneId;
@@ -1980,7 +1981,7 @@ export function installStaffCreateClientTrip({
                 serviceZoneId: zoneId,
                 serviceZoneName: zoneName,
                 searchRadiusKm: typeof getCityCoverageKm === 'function' ? getCityCoverageKm(zoneId) : 25,
-                price: priceNum > 0 ? `L. ${priceNum.toFixed(2)}` : 'Por confirmar',
+                price: priceNum > 0 ? `${formatLempiras(priceNum)}` : 'Por confirmar',
                 priceNum,
                 // Si staff escribió un monto a mano, el cliente debe ver ESE precio (no la tarifa de ruta)
                 staffManualPrice,
@@ -2518,7 +2519,7 @@ export function installStaffCreateClientTrip({
                     clientPhone: t.clientPhone || '',
                     origin: t.origin || '',
                     destination: t.destination || '',
-                    priceLabel: t.price || (t.priceNum != null ? `L. ${Number(t.priceNum).toFixed(2)}` : ''),
+                    priceLabel: t.price || (t.priceNum != null ? `${formatLempiras(Number(t.priceNum))}` : ''),
                     clientChoosesSchedule: t.clientChoosesSchedule === true && !t.scheduledFor,
                     passengers: t.passengers,
                     clientChoosesPassengers: t.clientChoosesPassengers === true,
@@ -2555,7 +2556,7 @@ export function installStaffCreateClientTrip({
                 clientPhone: t.clientPhone || '',
                 origin: t.origin || '',
                 destination: t.destination || '',
-                priceLabel: t.price || (t.priceNum != null ? `L. ${Number(t.priceNum).toFixed(2)}` : ''),
+                priceLabel: t.price || (t.priceNum != null ? `${formatLempiras(Number(t.priceNum))}` : ''),
                 clientChoosesSchedule: t.clientChoosesSchedule === true && !t.scheduledFor,
                 passengers: t.passengers,
                 clientChoosesPassengers: t.clientChoosesPassengers === true,

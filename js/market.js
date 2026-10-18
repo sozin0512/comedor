@@ -4,6 +4,7 @@
  */
 import { US_CITIES, US_DEFAULT_ZONE_ID } from './us-cities.js';
 
+import { formatLempiras } from './money-format.js';
 const STORAGE_KEY = 'honduber_market';
 const HN = 'hn';
 const US = 'us';
@@ -133,7 +134,8 @@ export function formatMoney(amount, { withCode = false } = {}) {
     if (isUsMarket()) {
         return withCode ? `USD ${num}` : `$${num}`;
     }
-    return withCode ? `L. ${num} HNL` : `L. ${num}`;
+    // Honduras: formato único de la app (js/money-format.js): «L. 1,234.00».
+    return withCode ? `${formatLempiras(val)} HNL` : formatLempiras(val);
 }
 
 export function getMapCountryRestriction() {

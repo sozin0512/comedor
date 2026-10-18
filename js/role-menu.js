@@ -9,6 +9,7 @@
  * (guardStaffRoutes) y el servidor valida cada callable y cada ruta de Firestore.
  */
 
+import { formatLempiras } from './money-format.js';
 const SUPREME_EMAIL = 'josuesoza0513@gmail.com';
 const FN_URL = 'https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js';
 
@@ -46,7 +47,7 @@ export const ROLE_META = {
 };
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const fmtL = (n) => `L. ${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtL = (n) => formatLempiras(Number(n) || 0);
 
 // ───────── Rol de confianza ─────────
 let DEPS = {};

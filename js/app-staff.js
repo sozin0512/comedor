@@ -6,6 +6,7 @@ import { storeReferralFromURL, showReferralInviteModal, getPendingReferralCode }
 import { isCapacitorNative } from './capacitor-native.js';
 import { showEnlargedPhoto } from './photo-viewer.js';
 
+import { formatLempiras } from './money-format.js';
 export function installStaffRuntime() {
     if (window.__hrStaffRuntime) return;
     window.__hrStaffRuntime = true;
@@ -160,7 +161,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
             .map((d) => `
                 <div class="flex justify-between items-center bg-gray-800/80 rounded-xl px-3 py-2 text-xs">
                     <span class="text-emerald-300 font-bold truncate max-w-[55%]">${d.name}</span>
-                    <span class="text-white font-black">${d.trips} viajes · L. ${d.earned.toFixed(2)}</span>
+                    <span class="text-white font-black">${d.trips} viajes · ${formatLempiras(d.earned)}</span>
                 </div>
             `).join('');
 
@@ -168,7 +169,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
             <div class="bg-gray-800/60 rounded-xl p-3 text-[10px] space-y-1 border border-gray-700/50">
                 <div class="flex justify-between gap-2">
                     <span class="text-gray-400 font-bold">${r.timeLabel}</span>
-                    <span class="text-emerald-400 font-black">L. ${r.price.toFixed(2)} · ${r.payment}</span>
+                    <span class="text-emerald-400 font-black">${formatLempiras(r.price)} · ${r.payment}</span>
                 </div>
                 <p><b class="text-blue-300">Pasajero:</b> ${r.clientName}</p>
                 <p><b class="text-emerald-300">Conductor:</b> ${r.driverName}</p>
@@ -401,7 +402,7 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                                 ${d.graceOn ? ' · prórroga activa' : ''}
                             </p>
                         </div>
-                        <p class="font-black text-amber-300 shrink-0">L. ${d.totalOwed.toFixed(2)}</p>
+                        <p class="font-black text-amber-300 shrink-0">${formatLempiras(d.totalOwed)}</p>
                     </div>
                     <p class="text-slate-300 font-bold leading-snug">
                         Sin depositar desde el 1.er viaje en efectivo:
@@ -410,10 +411,10 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                     </p>
                     <p class="text-slate-400 font-bold text-[10px] leading-snug">
                         Último viaje efectivo: hace ${d.newestLabel}<br>
-                        Comisión debida ~L. ${Number(d.commissionDue || 0).toFixed(2)}
-                        · Depositado L. ${Number(d.deposited || 0).toFixed(2)}
-                        · Deuda perfil L. ${d.debt.toFixed(2)}
-                        · Hoy L. ${d.remainingToday.toFixed(2)}
+                        Comisión debida ~${formatLempiras(Number(d.commissionDue || 0))}
+                        · Depositado ${formatLempiras(Number(d.deposited || 0))}
+                        · Deuda perfil ${formatLempiras(d.debt)}
+                        · Hoy ${formatLempiras(d.remainingToday)}
                         · Plazo: ${d.deadlineLabel}
                     </p>
                     <div class="flex flex-wrap gap-2 pt-1">
@@ -454,26 +455,26 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
                 </div>
                 <div class="bg-gray-800 p-4 rounded-2xl">
                     <p class="text-xs text-gray-400">GANADO TOTAL</p>
-                    <p class="text-4xl font-black text-emerald-400 mt-1">L. ${totalEarned.toFixed(2)}</p>
+                    <p class="text-4xl font-black text-emerald-400 mt-1">${formatLempiras(totalEarned)}</p>
                 </div>
             </div>
 
             <div class="bg-gray-800 rounded-2xl p-5 text-sm space-y-3 mb-4">
                 <div class="flex justify-between">
                     <span class="text-emerald-400">• En Efectivo</span>
-                    <span class="font-bold">L. ${cashEarned.toFixed(2)} <span class="text-xs text-gray-400">(${cashTrips} viajes)</span></span>
+                    <span class="font-bold">${formatLempiras(cashEarned)} <span class="text-xs text-gray-400">(${cashTrips} viajes)</span></span>
                 </div>
                 <div class="flex justify-between">
                     <span class="text-purple-400">• En Saldo</span>
-                    <span class="font-bold">L. ${saldoEarned.toFixed(2)} <span class="text-xs text-gray-400">(${saldoTrips} viajes)</span></span>
+                    <span class="font-bold">${formatLempiras(saldoEarned)} <span class="text-xs text-gray-400">(${saldoTrips} viajes)</span></span>
                 </div>
                 <div class="pt-3 border-t border-gray-700 flex justify-between">
                     <span class="font-bold text-amber-400">Comisión generada (${platformPct}% general · o el % de cada servicio)</span>
-                    <span class="font-black text-amber-400">L. ${commission.toFixed(2)}</span>
+                    <span class="font-black text-amber-400">${formatLempiras(commission)}</span>
                 </div>
                 <p class="text-[10px] text-slate-400 font-bold leading-snug">
                     Usa el % de <b>Cuentas bancarias → Comisión de plataforma</b> (hoy ${platformPct}%).
-                    Efectivo: L. ${cashCommission.toFixed(2)} · Saldo: L. ${saldoCommission.toFixed(2)}.
+                    Efectivo: ${formatLempiras(cashCommission)} · Saldo: ${formatLempiras(saldoCommission)}.
                 </p>
             </div>
 
@@ -522,8 +523,8 @@ window.sendDepositReminderToDriver = async (uid, userName, amount, sinceLabel = 
     const urgency = overdue
         ? '⚠ Tu plazo de depósito ya venció. '
         : '';
-    const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de L. ${amt.toFixed(2)}.${waitBit} Toca «Depositar ahora» para ver el número de cuenta y enviar el baucher a revisión.`;
-    if (!confirm(`¿Enviar recordatorio de depósito a ${name}?\n\nMonto: L. ${amt.toFixed(2)}\nTiempo sin depositar: ${sinceLabel || '—'}`)) {
+    const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de ${formatLempiras(amt)}.${waitBit} Toca «Depositar ahora» para ver el número de cuenta y enviar el baucher a revisión.`;
+    if (!confirm(`¿Enviar recordatorio de depósito a ${name}?\n\nMonto: ${formatLempiras(amt)}\nTiempo sin depositar: ${sinceLabel || '—'}`)) {
         return;
     }
     try {
@@ -573,7 +574,7 @@ window.sendDepositReminderBulk = async () => {
                 ? ` Llevas ${d.sinceLabel} sin depositar.`
                 : '';
             const urgency = d.overdue ? '⚠ Tu plazo de depósito ya venció. ' : '';
-            const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de L. ${amt.toFixed(2)}.${waitBit} Toca «Depositar ahora» para ver la cuenta y enviar el baucher.`;
+            const msg = `${urgency}Recordatorio HonduRaite: debes depositar la comisión pendiente de ${formatLempiras(amt)}.${waitBit} Toca «Depositar ahora» para ver la cuenta y enviar el baucher.`;
             const colRef = collection(db, 'artifacts', appId, 'public', 'data', 'notifications');
             const newRef = doc(colRef);
             await setDoc(newRef, {

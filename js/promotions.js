@@ -6,6 +6,7 @@ import {
     serverTimestamp, query, where, onSnapshot, orderBy, limit, Timestamp
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 
+import { formatLempiras } from './money-format.js';
 let dbRef = null;
 let appIdRef = null;
 let getCurrentUser = () => null;
@@ -33,7 +34,7 @@ export function calcPromoApplication(originalPrice, discountAmount, minSpendPerc
         return {
             eligible: false,
             minFare,
-            reason: `Gasta al menos L. ${minFare.toFixed(2)} para usar este bono.`
+            reason: `Gasta al menos ${formatLempiras(minFare)} para usar este bono.`
         };
     }
 
@@ -237,9 +238,9 @@ function renderPromoMapCard(promo) {
     const title = promo.title || promo.code || 'Promo';
     return `
         <button type="button" class="passenger-promo-card" data-promo-id="${escHtml(promo.id)}" data-promo-code="${escHtml(promo.code)}"
-                title="Mín. L. ${minFare.toFixed(0)} · ${escHtml(promo.code)}">
+                title="Mín. ${formatLempiras(minFare)} · ${escHtml(promo.code)}">
             <span class="passenger-promo-card-badge">PROMO</span>
-            <span class="passenger-promo-card-amount">L.${amt.toFixed(0)}</span>
+            <span class="passenger-promo-card-amount">${formatLempiras(amt)}</span>
             <span class="passenger-promo-card-title">${escHtml(title)}</span>
             <span class="passenger-promo-card-cta">Reclamar</span>
         </button>`;
@@ -504,8 +505,8 @@ function renderStaffPromotionsPage(promos, debts) {
                     <div class="flex justify-between items-start gap-2">
                         <div>
                             <p class="font-black text-white text-sm">${escHtml(p.title || p.code)}</p>
-                            <p class="text-xs text-slate-400 mt-0.5">Código: <strong class="text-amber-300">${escHtml(p.code)}</strong> · L. ${amt.toFixed(2)} OFF</p>
-                            <p class="text-[10px] text-slate-500 mt-1">Usuarios: ${claimed}/${maxU} · Presupuesto: L. ${budget.toFixed(2)}${maxB ? ` / L. ${maxB.toFixed(2)}` : ''}</p>
+                            <p class="text-xs text-slate-400 mt-0.5">Código: <strong class="text-amber-300">${escHtml(p.code)}</strong> · ${formatLempiras(amt)} OFF</p>
+                            <p class="text-[10px] text-slate-500 mt-1">Usuarios: ${claimed}/${maxU} · Presupuesto: ${formatLempiras(budget)}${maxB ? ` / ${formatLempiras(maxB)}` : ''}</p>
                             <p class="text-[10px] text-slate-500">Vigencia: ${formatPromoDate(p.validFrom)} → ${formatPromoDate(p.validUntil)}</p>
                         </div>
                         <span class="ops-badge ${statusCls}">${escHtml(p.status || 'active')}</span>
@@ -527,9 +528,9 @@ function renderStaffPromotionsPage(promos, debts) {
                 <td class="py-2 pr-2">${escHtml(t.promoCode || '—')}</td>
                 <td class="py-2 pr-2">${escHtml(t.clientName || '—')}</td>
                 <td class="py-2 pr-2">${escHtml(t.driverName || '—')}</td>
-                <td class="py-2 pr-2">L. ${(parseFloat(t.originalPriceNum) || 0).toFixed(2)}</td>
-                <td class="py-2 pr-2">L. ${(parseFloat(t.passengerPaysAmount) || 0).toFixed(2)}</td>
-                <td class="py-2 font-bold text-amber-300">L. ${(parseFloat(t.promoSubsidyOwed) || 0).toFixed(2)}</td>
+                <td class="py-2 pr-2">${formatLempiras((parseFloat(t.originalPriceNum) || 0))}</td>
+                <td class="py-2 pr-2">${formatLempiras((parseFloat(t.passengerPaysAmount) || 0))}</td>
+                <td class="py-2 font-bold text-amber-300">${formatLempiras((parseFloat(t.promoSubsidyOwed) || 0))}</td>
             </tr>`).join('')
         : `<tr><td colspan="7" class="py-4 text-center text-slate-500 text-xs">Sin deudas por promos aún.</td></tr>`;
 
@@ -572,7 +573,7 @@ function renderStaffPromotionsPage(promos, debts) {
         }) +
         U.section({
             title: 'Deudas al conductor',
-            subtitle: `Total pendiente: L. ${totalDebt.toFixed(2)} — subsidio por promos usadas`,
+            subtitle: `Total pendiente: ${formatLempiras(totalDebt)} — subsidio por promos usadas`,
             icon: 'fa-hand-holding-usd',
             variant: 'violet',
             body: `

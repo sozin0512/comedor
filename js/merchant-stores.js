@@ -26,6 +26,7 @@ import {
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
 } from './store-delivery-zones.js?v=2026.10.16.9';
 
+import { formatLempiras } from './money-format.js';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -1253,7 +1254,7 @@ function playNewStoreOrderAlert(order) {
     const items = Array.isArray(order?.items) ? order.items : [];
     const summary = items.slice(0, 2).map((i) => `${i.qty || 1}× ${i.name || 'producto'}`).join(', ');
     const total = Number(order?.itemsTotal);
-    const totalTxt = Number.isFinite(total) ? ` · L. ${total.toFixed(2)}` : '';
+    const totalTxt = Number.isFinite(total) ? ` · ${formatLempiras(total)}` : '';
     const msg = `🛒 Nuevo pedido${summary ? `: ${summary}` : ''}${totalTxt}`;
     toast(msg, 'success');
 
@@ -1933,7 +1934,7 @@ function chooseStorePaymentMethod(itemsTotal) {
                 <h3 class="font-black text-lg mb-1 text-center text-slate-900">¿Cómo pagas el pedido?</h3>
                 <p class="text-center text-xs text-slate-500 font-semibold mb-1">Productos: <b class="text-amber-700">${money(itemsTotal)}</b></p>
                 <p class="text-center text-[11px] text-purple-700 font-bold mb-4">
-                    <i class="fas fa-wallet"></i> Tu saldo: L. ${bal.toFixed(2)}
+                    <i class="fas fa-wallet"></i> Tu saldo: ${formatLempiras(bal)}
                 </p>
                 <div class="space-y-3">
                     <button type="button" data-pay="efectivo"
@@ -2078,7 +2079,7 @@ function renderCheckoutHtml() {
                 <div class="flex justify-between text-sm font-black"><span>Total a pagar (productos)</span><span>${money(total)}</span></div>
                 <div class="flex justify-between text-xs font-bold text-purple-700 mt-1.5">
                     <span><i class="fas fa-wallet"></i> Tu saldo</span>
-                    <span>L. ${bal.toFixed(2)}</span>
+                    <span>${formatLempiras(bal)}</span>
                 </div>
                 <p class="text-[10px] text-slate-500 mt-1.5 leading-snug">
                     Puedes pagar productos + tu mitad de tarifa con <b>puntos/saldo</b> o en <b>efectivo</b>. El envío se paga al conductor en efectivo.
@@ -2947,7 +2948,7 @@ function buildStoreCatalogShareText(store, products) {
     const available = (products || []).filter((p) => p.available !== false);
     const lines = available.slice(0, 40).map((p) => {
         const price = Number(p.price);
-        const priceTxt = Number.isFinite(price) ? `L. ${price.toFixed(2)}` : '';
+        const priceTxt = Number.isFinite(price) ? `${formatLempiras(price)}` : '';
         return `• ${p.name}${priceTxt ? ` — ${priceTxt}` : ''}`;
     });
     const more = available.length > 40 ? `\n… y ${available.length - 40} productos más` : '';
@@ -3705,7 +3706,7 @@ async function createDeliveryTripForOrder(order) {
     const km = Math.max(0.5, haversineKm(storeLat, storeLng, destLat, destLng));
     // Con zona de envío, el viaje cobra la tarifa fija que el servidor puso en el pedido.
     const { priceNum } = deliveryTripPrice(order, calculateServiceFare('delivery', km, null, 1));
-    const priceText = `L. ${priceNum.toFixed(2)}`;
+    const priceText = `${formatLempiras(priceNum)}`;
     const itemsLine = (order.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
     const packageDescription = `Pedido tienda: ${itemsLine}`.slice(0, 400);
     const sla = getServiceMeta('delivery')?.slaMinutes || 30;

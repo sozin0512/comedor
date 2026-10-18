@@ -15,6 +15,7 @@ import { extraStopsSurcharge } from './extra-stops-fare.js';
 import { getRouteConditions, getAdjustedDurationMinutes, formatConditionsSummary, formatConditionsNote } from './route-conditions.js';
 import { getDeliverySlaText } from './trip-experience.js';
 
+import { formatLempiras } from './money-format.js';
 export function installPassengerRuntime() {
     if (window.__hrPassengerRuntime) return;
     window.__hrPassengerRuntime = true;
@@ -969,7 +970,7 @@ window.calculateTripRoute = async (options = {}) => {
         const birthdayEligible = serviceType !== 'delivery' && !isFreightService(serviceType) && canUseBirthdayFreeTrip(window.userProfile);
         if (calcGen !== window._tripRouteCalcGen) return;
 
-        const displayPrice = birthdayEligible ? 'L. 0.00' : `L. ${price.toFixed(2)}`;
+        const displayPrice = birthdayEligible ? 'L. 0.00' : `${formatLempiras(price)}`;
 
         const destForQuote = isHourlyCalc 
             ? (destination?.address || 'Servicio por horas')
@@ -983,7 +984,7 @@ window.calculateTripRoute = async (options = {}) => {
             destinationLat: isHourlyCalc ? null : (destination?.latLng?.lat ?? null),
             destinationLng: isHourlyCalc ? null : (destination?.latLng?.lng ?? null),
             price: displayPrice,
-            originalPrice: `L. ${price.toFixed(2)}`,
+            originalPrice: `${formatLempiras(price)}`,
             birthdayEligible,
             serviceType,
             deliveryDetails,
@@ -1022,7 +1023,7 @@ window.calculateTripRoute = async (options = {}) => {
         if (birthdayNote) {
             if (birthdayEligible) {
                 birthdayNote.classList.remove('hidden');
-                birthdayNote.innerText = `🎂 ¡Viaje gratis por tu cumpleaños! (valor L. ${price.toFixed(2)})`;
+                birthdayNote.innerText = `🎂 ¡Viaje gratis por tu cumpleaños! (valor ${formatLempiras(price)})`;
             } else {
                 birthdayNote.classList.add('hidden');
             }
@@ -1036,14 +1037,14 @@ window.calculateTripRoute = async (options = {}) => {
                 let extra = '';
                 if (km > 25) extra = ' · +km ciudad-ciudad';
                 if (hourlyOpts.isNight) extra += ' · +25% noche';
-                if (calcPaxSurcharge > 0) extra += ` · +L. ${calcPaxSurcharge.toFixed(0)} pers.`;
+                if (calcPaxSurcharge > 0) extra += ` · +${formatLempiras(calcPaxSurcharge)} pers.`;
                 summaryText = `${getHourlyLabel(hoursForCalc)} · ${formatPassengersLabel(p)} · ${stopInfo}${extra}`;
                 if (serviceType === 'moto') summaryText += ' · Moto Segura';
             } else {
                 summaryText = `${km.toFixed(1)} km${duration ? ` · ${duration}` : ''}`;
                 if (serviceType !== 'delivery' && !isFreightService(serviceType)) {
                     summaryText += ` · ${formatPassengersLabel(calcPassengers)}`;
-                    if (calcPaxSurcharge > 0) summaryText += ` · +L. ${calcPaxSurcharge.toFixed(0)} extra`;
+                    if (calcPaxSurcharge > 0) summaryText += ` · +${formatLempiras(calcPaxSurcharge)} extra`;
                 }
                 const condSummary = formatConditionsSummary(routeConditions);
                 if (condSummary) summaryText += ` · ${condSummary}`;
