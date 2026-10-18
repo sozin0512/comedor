@@ -1458,7 +1458,15 @@
             <button id="auth-submit-btn" onclick="window.executeAuth()" class="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-blue-600/25 active:scale-[0.98] transition-all uppercase tracking-widest text-xs">INGRESAR AL SISTEMA</button>
             <p id="auth-load-hint" class="text-[10px] text-center text-slate-400 font-bold m-0">Preparando sesión… el mapa carga en segundo plano</p>
         </div>
-        <div data-sozin-copyright="light" class="mt-6 px-1"></div>
+        <!-- Enlaces legales visibles sin sesión (Play Store) -->
+        <nav id="login-legal-links" class="login-legal-links mt-5 flex flex-wrap items-center justify-center gap-x-2 text-[11px] font-bold" aria-label="Información legal">
+            <a href="politica-de-privacidad.html" target="_blank" rel="noopener" class="text-blue-600 hover:text-blue-700 underline py-1">Privacidad</a>
+            <span class="text-slate-300" aria-hidden="true">·</span>
+            <a href="terminos-y-condiciones.html" target="_blank" rel="noopener" class="text-blue-600 hover:text-blue-700 underline py-1">Términos</a>
+            <span class="text-slate-300" aria-hidden="true">·</span>
+            <a href="eliminar-cuenta.html" target="_blank" rel="noopener" class="text-slate-500 hover:text-slate-700 underline py-1">Eliminar cuenta</a>
+        </nav>
+        <div data-sozin-copyright="light" class="mt-4 px-1"></div>
     </div>
     <div data-sozin-copyright="on-gradient" class="flex-shrink-0 px-5 pb-6 pt-2"></div>
 </div>
@@ -1901,6 +1909,20 @@
         </div>
 
         <main class="app-shell flex-1 relative overflow-hidden">
+            <!-- Aviso «Pantalla de inicio»: flota sobre el mapa (debajo del panel en z-index), ya no ocupa espacio dentro del panel. -->
+            <div id="ios-install-banner" class="hr-install-float hidden px-3 py-[7px] bg-blue-600 text-white flex items-center gap-2 text-xs" role="region" aria-label="Instalar en pantalla de inicio">
+                <i class="fas fa-mobile-alt text-base ml-0.5"></i>
+                <div class="flex-1 leading-tight min-w-0">
+                    <span class="font-black">Pantalla de inicio</span>
+                    <span class="text-blue-100 hidden sm:inline"> — Chrome un toque · Safari Compartir</span>
+                </div>
+                <button type="button" id="ios-install-btn" data-hr-install-btn
+                        class="px-3.5 py-1 bg-white text-blue-700 font-black text-[10px] rounded-2xl active:opacity-90 shadow-sm whitespace-nowrap">
+                    INSTALAR
+                </button>
+                <button type="button" id="ios-install-close" aria-label="Cerrar aviso de instalar"
+                        class="w-6 h-6 flex items-center justify-center text-white/70 hover:text-white text-lg leading-none">×</button>
+            </div>
             <div id="map-container">
                 <div id="map"></div>
                 <div id="map-pick-overlay" class="map-pick-overlay hidden" aria-hidden="true">
@@ -2016,19 +2038,6 @@
                 <div class="control-panel-header" title="Arrastra desde cualquier parte del panel para moverlo">
                     <span class="control-panel-drag-hint"><i class="fas fa-up-down-left-right"></i> Arrastra el panel</span>
                     <div class="control-panel-grab" aria-hidden="true"></div>
-                </div>
-                <div id="ios-install-banner" class="hidden px-3 py-[7px] bg-blue-600 text-white flex items-center gap-2 text-xs border-b border-blue-700 z-10">
-                    <i class="fas fa-mobile-alt text-base ml-0.5"></i>
-                    <div class="flex-1 leading-tight min-w-0">
-                        <span class="font-black">Pantalla de inicio</span>
-                        <span class="text-blue-100 hidden sm:inline"> — Chrome un toque · Safari Compartir</span>
-                    </div>
-                    <button type="button" id="ios-install-btn" data-hr-install-btn
-                            class="px-3.5 py-1 bg-white text-blue-700 font-black text-[10px] rounded-2xl active:opacity-90 shadow-sm whitespace-nowrap">
-                        INSTALAR
-                    </button>
-                    <button type="button" id="ios-install-close" aria-label="Cerrar aviso de instalar"
-                            class="w-6 h-6 flex items-center justify-center text-white/70 hover:text-white text-lg leading-none">×</button>
                 </div>
                 <div id="panel-content" class="trip-panel-scroll flex flex-col flex-1 min-h-0">
 

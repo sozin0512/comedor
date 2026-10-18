@@ -7,9 +7,18 @@
     .ops-page-hero-extra { flex: 1 1 100%; min-width: 0; }
     .ops-page-hero-extra .ops-kpi-row {
         max-width: none;
-        grid-template-columns: repeat(auto-fit, minmax(4.2rem, 1fr));
+        /* Ancho mínimo para que «CONDUCTORES» quepa entero; si no caben 4, bajan a otra fila. */
+        grid-template-columns: repeat(auto-fit, minmax(5.4rem, 1fr));
     }
-    .ops-kpi-label { overflow-wrap: anywhere; }
+    .ops-kpi { min-width: 0; padding-left: 0.3rem; padding-right: 0.3rem; }
+    /* Nunca partir una palabra («PENDIENTE·S», «CONDUCTO·RES»): solo se baja de línea entre palabras. */
+    .ops-kpi-label {
+        overflow-wrap: normal;
+        word-break: keep-all;
+        hyphens: none;
+        letter-spacing: 0.02em;
+        max-width: 100%;
+    }
 }
 
 /* Casa / Trabajo / Pulpería / Guardar / Promo: en teléfonos angostos bajan de línea en vez de cortarse. */
@@ -48,3 +57,25 @@
 /* La píldora «promo activa» salía vacía (amarilla) para todos: app.css le ponía display después de .hidden. */
 .passenger-promo-chip.hidden,
 .passenger-promo-chip:empty { display: none !important; }
+
+/* Aviso «Pantalla de inicio»: antes iba DENTRO del panel inferior y le quitaba ~40 px (tapaba el destino la primera vez).
+   Ahora flota sobre el mapa, debajo del selector de ciudad, y queda por debajo del panel (z-index 100) si este se agranda. */
+#ios-install-banner.hr-install-float {
+    position: absolute;
+    top: calc(3.6rem + var(--safe-top, 0px));
+    left: 0.75rem;
+    right: 0.75rem;
+    max-width: 26rem;
+    z-index: 40;
+    border-radius: 0.9rem;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.25);
+}
+#ios-install-banner.hr-install-float.hidden { display: none; }
+body.is-searching #ios-install-banner.hr-install-float { display: none; }
+/* No tapar avisos del viaje que usan la misma franja del mapa (oferta para el conductor, llegada estimada). */
+main.app-shell:has(#driver-offer-map-hint:not(.hidden)) > #ios-install-banner,
+main.app-shell:has(#eta-indicator:not(.hidden)) > #ios-install-banner { display: none; }
+
+/* Login: enlaces a Privacidad / Términos / Eliminar cuenta visibles sin sesión. */
+.login-legal-links { row-gap: 0.25rem; }
+.login-legal-links a { text-underline-offset: 2px; min-height: 1.75rem; display: inline-flex; align-items: center; }
