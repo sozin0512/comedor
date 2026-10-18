@@ -1,0 +1,50 @@
+/* Arreglos de pantalla del QA para Play Store (2026-10-18). Archivo aparte para no chocar con otros cambios en app.css. */
+
+/* Verificaciones (y demás páginas de staff): las tarjetas de números se salían a 360-390 px. */
+@media (max-width: 640px) {
+    .ops-page-hero { flex-wrap: wrap; }
+    .ops-page-hero-text { flex: 1 1 100%; min-width: 0; }
+    .ops-page-hero-extra { flex: 1 1 100%; min-width: 0; }
+    .ops-page-hero-extra .ops-kpi-row {
+        max-width: none;
+        grid-template-columns: repeat(auto-fit, minmax(4.2rem, 1fr));
+    }
+    .ops-kpi-label { overflow-wrap: anywhere; }
+}
+
+/* Casa / Trabajo / Pulpería / Guardar / Promo: en teléfonos angostos bajan de línea en vez de cortarse. */
+@media (max-width: 420px) {
+    #favorites-bar.trip-favorites-bar {
+        flex-wrap: wrap;
+        overflow-x: visible;
+        row-gap: 0.4rem;
+    }
+}
+
+/* Origen: el texto (p. ej. «Punto de carga…» en Flete) no debe quedar debajo de los botones GPS y pin. */
+.trip-origin-wrap gmp-place-autocomplete::part(input),
+.trip-origin-wrap gmp-basic-place-autocomplete::part(input) {
+    padding-inline-end: 6.25rem;
+    text-overflow: ellipsis;
+}
+.trip-dest-wrap gmp-place-autocomplete::part(input),
+.trip-dest-wrap gmp-basic-place-autocomplete::part(input) {
+    padding-inline-end: 3.25rem;
+    text-overflow: ellipsis;
+}
+
+/* Menú por rol: la insignia (SUPERVISOR, CONDUCTOR…) queda a la izquierda del botón ⋮ del encabezado. */
+#header-more-menu.rm-host .rm-head {
+    padding-right: 44px;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+@media (max-width: 380px) {
+    #header-more-menu.rm-host .rm-role { font-size: 10.5px; letter-spacing: 0.4px; padding: 4px 8px; gap: 5px; }
+    #header-more-menu.rm-host .rm-logo { gap: 7px; }
+    #header-more-menu.rm-host .rm-logo small { font-size: 9.5px; }
+}
+
+/* La píldora «promo activa» salía vacía (amarilla) para todos: app.css le ponía display después de .hidden. */
+.passenger-promo-chip.hidden,
+.passenger-promo-chip:empty { display: none !important; }

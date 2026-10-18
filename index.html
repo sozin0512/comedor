@@ -60,6 +60,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/app.css?v=2026.10.16.8">
     <link rel="stylesheet" href="css/role-menu.css?v=2026.10.16.8">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.16.8">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -678,7 +679,7 @@
         <div id="client-trip-float" class="trip-float trip-float--passenger trip-float--client-trip hidden" data-trip-float="client-trip">
             <div class="trip-float-min-view hidden" data-trip-float-expand="client-trip" title="Toca para ver · arrastra para mover">
                 <div class="client-trip-min-pill" role="presentation">
-                    <img id="client-trip-min-photo" class="client-trip-min-photo" alt="" src="https://placehold.co/64x64/e2e8f0/64748b?text=·">
+                    <img id="client-trip-min-photo" class="client-trip-min-photo" alt="" src="/icons/placeholder-avatar.svg">
                     <div class="client-trip-min-text min-w-0">
                         <span id="client-trip-min-name" class="client-trip-min-name">Conductor</span>
                         <span id="client-trip-min-meta" class="client-trip-min-meta">En camino</span>
@@ -705,7 +706,7 @@
                         <span id="client-trip-status-eta" class="client-trip-status-eta hidden">-- min</span>
                     </div>
                     <div class="client-trip-driver-row">
-                        <img id="client-trip-photo" class="client-trip-photo profile-photo-img" alt="Conductor" src="https://placehold.co/100x100/e2e8f0/64748b?text=Conductor">
+                        <img id="client-trip-photo" class="client-trip-photo profile-photo-img" alt="Conductor" src="/icons/placeholder-avatar.svg">
                         <div class="client-trip-driver-meta min-w-0">
                             <p id="client-trip-name" class="client-trip-name">Conductor</p>
                             <p class="client-trip-rating"><i class="fas fa-star"></i> <span id="client-trip-rating">5.0</span>
@@ -862,7 +863,7 @@
                 <h2 class="text-xl font-black text-gray-900">Mi Perfil</h2>
                 <p class="text-xs text-gray-500 font-bold tracking-widest">CONFIGURACIÓN DE SEGURIDAD</p>
             </div>
-            <button onclick="window.closeProfilePanel()" 
+            <button type="button" onclick="window.closeProfilePanel()" aria-label="Cerrar perfil"
                     class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors">
                 <i class="fas fa-times text-xl"></i>
             </button>
@@ -1801,35 +1802,35 @@
         </div>
 
         <div class="header-actions-desktop hidden sm:flex items-center gap-1 sm:gap-2">
-            <button id="theme-toggle-btn" type="button" data-theme-toggle onclick="window.toggleTheme()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center shadow-sm" title="Cambiar a modo noche">
+            <button id="theme-toggle-btn" type="button" data-theme-toggle onclick="window.toggleTheme()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center shadow-sm" title="Cambiar a modo noche" aria-label="Cambiar a modo noche">
                 <i data-theme-icon class="fas fa-moon pointer-events-none"></i>
             </button>
-            <button id="support-whatsapp-btn" type="button" onclick="window.openSupportWhatsApp()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center shadow-sm" title="Soporte WhatsApp">
+            <button id="support-whatsapp-btn" type="button" onclick="window.openSupportWhatsApp()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center shadow-sm" title="Soporte WhatsApp" aria-label="Soporte WhatsApp">
                 <i class="fab fa-whatsapp pointer-events-none"></i>
             </button>
 
-            <button type="button" onclick="window.openProfilePanel()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center shadow-sm" title="Mi Perfil">
+            <button type="button" onclick="window.openProfilePanel()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center shadow-sm" title="Mi Perfil" aria-label="Mi Perfil">
                 <i class="fas fa-user-cog pointer-events-none"></i>
             </button>
-            <button id="push-enable-btn" type="button" onclick="window.enableTripNotifications()" class="hidden header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 flex items-center justify-center shadow-sm animate-pulse" title="Activar avisos de chat y viaje">
+            <button id="push-enable-btn" type="button" onclick="window.enableTripNotifications()" class="hidden header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 flex items-center justify-center shadow-sm animate-pulse" title="Activar avisos de chat y viaje" aria-label="Activar avisos de chat y viaje">
                 <i class="fas fa-bell-slash pointer-events-none"></i>
             </button>
             <div class="relative">
-                <button type="button" onclick="window.showNotificationsModal()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center justify-center shadow-sm relative" title="Notificaciones">
+                <button type="button" onclick="window.showNotificationsModal()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 flex items-center justify-center shadow-sm relative" title="Notificaciones" aria-label="Notificaciones">
                     <i class="fas fa-bell pointer-events-none"></i>
                     <span id="notification-badge" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[10px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
                 </button>
             </div>
-            <button id="admin-trigger-btn" type="button" onclick="window.openAdminPanel()" class="hidden relative header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-100 text-purple-700 hover:bg-purple-200 items-center justify-center shadow-sm" title="Panel Admin">
+            <button id="admin-trigger-btn" type="button" onclick="window.openAdminPanel()" class="hidden relative header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-100 text-purple-700 hover:bg-purple-200 items-center justify-center shadow-sm" title="Panel Admin" aria-label="Panel Admin">
                 <i class="fas fa-shield-alt pointer-events-none"></i>
                 <span id="admin-reports-badge" class="hidden absolute -top-1 -right-1 bg-red-600 text-white text-[9px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
             </button>
-            <button id="supervisor-trigger-btn" type="button" onclick="window.openSupervisorPanel()" class="hidden relative header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 items-center justify-center shadow-sm" title="Verificaciones y papelera de reciclaje">
+            <button id="supervisor-trigger-btn" type="button" onclick="window.openSupervisorPanel()" class="hidden relative header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-100 text-emerald-700 hover:bg-emerald-200 items-center justify-center shadow-sm" title="Verificaciones y papelera de reciclaje" aria-label="Verificaciones y papelera de reciclaje">
                 <i class="fas fa-user-check pointer-events-none"></i>
                 <span id="supervisor-pending-badge" class="hidden absolute -top-1 -right-1 bg-amber-500 text-white text-[9px] min-w-[18px] h-[18px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
                 <span id="supervisor-reports-badge" class="hidden absolute -bottom-1 -right-1 bg-red-600 text-white text-[9px] min-w-[16px] h-[16px] flex items-center justify-center rounded-full font-black border-2 border-white pointer-events-none">0</span>
             </button>
-            <button type="button" onclick="window.confirmLogout()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-50 text-gray-400 hover:text-red-500 flex items-center justify-center shadow-sm" title="Cerrar Sesión">
+            <button type="button" onclick="window.confirmLogout()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gray-50 text-gray-400 hover:text-red-500 flex items-center justify-center shadow-sm" title="Cerrar Sesión" aria-label="Cerrar Sesión">
                 <i class="fas fa-power-off pointer-events-none"></i>
             </button>
         </div>
@@ -2026,7 +2027,7 @@
                             class="px-3.5 py-1 bg-white text-blue-700 font-black text-[10px] rounded-2xl active:opacity-90 shadow-sm whitespace-nowrap">
                         INSTALAR
                     </button>
-                    <button type="button" id="ios-install-close"
+                    <button type="button" id="ios-install-close" aria-label="Cerrar aviso de instalar"
                             class="w-6 h-6 flex items-center justify-center text-white/70 hover:text-white text-lg leading-none">×</button>
                 </div>
                 <div id="panel-content" class="trip-panel-scroll flex flex-col flex-1 min-h-0">
@@ -2427,7 +2428,7 @@
                     <!-- Faja estilo Uber: pasajero + dirección + 1 acción principal -->
                     <div id="driver-uber-sheet" class="driver-uber-sheet">
                         <div id="driver-uber-pax" class="driver-uber-pax">
-                            <img id="driver-uber-pax-photo" class="driver-uber-pax-photo" alt="" src="https://placehold.co/64x64/e2e8f0/64748b?text=·" onerror="this.src='https://placehold.co/64x64/e2e8f0/64748b?text=·'">
+                            <img id="driver-uber-pax-photo" class="driver-uber-pax-photo" alt="" src="/icons/placeholder-avatar.svg" onerror="this.src='/icons/placeholder-avatar.svg'">
                             <div class="driver-uber-pax-text min-w-0">
                                 <p id="driver-uber-pax-name" class="driver-uber-pax-name">Pasajero</p>
                                 <p id="driver-uber-next-addr" class="driver-uber-next-addr">Cargando…</p>
@@ -2564,7 +2565,7 @@
                          <div class="driver-assigned-body p-4 flex flex-col gap-3">
                              <p id="tp-role-label" class="text-[9px] font-black text-blue-600 uppercase tracking-widest">Tu conductor</p>
                              <div class="flex items-center gap-3">
-                                 <img id="tp-photo" src="" alt="" class="profile-photo-img w-14 h-14 rounded-full object-cover object-center bg-gray-200 ring-2 ring-white shadow-md flex-shrink-0" onerror="this.src='https://placehold.co/100x100/e2e8f0/64748b?text=Usuario'">
+                                 <img id="tp-photo" src="" alt="" class="profile-photo-img w-14 h-14 rounded-full object-cover object-center bg-gray-200 ring-2 ring-white shadow-md flex-shrink-0" onerror="this.src='/icons/placeholder-avatar.svg'">
                                  <div class="flex-1 min-w-0">
                                      <p id="tp-name" class="font-black text-base uppercase text-gray-900 leading-tight truncate">...</p>
                                      <p class="text-amber-500 text-xs font-bold mt-0.5"><i class="fas fa-star"></i> <span id="tp-rating">5.0</span></p>

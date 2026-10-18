@@ -8199,12 +8199,12 @@ if (document.readyState === 'loading') {
         function buildPassengerViewerCardHtml(v) {
             const fullName = escapeViewerText((v.name || 'Conductor').trim());
             const firstName = fullName.split(' ')[0];
-            const photo = escapeViewerText(v.photo || 'https://placehold.co/96x96/e2e8f0/64748b?text=C');
+            const photo = escapeViewerText(v.photo || '/icons/placeholder-avatar.svg');
             const ratingValue = getDriverDisplayRating(v).toFixed(1);
             return `
                 <article class="passenger-viewer-card">
                     <img src="${photo}" alt="${fullName}" class="passenger-viewer-photo"
-                         onerror="this.src='https://placehold.co/96x96/e2e8f0/64748b?text=C'">
+                         onerror="this.src='/icons/placeholder-avatar.svg'">
                     <div class="passenger-viewer-meta">
                         <p class="passenger-viewer-name">${firstName}</p>
                         <p class="passenger-viewer-sub">${ratingValue} ★ · mirando tu viaje</p>
@@ -8302,7 +8302,7 @@ if (document.readyState === 'loading') {
                 const canNegotiateTrip = isTripNegotiationEnabled(data);
                 const fullName = escapeViewerText((b.name || 'Conductor').trim());
                 const firstName = fullName.split(' ')[0];
-                const photo = escapeViewerText(b.photo || 'https://placehold.co/96x96/e2e8f0/64748b?text=C');
+                const photo = escapeViewerText(b.photo || '/icons/placeholder-avatar.svg');
                 const ratingValue = Number(b.rating || 5).toFixed(1);
                 const distLabel = b.distanceKm != null ? `${parseFloat(b.distanceKm).toFixed(1)} km` : '';
                 const closestTag = idx === 0 ? '<span class="passenger-offer-tag">Más cercano</span>' : '';
@@ -8379,7 +8379,7 @@ if (document.readyState === 'loading') {
                     <article class="passenger-offer-card${idx === 0 ? ' passenger-offer-card--top' : ''}${counterAlreadySent ? ' passenger-offer-card--waiting-driver' : ''}">
                         <div class="passenger-offer-head">
                             <img src="${photo}" alt="${fullName}" class="passenger-offer-photo"
-                                 onerror="this.src='https://placehold.co/96x96/e2e8f0/64748b?text=C'">
+                                 onerror="this.src='/icons/placeholder-avatar.svg'">
                             <div class="passenger-offer-meta">
                                 <p class="passenger-offer-name">${firstName} ${closestTag}</p>
                                 <p class="passenger-offer-sub">${ratingValue} ★${distLabel ? ` · ${distLabel}` : ''}</p>
@@ -8907,7 +8907,7 @@ if (document.readyState === 'loading') {
         const REGISTERED_DRIVERS_CACHE_TTL_MS = 120000;
         const NOTIFY_FLY_INTERVAL_MS = 1800;
         const NOTIFY_DRIVERS_MAX = 20;
-        const NOTIFY_AVATAR_PLACEHOLDER = 'https://placehold.co/80x80/dbeafe/1d4ed8?text=C';
+        const NOTIFY_AVATAR_PLACEHOLDER = '/icons/placeholder-avatar.svg';
         /** true mientras el pasajero scrollea el panel de búsqueda (no robar el scroll con la animación) */
         let _passengerSearchUserScrolling = false;
         let _passengerSearchScrollTimer = null;
@@ -15417,7 +15417,7 @@ if (document.readyState === 'loading') {
                 if (needDriverRate || needPaxRate || t.staffAssignedBy) {
                     const label = needDriverRate
                         ? 'Calificar conductor'
-                        : (needPaxRate ? 'Calificar pasajero' : 'Recalificar (staff)');
+                        : (needPaxRate ? 'Calificar pasajero' : 'Volver a calificar');
                     rowBtns.push(U.btn(label, `window.staffOpenRateTrip('${t.id}')`, {
                         variant: 'amber',
                         icon: 'fa-star'
@@ -40405,8 +40405,8 @@ window.cancelSetupAndLogout = () => {
                         <div class="bg-gray-800 rounded-2xl p-4 border border-gray-700">
                             <div class="flex justify-between">
                                 <div>
-                                    <div class="font-black">${t.origin || 'Origen'} → ${t.destination || 'Destino'}</div>
-                                    <div class="text-xs text-gray-400">${date} · ${formatLempiras(price)} · ${t.serviceType || 'auto'}</div>
+                                    <div class="font-black">${histEsc(t.origin || 'Origen')} → ${histEsc(t.destination || 'Destino')}</div>
+                                    <div class="text-xs text-gray-400">${date} · ${formatLempiras(price)} · ${histEsc(historyServiceLabel(t))}</div>
                                 </div>
                                 <div class="text-right text-xs">
                                     ${isMineAsClient ? '<span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">Pasajero</span>' : '<span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">Conductor</span>'}
@@ -40421,7 +40421,7 @@ window.cancelSetupAndLogout = () => {
                                 <details class="mt-2">
                                     <summary class="cursor-pointer text-emerald-400 text-xs font-bold">Ver chat (${chatCount} mensajes)</summary>
                                     <div class="mt-1 max-h-32 overflow-auto bg-gray-900 p-2 rounded text-xs">
-                                        ${(t.chat || []).map(m => `<div><span class="font-bold ${m.sender === t.clientId ? 'text-blue-400' : 'text-emerald-400'}">${m.senderName || 'Usuario'}:</span> ${m.text}</div>`).join('')}
+                                        ${(t.chat || []).map(m => `<div><span class="font-bold ${m.sender === t.clientId ? 'text-blue-400' : 'text-emerald-400'}">${histEsc(m.senderName || 'Usuario')}:</span> ${histEsc(m.text)}</div>`).join('')}
                                     </div>
                                 </details>
                             ` : ''}
@@ -40430,7 +40430,7 @@ window.cancelSetupAndLogout = () => {
                                 ${isAdminOrSup && t.driverId ? `
                                     <button onclick="window.staffOpenRateTrip('${t.id}')"
                                             class="flex-1 min-w-[7rem] bg-amber-500 text-black py-2 rounded-xl text-xs font-black">
-                                        ⭐ ${!t.ratedByClient ? 'Calificar conductor' : (!t.ratedByDriver ? 'Calificar pasajero' : 'Calificar (staff)')}
+                                        ⭐ ${!t.ratedByClient ? 'Calificar conductor' : (!t.ratedByDriver ? 'Calificar pasajero' : 'Volver a calificar')}
                                     </button>
                                 ` : ''}
                                 <button onclick="window.showFacturaForTrip('${t.id}', '${isMineAsClient ? (t.clientEmail || '') : (t.driverEmail || '')}')" 
@@ -42685,7 +42685,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                     const actions = [
                         needRate
                             ? U.btn(!t.ratedByClient ? 'Calificar conductor' : 'Calificar pasajero', `window.staffOpenRateTrip('${t.id}')`, { variant: 'amber', icon: 'fa-star' })
-                            : (t.driverId ? U.btn('Calificar (staff)', `window.staffOpenRateTrip('${t.id}')`, { variant: 'ghost', icon: 'fa-star' }) : ''),
+                            : (t.driverId ? U.btn('Volver a calificar', `window.staffOpenRateTrip('${t.id}')`, { variant: 'ghost', icon: 'fa-star' }) : ''),
                         U.btn('Factura', `window.sendInvoiceForTrip('${t.id}')`, { variant: 'primary', icon: 'fa-paper-plane' }),
                         U.btn('Ver', `window.showFacturaForTrip('${t.id}')`, { variant: 'ghost', icon: 'fa-eye' }),
                         U.btn('WhatsApp', `window.sendFacturaViaWhatsAppById('${t.id}')`, { variant: 'emerald', icon: 'fa-whatsapp' })
@@ -44576,4 +44576,19 @@ async function resolvePhoneLoginEmailServer(identifier) {
         console.warn('resolvePhoneLoginEmail:', e?.code || e?.message || e);
         return null;
     }
+}
+
+/** Historial: texto seguro para innerHTML. */
+function histEsc(v) {
+    return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** Historial: nombre del servicio real del viaje (antes salía «auto» en todos). */
+function historyServiceLabel(t) {
+    if (!t) return '';
+    if (t.bookingType === 'hourly') return 'Por horas';
+    const type = t.serviceType || t.requestedVehicleType || t.vehicleType || t.driverVehicleType || '';
+    if (!type) return t.storeOrderId ? 'Envío de tienda' : 'Viaje';
+    const label = getServiceLabel(type);
+    return t.storeOrderId ? `${label || 'Envío'} · tienda` : (label || String(type));
 }

@@ -3723,7 +3723,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const vType = data.driverVehicleType || data.driverVehicle?.type || 'auto';
             const vehicle = data.driverVehicle || {};
             const status = tpPassengerDriverStatus(data);
-            const photoUrl = data.driverPhoto || 'https://placehold.co/100x100/e2e8f0/64748b?text=Conductor';
+            const photoUrl = data.driverPhoto || '/icons/placeholder-avatar.svg';
             const driverName = data.driverName || 'Conductor';
             const plate = (vehicle.plate || '').toString().trim().toUpperCase();
             const model = vehicle.model || '';
@@ -3737,7 +3737,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 const el = document.getElementById(id);
                 if (!el) return;
                 el.src = src;
-                el.onerror = () => { el.src = 'https://placehold.co/100x100/e2e8f0/64748b?text=Conductor'; };
+                el.onerror = () => { el.src = '/icons/placeholder-avatar.svg'; };
             };
 
             setImg('client-trip-photo', photoUrl);
@@ -3759,7 +3759,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             // Fotos frente (placa) y atrás del vehículo
             const vehiclePair = tpResolveVehicleExteriorPhotos(data);
-            const vehiclePlaceholder = 'https://placehold.co/320x200/e2e8f0/94a3b8?text=Sin+foto';
+            const vehiclePlaceholder = '/icons/placeholder-photo.svg';
             tpApplyPhotoPair(
                 'client-trip-vehicle-photos',
                 'client-trip-vehicle-front',
@@ -3853,8 +3853,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 if (statusToggle) statusToggle.classList.add('hidden');
                 card.classList.remove('vehicle-taxi', 'vehicle-moto', 'vehicle-auto');
                 if (photo) {
-                    photo.src = data.clientPhoto || 'https://placehold.co/100x100/e2e8f0/64748b?text=Pasajero';
-                    photo.onerror = () => { photo.src = 'https://placehold.co/100x100/e2e8f0/64748b?text=Pasajero'; };
+                    photo.src = data.clientPhoto || '/icons/placeholder-avatar.svg';
+                    photo.onerror = () => { photo.src = '/icons/placeholder-avatar.svg'; };
                 }
                 if (name) {
                     const firstTrip = data.clientIsFirstTrip === true
@@ -3869,8 +3869,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 const uberPhoto = document.getElementById('driver-uber-pax-photo');
                 if (uberName) uberName.textContent = data.clientName || 'Pasajero';
                 if (uberPhoto) {
-                    uberPhoto.src = data.clientPhoto || 'https://placehold.co/64x64/e2e8f0/64748b?text=·';
-                    uberPhoto.onerror = () => { uberPhoto.src = 'https://placehold.co/64x64/e2e8f0/64748b?text=·'; };
+                    uberPhoto.src = data.clientPhoto || '/icons/placeholder-avatar.svg';
+                    uberPhoto.onerror = () => { uberPhoto.src = '/icons/placeholder-avatar.svg'; };
                 }
                 // No mostrar placa ni info de vehículo del pasajero al conductor
                 // (el pasajero es cliente, no tiene placa; y si es servicio carro, no corresponde)
@@ -3892,8 +3892,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 card.classList.add(tpVehicleTypeClass(vType));
 
                 if (photo) {
-                    photo.src = data.driverPhoto || 'https://placehold.co/100x100/e2e8f0/64748b?text=Conductor';
-                    photo.onerror = () => { photo.src = 'https://placehold.co/100x100/e2e8f0/64748b?text=Conductor'; };
+                    photo.src = data.driverPhoto || '/icons/placeholder-avatar.svg';
+                    photo.onerror = () => { photo.src = '/icons/placeholder-avatar.svg'; };
                 }
                 if (name) {
                     name.textContent = data.driverName || 'Conductor VIP';
@@ -3915,7 +3915,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 if (vehicleType) vehicleType.textContent = tpVehicleTypeLabel(vType);
                 if (vehicleTypeIcon) vehicleTypeIcon.className = `fas ${tpVehicleTypeIcon(vType)}`;
 
-                const placeholder = 'https://placehold.co/320x200/e2e8f0/94a3b8?text=Sin+foto';
+                const placeholder = '/icons/placeholder-photo.svg';
                 tpApplyPhotoPair(
                     'tp-vehicle-photos',
                     'tp-vehicle-front',
@@ -3932,7 +3932,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     'tp-license-front-link',
                     'tp-license-back-link',
                     tpResolveLicensePhotos(data),
-                    'https://placehold.co/320x200/e2e8f0/94a3b8?text=Licencia'
+                    '/icons/placeholder-photo.svg'
                 );
 
                 if (statusBanner) {

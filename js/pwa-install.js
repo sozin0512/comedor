@@ -402,8 +402,12 @@ function refreshInstallHomeUi() {
     if (banner) {
         const searching = document.body.classList.contains('is-searching');
         const dismissed = (() => {
-            try { return sessionStorage.getItem('hrInstallBannerDismissed') === '1' || sessionStorage.getItem('iosInstallBannerDismissed') === '1'; }
-            catch (_) { return false; }
+            try {
+                if (sessionStorage.getItem('hrInstallBannerDismissed') === '1' || sessionStorage.getItem('iosInstallBannerDismissed') === '1') return true;
+                // Cerrado hace menos de 7 días: no volver a tapar el panel en cada visita.
+                const at = Number(localStorage.getItem('hrInstallBannerDismissedAt') || 0);
+                return at > 0 && Date.now() - at < 7 * 24 * 3600 * 1000;
+            } catch (_) { return false; }
         })();
         const show = !installed && !searching && !dismissed;
         banner.classList.toggle('hidden', !show);
@@ -459,6 +463,7 @@ export function initInstallHomeUi() {
             try {
                 sessionStorage.setItem('hrInstallBannerDismissed', '1');
                 sessionStorage.setItem('iosInstallBannerDismissed', '1');
+                localStorage.setItem('hrInstallBannerDismissedAt', String(Date.now()));
             } catch (_) {}
         });
     }
