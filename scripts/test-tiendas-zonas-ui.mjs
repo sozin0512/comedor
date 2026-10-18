@@ -5,11 +5,12 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TMP = fs.mkdtempSync('/tmp/tzui-');
 fs.writeFileSync(path.join(TMP, 'fs-stub.mjs'), 'export const collection=()=>{},doc=()=>{},onSnapshot=()=>()=>{},query=()=>{},where=()=>{},orderBy=()=>{},limit=()=>{},getDocs=async()=>({docs:[]}),getDoc=async()=>({exists:()=>false}),Timestamp={fromMillis:(m)=>m};');
 fs.writeFileSync(path.join(TMP, 'zones.js'), 'export const getAllKnownZones=()=>[{id:"comayagua",name:"Comayagua",center:{lat:14.45,lng:-87.63}},{id:"siguatepeque",name:"Siguatepeque"}];');
-for (const f of ['delivery-zones-shared', 'ops-delivery-zones', 'store-delivery-zones', 'ops-store-orders']) {
+for (const f of ['trip-wait', 'delivery-zones-shared', 'ops-delivery-zones', 'store-delivery-zones', 'ops-store-orders']) {
   const src = fs.readFileSync(path.join(ROOT, 'js', `${f}.js`), 'utf8')
     .replace(/https:\/\/www\.gstatic\.com\/firebasejs\/[^'"]+firestore\.js/g, './fs-stub.mjs')
     .replace(/'\.\/zones\.js\?v=[^']+'/g, "'./zones.js'")
-    .replace(/'\.\/delivery-zones-shared\.js\?v=[^']+'/g, "'./delivery-zones-shared.mjs'");
+    .replace(/'\.\/delivery-zones-shared\.js\?v=[^']+'/g, "'./delivery-zones-shared.mjs'")
+    .replace(/'\.\/trip-wait\.js\?v=[^']+'/g, "'./trip-wait.mjs'");
   fs.writeFileSync(path.join(TMP, `${f}.mjs`), src);
 }
 globalThis.window = {}; globalThis.localStorage = { getItem: () => null, setItem: () => {} };

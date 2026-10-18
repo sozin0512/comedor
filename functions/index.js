@@ -60,6 +60,22 @@ const serviceAvailability = require('./service-availability')({
 });
 /** Pedido de tienda sigue al viaje: En camino al aceptar, Entregado al completar (ver store-order-sync.js). */
 const storeOrderSync = require('./store-order-sync')({ db, FieldValue, onDocumentUpdated });
+/** « · pidió hace 7 min» para la push de oferta (hora del servidor). '' si es nuevo (<2 min) o programado. */
+function requestWaitPushSuffix(trip, nowMs = Date.now()) {
+    if (!trip || trip.scheduledFor || trip.status === 'scheduled') return '';
+    const ms = (v) => (v == null ? 0 : typeof v === 'number' ? v : typeof v.toMillis === 'function' ? v.toMillis() : (typeof v.seconds === 'number' ? v.seconds * 1000 : 0));
+    const created = ms(trip.createdAt) || ms(trip.createdAtMs);
+    const store = !!(trip.storeOrderId || trip.storeDelivery || trip.createdByMerchant || trip.deliveryDetails?.storeOrderId);
+    const orderMs = store ? (ms(trip.storeOrderCreatedAtMs) || ms(trip.deliveryDetails?.orderCreatedAtMs)) : 0;
+    const since = orderMs > 0 && (!created || orderMs <= created) ? orderMs : created;
+    if (!(since > 0)) return '';
+    const mins = Math.floor(Math.max(0, nowMs - since) / 60000);
+    if (mins < 2) return '';
+    const h = Math.floor(mins / 60); const m = mins % 60;
+    const dur = mins < 60 ? `${mins} min` : (m ? `${h} h ${m} min` : `${h} h`);
+    return ` · ${store ? 'pedido' : 'pidió'} hace ${dur}`;
+}
+
 const TRIP_OFFER_TIMEOUT_MS = 120 * 1000;
 /** Primer tramo: solo el conductor más cercano. Luego se abre a toda la ciudad. */
 const TRIP_OFFER_EXCLUSIVE_MS = 18 * 1000;
@@ -4146,7 +4162,8 @@ exports.onTripUpdatePush = onDocumentUpdated(
             const offerTitle = minsUntilPickup > 0
                 ? '📅 Viaje programado'
                 : (isFreight ? '🚛 ¡Flete disponible!' : (isStoreDeliveryTrip(after) ? '🛍️ Pedido de tienda' : tripOfferPushTitle(after.serviceType)));
-            const offerBody = `${bodyCore}${bodyExtra ? ` · ${bodyExtra}` : ''}${scheduledHint}${busyHint}`;
+            const waitHint = minsUntilPickup > 0 ? '' : requestWaitPushSuffix(after);
+            const offerBody = `${bodyCore}${waitHint}${bodyExtra ? ` · ${bodyExtra}` : ''}${scheduledHint}${busyHint}`;
             const offerData = {
                 type: 'trip_offer',
                 tripId,
