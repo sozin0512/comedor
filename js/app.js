@@ -14473,16 +14473,16 @@ if (document.readyState === 'loading') {
                     // Antes del plazo: comisión del día. Después del plazo: deuda vencida (no cada viaje es deuda al instante).
                     if (pendingDep > 0.009 && !graceOnCard) {
                         if (overdueCard) {
-                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-red-500/20 text-red-400">Deuda venc. L.${pendingDep.toFixed(0)}</span>`;
+                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-red-500/20 text-red-400">Deuda venc. ${formatLempiras(pendingDep)}</span>`;
                         } else if (remainTodayCard > 0.009 && debtConsol <= 0.009) {
-                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-amber-500/20 text-amber-400">Dep. hoy L.${remainTodayCard.toFixed(0)}</span>`;
+                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-amber-500/20 text-amber-400">Dep. hoy ${formatLempiras(remainTodayCard)}</span>`;
                         } else {
-                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-amber-500/20 text-amber-400">A dep. L.${pendingDep.toFixed(0)}</span>`;
+                            daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-amber-500/20 text-amber-400">A dep. ${formatLempiras(pendingDep)}</span>`;
                         }
                     }
                     if (graceOnCard) {
                         const gLabel = formatDepositGraceLabel(u);
-                        const debtLbl = pendingDep > 0 ? ` · Deuda L.${pendingDep.toFixed(0)}` : '';
+                        const debtLbl = pendingDep > 0 ? ` · Deuda ${formatLempiras(pendingDep)}` : '';
                         daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-emerald-500/20 text-emerald-300">DISPONIBLE</span>`;
                         daysLeftBadge += ` <span class="ml-1 text-[9px] px-2 py-0.5 rounded-full font-black bg-sky-500/20 text-sky-300">PRÓRROGA${gLabel ? ` · ${gLabel}` : ''}${debtLbl}</span>`;
                     }
@@ -24476,7 +24476,7 @@ if (document.readyState === 'loading') {
                         let c=0;
                         snap.forEach(d=>{
                             const r=d.data(); if(r.driverId!==driverId || c>6) return;
-                            doc.text(`• ${r.date||''} L.${(r.amount||0).toFixed(2)}`,20,y); y+=6; c++;
+                            doc.text(`• ${r.date||''} ${formatLempiras((r.amount||0))}`,20,y); y+=6; c++;
                         });
                         if(c===0) doc.text('Sin depósitos',20,y);
                     } catch(e){}
@@ -24750,7 +24750,7 @@ if (document.readyState === 'loading') {
                         pdf.setFontSize(9);
                         recentDeposits.forEach(d => {
                             if (y > 270) { pdf.addPage(); y = 20; }
-                            pdf.text(`• ${d.date || ''} L.${(d.amount||0).toFixed(2)} - ${d.status || ''}`, 20, y);
+                            pdf.text(`• ${d.date || ''} ${formatLempiras((d.amount||0))} - ${d.status || ''}`, 20, y);
                             y += 6;
                         });
                         y += 4;
@@ -40528,12 +40528,12 @@ window.cancelSetupAndLogout = () => {
                     const needRate = t.driverId && (!t.ratedByClient || !t.ratedByDriver);
                     html += `
                         <div class="bg-gray-800 p-4 rounded-2xl mb-3 border border-gray-700">
-                            <div class="text-sm font-black">${t.clientName} → ${t.driverName || '—'} • L.${t.price || '—'}</div>
-                            <div class="text-xs text-gray-400">${t.origin} → ${t.destination}</div>
+                            <div class="text-sm font-black">${histEsc(displayPersonName(t.clientName, 'Pasajero'))} → ${histEsc(displayPersonName(t.driverName, '—'))} • ${(t.priceNum ?? t.price) != null && (t.priceNum ?? t.price) !== '' ? formatLempiras(t.priceNum ?? t.price) : '—'}</div>
+                            <div class="text-xs text-gray-400">${histEsc(t.origin || 'Origen')} → ${histEsc(t.destination || 'Destino')}</div>
                             ${chatCount ? `<div class="text-emerald-400 text-xs mt-1">${chatCount} mensajes en chat</div>` : ''}
                             ${needRate ? `<div class="text-amber-300 text-xs mt-1 font-bold">Falta calificación${!t.ratedByClient ? ' del conductor' : ''}${!t.ratedByClient && !t.ratedByDriver ? ' y' : ''}${!t.ratedByDriver ? ' del pasajero' : ''}</div>` : ''}
                             <div class="flex gap-2 mt-2 flex-wrap">
-                                ${t.driverId ? `<button onclick="window.staffOpenRateTrip('${t.id}')" class="flex-1 min-w-[7rem] bg-amber-500 text-black py-2 rounded-xl text-xs font-black">⭐ ${!t.ratedByClient ? 'Calificar conductor' : 'Calificar (staff)'}</button>` : ''}
+                                ${t.driverId ? `<button onclick="window.staffOpenRateTrip('${t.id}')" class="flex-1 min-w-[7rem] bg-amber-500 text-black py-2 rounded-xl text-xs font-black">⭐ ${!t.ratedByClient ? 'Calificar conductor' : 'Volver a calificar'}</button>` : ''}
                                 <button onclick="window.showFacturaForTrip('${t.id}')" class="flex-1 bg-purple-600 text-white py-2 rounded-xl text-xs font-black">📄 Ver Factura</button>
                                 <button onclick="window.sendInvoiceForTrip('${t.id}')" class="flex-1 bg-emerald-600 text-white py-2 rounded-xl text-xs font-black">📨 Enviar Factura</button>
                             </div>
