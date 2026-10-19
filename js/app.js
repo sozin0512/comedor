@@ -119,7 +119,7 @@ import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, c
 import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.16.11";
 import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.16.11";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType } from "./fcm-push.js?v=2026.10.16.11";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.16.11";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
@@ -4851,6 +4851,41 @@ if (document.readyState === 'loading') {
             }
         }
 
+        /** APK: no llegó el token de Google. Mensaje claro + código copiable para mandar captura. */
+        function showAndroidPushDiagnostic() {
+            if (!isCapacitorAndroid() || hasAndroidFcmToken()) return;
+            if (document.getElementById('hr-push-diag')) return;
+            let diag = { error: '', text: '' };
+            try { diag = getAndroidPushDiagnostic(); } catch (_) {}
+            const esc = (t) => String(t || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+            const el = document.createElement('div');
+            el.id = 'hr-push-diag';
+            el.style.cssText = 'position:fixed;inset:0;z-index:40002;background:rgba(15,23,42,0.85);display:flex;align-items:center;justify-content:center;padding:16px;';
+            el.innerHTML = `
+                <div style="background:#fff;border-radius:18px;padding:18px;max-width:380px;width:100%;">
+                    <p style="margin:0 0 6px;font-size:16px;font-weight:800;color:#b91c1c;">No se pudo obtener el token de Google</p>
+                    <p style="margin:0 0 10px;font-size:13px;color:#334155;">${esc(diag.error || 'El teléfono no respondió a tiempo')}</p>
+                    <p style="margin:0 0 6px;font-size:12px;color:#64748b;">Toma captura de esta pantalla y mándala a soporte:</p>
+                    <textarea readonly data-hr-diag style="width:100%;height:130px;font:11px/1.35 monospace;border:1px solid #cbd5e1;border-radius:10px;padding:8px;color:#0f172a;">${esc(diag.text)}</textarea>
+                    <div style="display:flex;gap:8px;margin-top:12px;">
+                        <button type="button" data-hr-copy style="flex:1;padding:10px;border-radius:12px;background:#0f172a;color:#fff;font-weight:700;font-size:13px;">Copiar código</button>
+                        <button type="button" data-hr-close style="flex:1;padding:10px;border-radius:12px;background:#e2e8f0;color:#0f172a;font-weight:700;font-size:13px;">Cerrar</button>
+                    </div>
+                </div>`;
+            el.querySelector('[data-hr-close]')?.addEventListener('click', () => el.remove());
+            el.querySelector('[data-hr-copy]')?.addEventListener('click', async () => {
+                const ta = el.querySelector('[data-hr-diag]');
+                try { await navigator.clipboard.writeText(ta.value); } catch (_) { ta.select(); try { document.execCommand('copy'); } catch (_) {} }
+                window.showToast?.('Código copiado', 'success');
+            });
+            document.body.appendChild(el);
+        }
+        window.showAndroidPushDiagnostic = showAndroidPushDiagnostic;
+        window.addEventListener('honduber-push-register-failed', () => { try { showAndroidPushDiagnostic(); } catch (_) {} });
+        window.addEventListener('honduber-push-register-error', () => {
+            setTimeout(() => { try { showAndroidPushDiagnostic(); } catch (_) {} }, 1500);
+        });
+
         window.enableTripNotifications = async () => {
             if (isPushReadyForThisContext()) {
                 updatePushEnableButton();
@@ -5017,6 +5052,8 @@ if (document.readyState === 'loading') {
                         sendRealPushSelfTest({ alreadyReady: true }).catch(() => {});
                     };
                     const lateTimer = setTimeout(() => window.removeEventListener('honduber-push-token', onLateToken), 120000);
+                    // Si a los 45 s sigue sin token: decir por qué en pantalla (antes se quedaba en «Registrando…»).
+                    setTimeout(() => { if (!hasAndroidFcmToken()) showAndroidPushDiagnostic(); }, 45000);
                     window.addEventListener('honduber-push-token', onLateToken);
                     registerPromise.then((tok) => {
                         if (tok || hasAndroidFcmToken() || hasSavedWebPushToken()) {

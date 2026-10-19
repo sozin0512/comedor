@@ -13,3 +13,11 @@ assert.match(app, /if \(window\.__hrPushAskLock\) \{\s*\/\/ Antes no hacía nada
 console.log('test-avisos-apk: 6 OK');
 assert.match(app, /if \(gotToken\) \{\s*localStorage\.setItem\('honduber_push_enabled', '1'\);[\s\S]{0,300}window\.__hrPushServerInvalid = false;/);
 console.log('test-avisos-apk: flag reset OK');
+const fcm = src;
+assert.match(fcm, /export function getAndroidPushDiagnostic/);
+assert.match(fcm, /diagSet\('registrationError'/);
+assert.match(fcm, /diagSet\('nativeGetTokenError', String\(res\.error\)\)/);
+assert.match(app, /No se pudo obtener el token de Google/);
+assert.match(app, /honduber-push-register-failed/);
+assert.match(app, /getAndroidPushDiagnostic \} from "\.\/fcm-push\.js/);
+console.log('test-avisos-apk: diagnóstico OK');

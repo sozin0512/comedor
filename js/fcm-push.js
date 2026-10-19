@@ -1575,6 +1575,39 @@ let androidNativeTokenConfirmed = false;
 let androidRegisterWaitingSince = 0;
 let androidRegisterGaveUpAt = 0;
 let androidRegisterError = '';
+/** Diagnóstico visible para el conductor (captura de pantalla → soporte). */
+const androidPushDiag = {
+    pushPlugin: null, keepalivePlugin: null, listeners: null,
+    registerCalls: 0, registerError: '', registrationError: '',
+    nativeGetToken: '', nativeGetTokenError: '', startedAt: 0
+};
+function diagSet(k, v) { try { androidPushDiag[k] = typeof v === 'string' ? v.slice(0, 160) : v; } catch (_) {} }
+
+/** Texto corto y copiable con lo que pasó al pedir el token de Google en este equipo. */
+export function getAndroidPushDiagnostic() {
+    let cap = {};
+    try {
+        const C = window.Capacitor || {};
+        androidPushDiag.pushPlugin = typeof C.isPluginAvailable === 'function' ? C.isPluginAvailable('PushNotifications') : null;
+        androidPushDiag.keepalivePlugin = typeof C.isPluginAvailable === 'function' ? C.isPluginAvailable('SessionKeepalive') : null;
+        cap = { platform: C.getPlatform?.() || '' };
+    } catch (_) {}
+    let ua = '';
+    try { ua = (navigator.userAgent.match(/Android [\d.]+; [^)]*/) || [''])[0]; } catch (_) {}
+    let perm = '';
+    try { perm = getNotificationPermission(); } catch (_) {}
+    const d = androidPushDiag;
+    const error = d.registrationError || d.nativeGetTokenError || d.registerError || androidRegisterError || '';
+    const lines = [
+        `v=${APP_CONFIG.appVersion || APP_CONFIG.version || ''} plat=${cap.platform || ''} perm=${perm}`,
+        `plugins push=${d.pushPlugin} sk=${d.keepalivePlugin} listeners=${d.listeners}`,
+        `register x${d.registerCalls} err=${d.registerError || '-'}`,
+        `registrationError=${d.registrationError || '-'}`,
+        `getFcmToken=${d.nativeGetToken || '-'} err=${d.nativeGetTokenError || '-'}`,
+        `fcmEnabled=${isAndroidFcmConfigured()} ${ua}`
+    ];
+    return { error, text: `HR-PUSH ${new Date().toISOString().slice(0, 16)}Z\n${lines.join('\n')}` };
+}
 /** Tope de la pastilla "Registrando avisos…": después se muestra "Activar avisos" para reintentar. */
 const ANDROID_REGISTER_MAX_WAIT_MS = 75000;
 
@@ -1721,7 +1754,12 @@ async function requestAndroidFcmTokenOnce({ force = false } = {}) {
         return prefetchedAndroidToken || lastAndroidTokenValue || null;
     }
     lastAndroidRegisterAt = Date.now();
-    try { await raceTimeout(PushNotifications.register(), 8000, null); } catch (e) {
+    androidPushDiag.registerCalls += 1;
+    try {
+        const r = await raceTimeout(Promise.resolve(PushNotifications.register()).then(() => 'ok', (e) => { throw e; }), 8000, 'timeout');
+        if (r === 'timeout') diagSet('registerError', 'register_timeout_8s');
+    } catch (e) {
+        diagSet('registerError', String(e?.message || e || 'register_error'));
         console.warn('[push] register now', e);
     }
     if (force) {
@@ -2022,6 +2060,7 @@ function bindAndroidPushListeners() {
         await PushNotifications.addListener('registrationError', (err) => {
             console.warn('[push] registrationError', err);
             androidRegisterError = String(err?.error || err?.message || err || 'registration_error').slice(0, 120);
+            diagSet('registrationError', androidRegisterError);
             notifyAndroidRegisterState('honduber-push-register-error');
         });
         await PushNotifications.addListener('pushNotificationReceived', (notification) => {
@@ -2047,8 +2086,10 @@ function bindAndroidPushListeners() {
             }
         } catch (_) {}
         bindAndroidPushResume();
+        diagSet('listeners', 'ok');
         return true;
     })().catch((e) => {
+        diagSet('listeners', `error: ${String(e?.message || e)}`);
         androidPushListenersPromise = null;
         console.warn('[push] listeners', e);
         return false;
@@ -2138,11 +2179,18 @@ async function fetchNativeFcmToken(timeoutMs = 4000) {
     try {
         const SK = registerPlugin('SessionKeepalive');
         const res = await raceTimeout(SK.getFcmToken(), timeoutMs, null);
-        if (!res) return '';
+        if (!res) { diagSet('nativeGetToken', 'timeout'); return ''; }
         nativeGetFcmTokenState = 'ok';
-        return String(res?.token || '').trim();
+        const tok = String(res?.token || '').trim();
+        diagSet('nativeGetToken', tok ? `ok …${tok.slice(-6)}` : 'vacío');
+        if (!tok && res?.error) {
+            diagSet('nativeGetTokenError', String(res.error));
+            if (!androidRegisterError) androidRegisterError = String(res.error).slice(0, 120);
+        }
+        return tok;
     } catch (e) {
         const msg = String(e?.message || e || '');
+        diagSet('nativeGetTokenError', msg || 'getFcmToken_error');
         if (/unimplemented|not implemented|unavailable/i.test(msg)) {
             nativeGetFcmTokenState = 'missing';
         }
