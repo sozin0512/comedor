@@ -1743,6 +1743,14 @@ async function requestAndroidFcmTokenOnce({ force = false } = {}) {
     return prefetchedAndroidToken || lastAndroidTokenValue || null;
 }
 
+/**
+ * ¿El sistema negó sin mostrar diálogo? (respuesta «denied» casi inmediata y los avisos
+ * del sistema apagados). Pura, para pruebas.
+ */
+export function isPermanentAndroidDenial({ elapsedMs = 0, asked = 'default', sys = null } = {}) {
+    return asked === 'denied' && sys !== true && Number(elapsedMs) < 1500;
+}
+
 /** Arranca el diálogo nativo en el mismo toque, antes de cualquier await. */
 export function beginAndroidNotificationPermissionRequest() {
     if (!isCapacitorAndroid()) return null;
@@ -1767,6 +1775,7 @@ export function beginAndroidNotificationPermissionRequest() {
 export async function finishAndroidPermissionRequest(started) {
     if (!isCapacitorAndroid()) return 'default';
     let receive = 'default';
+    const askedAt = Date.now();
     try {
         // Con tope: si la respuesta del diálogo se pierde, seguimos leyendo el permiso real.
         const perm = await raceTimeout(started || PushNotifications.requestPermissions(), 30000, null);
@@ -1781,6 +1790,14 @@ export async function finishAndroidPermissionRequest(started) {
         return 'granted';
     };
     if (receive === 'granted') return acceptGranted();
+    // Bloqueado de antes (Android 13+ tras 2 «No permitir», o apagado en Ajustes):
+    // requestPermissions responde «denied» al instante sin mostrar ningún diálogo.
+    // No esperar 12-26 s en silencio (el botón parecía no hacer nada): ir directo a Ajustes.
+    if (receive === 'denied' && isPermanentAndroidDenial({ elapsedMs: Date.now() - askedAt, ...(await readAndroidPermissionParts()) })) {
+        androidPermissionDialogOpen = false;
+        setAndroidNotificationPermissionCache('denied');
+        return 'denied';
+    }
 
     const deadline = Date.now() + 26000;
     let deniedSince = 0;

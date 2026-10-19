@@ -4857,7 +4857,13 @@ if (document.readyState === 'loading') {
                 await sendRealPushSelfTest({ alreadyReady: true });
                 return;
             }
-            if (window.__hrPushAskLock) return;
+            if (window.__hrPushAskLock) {
+                // Antes no hacía nada y parecía roto: avisar que sigue en curso.
+                window.showToast?.(isCapacitorAndroid()
+                    ? 'Sigo activando los avisos… Si no ves el recuadro Permitir, toca otra vez en unos segundos o actívalos en Ajustes → Apps → HonduRaite → Notificaciones.'
+                    : 'Sigo activando los avisos…', 'info');
+                return;
+            }
             window.__hrPushAskLock = true;
             if (isCapacitorAndroid()) resetAndroidPushRegisterFailure?.();
             try {
