@@ -30,15 +30,15 @@
     }
 }
 
-/* Origen: el texto (p. ej. «Punto de carga…» en Flete) no debe quedar debajo de los botones GPS y pin. */
+/* Origen / destino: el espacio para los botones GPS y pin lo reserva el propio campo
+   (padding-right en línea desde maps-init.js: 5.5rem vacío / 52px con texto; destino 52px).
+   NO volver a poner padding-inline-end en ::part(input): se sumaba a ese padding y dejaba el
+   texto en ~0 px en teléfonos de 360-412 px (no se veía «Origen» ni lo que se escribía, 2026.10.16.9-10).
+   Solo cortar con «…» si el texto no cabe. */
 .trip-origin-wrap gmp-place-autocomplete::part(input),
-.trip-origin-wrap gmp-basic-place-autocomplete::part(input) {
-    padding-inline-end: 6.25rem;
-    text-overflow: ellipsis;
-}
+.trip-origin-wrap gmp-basic-place-autocomplete::part(input),
 .trip-dest-wrap gmp-place-autocomplete::part(input),
 .trip-dest-wrap gmp-basic-place-autocomplete::part(input) {
-    padding-inline-end: 3.25rem;
     text-overflow: ellipsis;
 }
 

@@ -496,6 +496,12 @@ export function setPassengerHomeMode(mode) {
 
     ensureHomeUi();
     applyMode(next);
+    // Origen vacío al entrar a un servicio (el GPS del inicio de sesión pudo fallar o tardar):
+    // reintentar con la ubicación actual. No hace nada si ya hay origen, si el pasajero lo borró
+    // a propósito o si ya se rellenó una vez (ver ensurePassengerOriginFromGps en app.js).
+    if (next !== 'home') {
+        setTimeout(() => { try { window.ensurePassengerOriginFromGps?.(); } catch (_) {} }, 400);
+    }
 }
 
 export function getPassengerHomeMode() {

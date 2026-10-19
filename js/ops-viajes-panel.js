@@ -952,7 +952,7 @@ function renderHistory() {
       <div class="vj-stat"><div class="vj-sub">Completados</div><b>${done.length}</b></div>
       <div class="vj-stat"><div class="vj-sub">Precio promedio</div><b>${prices.length ? fmtL0(avg) : '—'}</b></div>
       <div class="vj-stat"><div class="vj-sub">Mediana</div><b>${prices.length ? fmtL0(median(prices)) : '—'}</b></div>
-      <div class="vj-stat"><div class="vj-sub">Rango</div><b>${prices.length ? `${fmtL0(Math.min(...prices))} – ${Math.round(Math.max(...prices))}` : '—'}</b></div>
+      <div class="vj-stat"><div class="vj-sub">Rango</div><b>${prices.length ? `${fmtL0(Math.min(...prices))} – ${fmtL0(Math.max(...prices))}` : '—'}</b></div>
       <div class="vj-stat"><div class="vj-sub">Fechas</div><b>${a ? fmtDayShort(a) : '…'} – ${fmtDayShort(b)}</b></div>
       <div class="vj-stat"><div class="vj-sub">Calidad de datos</div><div class="vj-row" style="gap:4px;margin-top:3px">${dqTags || '<span class="vj-tag ok">Sin alertas</span>'}</div></div>
     </div>
