@@ -793,7 +793,8 @@ window.calculateTripRoute = async (options = {}) => {
             if (optsPanel) optsPanel.classList.remove('hidden');
 
             // configurar horas del viaje
-            renderHourlyChips();
+            // renderHourlyChips vive en app.js (no es global aquí): antes tiraba ReferenceError y cortaba el cálculo
+            window.renderHourlyChips?.();
             window.updateHourlyOneHourAlert?.();
 
             // preselect the start time to now ONLY on initial force into hourly

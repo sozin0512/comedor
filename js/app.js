@@ -480,6 +480,7 @@ function loadHeavyUiAfterAuth() {
         vLoad.push(hrLazy('youtube-tutorials.js').then((m) => {
             try { m.initYoutubeTutorials(); } catch (e) { console.warn(e); }
             window.syncYoutubeTutorialMenuVisibility = m.syncYoutubeTutorialMenuVisibility;
+            try { if (window.userProfile?.role) m.syncYoutubeTutorialMenuVisibility(window.userProfile.role); } catch (_) {}
         }).catch((e) => console.warn(e)));
         vLoad.push(hrLazy('ops-driver-objectives.js').then((m) => {
             m.initDriverObjectives({
@@ -30252,7 +30253,8 @@ onAuthStateChanged(auth, async (user) => {
                 if (profile.role === 'driver') {
                     try { exitGuestFollowShell(); } catch (_) {}
                 }
-                syncYoutubeTutorialMenuVisibility(profile.role);
+                // Módulo diferido: si aún no cargó, no tumbar el arranque (ReferenceError → «Error crítico al iniciar»)
+                window.syncYoutubeTutorialMenuVisibility?.(profile.role);
                 window.syncDriverCopaMenuVisibility?.(profile.role);
                 window.syncPassengerCopaMenuVisibility?.(profile.role);
                 // Ranking público: pasajeros, staff y conductores
@@ -37552,6 +37554,7 @@ window.cancelSetupAndLogout = () => {
             }
         };
 
+        window.renderHourlyChips = (...a) => renderHourlyChips(...a);
         function renderHourlyChips() {
             const container = document.getElementById('hourly-hours-chips');
             if (!container) return;

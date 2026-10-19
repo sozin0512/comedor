@@ -21,10 +21,12 @@
                 const num = parseFloat(String(v || '').trim());
                 return Number.isFinite(num) ? num : 0;
             };
+            // Ojo: NO leer --search-safe-top aquí. Es la salida de esta función (se escribe en
+            // syncTripAutocompleteViewport); leerla y sumarle 12 crecía sin fin en web
+            // (sin --native-safe-top): el escudo blanco del reloj acababa tapando toda la pantalla.
             let t = parse(root.getPropertyValue('--native-safe-top'))
                 || parse(body.getPropertyValue('--safe-top'))
-                || parse(root.getPropertyValue('--safe-top'))
-                || parse(root.getPropertyValue('--search-safe-top'));
+                || parse(root.getPropertyValue('--safe-top'));
             if (t < 36) t = 36;
             t += 12;
             return Math.round(t);
@@ -2755,8 +2757,10 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             const attachAutocompleteInputWatch = (el) => {
                 const hookInput = () => {
-                    const input = el.shadowRoot?.querySelector('input')
-                        || el.shadowRoot?.querySelector('[part="input"]')
+                    // Shadow «closed» de Google: el.shadowRoot es null; usar el guardado en attachShadow.
+                    const root = el.shadowRoot || el._hrShadow;
+                    const input = root?.querySelector('input')
+                        || root?.querySelector('[part="input"]')
                         || el.querySelector('input');
                     if (!input || input.dataset.honduberHooked === '1') return !!input;
                     input.dataset.honduberHooked = '1';
@@ -2772,6 +2776,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         if (hookInput()) obs.disconnect();
                     });
                     obs.observe(el, { childList: true, subtree: true });
+                    if (el._hrShadow) obs.observe(el._hrShadow, { childList: true, subtree: true });
                 }
             };
 
@@ -2805,8 +2810,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 };
                 el._clearAutocompleteStack = deactivate;
                 const hookInput = () => {
-                    const input = el.shadowRoot?.querySelector('input')
-                        || el.shadowRoot?.querySelector('[part="input"]')
+                    const root = el.shadowRoot || el._hrShadow;
+                    const input = root?.querySelector('input')
+                        || root?.querySelector('[part="input"]')
                         || el.querySelector('input');
                     if (!input || input.dataset.stackHooked === '1') return !!input;
                     input.dataset.stackHooked = '1';
@@ -2822,7 +2828,10 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         setTimeout(() => window.applyPlacesListPlacement?.(el), 220);
                     });
                     // Borrar origen y seguir escribiendo: mantener modo búsqueda activo
-                    input.addEventListener('input', () => {
+                    input.addEventListener('input', (ev) => {
+                        // Solo lo que escribe la persona: GPS/favoritos/pin rellenan el campo con
+                        // eventos sintéticos y no deben abrir el modo búsqueda.
+                        if (ev && ev.isTrusted === false) return;
                         clearTimeout(blurTimer);
                         setActive(true);
                         syncTripAutocompleteViewport();
@@ -2850,6 +2859,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         if (hookInput()) obs.disconnect();
                     });
                     obs.observe(el, { childList: true, subtree: true });
+                    if (el._hrShadow) obs.observe(el._hrShadow, { childList: true, subtree: true });
                 }
                 el.addEventListener('focus', () => {
                     clearTimeout(blurTimer);
@@ -6719,7 +6729,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     : [
                         {
                             routingPreference: 'TRAFFIC_AWARE',
-                            departureTime: new Date()
+                            // Routes API exige hora futura; «ahora» ya es pasado al llegar (400 INVALID_ARGUMENT)
+                            departureTime: new Date(Date.now() + 60 * 1000)
                         },
                         { routingPreference: 'TRAFFIC_UNAWARE' }
                     ];
