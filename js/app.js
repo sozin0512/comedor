@@ -4983,7 +4983,11 @@ if (document.readyState === 'loading') {
                 const gotToken = !!(deviceToken || hasAndroidFcmToken() || hasSavedWebPushToken());
                 if (gotToken) {
                     localStorage.setItem('honduber_push_enabled', '1');
+                    // Un «token muerto» de una revisión anterior dejaba la pastilla en «Activar avisos»
+                    // aunque este toque ya guardó el token nuevo (APK: tocar no cambiaba nada).
+                    window.__hrPushServerInvalid = false;
                     updatePushEnableButton();
+                    setTimeout(() => { window.refreshDriverPushRegistration?.({ force: true })?.catch?.(() => {}); }, 4000);
                     if (isCapacitorAndroid()) {
                         const isDriverRole = window.userProfile?.role === 'driver'
                             || isDriverAppSession();

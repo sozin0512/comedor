@@ -11,3 +11,5 @@ assert.equal(fn({ elapsedMs: 100, asked: 'prompt', sys: false }), false);
 const app = fs.readFileSync(new URL('../js/app.js', import.meta.url), 'utf8');
 assert.match(app, /if \(window\.__hrPushAskLock\) \{\s*\/\/ Antes no hacía nada/);
 console.log('test-avisos-apk: 6 OK');
+assert.match(app, /if \(gotToken\) \{\s*localStorage\.setItem\('honduber_push_enabled', '1'\);[\s\S]{0,300}window\.__hrPushServerInvalid = false;/);
+console.log('test-avisos-apk: flag reset OK');
