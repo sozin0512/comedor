@@ -98,14 +98,17 @@ async function typeInto(page, id, text) {
 }
 async function pickFirst(page) { await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(4500); }
 async function skipStopPrompt(page) {
+    // El aviso «¿Parada en el camino?» puede salir unos segundos después (cuando termina la ruta)
     const b = page.locator('[data-extra-stop-choice="no"]');
+    await b.waitFor({ state: 'visible', timeout: 4000 }).catch(() => {});
     if (await b.isVisible().catch(() => false)) { await b.click(); await page.waitForTimeout(2500); }
 }
 /** Recorre tipo (si hay que elegir) → 1 persona → Ahora; devuelve los pasos visibles. */
 async function walkToRequest(page, svcLabel) {
     await skipStopPrompt(page);
     const svc = page.locator('#service-type-picker [data-service-type]', { hasText: svcLabel }).first();
-    if (await svc.isVisible().catch(() => false)) { await svc.click(); await page.waitForTimeout(2500); }
+    if (await svc.isVisible().catch(() => false)) { await svc.click({ timeout: 8000 }).catch(async () => { await skipStopPrompt(page); await svc.click({ timeout: 8000 }).catch(() => {}); }); await page.waitForTimeout(2500); }
+    await skipStopPrompt(page);
     const one = page.locator('#trip-passengers-adder button', { hasText: /^\s*1\s*$/ }).first();
     if (await one.isVisible().catch(() => false)) { await one.click(); await page.waitForTimeout(2000); }
     const now = page.locator('#trip-when-now');
