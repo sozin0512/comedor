@@ -146,7 +146,15 @@ ok('viaje viejo (otro tripId) no manda', P(trip0, { ...trip0, status: 'completed
   ok('Taxi VIP puede tomar pedido de tienda', t.driverCanServeTrip('auto', 'delivery', st0) && !t.driverCanServeTrip('auto', 'delivery', { serviceType: 'delivery' }));
   ok('perfil con VIP aprobado sirve pedido de tienda', t.locOrProfileCanServeTrip({ vehicleType: 'auto' }, { vehicles: [{ type: 'auto', approvalStatus: 'approved' }] }, 'delivery', st0));
   ok('taxi tradicional no', !t.driverCanServeTrip('taxi', 'delivery', st0));
-  ok('export onStoreTripStatusSync y staffSetServiceAvailability', typeof m.exports.onStoreTripStatusSync === 'function' && typeof m.exports.staffSetServiceAvailability === 'function');
+  const stMoto = { serviceType: 'delivery', storeOrderId: 'o1', deliveryVehicle: 'moto' };
+  const stAuto = { serviceType: 'delivery', storeOrderId: 'o1', deliveryVehicle: 'auto' };
+  ok('pedido moto: solo moto', JSON.stringify(t.requiredVehicleTypesForTrip(stMoto)) === '["moto"]' && t.driverCanServeTrip('moto', 'delivery', stMoto) && !t.driverCanServeTrip('auto', 'delivery', stMoto));
+  ok('pedido carro: solo Taxi VIP', JSON.stringify(t.requiredVehicleTypesForTrip(stAuto)) === '["auto"]' && t.driverCanServeTrip('vip', 'delivery', stAuto) && t.driverCanServeTrip('taxi_vip', 'delivery', stAuto) && !t.driverCanServeTrip('moto', 'delivery', stAuto) && !t.driverCanServeTrip('taxi', 'delivery', stAuto));
+  ok('export onStoreTripStatusSync y staffSetServiceAvailability', typeof m.exports.onStoreTripStatusSync === 'function' && typeof m.exports.staffSetServiceAvailability === 'function' && typeof m.exports.onStoreOrderStock === 'function' && typeof m.exports.onStoreOrderStockRestore === 'function');
+  const ST = await import(jsUrl('service-types.js'));
+  ok('app: pedido viejo sigue siendo moto o VIP', ST.driverCanServeTrip('moto', 'delivery', null, st0) && ST.driverCanServeTrip('auto', 'delivery', null, st0) && !ST.driverCanServeTrip('taxi', 'delivery', 'T-1234', st0));
+  ok('app: moto elegida no la toma el carro', ST.storeDeliveryChoice(stMoto) === 'moto' && ST.driverCanServeTrip('moto', 'delivery', null, stMoto) && !ST.driverCanServeTrip('auto', 'delivery', null, stMoto));
+  ok('app: carro elegido no lo toma la moto', ST.storeDeliveryChoice(stAuto) === 'auto' && ST.driverCanServeTrip('taxi_vip', 'delivery', null, stAuto) && !ST.driverCanServeTrip('moto', 'delivery', null, stAuto));
 }
 
 // ── 9. WhatsApp / servidor: checkServiceAvailable con db falsa ──

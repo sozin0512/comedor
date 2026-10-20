@@ -21554,12 +21554,63 @@ body.stores-panel-open { overflow: hidden; }
 .merchant-tabs {
   display: flex; gap: 0.35rem; padding: 0.5rem 0.9rem;
   border-bottom: 1px solid #f1f5f9; background: #fff;
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
 }
 .merchant-tab {
-  flex: 1; padding: 0.55rem 0.35rem; border-radius: 0.75rem;
+  flex: 1 0 auto; min-width: 4.3rem; padding: 0.5rem 0.45rem; border-radius: 0.75rem;
   border: 1px solid transparent; background: #f8fafc; color: #64748b;
-  font-size: 0.7rem; font-weight: 900; text-transform: uppercase;
+  font-size: 0.62rem; font-weight: 900; text-transform: uppercase; white-space: nowrap;
 }
+.store-ride-pick {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
+}
+.store-ride-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.15rem;
+  min-height: 4.4rem; padding: 0.65rem 0.4rem; border-radius: 1rem;
+  border: 2px solid #e2e8f0; background: #fff; color: #334155;
+  font-weight: 900; font-size: 0.85rem;
+}
+.store-ride-btn i { font-size: 1.15rem; color: #2563eb; }
+.store-ride-btn small { font-size: 0.62rem; font-weight: 700; color: #64748b; }
+.store-ride-btn.is-on {
+  border-color: #2563eb; background: #eff6ff; color: #1d4ed8;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.16);
+}
+.store-stock-edit {
+  display: flex; align-items: center; gap: 0.35rem; margin-top: 0.35rem;
+}
+.store-stock-edit span { font-size: 0.62rem; font-weight: 800; color: #92400e; }
+.store-stock-edit input {
+  width: 4.2rem; padding: 0.3rem 0.4rem; border-radius: 0.55rem;
+  border: 1px solid #fde68a; background: #fffbeb; font-weight: 800; font-size: 0.8rem;
+}
+.store-stock-edit button {
+  padding: 0.3rem 0.5rem; border-radius: 0.55rem; border: 0;
+  background: #d97706; color: #fff; font-size: 0.62rem; font-weight: 900;
+}
+.store-week { display: flex; flex-direction: column; gap: 0.75rem; }
+.store-week-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.store-week-switch button {
+  padding: 0.65rem 0.4rem; border-radius: 0.85rem; border: 1px solid #e2e8f0;
+  background: #f8fafc; color: #64748b; font-size: 0.72rem; font-weight: 900;
+}
+.store-week-switch button.is-on { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.store-week-range { margin: 0; text-align: center; font-size: 0.72rem; font-weight: 800; color: #64748b; }
+.store-week-due {
+  background: #0f172a; color: #fff; border-radius: 1.15rem; padding: 1rem 1rem 0.9rem; text-align: center;
+}
+.store-week-due small { display: block; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #93c5fd; }
+.store-week-due b { display: block; margin-top: 0.2rem; font-size: 2rem; line-height: 1.1; }
+.store-week-due span { display: block; margin-top: 0.35rem; font-size: 0.72rem; font-weight: 700; color: #cbd5e1; }
+.store-week-note { margin: 0; font-size: 0.7rem; font-weight: 650; color: #475569; line-height: 1.4; }
+.store-week-list { display: flex; flex-direction: column; gap: 0.4rem; }
+.store-week-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+  padding: 0.65rem 0.75rem; border-radius: 0.85rem; background: #fff; border: 1px solid #e2e8f0;
+}
+.store-week-row b { display: block; font-size: 0.82rem; color: #0f172a; }
+.store-week-row small { display: block; font-size: 0.65rem; font-weight: 700; color: #64748b; }
+.store-week-row span { font-weight: 900; color: #0f172a; font-size: 0.85rem; }
 .merchant-tab.active {
   background: #ecfdf5; color: #047857; border-color: #a7f3d0;
 }

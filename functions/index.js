@@ -60,6 +60,8 @@ const serviceAvailability = require('./service-availability')({
 });
 /** Pedido de tienda sigue al viaje: En camino al aceptar, Entregado al completar (ver store-order-sync.js). */
 const storeOrderSync = require('./store-order-sync')({ db, FieldValue, onDocumentUpdated });
+/** Stock de tiendas que no son comida (ver store-stock.js). */
+const storeStock = require('./store-stock')({ db, FieldValue, onDocumentCreated, onDocumentUpdated });
 /** « · pidió hace 7 min» para la push de oferta (hora del servidor). '' si es nuevo (<2 min) o programado. */
 function requestWaitPushSuffix(trip, nowMs = Date.now()) {
     if (!trip || trip.scheduledFor || trip.status === 'scheduled') return '';
@@ -1579,10 +1581,25 @@ function isStoreDeliveryTrip(t) {
     return !!(t.storeOrderId || t.storeDelivery === true || t.createdByMerchant === true || t.deliveryDetails?.storeOrderId);
 }
 
-/** Tipos de vehículo que pueden tomar el viaje (pedido de tienda = moto + Taxi VIP). */
+/** Lo que eligió el cliente en el pedido. Vacío = moto o Taxi VIP (pedidos viejos). */
+function storeDeliveryChoice(t) {
+    const v = String(t?.deliveryVehicle || t?.deliveryDetails?.deliveryVehicle || '').toLowerCase();
+    if (v === 'auto' || v === 'carro' || v === 'car') return 'auto';
+    if (v === 'moto') return 'moto';
+    const allowed = Array.isArray(t?.allowedDriverVehicles) ? t.allowedDriverVehicles.map((x) => String(x).toLowerCase()) : [];
+    if (allowed.length === 1 && (allowed[0] === 'moto' || allowed[0] === 'auto')) return allowed[0];
+    return 'both';
+}
+
+/** Tipos de vehículo que pueden tomar el viaje (pedido de tienda = lo que eligió el cliente). */
 function requiredVehicleTypesForTrip(t) {
     const svc = String(t?.serviceType || 'auto').toLowerCase();
-    if (svc === 'delivery' && isStoreDeliveryTrip(t)) return ['moto', 'auto'];
+    if (svc === 'delivery' && isStoreDeliveryTrip(t)) {
+        const choice = storeDeliveryChoice(t);
+        if (choice === 'moto') return ['moto'];
+        if (choice === 'auto') return ['auto'];
+        return ['moto', 'auto'];
+    }
     const one = requiredVehicleTypeForTrip(svc);
     return one ? [one] : [];
 }
@@ -1591,7 +1608,11 @@ function driverCanServeTrip(driverVehicleType, tripServiceType, tripDoc = null) 
     const driverRaw = (driverVehicleType || 'auto').toLowerCase();
     const trip = tripServiceType || 'auto';
     if (trip === 'delivery' && isStoreDeliveryTrip(tripDoc)) {
-        return driverRaw === 'moto' || driverRaw === 'auto' || driverRaw === 'vip' || driverRaw === 'taxi_vip';
+        const choice = storeDeliveryChoice(tripDoc);
+        const vip = driverRaw === 'auto' || driverRaw === 'vip' || driverRaw === 'taxi_vip';
+        if (choice === 'moto') return driverRaw === 'moto';
+        if (choice === 'auto') return vip;
+        return driverRaw === 'moto' || vip;
     }
     const isVipTrip = (trip === 'auto' || trip === 'vip' || trip === 'taxi_vip');
     const isVipDriver = (driverRaw === 'auto' || driverRaw === 'vip' || driverRaw === 'taxi_vip');
@@ -6392,6 +6413,7 @@ Object.assign(exports, driverPushStatus.exports);
 Object.assign(exports, deliveryZones.exports);
 Object.assign(exports, serviceAvailability.exports);
 Object.assign(exports, storeOrderSync.exports);
+Object.assign(exports, storeStock.exports);
 Object.assign(exports, roles.exports);
 /** Eliminar cuenta desde la app (Google Play · Account deletion). Ver account-deletion.js. */
 const accountDeletion = require('./account-deletion')({

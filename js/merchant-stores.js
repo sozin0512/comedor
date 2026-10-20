@@ -3,28 +3,34 @@
  * - Cliente: navega tiendas, ve fotos, carrito y pide.
  * - Emprendedor: crea tienda, menú con fotos y gestiona pedidos.
  * - Supervisores: verifican tiendas (aprobar/rechazar) y marcan +18.
- * - Tarifa del momento (comisión plataforma) se divide 50/50:
- *   mitad en el precio mostrado al cliente, mitad cobrada al comprador al pedir.
- * - Al marcar "listo" se crea un viaje delivery (moto + Taxi VIP).
+ * - El cliente paga el precio de la tienda y el envío completo de su zona.
+ * - La tienda solo paga el 10% semanal de sus ventas de productos. El envío no entra.
+ * - Comida/restaurante no lleva stock. Las demás tiendas sí, y el servidor lo descuenta.
+ * - El cliente elige moto o carro. El carro paga 25% más sobre la zona.
+ * - Al marcar "listo" se crea un viaje delivery solo del vehículo que eligió el cliente.
  */
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
-    serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction
+    serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.16.13';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.20.2';
 import { orderWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.16.9';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
 } from './zones.js?v=2026.07.27.9';
 import { resolvePhotoUrl } from './storage.js?v=2026.08.04.3';
-import { APP_CONFIG } from './config.js?v=2026.10.16.13';
+import { APP_CONFIG } from './config.js?v=2026.10.20.2';
 import { calculateAge } from './age-verification.js?v=2026.08.04.3';
 import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.09.10.2';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
-} from './store-delivery-zones.js?v=2026.10.16.9';
+    setCheckoutVehicle, checkoutVehicle, CAR_DELIVERY_FACTOR,
+} from './store-delivery-zones.js?v=2026.10.20.2';
+import {
+    WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
+} from './store-week.js?v=2026.10.20.2';
 
 import { formatLempiras } from './money-format.js';
 const STORE_CATEGORIES = [
@@ -115,6 +121,44 @@ const storeProductPreviewLoading = new Set();
 let storeProductPreviewRerender = null;
 /** Filtro por ciudad del panel staff de tiendas */
 let staffStoresCityFilter = 'all';
+/** Reporte semanal: esta semana o la anterior. */
+let merchantWeekWhich = 'current';
+let weekPaintToken = 0;
+
+/** Comida y restaurante no llevan inventario. El resto sí. Igual que functions/store-stock.js. */
+function storeTracksStock(store) {
+    const c = String(store?.category || '').toLowerCase().trim();
+    if (!c) return true;
+    if (c === 'comida' || c === 'restaurante') return false;
+    if (c.includes('restaurante') || c.includes('comida')) return false;
+    return true;
+}
+
+function productStockLeft(product, store) {
+    if (!storeTracksStock(store)) return null;
+    const n = Math.floor(Number(product?.stock));
+    return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function productCanSell(product, store) {
+    if (!product || product.available === false) return false;
+    const left = productStockLeft(product, store);
+    return left == null || left > 0;
+}
+
+function orderRide(order) {
+    const v = String(order?.deliveryVehicle || '').toLowerCase();
+    if (v === 'auto' || v === 'carro' || v === 'car') return 'auto';
+    if (v === 'moto') return 'moto';
+    return 'both';
+}
+
+function orderRideName(order) {
+    const ride = orderRide(order);
+    if (ride === 'auto') return 'carro';
+    if (ride === 'moto') return 'moto';
+    return 'moto o carro';
+}
 
 /** Invitación staff → crear empresa (persiste si el invitado aún no tiene cuenta). */
 const PENDING_CREATE_BUSINESS_KEY = 'hr_pending_create_business';
@@ -303,10 +347,8 @@ function productBasePrice(p) {
     return Number.isFinite(base) ? base : 0;
 }
 
-function productDisplayPrice(p, commissionPercent = getTarifaDelMomentoSync()) {
-    if (!p) return 0;
-    const base = productBasePrice(p);
-    return calcSplitTariff(base, commissionPercent).displayPrice;
+function productDisplayPrice(p) {
+    return productBasePrice(p);
 }
 
 function storeApprovalStatus(store) {
@@ -756,27 +798,19 @@ function cartCount() {
     return cart.reduce((s, i) => s + (i.qty || 0), 0);
 }
 
-/** Total de productos como los ve el cliente (precio con mitad de tarifa). */
+/** Total de productos al precio de la tienda. El envío de la zona no entra. */
 function cartItemsDisplayTotal() {
-    return roundMoney(cart.reduce((s, i) => {
-        const unit = Number(i.displayPrice ?? i.price) || 0;
-        return s + unit * (i.qty || 0);
-    }, 0));
+    return cartBaseTotal();
 }
 
-/** Suma de las mitades de tarifa que paga el comprador (aparte del precio mostrado). */
+/** La tienda ya no parte una tarifa en cada producto. El 10% se cobra a la semana. */
 function cartBuyerTariffTotal() {
-    return roundMoney(cart.reduce((s, i) => {
-        const share = Number(i.buyerShare);
-        if (Number.isFinite(share)) return s + share * (i.qty || 0);
-        const base = Number(i.basePrice ?? i.price) || 0;
-        return s + calcSplitTariff(base).buyerShare * (i.qty || 0);
-    }, 0));
+    return 0;
 }
 
-/** Total a cobrar al comprador por productos + su mitad de tarifa (sin envío). */
+/** Lo que paga el cliente por los productos, sin el envío. */
 function cartItemsTotal() {
-    return roundMoney(cartItemsDisplayTotal() + cartBuyerTariffTotal());
+    return cartBaseTotal();
 }
 
 function cartBaseTotal() {
@@ -909,6 +943,7 @@ function ensureShell() {
                         <button type="button" class="merchant-tab" data-merchant-tab="products">Menú</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="store">Tienda</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="envios">Envíos</button>
+                        <button type="button" class="merchant-tab" data-merchant-tab="semana">Semana</button>
                     </nav>
                 </header>
                 <div id="merchant-panel-body" class="stores-world-body"></div>
@@ -1709,7 +1744,6 @@ function renderMarketplace() {
         const adults = isStoreAdultsOnly(viewingStore);
         const appr = storeApprovalStatus(viewingStore);
         const apprMeta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
-        const tariffPct = getTarifaDelMomentoSync();
         const logoBlock = viewingStore.photoUrl
             ? `<div class="store-detail-logo-wrap"><img class="store-detail-logo" src="${esc(viewingStore.photoUrl)}" alt="${esc(viewingStore.name || 'Tienda')}" loading="lazy" onerror="this.style.opacity='0'"></div>`
             : storeAvatarHtml(viewingStore, 'hr-store-avatar--lg');
@@ -1748,7 +1782,7 @@ function renderMarketplace() {
             </div>
             ${staffBar}
             <p class="text-[10px] text-slate-500 px-1 mb-2 leading-snug">
-                Precios incluyen la mitad de la tarifa del momento (${esc(String(tariffPct))}%). La otra mitad se suma al pagar el pedido. El envío va aparte.
+                Pagas el precio de la tienda. El envío lo pagas completo, según la zona: moto o carro.
             </p>
             <div class="store-products">
                 <p class="stores-section-label">Menú / productos</p>
@@ -1839,17 +1873,24 @@ function productPhotoHtml(p, cls = 'product-card-photo') {
 }
 
 function productCardHtml(p) {
-    const available = p.available !== false;
+    const left = productStockLeft(p, viewingStore);
+    const available = productCanSell(p, viewingStore);
     const inCart = cart.find((c) => c.productId === p.id);
-    const split = calcSplitTariff(productBasePrice(p));
+    const price = productBasePrice(p);
+    const stockLine = left == null
+        ? ''
+        : (left > 0
+            ? `<p class="text-[9px] font-bold text-emerald-700">Quedan ${left}</p>`
+            : `<p class="text-[9px] font-bold text-slate-400">Sin stock</p>`);
     return `
         <div class="product-card ${available ? '' : 'product-card--off'}">
             ${productPhotoHtml(p)}
             <div class="min-w-0 flex-1">
                 <p class="product-card-name">${esc(p.name)}</p>
                 ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
-                <p class="product-card-price">${money(split.displayPrice)}</p>
-                <p class="text-[9px] text-slate-400 font-semibold leading-snug">Incluye ½ tarifa · + ${money(split.buyerShare)} al pagar</p>
+                <p class="product-card-price">${money(price)}</p>
+                <p class="text-[9px] text-slate-400 font-semibold leading-snug">Envío aparte, según tu zona</p>
+                ${stockLine}
             </div>
             ${available ? `
                 <div class="product-qty">
@@ -1871,10 +1912,7 @@ function renderCartHtml() {
         return `<div class="stores-empty"><i class="fas fa-shopping-cart"></i><p>Tu carrito está vacío.</p>
             <button type="button" class="stores-secondary-btn mt-3" data-stores-action="back-list">Ver tiendas</button></div>`;
     }
-    const displayTotal = cartItemsDisplayTotal();
-    const buyerHalf = cartBuyerTariffTotal();
     const grand = cartItemsTotal();
-    const tariffPct = getTarifaDelMomentoSync();
     return `
         <div class="cart-lines">
             ${cart.map((i) => {
@@ -1886,7 +1924,7 @@ function renderCartHtml() {
                         : `<div class="cart-line-photo cart-line-photo--placeholder"><i class="fas fa-image"></i></div>`}
                     <div class="min-w-0 flex-1">
                         <p class="font-bold text-sm text-slate-900">${esc(i.name)}</p>
-                        <p class="text-xs text-slate-500">${money(unit)} c/u <span class="text-slate-400">(con ½ tarifa)</span></p>
+                        <p class="text-xs text-slate-500">${money(unit)} c/u</p>
                     </div>
                     <div class="product-qty">
                         <button type="button" class="product-qty-btn" data-stores-action="cart-dec" data-product-id="${esc(i.productId)}">−</button>
@@ -1898,15 +1936,10 @@ function renderCartHtml() {
             }).join('')}
         </div>
         <div class="cart-summary space-y-1">
-            <div class="flex justify-between text-sm font-bold"><span>Productos (precio mostrado)</span><span>${money(displayTotal)}</span></div>
-            <div class="flex justify-between text-xs font-bold text-amber-800">
-                <span>Tu mitad de tarifa (${esc(String(tariffPct))}%)</span>
-                <span>${money(buyerHalf)}</span>
-            </div>
-            <div class="flex justify-between text-sm font-black text-slate-900 border-t border-slate-100 pt-1.5 mt-1">
+            <div class="flex justify-between text-sm font-black text-slate-900">
                 <span>Total productos</span><span>${money(grand)}</span>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1">El envío (moto o Taxi VIP) se calcula cuando el negocio marca el pedido listo y se paga al conductor.</p>
+            <p class="text-[11px] text-slate-500 mt-1">En el siguiente paso eliges moto o carro. Tú pagas el envío completo de la zona. El carro cuesta 25% más.</p>
         </div>
         <button type="button" class="stores-primary-btn w-full mt-4" data-stores-action="to-checkout">Continuar al envío</button>
     `;
@@ -1959,7 +1992,7 @@ function chooseStorePaymentMethod(itemsTotal) {
                     </button>
                 </div>
                 <p class="text-[10px] text-slate-400 text-center mt-3 leading-snug">
-                    El envío en moto/Taxi VIP se paga aparte (efectivo al conductor).
+                    El envío de la zona lo pagas completo, en efectivo al conductor. Moto o carro.
                 </p>
                 <button type="button" data-pay="cancel" class="w-full mt-3 py-3 text-slate-500 text-sm font-bold">Cancelar</button>
             </div>
@@ -2055,10 +2088,7 @@ async function refundStoreOrderIfSaldo(order, reason = 'cancel') {
 function renderCheckoutHtml() {
     const profile = getUserProfile() || {};
     const bal = getClientBalance();
-    const displayTotal = cartItemsDisplayTotal();
-    const buyerHalf = cartBuyerTariffTotal();
     const total = cartItemsTotal();
-    const tariffPct = getTarifaDelMomentoSync();
     const dest = document.getElementById('destination-autocomplete');
     const destVal = dest?.value || dest?.getAttribute?.('value') || '';
     // «Envío a <zona>: L X» (cotiza el servidor; se pinta al llegar)
@@ -2071,19 +2101,26 @@ function renderCheckoutHtml() {
                 <span>${esc(viewingStore?.name || 'Tienda')}</span>
             </div>
             <div class="cart-summary space-y-1">
-                <div class="flex justify-between text-sm font-bold"><span>Productos (con ½ tarifa)</span><span>${money(displayTotal)}</span></div>
-                <div class="flex justify-between text-xs font-bold text-amber-800">
-                    <span>Tu mitad de tarifa (${esc(String(tariffPct))}%)</span>
-                    <span>${money(buyerHalf)}</span>
-                </div>
-                <div class="flex justify-between text-sm font-black"><span>Total a pagar (productos)</span><span>${money(total)}</span></div>
+                <div class="flex justify-between text-sm font-black"><span>Productos</span><span>${money(total)}</span></div>
                 <div class="flex justify-between text-xs font-bold text-purple-700 mt-1.5">
                     <span><i class="fas fa-wallet"></i> Tu saldo</span>
                     <span>${formatLempiras(bal)}</span>
                 </div>
                 <p class="text-[10px] text-slate-500 mt-1.5 leading-snug">
-                    Puedes pagar productos + tu mitad de tarifa con <b>puntos/saldo</b> o en <b>efectivo</b>. El envío se paga al conductor en efectivo.
+                    Los productos se pagan con <b>puntos/saldo</b> o en <b>efectivo</b>. El envío de la zona lo pagas completo al conductor.
                 </p>
+            </div>
+            <div class="store-ride-pick" role="group" aria-label="Cómo quieres el envío">
+                <button type="button" class="store-ride-btn ${checkoutVehicle() === 'moto' ? 'is-on' : ''}" data-stores-action="pick-ride" data-ride="moto">
+                    <i class="fas fa-motorcycle"></i>
+                    <span>Moto</span>
+                    <small>Tarifa de la zona</small>
+                </button>
+                <button type="button" class="store-ride-btn ${checkoutVehicle() === 'auto' ? 'is-on' : ''}" data-stores-action="pick-ride" data-ride="auto">
+                    <i class="fas fa-car"></i>
+                    <span>Carro</span>
+                    <small>25% más</small>
+                </button>
             </div>
             <label class="stores-field">
                 <span>Dirección de entrega *</span>
@@ -2154,7 +2191,7 @@ function orderCardHtml(o, { merchant = false } = {}) {
                 ${o.deliveryAddress ? `<span><i class="fas fa-map-marker-alt"></i> ${esc(o.deliveryAddress)}</span>` : ''}
                 ${orderFeeLineHtml(o)}
             </div>
-            ${o.platformFeeBuyer != null || o.platformFeeMerchant != null ? `
+            ${o.tariffSplit === true ? `
                 <p class="text-[10px] text-slate-500 font-semibold mt-1 leading-snug">
                     Base ${money(o.itemsBaseTotal ?? 0)}
                     · ½ tarifa negocio ${money(o.platformFeeMerchant ?? 0)}
@@ -2163,6 +2200,7 @@ function orderCardHtml(o, { merchant = false } = {}) {
                 </p>
             ` : ''}
             ${o.notes ? `<p class="order-notes">${esc(o.notes)}</p>` : ''}
+            ${o.cancelReason === 'out_of_stock' ? `<p class="order-notes">No había stock suficiente. Si pagaste con puntos, se reembolsan.</p>` : ''}
             ${actions}
         </div>
     `;
@@ -2197,7 +2235,7 @@ function merchantOrderActionsHtml(o) {
     if (o.status === 'preparing') {
         return `<div class="order-actions">
             <button type="button" class="stores-primary-btn" data-merchant-action="ready-order" data-order-id="${id}">
-                <i class="fas fa-shipping-fast"></i> Listo · pedir moto o Taxi VIP
+                <i class="fas fa-shipping-fast"></i> Listo · pedir ${esc(orderRideName(o))}
             </button>
         </div>`;
     }
@@ -2206,7 +2244,7 @@ function merchantOrderActionsHtml(o) {
         return `<p class="text-[11px] text-amber-700 font-bold mt-2"><i class="fas fa-exclamation-circle"></i> ${why}Listo · sin conductor</p>
             <div class="order-actions">
                 <button type="button" class="stores-primary-btn" data-merchant-action="ready-order" data-order-id="${id}">
-                    <i class="fas fa-shipping-fast"></i> Pedir moto o Taxi VIP
+                    <i class="fas fa-shipping-fast"></i> Pedir ${esc(orderRideName(o))}
                 </button>
             </div>`;
     }
@@ -2280,7 +2318,11 @@ async function openStore(storeId) {
 
 function addToCart(productId) {
     const p = viewingProducts.find((x) => x.id === productId);
-    if (!p || p.available === false) return;
+    if (!productCanSell(p, viewingStore)) {
+        const left = productStockLeft(p, viewingStore);
+        if (left === 0) return toast('Ese producto no tiene stock', 'warning');
+        return;
+    }
     if (viewingStore && !storeOpenInfo(viewingStore).open) {
         const lbl = storeOpenInfo(viewingStore).label;
         return toast(`La tienda está cerrada${lbl ? ` · ${lbl}` : ''}`, 'warning');
@@ -2288,19 +2330,22 @@ function addToCart(productId) {
     if (!isStoreApprovedForPublic(viewingStore) && !isStoresStaff()) {
         return toast('Esta tienda aún no está verificada', 'warning');
     }
-    const split = calcSplitTariff(productBasePrice(p));
+    const base = roundMoney(productBasePrice(p));
     const existing = cart.find((c) => c.productId === productId);
-    if (existing) existing.qty += 1;
+    const left = productStockLeft(p, viewingStore);
+    const nextQty = (existing?.qty || 0) + 1;
+    if (left != null && nextQty > left) return toast(left > 0 ? `Solo quedan ${left}` : 'Sin stock', 'warning');
+    if (existing) existing.qty = nextQty;
     else {
         cart.push({
             productId: p.id,
             storeId: viewingStore.id,
             name: p.name,
-            basePrice: split.basePrice,
-            price: split.displayPrice,
-            displayPrice: split.displayPrice,
-            merchantShare: split.merchantShare,
-            buyerShare: split.buyerShare,
+            basePrice: base,
+            price: base,
+            displayPrice: base,
+            merchantShare: 0,
+            buyerShare: 0,
             qty: 1,
             photoUrl: p.photoUrl || null,
         });
@@ -2310,8 +2355,11 @@ function addToCart(productId) {
 
 function incCart(productId) {
     const line = cart.find((c) => c.productId === productId);
-    if (line) line.qty += 1;
-    else addToCart(productId);
+    if (!line) return addToCart(productId);
+    const p = viewingProducts.find((x) => x.id === productId);
+    const left = productStockLeft(p, viewingStore);
+    if (left != null && line.qty + 1 > left) return toast(`Solo quedan ${left}`, 'warning');
+    line.qty += 1;
     renderMarketplace();
 }
 
@@ -2341,6 +2389,19 @@ async function placeOrder() {
     if (!address || address.length < 5) return toast('Indica la dirección de entrega', 'warning');
     if (!recipientName) return toast('Indica quién recibe', 'warning');
     if (!recipientPhone) return toast('Indica el WhatsApp de quien recibe', 'warning');
+    const ride = checkoutVehicle();
+    if (ride !== 'moto' && ride !== 'auto') return toast('Elige moto o carro para el envío', 'warning');
+
+    if (storeTracksStock(viewingStore)) {
+        try { viewingProducts = await loadProducts(viewingStore.id); } catch (_) {}
+        for (const line of cart) {
+            const p = viewingProducts.find((x) => x.id === line.productId);
+            const left = productStockLeft(p, viewingStore);
+            if (!p || left == null || left < line.qty) {
+                return toast(p ? `«${p.name}» solo tiene ${left || 0} en stock` : 'Un producto ya no está en la tienda', 'warning');
+            }
+        }
+    }
 
     const city = activeCity();
     let deliveryLat = null;
@@ -2376,30 +2437,27 @@ async function placeOrder() {
         return toast(`Envío a ${zoneGate.quote.zoneName}: L ${zoneGate.quote.fee}. Revísalo y vuelve a tocar «enviar pedido».`, 'info');
     }
 
-    const tariffPct = await getTarifaDelMomento();
-    // Recalcular splits con la tarifa del momento al confirmar
     const items = cart.map((i) => {
-        const base = Number(i.basePrice);
-        const split = calcSplitTariff(Number.isFinite(base) ? base : (Number(i.price) || 0), tariffPct);
+        const raw = Number(i.basePrice);
+        const base = roundMoney(Number.isFinite(raw) ? raw : (Number(i.price) || 0));
         return {
             productId: i.productId,
             name: i.name,
-            basePrice: split.basePrice,
-            price: split.displayPrice,
-            displayPrice: split.displayPrice,
-            merchantShare: split.merchantShare,
-            buyerShare: split.buyerShare,
+            basePrice: base,
+            price: base,
+            displayPrice: base,
+            merchantShare: 0,
+            buyerShare: 0,
             qty: i.qty,
             photoUrl: i.photoUrl || null,
         };
     });
     const itemsBaseTotal = roundMoney(items.reduce((s, i) => s + i.basePrice * i.qty, 0));
-    const itemsDisplayTotal = roundMoney(items.reduce((s, i) => s + i.displayPrice * i.qty, 0));
-    const platformFeeMerchant = roundMoney(items.reduce((s, i) => s + i.merchantShare * i.qty, 0));
-    const platformFeeBuyer = roundMoney(items.reduce((s, i) => s + i.buyerShare * i.qty, 0));
-    const platformFeeTotal = roundMoney(platformFeeMerchant + platformFeeBuyer);
-    // Lo que paga el cliente por productos (precio mostrado + su mitad de tarifa)
-    const itemsTotal = roundMoney(itemsDisplayTotal + platformFeeBuyer);
+    const itemsDisplayTotal = itemsBaseTotal;
+    const platformFeeMerchant = 0;
+    const platformFeeBuyer = 0;
+    const platformFeeTotal = 0;
+    const itemsTotal = itemsBaseTotal;
     if (itemsTotal <= 0) return toast('Total inválido', 'warning');
 
     // Elegir pago: efectivo o puntos/saldo (como viajes)
@@ -2439,8 +2497,9 @@ async function placeOrder() {
             platformFeeMerchant,
             platformFeeBuyer,
             platformFeeTotal,
-            commissionPercent: tariffPct,
-            tariffSplit: true,
+            commissionPercent: Math.round(WEEKLY_COMMISSION_RATE * 100),
+            tariffSplit: false,
+            weeklyCommissionRate: WEEKLY_COMMISSION_RATE,
             status: 'pending',
             deliveryAddress: address,
             deliveryLat,
@@ -2448,6 +2507,7 @@ async function placeOrder() {
             recipientName,
             recipientPhone,
             notes,
+            deliveryVehicle: ride,
             paymentMethod,
             paymentStatus,
             paidAmount: paidAmount,
@@ -2587,6 +2647,14 @@ function onMarketplaceClick(e) {
         if (!cart.length) return toast('Carrito vacío', 'warning');
         marketplaceView = 'checkout';
         return renderMarketplace();
+    }
+    if (action === 'pick-ride') {
+        const ride = t.getAttribute('data-ride') === 'auto' ? 'auto' : 'moto';
+        document.querySelectorAll('[data-stores-action="pick-ride"]').forEach((b) => {
+            b.classList.toggle('is-on', b.getAttribute('data-ride') === ride);
+        });
+        setCheckoutVehicle(ride);
+        return;
     }
     if (action === 'place-order') return placeOrder();
     if (action === 'my-orders') {
@@ -2742,6 +2810,69 @@ function updateMerchantOpenToggle() {
     btn.classList.toggle('is-open', open);
 }
 
+async function loadWeekOrders(range) {
+    const uid = getCurrentUser()?.uid;
+    if (!uid) return [];
+    try {
+        const q = query(
+            publicCol('store_orders'),
+            where('ownerId', '==', uid),
+            where('createdAt', '>=', Timestamp.fromDate(range.start)),
+            where('createdAt', '<', Timestamp.fromDate(range.end)),
+            orderBy('createdAt', 'desc'),
+            limit(300)
+        );
+        const snap = await getDocs(q);
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (e) {
+        console.warn('[stores] reporte semanal', e);
+        return merchantOrders.filter((o) => {
+            const report = weeklySalesReport([o], range);
+            return report.count > 0 || o.status === 'cancelled';
+        });
+    }
+}
+
+function weekReportHtml(report, range) {
+    const pct = Math.round(WEEKLY_COMMISSION_RATE * 100);
+    const rows = report.rows.slice(0, 40).map((r) => {
+        const st = ORDER_STATUS[r.status] || { label: r.status || 'Pedido' };
+        const when = r.createdAtMs
+            ? new Date(r.createdAtMs).toLocaleDateString('es-HN', { day: 'numeric', month: 'short', timeZone: 'America/Tegucigalpa' })
+            : '';
+        return `<div class="store-week-row">
+            <div><b>${esc(r.clientName || 'Cliente')}</b><small>${esc(st.label)}${when ? ` · ${esc(when)}` : ''}</small></div>
+            <span>${money(r.itemsTotal)}</span>
+        </div>`;
+    }).join('');
+    return `
+        <div class="store-week">
+            <div class="store-week-switch">
+                <button type="button" class="${merchantWeekWhich === 'current' ? 'is-on' : ''}" data-merchant-action="week-pick" data-week="current">Esta semana</button>
+                <button type="button" class="${merchantWeekWhich === 'previous' ? 'is-on' : ''}" data-merchant-action="week-pick" data-week="previous">Semana pasada</button>
+            </div>
+            <p class="store-week-range">${esc(formatWeekLabel(range))}</p>
+            <div class="store-week-due">
+                <small>A cobrar · ${pct}% de las ventas</small>
+                <b>${money(report.fee)}</b>
+                <span>${report.count} pedido${report.count === 1 ? '' : 's'} · vendiste ${money(report.gross)} en productos</span>
+            </div>
+            <p class="store-week-note">Esto es lo único que paga la tienda: el ${pct}% de todas las ventas de productos que no se cancelaron. El cliente paga el envío completo de la zona y eso no entra aquí. De lo ya entregado: ${money(report.deliveredFee)} (${report.deliveredCount} pedido${report.deliveredCount === 1 ? '' : 's'}).</p>
+            ${rows ? `<div class="store-week-list">${rows}</div>` : `<div class="stores-empty stores-empty--sm"><p>Sin ventas en esta semana.</p></div>`}
+        </div>
+    `;
+}
+
+async function renderMerchantWeekTab(body) {
+    const token = ++weekPaintToken;
+    const range = hondurasWeekRange(new Date(), merchantWeekWhich === 'previous' ? 'previous' : 'current');
+    body.innerHTML = `<div class="store-week"><p class="text-sm font-bold text-slate-500">Cargando ventas de la semana…</p></div>`;
+    const orders = await loadWeekOrders(range);
+    if (token !== weekPaintToken || !body.isConnected) return;
+    const report = weeklySalesReport(orders, range, WEEKLY_COMMISSION_RATE);
+    body.innerHTML = weekReportHtml(report, range);
+}
+
 function renderMerchantBody() {
     const body = document.getElementById('merchant-panel-body');
     if (!body) return;
@@ -2768,6 +2899,10 @@ function renderMerchantBody() {
         body.innerHTML = renderMerchantProducts();
         // Preview en vivo de precio + tarifa
         requestAnimationFrame(() => bindMerchantProductPricePreview());
+        return;
+    }
+    if (merchantTab === 'semana') {
+        renderMerchantWeekTab(body);
         return;
     }
     // orders
@@ -3022,18 +3157,7 @@ function renderMerchantProducts() {
     const preview = pendingProductPhotoPreview
         ? `<img src="${esc(pendingProductPhotoPreview)}" alt="Vista previa" class="m-prod-photo-preview">`
         : `<div class="m-prod-photo-preview m-prod-photo-preview--empty"><i class="fas fa-camera"></i><span>Foto del producto</span></div>`;
-    const tariffPct = getTarifaDelMomentoSync();
-    const halfPct = roundMoney(tariffPct / 2);
-    // Prefetch en vivo
-    getTarifaDelMomento().then((p) => {
-        const el = document.getElementById('m-prod-tariff-live');
-        if (el && Math.abs(p - tariffPct) > 0.001) {
-            // Re-render si cambió
-            renderMerchantBody();
-        } else {
-            updateMerchantProductPricePreview();
-        }
-    }).catch(() => {});
+    const tracksStock = storeTracksStock(myStore);
     return `
         <div class="merchant-products">
             <div class="merchant-share-banner">
@@ -3046,14 +3170,17 @@ function renderMerchantProducts() {
                 </button>
             </div>
             <div class="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2.5 mb-3">
-                <p class="text-[11px] font-black text-violet-900"><i class="fas fa-percentage"></i> Tarifa del momento: ${esc(String(tariffPct))}%</p>
+                <p class="text-[11px] font-black text-violet-900"><i class="fas fa-percentage"></i> HonduRaite cobra el 10% de la semana</p>
                 <p class="text-[10px] font-semibold text-violet-800 mt-1 leading-snug">
-                    Se divide en <b>2 partes iguales (${esc(String(halfPct))}% cada una)</b>:<br>
-                    • <b>Tu mitad</b> se suma al precio que ve el cliente (tú pones el precio base).<br>
-                    • <b>La mitad del comprador</b> se le cobra al pedir (además del envío).<br>
-                    Ejemplo: si pones L. 100, el cliente ve ~${money(calcSplitTariff(100, tariffPct).displayPrice)} y al pagar suma ~${money(calcSplitTariff(100, tariffPct).buyerShare)} más de tarifa.
+                    El cliente paga el precio que pongas y el envío completo de su zona.<br>
+                    Tú pagas el 10% de las ventas de productos, de lunes a domingo. El envío no entra. Lo ves en la pestaña Semana.
                 </p>
             </div>
+            ${tracksStock ? `
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 mb-3">
+                <p class="text-[11px] font-black text-amber-900"><i class="fas fa-boxes"></i> Esta tienda lleva stock</p>
+                <p class="text-[10px] font-semibold text-amber-800 mt-1 leading-snug">Escribe cuántos tienes de cada producto. En 0 el cliente no puede pedirlo. Comida y restaurante no usan stock.</p>
+            </div>` : ''}
             <form id="merchant-product-form" class="merchant-form space-y-2 mb-4 p-3 rounded-2xl border border-amber-100 bg-amber-50/50" onsubmit="return false;">
                 <p class="stores-section-label">Agregar producto</p>
                 <button type="button" class="m-prod-photo-pick" data-merchant-action="pick-product-photo" aria-label="Elegir foto del producto">
@@ -3062,7 +3189,8 @@ function renderMerchantProducts() {
                 </button>
                 <input type="file" id="m-prod-photo-input" accept="image/*" class="hidden">
                 <input id="m-prod-name" class="stores-input" placeholder="Nombre *" required>
-                <input id="m-prod-price" class="stores-input" type="number" min="1" step="0.01" placeholder="Tu precio base L. *" required inputmode="decimal">
+                <input id="m-prod-price" class="stores-input" type="number" min="1" step="0.01" placeholder="Precio que paga el cliente L. *" required inputmode="decimal">
+                ${tracksStock ? `<input id="m-prod-stock" class="stores-input" type="number" min="0" step="1" placeholder="Cuántos tienes en stock *" required inputmode="numeric">` : `<p class="text-[10px] font-semibold text-emerald-800">Comida y restaurante no llevan stock. Se piden y se preparan.</p>`}
                 <div id="m-prod-tariff-live" class="rounded-xl bg-white/80 border border-amber-100 px-2.5 py-2 text-[10px] font-semibold text-slate-600 leading-snug">
                     Escribe tu precio base para ver cuánto verá el cliente.
                 </div>
@@ -3072,14 +3200,22 @@ function renderMerchantProducts() {
             <p class="stores-section-label">Tu menú (${myProducts.length})</p>
             <div class="space-y-2">
                 ${myProducts.length ? myProducts.map((p) => {
-                    const split = calcSplitTariff(productBasePrice(p), tariffPct);
+                    const price = productBasePrice(p);
+                    const left = productStockLeft(p, myStore);
                     return `
                     <div class="product-card">
                         ${productPhotoHtml(p)}
                         <div class="min-w-0 flex-1">
                             <p class="product-card-name">${esc(p.name)}</p>
-                            <p class="product-card-price">Tu precio: ${money(split.basePrice)}</p>
-                            <p class="text-[10px] font-bold text-violet-700">Cliente ve: ${money(split.displayPrice)} · + ${money(split.buyerShare)} al pagar</p>
+                            <p class="product-card-price">${money(price)}</p>
+                            <p class="text-[10px] font-bold text-violet-700">El cliente paga este precio. El envío va aparte.</p>
+                            ${tracksStock ? `
+                                <label class="store-stock-edit">
+                                    <span>Stock</span>
+                                    <input type="number" min="0" step="1" inputmode="numeric" value="${left ?? 0}" data-stock-for="${esc(p.id)}" aria-label="Stock de ${esc(p.name)}">
+                                    <button type="button" data-merchant-action="save-stock" data-product-id="${esc(p.id)}">Guardar</button>
+                                </label>
+                            ` : ''}
                             ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
                         </div>
                         <div class="flex flex-col gap-1">
@@ -3106,17 +3242,12 @@ function updateMerchantProductPricePreview() {
     const live = document.getElementById('m-prod-tariff-live');
     if (!live) return;
     const base = Number(input?.value);
-    const pct = getTarifaDelMomentoSync();
     if (!Number.isFinite(base) || base <= 0) {
-        live.innerHTML = `Escribe tu precio base. Tarifa del momento: <b>${esc(String(pct))}%</b> (dividida a la mitad contigo y el cliente).`;
+        live.innerHTML = 'Ese precio es el que paga el cliente. El envío de la zona lo paga él, completo.';
         return;
     }
-    const split = calcSplitTariff(base, pct);
-    live.innerHTML = `
-        <span class="text-slate-800">Al cliente se le mostrará <b class="text-violet-800">${money(split.displayPrice)}</b>
-        (= tu precio ${money(split.basePrice)} + tu mitad de tarifa ${money(split.merchantShare)}).</span><br>
-        <span class="text-amber-800">Al comprar se le sumará la otra mitad: <b>${money(split.buyerShare)}</b> (además del envío).</span>
-    `;
+    const price = roundMoney(base);
+    live.innerHTML = `El cliente paga <b>${money(price)}</b>. El envío de su zona lo paga aparte. De tus ventas, HonduRaite cobra el 10% a la semana.`;
 }
 
 function bindMerchantProductPricePreview() {
@@ -3472,25 +3603,26 @@ async function addProduct() {
     const description = document.getElementById('m-prod-desc')?.value.trim() || '';
     if (!name) return toast('Nombre del producto requerido', 'warning');
     if (!Number.isFinite(price) || price <= 0) return toast('Precio inválido', 'warning');
+    const tracksStock = storeTracksStock(myStore);
+    const stockRaw = document.getElementById('m-prod-stock')?.value;
+    const stock = Math.floor(Number(stockRaw));
+    if (tracksStock && (!Number.isFinite(stock) || stock < 0 || String(stockRaw ?? '').trim() === '')) {
+        return toast('Escribe el stock (cuántos tienes). Usa 0 si se acabó.', 'warning');
+    }
 
     try {
         toast(pendingProductPhoto ? 'Subiendo foto y guardando…' : 'Guardando producto…', 'info');
-        const tariffPct = await getTarifaDelMomento();
         const base = roundMoney(price);
-        const split = calcSplitTariff(base, tariffPct);
-        // Primero creamos el doc para tener id estable de foto
         const ref = await addDoc(publicCol('store_products'), {
             storeId: myStore.id,
             ownerId: getCurrentUser().uid,
             name,
-            // price = precio base del emprendedor (lo que él define)
             price: base,
             basePrice: base,
-            // referencia de cómo se muestra (se recalcula con tarifa del momento al vender)
-            displayPrice: split.displayPrice,
-            commissionPercentAtCreate: tariffPct,
+            displayPrice: base,
             description,
             photoUrl: null,
+            ...(tracksStock ? { stock } : {}),
             available: true,
             sortOrder: myProducts.length,
             createdAt: serverTimestamp(),
@@ -3516,6 +3648,24 @@ async function addProduct() {
     } catch (e) {
         console.error(e);
         toast('Error al agregar producto: ' + (e.message || e), 'error');
+    }
+}
+
+async function saveProductStock(productId) {
+    const input = document.querySelector(`[data-stock-for="${CSS.escape(productId)}"]`);
+    const stock = Math.floor(Number(input?.value));
+    if (!Number.isFinite(stock) || stock < 0) return toast('El stock tiene que ser 0 o más', 'warning');
+    try {
+        await updateDoc(publicDoc('store_products', productId), {
+            stock,
+            updatedAt: serverTimestamp(),
+        });
+        const p = myProducts.find((x) => x.id === productId);
+        if (p) p.stock = stock;
+        toast(stock === 0 ? 'Stock en 0. El cliente ya no puede pedirlo.' : `Stock actualizado: ${stock}`, 'success');
+    } catch (e) {
+        console.warn('[stores] stock', e);
+        toast('No se pudo guardar el stock', 'error');
     }
 }
 
@@ -3704,8 +3854,10 @@ async function createDeliveryTripForOrder(order) {
     }
 
     const km = Math.max(0.5, haversineKm(storeLat, storeLng, destLat, destLng));
-    // Con zona de envío, el viaje cobra la tarifa fija que el servidor puso en el pedido.
-    const { priceNum } = deliveryTripPrice(order, calculateServiceFare('delivery', km, null, 1));
+    const ride = orderRide(order);
+    // Con zona de envío, el viaje cobra la tarifa fija que el servidor puso en el pedido (el carro ya trae +25%).
+    let { priceNum, fromZone } = deliveryTripPrice(order, calculateServiceFare('delivery', km, null, 1));
+    if (!fromZone && ride === 'auto') priceNum = Math.round(priceNum * CAR_DELIVERY_FACTOR * 100) / 100;
     const priceText = `${formatLempiras(priceNum)}`;
     const itemsLine = (order.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
     const packageDescription = `Pedido tienda: ${itemsLine}`.slice(0, 400);
@@ -3720,12 +3872,13 @@ async function createDeliveryTripForOrder(order) {
         extraPassengers: 0,
         tripDistanceKm: Math.round(km * 100) / 100,
         tripDurationMs: 0,
-        // Marca marketplace: permite moto y Taxi VIP
+        // Marca marketplace: solo el vehículo que eligió el cliente (pedidos viejos: moto o Taxi VIP)
         storeDelivery: true,
         storeOrderId: order.id,
         storeId: order.storeId,
         merchantId: order.ownerId,
-        allowedDriverVehicles: ['moto', 'auto'],
+        deliveryVehicle: ride === 'both' ? null : ride,
+        allowedDriverVehicles: ride === 'auto' ? ['auto'] : (ride === 'moto' ? ['moto'] : ['moto', 'auto']),
         deliveryDetails: {
             category: myStore?.category || 'comida',
             restaurant: order.storeName || myStore?.name || 'Tienda',
@@ -3743,6 +3896,7 @@ async function createDeliveryTripForOrder(order) {
             })),
             productsPaymentMethod: order.paymentMethod === 'saldo' ? 'saldo' : 'efectivo',
             productsPaid: order.paymentMethod === 'saldo' && order.paymentStatus === 'paid',
+            deliveryVehicle: ride === 'both' ? null : ride,
             storeName: order.storeName || myStore?.name || 'Tienda',
             storePhone: order.storePhone || myStore?.phone || '',
             deliveryNotes: String(order.notes || '').slice(0, 200),
@@ -3857,6 +4011,13 @@ async function onMerchantClick(e) {
     if (action === 'change-product-photo' && productId) return pickEditProductPhoto(productId);
     if (action === 'toggle-product' && productId) return toggleProduct(productId);
     if (action === 'delete-product' && productId) return deleteProduct(productId);
+    if (action === 'save-stock' && productId) return saveProductStock(productId);
+    if (action === 'week-pick') {
+        merchantWeekWhich = t.getAttribute('data-week') === 'previous' ? 'previous' : 'current';
+        const body = document.getElementById('merchant-panel-body');
+        if (body) renderMerchantWeekTab(body);
+        return;
+    }
     if (action === 'delete-my-store') {
         const sid = t.getAttribute('data-store-id') || myStore?.id;
         return deleteMyStore(sid);
@@ -3891,7 +4052,7 @@ async function onMerchantClick(e) {
         try {
             if (order.status !== 'ready') await setOrderStatus(orderId, 'ready', { readyAt: serverTimestamp() });
             const tripId = await createDeliveryTripForOrder(order);
-            toast('Pedido listo · se pidió entrega (moto o Taxi VIP) · ' + tripId.slice(0, 6) + '…', 'success');
+            toast(`Pedido listo · se pidió ${orderRideName(order)} · ` + tripId.slice(0, 6) + '…', 'success');
         } catch (err) {
             console.error(err);
             toast(err.message || 'No se pudo pedir la moto', 'error');

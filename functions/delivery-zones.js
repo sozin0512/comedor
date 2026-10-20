@@ -18,6 +18,8 @@
 'use strict';
 
 const MAX_FEE = 2000;
+/** Carro sobre la tarifa de zona (o sobre el precio por km si no hay zona). Moto = tarifa tal cual. */
+const CAR_DELIVERY_FACTOR = 1.25;
 /** «L. 1,234.00», igual que js/money-format.js y js/delivery-zones-shared.js. */
 const lmoney = (n) => 'L. ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MAX_POINTS = 80;
@@ -123,17 +125,29 @@ function resolveStoreFee(zone, entry) {
     }
     return { fee: money(zone.baseFee), source: 'zone_base' };
 }
-/** Cotización completa. */
-function quoteDelivery({ zones, storeFees, lat, lng, cityId, outsideBehavior }) {
+function deliveryVehicleChoice(vehicle) {
+    const v = String(vehicle || '').toLowerCase();
+    return (v === 'auto' || v === 'carro' || v === 'car') ? 'auto' : (v === 'moto' ? 'moto' : '');
+}
+
+/** Cotización completa. `fee` es la del vehículo pedido; moto y carro siempre vienen aparte. */
+function quoteDelivery({ zones, storeFees, lat, lng, cityId, outsideBehavior, vehicle }) {
     const la = Number(lat); const ln = Number(lng);
     const behavior = OUTSIDE.has(outsideBehavior) ? outsideBehavior : 'distance';
+    const choice = deliveryVehicleChoice(vehicle) || 'moto';
+    const ride = { vehicle: choice, carFactor: CAR_DELIVERY_FACTOR };
     if (!Number.isFinite(la) || !Number.isFinite(ln) || (la === 0 && ln === 0)) {
-        return { inZone: false, reason: 'no_location', behavior: 'distance', blocked: false };
+        return { inZone: false, reason: 'no_location', behavior: 'distance', blocked: false, ...ride };
     }
     const zone = findZoneForPoint(zones, la, ln, cityId);
-    if (!zone) return { inZone: false, reason: 'outside', behavior, blocked: behavior === 'block' };
+    if (!zone) return { inZone: false, reason: 'outside', behavior, blocked: behavior === 'block', ...ride };
     const r = resolveStoreFee(zone, storeFees?.[zone.id]);
-    return { inZone: true, zoneId: zone.id, zoneName: zone.name, fee: r.fee, source: r.source, baseFee: zone.baseFee };
+    const feeMoto = r.fee;
+    const feeCar = money(r.fee * CAR_DELIVERY_FACTOR);
+    return {
+        inZone: true, zoneId: zone.id, zoneName: zone.name, source: r.source, baseFee: zone.baseFee,
+        feeMoto, feeCar, fee: choice === 'auto' ? feeCar : feeMoto, ...ride,
+    };
 }
 const HISTORY_FIELDS = ['name', 'cityId', 'baseFee', 'minFee', 'maxFee', 'priority', 'active', 'note', 'polygon'];
 function diffZone(before, after) {
@@ -195,14 +209,14 @@ module.exports = function createDeliveryZones(deps) {
         const s = await db.doc(`artifacts/${app}/public/data/store_delivery_fees/${storeId}`).get();
         return (s.exists && s.get('fees')) || {};
     }
-    async function quoteFor(app, { storeId, lat, lng, cityId }) {
+    async function quoteFor(app, { storeId, lat, lng, cityId, vehicle }) {
         let city = cityId || null;
         if (storeId && !city) {
             const st = await db.doc(`artifacts/${app}/public/data/stores/${storeId}`).get();
             city = st.get('cityId') || null;
         }
         const [zones, storeFees, outsideBehavior] = await Promise.all([loadZones(app, city), storeFeesFor(app, storeId), outsideBehaviorFor(app, city)]);
-        return { ...quoteDelivery({ zones, storeFees, lat, lng, cityId: city, outsideBehavior }), cityId: city };
+        return { ...quoteDelivery({ zones, storeFees, lat, lng, cityId: city, outsideBehavior, vehicle }), cityId: city };
     }
     function history(tx, entry) {
         tx.set(col(APP_ID, 'delivery_zone_history').doc(), { ...entry, atMs: Date.now(), at: FieldValue.serverTimestamp() });
@@ -334,7 +348,7 @@ module.exports = function createDeliveryZones(deps) {
         if (!request.auth?.uid) throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
         const storeId = String(request.data?.storeId || '');
         if (!/^[A-Za-z0-9_-]{3,80}$/.test(storeId)) throw new HttpsError('invalid-argument', 'Tienda no válida.');
-        const q = await quoteFor(APP_ID, { storeId, lat: request.data?.lat, lng: request.data?.lng });
+        const q = await quoteFor(APP_ID, { storeId, lat: request.data?.lat, lng: request.data?.lng, vehicle: request.data?.vehicle });
         return { ok: true, ...q };
     });
 
@@ -343,7 +357,7 @@ module.exports = function createDeliveryZones(deps) {
         const d = event.data?.data() || {};
         if (d.status && d.status !== 'pending') return;
         const { appId } = event.params;
-        const q = await quoteFor(appId, { storeId: d.storeId, lat: d.deliveryLat, lng: d.deliveryLng, cityId: d.cityId || null }).catch((e) => {
+        const q = await quoteFor(appId, { storeId: d.storeId, lat: d.deliveryLat, lng: d.deliveryLng, cityId: d.cityId || null, vehicle: d.deliveryVehicle }).catch((e) => {
             console.warn('onStoreOrderCreatedZoneFee', e?.message || e); return null;
         });
         if (!q) return;
@@ -381,4 +395,4 @@ module.exports = function createDeliveryZones(deps) {
         helpers: { quoteFor }
     };
 };
-Object.assign(module.exports, { pointInPolygon, polygonAreaKm2, validateZoneInput, findZoneForPoint, validateStoreFee, resolveStoreFee, quoteDelivery, diffZone, cleanPolygon, SEED_ZONES, ZONE_SOURCES, MAX_FEE });
+Object.assign(module.exports, { pointInPolygon, polygonAreaKm2, validateZoneInput, findZoneForPoint, validateStoreFee, resolveStoreFee, quoteDelivery, deliveryVehicleChoice, diffZone, cleanPolygon, SEED_ZONES, ZONE_SOURCES, MAX_FEE, CAR_DELIVERY_FACTOR });

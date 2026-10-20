@@ -10,6 +10,8 @@ import { esc, money, rangeLabel, validateStoreFee, effectiveFee, zoneColor, zone
 
 const FN_URL = 'https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js';
 export const ZONE_FEE_SOURCES = ['zone_base', 'store_custom'];
+/** Igual que functions/delivery-zones.js CAR_DELIVERY_FACTOR. El carro paga esto sobre la zona. */
+export const CAR_DELIVERY_FACTOR = 1.25;
 let DEPS = {};
 
 function ensureCss() {
@@ -184,7 +186,17 @@ export async function renderMerchantZonesTab(body, store) {
 }
 
 // ───────────────────────── Confirmar pedido (cliente) ─────────────────────────
-const Q = { store: null, point: null, pointSource: '', status: 'idle', quote: null, key: '', cache: new Map(), seq: 0 };
+const Q = { store: null, point: null, pointSource: '', status: 'idle', quote: null, key: '', cache: new Map(), seq: 0, vehicle: '' };
+
+export function checkoutVehicle() {
+    return Q.vehicle === 'auto' ? 'auto' : (Q.vehicle === 'moto' ? 'moto' : '');
+}
+
+/** El cliente eligió moto o carro. Vuelve a cotizar con ese vehículo. */
+export function setCheckoutVehicle(vehicle) {
+    Q.vehicle = vehicle === 'auto' ? 'auto' : 'moto';
+    return refreshCheckoutQuote(true);
+}
 
 export function checkoutPoint() {
     if (Q.point) return Q.point;
@@ -195,16 +207,25 @@ export function checkoutPoint() {
     return null;
 }
 
+function rideIcon(vehicle) {
+    return vehicle === 'auto' ? 'fa-car' : 'fa-motorcycle';
+}
+
 export function checkoutFeeHtml(st = Q) {
     const q = st.quote;
+    const vehicle = st.vehicle === 'auto' ? 'auto' : (st.vehicle === 'moto' ? 'moto' : '');
     const gps = '<button type="button" class="tz-linkbtn" data-sz-checkout="gps"><i class="fas fa-location-arrow"></i> Usar mi ubicación</button>';
+    const both = q?.inZone && q.feeMoto != null
+        ? `<small>Moto ${esc(money(q.feeMoto))} · Carro ${esc(money(q.feeCar))} (25% más)</small>`
+        : '<small>El carro cuesta 25% más que la moto. Se paga al conductor.</small>';
     let inner;
-    if (st.status === 'loading') inner = '<div class="tz-quote"><i class="fas fa-spinner fa-spin"></i><div><b>Calculando envío…</b></div></div>';
+    if (!vehicle) inner = `<div class="tz-quote"><i class="fas fa-shipping-fast"></i><div><b>Elige moto o carro</b>${both}</div></div>`;
+    else if (st.status === 'loading') inner = '<div class="tz-quote"><i class="fas fa-spinner fa-spin"></i><div><b>Calculando envío…</b></div></div>';
     else if (st.status === 'error') inner = `<div class="tz-quote"><i class="fas fa-route"></i><div><b>Envío: se calcula al despachar</b><small>No se pudo cotizar ahora · <button type="button" class="tz-linkbtn" data-sz-checkout="retry">reintentar</button></small></div></div>`;
-    else if (!q || q.reason === 'no_location') inner = `<div class="tz-quote"><i class="fas fa-map-marker-alt"></i><div><b>Envío: marca tu ubicación para ver el monto</b><small>Sin ubicación se calcula por distancia al despachar · ${gps}</small></div></div>`;
-    else if (q.inZone) inner = `<div class="tz-quote ok big"><i class="fas fa-motorcycle"></i><div><b>Envío a ${esc(q.zoneName)}: ${esc(money(q.fee))}</b><small>${q.source === 'store_custom' ? 'Tarifa de la tienda' : 'Tarifa fija de la zona'} · la confirma el servidor al enviar el pedido · se paga al conductor</small></div></div>`;
+    else if (!q || q.reason === 'no_location') inner = `<div class="tz-quote"><i class="fas fa-map-marker-alt"></i><div><b>Envío: marca tu ubicación para ver el monto</b><small>Sin ubicación se calcula por distancia al despachar. ${vehicle === 'auto' ? 'En carro es 25% más.' : ''} ${gps}</small></div></div>`;
+    else if (q.inZone) inner = `<div class="tz-quote ok big"><i class="fas ${rideIcon(vehicle)}"></i><div><b>Envío en ${vehicle === 'auto' ? 'carro' : 'moto'} a ${esc(q.zoneName)}: ${esc(money(q.fee))}</b><small>${q.source === 'store_custom' ? 'Tarifa de la tienda' : 'Tarifa fija de la zona'}${vehicle === 'auto' ? ' · carro +25%' : ''} · la confirma el servidor · se paga al conductor</small></div></div>`;
     else if (q.blocked) inner = `<div class="tz-quote bad"><i class="fas fa-ban"></i><div><b>Por ahora no llegamos a esa dirección</b><small>Está fuera de las zonas de envío de la tienda. Prueba otra dirección · ${gps}</small></div></div>`;
-    else inner = '<div class="tz-quote"><i class="fas fa-route"></i><div><b>Envío: se calcula por distancia al despachar</b><small>Esta dirección no está en ninguna zona de envío · se paga al conductor</small></div></div>';
+    else inner = `<div class="tz-quote"><i class="fas ${rideIcon(vehicle)}"></i><div><b>Envío en ${vehicle === 'auto' ? 'carro' : 'moto'}: se calcula por distancia al despachar</b><small>Esta dirección no está en ninguna zona. ${vehicle === 'auto' ? 'El carro paga 25% más que la moto.' : 'Se paga al conductor.'}</small></div></div>`;
     const src = st.pointSource === 'gps' ? '<small class="tz-mut tz-src">Ubicación: tu GPS</small>' : '';
     return `<div id="store-zone-fee-box" class="tz-checkout">${inner}${src}</div>`;
 }
@@ -215,11 +236,14 @@ function paintCheckout() {
     if (el) el.outerHTML = checkoutFeeHtml(Q);
 }
 
-async function fetchQuote(storeId, p) {
-    const key = `${storeId}|${p ? `${p.lat.toFixed(4)},${p.lng.toFixed(4)}` : 'none'}`;
+async function fetchQuote(storeId, p, vehicle) {
+    const v = vehicle === 'auto' ? 'auto' : 'moto';
+    const key = `${storeId}|${v}|${p ? `${p.lat.toFixed(4)},${p.lng.toFixed(4)}` : 'none'}`;
     const hit = Q.cache.get(key);
     if (hit && Date.now() - hit.at < 120000) return hit.q;
-    const q = p ? await callFn('quoteStoreDeliveryFee', { storeId, lat: p.lat, lng: p.lng }) : { inZone: false, reason: 'no_location', blocked: false };
+    const q = p
+        ? await callFn('quoteStoreDeliveryFee', { storeId, lat: p.lat, lng: p.lng, vehicle: v })
+        : { inZone: false, reason: 'no_location', blocked: false, vehicle: v, carFactor: CAR_DELIVERY_FACTOR };
     Q.cache.set(key, { q, at: Date.now() });
     return q;
 }
@@ -229,13 +253,28 @@ export async function refreshCheckoutQuote(force = false, store = null) {
     if (store) Q.store = store;
     if (!Q.store?.id) return null;
     const p = checkoutPoint();
-    const key = `${Q.store.id}|${p ? `${p.lat.toFixed(4)},${p.lng.toFixed(4)}` : 'none'}`;
+    const v = Q.vehicle === 'auto' ? 'auto' : 'moto';
+    const key = `${Q.store.id}|${Q.vehicle ? v : 'preview'}|${p ? `${p.lat.toFixed(4)},${p.lng.toFixed(4)}` : 'none'}`;
+    if (!Q.vehicle) {
+        if (!force && key === Q.key && Q.quote) { paintCheckout(); return Q.quote; }
+        if (force) Q.cache.delete(`${Q.store.id}|moto|${p ? `${p.lat.toFixed(4)},${p.lng.toFixed(4)}` : 'none'}`);
+        const seq = ++Q.seq;
+        Q.key = key;
+        try {
+            const q = await fetchQuote(Q.store.id, p, 'moto');
+            if (seq !== Q.seq || Q.vehicle) return Q.quote;
+            Q.quote = q;
+            Q.status = 'idle';
+        } catch (e) { console.warn('[envio] cotizar', e); }
+        paintCheckout();
+        return Q.quote;
+    }
     if (!force && key === Q.key && Q.status === 'ok') { paintCheckout(); return Q.quote; }
     if (force) Q.cache.delete(key);
     const seq = ++Q.seq;
     Q.key = key; Q.status = 'loading'; paintCheckout();
     try {
-        const q = await fetchQuote(Q.store.id, p);
+        const q = await fetchQuote(Q.store.id, p, v);
         if (seq !== Q.seq) return Q.quote;
         Q.quote = q; Q.status = 'ok';
     } catch (e) { if (seq === Q.seq) { Q.status = 'error'; Q.quote = null; } console.warn('[envio] cotizar', e); }
@@ -259,24 +298,35 @@ function useGpsForCheckout() {
 export async function checkoutGateForOrder(store) {
     Q.store = store;
     const point = checkoutPoint();
+    const v = Q.vehicle === 'auto' ? 'auto' : 'moto';
     let quote = null;
-    try { quote = await fetchQuote(store.id, point); } catch (_) { quote = null; }
-    const key = `${store.id}|${point ? `${point.lat.toFixed(4)},${point.lng.toFixed(4)}` : 'none'}`;
+    try { quote = Q.vehicle ? await fetchQuote(store.id, point, v) : null; } catch (_) { quote = null; }
+    const key = `${store.id}|${v}|${point ? `${point.lat.toFixed(4)},${point.lng.toFixed(4)}` : 'none'}`;
     // El cliente debe ver el envío antes de confirmar: si la ubicación cambió desde que se
     // pintó el aviso y ahora hay tarifa de zona, se repinta y se pide confirmar otra vez.
     const changed = !!quote?.inZone && (Q.key !== key || Q.status !== 'ok');
     return { point, quote, blocked: !!quote?.blocked, changed };
 }
 
-export function resetCheckoutZone() { Q.point = null; Q.pointSource = ''; Q.quote = null; Q.status = 'idle'; Q.key = ''; }
+export function resetCheckoutZone() { Q.point = null; Q.pointSource = ''; Q.quote = null; Q.status = 'idle'; Q.key = ''; Q.vehicle = ''; }
 
 /** Línea para la tarjeta del pedido (cliente y tienda). */
+function orderRideLabel(o) {
+    const v = String(o?.deliveryVehicle || '').toLowerCase();
+    if (v === 'auto' || v === 'carro' || v === 'car') return { icon: 'fa-car', name: 'Carro' };
+    if (v === 'moto') return { icon: 'fa-motorcycle', name: 'Moto' };
+    return { icon: 'fa-motorcycle', name: '' };
+}
+
 export function orderFeeLineHtml(o) {
     if (!o) return '';
+    const ride = orderRideLabel(o);
+    const who = ride.name ? `${ride.name} · ` : '';
     if (ZONE_FEE_SOURCES.includes(o.deliveryFeeSource) && o.deliveryFee != null) {
-        return `<span class="order-zone-fee"><i class="fas fa-motorcycle"></i> Envío a ${esc(o.deliveryZoneName || 'zona')}: ${esc(money(o.deliveryFee))}</span>`;
+        return `<span class="order-zone-fee"><i class="fas ${ride.icon}"></i> ${who}Envío a ${esc(o.deliveryZoneName || 'zona')}: ${esc(money(o.deliveryFee))}</span>`;
     }
-    if (o.deliveryFee != null && Number(o.deliveryFee) > 0) return `<span class="order-zone-fee"><i class="fas fa-motorcycle"></i> Envío: ${esc(money(o.deliveryFee))}</span>`;
+    if (o.deliveryFee != null && Number(o.deliveryFee) > 0) return `<span class="order-zone-fee"><i class="fas ${ride.icon}"></i> ${who}Envío: ${esc(money(o.deliveryFee))}</span>`;
+    if (ride.name) return `<span class="order-zone-fee"><i class="fas ${ride.icon}"></i> ${ride.name}</span>`;
     return '';
 }
 

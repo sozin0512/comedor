@@ -11,11 +11,11 @@ android {
     namespace = "honduraite.com"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "honduraite.com"
+        applicationId "com.sozin.honduraite"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2026092802
-        versionName "2026.09.28.2"
+        versionCode 2026102002
+        versionName "2026.10.20.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -56,7 +56,7 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
-    // Necesario en el mÃƒÂ³dulo app: HonduMessagingService extiende FirebaseMessagingService
+    // Necesario en el mÃƒÆ’Ã‚Â³dulo app: HonduMessagingService extiende FirebaseMessagingService
     // (el plugin de Capacitor la trae como implementation, no se reexporta al app)
     implementation "com.google.firebase:firebase-messaging:$firebaseMessagingVersion"
     testImplementation "junit:junit:$junitVersion"

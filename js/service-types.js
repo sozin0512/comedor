@@ -770,7 +770,17 @@ export function formatFreightFareBreakdown(serviceType, quote) {
     return parts.join(' · ');
 }
 
-/** Entrega de pedido de tienda virtual (marketplace): moto y Taxi VIP. */
+/** Lo que eligió el cliente. Vacío = moto o Taxi VIP (pedidos de antes). */
+export function storeDeliveryChoice(trip) {
+    const v = String(trip?.deliveryVehicle || trip?.deliveryDetails?.deliveryVehicle || '').toLowerCase();
+    if (v === 'auto' || v === 'carro' || v === 'car') return 'auto';
+    if (v === 'moto') return 'moto';
+    const allowed = Array.isArray(trip?.allowedDriverVehicles) ? trip.allowedDriverVehicles.map((x) => String(x).toLowerCase()) : [];
+    if (allowed.length === 1 && (allowed[0] === 'moto' || allowed[0] === 'auto')) return allowed[0];
+    return 'both';
+}
+
+/** Entrega de pedido de tienda virtual (marketplace): moto y/o Taxi VIP, según eligió el cliente. */
 export function isStoreMarketplaceDelivery(tripOrFlag = null) {
     if (tripOrFlag === true) return true;
     if (!tripOrFlag || typeof tripOrFlag !== 'object') return false;
@@ -810,6 +820,9 @@ export function driverCanServeTrip(driverVehicleType, tripServiceType, vehiclePl
         // Mensajería normal: solo moto.
         // Pedidos de tiendas virtuales: moto + Taxi VIP (auto).
         if (isStoreMarketplaceDelivery(trip)) {
+            const choice = storeDeliveryChoice(trip);
+            if (choice === 'moto') return driverRaw === 'moto';
+            if (choice === 'auto') return isVipDriver;
             return driverRaw === 'moto' || isVipDriver;
         }
         return driverRaw === 'moto';
