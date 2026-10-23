@@ -62,6 +62,10 @@ await t('ghost: consulta general OK', assertSucceeds(general(db('ghost'))));
 await t('minor: catch-all de otra coleccion publica sigue OK', assertSucceeds(getDoc(doc(db('minor'), `${P}/appSettings/x`))));
 // Conocido: falla por getRole() (ver encabezado)
 await t('sup (por role) puede quitar +18 [verifica isStaff por role]', assertSucceeds(updateDoc(doc(db('sup'), `${P}/stores/adult18`), { adultsOnly: false })));
+await t('dueño guarda números autorizados de WhatsApp', assertSucceeds(updateDoc(doc(db('o1'), `${P}/stores/normal`), { waAuthorizedPhones: ['50487776666'] })));
+await t('otro usuario NO puede autorizarse en tienda ajena', assertFails(updateDoc(doc(db('adult'), `${P}/stores/normal`), { waAuthorizedPhones: ['50411111111'] })));
+await t('dueño: máximo 10 números autorizados', assertFails(updateDoc(doc(db('o1'), `${P}/stores/normal`), { waAuthorizedPhones: Array.from({ length: 11 }, (_, i) => `5049000000${i}`) })));
+await t('números autorizados deben ser lista', assertFails(updateDoc(doc(db('o1'), `${P}/stores/normal`), { waAuthorizedPhones: '50487776666' })));
 await t('dueño puede marcar +18', assertSucceeds(updateDoc(doc(db('o1'), `${P}/stores/normal`), { adultsOnly: true })));
 await t('crear tienda con adultsOnly bool', assertSucceeds(setDoc(doc(db('n1'), `${P}/stores/new1`), { name: 'Nueva', ownerId: 'n1', active: true, adultsOnly: false, approvalStatus: 'pending' })));
 await t('crear tienda sin adultsOnly DENEGADO', assertFails(setDoc(doc(db('n2'), `${P}/stores/new2`), { name: 'Nueva', ownerId: 'n2', active: true, approvalStatus: 'pending' })));

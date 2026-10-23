@@ -30,7 +30,7 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   ok('entrada: botón pedir_tienda, «pedir», «restaurantes»', C.isEntry('pedir_tienda', '') && C.isEntry('', 'pedir') && C.isEntry('', 'restaurantes') && !C.isEntry('', 'quiero un viaje'));
   ok('abierta: isOpen=false → cerrada; horario 8–17 a las 20:00 HN → cerrada', !C.isOpenNow({ isOpen: false }) && !C.isOpenNow({ hours: { open: '08:00', close: '17:00' } }, Date.UTC(2026, 9, 23, 2, 0)) && C.isOpenNow({ hours: { open: '08:00', close: '17:00' } }, Date.UTC(2026, 9, 23, 16, 0)));
   ok('+18 nunca por WhatsApp', C.isAdultsOnly({ adultsOnly: true }) && C.isAdultsOnly({ requiresAge18: true }));
-  ok('estados: accepted/preparing→aceptado · out_for_delivery→en camino · delivered · cancelled', C.orderStatusKey({ status: 'preparing' }) === 'accepted' && C.orderStatusKey({ status: 'out_for_delivery' }) === 'on_the_way' && C.orderStatusKey({ status: 'ready' }) === null);
+  ok('estados: accepted · preparing · ready (listo para recoger) · ready+viaje (buscando) · en camino', C.orderStatusKey({ status: 'accepted' }) === 'accepted' && C.orderStatusKey({ status: 'preparing' }) === 'preparing' && C.orderStatusKey({ status: 'ready' }) === 'ready' && C.orderStatusKey({ status: 'ready', tripId: 't' }) === 'searching' && C.orderStatusKey({ status: 'out_for_delivery' }) === 'on_the_way' && /listo para recoger/.test(C.orderStatusText('ready', {})) && /preparando/.test(C.orderStatusText('preparing', {})));
   if (!process.env.FIRESTORE_EMULATOR_HOST) return finish();
 
   const fx = reqFn('./index.js'); const wa = reqFn('./whatsapp-cloud'); const DZ = reqFn('./delivery-zones');
@@ -43,6 +43,8 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   await mk('R3', { ownerId: 'o3', name: 'Sin Aprobar', category: 'comida', lat: 14.461, lng: -87.641, approvalStatus: 'pending' });
   await mk('R4', { ownerId: 'o4', name: 'Bar +18', category: 'comida', lat: 14.461, lng: -87.641, adultsOnly: true });
   await mk('R5', { ownerId: 'o5', name: 'Comida Lejos SPS', category: 'comida', lat: 15.50, lng: -88.03 });
+  await mk('R6', { ownerId: 'o7', name: 'Sin GPS Comedor', category: 'comida', lat: 14.4600, lng: -87.6400, locationApprox: true });
+  await db.doc(`${A}/store_products/PL`).set({ storeId: 'R1', name: 'Baleada súper especial con todo y aguacate', price: 99, available: true, sortOrder: 99 });
   await mk('T1', { ownerId: 'o6', name: 'Farmacia Central', category: 'farmacia', lat: 14.462, lng: -87.642, address: 'Centro' });
   for (let i = 1; i <= 11; i++) await db.doc(`${A}/store_products/P${i}`).set({ storeId: 'R1', name: `Baleada ${i}`, price: 20 + i, available: true, sortOrder: i });
   await db.doc(`${A}/store_products/P0`).set({ storeId: 'R1', name: 'Agotada', price: 10, available: false, sortOrder: 0 });
@@ -53,7 +55,7 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   const say = async (text, buttonId = '', location = null) => { await wa.routeAssistantMessage(CLIENT, text, buttonId, 'Luis', location, null, null); return take(); };
 
   let m = await say('hola');
-  ok('menú principal incluye «Pedir a tienda/rest.»', rowsOf(m).some((r) => r.id === 'pedir_tienda') && rowsOf(m).some((r) => r.id === 'viaje'), JSON.stringify(m).slice(0, 500));
+  ok('menú principal: «Pedir un viaje» primero + «Pedir a tienda/rest.»', rowsOf(m)[0]?.id === 'viaje' && rowsOf(m).some((r) => r.id === 'pedir_tienda'), JSON.stringify(m).slice(0, 500));
   m = await say('', 'pedir_tienda');
   ok('elige Restaurantes o Tiendas', ['co_type_rest', 'co_type_shop'].every((x) => btnsOf(m).includes(x)));
   m = await say('', 'co_type_rest');
@@ -63,7 +65,8 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   ok('dirección fuera de Honduras → rechazada', /No encontré esa dirección en Honduras/.test(all(m)));
   m = await say('', '', { lat: 14.47, lng: -87.63, address: 'Col. Primero de Mayo, Comayagua' });
   const st = rowsOf(m).map((r) => r.id);
-  ok('lista: solo restaurantes abiertos, aprobados, sin +18 y cercanos', st.join() === 'co_st:R1', st.join());
+  ok('lista: solo restaurantes abiertos, aprobados, sin +18, con GPS y cercanos', st.join() === 'co_st:R1', st.join());
+  ok('tienda sin GPS → oculta y marcada (waHiddenNoGps)', (await db.doc(`${A}/stores/R6`).get()).get('waHiddenNoGps') === true);
   m = await say('', 'co_st:R4');
   ok('id manipulado (+18) → rechazado', /no está disponible/.test(all(m)));
   m = await say('', 'co_st:R1');
@@ -71,7 +74,9 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   ok('menú con precios, 8 por página + «Más productos»', rows.length === 9 && rows[0].title === 'Baleada 1' && rows[0].description.startsWith('L. 21.00') && rows[8].id === 'co_more' && !rows.some((r) => /Agotada/.test(r.title)));
   m = await say('', 'co_more');
   rows = rowsOf(m);
-  ok('página 2: Baleada 9–11', rows.filter((r) => r.id.startsWith('co_p:')).map((r) => r.title).join() === 'Baleada 9,Baleada 10,Baleada 11');
+  const longRow = rows.find((r) => r.id === 'co_p:PL');
+  ok('nombre largo: título cortado, descripción con nombre completo y precio', longRow && longRow.title.length <= 24 && longRow.description === 'Baleada súper especial con todo y aguacate · L. 99.00', JSON.stringify(longRow));
+  ok('página 2: Baleada 9–11 + nombre largo', rows.filter((r) => r.id.startsWith('co_p:')).map((r) => r.id).join() === 'co_p:P9,co_p:P10,co_p:P11,co_p:PL', rows.map((r) => r.id).join());
   m = await say('', 'co_p:P10');
   ok('elige producto → ¿cuántos?', /Cuántos/.test(all(m)) && btnsOf(m).includes('co_q:2'));
   m = await say('', 'co_q:2');
@@ -88,6 +93,13 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   m = await say('carro');
   ok('escribir «carro» apagado → no avanza', /Carro no disponible hoy|No disponible/.test(all(m)) && !/Confirmar/.test(JSON.stringify(m)));
   m = await say('', 'co_veh_moto');
+  ok('después del vehículo: paso opcional (nota / recibe otra persona / continuar)', ['co_note', 'co_recv', 'co_extras_ok'].every((x) => btnsOf(m).includes(x)));
+  await say('', 'co_note'); m = await say('Sin cebolla, portón negro');
+  ok('nota guardada', /Sin cebolla/.test(all(m)));
+  await say('', 'co_recv'); await say('María López'); m = await say('9999-0000');
+  ok('recibe otra persona (nombre + teléfono)', /María López · 50499990000/.test(all(m)));
+  m = await say('', 'co_extras_ok');
+  ok('sin cuenta con saldo → directo a confirmar en efectivo', /efectivo al recibir/.test(all(m)) && btnsOf(m).includes('co_confirm'));
   ok('total: Productos L. 102.00 + Envío L. 40.00 (zona Céntrica) = L. 142.00', all(m).includes('Productos L. 102.00 + Envío L. 40.00 = *L. 142.00*'), all(m).slice(-120));
   m = await say('', 'co_confirm');
   ok('confirmado → «Pedido enviado» y cómo cancelar', /Pedido enviado/.test(all(m)) && /cancelar/.test(all(m)));
@@ -98,6 +110,7 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   const miss = appKeys.filter((k) => !(k in o));
   ok('mismas claves que el pedido de la app (js/merchant-stores.js)', !miss.length, miss.join());
   ok("pedido 'pending', efectivo, moto, total productos L. 102, ownerId de la tienda", o.status === 'pending' && o.paymentMethod === 'efectivo' && o.deliveryVehicle === 'moto' && o.itemsTotal === 102 && o.ownerId === 'o1' && o.clientId === `guest_${CLIENT}`);
+  ok('nota y receptor en el pedido', o.notes === 'Sin cebolla, portón negro' && o.recipientName === 'María López' && o.recipientPhone === '50499990000');
   ok('precios desde el servidor por línea', o.items.find((i) => i.productId === 'P10').price === 30 && o.items.find((i) => i.productId === 'P1').qty === 2);
   // mismo trigger de tarifa de la app
   await fx.onStoreOrderCreatedZoneFee.run({ params: { appId: APP, orderId: oref.id }, data: await oref.get() });
@@ -110,7 +123,9 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   m = await upd(o, { ...o, status: 'accepted' });
   ok('aviso «aceptado»', /aceptó tu pedido/.test(all(m)) && m[0]?.to === CLIENT);
   m = await upd({ ...o, status: 'accepted' }, { ...o, status: 'preparing' });
-  ok('accepted → preparing no repite', m.length === 0);
+  ok('aviso «preparando»', /preparando/.test(all(m)));
+  m = await upd({ ...o, status: 'preparing' }, { ...o, status: 'ready' });
+  ok('aviso «listo para recoger»', /listo para recoger/.test(all(m)));
   m = await upd({ ...o, status: 'ready' }, { ...o, status: 'out_for_delivery', driverName: 'Carlos Pérez' });
   ok('aviso «en camino» con conductor', /Carlos/.test(all(m)) && /en camino/.test(all(m)));
   m = await upd({ ...o, status: 'out_for_delivery' }, { ...o, status: 'delivered' });
@@ -137,11 +152,17 @@ const btnsOf = (ms) => ms.flatMap((x) => x.interactive?.action?.buttons || []).m
   await say('', 'co_st:T1'); await say('', 'co_p:F1');
   m = await say('', 'co_q:3');
   ok('stock 2 → no deja 3', /solo tiene 2/.test(all(m)));
-  await say('', 'co_q:2'); await say('', 'co_checkout'); m = await say('', 'co_veh_moto');
+  await db.doc(`${A}/users/U1`).set({ phone: '+50497771234', balance: 100 });
+  await say('', 'co_q:2'); await say('', 'co_checkout'); await say('', 'co_veh_moto');
+  m = await say('', 'co_extras_ok');
+  ok('cuenta con saldo L. 100 ≥ L. 70 → elige efectivo o saldo', btnsOf(m).includes('co_pay_saldo') && /L\. 100\.00/.test(all(m)));
+  m = await say('', 'co_pay_saldo');
   ok('resumen tienda: Productos L. 70.00 + Envío L. 40.00 = L. 110.00', all(m).includes('Productos L. 70.00 + Envío L. 40.00 = *L. 110.00*'));
   await say('', 'co_confirm');
   snap = await db.collection(`${A}/store_orders`).where('storeId', '==', 'T1').get();
   const o2 = snap.docs[0].ref;
+  const o2d = (await o2.get()).data();
+  ok('pagado con saldo: descontado en servidor, clientId = cuenta', o2d.paymentMethod === 'saldo' && o2d.paymentStatus === 'paid' && o2d.paidAmount === 70 && o2d.clientId === 'U1' && (await db.doc(`${A}/users/U1`).get()).get('balance') === 30);
   m = await say('cancelar');
   ok('«cancelar» antes de que la tienda acepte → cancelado', /cancelé tu pedido/.test(all(m)) && (await o2.get()).get('status') === 'cancelled' && (await o2.get()).get('cancelledBy') === 'client');
   await o2.update({ status: 'accepted' });

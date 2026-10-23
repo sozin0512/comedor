@@ -899,14 +899,14 @@ async function sendCloudMenu(to) {
     let linked = false;
     try { linked = !!(storeDeliveryFlow && await storeDeliveryFlow.hasLinkedStores(normalizeWaPhone(to))); } catch (_) { linked = false; }
     const rows = [
+        { id: 'viaje', title: '🚗 Pedir un viaje', description: 'Taxi, moto o carro a donde vayas' },
         ...(linked ? [{ id: 'tienda_envio', title: 'Pedir envío (tienda)', description: 'Moto o carro desde tu tienda' }] : []),
-        { id: 'viaje', title: 'Pedir un viaje' },
         ...(customerOrderFlow ? [{ id: 'pedir_tienda', title: 'Pedir a tienda/rest.', description: 'Comida, pulpería, farmacia… a domicilio' }] : []),
         { id: 'conductor', title: 'Soy conductor' },
         { id: 'soporte', title: 'Soporte' }
     ];
     if (rows.length > 3) return sendCloudList(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', 'Ver opciones', rows, 'Opciones');
-    return sendCloudButtons(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', rows.map((r) => ({ id: r.id, title: r.title })));
+    return sendCloudButtons(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', rows.map((r) => ({ id: r.id, title: r.id === 'viaje' ? 'Pedir un viaje' : r.title })));
 }
 
 async function askWhen(from) {

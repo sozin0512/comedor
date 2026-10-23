@@ -610,6 +610,8 @@ service cloud.firestore {
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.adultsOnly is bool
+        && (!('waAuthorizedPhones' in request.resource.data)
+          || (request.resource.data.waAuthorizedPhones is list && request.resource.data.waAuthorizedPhones.size() <= 10))
         && (
           !('approvalStatus' in request.resource.data)
           || request.resource.data.approvalStatus == 'pending'
@@ -628,6 +630,9 @@ service cloud.firestore {
               && resource.data.approvalStatus == 'rejected'
             )
           )
+          // Números autorizados para pedir por WhatsApp: lista corta (solo dueño/staff escriben)
+          && (!('waAuthorizedPhones' in request.resource.data)
+            || (request.resource.data.waAuthorizedPhones is list && request.resource.data.waAuthorizedPhones.size() <= 10))
           // El dueño no puede quitar la marca +18 (solo staff)
           && !(
             resource.data.get('adultsOnly', false) == true

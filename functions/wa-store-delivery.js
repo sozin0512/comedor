@@ -168,11 +168,15 @@ module.exports = function createWaStoreDelivery(deps) {
         const vars = phoneVariants(phone);
         const found = new Map();
         if (vars.length) {
-            const [byStore, byUser] = await Promise.all([
+            let canon = String(phone || '').replace(/\D/g, ''); if (canon.startsWith('00')) canon = canon.slice(2); if (canon.length === 8) canon = `504${canon}`;
+            const [byStore, byUser, byStaff] = await Promise.all([
                 db.collection(`${base}/stores`).where('phone', 'in', vars).limit(20).get().catch(() => null),
                 db.collection(`${base}/users`).where('phone', 'in', vars).limit(10).get().catch(() => null),
+                // Empleados: «Números autorizados para pedir por WhatsApp» del panel de la tienda (solo dueño/staff los escriben).
+                canon ? db.collection(`${base}/stores`).where('waAuthorizedPhones', 'array-contains', canon).limit(20).get().catch(() => null) : null,
             ]);
             byStore?.docs.forEach((d) => found.set(d.id, d.data() || {}));
+            byStaff?.docs.forEach((d) => found.set(d.id, d.data() || {}));
             const uids = (byUser?.docs || []).map((d) => d.id).slice(0, 10);
             if (uids.length) {
                 const own = await db.collection(`${base}/stores`).where('ownerId', 'in', uids).limit(20).get().catch(() => null);

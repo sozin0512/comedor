@@ -14,7 +14,7 @@
 const DZ = require('./delivery-zones');
 const SD = require('./wa-store-delivery');
 
-const STEPS = ['co_type', 'co_cat', 'co_dest', 'co_dest_confirm', 'co_store', 'co_products', 'co_qty', 'co_after_add', 'co_cart', 'co_vehicle', 'co_confirm'];
+const STEPS = ['co_type', 'co_cat', 'co_dest', 'co_dest_confirm', 'co_store', 'co_products', 'co_qty', 'co_after_add', 'co_cart', 'co_vehicle', 'co_extras', 'co_note_text', 'co_recv_name', 'co_recv_phone', 'co_pay', 'co_confirm'];
 const WINDOW_MS = 24 * 60 * 60 * 1000 - 5 * 60 * 1000;
 const PAGE = 8;
 const MAX_STORE_KM = 25;
@@ -61,31 +61,35 @@ function cartTotal(cart) { return money((cart || []).reduce((s, i) => s + money(
 function cartLines(cart) { return (cart || []).map((i) => `• ${i.qty}× ${i.name} — ${lmoney(i.price * i.qty)}`).join('\n'); }
 
 /** Mismo payload que la app (js/merchant-stores.js) + marcas de WhatsApp. */
-function buildWaCustomerOrder({ store, cart, dest, vehicle, phone, name, nowMs, serverTs }) {
+function buildWaCustomerOrder({ store, cart, dest, vehicle, phone, name, nowMs, serverTs, notes = '', recipient = null, pay = null }) {
     const items = cart.map((i) => ({ productId: i.productId, name: String(i.name).slice(0, 80), basePrice: money(i.price), price: money(i.price), displayPrice: money(i.price), merchantShare: 0, buyerShare: 0, qty: Number(i.qty) || 1, photoUrl: i.photoUrl || null }));
     const itemsTotal = money(items.reduce((s, i) => s + i.basePrice * i.qty, 0));
     return {
         storeId: store.id, storeName: store.name || 'Tienda', ownerId: store.ownerId,
-        clientId: `guest_${phone}`, clientName: String(name || 'Cliente WhatsApp').slice(0, 60), clientPhone: phone,
+        clientId: pay?.uid || `guest_${phone}`, clientName: String(name || 'Cliente WhatsApp').slice(0, 60), clientPhone: phone,
         items, itemsBaseTotal: itemsTotal, itemsDisplayTotal: itemsTotal, itemsTotal,
         platformFeeMerchant: 0, platformFeeBuyer: 0, platformFeeTotal: 0,
         commissionPercent: Math.round(COMMISSION_RATE * 100), tariffSplit: false, weeklyCommissionRate: COMMISSION_RATE,
         status: 'pending',
         deliveryAddress: String(dest.address).slice(0, 200), deliveryLat: Number(dest.lat), deliveryLng: Number(dest.lng),
-        recipientName: String(name || 'Cliente WhatsApp').slice(0, 60), recipientPhone: phone, notes: String(dest.notes || '').slice(0, 300),
+        recipientName: String(recipient?.name || name || 'Cliente WhatsApp').slice(0, 60), recipientPhone: recipient?.phone || phone, notes: String(notes || '').slice(0, 300),
         deliveryVehicle: vehicle === 'auto' ? 'auto' : 'moto',
-        paymentMethod: 'efectivo', paymentStatus: 'unpaid', paidAmount: null, paidAt: null,
+        paymentMethod: pay?.method === 'saldo' ? 'saldo' : 'efectivo', paymentStatus: pay?.method === 'saldo' ? 'paid' : 'unpaid',
+        paidAmount: pay?.method === 'saldo' ? itemsTotal : null, paidAt: pay?.method === 'saldo' ? serverTs : null,
         cityId: store.cityId || null, cityName: store.cityName || null,
         storeAddress: store.address || '', storeLat: store.lat ?? null, storeLng: store.lng ?? null, storePhone: store.phone || '',
         tripId: null, deliveryFee: null,
         createdAt: serverTs, updatedAt: serverTs,
-        createdVia: 'whatsapp_customer', waCustomerPhone: phone, guestClient: true, waOrderCreatedAtMs: nowMs,
+        createdVia: 'whatsapp_customer', waCustomerPhone: phone, guestClient: !pay?.uid, waOrderCreatedAtMs: nowMs,
     };
 }
 
 function orderStatusKey(o = {}) {
     const s = o.status;
-    if (s === 'accepted' || s === 'preparing') return 'accepted';
+    if (s === 'accepted') return 'accepted';
+    if (s === 'preparing') return 'preparing';
+    if (s === 'ready' && !o.tripId) return 'ready';
+    if (s === 'ready' && o.tripId) return 'searching';
     if (s === 'out_for_delivery') return 'on_the_way';
     if (s === 'delivered') return 'delivered';
     if (s === 'cancelled') return 'cancelled';
@@ -94,7 +98,10 @@ function orderStatusKey(o = {}) {
 function orderStatusText(key, o = {}) {
     const st = o.storeName || 'la tienda';
     switch (key) {
-        case 'accepted': return `✅ *${st}* aceptó tu pedido y lo está preparando.`;
+        case 'accepted': return `✅ *${st}* aceptó tu pedido.`;
+        case 'preparing': return `👨‍🍳 *${st}* está preparando tu pedido.`;
+        case 'ready': return `📦 Tu pedido de *${st}* está listo para recoger. Ya buscamos conductor.`;
+        case 'searching': return `🔎 Tu pedido de *${st}* está listo; estamos buscando un conductor.`;
         case 'on_the_way': return `🛵 ${o.driverName ? `*${String(o.driverName).split(/\s+/)[0]}*` : 'Un conductor'} va en camino con tu pedido de *${st}*.`;
         case 'delivered': return `🎉 Pedido de *${st}* entregado. ¡Gracias por usar HonduRaite!`;
         case 'cancelled': return o.cancelReason === 'outside_delivery_zones'
@@ -111,14 +118,30 @@ module.exports = function createWaCustomerOrder(deps) {
     const VEH = SD.VEHICLES;
 
     async function nearbyStores(kind, cat, dest) {
+        const noGps = [];
         const snap = await db.collection(`${base}/stores`).where('adultsOnly', '==', false).limit(400).get().catch(() => null);
         return (snap?.docs || []).map((d) => ({ id: d.id, ...d.data() }))
             .filter((s) => s.ownerId && approved(s) && !isAdultsOnly(s) && isOpenNow(s, now()))
             .filter((s) => (kind === 'rest' ? isRestaurant(s) : !isRestaurant(s) && (!cat || (s.category || 'otro') === cat)))
-            .filter((s) => Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)))
+            .filter((s) => {
+                const ok = Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)) && s.locationApprox !== true;
+                if (!ok) noGps.push(s.id);
+                return ok;
+            })
             .map((s) => ({ ...s, _km: km(dest, { lat: Number(s.lat), lng: Number(s.lng) }) }))
             .filter((s) => s._km <= MAX_STORE_KM)
-            .sort((a, b) => a._km - b._km);
+            .sort((a, b) => a._km - b._km)
+            .concat((() => { if (noGps.length) reportNoGps(noGps); return []; })());
+    }
+    /** Tiendas abiertas sin ubicación GPS real: no se listan; se registra (máx. 1 vez/día por tienda) para avisar al dueño/admin. */
+    const noGpsSeen = new Map();
+    function reportNoGps(ids) {
+        const day = Math.floor(now() / 86400000);
+        const fresh = ids.filter((id) => noGpsSeen.get(id) !== day);
+        if (!fresh.length) return;
+        fresh.forEach((id) => noGpsSeen.set(id, day));
+        log.warn?.('[wa-pedido-cliente] tiendas sin GPS ocultas a clientes de WhatsApp:', fresh.join(','));
+        fresh.forEach((id) => db.doc(`${base}/stores/${id}`).set({ waHiddenNoGps: true, waHiddenNoGpsAtMs: now() }, { merge: true }).catch(() => {}));
     }
     async function loadStore(id) {
         if (!/^[A-Za-z0-9_-]{1,80}$/.test(String(id || ''))) return null;
@@ -158,7 +181,7 @@ module.exports = function createWaCustomerOrder(deps) {
         }
         const page = Math.max(0, Number(sess.coStorePage) || 0);
         const slice = list.slice(page * 9, page * 9 + 9);
-        const rows = slice.map((s) => ({ id: `co_st:${s.id}`, title: cut(s.name || 'Tienda', 24), description: cut(`${s.cityName || ''}${s.address ? ` · ${s.address}` : ''} · ${s._km.toFixed(1)} km`, 72) }));
+        const rows = slice.map((s) => { const nm = s.name || 'Tienda'; return { id: `co_st:${s.id}`, title: cut(nm, 24), description: cut(`${nm.length > 24 ? `${nm} · ` : ''}${s._km.toFixed(1)} km${s.address ? ` · ${s.address}` : ''}`, 72) }; });
         if (list.length > (page + 1) * 9) rows.push({ id: 'co_st_more', title: 'Ver más ▶', description: `${list.length - (page + 1) * 9} más` });
         await save({ ...sess, step: 'co_store', coStoreIds: slice.map((s) => s.id) });
         return send.list(from, `${sess.coKind === 'rest' ? '🍔 Restaurantes' : '🛍️ Tiendas'} abiertos cerca (${list.length}):`, 'Ver lista', rows, sess.coKind === 'rest' ? 'Restaurantes' : 'Tiendas');
@@ -169,7 +192,7 @@ module.exports = function createWaCustomerOrder(deps) {
         const pages = Math.ceil(prods.length / PAGE);
         const page = Math.min(Math.max(0, Number(sess.coPage) || 0), pages - 1);
         const slice = prods.slice(page * PAGE, page * PAGE + PAGE);
-        const rows = slice.map((p) => ({ id: `co_p:${p.id}`, title: cut(p.name, 24), description: cut(`${lmoney(p.price ?? p.basePrice)}${p.description ? ` · ${p.description}` : ''}`, 72) }));
+        const rows = slice.map((p) => ({ id: `co_p:${p.id}`, title: cut(p.name, 24), description: cut(String(p.name || '').length > 24 ? `${p.name} · ${lmoney(p.price ?? p.basePrice)}` : `${lmoney(p.price ?? p.basePrice)}${p.description ? ` · ${p.description}` : ''}`, 72) }));
         if (page < pages - 1) rows.push({ id: 'co_more', title: 'Más productos ▶', description: `Página ${page + 2} de ${pages}` });
         else if (page > 0) rows.push({ id: 'co_first', title: '◀ Volver al inicio', description: 'Página 1' });
         const n = (sess.coCart || []).reduce((s, i) => s + i.qty, 0);
@@ -195,8 +218,40 @@ module.exports = function createWaCustomerOrder(deps) {
     }
     function summary(sess, fee) {
         const p = cartTotal(sess.coCart); const v = VEH[sess.coVehicle];
-        return [`🧾 *Tu pedido · ${sess.coStoreName}*`, cartLines(sess.coCart), '', `Entrega: ${sess.coDest.address}`, `Envío: ${v.emoji} ${v.label}`, 'Pago: efectivo al recibir', '',
+        return [`🧾 *Tu pedido · ${sess.coStoreName}*`, cartLines(sess.coCart), '', `Entrega: ${sess.coDest.address}`,
+            ...(sess.coRecipient ? [`Recibe: ${sess.coRecipient.name} · ${sess.coRecipient.phone}`] : []), ...(sess.coNotes ? [`Notas: ${sess.coNotes}`] : []),
+            `Envío: ${v.emoji} ${v.label}`, sess.coPay === 'saldo' ? `Pago: productos con *saldo/puntos* (${lmoney(p)}); envío en efectivo al conductor` : 'Pago: efectivo al recibir', '',
             `Productos ${lmoney(p)} + Envío ${lmoney(fee)} = *${lmoney(p + fee)}*`].join('\n');
+    }
+
+    /** Cuenta HonduRaite con ese teléfono (exactamente una) → saldo/puntos como en el carrito de la app. */
+    async function findAccount(phone) {
+        const vars = SD.phoneVariants(phone);
+        if (!vars.length) return null;
+        const snap = await db.collection(`${base}/users`).where('phone', 'in', vars).limit(2).get().catch(() => null);
+        if (!snap || snap.docs.length !== 1) return null;
+        const d = snap.docs[0];
+        if (d.get('blocked') === true || d.get('suspended') === true || d.get('deleted') === true) return null;
+        return { uid: d.id, balance: money(parseFloat(d.get('balance')) || 0) };
+    }
+    const confirmButtons = [{ id: 'co_confirm', title: 'Confirmar pedido' }, { id: 'co_cart', title: 'Editar carrito' }, { id: 'co_abort', title: 'Cancelar' }];
+    async function showExtras(from, sess, save) {
+        await save({ ...sess, step: 'co_extras' });
+        const cur = [sess.coNotes ? `📝 Notas: ${sess.coNotes}` : '', sess.coRecipient ? `👤 Recibe: ${sess.coRecipient.name} · ${sess.coRecipient.phone}` : ''].filter(Boolean).join('\n');
+        return send.buttons(from, `¿Algo más? (opcional)\n${cur || 'Puedes dejar una nota para la tienda o el conductor, o decir que recibe otra persona.'}`,
+            [{ id: 'co_note', title: sess.coNotes ? 'Cambiar nota' : 'Agregar nota' }, { id: 'co_recv', title: 'Recibe otra persona' }, { id: 'co_extras_ok', title: 'Continuar' }]);
+    }
+    async function askPayOrConfirm(from, sess, save) {
+        const acct = await findAccount(from);
+        const p = cartTotal(sess.coCart);
+        if (acct && acct.balance >= p) {
+            await save({ ...sess, step: 'co_pay', coPay: null });
+            return send.buttons(from, `¿Cómo pagas los productos (${lmoney(p)})?\nTu saldo HonduRaite: *${lmoney(acct.balance)}*. El envío siempre se paga en efectivo al conductor.`,
+                [{ id: 'co_pay_cash', title: 'Efectivo' }, { id: 'co_pay_saldo', title: 'Saldo / puntos' }]);
+        }
+        const next = { ...sess, step: 'co_confirm', coPay: 'efectivo' };
+        await save(next);
+        return send.buttons(from, summary(next, sess.coFee), confirmButtons);
     }
 
     async function cancelActiveOrder(from) {
@@ -281,6 +336,35 @@ module.exports = function createWaCustomerOrder(deps) {
         const store = await loadStore(sess.coStoreId);
         if (!store) { await clearSession(from); await send.text(from, 'Esa tienda ya no está disponible. Escribe *pedir* para elegir otra.'); return true; }
 
+        if (sess.step === 'co_note_text') {
+            const n = /^(sin nota|ninguna|no)$/.test(t) ? '' : String(text || '').trim().slice(0, 300);
+            await showExtras(from, { ...sess, coNotes: n }, save); return true;
+        }
+        if (sess.step === 'co_recv_name') {
+            const n = String(text || '').trim();
+            if (/^(yo|soy yo)$/.test(t)) { await showExtras(from, { ...sess, coRecipient: null }, save); return true; }
+            if (n.length < 2 || n.length > 60) { await send.text(from, 'Escribe el nombre de quien recibe (o *yo*).'); return true; }
+            await save({ ...sess, step: 'co_recv_phone', coRecvName: n });
+            await send.text(from, `Teléfono de *${n}* (8 dígitos):`); return true;
+        }
+        if (sess.step === 'co_recv_phone') {
+            let d = String(text || '').replace(/\D/g, ''); if (d.length === 8) d = `504${d}`;
+            if (!/^504[2-9]\d{7}$/.test(d)) { await send.text(from, 'Ese número no parece de Honduras. Escribe 8 dígitos, por ejemplo 9999-0000.'); return true; }
+            await showExtras(from, { ...sess, coRecipient: { name: sess.coRecvName, phone: d }, coRecvName: null }, save); return true;
+        }
+        if (sess.step === 'co_extras' && !['co_cart', 'co_abort'].includes(id)) {
+            if (id === 'co_note' || /^nota/.test(t)) { await save({ ...sess, step: 'co_note_text' }); await send.text(from, '📝 Escribe tu nota (ej.: sin cebolla, casa portón negro). Escribe *sin nota* para quitarla.'); return true; }
+            if (id === 'co_recv' || /otra persona/.test(t)) { await save({ ...sess, step: 'co_recv_name' }); await send.text(from, '👤 ¿Cómo se llama quien recibe? (escribe *yo* si eres tú)'); return true; }
+            if (id === 'co_extras_ok' || /^(continuar|listo|no|seguir)$/.test(t)) { await askPayOrConfirm(from, sess, save); return true; }
+            await showExtras(from, sess, save); return true;
+        }
+        if (sess.step === 'co_pay' && id !== 'co_abort') {
+            const m = id === 'co_pay_saldo' || /saldo|puntos/.test(t) ? 'saldo' : (id === 'co_pay_cash' || /efectivo/.test(t) ? 'efectivo' : '');
+            if (!m) { await askPayOrConfirm(from, sess, save); return true; }
+            const next = { ...sess, step: 'co_confirm', coPay: m };
+            await save(next); await send.buttons(from, summary(next, sess.coFee), confirmButtons); return true;
+        }
+
         if (id === 'co_cart' || /^(carrito|ver carrito)$/.test(t)) { await showCart(from, sess, save); return true; }
         if (id === 'co_keep' || /^(agregar mas|seguir)$/.test(t)) { await showProducts(from, sess, save, store); return true; }
         if (id === 'co_checkout' || (sess.step !== 'co_confirm' && /^(pedir|pagar|continuar|listo)$/.test(t))) {
@@ -321,9 +405,7 @@ module.exports = function createWaCustomerOrder(deps) {
             if (!a[v].available) { await send.text(from, `${VEH[v].label}: ${a[v].message || 'No disponible'} 🙏`); await askVehicle(from, sess, save, store); return true; }
             const r = await quote(store, sess, v);
             if (!r.ok) { await save({ ...sess, step: 'co_dest' }); await send.text(from, r.reason === 'outside_delivery_zones' ? '😕 Por ahora no llegamos a esa dirección desde esta tienda. Prueba otra ubicación.' : '😕 No pude calcular el envío. Prueba otra ubicación.'); await askDest(from); return true; }
-            const next = { ...sess, step: 'co_confirm', coVehicle: v, coFee: r.fee };
-            await save(next);
-            await send.buttons(from, summary(next, r.fee), [{ id: 'co_confirm', title: 'Confirmar pedido' }, { id: 'co_cart', title: 'Editar carrito' }, { id: 'co_abort', title: 'Cancelar' }]);
+            await showExtras(from, { ...sess, coVehicle: v, coFee: r.fee }, save);
             return true;
         }
         if (sess.step === 'co_confirm' && (id === 'co_confirm' || /^(confirmar|si|sí)$/.test(t))) {
@@ -338,15 +420,38 @@ module.exports = function createWaCustomerOrder(deps) {
             if (!a[sess.coVehicle]?.available) { await send.text(from, `${VEH[sess.coVehicle].label}: ${a[sess.coVehicle]?.message || 'No disponible'} 🙏`); await askVehicle(from, sess, save, store); return true; }
             const r = await quote(store, sess, sess.coVehicle);
             if (!r.ok) { await clearSession(from); await send.text(from, '❌ Ya no llegamos a esa dirección. Escribe *pedir* para probar otra.'); return true; }
-            const order = buildWaCustomerOrder({ store, cart, dest: sess.coDest, vehicle: sess.coVehicle, phone: from, name: sess.coName || contactName, nowMs: now(), serverTs: FieldValue.serverTimestamp() });
-            const ref = await db.collection(`${base}/store_orders`).add(order);
+            let pay = null;
+            if (sess.coPay === 'saldo') {
+                const acct = await findAccount(from);
+                if (!acct) { await askPayOrConfirm(from, { ...sess, coCart: cart }, save); return true; }
+                pay = { method: 'saldo', uid: acct.uid };
+            }
+            const order = buildWaCustomerOrder({ store, cart, dest: sess.coDest, vehicle: sess.coVehicle, phone: from, name: sess.coName || contactName, nowMs: now(), serverTs: FieldValue.serverTimestamp(), notes: sess.coNotes, recipient: sess.coRecipient, pay });
+            const ref = db.collection(`${base}/store_orders`).doc();
+            if (pay) {
+                // Mismo cobro que el carrito de la app, pero en el servidor y atómico con el pedido.
+                const userRef = db.doc(`${base}/users/${pay.uid}`);
+                const res = await db.runTransaction(async (tx) => {
+                    const u = await tx.get(userRef);
+                    const bal = money(parseFloat(u.exists ? u.get('balance') : 0) || 0);
+                    if (bal < order.itemsTotal) return { ok: false, bal };
+                    const nb = money(bal - order.itemsTotal);
+                    tx.update(userRef, { balance: nb });
+                    tx.set(ref, order);
+                    return { ok: true, nb };
+                });
+                if (!res.ok) { await askPayOrConfirm(from, { ...sess, coCart: cart }, save); await send.text(from, `Tu saldo (${lmoney(res.bal)}) ya no alcanza para ${lmoney(order.itemsTotal)}. Elige efectivo.`); return true; }
+                await db.doc(`artifacts/${APP_ID}/users/${pay.uid}/profile/data`).set({ balance: res.nb }, { merge: true }).catch(() => {});
+            } else {
+                await ref.set(order);
+            }
             await clearSession(from);
             const changed = Math.abs(r.fee - (Number(sess.coFee) || 0)) >= 0.01 || Math.abs(cartTotal(cart) - cartTotal(sess.coCart)) >= 0.01;
-            await send.text(from, `✅ ¡Pedido enviado a *${store.name}*!${changed ? `\nTotal actualizado: Productos ${lmoney(cartTotal(cart))} + Envío ${lmoney(r.fee)} = *${lmoney(cartTotal(cart) + r.fee)}*` : ''}\nPagas en efectivo al recibir. Te aviso aquí cuando la tienda lo acepte.\nEscribe *cancelar* para anularlo antes de que lo acepten.`);
+            await send.text(from, `✅ ¡Pedido enviado a *${store.name}*!${changed ? `\nTotal actualizado: Productos ${lmoney(cartTotal(cart))} + Envío ${lmoney(r.fee)} = *${lmoney(cartTotal(cart) + r.fee)}*` : ''}\n${pay ? `Se descontaron ${lmoney(order.itemsTotal)} de tu saldo; el envío lo pagas en efectivo al conductor.` : 'Pagas en efectivo al recibir.'} Te aviso aquí cuando la tienda lo acepte.\nEscribe *cancelar* para anularlo antes de que lo acepten.`);
             return { handled: true, orderId: ref.id };
         }
         // Cualquier otra cosa dentro del flujo: repetir la pantalla actual.
-        if (sess.step === 'co_confirm') { await send.buttons(from, summary(sess, sess.coFee), [{ id: 'co_confirm', title: 'Confirmar pedido' }, { id: 'co_cart', title: 'Editar carrito' }, { id: 'co_abort', title: 'Cancelar' }]); return true; }
+        if (sess.step === 'co_confirm') { await send.buttons(from, summary(sess, sess.coFee), confirmButtons); return true; }
         if (sess.step === 'co_cart') { await showCart(from, sess, save); return true; }
         await showProducts(from, sess, save, store); return true;
     }

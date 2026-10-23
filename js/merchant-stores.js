@@ -3031,6 +3031,9 @@ function renderMerchantStoreForm() {
             <p class="text-[10px] text-slate-500 -mt-1 leading-snug">Horario de todos los días, hora de Honduras. Fuera de ese horario tu tienda sale como “Cerrada” y va al final de la lista. Déjalo vacío si prefieres abrir y cerrar a mano.</p>
             <label class="stores-field"><span>WhatsApp del negocio *</span>
                 <input id="m-store-phone" class="stores-input" required value="${esc(s.phone || (!editingExisting ? (getUserProfile()?.phone || '') : ''))}" placeholder="+504..."></label>
+            <label class="stores-field"><span>Números autorizados para pedir por WhatsApp</span>
+                <textarea id="m-store-wa-phones" class="stores-input" rows="2" placeholder="+504 9999-0000, +504 8888-1111">${esc((Array.isArray(s.waAuthorizedPhones) ? s.waAuthorizedPhones : []).map((x) => `+${x}`).join(', '))}</textarea></label>
+            <p class="text-[10px] text-slate-500 -mt-1 leading-snug">Empleados que pueden pedir envíos de tu tienda escribiendo al WhatsApp de HonduRaite (máximo 10, separados por coma). El teléfono de la tienda y el tuyo ya están autorizados.</p>
             <label class="stores-field stores-field--check" style="flex-direction:row;align-items:flex-start;gap:0.65rem;cursor:pointer;">
                 <input type="checkbox" id="m-store-adults-only" ${isStoreAdultsOnly(s) ? 'checked' : ''} ${adultsLocked ? 'disabled' : ''} style="width:1.1rem;height:1.1rem;margin-top:0.15rem;flex-shrink:0;">
                 <span>
@@ -3422,6 +3425,11 @@ async function saveStore() {
     if (!name || name.length < 2) return toast('Nombre de tienda requerido', 'warning');
     if (!address || address.length < 4) return toast('Dirección de recogida requerida', 'warning');
     if (!phone) return toast('WhatsApp del negocio requerido', 'warning');
+    const waAuthorizedPhones = [...new Set(String(document.getElementById('m-store-wa-phones')?.value || '')
+        .split(/[,;\n]+/).map((x) => x.replace(/\D/g, '')).filter(Boolean)
+        .map((d) => (d.startsWith('00') ? d.slice(2) : d)).map((d) => (d.length === 8 ? `504${d}` : d)))];
+    if (waAuthorizedPhones.some((d) => !/^504[2-9]\d{7}$/.test(d))) return toast('Revisa los números autorizados: deben ser de Honduras (8 dígitos)', 'warning');
+    if (waAuthorizedPhones.length > 10) return toast('Máximo 10 números autorizados', 'warning');
 
     // Horario diario (opcional): las dos horas o ninguna
     const openAt = document.getElementById('m-store-open-at')?.value || '';
@@ -3478,6 +3486,7 @@ async function saveStore() {
         description,
         address,
         phone,
+        waAuthorizedPhones,
         lat: finalLat,
         lng: finalLng,
         cityId: storeCity.id,

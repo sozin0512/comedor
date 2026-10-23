@@ -170,6 +170,17 @@ const all = (ms) => ms.map(bodyOf).join('\n');
   ok('número de WhatsApp de la tienda con 1 tienda → pide confirmar esa tienda', /Pedir envío para \*Farmacia Ajena\*/.test(all(m)) && m.some((x) => x.interactive?.action?.buttons?.some((b) => b.reply.id === 'st_store:S3')), JSON.stringify(m).slice(0,600));
   m = await say(STORE_PHONE, 'No', 'st_abort');
   ok('«No» → no pide nada', /no pedí el envío/.test(all(m)));
+  // ── empleado autorizado (stores.waAuthorizedPhones, lo edita solo el dueño/staff) ──
+  const STAFF = '50487776666';
+  m = await say(STAFF, 'envío');
+  ok('empleado sin autorizar → no vinculado', /no está vinculado a ninguna tienda/.test(all(m)));
+  const STAFF2 = '50487775555';
+  await db.doc(`${A}/stores/S4`).update({ waAuthorizedPhones: [STAFF2] });
+  m = await say(STAFF2, 'hola');
+  ok('empleado autorizado → menú con «Pedir envío (tienda)» y viaje primero', JSON.stringify(m).includes('tienda_envio') && m.flatMap((x) => x.interactive?.action?.sections?.[0]?.rows || [])[0]?.id === 'viaje');
+  m = await say(STAFF2, 'envío');
+  ok('empleado autorizado → su tienda (S4)', /Tienda De Otro/.test(all(m)) && !/Farmacia Ajena/.test(all(m)), all(m).slice(0, 300));
+  await say(STAFF2, 'No', 'st_abort');
   ok('ninguna llamada de red fuera de Meta/Geocode simulados', UNEXPECTED.length === 0, UNEXPECTED.join());
   fs.unlinkSync(tmp);
   finish();
