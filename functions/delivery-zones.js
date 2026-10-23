@@ -149,6 +149,71 @@ function quoteDelivery({ zones, storeFees, lat, lng, cityId, outsideBehavior, ve
         feeMoto, feeCar, fee: choice === 'auto' ? feeCar : feeMoto, ...ride,
     };
 }
+
+// ───────────── Envío directo de tienda («Pedir envío»): verificación del precio ─────────────
+/** Tarifa Envío por defecto (igual que js/service-types.js delivery). El admin la cambia en appSettings/main.fixedFares.serviceRates.delivery. */
+const DEFAULT_DELIVERY_RATE = { base: 15, perKm: 17 };
+const MERCHANT_DIRECT_MIN_KM = 0.5;
+function haversineKmPts(aLat, aLng, bLat, bLng) {
+    const R = 6371; const r = (d) => (d * Math.PI) / 180;
+    const h = Math.sin(r(bLat - aLat) / 2) ** 2 + Math.cos(r(aLat)) * Math.cos(r(bLat)) * Math.sin(r(bLng - aLng) / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+}
+function deliveryRateFrom(fixedFares) {
+    const r = fixedFares?.serviceRates?.delivery || {};
+    const base = Number(r.base); const perKm = Number(r.perKm);
+    return { base: Number.isFinite(base) && base >= 0 ? base : DEFAULT_DELIVERY_RATE.base, perKm: Number.isFinite(perKm) && perKm >= 0 ? perKm : DEFAULT_DELIVERY_RATE.perKm };
+}
+/** Misma cuenta que js/merchant-delivery-request.js (estimateMerchantDelivery): base + km × L./km, carro × 1.25. */
+function distanceDeliveryFee(km, vehicle, rate) {
+    const dist = Math.max(MERCHANT_DIRECT_MIN_KM, Number(km) || 0);
+    let fee = money(rate.base + dist * rate.perKm);
+    if (deliveryVehicleChoice(vehicle) === 'auto') fee = money(fee * CAR_DELIVERY_FACTOR);
+    return fee;
+}
+/**
+ * Recalcula la tarifa de un envío directo (status «verifying») y devuelve el patch.
+ *  - Recoge SIEMPRE en la ubicación guardada de la tienda (no la que mande la app).
+ *  - Zona → tarifa de zona/tienda; fuera de zona → por distancia; «bloquear» → cancelado.
+ * Pura: probada en scripts/test-verificar-precio-envio.mjs.
+ */
+function verifyMerchantDirectDelivery({ trip, store, quote, rate, nowMs = Date.now() }) {
+    const t = trip || {};
+    const fail = (reason) => ({ ok: false, reason, patch: { status: 'cancelled', cancelledBy: 'system', cancelReason: reason, cancelledAtMs: nowMs, priceVerified: false, priceVerifiedAtMs: nowMs } });
+    if (!store || store.ownerId !== t.merchantId) return fail('store_mismatch');
+    const sLat = Number(store.lat); const sLng = Number(store.lng);
+    const dLat = Number(t.destinationLat); const dLng = Number(t.destinationLng);
+    if (![sLat, sLng, dLat, dLng].every(Number.isFinite)) return fail('no_location');
+    if (quote?.blocked) return fail('outside_delivery_zones');
+    const vehicle = deliveryVehicleChoice(t.deliveryVehicle) || 'moto';
+    const km = Math.round(Math.max(MERCHANT_DIRECT_MIN_KM, haversineKmPts(sLat, sLng, dLat, dLng)) * 100) / 100;
+    let fee; let source; let zoneId = null; let zoneName = null; let label;
+    if (quote?.inZone) {
+        fee = money(vehicle === 'auto' ? quote.feeCar : quote.feeMoto);
+        source = quote.source || 'zone_base'; zoneId = quote.zoneId || null; zoneName = quote.zoneName || null;
+        label = `Tarifa: ${zoneName || 'Zona'}${source === 'store_custom' ? ' (tu tarifa)' : ''}${vehicle === 'auto' ? ' · carro +25%' : ''}`;
+    } else {
+        fee = distanceDeliveryFee(km, vehicle, rate || DEFAULT_DELIVERY_RATE);
+        source = 'distance';
+        label = `Tarifa: por distancia (fuera de zona) · ${km} km${vehicle === 'auto' ? ' · carro +25%' : ''}`;
+    }
+    const sent = Number(t.priceNum);
+    const corrected = !(Number.isFinite(sent) && Math.abs(sent - fee) < 0.01);
+    const collect = money(Math.max(0, Number(t.deliveryDetails?.collectAmount) || 0));
+    const patch = {
+        status: 'pending',
+        priceNum: fee, price: lmoney(fee),
+        deliveryZoneId: zoneId, deliveryZoneName: zoneName, deliveryFeeSource: source, fareLabel: label,
+        tripDistanceKm: km,
+        originLat: sLat, originLng: sLng,
+        priceVerified: true, priceVerifiedAtMs: nowMs, priceCorrected: corrected,
+        priceCheckOriginal: Number.isFinite(sent) ? sent : null,
+        'deliveryDetails.customerTotal': money(fee + collect),
+        'deliveryDetails.collectAmount': collect,
+        'deliveryDetails.itemsTotal': collect,
+    };
+    return { ok: true, corrected, fee, original: Number.isFinite(sent) ? sent : null, patch };
+}
 const HISTORY_FIELDS = ['name', 'cityId', 'baseFee', 'minFee', 'maxFee', 'priority', 'active', 'note', 'polygon'];
 function diffZone(before, after) {
     const out = [];
@@ -390,9 +455,41 @@ module.exports = function createDeliveryZones(deps) {
         await tripRef.update({ priceNum: fee, price: `L. ${fee.toFixed(2)}`, deliveryZoneId: after.deliveryZoneId || null, deliveryZoneName: after.deliveryZoneName || null, deliveryFeeSource: after.deliveryFeeSource });
     });
 
+
+    /**
+     * «Pedir envío» de la tienda: el viaje nace «verifying» (ningún conductor lo ve: reglas + listeners
+     * solo leen pending). Aquí se recalcula la tarifa con la MISMA cotización de los pedidos de tienda
+     * (quoteFor = zona/tarifa de la tienda/«bloquear») o por distancia, se corrige si la app mandó otra,
+     * y se pasa a «pending» → onTripUpdatePush avisa a los conductores con el precio ya verificado.
+     */
+    const onMerchantDirectDeliveryCreated = onDocumentCreated('artifacts/{appId}/public/data/trips/{tripId}', async (event) => {
+        const t = event.data?.data() || {};
+        if (t.merchantDirectDelivery !== true || t.status !== 'verifying') return;
+        const { appId, tripId } = event.params;
+        const ref = event.data.ref;
+        let result;
+        try {
+            const st = await db.doc(`artifacts/${appId}/public/data/stores/${t.storeId}`).get();
+            const store = st.exists ? st.data() : null;
+            const q = store ? await quoteFor(appId, { storeId: t.storeId, lat: t.destinationLat, lng: t.destinationLng, cityId: store.cityId || null, vehicle: t.deliveryVehicle }) : null;
+            const settings = await db.doc(`artifacts/${appId}/public/data/appSettings/main`).get();
+            result = verifyMerchantDirectDelivery({ trip: t, store, quote: q, rate: deliveryRateFrom(settings.get('fixedFares')), nowMs: Date.now() });
+        } catch (e) {
+            console.error('[envio-directo] verificar', tripId, e?.message || e);
+            return; // queda «verifying» (nadie lo ve); la tienda puede cancelar y reintentar
+        }
+        if (result.corrected) console.warn('[envio-directo] precio corregido', JSON.stringify({ tripId, storeId: t.storeId, original: result.original, verified: result.fee }));
+        if (!result.ok) console.warn('[envio-directo] rechazado', tripId, result.reason);
+        await db.runTransaction(async (tx) => {
+            const cur = await tx.get(ref);
+            if (!cur.exists || cur.get('status') !== 'verifying') return; // la tienda canceló mientras tanto
+            tx.update(ref, { ...result.patch, updatedAt: FieldValue.serverTimestamp() });
+        });
+    });
+
     return {
-        exports: { staffUpsertDeliveryZone, staffSetDeliveryZoneActive, staffSetDeliveryOutsideBehavior, staffSeedDeliveryZones, merchantSetStoreZoneFees, quoteStoreDeliveryFee, onStoreOrderCreatedZoneFee, onStoreOrderTripZoneFee },
+        exports: { onMerchantDirectDeliveryCreated, staffUpsertDeliveryZone, staffSetDeliveryZoneActive, staffSetDeliveryOutsideBehavior, staffSeedDeliveryZones, merchantSetStoreZoneFees, quoteStoreDeliveryFee, onStoreOrderCreatedZoneFee, onStoreOrderTripZoneFee },
         helpers: { quoteFor }
     };
 };
-Object.assign(module.exports, { pointInPolygon, polygonAreaKm2, validateZoneInput, findZoneForPoint, validateStoreFee, resolveStoreFee, quoteDelivery, deliveryVehicleChoice, diffZone, cleanPolygon, SEED_ZONES, ZONE_SOURCES, MAX_FEE, CAR_DELIVERY_FACTOR });
+Object.assign(module.exports, { verifyMerchantDirectDelivery, distanceDeliveryFee, deliveryRateFrom, DEFAULT_DELIVERY_RATE, pointInPolygon, polygonAreaKm2, validateZoneInput, findZoneForPoint, validateStoreFee, resolveStoreFee, quoteDelivery, deliveryVehicleChoice, diffZone, cleanPolygon, SEED_ZONES, ZONE_SOURCES, MAX_FEE, CAR_DELIVERY_FACTOR });

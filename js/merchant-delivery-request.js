@@ -124,9 +124,12 @@ export function buildMerchantDeliveryTrip({ store, uid, form, estimate, zone = n
     const collect = form.collectAmount === '' || form.collectAmount == null ? 0 : Math.round(Number(form.collectAmount) * 100) / 100;
     const name = String(store?.name || 'Tienda').slice(0, 80);
     const notes = String(form.notes || '').slice(0, 300);
+    const fee = Math.round(Number(estimate.price) * 100) / 100;
     return {
-        status: 'pending',
+        // El servidor (onMerchantDirectDeliveryCreated) recalcula la tarifa y lo pasa a «pending».
+        status: 'verifying',
         serviceType: 'delivery',
+        customerPaysDelivery: true,
         bookingType: 'standard',
         passengers: 1, passengerSurcharge: 0, extraPassengers: 0,
         tripDistanceKm: estimate.km, tripDurationMs: 0,
@@ -148,9 +151,11 @@ export function buildMerchantDeliveryTrip({ store, uid, form, estimate, zone = n
             merchantDirectDelivery: true,
             deliveryVehicle: v,
             collectAmount: collect,
-            productsPaymentMethod: collect > 0 ? 'efectivo' : 'pagado',
-            productsPaid: !(collect > 0),
+            productsPaymentMethod: collect > 0 ? 'efectivo' : 'ninguno',
+            productsPaid: false,
             itemsTotal: collect,
+            customerPaysDelivery: true,
+            customerTotal: Math.round((fee + collect) * 100) / 100,
             orderCreatedAtMs: nowMs,
         },
         storeOrderCreatedAtMs: nowMs,
@@ -190,6 +195,8 @@ export function buildMerchantDeliveryTrip({ store, uid, form, estimate, zone = n
 /** Estado para la tienda: buscando conductor · aceptado · en camino · entregado · cancelado. */
 export function merchantDeliveryStatus(t = {}) {
     const s = String(t.status || '');
+    if (s === 'verifying') return { key: 'verifying', label: 'Verificando precio', tone: 'amber', canCancel: true };
+    if (s === 'cancelled' && t.cancelReason === 'outside_delivery_zones') return { key: 'cancelled', label: 'Sin envío a esa zona', tone: 'gray', canCancel: false };
     if (s === 'cancelled') return { key: 'cancelled', label: 'Cancelado', tone: 'gray', canCancel: false };
     if (s === 'completed') return { key: 'delivered', label: 'Entregado', tone: 'green', canCancel: false };
     if (s === 'in_progress') return { key: 'on_the_way', label: 'En camino', tone: 'blue', canCancel: false };
@@ -211,4 +218,11 @@ export function merchantVehicleAvailability(vehicle, zoneId, resolver) {
 /** Patch de cancelación permitido por las reglas (solo antes de que acepten). */
 export function merchantCancelPatch(nowMs = Date.now()) {
     return { status: 'cancelled', cancelledBy: 'merchant', cancelReason: 'merchant_cancelled', cancelledAtMs: nowMs };
+}
+
+/** «El conductor cobra al cliente: Envío L. 35.00 + productos L. 250.00 = L. 285.00». */
+export function customerChargeText(fee, collect) {
+    const m = (n) => `L. ${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const f = Number(fee) || 0; const c = Number(collect) || 0;
+    return c > 0 ? `El conductor cobra al cliente: Envío ${m(f)} + productos ${m(c)} = ${m(f + c)}` : `El conductor cobra al cliente: Envío ${m(f)}`;
 }

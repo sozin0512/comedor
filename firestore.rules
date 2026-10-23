@@ -132,7 +132,9 @@ service cloud.firestore {
         'staffReviewedAtMs', 'staffReviewedBy', 'staffReviewedByName', 'pinRevealLog',
         'deliveredTo', 'alertNotifiedDriverIds', 'alertFcmOkDriverIds', 'alertNoTokenDriverIds', 'alertFirstNotifiedAtMs',
         'resendCount', 'lastResendAtMs', 'lastResendReason', 'lastResendBy', 'lastResendByName',
-        'lastResendPushed', 'lastResendNotified', 'lastResendNoToken', 'autoResendAtMs', 'autoResendAfterSeconds'];
+        'lastResendPushed', 'lastResendNotified', 'lastResendNoToken', 'autoResendAtMs', 'autoResendAfterSeconds',
+        // Envío directo de tienda: la verificación del precio la escribe solo el servidor
+        'priceVerified', 'priceVerifiedAtMs', 'priceCheckOriginal', 'priceCorrected'];
     }
 
     // === EDAD (+18) ===
@@ -213,7 +215,8 @@ service cloud.firestore {
         && d.get('createdByMerchant', false) == true
         && d.get('storeDelivery', false) == true
         && d.serviceType == 'delivery'
-        && d.status == 'pending'
+        // Nace «verifying»: ningún conductor lo ve hasta que el servidor confirma el precio
+        && d.status == 'verifying'
         && d.merchantId == requestUid()
         && d.clientId == requestUid()
         && d.storeId is string
@@ -232,7 +235,7 @@ service cloud.firestore {
         || isStaff(app)
         || resource.data.get('driverId', null) == requestUid()
         || (
-          resource.data.status == 'pending'
+          resource.data.status in ['verifying', 'pending']
           && resource.data.get('driverId', null) == null
           && request.resource.data.status == 'cancelled'
           && request.resource.data.diff(resource.data).affectedKeys()

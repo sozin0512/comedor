@@ -25,7 +25,7 @@ await env.withSecurityRulesDisabled(async (c) => {
 });
 const db = (u) => env.authenticatedContext(u).firestore();
 const base = (uid, over = {}) => ({
-  status: 'pending', serviceType: 'delivery', storeDelivery: true, createdByMerchant: true, merchantDirectDelivery: true,
+  status: 'verifying', serviceType: 'delivery', storeDelivery: true, createdByMerchant: true, merchantDirectDelivery: true,
   storeId: 's1', merchantId: uid, clientId: uid, deliveryVehicle: 'moto', allowedDriverVehicles: ['moto'],
   offeredToDriverId: null, origin: 'Tienda', destination: 'Col. Centro', price: 'L. 40.00', priceNum: 40, ...over,
 });
@@ -39,6 +39,13 @@ await t('NO: tienda inexistente', assertFails(setDoc(doc(db('owner'), `${P}/trip
 await t('NO: vehículo mezclado (moto + carro)', assertFails(setDoc(doc(db('owner'), `${P}/trips/x4`), base('owner', { allowedDriverVehicles: ['moto', 'auto'] }))));
 await t('NO: vehículo taxi', assertFails(setDoc(doc(db('owner'), `${P}/trips/x5`), base('owner', { deliveryVehicle: 'taxi', allowedDriverVehicles: ['taxi'] }))));
 await t('NO: ya con conductor asignado', assertFails(setDoc(doc(db('owner'), `${P}/trips/x6`), base('owner', { driverId: 'drv' }))));
+await t('NO: nace «pending» (se saltaría la verificación)', assertFails(setDoc(doc(db('owner'), `${P}/trips/x8`), base('owner', { status: 'pending' }))));
+await t('NO: la app marca priceVerified', assertFails(setDoc(doc(db('owner'), `${P}/trips/x9`), base('owner', { priceVerified: true }))));
+await t('AVISO previo: el catch-all de public/data deja leer trips por ID (no es aviso ni lista)', assertSucceeds(getDoc(doc(db('drv'), `${P}/trips/m1`))));
+await t('conductor NO lo toma sin verificar', assertFails(updateDoc(doc(db('drv'), `${P}/trips/m1`), { status: 'accepted', driverId: 'drv' })));
+await t('dueño NO lo pasa a pending él mismo', assertFails(updateDoc(doc(db('owner'), `${P}/trips/m1`), { status: 'pending', priceVerified: true })));
+await env.withSecurityRulesDisabled(async (c) => { await updateDoc(doc(c.firestore(), `${P}/trips/c1`), { status: 'pending', priceVerified: true, priceNum: 43.75 }); });
+await t('verificado (pending): el conductor ya lo ve', assertSucceeds(getDoc(doc(db('drv'), `${P}/trips/c1`))));
 await t('NO: nace aceptado', assertFails(setDoc(doc(db('owner'), `${P}/trips/x7`), base('owner', { status: 'accepted' }))));
 await t('viaje normal de pasajero sigue funcionando', assertSucceeds(setDoc(doc(db('other'), `${P}/trips/n1`), { status: 'pending', serviceType: 'auto', clientId: 'other', origin: 'a', destination: 'b' })));
 await t('dueño ve su envío', assertSucceeds(getDoc(doc(db('owner'), `${P}/trips/m1`))));

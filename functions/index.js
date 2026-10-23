@@ -4112,6 +4112,12 @@ exports.onTripUpdatePush = onDocumentUpdated(
             await alertDriversForPendingTrip(appId, tripId, after).catch(() => {});
         }
 
+        // «Pedir envío» de tienda: el servidor verificó el precio (verifying → pending) → recién ahora avisar
+        if (before.status === 'verifying' && after.status === 'pending' && after.merchantDirectDelivery === true && after.priceVerified === true) {
+            await alertDriversForPendingTrip(appId, tripId, after).catch((e) => console.warn('[envio-directo] avisar', e?.message || e));
+            await viajesPanel.helpers.runAutoResend(appId, tripId, after).catch(() => {});
+        }
+
         const beforeChat = before.chat || [];
         const afterChat = after.chat || [];
         if (afterChat.length > beforeChat.length) {

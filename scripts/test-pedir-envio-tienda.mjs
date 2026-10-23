@@ -31,12 +31,12 @@ const page = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewp
 import { createMerchantDeliveryTab } from '/js/merchant-delivery-ui.js';
 import { calculateServiceFare, driverCanServeTrip } from '/js/service-types.js';
 import { resolveServiceAvailability, unavailableMessage } from '/js/service-availability.js';
-import { storeOfferBadgesHtml } from '/js/store-trip-ui.js';
+import { storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS } from '/js/store-trip-ui.js';
 import { tripWaitChipHtml } from '/js/trip-wait.js';
 import * as Alert from '/js/store-order-alert.js';
 const q = new URLSearchParams(location.search);
 const config = q.get('motoOff') ? { comayagua: { delivery: { mode: 'off' } } } : {};
-window.T = { created: [], cancelled: [], toasts: [], quotes: [], saved: [], pushList: null, mapMove: null, driverCanServeTrip, storeOfferBadgesHtml, tripWaitChipHtml, Alert, calculateServiceFare };
+window.T = { created: [], cancelled: [], toasts: [], quotes: [], saved: [], pushList: null, mapMove: null, driverCanServeTrip, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS, tripWaitChipHtml, Alert, calculateServiceFare };
 const store = { id: 's1', name: 'Baleadas Doña Mary', address: 'Barrio Abajo, frente al parque, Comayagua', lat: 14.4598, lng: -87.6378, cityId: 'comayagua', phone: '+50499990000' };
 if (q.get('noLoc')) { store.lat = 14.4513; store.lng = -87.6374; store.locationApprox = true; }
 const tab = createMerchantDeliveryTab({
@@ -106,7 +106,7 @@ try {
   await p.type('#md-notes', 'Casa verde de dos pisos, portón negro');
   await p.type('#md-collectAmount', '250'); await sleep(100);
   const sum = await txt(p, '[data-md-summary]');
-  ok('cobro en efectivo separado de la tarifa', sum.includes(`Envío L. ${q1.feeMoto.toFixed(2)}`) && sum.includes('cobra L. 250.00 al cliente'), sum);
+  ok('total al cliente: envío + productos', sum === `El conductor cobra al cliente: Envío L. ${q1.feeMoto.toFixed(2)} + productos L. 250.00 = L. ${(q1.feeMoto + 250).toFixed(2)}`, sum);
   ok('comisión del servicio informativa', est.includes('Comisión del servicio: 12%'));
   await p.evaluate(() => document.querySelector('[data-md-estimate]').scrollIntoView({ block: 'center' }));
   await shot(p, '03-tarifa-zona-centrica.png');
@@ -120,6 +120,20 @@ try {
   await p.click('[data-md-submit]'); await sleep(300);
   const t = await p.evaluate(() => T.created[0]);
   ok('se creó 1 viaje', !!t);
+  ok('nace «verifying» (el servidor verifica antes de avisar)', t.status === 'verifying' && t.customerPaysDelivery === true && t.deliveryDetails.customerTotal === q1.feeMoto + 250);
+  const card = await p.evaluate((t) => T.storeCollectHtml(t).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), t);
+  ok('tarjeta del conductor: envío + productos = total', card.includes(`Envío L. ${q1.feeMoto.toFixed(2)} + productos L. 250.00`) && card.includes(`L. ${(q1.feeMoto + 250).toFixed(2)}`) && !card.includes('puntos'), card);
+  const card0 = await p.evaluate((t) => T.storeCollectHtml({ ...t, deliveryDetails: { ...t.deliveryDetails, collectAmount: 0, itemsTotal: 0 } }).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '), t);
+  ok('sin productos: el conductor cobra solo el envío', card0.includes('Solo el envío') && card0.includes(`L. ${q1.feeMoto.toFixed(2)}`) && !card0.includes('puntos'), card0);
+  const panel = await p.evaluate((t) => T.storeAcceptedPanelHtml(t), t);
+  ok('detalle del viaje (aceptado): recoger en la tienda + cobro', panel.includes('Recoger en') && panel.includes('Envío directo') && !panel.includes('Total de la tienda'));
+  if (MOCK) {
+    const d = await browser.newPage(); await d.setViewport({ width: 384, height: 700, deviceScaleFactor: 2 });
+    await d.setContent(`<meta charset="utf-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>body{margin:0;background:#0f172a;font-family:Inter,system-ui,sans-serif;color:#fff;padding:12px}.c{background:#1e293b;border-radius:16px;padding:12px}h4{margin:6px 0}${await p.evaluate(() => T.STORE_TRIP_CSS)}</style>
+      <div class="c">${await p.evaluate((t) => T.storeOfferBadgesHtml({ ...t, deliveryZoneName: 'Zona céntrica' }), t)}<h4>Barrio Abajo → Colonia Fátima</h4><div style="font-size:26px;font-weight:900">L. ${q1.feeMoto.toFixed(2)}</div>${card.length ? await p.evaluate((t) => T.storeCollectHtml({ ...t, deliveryZoneName: 'Zona céntrica' }), t) : ''}</div>
+      <p style="font-size:12px;opacity:.7">Tarjeta del conductor (moto)</p><div class="c">${await p.evaluate((t) => T.storeAcceptedPanelHtml({ ...t, deliveryZoneName: 'Zona céntrica' }), t)}</div>`, { waitUntil: 'networkidle0' }).catch(() => {});
+    await sleep(300); await d.screenshot({ path: path.join(MOCK, '09-tarjeta-conductor.png'), fullPage: true }); await d.close();
+  }
   ok('marcas de tienda', t.storeDelivery && t.createdByMerchant && t.merchantDirectDelivery);
   ok('moto → solo motos', JSON.stringify(t.allowedDriverVehicles) === '["moto"]' && t.deliveryVehicle === 'moto');
   ok('dueño = merchantId = clientId', t.merchantId === 'owner' && t.clientId === 'owner' && t.storeId === 's1');
@@ -173,15 +187,16 @@ try {
   ok('tocar fuera cierra las sugerencias', (await p.$$('[data-md-sug]')).length === 0);
   const now = Date.now();
   await p.evaluate((t, now) => T.pushList([
-    { id: 'trip1', ...t, createdAt: now - 4 * 60000 },
+    { id: 'trip1', ...t, status: 'pending', priceVerified: true, createdAt: now - 4 * 60000 },
+    { id: 'tripV', ...t, destination: 'Barrio La Merced' },
     { id: 'trip0', ...t, destination: 'Hospital Santa Teresa', status: 'accepted', driverId: 'd1', driverName: 'Luis (moto)' },
     { id: 'tripA', ...t, destination: 'Col. San Miguel', deliveryVehicle: 'auto', status: 'in_progress', driverId: 'd2', driverName: 'Ana (carro)' },
     { id: 'tripB', ...t, destination: 'Res. Las Colinas', status: 'completed', driverId: 'd3' },
   ]), t, now);
   await sleep(150);
   const labels = await p.$$eval('[data-md-status]', (els) => els.map((e) => e.textContent));
-  ok('estados: buscando · aceptado · en camino · entregado', labels.join('|') === 'Buscando conductor|Aceptado|En camino|Entregado', labels.join('|'));
-  ok('solo se puede cancelar el que busca conductor', (await p.$$('[data-md-cancel]')).length === 1);
+  ok('estados: buscando · verificando · aceptado · en camino · entregado', labels.join('|') === 'Buscando conductor|Verificando precio|Aceptado|En camino|Entregado', labels.join('|'));
+  ok('solo se cancela antes de aceptar (buscando / verificando)', (await p.$$('[data-md-cancel]')).length === 2);
   await p.evaluate(() => document.querySelector('[data-md-list]').scrollIntoView({ block: 'end' }));
   await shot(p, '07-mis-envios-estados.png', false);
   await p.click('[data-md-cancel="trip1"]'); await sleep(150);

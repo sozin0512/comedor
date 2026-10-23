@@ -47,7 +47,8 @@ export function storeOrderSummary(t, deliveryPrice = null) {
         : parseItemsFromDescription(d.packageDescription);
     const itemsTotal = num(d.itemsTotal);
     const fee = deliveryPrice != null ? num(deliveryPrice) : num(t.negotiatedPrice ?? t.priceNum ?? t.price);
-    const paid = d.productsPaid === true || d.productsPaymentMethod === 'saldo';
+    const direct = t.merchantDirectDelivery === true;
+    const paid = !direct && (d.productsPaid === true || d.productsPaymentMethod === 'saldo');
     const cashToCollect = paid ? fee : fee + itemsTotal;
     return {
         storeName: String(d.storeName || d.restaurant || t.originPlaceName || 'Tienda'),
@@ -55,6 +56,7 @@ export function storeOrderSummary(t, deliveryPrice = null) {
         items,
         itemsTotal,
         fee,
+        direct,
         productsPaid: paid,
         cashToCollect,
         recipientName: String(d.recipientName || t.clientName || ''),
@@ -75,6 +77,19 @@ export function storeCollectHtml(t, deliveryPrice = null) {
     const s = storeOrderSummary(t, deliveryPrice);
     if (!s) return '';
     const zone = s.zoneName ? ` · ${esc(s.zoneName)}` : '';
+    if (s.direct) {
+        // Envío directo de tienda: el cliente paga el envío (+ productos si la tienda puso monto)
+        const rows = s.itemsTotal > 0
+            ? `<p class="hr-store-collect-row"><span>Envío${zone}</span><b>${money(s.fee)}</b></p>
+               <p class="hr-store-collect-row"><span>Productos (son de la tienda)</span><b>${money(s.itemsTotal)}</b></p>`
+            : '';
+        return `<div class="hr-store-collect" data-store-direct>
+            <p class="hr-store-collect-title"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo</p>
+            ${rows}
+            <p class="hr-store-collect-row hr-store-collect-total"><span>${s.itemsTotal > 0 ? `Envío ${money(s.fee)} + productos ${money(s.itemsTotal)}` : `Solo el envío${zone}`}</span><b>${money(s.cashToCollect)}</b></p>
+            <p class="hr-store-collect-note">${s.itemsTotal > 0 ? `Le entregas ${money(s.itemsTotal)} a la tienda · te quedas ${money(s.fee)}.` : 'La tienda no puso cobro de productos.'}</p>
+        </div>`;
+    }
     if (s.productsPaid) {
         return `<div class="hr-store-collect hr-store-collect--paid">
             <p class="hr-store-collect-title"><i class="fas fa-check-circle"></i> Productos ya pagados con puntos</p>
@@ -108,12 +123,15 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
         : '<p class="hr-store-muted">Sin teléfono · usa el chat del viaje</p>';
     return `<div class="hr-store-panel" data-store-order-panel>
         <p class="hr-store-panel-head">${storeOfferBadgesHtml(t)}${s.orderShortId ? `<span class="hr-store-id">#${esc(s.orderShortId)}</span>` : ''}</p>
-        <div class="hr-store-box">
+        ${s.direct ? `<div class="hr-store-box">
+            <p class="hr-store-box-title"><i class="fas fa-box"></i> Recoger en ${esc(s.storeName)}</p>
+            <p class="hr-store-muted">Envío directo de la tienda.${s.itemsTotal > 0 ? ` Cobra ${money(s.itemsTotal)} de productos y entrégalo a la tienda.` : ''}</p>
+        </div>` : `<div class="hr-store-box">
             <p class="hr-store-box-title"><i class="fas fa-receipt"></i> Productos · ${esc(s.storeName)}</p>
             <ul class="hr-store-items">${items}</ul>
             <p class="hr-store-collect-row hr-store-collect-total"><span>Total de la tienda</span><b>${money(s.itemsTotal)}</b></p>
             <p class="hr-store-muted">Revisa que esté todo antes de salir de la tienda.</p>
-        </div>
+        </div>`}
         <div class="hr-store-box">
             <p class="hr-store-box-title"><i class="fas fa-user"></i> Entregar a ${esc(s.recipientName || 'cliente')}</p>
             ${s.notes ? `<p class="hr-store-muted">«${esc(s.notes)}»</p>` : ''}

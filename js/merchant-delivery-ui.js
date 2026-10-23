@@ -6,7 +6,7 @@
 import {
     MERCHANT_DELIVERY_VEHICLES, haversineKm, validateMerchantDeliveryForm,
     buildMerchantDeliveryTrip, merchantDeliveryStatus, merchantVehicleAvailability, merchantCancelPatch,
-    resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras,
+    resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras, customerChargeText,
 } from './merchant-delivery-request.js?v=2026.10.20.2';
 
 function esc(v) {
@@ -50,6 +50,7 @@ export const MERCHANT_DELIVERY_CSS = `
 .md-cash label{font-size:12px;font-weight:800;color:#065f46}
 .md-cash input{font-family:inherit;border:1px solid #a7f3d0;border-radius:10px;padding:10px;font-size:15px;width:100%;box-sizing:border-box;margin-top:4px}
 .md-cash small{display:block;color:#047857;font-size:11px;margin-top:4px}
+.md-total{margin-top:8px;background:#0f172a;color:#fff;border-radius:12px;padding:10px;font-size:13px;font-weight:700;line-height:1.35}
 .md-go{width:100%;margin-top:10px;border:0;border-radius:14px;padding:14px;box-shadow:0 6px 16px rgba(12,74,142,.25);background:linear-gradient(135deg,var(--hn-blue,#0c4a8e),var(--hn-blue-light,#1a6bb5));color:#fff;font-weight:900;font-size:15px}
 .md-go[disabled]{background:#bfdbfe;box-shadow:none}
 .md-req{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #f1f5f9}
@@ -132,7 +133,7 @@ export function createMerchantDeliveryTab(ctx) {
             return `<div class="md-req" data-md-req="${esc(t.id)}">
                 <div style="min-width:0">
                     <div style="font-weight:800;font-size:13px"><i class="fas ${veh.icon}"></i> ${esc(t.destination || 'Entrega')}</div>
-                    <div style="font-size:12px;color:#64748b">Envío ${esc(t.price || '')}${collect > 0 ? ` · cobra ${esc(money(collect))}` : ''}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>
+                    <div style="font-size:12px;color:#64748b">Cliente paga ${esc(money((Number(t.priceNum) || 0) + collect))}${collect > 0 ? ` (envío ${esc(t.price || '')} + productos ${esc(money(collect))})` : ' (envío)'}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
                     <span class="md-pill" data-md-status="${s.key}" style="color:${TONE[s.tone]}">${esc(s.label)}</span>
@@ -159,7 +160,7 @@ export function createMerchantDeliveryTab(ctx) {
         if (!p) return `<div class="md-fee" data-md-estimate><span style="color:#64748b">${!hasPick() ? 'Guarda la ubicación de tu tienda' : 'Elige vehículo y punto de entrega para ver la tarifa'}</span></div>`;
         if (p.blocked) return `<div class="md-fee bad" data-md-estimate data-md-tariff="blocked"><span>No hay envío a ese punto</span><br><span class="md-tar">${esc(p.tariff.label)}</span></div>`;
         return `<div class="md-fee" data-md-estimate data-md-tariff="${esc(p.tariff.kind)}">
-            <div class="row"><span>Tarifa de envío · ${p.km} km</span><b>${money(p.price)}</b></div>
+            <div class="row"><span>Envío (lo paga el cliente) · ${p.km} km</span><b>${money(p.price)}</b></div>
             <span class="md-tar">${esc(p.tariff.label)}</span>
             ${p.commissionPercent != null ? `<div style="font-size:11px;color:#64748b;margin-top:4px">Comisión del servicio: ${p.commissionPercent}% (la paga el conductor)</div>` : ''}
         </div>`;
@@ -198,9 +199,9 @@ export function createMerchantDeliveryTab(ctx) {
                 ${feeHtml()}
                 <div class="md-cash"><label for="md-collectAmount"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo (opcional)</label>
                     <input id="md-collectAmount" data-md-field="collectAmount" value="${esc(f.collectAmount)}" inputmode="decimal" placeholder="L. 0.00">
-                    <small>Lo que el conductor le cobra al cliente por tus productos. Es aparte de la tarifa de envío.</small>
+                    <small>El valor de tus productos. El conductor lo cobra junto con el envío y te lo entrega.</small>
                     ${e.collectAmount ? `<span class="md-err">${esc(e.collectAmount)}</span>` : ''}</div>
-                ${p && !p.blocked ? `<div style="font-size:12px;color:#334155;margin-top:8px" data-md-summary>Envío <b>${money(p.price)}</b>${collect > 0 ? ` · El conductor cobra <b>${money(collect)}</b> al cliente` : ''}</div>` : ''}
+                ${p && !p.blocked ? `<div class="md-total" data-md-summary>${esc(customerChargeText(p.price, collect))}</div>` : ''}
                 <button type="button" class="md-go" data-md-submit ${canGo ? '' : 'disabled'}>${st.busy ? 'Pidiendo…' : `Pedir ${st.vehicle ? MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase() : 'envío'}`}</button>
             </div>
             <div class="md-card"><h3>Mis envíos</h3><div data-md-list>${requestsHtml()}</div></div>
@@ -289,7 +290,7 @@ export function createMerchantDeliveryTab(ctx) {
         st.form[k] = ev.target.value;
         if (k === 'collectAmount') {
             const el = st.root.querySelector('[data-md-summary]'); const p = price(); const c = Number(ev.target.value) || 0;
-            if (el && p) el.innerHTML = `Envío <b>${money(p.price)}</b>${c > 0 ? ` · El conductor cobra <b>${money(c)}</b> al cliente` : ''}`;
+            if (el && p) el.textContent = customerChargeText(p.price, c);
         }
         if (k === 'dropoffAddress') {
             st.form.dropoffLat = null; st.form.dropoffLng = null; st.quote = null; st.quoteKey = '';
@@ -340,7 +341,7 @@ export function createMerchantDeliveryTab(ctx) {
         try {
             const payload = buildMerchantDeliveryTrip({ store: ctx.store, uid: ctx.uid, form, estimate: est, zone: ctx.zone, serverTs: ctx.serverTs?.() ?? null });
             const id = await ctx.createTrip(payload);
-            ctx.toast?.(`Envío pedido · buscando ${MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase()}`, 'success');
+            ctx.toast?.(`Envío pedido · verificando precio y buscando ${MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase()}`, 'success');
             st.form = { ...st.form, dropoffAddress: '', dropoffLat: null, dropoffLng: null, customerName: '', customerPhone: '', notes: '', collectAmount: '' };
             st.quote = null; st.quoteKey = '';
             if (!st.unsub) st.requests = [{ id, ...payload }, ...st.requests];
