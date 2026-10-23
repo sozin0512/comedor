@@ -6418,6 +6418,40 @@ exports.dailyCommissionFreeDayPush = onSchedule(
 
 // ── WhatsApp Cloud API (Meta oficial) ────────────────────────────────
 const whatsappCloud = require('./whatsapp-cloud');
+/** WhatsApp · «Pedir envío (tienda)»: mismo viaje que el panel (ver wa-store-delivery.js). */
+const waStoreDelivery = require('./wa-store-delivery')({
+    db, FieldValue, APP_ID,
+    send: {
+        text: (...a) => whatsappCloud.sendCloudText(...a),
+        buttons: (...a) => whatsappCloud.sendCloudButtons(...a),
+        list: (...a) => whatsappCloud.sendCloudList(...a),
+        menu: (...a) => whatsappCloud.sendCloudMenu(...a),
+        locationRequest: (...a) => whatsappCloud.sendLocationPin(...a),
+        textLogged: (...a) => whatsappCloud.sendCloudTextLogged(...a)
+    },
+    geocode: (...a) => whatsappCloud.geocodeHn(...a),
+    checkAvailable: (q) => require('./service-availability').checkServiceAvailable(db, APP_ID, q),
+    getQuoteFor: () => deliveryZones.helpers.quoteFor,
+    normalizePhone: (p) => whatsappCloud.normalizeWaPhone(p),
+    lastInboundAtMs: (p) => whatsappCloud.lastInboundAtMs(p),
+    sendTemplate: (...a) => whatsappCloud.sendWhatsAppTemplate(...a),
+    templateName: () => String(process.env.WHATSAPP_TEMPLATE_STORE_DELIVERY_STATUS || '').trim()
+});
+whatsappCloud.setStoreDeliveryFlow(waStoreDelivery);
+/** Avisos de estado (buscando · aceptado · en camino · entregado) al número de la tienda. */
+exports.onWaStoreDeliveryStatus = onDocumentUpdated(
+    { document: `artifacts/${APP_ID}/public/data/trips/{tripId}`, region: 'us-central1' },
+    async (event) => {
+        const before = event.data?.before?.data() || null;
+        const after = event.data?.after?.data() || null;
+        if (!after || after.createdVia !== 'whatsapp_store') return;
+        try {
+            await waStoreDelivery.onTripStatusChange(before, after, event.params.tripId, event.data.after.ref);
+        } catch (e) {
+            console.error('[wa-envio-tienda] aviso', event.params.tripId, e?.message || e);
+        }
+    }
+);
 // ───── Panel de supervisor «Viajes» ─────
 Object.assign(exports, viajesPanel.exports);
 Object.assign(exports, driverPushStatus.exports);

@@ -171,6 +171,8 @@ function tripPhone(trip) {
 function canNotifyPassengerWa(trip) {
     if (!trip || trip.isDemandSimulation) return false;
     if (trip.staffCreatedBy && trip.staffCreatedClientClaimed !== true) return false;
+    // Envío de tienda pedido por WhatsApp: avisos propios (wa-store-delivery.js), no los de pasajero.
+    if (trip.createdVia === 'whatsapp_store') return false;
     return !!tripPhone(trip);
 }
 
@@ -886,7 +888,21 @@ async function sendCloudButtons(to, body, buttons) {
     });
 }
 
+/** «Pedir envío (tienda)»: lo conecta index.js (setStoreDeliveryFlow) con las tarifas de delivery-zones. */
+let storeDeliveryFlow = null;
+function setStoreDeliveryFlow(flow) { storeDeliveryFlow = flow || null; }
+
 async function sendCloudMenu(to) {
+    let linked = false;
+    try { linked = !!(storeDeliveryFlow && await storeDeliveryFlow.hasLinkedStores(normalizeWaPhone(to))); } catch (_) { linked = false; }
+    if (linked) {
+        return sendCloudList(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', 'Ver opciones', [
+            { id: 'tienda_envio', title: 'Pedir envío (tienda)', description: 'Moto o carro desde tu tienda' },
+            { id: 'viaje', title: 'Pedir un viaje' },
+            { id: 'conductor', title: 'Soy conductor' },
+            { id: 'soporte', title: 'Soporte' }
+        ], 'Opciones');
+    }
     return sendCloudButtons(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', [
         { id: 'viaje', title: 'Pedir un viaje' },
         { id: 'conductor', title: 'Soy conductor' },
@@ -1452,6 +1468,26 @@ async function sendLocationRequest(to, prompt, opts = {}) {
                 ? 'Parada (punto extra): clip 📎 → Ubicación → lupa 🔍 o mueve el pin → Enviar. En iPhone el pin a veces tarda.'
                 : 'Recogida (donde te buscamos): clip 📎 → Ubicación → lupa 🔍 o mueve el pin → Enviar. En iPhone el pin a veces tarda.')
     );
+}
+
+/** Pin de ubicación con texto propio (envío de tienda: no usa los textos de recogida/destino del pasajero). */
+async function sendLocationPin(to, prompt, pinLabel = 'Enviar ubicación') {
+    const dest = normalizeWaPhone(to);
+    if (!dest) return { ok: false };
+    await sendCloudText(dest, prompt);
+    const res = await graphSendMessage({
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: dest,
+        type: 'interactive',
+        interactive: {
+            type: 'location_request_message',
+            body: { text: String(pinLabel).slice(0, 60) },
+            action: { name: 'send_location' }
+        }
+    });
+    if (res?.ok) return res;
+    return sendCloudText(dest, 'Clip 📎 → Ubicación → mueve el pin → Enviar. También puedes escribir la dirección.');
 }
 
 function wantsShareLocation(t) {
@@ -2273,6 +2309,13 @@ async function routeAssistantMessage(from, text, buttonId, contactName, location
     const t = fold(text);
     let session = preloadedSession || await loadSession(from);
 
+    if (storeDeliveryFlow) {
+        const handled = await storeDeliveryFlow.handle({
+            from, text, buttonId, location, session, saveSession, clearSession
+        });
+        if (handled) return handled;
+    }
+
     if (id === 'soporte' || (/\b(soporte|ayuda|humano|agente|queja|problema)\b/.test(t) && !looksLikeQuestion(t))) {
         await clearSession(from);
         return sendCloudText(
@@ -3034,3 +3077,12 @@ exports.lastInboundAtMs = lastInboundAtMs;
 exports.driverPushActivateTemplateName = driverPushActivateTemplateName;
 exports.deliveryStatusesFor = deliveryStatusesFor;
 exports.templateParamMismatch = templateParamMismatch;
+exports.setStoreDeliveryFlow = setStoreDeliveryFlow;
+exports.routeAssistantMessage = routeAssistantMessage;
+exports.sendCloudText = sendCloudText;
+exports.sendCloudButtons = sendCloudButtons;
+exports.sendCloudList = sendCloudList;
+exports.sendCloudMenu = sendCloudMenu;
+exports.sendLocationRequest = sendLocationRequest;
+exports.sendLocationPin = sendLocationPin;
+exports.geocodeHn = geocodeHn;
