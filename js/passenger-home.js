@@ -8,8 +8,8 @@ import {
     isMalePassengerMotoRideBlocked,
     firstAllowedPassengerTripType,
     DECRETO_91_2012_MSG,
-} from './service-types.js?v=2026.10.23.1';
-import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.10.23.1';
+} from './service-types.js?v=2026.10.23.2';
+import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.10.23.2';
 import { isUsMarket, isServiceAllowedInMarket, filterTypesForMarket } from './market.js';
 
 const BOOKING_SECTION_IDS = [

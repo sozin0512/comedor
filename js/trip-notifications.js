@@ -116,7 +116,7 @@ export async function requestTripNotificationPermission() {
 
     if (isCapacitorAndroid()) {
         try {
-            const { requestAndroidTemuNotificationPermissions } = await import('./fcm-push.js?v=2026.10.23.1');
+            const { requestAndroidTemuNotificationPermissions } = await import('./fcm-push.js?v=2026.10.23.2');
             const temu = await requestAndroidTemuNotificationPermissions({
                 requestFullScreen: false,
                 requestBattery: false,

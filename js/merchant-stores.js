@@ -13,27 +13,27 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.23.1';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.23.1';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.23.2';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.23.2';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.23.1';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.23.1';
-import { APP_CONFIG } from './config.js?v=2026.10.23.1';
-import { calculateAge } from './age-verification.js?v=2026.10.23.1';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.23.1';
+} from './zones.js?v=2026.10.23.2';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.23.2';
+import { APP_CONFIG } from './config.js?v=2026.10.23.2';
+import { calculateAge } from './age-verification.js?v=2026.10.23.2';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.23.2';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, CAR_DELIVERY_FACTOR, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.23.1';
+} from './store-delivery-zones.js?v=2026.10.23.2';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.23.1';
+} from './store-week.js?v=2026.10.23.2';
 
 import { formatLempiras } from './money-format.js';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.23.1';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.23.2';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },

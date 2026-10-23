@@ -4,7 +4,7 @@
  * Si aún no están (viaje en curso, o completado antes del deploy) se muestra una VISTA PREVIA
  * con el % del admin para ese servicio; la app nunca guarda el valor oficial.
  */
-import { storeOrderSummary } from './store-trip-ui.js?v=2026.10.23.1';
+import { storeOrderSummary } from './store-trip-ui.js?v=2026.10.23.2';
 
 const r2 = (v) => Math.round(Number(v) * 100) / 100;
 const money = (n) => 'L. ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
