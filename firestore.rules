@@ -134,7 +134,10 @@ service cloud.firestore {
         'resendCount', 'lastResendAtMs', 'lastResendReason', 'lastResendBy', 'lastResendByName',
         'lastResendPushed', 'lastResendNotified', 'lastResendNoToken', 'autoResendAtMs', 'autoResendAfterSeconds',
         // Envío directo de tienda: la verificación del precio la escribe solo el servidor
-        'priceVerified', 'priceVerifiedAtMs', 'priceCheckOriginal', 'priceCorrected'];
+        'priceVerified', 'priceVerifiedAtMs', 'priceCheckOriginal', 'priceCorrected',
+        // Comisión HonduRaite: la calcula solo el servidor al completar (trip-commission.js)
+        'serverCommissionKey', 'serverCommissionPercent', 'serverCommissionAmount', 'serverCommissionBase',
+        'serverDriverNet', 'serverCommissionWaived', 'serverCommissionSource', 'serverCommissionAtMs', 'serverCommissionClientAmount'];
     }
 
     // === EDAD (+18) ===

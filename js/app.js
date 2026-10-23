@@ -151,6 +151,7 @@ import {
 } from "./service-types.js?v=2026.10.23.1";
 import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.23.1";
 import { isStoreOrderTrip, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.23.1";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.23.1";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
@@ -165,7 +166,7 @@ try {
     if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
         const st = document.createElement('style');
         st.id = 'hr-store-trip-css';
-        st.textContent = STORE_TRIP_CSS;
+        st.textContent = STORE_TRIP_CSS + TRIP_COMMISSION_CSS;
         document.head.appendChild(st);
     }
 } catch (_) {}
@@ -22929,6 +22930,22 @@ if (document.readyState === 'loading') {
             return { commissionAmount, driverNet, commissionPercent };
         }
 
+        /**
+         * Comisión de un viaje para el conductor (deuda, Ganancias, tarjeta, historial).
+         * Oficial = la del servidor (serverCommission*, functions/trip-commission.js). Si aún no está
+         * (en curso o completado antes del deploy) se usa el cálculo de siempre como vista previa.
+         */
+        function driverTripCommission(trip, livePlatformPercent = null) {
+            const base = parseTripPrice(trip);
+            if (hasServerCommission(trip)) return tripCommissionInfo(trip, { base });
+            const pct = resolveDepositCommissionPercent(trip, livePlatformPercent);
+            const waived = (trip?.birthdayFree || trip?.paymentMethod === 'birthday_gift') ? 'passenger_birthday_gift'
+                : trip?.commissionWaivedBirthday ? 'driver_birthday'
+                : (trip?.commissionFreeDay === true || trip?.commissionWaivedPromo === 'free_day_rotation') ? 'free_day' : null;
+            return tripCommissionInfo(trip, { base, previewPct: pct, waived });
+        }
+        window.driverTripCommission = driverTripCommission;
+
         /** Campos de viaje cuando aplica día sin comisión rotativo. */
         function commissionFreeDayTripFields(resolved) {
             if (!resolved?.commissionFreeDay) return {};
@@ -24350,7 +24367,7 @@ if (document.readyState === 'loading') {
         async function computeDriverDayStats(driverId) {
             const commission = await getPlatformCommission();
             const empty = {
-                totalEarnedToday: 0, cashEarnedToday: 0, saldoEarnedToday: 0, tripCount: 0,
+                totalEarnedToday: 0, grossEarnedToday: 0, cashEarnedToday: 0, saldoEarnedToday: 0, tripCount: 0,
                 cashTripCount: 0, saldoTripCount: 0, commission, commissionAmount: 0,
                 cashCommissionOwed: 0, saldoCommissionCovered: 0,
                 validatedDepositsToday: 0, pendingDepositsToday: 0, remainingToDeposit: 0,
@@ -24366,6 +24383,7 @@ if (document.readyState === 'loading') {
 
             const tripsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
             let totalEarnedToday = 0;
+            let grossEarnedToday = 0;
             let cashEarnedToday = 0;
             let saldoEarnedToday = 0;
             let tripCount = 0;
@@ -24381,26 +24399,24 @@ if (document.readyState === 'loading') {
                 if (!tripDate || tripDate < today || tripDate >= tomorrow) return;
 
                 const price = parseTripPrice(trip);
-                // Depósito y comisión a depositar: SIEMPRE el % actual del admin (no el % viejo del viaje).
-                // Si no, al bajar a 18% el conductor seguiría viendo 20/25/30% y sería inconsistente.
-                const pct = resolveDepositCommissionPercent(trip, commission);
+                // Comisión oficial del servidor si ya la escribió; si no, el % del admin para ese servicio.
+                const info = driverTripCommission(trip, commission);
+                const comm = info.amount || 0;
                 tripCount++;
+                grossEarnedToday += price;
 
                 if (trip.paymentMethod === 'saldo' || trip.paymentMethod === 'birthday_gift' || trip.birthdayFree) {
-                    const split = calcTripCommissionSplit(price, pct);
-                    // Neto ya pagado al conductor se respeta si existe; la comisión cubierta para depósito
-                    // se alinea al % actual del admin para que el depósito no quede “enganado”.
-                    const net = trip.driverNetPaid != null ? parseFloat(trip.driverNetPaid) : split.driverNet;
-                    const comm = split.commissionAmount;
+                    // Neto ya acreditado al saldo del conductor se respeta si existe
+                    const net = trip.driverNetPaid != null ? parseFloat(trip.driverNetPaid) : (info.net ?? price);
                     saldoEarnedToday += Number.isFinite(net) ? net : 0;
                     saldoCommissionCovered += comm;
                     totalEarnedToday += Number.isFinite(net) ? net : 0;
                     saldoTripCount++;
                 } else {
-                    const split = calcTripCommissionSplit(price, pct);
                     cashEarnedToday += price;
-                    cashCommissionOwed += split.commissionAmount;
-                    totalEarnedToday += price;
+                    cashCommissionOwed += comm;
+                    // «Total ganado hoy» = lo que de verdad le queda (efectivo menos la comisión que debe)
+                    totalEarnedToday += price - comm;
                     cashTripCount++;
                 }
             });
@@ -24446,7 +24462,8 @@ if (document.readyState === 'loading') {
             const totalOwed = pendingDepositDebt + remainingToDeposit;
 
             return {
-                totalEarnedToday,
+                totalEarnedToday: Math.round(totalEarnedToday * 100) / 100,
+                grossEarnedToday: Math.round(grossEarnedToday * 100) / 100,
                 cashEarnedToday,
                 saldoEarnedToday,
                 tripCount,
@@ -25070,6 +25087,7 @@ if (document.readyState === 'loading') {
                                 <div class="driver-earnings-total text-center mb-2">
                                     <p class="driver-earnings-total-label">Total ganado hoy</p>
                                     <p class="driver-earnings-total-value">${formatLempiras(s.totalEarnedToday)}</p>
+                                    <p class="driver-earnings-total-meta" data-earnings-gross>Cobrado ${formatLempiras(s.grossEarnedToday || 0)} − comisión HonduRaite ${formatLempiras(Math.round(((s.grossEarnedToday || 0) - (s.totalEarnedToday || 0)) * 100) / 100)}</p>
                                     ${(() => {
                                         const zid = resolveZoneIdForCommission(null, window.userProfile) || window.activeServiceZoneId || getDefaultZoneId();
                                         const did = currentUser?.uid;
@@ -25186,12 +25204,10 @@ if (document.readyState === 'loading') {
                         if (t.driverId !== currentUser.uid || t.status !== 'completed') return;
                         const tripDate = tripCompletedDate(t);
                         if (!tripDate || tripDate < lookback) return;
-                        const price = parseTripPrice(t);
-                        const pct = resolveDepositCommissionPercent(t, platformPct);
-                        const split = calcTripCommissionSplit(price, pct);
+                        const split = { commissionAmount: driverTripCommission(t, platformPct).amount || 0 };
                         if (t.paymentMethod === 'saldo' || t.paymentMethod === 'birthday_gift' || t.birthdayFree) {
                             saldoCovered += split.commissionAmount || 0;
-                        } else if (!t.commissionWaivedBirthday) {
+                        } else if (hasServerCommission(t) || !t.commissionWaivedBirthday) {
                             cashComm += split.commissionAmount || 0;
                         }
                     });
@@ -34291,6 +34307,23 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
             } catch (e) { console.warn('[store panel]', e); }
 
+            // Comisión HonduRaite de ESTE viaje (todos los servicios): envío/viaje − comisión = te quedas
+            try {
+                let cp = document.getElementById('driver-trip-commission');
+                const anchor = document.getElementById('driver-store-order-panel') || routeHero;
+                if (!cp && anchor?.parentNode) {
+                    cp = document.createElement('div');
+                    cp.id = 'driver-trip-commission';
+                    anchor.parentNode.insertBefore(cp, anchor.nextSibling);
+                }
+                if (cp) {
+                    const live = platformCommissionForSync(data);
+                    const html = commissionBreakdownHtml(data, driverTripCommission({ ...data, priceNum: data.negotiatedPrice ?? data.priceNum }, live));
+                    if (cp.dataset.html !== html) { cp.innerHTML = html; cp.dataset.html = html; }
+                    cp.classList.remove('hidden');
+                }
+            } catch (e) { console.warn('[commission panel]', e); }
+
             const isInProgress = data.status === 'in_progress';
             const waitingPin = data.status === 'accepted' && !!data.driverArrived;
             document.body.classList.toggle('driver-trip-dest-phase', isInProgress);
@@ -40122,6 +40155,8 @@ window.cancelSetupAndLogout = () => {
                         tripUpdate.commissionAmount = split.commissionAmount;
                         tripUpdate.commissionWaivedBirthday = commissionWaivedBirthday || false;
                         Object.assign(tripUpdate, commissionFreeDayTripFields(commissionResolved));
+                        // Vista previa (el servidor confirma la oficial al completar)
+                        toastMsg = `Viaje finalizado. ${commissionLineText(activeTrip, driverTripCommission({ ...activeTrip, ...tripUpdate }, commissionPercent))}`;
                         if (commissionWaivedBirthday) {
                             toastMsg = `Viaje finalizado. Ganancia: ${formatLempiras(priceNum)} — ¡sin comisión por tu cumpleaños!`;
                         } else if (commissionResolved.commissionFreeDay) {
@@ -40515,6 +40550,7 @@ window.cancelSetupAndLogout = () => {
                                 <div>
                                     <div class="font-black">${histEsc(t.origin || 'Origen')} → ${histEsc(t.destination || 'Destino')}</div>
                                     <div class="text-xs text-gray-400">${date} · ${formatLempiras(price)} · ${histEsc(historyServiceLabel(t))}</div>
+                                    ${t.driverId === uid ? commissionBreakdownHtml(t, driverTripCommission(t, platformCommissionForSync(t)), { compact: true }) : ''}
                                 </div>
                                 <div class="text-right text-xs">
                                     ${isMineAsClient ? '<span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded">Pasajero</span>' : '<span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">Conductor</span>'}

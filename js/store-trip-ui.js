@@ -87,7 +87,7 @@ export function storeCollectHtml(t, deliveryPrice = null) {
             <p class="hr-store-collect-title"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo</p>
             ${rows}
             <p class="hr-store-collect-row hr-store-collect-total"><span>${s.itemsTotal > 0 ? `Envío ${money(s.fee)} + productos ${money(s.itemsTotal)}` : `Solo el envío${zone}`}</span><b>${money(s.cashToCollect)}</b></p>
-            <p class="hr-store-collect-note">${s.itemsTotal > 0 ? `Le entregas ${money(s.itemsTotal)} a la tienda · te quedas ${money(s.fee)}.` : 'La tienda no puso cobro de productos.'}</p>
+            <p class="hr-store-collect-note">${s.itemsTotal > 0 ? `Le entregas ${money(s.itemsTotal)} a la tienda · tu envío ${money(s.fee)} (menos la comisión HonduRaite).` : 'La tienda no puso cobro de productos.'}</p>
         </div>`;
     }
     if (s.productsPaid) {
@@ -102,7 +102,7 @@ export function storeCollectHtml(t, deliveryPrice = null) {
         <p class="hr-store-collect-row"><span>Productos (son de la tienda)</span><b>${money(s.itemsTotal)}</b></p>
         <p class="hr-store-collect-row"><span>Tu envío${zone}</span><b>${money(s.fee)}</b></p>
         <p class="hr-store-collect-row hr-store-collect-total"><span>Total a cobrar</span><b>${money(s.cashToCollect)}</b></p>
-        <p class="hr-store-collect-note">Le pasas ${money(s.itemsTotal)} a la tienda al recoger · te quedas ${money(s.fee)}.</p>
+        <p class="hr-store-collect-note">Le pasas ${money(s.itemsTotal)} a la tienda al recoger · tu envío ${money(s.fee)} (menos la comisión HonduRaite).</p>
     </div>`;
 }
 

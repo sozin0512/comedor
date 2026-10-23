@@ -60,6 +60,8 @@ const serviceAvailability = require('./service-availability')({
 });
 /** Pedido de tienda sigue al viaje: En camino al aceptar, Entregado al completar (ver store-order-sync.js). */
 const storeOrderSync = require('./store-order-sync')({ db, FieldValue, onDocumentUpdated });
+/** Comisión HonduRaite por viaje, calculada en el servidor al completar (ver trip-commission.js). */
+const tripCommission = require('./trip-commission')({ db, FieldValue, onDocumentUpdated });
 /** Stock de tiendas que no son comida (ver store-stock.js). */
 const storeStock = require('./store-stock')({ db, FieldValue, onDocumentCreated, onDocumentUpdated });
 /** « · pidió hace 7 min» para la push de oferta (hora del servidor). '' si es nuevo (<2 min) o programado. */
@@ -6420,6 +6422,7 @@ const whatsappCloud = require('./whatsapp-cloud');
 Object.assign(exports, viajesPanel.exports);
 Object.assign(exports, driverPushStatus.exports);
 Object.assign(exports, deliveryZones.exports);
+Object.assign(exports, tripCommission.exports);
 Object.assign(exports, serviceAvailability.exports);
 Object.assign(exports, storeOrderSync.exports);
 Object.assign(exports, storeStock.exports);
