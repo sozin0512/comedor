@@ -51,13 +51,66 @@ export function estimateMerchantDelivery({ km, vehicle, fareFn, carFactor = 1, c
     return { vehicle: v, km: Math.round(dist * 100) / 100, price, commissionPercent: commission == null ? null : pct, commission };
 }
 
+
+/**
+ * Precio REAL del envío = misma regla que los pedidos de tienda hoy:
+ *  1) Zona de envío del admin (delivery_zones, «Envíos»): quoteStoreDeliveryFee del servidor
+ *     → tarifa base de la zona o la tarifa propia de la tienda; carro = zona × CAR_DELIVERY_FACTOR.
+ *  2) Fuera de zona con «cobrar por distancia»: tarifa del servicio Envío (base + L./km del admin,
+ *     calculateServiceFare('delivery')) × recargo de carro. Es lo mismo que createDeliveryTripForOrder.
+ *  3) Fuera de zona con «bloquear»: no se puede pedir.
+ * Las tarifas fijas/rutas (route-fixed-fares.js) NO aplican a Envío (isPassengerService excluye delivery),
+ * igual que en la app del pasajero.
+ */
+export function resolveMerchantDeliveryPrice({ quote = null, km, vehicle, fareFn, carFactor = 1, commissionPercent = null }) {
+    const v = normalizeMerchantVehicle(vehicle);
+    if (!v) return null;
+    const dist = Math.round(Math.max(0.5, Number(km) || 0) * 100) / 100;
+    const pct = Number(commissionPercent);
+    const withCommission = (o) => {
+        const ok = Number.isFinite(pct) && pct >= 0 && pct <= 100 && commissionPercent != null;
+        return { ...o, commissionPercent: ok ? pct : null, commission: ok ? Math.round(o.price * pct) / 100 : null };
+    };
+    if (quote && quote.inZone) {
+        const fee = Number(v === 'auto' ? quote.feeCar : quote.feeMoto);
+        if (Number.isFinite(fee) && fee >= 0) {
+            const custom = quote.source === 'store_custom';
+            return withCommission({
+                vehicle: v, km: dist, price: Math.round(fee * 100) / 100, blocked: false,
+                tariff: {
+                    kind: 'zone', zoneId: quote.zoneId || null, zoneName: quote.zoneName || '', source: quote.source || 'zone_base',
+                    label: `Tarifa: ${quote.zoneName || 'Zona'}${custom ? ' (tu tarifa)' : ''}${v === 'auto' ? ' · carro +25%' : ''}`,
+                },
+            });
+        }
+    }
+    if (quote && quote.blocked) {
+        return withCommission({ vehicle: v, km: dist, price: 0, blocked: true, tariff: { kind: 'blocked', zoneId: null, zoneName: '', source: 'blocked', label: 'Fuera de las zonas de envío de tu ciudad' } });
+    }
+    const est = estimateMerchantDelivery({ km: dist, vehicle: v, fareFn, carFactor });
+    if (!est) return null;
+    const offline = !quote || quote.reason === 'error';
+    return withCommission({
+        vehicle: v, km: dist, price: est.price, blocked: false,
+        tariff: {
+            kind: 'distance', zoneId: null, zoneName: '', source: offline ? 'distance_no_quote' : 'distance',
+            label: `Tarifa: por distancia (${offline ? 'sin zona' : 'fuera de zona'}) · ${dist} km${v === 'auto' ? ' · carro +25%' : ''}`,
+        },
+    });
+}
+
+/** La tienda tiene ubicación real guardada (no el centro aproximado de la ciudad). */
+export function storeHasSavedLocation(store) {
+    const la = Number(store?.lat); const ln = Number(store?.lng);
+    return !!store && store.lat != null && store.lng != null && isInHonduras(la, ln) && store.locationApprox !== true;
+}
+
 /** Errores del formulario (vacío = válido). */
 export function validateMerchantDeliveryForm(f = {}) {
     const e = {};
     if (!normalizeMerchantVehicle(f.vehicle)) e.vehicle = 'Elige moto o carro';
-    if (!isInHonduras(f.pickupLat, f.pickupLng)) e.pickup = 'Falta el punto de recogida (ubicación de la tienda)';
-    if (!String(f.dropoffAddress || '').trim()) e.dropoff = 'Escribe la dirección de entrega';
-    else if (!isInHonduras(f.dropoffLat, f.dropoffLng)) e.dropoff = 'Elige la dirección de la lista (en Honduras)';
+    if (!isInHonduras(f.pickupLat, f.pickupLng)) e.pickup = 'Guarda primero la ubicación de tu tienda';
+    if (!isInHonduras(f.dropoffLat, f.dropoffLng)) e.dropoff = String(f.dropoffAddress || '').trim() ? 'Elige la dirección de la lista o ponla en el mapa' : 'Busca la dirección o ponla en el mapa';
     if (f.customerPhone && String(f.customerPhone).replace(/\D/g, '').length < 8) e.customerPhone = 'Teléfono incompleto';
     const c = f.collectAmount;
     if (c !== '' && c != null && !(Number(c) >= 0 && Number(c) <= 100000)) e.collectAmount = 'Monto inválido';
@@ -111,6 +164,10 @@ export function buildMerchantDeliveryTrip({ store, uid, form, estimate, zone = n
         originSource: 'store',
         originLat: Number(form.pickupLat), originLng: Number(form.pickupLng),
         destinationLat: Number(form.dropoffLat), destinationLng: Number(form.dropoffLng),
+        deliveryZoneId: estimate.tariff?.zoneId || null,
+        deliveryZoneName: estimate.tariff?.zoneName || null,
+        deliveryFeeSource: estimate.tariff?.source || 'distance',
+        fareLabel: estimate.tariff?.label || null,
         serviceZoneId: zone?.id || store?.cityId || null,
         serviceZoneName: zone?.name || store?.cityName || null,
         searchRadiusKm: 25,

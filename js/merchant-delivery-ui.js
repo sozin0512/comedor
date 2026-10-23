@@ -4,71 +4,135 @@
  * (scripts/test-pedir-envio-tienda.mjs).
  */
 import {
-    MERCHANT_DELIVERY_VEHICLES, haversineKm, estimateMerchantDelivery, validateMerchantDeliveryForm,
+    MERCHANT_DELIVERY_VEHICLES, haversineKm, validateMerchantDeliveryForm,
     buildMerchantDeliveryTrip, merchantDeliveryStatus, merchantVehicleAvailability, merchantCancelPatch,
+    resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras,
 } from './merchant-delivery-request.js?v=2026.10.20.2';
 
 function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 const money = (n) => `L. ${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const TONE = { amber: '#b45309', violet: '#6d28d9', blue: '#1d4ed8', green: '#047857', gray: '#6b7280' };
+const TONE = { amber: '#b45309', violet: '#0c4a8e', blue: '#1d4ed8', green: '#047857', gray: '#64748b' };
 
 export const MERCHANT_DELIVERY_CSS = `
-.md-wrap{display:flex;flex-direction:column;gap:10px;font-size:14px}
-.md-card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:12px}
+.md-wrap{color:#0f172a;display:flex;flex-direction:column;gap:10px;font-size:14px}
+.md-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:12px}
 .md-card h3{margin:0 0 8px;font-size:15px;font-weight:800}
 .md-veh{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.md-veh button{border:2px solid #e5e7eb;border-radius:14px;padding:10px;background:#f9fafb;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:4px}
-.md-veh button.on{border-color:#7c3aed;background:#f5f3ff;color:#5b21b6}
+.md-veh button{border:2px solid #e2e8f0;border-radius:14px;padding:10px;background:#f8fafc;font-weight:800;display:flex;flex-direction:column;align-items:center;gap:4px}
+.md-veh button.on{border-color:var(--hn-blue,#0c4a8e);background:#eff6ff;color:var(--hn-blue,#0c4a8e)}
 .md-veh button[disabled]{opacity:.5}
 .md-veh small{font-weight:600;font-size:11px;color:#b91c1c}
+.md-lbl{font-size:12px;font-weight:700;color:#334155;margin-top:10px;display:block}
 .md-f{display:flex;flex-direction:column;gap:3px;margin-top:8px;position:relative}
-.md-f label{font-size:12px;font-weight:700;color:#374151}
-.md-f input,.md-f textarea{font-family:inherit;border:1px solid #d1d5db;border-radius:10px;padding:9px;font-size:14px;width:100%;box-sizing:border-box}
+.md-f label{font-size:12px;font-weight:700;color:#334155}
+.md-f input,.md-f textarea{font-family:inherit;border:1px solid #cbd5e1;border-radius:10px;padding:10px;font-size:15px;width:100%;box-sizing:border-box}
 .md-err{color:#b91c1c;font-size:11px;font-weight:700}
-.md-sug{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:10px;z-index:5;box-shadow:0 6px 20px rgba(0,0,0,.12)}
-.md-sug button{display:block;width:100%;text-align:left;padding:9px;border:0;background:none;font-size:13px;border-bottom:1px solid #f3f4f6}
-.md-est{display:flex;justify-content:space-between;align-items:center;background:#f5f3ff;border-radius:12px;padding:10px;margin-top:10px}
-.md-est b{font-size:18px;color:#5b21b6}
-.md-go{width:100%;margin-top:10px;border:0;border-radius:14px;padding:13px;background:#7c3aed;color:#fff;font-weight:900;font-size:15px}
-.md-go[disabled]{background:#c4b5fd}
-.md-req{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #f3f4f6}
+.md-pick{display:flex;gap:10px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:9px 10px;margin-top:4px}
+.md-pick .ic{width:32px;height:32px;border-radius:10px;background:#dbeafe;color:var(--hn-blue,#0c4a8e);display:flex;align-items:center;justify-content:center;flex:none}
+.md-pick b{display:block;font-size:13px}
+.md-pick span{display:block;font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis}
+.md-pick .lk{margin-left:auto;color:#94a3b8;flex:none}
+.md-warn{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:10px;margin-top:4px;font-size:13px;color:#92400e}
+.md-btn2{border:1px solid #bfdbfe;background:#fff;color:var(--hn-blue,#0c4a8e);font-weight:800;border-radius:10px;padding:9px 10px;font-size:13px;white-space:nowrap}
+.md-drop{display:flex;gap:6px;margin-top:4px;position:relative}
+.md-drop input{flex:1;min-width:0;font-family:inherit;border:1px solid #cbd5e1;border-radius:10px;padding:10px;font-size:15px}
+.md-sug{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #cbd5e1;border-radius:10px;z-index:5;box-shadow:0 6px 20px rgba(0,0,0,.12);margin-top:2px}
+.md-sug button{display:flex;gap:8px;width:100%;text-align:left;padding:10px;border:0;background:none;font-size:13px;border-bottom:1px solid #f1f5f9}
+.md-ok{font-size:11px;color:#047857;font-weight:700;margin-top:3px}
+.md-fee{background:#eff6ff;border-radius:12px;padding:10px;margin-top:10px}
+.md-fee .row{display:flex;justify-content:space-between;align-items:center}
+.md-fee b{font-size:19px;color:var(--hn-blue,#0c4a8e)}
+.md-tar{display:inline-block;margin-top:4px;font-size:11px;font-weight:800;color:var(--hn-blue,#0c4a8e);background:#dbeafe;border-radius:999px;padding:2px 8px}
+.md-fee.bad{background:#fef2f2}.md-fee.bad .md-tar{background:#fee2e2;color:#b91c1c}
+.md-cash{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:10px;margin-top:8px}
+.md-cash label{font-size:12px;font-weight:800;color:#065f46}
+.md-cash input{font-family:inherit;border:1px solid #a7f3d0;border-radius:10px;padding:10px;font-size:15px;width:100%;box-sizing:border-box;margin-top:4px}
+.md-cash small{display:block;color:#047857;font-size:11px;margin-top:4px}
+.md-go{width:100%;margin-top:10px;border:0;border-radius:14px;padding:14px;box-shadow:0 6px 16px rgba(12,74,142,.25);background:linear-gradient(135deg,var(--hn-blue,#0c4a8e),var(--hn-blue-light,#1a6bb5));color:#fff;font-weight:900;font-size:15px}
+.md-go[disabled]{background:#bfdbfe;box-shadow:none}
+.md-req{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #f1f5f9}
 .md-req:first-of-type{border-top:0}
-.md-pill{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;background:#f3f4f6}
+.md-pill{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;background:#f1f5f9;white-space:nowrap}
 .md-cancel{border:1px solid #fecaca;color:#b91c1c;background:#fff;border-radius:10px;padding:5px 9px;font-weight:800;font-size:12px}
+.md-map{position:fixed;inset:0;z-index:99999;background:#fff;display:flex;flex-direction:column}
+.md-map-top{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #e2e8f0;font-weight:800}
+.md-map-top button{border:0;background:#f1f5f9;border-radius:10px;width:36px;height:36px}
+.md-map-canvas{flex:1;position:relative;background:#e2e8f0}
+.md-map-el{position:absolute;inset:0}
+.md-map-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:38px;color:var(--hn-blue,#0c4a8e);pointer-events:none;text-shadow:0 2px 4px rgba(0,0,0,.3);z-index:2}
+.md-map-gps{position:absolute;right:12px;bottom:12px;z-index:2;border:0;background:#fff;border-radius:999px;width:44px;height:44px;box-shadow:0 2px 8px rgba(0,0,0,.25);color:#1d4ed8;font-size:17px}
+.md-map-bot{padding:12px;border-top:1px solid #e2e8f0}
+.md-map-addr{font-size:13px;min-height:34px}
+.md-map-addr small{display:block;color:#64748b;font-size:11px}
+
+.md-f input:focus,.md-f textarea:focus,.md-drop input:focus,.md-cash input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.md-card h3 i{color:var(--hn-blue,#0c4a8e)}
 `;
+
+const TITLE = { pickup: 'Ubicación de tu tienda', dropoff: 'Punto de entrega' };
 
 export function createMerchantDeliveryTab(ctx) {
     const st = {
         vehicle: null,
         form: {
-            pickupAddress: ctx.store?.address || '', pickupLat: ctx.store?.lat, pickupLng: ctx.store?.lng,
+            pickupAddress: '', pickupLat: null, pickupLng: null,
             dropoffAddress: '', dropoffLat: null, dropoffLng: null,
             customerName: '', customerPhone: '', notes: '', collectAmount: '',
         },
         errors: {}, suggestions: [], requests: [], commission: null, busy: false, unsub: null, root: null, sugTimer: null,
+        quote: null, quoteKey: '', quoting: false, quoteSeq: 0, map: null, savingStore: false,
     };
     const zoneId = ctx.zone?.id || ctx.store?.cityId || null;
     const avail = () => Object.fromEntries(Object.keys(MERCHANT_DELIVERY_VEHICLES).map((v) => [v, merchantVehicleAvailability(v, zoneId, ctx.availability)]));
 
-    function estimate() {
+    function syncPickup() {
+        const s = ctx.store || {};
+        if (storeHasSavedLocation(s)) {
+            st.form.pickupAddress = s.address || s.name || 'Tienda';
+            st.form.pickupLat = Number(s.lat); st.form.pickupLng = Number(s.lng);
+        } else { st.form.pickupAddress = ''; st.form.pickupLat = null; st.form.pickupLng = null; }
+    }
+    syncPickup();
+
+    const hasDrop = () => isInHonduras(st.form.dropoffLat, st.form.dropoffLng);
+    const hasPick = () => isInHonduras(st.form.pickupLat, st.form.pickupLng);
+
+    function km() {
         const f = st.form;
-        if (!st.vehicle || f.dropoffLat == null || f.pickupLat == null) return null;
-        const km = haversineKm(Number(f.pickupLat), Number(f.pickupLng), Number(f.dropoffLat), Number(f.dropoffLng));
-        return estimateMerchantDelivery({ km, vehicle: st.vehicle, fareFn: ctx.fareFn, carFactor: ctx.carFactor, commissionPercent: st.commission });
+        return haversineKm(Number(f.pickupLat), Number(f.pickupLng), Number(f.dropoffLat), Number(f.dropoffLng));
+    }
+    function price() {
+        if (!st.vehicle || !hasDrop() || !hasPick() || st.quoting) return null;
+        return resolveMerchantDeliveryPrice({ quote: st.quote, km: km(), vehicle: st.vehicle, fareFn: ctx.fareFn, carFactor: ctx.carFactor, commissionPercent: st.commission });
+    }
+
+    /** Cotiza con el servidor (zonas del admin). Moto y carro vienen juntos → un request por punto. */
+    async function requote() {
+        if (!hasDrop() || !hasPick()) { st.quote = null; return; }
+        const key = `${Number(st.form.dropoffLat).toFixed(5)},${Number(st.form.dropoffLng).toFixed(5)}`;
+        if (key === st.quoteKey && st.quote) return;
+        st.quoteKey = key; const seq = ++st.quoteSeq;
+        st.quoting = true; render();
+        let q = null;
+        try { q = ctx.quoteFee ? await ctx.quoteFee({ storeId: ctx.store?.id, lat: Number(st.form.dropoffLat), lng: Number(st.form.dropoffLng), vehicle: st.vehicle || 'moto' }) : null; }
+        catch (e) { q = { inZone: false, reason: 'error' }; }
+        if (seq !== st.quoteSeq) return;
+        st.quote = q || { inZone: false, reason: 'error' }; st.quoting = false; render();
     }
 
     function requestsHtml() {
-        if (!st.requests.length) return '<p style="color:#6b7280;font-size:13px;margin:0">Todavía no has pedido envíos.</p>';
+        if (!st.requests.length) return '<p style="color:#64748b;font-size:13px;margin:0">Todavía no has pedido envíos.</p>';
         return st.requests.map((t) => {
             const s = merchantDeliveryStatus(t);
             const veh = MERCHANT_DELIVERY_VEHICLES[t.deliveryVehicle] || MERCHANT_DELIVERY_VEHICLES.moto;
             const wait = typeof ctx.waitChip === 'function' && s.key === 'searching' ? ctx.waitChip(t) : '';
+            const collect = Number(t.deliveryDetails?.collectAmount) || 0;
             return `<div class="md-req" data-md-req="${esc(t.id)}">
                 <div style="min-width:0">
                     <div style="font-weight:800;font-size:13px"><i class="fas ${veh.icon}"></i> ${esc(t.destination || 'Entrega')}</div>
-                    <div style="font-size:12px;color:#6b7280">${esc(t.price || '')}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>
+                    <div style="font-size:12px;color:#64748b">Envío ${esc(t.price || '')}${collect > 0 ? ` · cobra ${esc(money(collect))}` : ''}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
                     <span class="md-pill" data-md-status="${s.key}" style="color:${TONE[s.tone]}">${esc(s.label)}</span>
@@ -78,8 +142,31 @@ export function createMerchantDeliveryTab(ctx) {
         }).join('');
     }
 
+    function pickupHtml() {
+        const s = ctx.store || {};
+        if (hasPick()) {
+            return `<div class="md-pick" data-md-pickup="locked"><div class="ic"><i class="fas fa-store"></i></div>
+                <div style="min-width:0"><b>${esc(s.name || 'Tu tienda')}</b><span>${esc(st.form.pickupAddress)}</span></div>
+                <i class="fas fa-lock lk" title="Ubicación guardada de la tienda"></i></div>`;
+        }
+        return `<div class="md-warn" data-md-pickup="missing"><b>Tu tienda no tiene ubicación guardada.</b><br>Ponla una sola vez en el mapa y queda guardada para todos tus envíos.
+            <button type="button" class="md-btn2" style="margin-top:8px;width:100%" data-md-map="pickup" ${st.savingStore ? 'disabled' : ''}><i class="fas fa-map-pin"></i> ${st.savingStore ? 'Guardando…' : 'Poner pin de mi tienda'}</button></div>`;
+    }
+
+    function feeHtml() {
+        if (st.quoting) return '<div class="md-fee" data-md-estimate><span style="color:#64748b">Calculando tarifa…</span></div>';
+        const p = price();
+        if (!p) return `<div class="md-fee" data-md-estimate><span style="color:#64748b">${!hasPick() ? 'Guarda la ubicación de tu tienda' : 'Elige vehículo y punto de entrega para ver la tarifa'}</span></div>`;
+        if (p.blocked) return `<div class="md-fee bad" data-md-estimate data-md-tariff="blocked"><span>No hay envío a ese punto</span><br><span class="md-tar">${esc(p.tariff.label)}</span></div>`;
+        return `<div class="md-fee" data-md-estimate data-md-tariff="${esc(p.tariff.kind)}">
+            <div class="row"><span>Tarifa de envío · ${p.km} km</span><b>${money(p.price)}</b></div>
+            <span class="md-tar">${esc(p.tariff.label)}</span>
+            ${p.commissionPercent != null ? `<div style="font-size:11px;color:#64748b;margin-top:4px">Comisión del servicio: ${p.commissionPercent}% (la paga el conductor)</div>` : ''}
+        </div>`;
+    }
+
     function html() {
-        const a = avail(); const f = st.form; const e = st.errors; const est = estimate();
+        const a = avail(); const f = st.form; const e = st.errors; const p = price();
         const vehBtn = (v) => {
             const m = MERCHANT_DELIVERY_VEHICLES[v]; const ok = a[v].available;
             return `<button type="button" data-md-vehicle="${v}" class="${st.vehicle === v ? 'on' : ''}" ${ok ? '' : 'disabled'} title="${esc(a[v].message)}">
@@ -87,22 +174,34 @@ export function createMerchantDeliveryTab(ctx) {
         };
         const field = (k, label, extra = '', tag = 'input') => `<div class="md-f"><label for="md-${k}">${label}</label>
             ${tag === 'textarea' ? `<textarea id="md-${k}" data-md-field="${k}" rows="2" ${extra}>${esc(f[k])}</textarea>` : `<input id="md-${k}" data-md-field="${k}" value="${esc(f[k])}" ${extra}>`}
-            ${k === 'dropoffAddress' && st.suggestions.length ? `<div class="md-sug">${st.suggestions.map((s, i) => `<button type="button" data-md-sug="${i}">${esc(s.description)}</button>`).join('')}</div>` : ''}
-            ${e[k === 'dropoffAddress' ? 'dropoff' : k === 'pickupAddress' ? 'pickup' : k] ? `<span class="md-err">${esc(e[k === 'dropoffAddress' ? 'dropoff' : k === 'pickupAddress' ? 'pickup' : k])}</span>` : ''}</div>`;
+            ${e[k] ? `<span class="md-err">${esc(e[k])}</span>` : ''}</div>`;
+        const collect = Number(f.collectAmount) || 0;
+        const canGo = st.vehicle && !st.busy && hasPick() && (!p || !p.blocked);
         return `<div class="md-wrap">
             <div class="md-card"><h3><i class="fas fa-paper-plane"></i> Pedir envío</h3>
                 <div class="md-veh">${vehBtn('moto')}${vehBtn('auto')}</div>
                 ${e.vehicle ? `<span class="md-err">${esc(e.vehicle)}</span>` : ''}
-                ${field('pickupAddress', 'Recoger en (tu tienda)', 'autocomplete="off"')}
-                ${field('dropoffAddress', 'Entregar en', 'autocomplete="off" placeholder="Escribe la dirección y elígela de la lista"')}
+                <span class="md-lbl">Recoger en</span>
+                ${pickupHtml()}
+                ${e.pickup ? `<span class="md-err">${esc(e.pickup)}</span>` : ''}
+                <label class="md-lbl" for="md-dropoffAddress">Entregar en</label>
+                <div class="md-drop">
+                    <input id="md-dropoffAddress" data-md-field="dropoffAddress" value="${esc(f.dropoffAddress)}" autocomplete="off" placeholder="Buscar dirección o lugar">
+                    <button type="button" class="md-btn2" data-md-map="dropoff"><i class="fas fa-map-location-dot"></i> Usar mapa</button>
+                    ${st.suggestions.length ? `<div class="md-sug">${st.suggestions.map((s, i) => `<button type="button" data-md-sug="${i}"><i class="fas fa-location-dot" style="color:#94a3b8;margin-top:2px"></i><span>${esc(s.description)}</span></button>`).join('')}</div>` : ''}
+                </div>
+                ${hasDrop() ? `<div class="md-ok" data-md-dropok><i class="fas fa-check"></i> Punto listo · ${Number(f.dropoffLat).toFixed(5)}, ${Number(f.dropoffLng).toFixed(5)}</div>` : ''}
+                ${e.dropoff ? `<span class="md-err">${esc(e.dropoff)}</span>` : ''}
                 ${field('customerName', 'Nombre de quien recibe (opcional)')}
                 ${field('customerPhone', 'Teléfono de quien recibe (opcional)', 'inputmode="tel"')}
-                ${field('collectAmount', 'Cobrar al entregar, en efectivo (opcional)', 'inputmode="decimal" placeholder="L. 0.00"')}
-                ${field('notes', 'Notas para el conductor', 'maxlength="300"', 'textarea')}
-                <div class="md-est" data-md-estimate>${est
-                    ? `<span>Envío estimado · ${est.km} km${est.commissionPercent != null ? `<br><small style="color:#6b7280">Comisión del servicio: ${est.commissionPercent}%</small>` : ''}</span><b>${money(est.price)}</b>`
-                    : '<span style="color:#6b7280">Elige vehículo y dirección para ver el precio</span>'}</div>
-                <button type="button" class="md-go" data-md-submit ${st.busy || !st.vehicle ? 'disabled' : ''}>${st.busy ? 'Pidiendo…' : `Pedir ${st.vehicle ? MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase() : 'envío'}`}</button>
+                ${field('notes', 'Notas para el conductor', 'maxlength="300" placeholder="Ej. casa verde, portón negro"', 'textarea')}
+                ${feeHtml()}
+                <div class="md-cash"><label for="md-collectAmount"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo (opcional)</label>
+                    <input id="md-collectAmount" data-md-field="collectAmount" value="${esc(f.collectAmount)}" inputmode="decimal" placeholder="L. 0.00">
+                    <small>Lo que el conductor le cobra al cliente por tus productos. Es aparte de la tarifa de envío.</small>
+                    ${e.collectAmount ? `<span class="md-err">${esc(e.collectAmount)}</span>` : ''}</div>
+                ${p && !p.blocked ? `<div style="font-size:12px;color:#334155;margin-top:8px" data-md-summary>Envío <b>${money(p.price)}</b>${collect > 0 ? ` · El conductor cobra <b>${money(collect)}</b> al cliente` : ''}</div>` : ''}
+                <button type="button" class="md-go" data-md-submit ${canGo ? '' : 'disabled'}>${st.busy ? 'Pidiendo…' : `Pedir ${st.vehicle ? MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase() : 'envío'}`}</button>
             </div>
             <div class="md-card"><h3>Mis envíos</h3><div data-md-list>${requestsHtml()}</div></div>
         </div>`;
@@ -115,11 +214,85 @@ export function createMerchantDeliveryTab(ctx) {
         if (focusId) { const el = document.getElementById(focusId); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (_) {} } }
     }
 
+    // ───── Mapa con pin (centro fijo: se arrastra el mapa, como Uber/Google Maps) ─────
+    function openMap(kind) {
+        closeMap();
+        const s = ctx.store || {};
+        const center = kind === 'dropoff' && hasDrop() ? { lat: Number(st.form.dropoffLat), lng: Number(st.form.dropoffLng) }
+            : hasPick() ? { lat: Number(st.form.pickupLat), lng: Number(st.form.pickupLng) }
+            : (isInHonduras(s.lat, s.lng) ? { lat: Number(s.lat), lng: Number(s.lng) } : (ctx.zone?.center || { lat: 14.4513, lng: -87.6374 }));
+        const ov = document.createElement('div');
+        ov.className = 'md-map'; ov.setAttribute('data-md-mapov', kind);
+        ov.innerHTML = `<div class="md-map-top"><button type="button" data-mm="close" aria-label="Cerrar"><i class="fas fa-arrow-left"></i></button>${TITLE[kind]}</div>
+            <div class="md-map-canvas"><div class="md-map-el"></div><i class="fas fa-location-dot md-map-pin"></i>
+            <button type="button" class="md-map-gps" data-mm="gps" aria-label="Mi ubicación"><i class="fas fa-crosshairs"></i></button></div>
+            <div class="md-map-bot"><div class="md-map-addr" data-mm-addr>Mueve el mapa para poner el pin</div>
+            <button type="button" class="md-go" data-mm="ok">${kind === 'pickup' ? 'Guardar ubicación de la tienda' : 'Entregar aquí'}</button></div>`;
+        document.body.appendChild(ov);
+        const m = { kind, ov, pos: center, address: '', seq: 0, api: null };
+        st.map = m;
+        const setAddr = (txt, sub) => { const el = ov.querySelector('[data-mm-addr]'); if (el) el.innerHTML = `${esc(txt)}<small>${esc(sub || '')}</small>`; };
+        const onMove = async (p) => {
+            m.pos = p; const seq = ++m.seq;
+            setAddr('Buscando dirección…', `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`);
+            let addr = '';
+            try { addr = ctx.reverseGeocode ? (await ctx.reverseGeocode(p.lat, p.lng)) || '' : ''; } catch (_) {}
+            if (seq !== m.seq) return;
+            m.address = addr;
+            setAddr(addr || 'Punto en el mapa', `${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`);
+        };
+        try { m.api = ctx.createMap ? ctx.createMap(ov.querySelector('.md-map-el'), center, onMove) : null; } catch (e) { console.warn('[envio] mapa', e); }
+        onMove(center);
+        ov.addEventListener('click', async (ev) => {
+            const b = ev.target.closest('[data-mm]'); if (!b) return;
+            const a = b.dataset.mm;
+            if (a === 'close') return closeMap();
+            if (a === 'gps') {
+                try {
+                    const p = ctx.getGps ? await ctx.getGps() : null;
+                    if (p) { m.api?.setCenter?.(p); onMove(p); }
+                } catch (_) { ctx.toast?.('No se pudo leer tu ubicación', 'warning'); }
+                return;
+            }
+            if (a === 'ok') {
+                const p = m.pos;
+                if (!isInHonduras(p.lat, p.lng)) return ctx.toast?.('Ese punto está fuera de Honduras', 'warning');
+                const address = m.address || `Punto en el mapa (${p.lat.toFixed(5)}, ${p.lng.toFixed(5)})`;
+                closeMap();
+                if (kind === 'dropoff') {
+                    Object.assign(st.form, { dropoffAddress: address, dropoffLat: p.lat, dropoffLng: p.lng });
+                    st.suggestions = []; delete st.errors.dropoff; render(); requote();
+                } else {
+                    await saveStorePin({ lat: p.lat, lng: p.lng, address: m.address || ctx.store?.address || '' });
+                }
+            }
+        });
+    }
+    function closeMap() {
+        if (!st.map) return;
+        try { st.map.api?.destroy?.(); } catch (_) {}
+        st.map.ov.remove(); st.map = null;
+    }
+    async function saveStorePin(loc) {
+        st.savingStore = true; render();
+        try {
+            await ctx.saveStoreLocation(loc);
+            ctx.store = { ...(ctx.store || {}), lat: loc.lat, lng: loc.lng, address: loc.address || ctx.store?.address || '', locationApprox: false };
+            syncPickup(); delete st.errors.pickup; st.quoteKey = '';
+            ctx.toast?.('Ubicación de la tienda guardada', 'success');
+        } catch (e) { ctx.toast?.('No se pudo guardar la ubicación', 'error'); }
+        finally { st.savingStore = false; render(); requote(); }
+    }
+
     async function onInput(ev) {
         const k = ev.target?.dataset?.mdField; if (!k) return;
         st.form[k] = ev.target.value;
+        if (k === 'collectAmount') {
+            const el = st.root.querySelector('[data-md-summary]'); const p = price(); const c = Number(ev.target.value) || 0;
+            if (el && p) el.innerHTML = `Envío <b>${money(p.price)}</b>${c > 0 ? ` · El conductor cobra <b>${money(c)}</b> al cliente` : ''}`;
+        }
         if (k === 'dropoffAddress') {
-            st.form.dropoffLat = null; st.form.dropoffLng = null;
+            st.form.dropoffLat = null; st.form.dropoffLng = null; st.quote = null; st.quoteKey = '';
             clearTimeout(st.sugTimer);
             const q = ev.target.value.trim();
             st.sugTimer = setTimeout(async () => {
@@ -130,14 +303,17 @@ export function createMerchantDeliveryTab(ctx) {
     }
 
     async function onClick(ev) {
+        if (st.suggestions.length && !ev.target.closest('.md-drop')) { st.suggestions = []; render(); }
         const v = ev.target.closest('[data-md-vehicle]');
-        if (v && !v.disabled) { st.vehicle = v.dataset.mdVehicle; delete st.errors.vehicle; return render(); }
+        if (v && !v.disabled) { st.vehicle = v.dataset.mdVehicle; delete st.errors.vehicle; render(); return requote(); }
+        const mp = ev.target.closest('[data-md-map]');
+        if (mp && !mp.disabled) return openMap(mp.dataset.mdMap);
         const sg = ev.target.closest('[data-md-sug]');
         if (sg) {
             const s = st.suggestions[Number(sg.dataset.mdSug)]; st.suggestions = [];
             const d = s && ctx.placeDetails ? await ctx.placeDetails(s).catch(() => null) : null;
-            if (d) { st.form.dropoffAddress = d.address || s.description; st.form.dropoffLat = d.lat; st.form.dropoffLng = d.lng; delete st.errors.dropoff; }
-            return render();
+            if (d && isInHonduras(d.lat, d.lng)) { st.form.dropoffAddress = d.address || s.description; st.form.dropoffLat = d.lat; st.form.dropoffLng = d.lng; delete st.errors.dropoff; }
+            render(); return requote();
         }
         const c = ev.target.closest('[data-md-cancel]');
         if (c) {
@@ -151,18 +327,22 @@ export function createMerchantDeliveryTab(ctx) {
     }
 
     async function submit() {
+        syncPickup();
         const form = { ...st.form, vehicle: st.vehicle };
         st.errors = validateMerchantDeliveryForm(form);
         const a = st.vehicle ? avail()[st.vehicle] : null;
         if (a && !a.available) st.errors.vehicle = a.message || 'No disponible';
         if (Object.keys(st.errors).length) return render();
-        const est = estimate();
+        await requote();
+        const est = price();
+        if (!est || est.blocked) { st.errors.dropoff = 'No hay envío a ese punto'; return render(); }
         st.busy = true; render();
         try {
             const payload = buildMerchantDeliveryTrip({ store: ctx.store, uid: ctx.uid, form, estimate: est, zone: ctx.zone, serverTs: ctx.serverTs?.() ?? null });
             const id = await ctx.createTrip(payload);
             ctx.toast?.(`Envío pedido · buscando ${MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase()}`, 'success');
             st.form = { ...st.form, dropoffAddress: '', dropoffLat: null, dropoffLng: null, customerName: '', customerPhone: '', notes: '', collectAmount: '' };
+            st.quote = null; st.quoteKey = '';
             if (!st.unsub) st.requests = [{ id, ...payload }, ...st.requests];
         } catch (e) {
             ctx.toast?.(e?.message || 'No se pudo pedir el envío', 'error');
@@ -181,7 +361,7 @@ export function createMerchantDeliveryTab(ctx) {
         },
         unmount() {
             try { st.unsub?.(); } catch (_) {}
-            st.unsub = null;
+            st.unsub = null; closeMap();
             if (st.root) { st.root.removeEventListener('input', onInput); st.root.removeEventListener('click', onClick); }
             st.root = null;
         },

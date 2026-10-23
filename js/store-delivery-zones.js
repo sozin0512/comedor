@@ -337,4 +337,9 @@ export function deliveryTripPrice(order, distancePrice) {
     return { priceNum: distancePrice, fromZone: false };
 }
 
+/** Cotización del servidor (misma que «Confirmar pedido»): zona del admin + tarifa de la tienda. Para «Pedir envío». */
+export async function quoteStoreDeliveryFeeFor({ storeId, lat, lng, vehicle }) {
+    return callFn('quoteStoreDeliveryFee', { storeId, lat, lng, vehicle: vehicle === 'auto' ? 'auto' : 'moto' });
+}
+
 export const __test = { T, Q, merchantZonesHtml, checkoutFeeHtml };

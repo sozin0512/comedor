@@ -26,7 +26,7 @@ import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.09.10.2';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
-    setCheckoutVehicle, checkoutVehicle, CAR_DELIVERY_FACTOR,
+    setCheckoutVehicle, checkoutVehicle, CAR_DELIVERY_FACTOR, quoteStoreDeliveryFeeFor,
 } from './store-delivery-zones.js?v=2026.10.20.2';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
@@ -3864,6 +3864,30 @@ async function merchantPlaceDetails(s) {
     return Number.isFinite(lat) ? { lat, lng, address: place.formattedAddress || s.description } : null;
 }
 
+/** Mapa con pin al centro (se arrastra el mapa). onMove({lat,lng}) al soltar. */
+function merchantCreatePinMap(el, center, onMove) {
+    if (typeof google === 'undefined' || !google.maps?.Map) { el.innerHTML = '<div style="padding:16px;color:#6b7280">El mapa no cargó. Revisa tu conexión.</div>'; return null; }
+    const map = new google.maps.Map(el, {
+        center, zoom: 17, gestureHandling: 'greedy', disableDefaultUI: true, clickableIcons: false,
+        restriction: { latLngBounds: { north: 16.6, south: 12.9, west: -89.4, east: -83.1 }, strictBounds: false },
+    });
+    const idle = map.addListener('idle', () => { const c = map.getCenter(); if (c) onMove({ lat: c.lat(), lng: c.lng() }); });
+    const click = map.addListener('click', (e) => { if (e.latLng) map.panTo(e.latLng); });
+    return { setCenter: (p) => map.panTo(p), destroy: () => { idle.remove(); click.remove(); } };
+}
+async function merchantReverseGeocode(lat, lng) {
+    if (typeof google === 'undefined' || !google.maps) return '';
+    const Geocoder = google.maps.Geocoder || (await google.maps.importLibrary('geocoding')).Geocoder;
+    const res = await new Geocoder().geocode({ location: { lat, lng }, language: 'es', region: 'hn' });
+    return res?.results?.[0]?.formatted_address || '';
+}
+function merchantGps() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) return reject(new Error('sin gps'));
+        navigator.geolocation.getCurrentPosition((p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }), reject, { enableHighAccuracy: true, timeout: 12000 });
+    });
+}
+
 function merchantDeliveryCtx() {
     const user = getCurrentUser();
     const zone = getZoneById(myStore?.cityId) || getZoneById(getDefaultZoneId()) || null;
@@ -3873,6 +3897,16 @@ function merchantDeliveryCtx() {
         zone,
         fareFn: calculateServiceFare,
         carFactor: CAR_DELIVERY_FACTOR,
+        quoteFee: (q) => quoteStoreDeliveryFeeFor(q),
+        createMap: merchantCreatePinMap,
+        reverseGeocode: merchantReverseGeocode,
+        getGps: merchantGps,
+        saveStoreLocation: async ({ lat, lng, address }) => {
+            const patch = { lat, lng, locationApprox: false, updatedAt: serverTimestamp() };
+            if (address) patch.address = String(address).slice(0, 200);
+            await updateDoc(publicDoc('stores', myStore.id), patch);
+            Object.assign(myStore, { lat, lng, locationApprox: false }, address ? { address: patch.address } : {});
+        },
         getCommission: (svc) => (typeof window.getPlatformCommission === 'function' ? window.getPlatformCommission(svc) : null),
         availability: (svc, zoneId) => window.__hrServiceAvailability?.(svc, zoneId) || null,
         placesFetch: merchantPlacesFetch,
