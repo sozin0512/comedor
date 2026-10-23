@@ -47,6 +47,42 @@ public class HonduMessagingService extends FirebaseMessagingService {
     public static final String WA_CHANNEL_NAME = "HonduRaite viajes (enciende pantalla)";
     private static final String WA_GROUP = "honduraite_wa_group";
 
+    /** Pedido de tienda (moto / carro): melodía res/raw/nuevo_pedido en bucle (FLAG_INSISTENT). */
+    public static final String STORE_CHANNEL_ID = "pedidos_tienda";
+    public static final String STORE_CHANNEL_NAME = "HonduRaite pedidos de tienda";
+
+    static boolean isStoreOrderPush(Map<String, String> data) {
+        return data != null && "true".equalsIgnoreCase(firstNonEmpty(data.get("storeOrder"), ""));
+    }
+
+    public static Uri storeOrderSoundUri(Context context) {
+        return Uri.parse("android.resource://" + context.getPackageName() + "/" + R.raw.nuevo_pedido);
+    }
+
+    /** Canal propio: el sonido de un canal no se puede cambiar después de creado. */
+    public static void ensureStoreOrderChannel(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        try {
+            NotificationManager nm = context.getSystemService(NotificationManager.class);
+            if (nm == null || nm.getNotificationChannel(STORE_CHANNEL_ID) != null) return;
+            NotificationChannel ch = new NotificationChannel(
+                STORE_CHANNEL_ID, STORE_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("Pedidos de tiendas y restaurantes para moto y carro: suena hasta que lo abras.");
+            ch.enableVibration(true);
+            ch.setVibrationPattern(new long[]{0, 400, 150, 400, 150, 700});
+            ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+            ch.setShowBadge(true);
+            AudioAttributes aa = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+            ch.setSound(storeOrderSoundUri(context), aa);
+            nm.createNotificationChannel(ch);
+        } catch (Exception e) {
+            Log.w(TAG, "ensureStoreOrderChannel: " + e.getMessage());
+        }
+    }
+
     /** Canales viejos a borrar para no dejar basura silenciada. */
     private static final String[] LEGACY_CHANNEL_IDS = {
         "hondu_wa_alert_v9",
@@ -101,8 +137,13 @@ public class HonduMessagingService extends FirebaseMessagingService {
         }
         ensureWhatsAppChannel(this);
         wakeScreenBriefly(this, (tripAlert || driverOrStaffWake) ? 12000L : 4000L);
-        // Sonido explícito: muchos OEMs dejan el canal solo en vibración
-        playIconicAlertSound(this);
+        // Sonido explícito: muchos OEMs dejan el canal solo en vibración.
+        // Pedido de tienda: no; su canal suena en bucle (FLAG_INSISTENT) con nuevo_pedido.
+        if (isStoreOrderPush(data)) {
+            ensureStoreOrderChannel(this);
+        } else {
+            playIconicAlertSound(this);
+        }
         showWhatsAppStyleNotification(
             this,
             title,
@@ -361,7 +402,9 @@ public class HonduMessagingService extends FirebaseMessagingService {
                 piFlags
             );
 
-            Uri soundUri = iconicSoundUri(context);
+            boolean storeOrder = isStoreOrderPush(data);
+            if (storeOrder) ensureStoreOrderChannel(context);
+            Uri soundUri = storeOrder ? storeOrderSoundUri(context) : iconicSoundUri(context);
 
             // Igual que llamada / staff: CATEGORY_CALL + full-screen (enciende pantalla apagada)
             String category = tripAlert
@@ -376,7 +419,7 @@ public class HonduMessagingService extends FirebaseMessagingService {
                 groupKey = "honduraite_trip_alert";
             }
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, WA_CHANNEL_ID)
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(context, storeOrder ? STORE_CHANNEL_ID : WA_CHANNEL_ID)
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(title)
                 .setContentText(body)
@@ -414,7 +457,10 @@ public class HonduMessagingService extends FirebaseMessagingService {
                 notifId = roleBump + Math.abs(data.get("tripId").hashCode() % 90000);
             }
 
-            NotificationManagerCompat.from(context).notify(notifId, builder.build());
+            Notification built = builder.build();
+            // Pedido de tienda: el sonido se repite hasta que lo toquen / descarten (o venza en 3 min)
+            if (storeOrder) built.flags |= Notification.FLAG_INSISTENT;
+            NotificationManagerCompat.from(context).notify(notifId, built);
 
             // Refuerzo: con permiso full-screen, también intentar abrir la activity
             // (mismo comportamiento que admin al llegar new_trip_staff con pantalla apagada)

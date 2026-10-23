@@ -3481,7 +3481,9 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
             serviceType: serviceType || '',
             tag: `trip-offer-city-${tripId}-${String(driverId).slice(0, 8)}`,
             openDriver: 'true',
-            superVibrate: 'true'
+            superVibrate: 'true',
+            // APK: canal pedidos_tienda + melodía nuevo_pedido en bucle (HonduMessagingService)
+            ...(storeTrip ? { storeOrder: 'true', alertSound: 'nuevo_pedido' } : {})
         },
         highPriority: true
     }).catch(() => null);
@@ -4192,7 +4194,8 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 scheduledFor: after.scheduledFor || '',
                 tag: `trip-offer-${tripId}`,
                 openDriver: 'true',
-                superVibrate: 'true'
+                superVibrate: 'true',
+                ...(isStoreDeliveryTrip(after) ? { storeOrder: 'true', alertSound: 'nuevo_pedido' } : {})
             };
             // Push al ofertado + candidatos del pool (web/iOS no miran el radar si no hay push)
             const pushRecipients = new Set([String(after.offeredToDriverId)]);

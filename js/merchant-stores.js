@@ -14,7 +14,7 @@ import {
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.20.2';
-import { orderWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.16.9';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.16.9';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
@@ -33,6 +33,7 @@ import {
 } from './store-week.js?v=2026.10.20.2';
 
 import { formatLempiras } from './money-format.js';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.20.2';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -942,6 +943,7 @@ function ensureShell() {
                         <button type="button" class="merchant-tab active" data-merchant-tab="orders">Pedidos</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="products">Menú</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="store">Tienda</button>
+                        <button type="button" class="merchant-tab" data-merchant-tab="pedir-envio">Pedir envío</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="envios">Envíos</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="semana">Semana</button>
                     </nav>
@@ -2876,6 +2878,7 @@ async function renderMerchantWeekTab(body) {
 function renderMerchantBody() {
     const body = document.getElementById('merchant-panel-body');
     if (!body) return;
+    if (merchantDeliveryTab && merchantTab !== 'pedir-envio') { merchantDeliveryTab.unmount(); merchantDeliveryTab = null; }
 
     if (merchantTab === 'store') {
         body.innerHTML = renderMerchantStoreForm();
@@ -2888,6 +2891,13 @@ function renderMerchantBody() {
                 <p>Primero crea tu tienda virtual.</p>
                 <button type="button" class="stores-primary-btn mt-3" data-merchant-action="goto-store">Configurar tienda</button>
             </div>`;
+        return;
+    }
+    if (merchantTab === 'pedir-envio') {
+        if (merchantDeliveryTab) merchantDeliveryTab.unmount();
+        body.innerHTML = '';
+        merchantDeliveryTab = createMerchantDeliveryTab(merchantDeliveryCtx());
+        merchantDeliveryTab.mount(body);
         return;
     }
     if (merchantTab === 'envios') {
@@ -3828,6 +3838,63 @@ async function setOrderStatus(orderId, status, extra = {}) {
         toast('No se pudo actualizar el pedido', 'error');
         throw e;
     }
+}
+
+/* ===================== PEDIR ENVÍO DIRECTO (tienda → moto / carro) ===================== */
+let merchantDeliveryTab = null;
+
+async function merchantPlacesFetch(q) {
+    if (typeof google === 'undefined' || !google.maps?.importLibrary) return [];
+    const places = await google.maps.importLibrary('places');
+    const zone = getZoneById(myStore?.cityId) || null;
+    const center = Number.isFinite(Number(myStore?.lat)) ? { lat: Number(myStore.lat), lng: Number(myStore.lng) } : (zone?.center || null);
+    const req = { input: q, includedRegionCodes: ['hn'], language: 'es' };
+    if (center) req.locationBias = { center, radius: 30000 };
+    const res = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
+    return (res?.suggestions || []).slice(0, 6).map((s) => ({
+        description: s.placePrediction?.text?.toString?.() || '',
+        prediction: s.placePrediction,
+    })).filter((s) => s.description);
+}
+async function merchantPlaceDetails(s) {
+    const place = s?.prediction?.toPlace?.();
+    if (!place) return null;
+    await place.fetchFields({ fields: ['location', 'formattedAddress'] });
+    const lat = place.location?.lat?.(); const lng = place.location?.lng?.();
+    return Number.isFinite(lat) ? { lat, lng, address: place.formattedAddress || s.description } : null;
+}
+
+function merchantDeliveryCtx() {
+    const user = getCurrentUser();
+    const zone = getZoneById(myStore?.cityId) || getZoneById(getDefaultZoneId()) || null;
+    return {
+        store: myStore,
+        uid: user?.uid,
+        zone,
+        fareFn: calculateServiceFare,
+        carFactor: CAR_DELIVERY_FACTOR,
+        getCommission: (svc) => (typeof window.getPlatformCommission === 'function' ? window.getPlatformCommission(svc) : null),
+        availability: (svc, zoneId) => window.__hrServiceAvailability?.(svc, zoneId) || null,
+        placesFetch: merchantPlacesFetch,
+        placeDetails: merchantPlaceDetails,
+        serverTs: () => serverTimestamp(),
+        waitChip: (t) => tripWaitChipHtml(t),
+        createTrip: async (payload) => (await addDoc(publicCol('trips'), payload)).id,
+        cancelTrip: (id, patch) => updateDoc(publicDoc('trips', id), patch),
+        subscribe: (cb) => onSnapshot(
+            query(publicCol('trips'), where('clientId', '==', user?.uid || '-'), limit(150)),
+            (snap) => {
+                const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+                    .filter((t) => t.merchantDirectDelivery === true && t.storeId === myStore?.id)
+                    .sort((a, b) => (waitTsMs(b.createdAt) || b.storeOrderCreatedAtMs || 0) - (waitTsMs(a.createdAt) || a.storeOrderCreatedAtMs || 0))
+                    .slice(0, 20);
+                cb(list);
+            },
+            (e) => console.warn('[stores] mis envíos', e?.message || e),
+        ),
+        toast,
+        confirm: (m) => window.confirm(m),
+    };
 }
 
 /**

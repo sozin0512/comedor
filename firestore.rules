@@ -204,6 +204,42 @@ service cloud.firestore {
         && request.resource.data.status in ['pending', 'scheduled'];
     }
 
+    // «Pedir envío» directo de la tienda (js/merchant-delivery-request.js):
+    // solo el dueño de la tienda (stores/{storeId}.ownerId) y solo moto o carro (Taxi VIP).
+    function isMerchantDirectDeliveryCreate(app) {
+      let d = request.resource.data;
+      return isSignedIn()
+        && d.get('merchantDirectDelivery', false) == true
+        && d.get('createdByMerchant', false) == true
+        && d.get('storeDelivery', false) == true
+        && d.serviceType == 'delivery'
+        && d.status == 'pending'
+        && d.merchantId == requestUid()
+        && d.clientId == requestUid()
+        && d.storeId is string
+        && !d.keys().hasAny(['storeOrderId', 'driverId', 'staffAssistedClient'])
+        && d.get('offeredToDriverId', null) == null
+        && ((d.deliveryVehicle == 'moto' && d.allowedDriverVehicles == ['moto'])
+          || (d.deliveryVehicle == 'auto' && d.allowedDriverVehicles == ['auto']))
+        && exists(/databases/$(database)/documents/artifacts/$(app)/public/data/stores/$(d.storeId))
+        && get(/databases/$(database)/documents/artifacts/$(app)/public/data/stores/$(d.storeId)).data.ownerId == requestUid();
+    }
+
+    // El dueño solo puede CANCELAR su envío directo, y solo mientras nadie lo aceptó.
+    function merchantDirectDeliveryUpdateOk(app) {
+      return resource.data.get('merchantDirectDelivery', false) != true
+        || resource.data.get('merchantId', '') != requestUid()
+        || isStaff(app)
+        || resource.data.get('driverId', null) == requestUid()
+        || (
+          resource.data.status == 'pending'
+          && resource.data.get('driverId', null) == null
+          && request.resource.data.status == 'cancelled'
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'cancelledBy', 'cancelReason', 'cancelledAtMs', 'cancelledAt', 'updatedAt'])
+        );
+    }
+
     function isTripParticipant() {
       return resource.data.clientId == requestUid()
         || resource.data.driverId == requestUid()
@@ -292,7 +328,11 @@ service cloud.firestore {
       // Ahora: cualquiera autenticado puede crear viaje PARA SÍ (clientId == uid)
       // Staff puede armar viaje para un cliente (staffAssistedClient)
       // Emprendedor puede crear delivery al marcar pedido de tienda listo (createdByMerchant)
-      allow create: if !request.resource.data.keys().hasAny(tripServerOnlyKeys()) && (isSelfTripCreate()
+      allow create: if !request.resource.data.keys().hasAny(tripServerOnlyKeys())
+        // Marca de envío directo de tienda: solo el dueño de esa tienda
+        && (request.resource.data.get('merchantDirectDelivery', false) != true || isMerchantDirectDeliveryCreate(app))
+        && (isSelfTripCreate()
+        || isMerchantDirectDeliveryCreate(app)
         || (
           isSignedIn()
           && isStaff(app)
@@ -321,6 +361,7 @@ service cloud.firestore {
       // Papelera / revisado / embudo: solo callables (nadie los escribe desde la app).
       allow update: if isSignedIn()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(tripServerOnlyKeys())
+        && merchantDirectDeliveryUpdateOk(app)
         && (
         isStaff(app)
         || isTripParticipant()

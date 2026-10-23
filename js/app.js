@@ -72,6 +72,8 @@ import {
 } from "./notification-tones.js?v=2026.10.20.2";
 
 installNotificationTonesApi();
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.20.2";
+bindStoreOrderAudioUnlock();
 
 try {
     const urlReferralCode = storeReferralFromURL();
@@ -10922,6 +10924,7 @@ if (document.readyState === 'loading') {
 
         window.declineTripOffer = async (tripId, btnEl = null) => {
             if (!tripId || !currentUser) return;
+            try { markStoreOrderHandled(tripId); } catch (_) {}
             if (window._driverPreviewOfferTripId === tripId) {
                 window.clearDriverOfferRoutePreview?.({ force: true });
             }
@@ -11605,6 +11608,7 @@ if (document.readyState === 'loading') {
                 window.driverTripsUnsub();
                 window.driverTripsUnsub = null;
             }
+            try { stopStoreOrderAlert(); } catch (_) {}
             if (window._driverNearbyExpandTimer) {
                 clearInterval(window._driverNearbyExpandTimer);
                 window._driverNearbyExpandTimer = null;
@@ -11729,6 +11733,12 @@ if (document.readyState === 'loading') {
                     myOffers.push(...sortedOffers);
                 }
 
+                // Pedido de tienda (moto / taxi / Taxi VIP): melodía en bucle hasta aceptar/pasar/vencer
+                try {
+                    syncStoreOrderAlert(lockTrip ? [] : myOffers, {
+                        vehicleTypes: [driverVehicleType, ...approvedForDriver.map((v) => v.type)]
+                    });
+                } catch (_) {}
                 // Aviso al conductor aunque el panel de solicitudes no esté montado
                 if (lockTrip) {
                     myOffers.length = 0;
@@ -11974,6 +11984,7 @@ if (document.readyState === 'loading') {
 
         window.acceptTrip = async (id, btnEl = null) => {
             if (!id || !currentUser) return;
+            try { markStoreOrderHandled(id); } catch (_) {}
 
             window.clearDriverOfferRoutePreview?.({ force: true });
             _driverOfferPopupMapPeek = false;
@@ -35359,7 +35370,12 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 tripQuery = query(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), where('clientId', '==', currentUser.uid));
             }
 
-            window.activeTripUnsub = onSnapshot(tripQuery, (snap) => {
+            window.activeTripUnsub = onSnapshot(tripQuery, (rawSnap) => {
+                // «Pedir envío» de la tienda: el dueño es clientId pero no es su viaje de pasajero
+                // (lo sigue en Mi tienda → Pedir envío). No secuestrar la pantalla del pasajero.
+                const snap = rawSnap?.docs?.some?.((d) => d.data()?.merchantDirectDelivery === true)
+                    ? { ...rawSnap, docs: rawSnap.docs.filter((d) => d.data()?.merchantDirectDelivery !== true), forEach(fn) { this.docs.forEach(fn); }, get size() { return this.docs.length; }, get empty() { return !this.docs.length; } }
+                    : rawSnap;
                 if (window.userProfile?.role !== 'driver') {
                     const scheduledTrips = snap.docs
                         .map((d) => ({ id: d.id, ...d.data() }))
