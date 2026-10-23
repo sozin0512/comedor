@@ -6452,6 +6452,39 @@ exports.onWaStoreDeliveryStatus = onDocumentUpdated(
         }
     }
 );
+/** WhatsApp · «Pedir a tienda/restaurante» (cliente): mismo store_orders que la app (ver wa-customer-order.js). */
+const waCustomerOrder = require('./wa-customer-order')({
+    db, FieldValue, APP_ID,
+    send: {
+        text: (...a) => whatsappCloud.sendCloudText(...a),
+        buttons: (...a) => whatsappCloud.sendCloudButtons(...a),
+        list: (...a) => whatsappCloud.sendCloudList(...a),
+        locationRequest: (...a) => whatsappCloud.sendLocationPin(...a),
+        textLogged: (...a) => whatsappCloud.sendCloudTextLogged(...a)
+    },
+    geocode: (...a) => whatsappCloud.geocodeHn(...a),
+    getQuoteFor: () => deliveryZones.helpers.quoteFor,
+    vehicleAvailability: (store) => waStoreDelivery.vehicleAvailability(store),
+    normalizePhone: (p) => whatsappCloud.normalizeWaPhone(p),
+    lastInboundAtMs: (p) => whatsappCloud.lastInboundAtMs(p),
+    sendTemplate: (...a) => whatsappCloud.sendWhatsAppTemplate(...a),
+    templateName: () => String(process.env.WHATSAPP_TEMPLATE_CUSTOMER_ORDER_STATUS || '').trim()
+});
+whatsappCloud.setCustomerOrderFlow(waCustomerOrder);
+/** Avisos al cliente de WhatsApp: aceptado · en camino · entregado · cancelado (una vez cada uno). */
+exports.onWaCustomerOrderStatus = onDocumentUpdated(
+    { document: `artifacts/${APP_ID}/public/data/store_orders/{orderId}`, region: 'us-central1' },
+    async (event) => {
+        const before = event.data?.before?.data() || null;
+        const after = event.data?.after?.data() || null;
+        if (!after || after.createdVia !== 'whatsapp_customer') return;
+        try {
+            await waCustomerOrder.onOrderStatusChange(before, after, event.params.orderId, event.data.after.ref);
+        } catch (e) {
+            console.error('[wa-pedido-cliente] aviso', event.params.orderId, e?.message || e);
+        }
+    }
+);
 // ───── Panel de supervisor «Viajes» ─────
 Object.assign(exports, viajesPanel.exports);
 Object.assign(exports, driverPushStatus.exports);

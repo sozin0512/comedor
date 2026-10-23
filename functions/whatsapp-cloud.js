@@ -891,23 +891,22 @@ async function sendCloudButtons(to, body, buttons) {
 /** «Pedir envío (tienda)»: lo conecta index.js (setStoreDeliveryFlow) con las tarifas de delivery-zones. */
 let storeDeliveryFlow = null;
 function setStoreDeliveryFlow(flow) { storeDeliveryFlow = flow || null; }
+/** «Pedir a tienda/restaurante» (cliente): lo conecta index.js (setCustomerOrderFlow), ver wa-customer-order.js. */
+let customerOrderFlow = null;
+function setCustomerOrderFlow(flow) { customerOrderFlow = flow || null; }
 
 async function sendCloudMenu(to) {
     let linked = false;
     try { linked = !!(storeDeliveryFlow && await storeDeliveryFlow.hasLinkedStores(normalizeWaPhone(to))); } catch (_) { linked = false; }
-    if (linked) {
-        return sendCloudList(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', 'Ver opciones', [
-            { id: 'tienda_envio', title: 'Pedir envío (tienda)', description: 'Moto o carro desde tu tienda' },
-            { id: 'viaje', title: 'Pedir un viaje' },
-            { id: 'conductor', title: 'Soy conductor' },
-            { id: 'soporte', title: 'Soporte' }
-        ], 'Opciones');
-    }
-    return sendCloudButtons(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', [
+    const rows = [
+        ...(linked ? [{ id: 'tienda_envio', title: 'Pedir envío (tienda)', description: 'Moto o carro desde tu tienda' }] : []),
         { id: 'viaje', title: 'Pedir un viaje' },
+        ...(customerOrderFlow ? [{ id: 'pedir_tienda', title: 'Pedir a tienda/rest.', description: 'Comida, pulpería, farmacia… a domicilio' }] : []),
         { id: 'conductor', title: 'Soy conductor' },
         { id: 'soporte', title: 'Soporte' }
-    ]);
+    ];
+    if (rows.length > 3) return sendCloudList(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', 'Ver opciones', rows, 'Opciones');
+    return sendCloudButtons(to, 'Hola, soy HonduRaite. ¿En qué te ayudo?', rows.map((r) => ({ id: r.id, title: r.title })));
 }
 
 async function askWhen(from) {
@@ -2315,6 +2314,12 @@ async function routeAssistantMessage(from, text, buttonId, contactName, location
         });
         if (handled) return handled;
     }
+    if (customerOrderFlow) {
+        const handled = await customerOrderFlow.handle({
+            from, text, buttonId, location, contactName, session, saveSession, clearSession
+        });
+        if (handled) return handled;
+    }
 
     if (id === 'soporte' || (/\b(soporte|ayuda|humano|agente|queja|problema)\b/.test(t) && !looksLikeQuestion(t))) {
         await clearSession(from);
@@ -3078,6 +3083,7 @@ exports.driverPushActivateTemplateName = driverPushActivateTemplateName;
 exports.deliveryStatusesFor = deliveryStatusesFor;
 exports.templateParamMismatch = templateParamMismatch;
 exports.setStoreDeliveryFlow = setStoreDeliveryFlow;
+exports.setCustomerOrderFlow = setCustomerOrderFlow;
 exports.routeAssistantMessage = routeAssistantMessage;
 exports.sendCloudText = sendCloudText;
 exports.sendCloudButtons = sendCloudButtons;

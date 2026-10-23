@@ -53,7 +53,7 @@ const all = (ms) => ms.map(bodyOf).join('\n');
   // ── número sin tienda ──
   let m = await say(STRANGER, 'envío');
   ok('número sin tienda: no permite envío de tienda', /no está vinculado a ninguna tienda/.test(all(m)));
-  ok('número sin tienda: muestra el menú normal (sin «Pedir envío (tienda)»)', m.some((x) => x.interactive?.type === 'button' && x.interactive.action.buttons.some((b) => b.reply.id === 'viaje')) && !JSON.stringify(m).includes('tienda_envio'), JSON.stringify(m).slice(0,600));
+  ok('número sin tienda: muestra el menú normal (sin «Pedir envío (tienda)»)', m.some((x) => JSON.stringify(x.interactive || {}).includes('"id":"viaje"')) && !JSON.stringify(m).includes('tienda_envio'), JSON.stringify(m).slice(0,600));
   m = await say(STRANGER, 'hola');
   ok('menú normal para número sin tienda', !JSON.stringify(m).includes('tienda_envio'));
 

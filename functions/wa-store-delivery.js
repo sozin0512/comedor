@@ -498,4 +498,4 @@ module.exports = function createWaStoreDelivery(deps) {
 
     return { handle, findLinkedStores, hasLinkedStores, onTripStatusChange, vehicleAvailability };
 };
-Object.assign(module.exports, { phoneVariants, samePhone, buildWaStoreTrip, storeStatusKey, storeStatusText, isEntry, VEHICLES, STEPS });
+Object.assign(module.exports, { phoneVariants, samePhone, buildWaStoreTrip, storeStatusKey, storeStatusText, isEntry, VEHICLES, STEPS, isInHondurasPublic: isInHonduras });
