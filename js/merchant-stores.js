@@ -33,7 +33,12 @@ import {
 } from './store-week.js?v=2026.10.24.2';
 
 import { formatLempiras } from './money-format.js';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.24.2';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.24.3';
+import {
+    buildDeliveryTrackingUrl,
+    buildMerchantShareTripMessage,
+    buildMerchantShareTripWhatsAppUrl,
+} from './merchant-delivery-request.js?v=2026.10.24.3';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -1427,6 +1432,15 @@ async function loadMyStore(preferredStoreId = null) {
         const wantedId = preferredStoreId || myStore?.id || getSavedSelectedStoreId(uid);
         myStore = (wantedId && myStores.find((s) => s.id === wantedId)) || myStores[0] || null;
         if (myStore?.id) setSavedSelectedStoreId(myStore.id, uid);
+        try {
+            window._hasMyStoreLoaded = true;
+            window._hasMyStoreCache = !!myStore;
+            if (uid) localStorage.setItem('honduraite_has_store_' + uid, myStore ? '1' : '0');
+            if (myStore) {
+                window.releaseMerchantDeliveryTripsFromPassengerUi?.();
+                syncMerchantQuickAccessUi();
+            }
+        } catch (_) {}
         return myStore;
     } catch (e) {
         console.warn('[stores] loadMyStore', e);
@@ -3479,16 +3493,35 @@ export function merchantOrderActionsHtml(o) {
     }
     if (o.status === 'ready') {
         return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-search"></i> ✅ Pedido preparado · llamando delivery (${rideName}), esperando que un conductor acepte</p>
-            ${o.tripId ? `<div class="order-actions mt-2">
-                <button type="button" class="stores-secondary-btn w-full" data-merchant-action="chat-driver" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+            ${o.tripId ? `<div class="order-actions mt-2" style="display:flex;flex-wrap:wrap;gap:6px">
+                <button type="button" class="stores-primary-btn" style="background:#16a34a;border-color:#16a34a" data-merchant-action="share-order-trip-wa" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fab fa-whatsapp"></i> Compartir viaje por WhatsApp
+                </button>
+                <button type="button" class="stores-secondary-btn" data-merchant-action="copy-order-trip-link" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fas fa-link"></i> Copiar link del viaje
+                </button>
+                <button type="button" class="stores-secondary-btn" data-merchant-action="share-order-trip-native" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fas fa-share-nodes"></i> Compartir desde la app
+                </button>
+                <button type="button" class="stores-secondary-btn" data-merchant-action="chat-driver" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
                     <i class="fas fa-comments text-amber-600"></i> 💬 Chat con repartidor
                 </button>
             </div>` : ''}`;
     }
     if (o.status === 'out_for_delivery') {
         return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> En camino${o.driverName ? ` con ${esc(o.driverName)}` : ''} · se marca entregado solo cuando el conductor termina</p>
-            <div class="order-actions mt-2">
-                ${o.tripId ? `<button type="button" class="stores-primary-btn" data-merchant-action="chat-driver" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+            <div class="order-actions mt-2" style="display:flex;flex-wrap:wrap;gap:6px">
+                ${o.tripId ? `
+                <button type="button" class="stores-primary-btn" style="background:#16a34a;border-color:#16a34a" data-merchant-action="share-order-trip-wa" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fab fa-whatsapp"></i> Compartir viaje por WhatsApp
+                </button>
+                <button type="button" class="stores-secondary-btn" data-merchant-action="copy-order-trip-link" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fas fa-link"></i> Copiar link del viaje
+                </button>
+                <button type="button" class="stores-secondary-btn" data-merchant-action="share-order-trip-native" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fas fa-share-nodes"></i> Compartir desde la app
+                </button>
+                <button type="button" class="stores-primary-btn" data-merchant-action="chat-driver" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
                     <i class="fas fa-comments"></i> 💬 Chat con repartidor
                 </button>` : ''}
                 <button type="button" class="stores-secondary-btn" data-merchant-action="delivered-order" data-order-id="${id}">Marcar entregado a mano</button>
@@ -4364,8 +4397,8 @@ export function openCreateStorePanel() {
     return openMerchantPanel({ createNew: true });
 }
 
-export function openMyStorePanel() {
-    return openMerchantPanel({ createNew: false });
+export function openMyStorePanel(opts = {}) {
+    return openMerchantPanel({ createNew: false, ...(opts || {}) });
 }
 
 export function closeMerchantPanel() {
@@ -4520,6 +4553,15 @@ function renderMerchantBody() {
                 </div>
             ` : ''}
             ${myStore ? `
+                <div class="merchant-share-banner" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#93c5fd;margin-bottom:8px">
+                    <div class="min-w-0">
+                        <p class="merchant-share-title" style="color:#0c4a8e"><i class="fas fa-motorcycle"></i> ¿Necesitas enviar un pedido a un cliente?</p>
+                        <p class="merchant-share-sub" style="color:#1e3a8a">Pide un delivery desde aquí y comparte el viaje en vivo por WhatsApp al cliente</p>
+                    </div>
+                    <button type="button" class="stores-primary-btn stores-primary-btn--sm" data-merchant-action="goto-pedir-envio">
+                        <i class="fas fa-paper-plane"></i> 🛵 Pedir envío
+                    </button>
+                </div>
                 <div class="merchant-share-banner">
                     <div class="min-w-0">
                         <p class="merchant-share-title"><i class="fas fa-bullhorn"></i> Atrae clientes</p>
@@ -5836,11 +5878,24 @@ function merchantDeliveryCtx() {
         waitChip: (t) => tripWaitChipHtml(t),
         createTrip: async (payload) => (await addDoc(publicCol('trips'), payload)).id,
         cancelTrip: (id, patch) => updateDoc(publicDoc('trips', id), patch),
+        openChat: (tripId) => openOrderDriverChatModal({
+            tripId,
+            role: 'merchant',
+            storeName: myStore?.name || 'Mi negocio',
+        }),
         subscribe: (cb) => onSnapshot(
             query(publicCol('trips'), where('clientId', '==', user?.uid || '-'), limit(150)),
             (snap) => {
                 const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }))
-                    .filter((t) => t.merchantDirectDelivery === true && t.storeId === myStore?.id)
+                    .filter((t) => {
+                        if (t.merchantDirectDelivery === true) {
+                            return !t.storeId || !myStore?.id || t.storeId === myStore.id;
+                        }
+                        if (t.serviceType === 'delivery' && !t.storeOrderId) {
+                            return !t.storeId || !myStore?.id || t.storeId === myStore.id;
+                        }
+                        return false;
+                    })
                     .sort((a, b) => (waitTsMs(b.createdAt) || b.storeOrderCreatedAtMs || 0) - (waitTsMs(a.createdAt) || a.storeOrderCreatedAtMs || 0))
                     .slice(0, 20);
                 cb(list);
@@ -6027,6 +6082,13 @@ async function onMerchantClick(e) {
         });
         return renderMerchantBody();
     }
+    if (action === 'goto-pedir-envio') {
+        merchantTab = 'pedir-envio';
+        document.querySelectorAll('.merchant-tab').forEach((b) => {
+            b.classList.toggle('active', b.getAttribute('data-merchant-tab') === 'pedir-envio');
+        });
+        return renderMerchantBody();
+    }
     if (action === 'save-store') return saveStore();
     if (action === 'use-gps') return useGpsForStore();
     if (action === 'toggle-open') return toggleStoreOpen();
@@ -6118,6 +6180,66 @@ async function onMerchantClick(e) {
             t.disabled = false;
         }
         return;
+    }
+    if (action === 'share-order-trip-wa') {
+        const order = merchantOrders.find((o) => o.id === orderId) || {};
+        const tripId = t.getAttribute('data-trip-id') || order?.tripId || '';
+        if (!tripId) return toast('Este pedido aún no tiene viaje asignado.', 'warning');
+        let tripDoc = null;
+        try {
+            const snap = await getDoc(publicDoc('trips', tripId));
+            if (snap.exists()) tripDoc = { id: snap.id, ...snap.data() };
+        } catch (_) {}
+        const baseOrigin = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http') && !location.origin.includes('127.0.0.1') && !location.origin.includes('localhost'))
+            ? location.origin
+            : 'https://honduraite.com';
+        const waUrl = buildMerchantShareTripWhatsAppUrl({
+            trip: tripDoc || { id: tripId, destination: order.deliveryAddress, driverName: order.driverName },
+            order,
+            storeName: order.storeName || myStore?.name || 'Mi negocio',
+            baseOrigin,
+        });
+        try { window.open(waUrl, '_blank', 'noopener,noreferrer'); } catch (_) {}
+        return toast('📲 Abriendo WhatsApp con el link de seguimiento para el cliente…', 'success');
+    }
+    if (action === 'share-order-trip-native') {
+        const order = merchantOrders.find((o) => o.id === orderId) || {};
+        const tripId = t.getAttribute('data-trip-id') || order?.tripId || '';
+        if (!tripId) return toast('Este pedido aún no tiene viaje asignado.', 'warning');
+        const baseOrigin = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http') && !location.origin.includes('127.0.0.1') && !location.origin.includes('localhost'))
+            ? location.origin
+            : 'https://honduraite.com';
+        const trackUrl = buildDeliveryTrackingUrl(tripId, baseOrigin);
+        const msgText = buildMerchantShareTripMessage({
+            trip: { id: tripId, destination: order.deliveryAddress, driverName: order.driverName, priceNum: order.deliveryFee },
+            order,
+            storeName: order.storeName || myStore?.name || 'Mi negocio',
+            trackingUrl: trackUrl,
+            baseOrigin,
+        });
+        try {
+            if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+                await navigator.share({ title: 'Seguimiento de tu pedido', text: msgText, url: trackUrl });
+                return;
+            }
+        } catch (_) {}
+        try {
+            if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(msgText);
+        } catch (_) {}
+        return toast('🔗 Mensaje y link de seguimiento listos para compartir', 'success');
+    }
+    if (action === 'copy-order-trip-link') {
+        const order = merchantOrders.find((o) => o.id === orderId) || {};
+        const tripId = t.getAttribute('data-trip-id') || order?.tripId || '';
+        if (!tripId) return toast('Este pedido aún no tiene viaje asignado.', 'warning');
+        const baseOrigin = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http') && !location.origin.includes('127.0.0.1') && !location.origin.includes('localhost'))
+            ? location.origin
+            : 'https://honduraite.com';
+        const trackUrl = buildDeliveryTrackingUrl(tripId, baseOrigin);
+        try {
+            if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(trackUrl);
+        } catch (_) {}
+        return toast('📋 Link de seguimiento copiado: ' + trackUrl, 'success');
     }
     if (action === 'chat-driver') {
         const order = merchantOrders.find((o) => o.id === orderId);
@@ -7182,6 +7304,61 @@ export function syncDriverHotStoresOnMap() {
     } catch (_) {}
 }
 
+
+export function syncMerchantQuickAccessUi() {
+    if (typeof document === 'undefined') return;
+    const hub = document.getElementById('passenger-home-hub');
+    const existingCard = document.getElementById('merchant-home-quick-card');
+    if (!myStore) {
+        existingCard?.remove();
+        return;
+    }
+    const pendingCount = merchantOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status)).length;
+    const branch = formatStoreBranchLabel(myStore);
+    const storeTitle = branch ? `${myStore.name || 'Mi negocio'} · ${branch}` : (myStore.name || 'Mi negocio');
+    const html = `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+            <div style="min-width:0">
+                <span style="display:inline-block;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.06em;color:#0c4a8e;background:#dbeafe;padding:2px 8px;border-radius:999px">🏪 Panel rápido de tu negocio</span>
+                <div style="font-size:14px;font-weight:900;color:#0f172a;margin-top:3px">${esc(storeTitle)}</div>
+                <div style="font-size:11px;font-weight:600;color:#475569">Pide un delivery desde aquí o administra tus pedidos sin bloquear tu pantalla</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;width:100%;margin-top:4px">
+                <button type="button" data-merchant-quick="pedir-envio" style="flex:1;min-width:140px;border:0;border-radius:12px;padding:10px 12px;background:linear-gradient(135deg,#0c4a8e,#1a6bb5);color:#fff;font-weight:900;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 4px 12px rgba(12,74,142,.22)">
+                    <i class="fas fa-motorcycle"></i> 🛵 Pedir envío ahora
+                </button>
+                <button type="button" data-merchant-quick="orders" style="flex:1;min-width:130px;border:1px solid #cbd5e1;border-radius:12px;padding:10px 12px;background:#fff;color:#0f172a;font-weight:800;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+                    <i class="fas fa-receipt" style="color:#0c4a8e"></i> Ver pedidos${pendingCount > 0 ? ` <span style="background:#ef4444;color:#fff;border-radius:999px;padding:1px 6px;font-size:10px">${pendingCount}</span>` : ''}
+                </button>
+            </div>
+        </div>
+    `;
+    if (hub) {
+        let card = existingCard;
+        if (!card) {
+            card = document.createElement('div');
+            card.id = 'merchant-home-quick-card';
+            card.style.cssText = 'background:linear-gradient(135deg,#f8fafc,#eff6ff);border:1.5px solid #93c5fd;border-radius:16px;padding:11px 12px;margin:0 0 10px 0;box-shadow:0 4px 14px rgba(12,74,142,.08)';
+            card.addEventListener('click', (ev) => {
+                const btn = ev.target.closest('[data-merchant-quick]');
+                if (!btn) return;
+                ev.preventDefault();
+                ev.stopPropagation();
+                const act = btn.getAttribute('data-merchant-quick');
+                if (act === 'pedir-envio') {
+                    window.releaseMerchantDeliveryTripsFromPassengerUi?.();
+                    openMerchantPanel({ createNew: false, tab: 'pedir-envio' });
+                } else if (act === 'orders') {
+                    window.releaseMerchantDeliveryTripsFromPassengerUi?.();
+                    openMerchantPanel({ createNew: false, tab: 'orders' });
+                }
+            });
+            hub.insertBefore(card, hub.firstChild);
+        }
+        card.innerHTML = html;
+    }
+}
+
 export function initMerchantStores(deps = {}) {
     dbRef = deps.db;
     appIdRef = deps.appId;
@@ -7214,6 +7391,18 @@ export function initMerchantStores(deps = {}) {
     window.focusDriverMapOnHotStore = focusDriverMapOnHotStore;
     window.openCreateStorePanel = openCreateStorePanel;
     window.openMyStorePanel = openMyStorePanel;
+    window.openStoreTripChatModal = openOrderDriverChatModal;
+    window.syncMerchantQuickAccessUi = syncMerchantQuickAccessUi;
+    // Si passenger-home quedó en modo 'stores' esperando a que cargara este módulo diferido, abrirlo ya
+    try {
+        if (document.body?.dataset?.passengerMode === 'stores') {
+            const mp = document.getElementById('stores-marketplace-panel');
+            const mer = document.getElementById('merchant-panel');
+            if (mp?.classList.contains('hidden') && mer?.classList.contains('hidden')) {
+                setTimeout(() => openMarketplace(), 50);
+            }
+        }
+    } catch (_) {}
     window.closeMerchantPanel = closeMerchantPanel;
     window.shareStoreCatalog = shareStoreCatalog;
     window.inviteBusinessViaWhatsApp = showStaffInviteBusinessModal;
@@ -7243,6 +7432,7 @@ export function onMerchantAuthReady() {
     }
     loadMyStore().then((store) => {
         updateMerchantOpenToggle();
+        syncMerchantQuickAccessUi();
         // Escuchar pedidos en vivo (sonido + toast) aunque no abra el panel
         if (store?.id || getCurrentUser()?.uid) {
             startMerchantOrdersListener();
@@ -7266,6 +7456,8 @@ export function onMerchantAuthReady() {
 }
 
 export const __testMerchant = {
+    syncMerchantQuickAccessUi,
+    merchantOrderActionsHtml,
     handleClientOrdersListUpdate,
     showClientOrderLiveBanner,
     markCheckoutFieldInvalid,

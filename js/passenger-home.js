@@ -79,6 +79,11 @@ function isClientLike() {
 }
 
 function isBusyWithTripUi() {
+    const trip = window.activeTrip || window.currentActiveTripData;
+    if (trip && typeof window.isMerchantOwnedDeliveryTrip === 'function' && window.isMerchantOwnedDeliveryTrip(trip)) {
+        try { window.releaseMerchantDeliveryTripsFromPassengerUi?.(); } catch (_) {}
+        return false;
+    }
     // No forzar menú si está buscando o en viaje activo
     if (document.body.classList.contains('is-searching')) return true;
     if (document.body.classList.contains('trip-active')) return true;
@@ -87,7 +92,6 @@ function isBusyWithTripUi() {
     if (searching && !searching.classList.contains('hidden')) return true;
     const active = document.getElementById('active-trip-panel');
     if (active && !active.classList.contains('hidden')) return true;
-    const trip = window.activeTrip || window.currentActiveTripData;
     if (trip && ['pending', 'accepted', 'in_progress'].includes(trip.status)) return true;
     return false;
 }
@@ -460,8 +464,30 @@ function applyMode(mode) {
 
     if (mode === 'stores') {
         if (meta.openMarketplace) {
-            // Entra directo al panorama completo de tiendas
-            window.openStoresMarketplace?.();
+            if (typeof window.openStoresMarketplace === 'function') {
+                window.openStoresMarketplace();
+            } else {
+                // Lazy module merchant-stores.js aún cargando: no dejar #control-panel en blanco
+                if (hub) hub.classList.remove('hidden');
+                if (bar) bar.classList.add('hidden');
+                let tries = 0;
+                const waitStores = setInterval(() => {
+                    tries += 1;
+                    if (document.body.dataset.passengerMode !== 'stores') {
+                        clearInterval(waitStores);
+                        return;
+                    }
+                    if (typeof window.openStoresMarketplace === 'function') {
+                        clearInterval(waitStores);
+                        if (hub) hub.classList.add('hidden');
+                        if (bar) bar.classList.remove('hidden');
+                        window.openStoresMarketplace();
+                    } else if (tries >= 25) {
+                        clearInterval(waitStores);
+                        applyMode('home');
+                    }
+                }, 150);
+            }
         }
     } else {
         // Al salir de tiendas, cerrar el mundo sin reentrar al menú (ya estamos cambiando de modo)

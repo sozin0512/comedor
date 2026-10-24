@@ -7,7 +7,8 @@ import {
     MERCHANT_DELIVERY_VEHICLES, haversineKm, validateMerchantDeliveryForm,
     buildMerchantDeliveryTrip, merchantDeliveryStatus, merchantVehicleAvailability, merchantCancelPatch,
     resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras, customerChargeText,
-} from './merchant-delivery-request.js?v=2026.10.24.2';
+    parseHondurasCoordsInput, buildDeliveryTrackingUrl, buildMerchantShareTripWhatsAppUrl,
+} from './merchant-delivery-request.js?v=2026.10.24.3';
 
 function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -56,7 +57,12 @@ export const MERCHANT_DELIVERY_CSS = `
 .md-req{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #f1f5f9}
 .md-req:first-of-type{border-top:0}
 .md-pill{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;background:#f1f5f9;white-space:nowrap}
-.md-cancel{border:1px solid #fecaca;color:#b91c1c;background:#fff;border-radius:10px;padding:5px 9px;font-weight:800;font-size:12px}
+.md-cancel{border:1px solid #fecaca;color:#b91c1c;background:#fff;border-radius:10px;padding:5px 9px;font-weight:800;font-size:12px;cursor:pointer}
+.md-req-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.md-wa-btn{border:1px solid #16a34a;background:#16a34a;color:#fff;border-radius:10px;padding:6px 10px;font-weight:800;font-size:11.5px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;text-decoration:none}
+.md-wa-btn:hover{background:#15803d}
+.md-copy-btn{border:1px solid #cbd5e1;background:#f8fafc;color:#0f172a;border-radius:10px;padding:6px 10px;font-weight:800;font-size:11.5px;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+.md-created-banner{background:#ecfdf5;border:1px solid #6ee7b7;border-radius:14px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;color:#065f46}
 .md-map{position:fixed;inset:0;z-index:99999;background:#fff;display:flex;flex-direction:column}
 .md-map-top{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid #e2e8f0;font-weight:800}
 .md-map-top button{border:0;background:#f1f5f9;border-radius:10px;width:36px;height:36px}
@@ -84,6 +90,7 @@ export function createMerchantDeliveryTab(ctx) {
         },
         errors: {}, suggestions: [], requests: [], commission: null, busy: false, unsub: null, root: null, sugTimer: null,
         quote: null, quoteKey: '', quoting: false, quoteSeq: 0, map: null, savingStore: false,
+        lastCreatedTrip: null,
     };
     const zoneId = ctx.zone?.id || ctx.store?.cityId || null;
     const avail = () => Object.fromEntries(Object.keys(MERCHANT_DELIVERY_VEHICLES).map((v) => [v, merchantVehicleAvailability(v, zoneId, ctx.availability)]));
@@ -130,16 +137,30 @@ export function createMerchantDeliveryTab(ctx) {
             const veh = MERCHANT_DELIVERY_VEHICLES[t.deliveryVehicle] || MERCHANT_DELIVERY_VEHICLES.moto;
             const wait = typeof ctx.waitChip === 'function' && s.key === 'searching' ? ctx.waitChip(t) : '';
             const collect = Number(t.deliveryDetails?.collectAmount) || 0;
+            const recipientName = t.deliveryDetails?.recipientName || '';
+            const recipientPhone = t.deliveryDetails?.recipientPhone || '';
+            const canShare = s.key !== 'cancelled' && !!t.id;
+            const canChat = (s.key === 'verifying' || s.key === 'searching' || s.key === 'accepted' || s.key === 'on_the_way' || s.key === 'pickup' || s.key === 'delivering') && !!t.id;
             return `<div class="md-req" data-md-req="${esc(t.id)}">
-                <div style="min-width:0">
+                <div style="min-width:0;flex:1">
                     <div style="font-weight:800;font-size:13px"><i class="fas ${veh.icon}"></i> ${esc(t.destination || 'Entrega')}</div>
                     <div style="font-size:12px;color:#64748b">Cliente paga ${esc(money((Number(t.priceNum) || 0) + collect))}${collect > 0 ? ` (envío ${esc(t.price || '')} + productos ${esc(money(collect))})` : ' (envío)'}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>
+                    ${recipientName || recipientPhone ? `<div style="font-size:11px;color:#475569;margin-top:2px"><i class="fas fa-user"></i> Recibe: <b>${esc(recipientName || 'Cliente')}</b>${recipientPhone ? ` · ${esc(recipientPhone)}` : ''}</div>` : ''}
+                    ${canShare ? `<div class="md-req-actions">
+                        <button type="button" class="md-wa-btn" data-md-share-wa="${esc(t.id)}" title="Compartir seguimiento en vivo al cliente por WhatsApp">
+                            <i class="fab fa-whatsapp"></i> Compartir viaje por WhatsApp
+                        </button>
+                        <button type="button" class="md-copy-btn" data-md-copy-link="${esc(t.id)}" title="Copiar link de seguimiento en vivo">
+                            <i class="fas fa-link"></i> Copiar link del viaje
+                        </button>
+                        <button type="button" class="md-copy-btn" data-md-share-native="${esc(t.id)}" title="Compartir desde la app">
+                            <i class="fas fa-share-nodes"></i> Compartir desde la app
+                        </button>
+                        ${canChat ? `<button type="button" class="md-btn2" style="padding:5px 9px;font-size:11.5px" data-md-chat="${esc(t.id)}"><i class="fas fa-comments"></i> Chat repartidor</button>` : ''}
+                    </div>` : ''}
                 </div>
-                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0">
                     <span class="md-pill" data-md-status="${s.key}" style="color:${TONE[s.tone]}">${esc(s.label)}</span>
-                    ${(s.key === 'searching' || s.key === 'pickup' || s.key === 'delivering') && t.id
-                        ? `<button type="button" class="md-btn2" style="padding:4px 8px;font-size:11px" data-md-chat="${esc(t.id)}"><i class="fas fa-comments"></i> Chat repartidor</button>`
-                        : ''}
                     ${s.canCancel ? `<button type="button" class="md-cancel" data-md-cancel="${esc(t.id)}">Cancelar</button>` : ''}
                 </div>
             </div>`;
@@ -299,6 +320,16 @@ export function createMerchantDeliveryTab(ctx) {
             st.form.dropoffLat = null; st.form.dropoffLng = null; st.quote = null; st.quoteKey = '';
             clearTimeout(st.sugTimer);
             const q = ev.target.value.trim();
+            const directCoords = parseHondurasCoordsInput(q);
+            if (directCoords) {
+                st.form.dropoffLat = directCoords.lat;
+                st.form.dropoffLng = directCoords.lng;
+                st.suggestions = [];
+                delete st.errors.dropoff;
+                render();
+                requote();
+                return;
+            }
             st.sugTimer = setTimeout(async () => {
                 st.suggestions = q.length >= 3 && ctx.placesFetch ? (await ctx.placesFetch(q).catch(() => [])) : [];
                 render();
@@ -318,6 +349,74 @@ export function createMerchantDeliveryTab(ctx) {
             const d = s && ctx.placeDetails ? await ctx.placeDetails(s).catch(() => null) : null;
             if (d && isInHonduras(d.lat, d.lng)) { st.form.dropoffAddress = d.address || s.description; st.form.dropoffLat = d.lat; st.form.dropoffLng = d.lng; delete st.errors.dropoff; }
             render(); return requote();
+        }
+        const shWa = ev.target.closest('[data-md-share-wa]');
+        if (shWa) {
+            const tripId = shWa.dataset.mdShareWa;
+            const trip = st.requests.find((r) => String(r.id) === String(tripId))
+                || (st.lastCreatedTrip && String(st.lastCreatedTrip.id) === String(tripId) ? st.lastCreatedTrip : { id: tripId });
+            const baseOrigin = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http') && !location.origin.includes('127.0.0.1') && !location.origin.includes('localhost'))
+                ? location.origin
+                : 'https://honduraite.com';
+            const waUrl = buildMerchantShareTripWhatsAppUrl({
+                trip,
+                storeName: ctx.store?.name || 'Mi negocio',
+                baseOrigin,
+            });
+            const trackUrl = buildDeliveryTrackingUrl(tripId, baseOrigin);
+            if (typeof ctx.onShareWhatsApp === 'function') {
+                ctx.onShareWhatsApp({ tripId, trip, waUrl, trackUrl });
+            } else if (typeof window !== 'undefined' && typeof window.open === 'function') {
+                window.open(waUrl, '_blank', 'noopener,noreferrer');
+            }
+            ctx.toast?.('📲 Abriendo WhatsApp con el link de seguimiento para el cliente…', 'success');
+            return;
+        }
+        const cpLink = ev.target.closest('[data-md-copy-link]');
+        if (cpLink) {
+            const tripId = cpLink.dataset.mdCopyLink;
+            const baseOrigin = (typeof location !== 'undefined' && location.origin && location.origin.startsWith('http') && !location.origin.includes('127.0.0.1') && !location.origin.includes('localhost'))
+                ? location.origin
+                : 'https://honduraite.com';
+            const trackUrl = buildDeliveryTrackingUrl(tripId, baseOrigin);
+            if (typeof ctx.onCopyTrackingLink === 'function') {
+                ctx.onCopyTrackingLink({ tripId, trackUrl });
+            }
+            try {
+                if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(trackUrl);
+                }
+            } catch (_) {}
+            ctx.toast?.('📋 Link de seguimiento copiado: ' + trackUrl, 'success');
+            return;
+        }
+        const shn = ev.target.closest('[data-md-share-native]');
+        if (shn) {
+            const tripId = shn.dataset.mdShareNative;
+            const trip = st.requests.find((r) => String(r.id) === String(tripId)) || { id: tripId };
+            const baseOrigin = (typeof window !== 'undefined' && window.location?.origin && /^https?:/i.test(window.location.origin))
+                ? window.location.origin
+                : 'https://honduraite.com';
+            const trackUrl = buildDeliveryTrackingUrl(tripId, baseOrigin);
+            const msgText = buildMerchantShareTripMessage({
+                trip,
+                storeName: ctx.store?.name || trip?.deliveryDetails?.storeName || 'Nuestra tienda',
+                trackingUrl: trackUrl,
+                baseOrigin,
+            });
+            try {
+                if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+                    await navigator.share({ title: 'Seguimiento de tu pedido', text: msgText, url: trackUrl });
+                    return;
+                }
+            } catch (_) {}
+            try {
+                if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(msgText);
+                }
+            } catch (_) {}
+            ctx.toast?.('🔗 Mensaje y link de seguimiento listos para compartir', 'success');
+            return;
         }
         const ch = ev.target.closest('[data-md-chat]');
         if (ch) {
@@ -353,10 +452,13 @@ export function createMerchantDeliveryTab(ctx) {
         try {
             const payload = buildMerchantDeliveryTrip({ store: ctx.store, uid: ctx.uid, form, estimate: est, zone: ctx.zone, serverTs: ctx.serverTs?.() ?? null });
             const id = await ctx.createTrip(payload);
+            st.lastCreatedTrip = { id, ...payload };
             ctx.toast?.(`Envío pedido · verificando precio y buscando ${MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase()}`, 'success');
             st.form = { ...st.form, dropoffAddress: '', dropoffLat: null, dropoffLng: null, customerName: '', customerPhone: '', notes: '', collectAmount: '' };
             st.quote = null; st.quoteKey = '';
-            if (!st.unsub) st.requests = [{ id, ...payload }, ...st.requests];
+            if (!st.requests.some((r) => String(r.id) === String(id))) {
+                st.requests = [{ id, ...payload }, ...st.requests];
+            }
         } catch (e) {
             ctx.toast?.(e?.message || 'No se pudo pedir el envío', 'error');
         } finally { st.busy = false; render(); }
