@@ -5,8 +5,8 @@
  * Los estados de las tiendas NO cambian: se agrupan para la vista.
  */
 import { collection, onSnapshot, query, where, orderBy, limit, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { esc, money } from './delivery-zones-shared.js?v=2026.10.24.3';
-import { orderWaitChipHtml, injectWaitChipCss, startWaitTicker } from './trip-wait.js?v=2026.10.24.3';
+import { esc, money } from './delivery-zones-shared.js?v=2026.10.24.4';
+import { orderWaitChipHtml, injectWaitChipCss, startWaitTicker } from './trip-wait.js?v=2026.10.24.4';
 
 export const STAGES = [
     { id: 'recibido', label: 'Recibido', statuses: ['pending', 'accepted'], color: '#2563EB', limitMin: 10 },
