@@ -13990,17 +13990,18 @@ if (document.readyState === 'loading') {
             if (role === 'stats') {
                 const U = window.OpsUi;
                 container.innerHTML = U.page(
-                    U.hero('Estadísticas globales', 'Resumen de operación por período') +
+                    U.hero('Estadísticas globales', 'Desglose por servicio, embudo, tiendas, depósitos y exportación CSV por período y ciudad') +
                     U.toolbar({
                         chipsHtml: [
-                            U.chip('Hoy', "window.loadGlobalStats('today', this)", { active: false, variant: 'emerald' }),
+                            U.chip('Hoy', "window.loadGlobalStats('today', this)", { active: true, variant: 'emerald' }),
                             U.chip('Semana', "window.loadGlobalStats('week', this)", { variant: 'muted' }),
                             U.chip('Mes', "window.loadGlobalStats('month', this)", { variant: 'muted' }),
                             U.chip('Año', "window.loadGlobalStats('year', this)", { variant: 'muted' })
                         ].join('')
                     }) +
-                    `<div id="global-stats-content" class="ops-form-panel"><div class="ops-form-panel-body text-sm">${U.empty('fa-chart-bar', 'Selecciona un período', 'Toca Hoy, Semana, Mes o Año para cargar métricas.')}</div></div>`
+                    `<div id="global-stats-content" class="ops-form-panel"><div class="ops-form-panel-body text-sm">${U.empty('fa-chart-bar', 'Selecciona un período', 'Toca Hoy, Semana, Mes o Año, o filtra por Ciudad y Rango de fechas.')}</div></div>`
                 );
+                setTimeout(() => { window.loadGlobalStats?.('today'); }, 30);
                 return;
             }
 
@@ -45158,12 +45159,24 @@ window.loadRoleStaffRuntime = async () => {
     const m = await import(`./app-staff.js?v=${APP_CONFIG.appVersion}`);
     m.installStaffRuntime();
 };
-async function hrLoadGlobalStatsStub(period, btn) {
+async function hrLoadGlobalStatsStub(period, btn, opts) {
     await window.loadRoleStaffRuntime();
     if (window.loadGlobalStats === hrLoadGlobalStatsStub) return;
-    return window.loadGlobalStats(period, btn);
+    return window.loadGlobalStats(period, btn, opts);
 }
 window.loadGlobalStats = hrLoadGlobalStatsStub;
+window.applyGlobalStatsFilter = async () => {
+    await window.loadRoleStaffRuntime();
+    return window.applyGlobalStatsFilter?.();
+};
+window.applyGlobalStatsDateRange = async () => {
+    await window.loadRoleStaffRuntime();
+    return window.applyGlobalStatsDateRange?.();
+};
+window.exportGlobalStatsCsv = async () => {
+    await window.loadRoleStaffRuntime();
+    return window.exportGlobalStatsCsv?.();
+};
 
 /** Busca en el servidor el correo de un teléfono (para «Entrar con teléfono» sin sesión). */
 async function resolvePhoneLoginEmailServer(identifier) {

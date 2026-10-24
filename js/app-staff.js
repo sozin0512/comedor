@@ -7,27 +7,111 @@ import { isCapacitorNative } from './capacitor-native.js';
 import { showEnlargedPhoto } from './photo-viewer.js';
 
 import { formatLempiras } from './money-format.js';
+import {
+    computeGlobalStatsSnapshot,
+    buildGlobalStatsCsv,
+    buildStatsFiltersToolbarHtml,
+    renderGlobalStatsHtml,
+    isTripTrashed,
+} from "./stats-engine.js";
 export function installStaffRuntime() {
     if (window.__hrStaffRuntime) return;
     window.__hrStaffRuntime = true;
     const db = window.db;
     const appId = window.appId;
 // ================================================
-// ESTADÍSTICAS GLOBALES (Admin)
+// ESTADÍSTICAS GLOBALES (Admin y Supervisión)
 // ================================================
-window.loadGlobalStats = async (period = 'today', btnElement = null) => {
-    const contentDiv = document.getElementById('global-stats-content');
-    if (!contentDiv) return;
+window._globalStatsState = window._globalStatsState || {
+    period: "today",
+    city: "all",
+    from: "",
+    to: "",
+};
 
-    // Cambiar botón activo
-    if (btnElement) {
-        btnElement.parentElement?.querySelectorAll('.ops-chip, button').forEach((b) => {
-            b.classList.remove('ops-chip--active', 'bg-emerald-600', 'text-white');
-            b.classList.add('bg-gray-700', 'text-white');
-        });
-        btnElement.classList.remove('bg-gray-700');
-        btnElement.classList.add('ops-chip--active', 'bg-emerald-600', 'text-white');
+window.applyGlobalStatsFilter = () => {
+    const cityEl = document.getElementById("stats-city-filter");
+    const fromEl = document.getElementById("stats-date-from");
+    const toEl = document.getElementById("stats-date-to");
+    const city = cityEl ? cityEl.value : (window._globalStatsState.city || "all");
+    const from = fromEl ? fromEl.value : (window._globalStatsState.from || "");
+    const to = toEl ? toEl.value : (window._globalStatsState.to || "");
+    const period = (from || to) ? "custom" : (window._globalStatsState.period || "today");
+    return window.loadGlobalStats(period, null, { city, from, to });
+};
+
+window.applyGlobalStatsDateRange = () => {
+    const cityEl = document.getElementById("stats-city-filter");
+    const fromEl = document.getElementById("stats-date-from");
+    const toEl = document.getElementById("stats-date-to");
+    const city = cityEl ? cityEl.value : (window._globalStatsState.city || "all");
+    const from = fromEl ? fromEl.value : "";
+    const to = toEl ? toEl.value : "";
+    const period = (from || to) ? "custom" : (window._globalStatsState.period || "today");
+    return window.loadGlobalStats(period, null, { city, from, to });
+};
+
+window.exportGlobalStatsCsv = () => {
+    const snap = window._lastGlobalStatsSnapshot;
+    if (!snap) {
+        window.showToast?.("Primero carga un período en Estadísticas para exportar.", "warning");
+        return null;
     }
+    const csvContent = buildGlobalStatsCsv(snap);
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const citySlug = (snap.filter?.city && snap.filter.city !== "all") ? snap.filter.city : "todas";
+    const dateStamp = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `estadisticas-honduraite-${snap.filter?.period || "corte"}-${citySlug}-${dateStamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+        a.remove();
+        URL.revokeObjectURL(url);
+    }, 2000);
+    window.showToast?.("CSV de estadísticas descargado.", "success");
+    return csvContent;
+};
+
+window.loadGlobalStats = async (period = "today", btnElement = null, customOptions = {}) => {
+    const contentDiv = document.getElementById("global-stats-content");
+    if (!contentDiv) return null;
+
+    // Insertar barra de filtros avanzados (Ciudad + Rango de fechas + Exportar CSV) si aún no existe
+    if (!document.getElementById("global-stats-advanced-filters") && contentDiv.parentElement) {
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = buildStatsFiltersToolbarHtml(window._globalStatsState);
+        if (wrapper.firstElementChild) {
+            contentDiv.parentElement.insertBefore(wrapper.firstElementChild, contentDiv);
+        }
+    }
+
+    // Si el usuario tocó un botón rápido (Hoy / Semana / Mes / Año), limpiar inputs de rango personalizado
+    if (btnElement && period !== "custom") {
+        const fromEl = document.getElementById("stats-date-from");
+        const toEl = document.getElementById("stats-date-to");
+        if (fromEl) fromEl.value = "";
+        if (toEl) toEl.value = "";
+        btnElement.parentElement?.querySelectorAll(".ops-chip, button").forEach((b) => {
+            b.classList.remove("ops-chip--active", "bg-emerald-600", "text-white");
+            b.classList.add("bg-gray-700", "text-white");
+        });
+        btnElement.classList.remove("bg-gray-700");
+        btnElement.classList.add("ops-chip--active", "bg-emerald-600", "text-white");
+    }
+
+    const cityEl = document.getElementById("stats-city-filter");
+    const fromEl = document.getElementById("stats-date-from");
+    const toEl = document.getElementById("stats-date-to");
+
+    const city = customOptions.city ?? (cityEl ? cityEl.value : (window._globalStatsState?.city || "all"));
+    const from = customOptions.from ?? (period === "custom" ? (fromEl?.value || window._globalStatsState?.from || "") : (fromEl?.value || ""));
+    const to = customOptions.to ?? (period === "custom" ? (toEl?.value || window._globalStatsState?.to || "") : (toEl?.value || ""));
+    const effectivePeriod = (from || to) ? "custom" : (period || "today");
+
+    window._globalStatsState = { period: effectivePeriod, city, from, to };
 
     contentDiv.innerHTML = `
         <div class="flex justify-center items-center py-12">
@@ -36,476 +120,90 @@ window.loadGlobalStats = async (period = 'today', btnElement = null) => {
     `;
 
     try {
-        const now = new Date();
-        let startDate = new Date();
-
-        if (period === 'today') {
-            startDate.setHours(0, 0, 0, 0);
-        } else if (period === 'week') {
-            startDate.setDate(startDate.getDate() - 7);
-        } else if (period === 'month') {
-            startDate.setMonth(startDate.getMonth() - 1);
-        } else if (period === 'year') {
-            startDate.setFullYear(startDate.getFullYear() - 1);
-        }
-
-        const tripsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
-
-        let totalTrips = 0;
-        let totalEarned = 0;
-        let cashEarned = 0;
-        let saldoEarned = 0;
-        let cashTrips = 0;
-        let saldoTrips = 0;
-        const tripRows = [];
-        const driverStats = {};
-        /** Para la comisión por servicio (panel Viajes → Ajustes de comisión). */
-        const commTrips = [];
-
-        tripsSnap.forEach((tripDoc) => {
-            const t = tripDoc.data();
-
-            if (t.status === 'completed' && t.createdAt) {
-                const tripDate = t.createdAt.toDate ? t.createdAt.toDate() : new Date(t.createdAt);
-
-                if (tripDate >= startDate) {
-                    const price = window.parseTripPrice?.(t) || parseFloat(t.priceNum) || 0;
-                    const completedAt = t.completedAt?.toDate?.() || null;
-                    const startedAt = t.startedAt?.toDate?.() || null;
-                    let durationMin = null;
-                    if (completedAt && startedAt) {
-                        durationMin = Math.max(1, Math.round((completedAt - startedAt) / 60000));
-                    }
-
-                    totalTrips++;
-                    totalEarned += price;
-                    commTrips.push({ t, price, saldo: t.paymentMethod === 'saldo' });
-
-                    if (t.paymentMethod === 'saldo') {
-                        saldoEarned += price;
-                        saldoTrips++;
-                    } else {
-                        cashEarned += price;
-                        cashTrips++;
-                    }
-
-                    const driverKey = t.driverId || 'sin-conductor';
-                    if (!driverStats[driverKey]) {
-                        driverStats[driverKey] = {
-                            name: t.driverName || 'Sin conductor',
-                            trips: 0,
-                            earned: 0
-                        };
-                    }
-                    driverStats[driverKey].trips++;
-                    driverStats[driverKey].earned += price;
-
-                    tripRows.push({
-                        date: tripDate,
-                        driverName: t.driverName || '—',
-                        clientName: t.clientName || '—',
-                        origin: t.origin || '—',
-                        destination: t.destination || '—',
-                        price,
-                        payment: t.paymentMethod === 'saldo' ? 'Saldo' : 'Efectivo',
-                        durationMin,
-                        timeLabel: tripDate.toLocaleString('es-HN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                    });
-                }
-            }
-        });
-
-        tripRows.sort((a, b) => b.date - a.date);
-
-        // % real de Cuentas bancarias / platformConfig (ej. 18%). Antes estaba hardcodeado 30%.
-        let platformPct = Number(APP_CONFIG.commissionPercent) || 0;
-        try {
-            platformPct = typeof window.getPlatformCommission === 'function'
-                ? await window.getPlatformCommission()
-                : ((Number.isFinite(Number(APP_CONFIG.commissionPercent)) ? Number(APP_CONFIG.commissionPercent) : 0));
-        } catch (_) {
-            platformPct = (Number.isFinite(Number(APP_CONFIG.commissionPercent)) ? Number(APP_CONFIG.commissionPercent) : 0);
-        }
-        if (!Number.isFinite(platformPct) || platformPct < 0 || platformPct > 100) {
-            platformPct = (Number.isFinite(Number(APP_CONFIG.commissionPercent)) ? Number(APP_CONFIG.commissionPercent) : 0);
-        }
-        // % por viaje: el que quedó guardado al completar; si no, el del servicio; si no, el general.
-        const svcPctCache = {};
-        const pctForTrip = async (t) => {
-            const stored = Number(t.commissionPercent);
-            if (t.commissionPercent != null && Number.isFinite(stored) && stored >= 0 && stored <= 100) return stored;
-            const key = window.commissionServiceKey?.(t) || '';
-            if (!(key in svcPctCache)) {
-                try {
-                    const v = typeof window.getPlatformCommission === 'function' ? await window.getPlatformCommission(t) : platformPct;
-                    svcPctCache[key] = Number.isFinite(Number(v)) ? Number(v) : platformPct;
-                } catch (_) {
-                    svcPctCache[key] = platformPct;
-                }
-            }
-            return svcPctCache[key];
-        };
-        let cashCommissionSum = 0;
-        let saldoCommissionSum = 0;
-        for (const ct of commTrips) {
-            const pct = await pctForTrip(ct.t);
-            const c = ct.price * (pct / 100);
-            if (ct.saldo) saldoCommissionSum += c;
-            else cashCommissionSum += c;
-        }
-        const cashCommission = Math.round(cashCommissionSum * 100) / 100;
-        const saldoCommission = Math.round(saldoCommissionSum * 100) / 100;
-        const commission = Math.round((cashCommission + saldoCommission) * 100) / 100;
-        const driverSummary = Object.values(driverStats)
-            .sort((a, b) => b.earned - a.earned)
-            .map((d) => `
-                <div class="flex justify-between items-center bg-gray-800/80 rounded-xl px-3 py-2 text-xs">
-                    <span class="text-emerald-300 font-bold truncate max-w-[55%]">${d.name}</span>
-                    <span class="text-white font-black">${d.trips} viajes · ${formatLempiras(d.earned)}</span>
-                </div>
-            `).join('');
-
-        const tripTable = tripRows.slice(0, 40).map((r) => `
-            <div class="bg-gray-800/60 rounded-xl p-3 text-[10px] space-y-1 border border-gray-700/50">
-                <div class="flex justify-between gap-2">
-                    <span class="text-gray-400 font-bold">${r.timeLabel}</span>
-                    <span class="text-emerald-400 font-black">${formatLempiras(r.price)} · ${r.payment}</span>
-                </div>
-                <p><b class="text-blue-300">Pasajero:</b> ${r.clientName}</p>
-                <p><b class="text-emerald-300">Conductor:</b> ${r.driverName}</p>
-                <p class="text-gray-400 truncate">${r.origin} → ${r.destination}</p>
-                ${r.durationMin ? `<p class="text-violet-300">Duración: ${r.durationMin} min</p>` : ''}
-            </div>
-        `).join('');
-
-        // —— Conductores que aún no depositaron la comisión ——
-        // Antes solo miraba “hoy” (remainingToDeposit). Si el día no se consolidó a deuda,
-        // un viaje de hace 2 días desaparecía. Ahora: comisión efectivo 7d − depósitos aprobados.
-        const formatElapsedSince = (fromMs) => {
-            if (!fromMs || !Number.isFinite(fromMs)) return '—';
-            const sec = Math.max(0, Math.floor((Date.now() - fromMs) / 1000));
-            if (sec < 60) return `${sec} s`;
-            const min = Math.floor(sec / 60);
-            if (min < 60) return `${min} min`;
-            const h = Math.floor(min / 60);
-            if (h < 48) {
-                const m = min % 60;
-                return m ? `${h} h ${m} min` : `${h} h`;
-            }
-            const d = Math.floor(h / 24);
-            const rh = h % 24;
-            return rh ? `${d} d ${rh} h` : `${d} d`;
-        };
-
-        const depositLookback = new Date();
-        depositLookback.setDate(depositLookback.getDate() - 7);
-        depositLookback.setHours(0, 0, 0, 0);
-        // Más amplio entre período elegido y 7 días (viajes de hace 2 días siempre entran)
-        const depositSince = startDate < depositLookback ? startDate : depositLookback;
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-
-        // Por conductor: viajes en efectivo + comisión debida (últimos 7d / período)
-        // Usa el % vivo de plataforma (igual que el sistema de depósito del conductor).
-        const cashByDriver = {};
-        const saldoCoveredByDriver = {};
-        tripsSnap.forEach((tripDoc) => {
-            const t = tripDoc.data();
-            if (t.status !== 'completed' || !t.driverId) return;
-            const tripDate = (typeof tripCompletedDate === 'function'
-                ? tripCompletedDate(t)
-                : null)
-                || t.completedAt?.toDate?.()
-                || (t.createdAt?.toDate ? t.createdAt.toDate() : (t.createdAt ? new Date(t.createdAt) : null));
-            if (!tripDate || tripDate < depositSince) return;
-            const id = t.driverId;
-            const price = window.parseTripPrice?.(t) || parseFloat(t.priceNum) || 0;
-            const pct = (typeof resolveDepositCommissionPercent === 'function')
-                ? resolveDepositCommissionPercent(t, platformPct)
-                : ((t.commissionWaivedBirthday || t.birthdayFree || t.paymentMethod === 'birthday_gift')
-                    ? 0
-                    : platformPct);
-            const split = (typeof calcTripCommissionSplit === 'function')
-                ? calcTripCommissionSplit(price, pct)
-                : { commissionAmount: Math.round(price * (pct / 100) * 100) / 100 };
-
-            // Viajes con saldo cubren parte de la comisión a depositar (igual que computeDriverDayStats)
-            if (t.paymentMethod === 'saldo' || t.paymentMethod === 'birthday_gift' || t.birthdayFree) {
-                saldoCoveredByDriver[id] = (saldoCoveredByDriver[id] || 0) + (split.commissionAmount || 0);
-                return;
-            }
-            if (t.commissionWaivedBirthday) return;
-
-            const ms = tripDate.getTime();
-            const comm = Number(split.commissionAmount) || 0;
-            if (!cashByDriver[id]) {
-                cashByDriver[id] = {
-                    oldestMs: ms,
-                    newestMs: ms,
-                    name: t.driverName || 'Conductor',
-                    trips: 0,
-                    cashGross: 0,
-                    commissionDue: 0,
-                    commissionDueToday: 0
-                };
-            }
-            const row = cashByDriver[id];
-            row.oldestMs = Math.min(row.oldestMs, ms);
-            row.newestMs = Math.max(row.newestMs, ms);
-            row.trips += 1;
-            row.cashGross += price;
-            row.commissionDue += comm;
-            if (tripDate >= todayStart) row.commissionDueToday += comm;
-            if (t.driverName) row.name = t.driverName;
-        });
-
-        // Depósitos aprobados por conductor (desde lookback) + de hoy
-        const depositsByDriver = {};
-        const depositsTodayByDriver = {};
-        try {
-            const depSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'driver_deposit_requests'));
-            depSnap.forEach((d) => {
-                const dep = d.data() || {};
-                if (dep.status !== 'approved' || !dep.driverId) return;
-                const depDate = dep.createdAt?.toDate?.()
-                    || (dep.createdAt?.seconds ? new Date(dep.createdAt.seconds * 1000) : null)
-                    || (dep.approvedAt?.toDate?.() || null);
-                if (depDate && depDate < depositSince) return;
-                const amt = parseFloat(dep.amount) || 0;
-                depositsByDriver[dep.driverId] = (depositsByDriver[dep.driverId] || 0) + amt;
-                if (depDate && depDate >= todayStart) {
-                    depositsTodayByDriver[dep.driverId] = (depositsTodayByDriver[dep.driverId] || 0) + amt;
-                }
-            });
-        } catch (depErr) {
-            console.warn('stats deposits scan:', depErr);
-        }
-
-        // Deuda / perfil: allUsersData si ya se cargó; si no, un scan de public/users (una sola lectura)
-        const debtByDriver = {};
-        const profileByDriver = {};
-        const ingestUserDebt = (id, u) => {
-            if (!id || !u) return;
-            profileByDriver[id] = { uid: id, ...u, ...(profileByDriver[id] || {}) };
-            const role = u.role;
-            if (role && role !== 'driver' && role !== 'conductor') return;
-            const d = Math.max(
-                0,
-                parseFloat(u.pendingDepositDebt) || 0,
-                parseFloat(u.driverLastDepositOwed) || 0
-            );
-            if (d > 0.009 || u.depositAutoBlocked) {
-                debtByDriver[id] = Math.max(debtByDriver[id] || 0, d);
-            }
-        };
-        (window.allUsersData || []).forEach((u) => {
-            if (u?.uid) ingestUserDebt(u.uid, u);
-        });
-        try {
-            // Siempre leer users públicos: cubre deudas aunque no se haya abierto la pestaña Usuarios
-            // y da nombre/plazo para conductores de hace 2 días.
-            const usersSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'users'));
-            usersSnap.forEach((ud) => ingestUserDebt(ud.id, ud.data() || {}));
-        } catch (usersDebtErr) {
-            console.warn('stats debt scan:', usersDebtErr);
-        }
-
-        const owingDrivers = [];
-        const candidateIds = new Set([
-            ...Object.keys(cashByDriver),
-            ...Object.keys(debtByDriver),
-            ...Object.keys(driverStats).filter((k) => k !== 'sin-conductor')
+        // Leer en paralelo: trips, store_orders, driver_deposit_requests, users y platformConfig/main
+        const [tripsRes, ordersRes, depsRes, usersRes, configRes] = await Promise.allSettled([
+            getDocs(collection(db, "artifacts", appId, "public", "data", "trips")),
+            getDocs(collection(db, "artifacts", appId, "public", "data", "store_orders")),
+            getDocs(collection(db, "artifacts", appId, "public", "data", "driver_deposit_requests")),
+            getDocs(collection(db, "artifacts", appId, "public", "data", "users")),
+            getDoc(doc(db, "artifacts", appId, "public", "data", "platformConfig", "main")),
         ]);
 
-        for (const driverId of candidateIds) {
-            if (!driverId || driverId === 'sin-conductor') continue;
-            const cash = cashByDriver[driverId] || {
-                oldestMs: 0, newestMs: 0, name: 'Conductor', trips: 0,
-                cashGross: 0, commissionDue: 0, commissionDueToday: 0
-            };
-            const deposited = Math.max(0, Number(depositsByDriver[driverId]) || 0);
-            const depositedToday = Math.max(0, Number(depositsTodayByDriver[driverId]) || 0);
-            const saldoCovered = Math.max(0, Number(saldoCoveredByDriver[driverId]) || 0);
-            const commissionDue = Math.round((cash.commissionDue || 0) * 100) / 100;
-            // Hueco 7d = comisión efectivo − cobertura saldo − depósitos aprobados
-            const gapFromTrips = Math.max(
-                0,
-                Math.round((commissionDue - saldoCovered - deposited) * 100) / 100
-            );
-            const remainingToday = Math.max(
-                0,
-                Math.round(((cash.commissionDueToday || 0) - depositedToday) * 100) / 100
-            );
-            const profile = profileByDriver[driverId]
-                || (window.allUsersData || []).find((u) => u.uid === driverId)
-                || {};
-            const debt = Math.max(
-                0,
-                Number(debtByDriver[driverId]) || 0,
-                parseFloat(profile.pendingDepositDebt) || 0,
-                parseFloat(profile.driverLastDepositOwed) || 0
-            );
-            // total: el mayor entre deuda+hoy y el hueco de 7 días (no se pierde lo de hace 2 días)
-            const totalOwed = Math.max(debt + remainingToday, gapFromTrips, debt, remainingToday);
-            if (totalOwed < 0.01) continue;
-
-            const workStart = typeof getDriverDepositWorkStartMs === 'function'
-                ? getDriverDepositWorkStartMs(profile)
-                : 0;
-            const sinceMs = cash.oldestMs || workStart || 0;
-            const deadlineMs = typeof getDriverDepositDeadlineMs === 'function'
-                ? getDriverDepositDeadlineMs(profile)
-                : 0;
-            const graceOn = typeof isDriverDepositGraceActive === 'function'
-                ? isDriverDepositGraceActive(profile)
-                : false;
-            const overdue = !graceOn && totalOwed > 0.009
-                && ((deadlineMs > 0 && Date.now() >= deadlineMs) || !!profile.depositAutoBlocked);
-
-            owingDrivers.push({
-                uid: driverId,
-                name: cash.name || profile.name || driverStats[driverId]?.name || 'Conductor',
-                phone: profile.phone || '',
-                totalOwed,
-                remainingToday,
-                debt,
-                gapFromTrips,
-                commissionDue,
-                deposited,
-                sinceMs,
-                sinceLabel: formatElapsedSince(sinceMs),
-                newestLabel: cash.newestMs ? formatElapsedSince(cash.newestMs) : '—',
-                cashTripsPeriod: cash.trips || 0,
-                deadlineLabel: (typeof formatDepositDeadlineLabel === 'function'
-                    ? formatDepositDeadlineLabel(profile)
-                    : null) || '—',
-                graceOn,
-                overdue
+        const trips = [];
+        if (tripsRes.status === "fulfilled" && tripsRes.value) {
+            tripsRes.value.forEach((d) => {
+                const data = d.data() || {};
+                // Excluir explícitamente viajes en papelera (trashedAt / trashedAtMs / deletedAt) en lecturas de deuda/conteo
+                trips.push({ id: d.id, ...data });
             });
         }
-        owingDrivers.sort((a, b) => {
-            if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
-            return (a.sinceMs || Date.now()) - (b.sinceMs || Date.now());
+
+        const storeOrders = [];
+        if (ordersRes.status === "fulfilled" && ordersRes.value) {
+            ordersRes.value.forEach((d) => {
+                storeOrders.push({ id: d.id, ...(d.data() || {}) });
+            });
+        }
+
+        const deposits = [];
+        if (depsRes.status === "fulfilled" && depsRes.value) {
+            depsRes.value.forEach((d) => {
+                deposits.push({ id: d.id, ...(d.data() || {}) });
+            });
+        }
+
+        const usersMap = new Map();
+        (window.allUsersData || []).forEach((u) => {
+            if (u?.uid) usersMap.set(u.uid, u);
+        });
+        if (usersRes.status === "fulfilled" && usersRes.value) {
+            usersRes.value.forEach((ud) => {
+                usersMap.set(ud.id, { uid: ud.id, ...(usersMap.get(ud.id) || {}), ...(ud.data() || {}) });
+            });
+        }
+
+        let platformPct = Number(APP_CONFIG.commissionPercent) || 18;
+        let byService = {};
+        if (configRes.status === "fulfilled" && configRes.value?.exists?.()) {
+            const cfgData = configRes.value.data() || {};
+            const rawPct = parseFloat(cfgData.commissionPercentage);
+            if (Number.isFinite(rawPct) && rawPct >= 0 && rawPct <= 100) {
+                platformPct = rawPct;
+            }
+            if (cfgData.commissionByService && typeof cfgData.commissionByService === "object") {
+                byService = { ...cfgData.commissionByService };
+            }
+        } else if (typeof window.getPlatformCommission === "function") {
+            try {
+                const livePct = await window.getPlatformCommission();
+                if (Number.isFinite(Number(livePct))) platformPct = Number(livePct);
+            } catch (_) {}
+        }
+
+        const snapshot = computeGlobalStatsSnapshot({
+            trips,
+            storeOrders,
+            deposits,
+            users: [...usersMap.values()],
+            commissionConfig: { platformPct, byService },
+            filter: { period: effectivePeriod, city, from, to },
+            now: new Date(),
         });
 
-        const owingHtml = owingDrivers.length
-            ? owingDrivers.map((d) => {
-                const safeName = String(d.name || 'Conductor').replace(/'/g, "\\'");
-                const border = d.overdue ? 'border-rose-500/50 bg-rose-950/40' : 'border-amber-600/40 bg-amber-950/30';
-                return `
-                <div class="rounded-xl border ${border} p-3 text-[11px] space-y-1.5">
-                    <div class="flex justify-between gap-2 items-start">
-                        <div class="min-w-0">
-                            <p class="font-black text-white truncate">${String(d.name || '').replace(/</g, '')}</p>
-                            <p class="text-[10px] font-bold ${d.overdue ? 'text-rose-300' : 'text-amber-200'}">
-                                ${d.overdue ? '⚠ PLAZO VENCIDO' : 'Pendiente de depósito'}
-                                ${d.graceOn ? ' · prórroga activa' : ''}
-                            </p>
-                        </div>
-                        <p class="font-black text-amber-300 shrink-0">${formatLempiras(d.totalOwed)}</p>
-                    </div>
-                    <p class="text-slate-300 font-bold leading-snug">
-                        Sin depositar desde el 1.er viaje en efectivo:
-                        <b class="text-white">hace ${d.sinceLabel}</b>
-                        ${d.cashTripsPeriod ? ` · ${d.cashTripsPeriod} viaje(s) efectivo (últ. 7 d)` : ''}
-                    </p>
-                    <p class="text-slate-400 font-bold text-[10px] leading-snug">
-                        Último viaje efectivo: hace ${d.newestLabel}<br>
-                        Comisión debida ~${formatLempiras(Number(d.commissionDue || 0))}
-                        · Depositado ${formatLempiras(Number(d.deposited || 0))}
-                        · Deuda perfil ${formatLempiras(d.debt)}
-                        · Hoy ${formatLempiras(d.remainingToday)}
-                        · Plazo: ${d.deadlineLabel}
-                    </p>
-                    <div class="flex flex-wrap gap-2 pt-1">
-                        <button type="button"
-                            onclick="window.sendDepositReminderToDriver('${d.uid}', '${safeName}', ${d.totalOwed.toFixed(2)}, '${d.sinceLabel}', ${d.overdue ? 'true' : 'false'})"
-                            class="flex-1 min-w-[7rem] py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-[10px] font-black">
-                            <i class="fas fa-bell"></i> Recordar depósito
-                        </button>
-                        <button type="button"
-                            onclick="window.sendIndividualNotification('${d.uid}', '${safeName}', 'driver')"
-                            class="flex-1 min-w-[7rem] py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-black">
-                            Mensaje libre
-                        </button>
-                        <button type="button"
-                            onclick="window.staffClearDriverPendingAccount('${d.uid}', '${safeName}', ${d.totalOwed.toFixed(2)})"
-                            class="flex-1 min-w-[7rem] py-2 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-[10px] font-black">
-                            <i class="fas fa-trash-alt"></i> Borrar cuenta pendiente
-                        </button>
-                    </div>
-                </div>`;
-            }).join('')
-            : '<p class="text-emerald-400/90 text-xs font-bold py-2">Ningún conductor con hueco de depósito en los últimos 7 días ni deuda en perfil.</p>';
+        window._lastGlobalStatsSnapshot = snapshot;
+        window._statsOwingDrivers = snapshot.owingDrivers;
 
-        const bulkBtn = owingDrivers.length
-            ? `<button type="button" onclick="window.sendDepositReminderBulk()"
-                class="w-full mb-3 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-white text-xs font-black">
-                <i class="fas fa-bullhorn"></i> Recordar a todos (${owingDrivers.length})
-               </button>`
-            : '';
-
-        window._statsOwingDrivers = owingDrivers;
-
-        contentDiv.innerHTML = `
-            <div class="grid grid-cols-2 gap-4 text-center mb-6">
-                <div class="bg-gray-800 p-4 rounded-2xl">
-                    <p class="text-xs text-gray-400">VIAJES TOTALES</p>
-                    <p class="text-4xl font-black text-white mt-1">${totalTrips}</p>
-                </div>
-                <div class="bg-gray-800 p-4 rounded-2xl">
-                    <p class="text-xs text-gray-400">GANADO TOTAL</p>
-                    <p class="text-4xl font-black text-emerald-400 mt-1">${formatLempiras(totalEarned)}</p>
-                </div>
-            </div>
-
-            <div class="bg-gray-800 rounded-2xl p-5 text-sm space-y-3 mb-4">
-                <div class="flex justify-between">
-                    <span class="text-emerald-400">• En Efectivo</span>
-                    <span class="font-bold">${formatLempiras(cashEarned)} <span class="text-xs text-gray-400">(${cashTrips} viajes)</span></span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-purple-400">• En Saldo</span>
-                    <span class="font-bold">${formatLempiras(saldoEarned)} <span class="text-xs text-gray-400">(${saldoTrips} viajes)</span></span>
-                </div>
-                <div class="pt-3 border-t border-gray-700 flex justify-between">
-                    <span class="font-bold text-amber-400">Comisión generada (${platformPct}% general · o el % de cada servicio)</span>
-                    <span class="font-black text-amber-400">${formatLempiras(commission)}</span>
-                </div>
-                <p class="text-[10px] text-slate-400 font-bold leading-snug">
-                    Usa el % de <b>Cuentas bancarias → Comisión de plataforma</b> (hoy ${platformPct}%).
-                    Efectivo: ${formatLempiras(cashCommission)} · Saldo: ${formatLempiras(saldoCommission)}.
-                </p>
-            </div>
-
-            <div class="bg-gray-900 border border-amber-700/40 rounded-2xl p-4 mb-4">
-                <p class="text-[10px] font-black text-amber-300 uppercase tracking-widest mb-1">
-                    <i class="fas fa-piggy-bank"></i> Sin depositar · comisión
-                </p>
-                <p class="text-[10px] text-slate-400 font-bold mb-3 leading-snug">
-                    Revisa <b>últimos 7 días</b> (también si el filtro es “Hoy”): comisión en efectivo − depósitos aprobados + deuda en perfil.
-                    Así salen los que viajaron <b>hace 2 días</b> y no depositaron.
-                    Usa <b>Borrar cuenta pendiente</b> si pagó en persona o condonas el monto (admin/supervisor).
-                </p>
-                ${bulkBtn}
-                <div class="space-y-2 max-h-72 overflow-y-auto">${owingHtml}</div>
-            </div>
-
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Por conductor</p>
-            <div class="space-y-2 mb-4 max-h-40 overflow-y-auto">${driverSummary || '<p class="text-gray-500 text-xs">Sin viajes</p>'}</div>
-
-            <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Detalle de viajes (${tripRows.length})</p>
-            <div class="space-y-2 max-h-80 overflow-y-auto">${tripTable || '<p class="text-gray-500 text-xs text-center py-4">No hay viajes en este período</p>'}</div>
-        `;
-
+        contentDiv.innerHTML = renderGlobalStatsHtml(snapshot);
+        return snapshot;
     } catch (e) {
-        console.error(e);
+        console.error("loadGlobalStats:", e);
         contentDiv.innerHTML = `
             <div class="text-center py-8 text-red-400">
                 <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
                 <p>Error al cargar las estadísticas.</p>
             </div>
         `;
+        return null;
     }
 };
 
