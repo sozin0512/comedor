@@ -231,12 +231,17 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/artifacts/$(app)/public/data/stores/$(d.storeId)).data.ownerId == requestUid();
     }
 
-    // El dueño solo puede CANCELAR su envío directo, y solo mientras nadie lo aceptó.
+    // El dueño solo puede CANCELAR su envío directo mientras nadie lo aceptó, o escribir en el chat del envío.
     function merchantDirectDeliveryUpdateOk(app) {
       return resource.data.get('merchantDirectDelivery', false) != true
         || resource.data.get('merchantId', '') != requestUid()
         || isStaff(app)
         || resource.data.get('driverId', null) == requestUid()
+        || (
+          request.resource.data.status == resource.data.status
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['chat', 'chatMerchant', 'chatSeenBy', 'updatedAt'])
+        )
         || (
           resource.data.status in ['verifying', 'pending']
           && resource.data.get('driverId', null) == null
@@ -249,7 +254,8 @@ service cloud.firestore {
     function isTripParticipant() {
       return resource.data.clientId == requestUid()
         || resource.data.driverId == requestUid()
-        || resource.data.offeredToDriverId == requestUid();
+        || resource.data.offeredToDriverId == requestUid()
+        || resource.data.get('merchantId', '') == requestUid();
     }
 
     function isGuestClientTrip() {
@@ -313,6 +319,7 @@ service cloud.firestore {
         resource.data.clientId == requestUid() ||
         resource.data.driverId == requestUid() ||
         resource.data.offeredToDriverId == requestUid() ||
+        resource.data.get('merchantId', '') == requestUid() ||
         resource.data.status == 'pending' ||
         resource.data.status == 'scheduled' ||
         (
@@ -325,6 +332,7 @@ service cloud.firestore {
         resource.data.clientId == requestUid() ||
         resource.data.driverId == requestUid() ||
         resource.data.offeredToDriverId == requestUid() ||
+        resource.data.get('merchantId', '') == requestUid() ||
         resource.data.status == 'pending' ||
         resource.data.status == 'scheduled'
       );

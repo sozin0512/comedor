@@ -129,9 +129,15 @@ export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
         return false;
     }
 
-    const phaseLabel = trip.status === 'in_progress'
-        ? (isDriver ? 'Hacia el destino' : 'Viaje en curso')
-        : (isDriver ? 'En camino al pasajero' : 'Conductor en camino');
+    const isDel = !!(trip?.isStoreDelivery || trip?.tripKind === 'store_delivery' || trip?.serviceType === 'food_delivery' || trip?.storeOrderId);
+    const storeName = String(trip?.storeName || 'el negocio').trim();
+    const phaseLabel = isDel
+        ? (trip.status === 'in_progress'
+            ? (isDriver ? 'En camino al cliente (entregar pedido)' : 'Tu pedido va en camino')
+            : (isDriver ? `En camino a ${storeName} (recoger pedido)` : `Repartidor rumbo a ${storeName}`))
+        : (trip.status === 'in_progress'
+            ? (isDriver ? 'Hacia el destino' : 'Viaje en curso')
+            : (isDriver ? 'En camino al pasajero' : 'Conductor en camino'));
 
     await startAndroidSessionKeepalive({
         driverMode: isDriver || true, // LOCATION type for both during live trip

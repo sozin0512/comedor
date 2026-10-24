@@ -46,6 +46,16 @@ window.getAccuracyAwareDistanceMeters = (from, to, fromAcc = null, toAcc = null)
 window.getTripPickupCoords = (trip) => {
     const t = trip || window.activeTrip || window.currentActiveTripData;
     if (!t) return null;
+    // En envíos de tienda/delivery, el punto de recogida es SIEMPRE el negocio (originLat/originLng),
+    // nunca el GPS en vivo del cliente que espera en su casa.
+    if (window.isDeliveryTrip?.(t) && t.originLat != null && t.originLng != null) {
+        return {
+            lat: Number(t.originLat),
+            lng: Number(t.originLng),
+            accuracy: t.originAccuracy != null ? Number(t.originAccuracy) : null,
+            source: "store_origin"
+        };
+    }
     // Preferir GPS en vivo del pasajero (más preciso que el pin del pedido)
     const liveAge = t.clientLiveUpdatedAt != null ? (Date.now() - Number(t.clientLiveUpdatedAt)) : Infinity;
     if (
@@ -165,6 +175,17 @@ window.syncDriverPickupArrivalUi = (driverPos = null) => {
     if (!float && !panelBtn) return;
 
     const isDriver = window.userProfile?.role === 'driver';
+    const isDeliv = !!window.isDeliveryTrip?.(trip);
+    const btnSpans = btns.map((el) => el.querySelector('span')).filter(Boolean);
+    if (isDriver && isDeliv && trip?.status === 'accepted' && trip?.driverArrived && trip?.driverId === window.currentUser?.uid) {
+        btns.forEach((el) => {
+            el.classList.remove('is-disabled');
+            el.setAttribute('aria-disabled', 'false');
+        });
+        btnSpans.forEach((sp) => { sp.textContent = '📦 PEDIDO RECOGIDO · IR AL CLIENTE'; });
+        if (float) float.title = 'Sin PIN · Toca cuando tengas el pedido para ir donde el cliente';
+        return;
+    }
     const pickupPhase = trip?.status === 'accepted'
         && !trip?.driverArrived
         && trip?.driverId === window.currentUser?.uid;
@@ -177,6 +198,9 @@ window.syncDriverPickupArrivalUi = (driverPos = null) => {
         if (float) float.title = 'Toca para marcar llegada · arrastra para mover';
         return;
     }
+    btnSpans.forEach((sp) => {
+        sp.textContent = isDeliv ? '🏪 LLEGUÉ AL NEGOCIO' : '¡HE LLEGADO!';
+    });
 
     const pos = driverPos || window.currentDriverPos;
     const pickup = window.getTripPickupCoords(trip);
@@ -198,14 +222,14 @@ window.syncDriverPickupArrivalUi = (driverPos = null) => {
     if (!pickup) {
         if (float) float.title = 'Ubicando punto de recogida…';
     } else if (!pos) {
-        if (float) float.title = 'Obteniendo GPS… botón activo a ≤ 1 km del pasajero';
+        if (float) float.title = isDeliv ? 'Obteniendo GPS… botón activo a ≤ 1 km del negocio' : 'Obteniendo GPS… botón activo a ≤ 1 km del pasajero';
     } else if (within) {
-        if (float) float.title = 'Toca para marcar llegada · arrastra para mover';
+        if (float) float.title = isDeliv ? 'Toca al llegar al negocio a recoger el pedido' : 'Toca para marcar llegada · arrastra para mover';
     } else {
         const distLabel = dist >= 1000
             ? `${(dist / 1000).toFixed(1)} km`
             : `${Math.round(dist)} m`;
-        if (float) float.title = `A ${distLabel} del pasajero · botón activo a ≤ 1 km`;
+        if (float) float.title = `A ${distLabel} del ${isDeliv ? 'negocio' : 'pasajero'} · botón activo a ≤ 1 km`;
     }
 };
 
@@ -305,8 +329,9 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
     }
 
     const blocked = !within || !dest || !pos;
+    const isDeliv = !!window.isDeliveryTrip?.(trip);
     const destLabel = legLabel.isFinal
-        ? 'LLEGUÉ AL DESTINO'
+        ? (isDeliv ? '✅ PEDIDO ENTREGADO' : 'LLEGUÉ AL DESTINO')
         : (legLabel.hasMultipleLegs ? `LLEGUÉ AL PUNTO ${legLabel.routeNum}` : 'LLEGUÉ AL DESTINO');
     destBtns.forEach((el) => {
         el.disabled = false;
@@ -347,8 +372,9 @@ window.driverSignalDestinationArrival = async () => {
     }
 
     const legLabel = window.getTripRouteLegLabel?.(trip) || { isFinal: true, routeNum: 2 };
+    const isDeliv = !!window.isDeliveryTrip?.(trip);
     const confirmMsg = legLabel.isFinal
-        ? '¿Confirmas que llegaste al destino final con el pasajero? El viaje se finalizará.'
+        ? (isDeliv ? '¿Confirmas que entregaste el pedido al cliente? El envío se finalizará.' : '¿Confirmas que llegaste al destino final con el pasajero? El viaje se finalizará.')
         : `¿Confirmas que llegaste al punto ${legLabel.routeNum}? Se cargará la ruta al siguiente punto.`;
     if (!confirm(confirmMsg)) return;
 

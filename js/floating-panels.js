@@ -750,7 +750,7 @@ function runTripFloatTapAction(action) {
     else if (action === 'arrived') {
         const btn = document.getElementById('btn-driver-arrived');
         if (btn?.classList.contains('is-disabled') || btn?.getAttribute('aria-disabled') === 'true') {
-            window.showToast?.('El botón se activa cuando estés a 1 km o menos del pasajero.');
+            window.showToast?.(window.isDeliveryTrip?.(window.currentActiveTripData) ? 'El botón se activa cuando estés a 1 km o menos del negocio.' : 'El botón se activa cuando estés a 1 km o menos del pasajero.');
             return;
         }
         window.markArrival?.();
@@ -1021,7 +1021,9 @@ export function syncTripFloatPanels(data) {
         && !document.body.classList.contains('driver-mode')
         && !!data.driverId
         && ['accepted', 'in_progress'].includes(data.status);
+    const isDeliv = !!window.isDeliveryTrip?.(data);
     const showClientPin = showClientTrip
+        && !isDeliv
         && data.status === 'accepted'
         && !!data.pin;
 
@@ -1064,12 +1066,13 @@ export function syncTripFloatPanels(data) {
 
     const showDriverArrived = isDriver
         && data.status === 'accepted'
-        && !data.driverArrived;
+        && (!data.driverArrived || isDeliv);
 
     const showDriverArrivedDest = isDriver
         && data.status === 'in_progress';
 
     const showDriverPin = isDriver
+        && !isDeliv
         && data.status === 'accepted'
         && !!data.driverArrived;
 

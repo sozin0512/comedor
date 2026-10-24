@@ -1158,6 +1158,9 @@ exports.acceptDriverTrip = onCall(async (request) => {
     }
 
     const patch = sanitizeTripAcceptFields(request.data?.acceptFields);
+    if (isStoreDeliveryTrip(trip) || trip.serviceType === "delivery") {
+        patch.pin = null;
+    }
     // Viaje programado a futuro: se RESERVA (status scheduled + driver), no arranca aún.
     // Se activa a accepted ~30 min antes (o si el conductor toca “Iniciar ya”).
     const scheduledMs = getScheduledTripMs(trip);
@@ -4120,11 +4123,38 @@ exports.onTripUpdatePush = onDocumentUpdated(
             await viajesPanel.helpers.runAutoResend(appId, tripId, after).catch(() => {});
         }
 
+        const beforeChatMerchant = before.chatMerchant || [];
+        const afterChatMerchant = after.chatMerchant || [];
+        if (afterChatMerchant.length > beforeChatMerchant.length) {
+            const mMsg = afterChatMerchant[afterChatMerchant.length - 1];
+            const mRecipientId = mMsg.sender === after.merchantId ? after.driverId : after.merchantId;
+            if (mRecipientId && mMsg.sender !== mRecipientId) {
+                const stName = after.deliveryDetails?.storeName || after.deliveryDetails?.restaurant || "Negocio";
+                await sendPushToUser(appId, mRecipientId, {
+                    title: mMsg.sender === after.merchantId
+                        ? `🏪 ${stName}: ${mMsg.senderName || "Mensaje"}`
+                        : `🛵 Repartidor (${mMsg.senderName || after.driverName || "Envío"})`,
+                    body: (mMsg.text || "").slice(0, 180),
+                    data: {
+                        type: "chat_merchant",
+                        tripId,
+                        storeOrderId: String(after.storeOrderId || ""),
+                        openChat: "true",
+                        chatChannel: "merchant",
+                        tag: `chat-merch-${tripId}`
+                    }
+                });
+            }
+        }
+
         const beforeChat = before.chat || [];
         const afterChat = after.chat || [];
         if (afterChat.length > beforeChat.length) {
             const msg = afterChat[afterChat.length - 1];
-            const recipientId = msg.sender === after.clientId ? after.driverId : after.clientId;
+            const isMerchMsg = msg?.channel === "merchant" || msg?.target === "merchant";
+            const recipientId = isMerchMsg
+                ? (msg.sender === after.merchantId ? after.driverId : after.merchantId)
+                : (msg.sender === after.clientId ? after.driverId : after.clientId);
             if (recipientId && msg.sender !== recipientId) {
                 await sendPushToUser(appId, recipientId, {
                     title: msg.senderName || 'Nuevo mensaje',
@@ -4417,10 +4447,12 @@ exports.onTripUpdatePush = onDocumentUpdated(
             } catch (_) {}
         }
 
+        const isDelivTrip = isStoreDeliveryTrip(after) || after.serviceType === 'delivery';
+        const delivStoreName = after.deliveryDetails?.storeName || after.deliveryDetails?.restaurant || after.originPlaceName || 'el negocio';
         if (!before.driverArrived && after.driverArrived && after.clientId) {
             await sendPushToUser(appId, after.clientId, {
-                title: 'Tu conductor llegó',
-                body: 'Ya está en el punto de encuentro.',
+                title: isDelivTrip ? `🏪 El repartidor llegó a ${delivStoreName}` : 'Tu conductor llegó',
+                body: isDelivTrip ? 'Está recogiendo tu pedido en el negocio para llevártelo.' : 'Ya está en el punto de encuentro.',
                 data: {
                     type: 'trip_arrived',
                     tripId,
@@ -4431,6 +4463,20 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 },
                 highPriority: true
             });
+            if (isDelivTrip && after.merchantId && after.merchantId !== after.clientId) {
+                await sendPushToUser(appId, after.merchantId, {
+                    title: '🛵 El repartidor llegó a tu negocio',
+                    body: `${after.driverName || 'El repartidor'} está afuera para recoger el pedido.`,
+                    data: {
+                        type: 'trip_arrived_store',
+                        tripId,
+                        storeOrderId: String(after.storeOrderId || ''),
+                        tag: `trip-arrived-store-${tripId}`,
+                        superVibrate: 'true'
+                    },
+                    highPriority: true
+                });
+            }
             try {
                 const wa = require('./whatsapp-cloud');
                 await wa.notifyDriverArrivedWa(after, tripId).catch(() => {});
@@ -4439,8 +4485,8 @@ exports.onTripUpdatePush = onDocumentUpdated(
 
         if (before.status !== 'in_progress' && after.status === 'in_progress' && after.driverId) {
             await sendPushToUser(appId, after.driverId, {
-                title: 'Viaje iniciado',
-                body: 'El pasajero confirmó el PIN. Ve al destino.',
+                title: isDelivTrip ? '📦 Pedido recogido · Ruta al cliente' : 'Viaje iniciado',
+                body: isDelivTrip ? 'Dirígete a la ubicación del cliente para entregar el pedido (sin PIN).' : 'El pasajero confirmó el PIN. Ve al destino.',
                 data: {
                     type: 'trip_started',
                     tripId,
@@ -4450,6 +4496,22 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 },
                 highPriority: true
             });
+            if (isDelivTrip && after.clientId && after.clientId !== after.merchantId) {
+                await sendPushToUser(appId, after.clientId, {
+                    title: '🛵 ¡Tu pedido va en camino!',
+                    body: `${after.driverName || 'El repartidor'} ya recogió tu pedido en ${delivStoreName} y se dirige a tu ubicación.`,
+                    data: {
+                        type: 'trip_picked_up',
+                        tripId,
+                        storeOrderId: String(after.storeOrderId || ''),
+                        tag: `trip-picked-${tripId}`,
+                        openPassenger: 'true',
+                        openClient: 'true',
+                        superVibrate: 'true'
+                    },
+                    highPriority: true
+                });
+            }
         }
 
         // —— Copa HonduRaite: al completar viaje, sumar en SERVIDOR (Admin SDK) ——

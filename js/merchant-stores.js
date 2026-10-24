@@ -11,7 +11,7 @@
  */
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
-    serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp
+    serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.24.1';
 import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.24.1';
@@ -3197,7 +3197,12 @@ function clientOrderActionsHtml(o) {
         return `<p class="text-[11px] text-purple-800 font-bold mt-2"><i class="fas fa-utensils"></i> El restaurante está preparando tu pedido · el delivery se llamará en cuanto esté preparado</p>`;
     }
     if (o.status === 'ready' && o.tripId) {
-        return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-check-circle"></i> ¡Pedido preparado! Llamando a tu delivery (${esc(orderRideName(o))})… te avisamos cuando lo acepte</p>`;
+        return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-check-circle"></i> ¡Pedido preparado! Llamando a tu delivery (${esc(orderRideName(o))})… te avisamos cuando lo acepte</p>
+            <div class="order-actions mt-2">
+                <button type="button" class="stores-secondary-btn w-full" data-stores-action="chat-driver" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fas fa-comments text-blue-600"></i> 💬 Chat con repartidor
+                </button>
+            </div>`;
     }
     if (o.status === 'delivered') {
         const hasRatings = o.ratedAt || (o.productRatings && Object.keys(o.productRatings).length > 0);
@@ -3226,9 +3231,202 @@ function clientOrderActionsHtml(o) {
         `;
     }
     if (o.tripId) {
-        return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> ${o.driverName ? `${esc(String(o.driverName).split(/\s+/)[0])} va con tu pedido` : 'Envío activo'} · sigue el viaje en el mapa</p>`;
+        return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> ${o.driverName ? `${esc(String(o.driverName).split(/\s+/)[0])} va con tu pedido` : 'Envío activo'} · sigue el viaje en el mapa</p>
+            <div class="order-actions mt-2">
+                <button type="button" class="stores-secondary-btn w-full" data-stores-action="chat-driver" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fas fa-comments text-blue-600"></i> 💬 Chat con repartidor
+                </button>
+            </div>`;
     }
     return '';
+}
+
+
+let _orderDriverChatUnsub = null;
+export function openOrderDriverChatModal({ tripId, role = 'merchant', storeName = '', orderId = '' } = {}) {
+    if (!tripId) {
+        toast('Este pedido aún no tiene un viaje de envío asignado.', 'warning');
+        return null;
+    }
+    try { _orderDriverChatUnsub?.(); } catch (_) {}
+    _orderDriverChatUnsub = null;
+    document.getElementById('order-driver-chat-modal')?.remove();
+
+    const isMerchant = role === 'merchant';
+    const modal = document.createElement('div');
+    modal.id = 'order-driver-chat-modal';
+    modal.className = 'fixed inset-0 bg-black/75 z-[48000] flex items-end sm:items-center justify-center p-0 sm:p-4';
+    modal.innerHTML = `
+        <div class="bg-slate-900 text-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl border border-slate-700 shadow-2xl flex flex-col max-h-[85vh] overflow-hidden">
+            <div class="px-4 py-3.5 bg-slate-800/90 border-b border-slate-700 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-1.5">
+                        <span class="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${isMerchant ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-blue-500/20 text-blue-300 border border-blue-500/40'}">
+                            ${isMerchant ? '🏪 Negocio ↔ Repartidor' : '👤 Cliente ↔ Repartidor'}
+                        </span>
+                    </div>
+                    <h4 id="odc-title" class="font-black text-sm text-white truncate mt-1">💬 Chat con el repartidor</h4>
+                    <p id="odc-sub" class="text-[11px] text-slate-400 truncate">Cargando estado del envío…</p>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <a id="odc-wa-btn" href="#" target="_blank" rel="noopener" class="hidden px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black items-center gap-1">
+                        <i class="fab fa-whatsapp"></i> WhatsApp
+                    </a>
+                    <button type="button" data-odc-close="1" class="w-8 h-8 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center justify-center">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="odc-messages" class="flex-1 overflow-y-auto p-3.5 space-y-2 bg-slate-950/70 min-h-[220px] max-h-[52vh]">
+                <p class="text-xs text-slate-500 text-center py-6">Cargando mensajes…</p>
+            </div>
+            <form id="odc-form" class="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
+                <input id="odc-input" type="text" autocomplete="off"
+                    placeholder="${isMerchant ? 'Escribe al repartidor (ej. el pedido está listo en mostrador)…' : 'Escribe al repartidor (ej. casa portón negro)…'}"
+                    class="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-amber-400" />
+                <button id="odc-send" type="submit"
+                    class="px-4 py-2.5 rounded-xl font-black text-xs uppercase tracking-wide ${isMerchant ? 'bg-amber-500 hover:bg-amber-400 text-slate-950' : 'bg-blue-600 hover:bg-blue-500 text-white'}">
+                    Enviar
+                </button>
+            </form>
+        </div>
+    `;
+
+    const close = () => {
+        try { _orderDriverChatUnsub?.(); } catch (_) {}
+        _orderDriverChatUnsub = null;
+        modal.remove();
+    };
+    modal.addEventListener('click', (ev) => {
+        if (ev.target === modal || ev.target.closest('[data-odc-close]')) close();
+    });
+
+    const msgsEl = modal.querySelector('#odc-messages');
+    const titleEl = modal.querySelector('#odc-title');
+    const subEl = modal.querySelector('#odc-sub');
+    const waBtn = modal.querySelector('#odc-wa-btn');
+    const form = modal.querySelector('#odc-form');
+    const input = modal.querySelector('#odc-input');
+    const sendBtn = modal.querySelector('#odc-send');
+
+    let latestTrip = null;
+    const renderTripChat = (t) => {
+        latestTrip = t;
+        const driverName = t?.driverName || 'Repartidor';
+        if (titleEl) {
+            titleEl.textContent = t?.driverId
+                ? `💬 Chat con ${driverName}`
+                : '💬 Chat para el repartidor';
+        }
+        if (subEl) {
+            if (!t?.driverId) {
+                subEl.textContent = 'Buscando repartidor… tus mensajes los verá al aceptar el envío.';
+            } else if (t.status === 'in_progress') {
+                subEl.textContent = `🛵 Pedido recogido · En camino a entregar a ${t.recipientName || t.clientName || 'cliente'}`;
+            } else if (t.driverArrived) {
+                subEl.textContent = `🏪 ${driverName} llegó al negocio a recoger el pedido`;
+            } else {
+                subEl.textContent = `🛵 ${driverName} va en camino al negocio a recoger el pedido`;
+            }
+        }
+        if (waBtn) {
+            const dPhone = String(t?.driverPhone || '').replace(/\D/g, '');
+            if (dPhone.length >= 8) {
+                const full = dPhone.length === 8 ? `504${dPhone}` : dPhone;
+                waBtn.href = `https://wa.me/${full}`;
+                waBtn.classList.remove('hidden');
+                waBtn.classList.add('inline-flex');
+            } else {
+                waBtn.classList.add('hidden');
+                waBtn.classList.remove('inline-flex');
+            }
+        }
+        const uid = getCurrentUser()?.uid;
+        const list = isMerchant
+            ? [
+                ...(Array.isArray(t?.chatMerchant) ? t.chatMerchant : []),
+                ...(Array.isArray(t?.chat) ? t.chat.filter((m) => m && (m.channel === 'merchant' || m.target === 'merchant')) : [])
+            ]
+            : (Array.isArray(t?.chat) ? t.chat.filter((m) => m && m.channel !== 'merchant' && m.target !== 'merchant') : []);
+
+        if (!msgsEl) return;
+        if (!list.length) {
+            msgsEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">${
+                isMerchant
+                    ? 'Sin mensajes con el repartidor todavía. Escríbele indicaciones para recoger el pedido.'
+                    : 'Sin mensajes con el repartidor todavía. Escríbele referencias de tu ubicación.'
+            }</p>`;
+            return;
+        }
+        msgsEl.innerHTML = list.map((m) => {
+            const mine = uid && m.sender === uid;
+            const timeStr = m.time ? new Date(m.time).toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' }) : '';
+            return `
+                <div class="flex ${mine ? 'justify-end' : 'justify-start'}">
+                    <div class="max-w-[82%] px-3 py-2 rounded-2xl text-xs ${mine
+                        ? (isMerchant ? 'bg-amber-500 text-slate-950 font-semibold' : 'bg-blue-600 text-white')
+                        : 'bg-slate-800 text-slate-100 border border-slate-700'}">
+                        ${!mine ? `<div class="text-[10px] font-black opacity-80 mb-0.5">${esc(m.senderName || 'Repartidor')}</div>` : ''}
+                        <div class="leading-snug break-words">${esc(m.text || '')}</div>
+                        ${timeStr ? `<div class="text-[9px] opacity-70 text-right mt-0.5">${esc(timeStr)}</div>` : ''}
+                    </div>
+                </div>
+            `;
+        }).join('');
+        msgsEl.scrollTop = msgsEl.scrollHeight;
+    };
+
+    try {
+        _orderDriverChatUnsub = onSnapshot(publicDoc('trips', tripId), (snap) => {
+            if (!snap.exists()) return;
+            renderTripChat({ id: snap.id, ...snap.data() });
+        }, (err) => {
+            console.warn('[order-driver-chat] snapshot error', err);
+        });
+    } catch (e) {
+        console.warn('[order-driver-chat]', e);
+    }
+
+    form?.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        const text = input?.value?.trim();
+        if (!text) return;
+        const user = getCurrentUser();
+        if (!user?.uid) return toast('Inicia sesión para enviar mensajes.', 'warning');
+        const sName = isMerchant
+            ? (storeName || myStore?.name || latestTrip?.storeName || window.userProfile?.name || 'Negocio')
+            : (window.userProfile?.name || latestTrip?.recipientName || latestTrip?.clientName || 'Cliente');
+        const msg = {
+            sender: user.uid,
+            senderName: sName,
+            senderRole: isMerchant ? 'merchant' : 'client',
+            channel: isMerchant ? 'merchant' : 'client',
+            target: isMerchant ? 'merchant' : 'client',
+            text,
+            time: Date.now()
+        };
+        try {
+            if (sendBtn) sendBtn.disabled = true;
+            const patch = isMerchant
+                ? { chatMerchant: arrayUnion(msg), updatedAt: serverTimestamp() }
+                : { chat: arrayUnion(msg), updatedAt: serverTimestamp() };
+            await updateDoc(publicDoc('trips', tripId), patch);
+            if (input) input.value = '';
+        } catch (err) {
+            console.error('[order-driver-chat] send error:', err);
+            toast('No se pudo enviar el mensaje al repartidor.', 'error');
+        } finally {
+            if (sendBtn) sendBtn.disabled = false;
+            input?.focus?.();
+        }
+    });
+
+    document.body.appendChild(modal);
+    setTimeout(() => input?.focus?.(), 80);
+    return modal;
+}
+if (typeof window !== 'undefined') {
+    window.openStoreTripChatModal = openOrderDriverChatModal;
 }
 
 export function merchantOrderActionsHtml(o) {
@@ -3280,11 +3478,21 @@ export function merchantOrderActionsHtml(o) {
             </div>`;
     }
     if (o.status === 'ready') {
-        return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-search"></i> ✅ Pedido preparado · llamando delivery (${rideName}), esperando que un conductor acepte</p>`;
+        return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-search"></i> ✅ Pedido preparado · llamando delivery (${rideName}), esperando que un conductor acepte</p>
+            ${o.tripId ? `<div class="order-actions mt-2">
+                <button type="button" class="stores-secondary-btn w-full" data-merchant-action="chat-driver" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fas fa-comments text-amber-600"></i> 💬 Chat con repartidor
+                </button>
+            </div>` : ''}`;
     }
     if (o.status === 'out_for_delivery') {
         return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> En camino${o.driverName ? ` con ${esc(o.driverName)}` : ''} · se marca entregado solo cuando el conductor termina</p>
-            <button type="button" class="stores-secondary-btn mt-2" data-merchant-action="delivered-order" data-order-id="${id}">Marcar entregado a mano</button>`;
+            <div class="order-actions mt-2">
+                ${o.tripId ? `<button type="button" class="stores-primary-btn" data-merchant-action="chat-driver" data-order-id="${id}" data-trip-id="${esc(o.tripId)}">
+                    <i class="fas fa-comments"></i> 💬 Chat con repartidor
+                </button>` : ''}
+                <button type="button" class="stores-secondary-btn" data-merchant-action="delivered-order" data-order-id="${id}">Marcar entregado a mano</button>
+            </div>`;
     }
     return '';
 }
@@ -3772,6 +3980,10 @@ function onMarketplaceClick(e) {
     }
     if (action === 'cancel-order' && orderId) return cancelClientOrder(orderId);
     if (action === 'open-rate-order' && orderId) return openOrderProductRatingModal(orderId);
+    if (action === 'chat-driver') {
+        const tripId = t.getAttribute('data-trip-id') || (clientOrders.find((x) => x.id === orderId)?.tripId) || '';
+        return openOrderDriverChatModal({ tripId, role: 'client', orderId });
+    }
     if (action === 'open-merchant') {
         closeMarketplace();
         return openMerchantPanel({ createNew: false });
@@ -5906,6 +6118,16 @@ async function onMerchantClick(e) {
             t.disabled = false;
         }
         return;
+    }
+    if (action === 'chat-driver') {
+        const order = merchantOrders.find((o) => o.id === orderId);
+        const tripId = t.getAttribute('data-trip-id') || order?.tripId || '';
+        return openOrderDriverChatModal({
+            tripId,
+            role: 'merchant',
+            storeName: order?.storeName || myStore?.name || 'Mi negocio',
+            orderId
+        });
     }
     if (action === 'delivered-order' && orderId) {
         if (!window.confirm('El pedido se marca entregado solo cuando el conductor termina el viaje. ¿Marcarlo entregado ahora?')) return;

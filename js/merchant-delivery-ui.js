@@ -137,6 +137,9 @@ export function createMerchantDeliveryTab(ctx) {
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
                     <span class="md-pill" data-md-status="${s.key}" style="color:${TONE[s.tone]}">${esc(s.label)}</span>
+                    ${(s.key === 'searching' || s.key === 'pickup' || s.key === 'delivering') && t.id
+                        ? `<button type="button" class="md-btn2" style="padding:4px 8px;font-size:11px" data-md-chat="${esc(t.id)}"><i class="fas fa-comments"></i> Chat repartidor</button>`
+                        : ''}
                     ${s.canCancel ? `<button type="button" class="md-cancel" data-md-cancel="${esc(t.id)}">Cancelar</button>` : ''}
                 </div>
             </div>`;
@@ -315,6 +318,15 @@ export function createMerchantDeliveryTab(ctx) {
             const d = s && ctx.placeDetails ? await ctx.placeDetails(s).catch(() => null) : null;
             if (d && isInHonduras(d.lat, d.lng)) { st.form.dropoffAddress = d.address || s.description; st.form.dropoffLat = d.lat; st.form.dropoffLng = d.lng; delete st.errors.dropoff; }
             render(); return requote();
+        }
+        const ch = ev.target.closest('[data-md-chat]');
+        if (ch) {
+            const tripId = ch.dataset.mdChat;
+            if (ctx.openChat) return ctx.openChat(tripId);
+            if (typeof window !== 'undefined' && typeof window.openStoreTripChatModal === 'function') {
+                return window.openStoreTripChatModal({ tripId, role: 'merchant', storeName: ctx.store?.name || 'Mi tienda' });
+            }
+            return;
         }
         const c = ev.target.closest('[data-md-cancel]');
         if (c) {

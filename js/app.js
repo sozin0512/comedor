@@ -150,7 +150,15 @@ import {
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
 } from "./service-types.js?v=2026.10.24.1";
 import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.24.1";
-import { isStoreOrderTrip, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.24.1";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.24.1";
+window.isStoreOrderTrip = isStoreOrderTrip;
+window.isDeliveryTrip = isDeliveryTrip;
+window.getDeliveryStoreName = getDeliveryStoreName;
+window.getDeliveryRecipientName = getDeliveryRecipientName;
+window.getDeliveryStageMeta = getDeliveryStageMeta;
+window.getDeliveryChatMessages = getDeliveryChatMessages;
+window.getDefaultDeliveryChatChannel = getDefaultDeliveryChatChannel;
+window.buildDeliveryDualChatTabsHtml = buildDeliveryDualChatTabsHtml;
 import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.24.1";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
@@ -12067,7 +12075,7 @@ if (document.readyState === 'loading') {
                 }, 14000);
             }
 
-            const randomPin = Math.floor(1000 + Math.random() * 9000).toString();
+            const randomPin = isDeliveryTrip(t) ? null : Math.floor(1000 + Math.random() * 9000).toString();
             const rating = window.userProfile.ratingCount > 0
                 ? (window.userProfile.ratingSum / window.userProfile.ratingCount).toFixed(1)
                 : '5.0';
@@ -13145,7 +13153,37 @@ if (document.readyState === 'loading') {
             return 'other';
         }
 
-        function getStaffActiveTripPhaseMeta(phase) {
+        function getStaffActiveTripPhaseMeta(phase, trip = null) {
+            if (trip && isDeliveryTrip(trip)) {
+                const stName = getDeliveryStoreName(trip);
+                if (phase === 'to_pickup') {
+                    return {
+                        title: `🛵 En camino a ${stName} a recoger el pedido`,
+                        short: 'Al negocio',
+                        subtitle: `Va al negocio (${stName}) a traer el pedido · sin PIN`,
+                        icon: 'fa-store',
+                        accent: 'emerald'
+                    };
+                }
+                if (phase === 'at_pickup') {
+                    return {
+                        title: `🏪 En ${stName} · Recogiendo pedido`,
+                        short: 'En negocio',
+                        subtitle: `En el negocio recogiendo la comida/pedido · sin PIN`,
+                        icon: 'fa-box-open',
+                        accent: 'violet'
+                    };
+                }
+                if (phase === 'in_progress') {
+                    return {
+                        title: '🛵 En camino al cliente a entregar el pedido',
+                        short: 'Al cliente',
+                        subtitle: 'Ya recogió en el negocio y lleva el pedido al cliente',
+                        icon: 'fa-motorcycle',
+                        accent: 'blue'
+                    };
+                }
+            }
             const map = {
                 pending: {
                     key: 'pending',
@@ -14744,7 +14782,44 @@ if (document.readyState === 'loading') {
             return { uid: d.testDriverUid, name: d.testDriverName || 'Conductor de prueba' };
         }
 
-        function buildTripChatHtml(t) {
+        function buildTripChatHtml(t, forcedChannel = null) {
+            if (isDeliveryTrip(t)) {
+                const activeCh = forcedChannel || window._staffSheetChatChannel?.[t.id] || getDefaultDeliveryChatChannel(t);
+                const storeName = escapeViewerText(getDeliveryStoreName(t));
+                const recipientName = escapeViewerText(getDeliveryRecipientName(t));
+                const merchMsgs = getDeliveryChatMessages(t, 'merchant');
+                const clientMsgs = getDeliveryChatMessages(t, 'client');
+                const msgs = activeCh === 'merchant' ? merchMsgs : clientMsgs;
+                const linesHtml = msgs.length
+                    ? msgs.map((m) => `
+                        <div class="ops-trip-chat-line">
+                            <span class="ops-trip-chat-sender ${m.sender === t.driverId ? 'ops-trip-chat-sender--driver' : 'ops-trip-chat-sender--client'}">${escapeViewerText(m.senderName || 'U')}:</span>
+                            <span class="ops-trip-chat-text">${escapeViewerText(m.text || '')}</span>
+                        </div>
+                    `).join('')
+                    : `<p class="ops-trip-chat-empty">Sin mensajes con ${activeCh === 'merchant' ? `el negocio (${storeName})` : `el cliente (${recipientName})`}.</p>`;
+                return `
+                    <div class="ops-delivery-dual-chat" data-delivery-dual-chat="${escapeViewerText(t.id || '')}" data-active-channel="${escapeViewerText(activeCh)}">
+                        <div class="hr-store-chat-tabs" style="margin-bottom:6px;">
+                            <button type="button" class="hr-store-chat-tab ${activeCh === 'merchant' ? 'is-active' : ''}" data-delivery-chat-tab="merchant" onclick="window.switchStaffSheetChatChannel?.('${escapeViewerText(t.id || '')}', 'merchant')">
+                                <i class="fas fa-store"></i>
+                                <span>🏪 Negocio (${storeName})</span>
+                                <span class="hr-store-chat-count">${merchMsgs.length}</span>
+                            </button>
+                            <button type="button" class="hr-store-chat-tab ${activeCh === 'client' ? 'is-active' : ''}" data-delivery-chat-tab="client" onclick="window.switchStaffSheetChatChannel?.('${escapeViewerText(t.id || '')}', 'client')">
+                                <i class="fas fa-user"></i>
+                                <span>👤 Cliente (${recipientName})</span>
+                                <span class="hr-store-chat-count">${clientMsgs.length}</span>
+                            </button>
+                        </div>
+                        <div class="ops-delivery-chat-msgs" id="ops-delivery-chat-msgs-${escapeViewerText(t.id || '')}">${linesHtml}</div>
+                        <div style="display:flex;gap:6px;margin-top:6px;">
+                            <input type="text" id="ops-delivery-chat-input-${escapeViewerText(t.id || '')}" placeholder="Escribir a ${activeCh === 'merchant' ? storeName : recipientName}…" style="flex:1;min-width:0;padding:7px 10px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#f8fafc;font-size:12px;" onkeydown="if(event.key==='Enter'){event.preventDefault();window.sendStaffSheetChatMessage?.('${escapeViewerText(t.id || '')}');}">
+                            <button type="button" onclick="window.sendStaffSheetChatMessage?.('${escapeViewerText(t.id || '')}')" style="padding:7px 12px;border-radius:10px;border:0;background:#2563eb;color:#fff;font-weight:900;font-size:12px;cursor:pointer;"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                `;
+            }
             if (!t.chat || !t.chat.length) {
                 return '<p class="ops-trip-chat-empty">No hay mensajes.</p>';
             }
@@ -14758,6 +14833,18 @@ if (document.readyState === 'loading') {
 
         function buildStaffTripPinPanelHtml(t) {
             if (!isStaffUser(currentUser, window.userProfile)) return '';
+            if (isDeliveryTrip(t)) {
+                const stMeta = getDeliveryStageMeta(t);
+                return `
+                    <div class="ops-trip-pin-panel" data-delivery-no-pin="1">
+                        <div class="ops-trip-pin-row">
+                            <span class="ops-trip-pin-label"><i class="fas fa-store"></i> Envío sin PIN de pasajero</span>
+                            <span class="ops-trip-pin-state ops-trip-pin-state--ok">${escapeViewerText(stMeta.shortBadge)}</span>
+                        </div>
+                        <div class="ops-trip-pin-sub">1️⃣ Recoger en <b>${escapeViewerText(stMeta.storeName)}</b> (${escapeViewerText(t.origin || '—')}) → 2️⃣ Entregar a <b>${escapeViewerText(stMeta.recipientName)}</b> (${escapeViewerText(t.destination || '—')})</div>
+                    </div>
+                `;
+            }
             const hasDriver = !!t.driverId;
             const pin = t.pin != null && t.pin !== '' ? String(t.pin) : null;
             const arrived = !!t.driverArrived;
@@ -16388,7 +16475,7 @@ if (document.readyState === 'loading') {
                 if (!confirm(confirmMsg)) return;
 
                 const rating = d.ratingCount > 0 ? (d.ratingSum / d.ratingCount).toFixed(1) : '5.0';
-                const pin = Math.floor(1000 + Math.random() * 9000).toString();
+                const pin = isDeliveryTrip(trip) ? null : Math.floor(1000 + Math.random() * 9000).toString();
                 const priceNum = trip.negotiatedPrice != null
                     ? parseFloat(trip.negotiatedPrice)
                     : parseTripPrice(trip);
@@ -16694,28 +16781,39 @@ if (document.readyState === 'loading') {
                 pinSkipMode: mode
             };
 
+            const isDeliv = isDeliveryTrip(trip);
             try {
                 if (mode === 'arrived') {
-                    if (trip.driverArrived) return window.showToast?.('El conductor ya marcó llegada.');
-                    if (!confirm('¿Marcar llegada del conductor al origen?')) return;
+                    if (trip.driverArrived) return window.showToast?.(isDeliv ? 'El repartidor ya marcó llegada al negocio.' : 'El conductor ya marcó llegada.');
+                    if (!confirm(isDeliv ? '¿Marcar que el repartidor llegó al negocio a recoger el pedido?' : '¿Marcar llegada del conductor al origen?')) return;
                     await updateDoc(tripRef, { driverArrived: true, staffArrivedOverride: true, staffArrivedBy: currentUser.uid, staffArrivedAt: serverTimestamp() });
-                    window.showToast?.('Llegada marcada. El conductor ya puede pedir el PIN.', 'success');
+                    window.showToast?.(isDeliv ? '🏪 Llegada al negocio marcada. Cuando recoja el pedido puede iniciar ruta al cliente.' : 'Llegada marcada. El conductor ya puede pedir el PIN.', 'success');
                     return;
                 }
 
-                const startMsg = mode === 'full'
-                    ? '¿Marcar llegada e iniciar el viaje SIN PIN? El conductor irá directo al destino.'
-                    : '¿Iniciar el viaje SIN PIN? Usa esto solo si el pasajero no puede dar el código.';
+                const startMsg = isDeliv
+                    ? '¿Confirmar que el repartidor ya recogió el pedido en el negocio y va en camino al cliente?'
+                    : (mode === 'full'
+                        ? '¿Marcar llegada e iniciar el viaje SIN PIN? El conductor irá directo al destino.'
+                        : '¿Iniciar el viaje SIN PIN? Usa esto solo si el pasajero no puede dar el código.');
                 if (!confirm(startMsg)) return;
 
-                const patch = {
-                    ...audit,
-                    status: 'in_progress',
-                    startedAt: serverTimestamp(),
-                    driverArrived: true
-                };
+                const patch = isDeliv
+                    ? {
+                        status: 'in_progress',
+                        startedAt: serverTimestamp(),
+                        storeOrderPickedUpAt: serverTimestamp(),
+                        driverArrived: true,
+                        pinSkippedByStaff: false
+                    }
+                    : {
+                        ...audit,
+                        status: 'in_progress',
+                        startedAt: serverTimestamp(),
+                        driverArrived: true
+                    };
                 await updateDoc(tripRef, patch);
-                window.showToast?.('Viaje iniciado sin PIN. Conductor liberado para ir al destino.', 'success');
+                window.showToast?.(isDeliv ? '📦 Pedido recogido. Repartidor en camino hacia el cliente.' : 'Viaje iniciado sin PIN. Conductor liberado para ir al destino.', 'success');
 
                 if (activeTrip?.id === tripId) {
                     activeTrip = { id: tripId, ...trip, ...patch, status: 'in_progress', driverArrived: true };
@@ -17853,7 +17951,8 @@ if (document.readyState === 'loading') {
             const bothRated = t.status === 'completed' && t.ratedByClient && t.ratedByDriver;
             const attention = showStaffPin ? getStaffPendingAttentionMeta(t) : null;
             const tripPhase = phase || getStaffActiveTripPhase(t);
-            const phaseMeta = getStaffActiveTripPhaseMeta(tripPhase);
+            const phaseMeta = getStaffActiveTripPhaseMeta(tripPhase, t);
+            const isDelivCard = isDeliveryTrip(t);
             let statusVariant = t.status === 'pending' ? 'amber'
                 : (t.status === 'in_progress' ? 'cyan'
                     : (t.status === 'completed' ? (bothRated ? 'default' : 'amber')
@@ -17870,8 +17969,9 @@ if (document.readyState === 'loading') {
                 cancelled: 'CANCELADO'
             };
             let statusLabel = statusLabels[t.status] || String(t.status || '').toUpperCase();
-            if (tripPhase === 'to_pickup') statusLabel = 'EN CAMINO';
-            if (tripPhase === 'at_pickup') statusLabel = 'EN ORIGEN · PIN';
+            if (tripPhase === 'to_pickup') statusLabel = isDelivCard ? 'AL NEGOCIO' : 'EN CAMINO';
+            if (tripPhase === 'at_pickup') statusLabel = isDelivCard ? 'EN NEGOCIO · RECOGIENDO' : 'EN ORIGEN · PIN';
+            if (tripPhase === 'in_progress' && isDelivCard) statusLabel = 'AL CLIENTE';
             if (t.status === 'completed') {
                 statusLabel = bothRated ? 'FINALIZADO' : 'COMPLETADO (calif.)';
             }
@@ -19706,7 +19806,7 @@ if (document.readyState === 'loading') {
                     if (!driverSnap.exists()) return window.showToast('Perfil del conductor de prueba no encontrado.');
                     const d = driverSnap.data();
                     const rating = d.ratingCount > 0 ? (d.ratingSum / d.ratingCount).toFixed(1) : '5.0';
-                    const pin = Math.floor(1000 + Math.random() * 9000).toString();
+                    const pin = isDeliveryTrip(trip) ? null : Math.floor(1000 + Math.random() * 9000).toString();
 
                     const priceNum = parseTripPrice(trip);
                     const isBirthdayGift = trip.birthdayFree || trip.paymentMethod === 'birthday_gift';
@@ -21898,22 +21998,35 @@ if (document.readyState === 'loading') {
                 await Promise.all(loads);
             } catch (_) {}
 
+            const isDelivSheet = isDeliveryTrip(trip);
+            const delivMeta = isDelivSheet ? getDeliveryStageMeta(trip) : null;
+            const storeName = isDelivSheet ? getDeliveryStoreName(trip) : '';
+            const recipientName = isDelivSheet ? getDeliveryRecipientName(trip) : clientName;
+            const storePhone = isDelivSheet ? (trip.deliveryDetails?.storePhone || '') : '';
+            const storeWa = storePhone ? getWhatsAppLink(storePhone) : '';
+            const storePhoneFmt = formatHondurasPhone(storePhone) || storePhone || 'Chat en app';
             const phase = getStaffActiveTripPhase(trip);
-            const phaseMeta = getStaffActiveTripPhaseMeta(phase);
+            const phaseMeta = getStaffActiveTripPhaseMeta(phase, trip);
             const phaseClass = phase === 'in_progress'
                 ? 'staff-live-trip-sheet--dest'
                 : (phase === 'at_pickup'
                     ? 'staff-live-trip-sheet--wait'
                     : (phase === 'to_pickup' ? 'staff-live-trip-sheet--pickup' : ''));
-            const phaseLegend = phase === 'in_progress'
-                ? '🚗 Rojo = hacia destino final'
-                : (phase === 'at_pickup'
-                    ? '📍 Morado = en origen esperando PIN'
-                    : (phase === 'to_pickup'
-                        ? '🚗 Verde = en camino al pasajero'
-                        : 'Colores: verde pickup · morado espera · rojo destino'));
+            const phaseLegend = isDelivSheet
+                ? (phase === 'in_progress'
+                    ? '🛵 Paso 2/2: Repartidor en camino hacia el cliente para entregar'
+                    : (phase === 'at_pickup'
+                        ? `🏪 Paso 1/2: Repartidor en ${storeName} recogiendo el pedido (sin PIN)`
+                        : `🛵 Paso 1/2: Repartidor en camino a ${storeName} a traer la comida (sin PIN)`))
+                : (phase === 'in_progress'
+                    ? '🚗 Rojo = hacia destino final'
+                    : (phase === 'at_pickup'
+                        ? '📍 Morado = en origen esperando PIN'
+                        : (phase === 'to_pickup'
+                            ? '🚗 Verde = en camino al pasajero'
+                            : 'Colores: verde pickup · morado espera · rojo destino')));
             const price = trip.price || (trip.priceNum != null ? `${formatLempiras(Number(trip.priceNum))}` : '—');
-            const statusLabel = phaseMeta.title || trip.status || 'Viaje';
+            const statusLabel = isDelivSheet ? delivMeta.headerTitle : (phaseMeta.title || trip.status || 'Viaje');
             const origin = trip.origin || '—';
             const dest = trip.destination || '—';
             const clientWa = clientPhone ? getWhatsAppLink(clientPhone) : '';
@@ -21921,18 +22034,22 @@ if (document.readyState === 'loading') {
             const clientPhoneFmt = formatHondurasPhone(clientPhone) || clientPhone || 'Sin número';
             const driverPhoneFmt = formatHondurasPhone(driverPhone) || driverPhone || 'Sin número';
             const stopsN = Array.isArray(trip.additionalStops) ? trip.additionalStops.length : 0;
-            const pointsLabel = stopsN > 0
-                ? `${stopsN + 2} puntos en ruta`
-                : 'Origen → destino';
+            const pointsLabel = isDelivSheet
+                ? `1. Recoger en ${storeName} → 2. Entregar a ${recipientName}`
+                : (stopsN > 0 ? `${stopsN + 2} puntos en ruta` : 'Origen → destino');
             const chatHtml = buildTripChatHtml(trip);
-            const chatCount = Array.isArray(trip.chat) ? trip.chat.length : 0;
+            const chatCount = isDelivSheet
+                ? (getDeliveryChatMessages(trip, 'merchant').length + getDeliveryChatMessages(trip, 'client').length)
+                : (Array.isArray(trip.chat) ? trip.chat.length : 0);
 
-            // PIN + acciones de control (llegada / saltar PIN / destino) — visibles en el panel del mapa
-            const pinCode = trip.pin != null && trip.pin !== '' ? String(trip.pin) : '';
+            // PIN + acciones de control (en envíos de tienda NUNCA hay PIN de pasajero)
+            const pinCode = (!isDelivSheet && trip.pin != null && trip.pin !== '') ? String(trip.pin) : '';
             const pinArrived = !!trip.driverArrived;
             const pinSkipped = !!(trip.pinSkippedByStaff || trip.pinSkippedByDriver);
             let pinStateHtml = '';
-            if (trip.status === 'accepted' && !pinArrived) {
+            if (isDelivSheet) {
+                pinStateHtml = `<span class="staff-live-pin-state staff-live-pin-state--ok">${escapeViewerText(delivMeta.shortBadge)}</span>`;
+            } else if (trip.status === 'accepted' && !pinArrived) {
                 pinStateHtml = '<span class="staff-live-pin-state">En camino al origen</span>';
             } else if (trip.status === 'accepted' && pinArrived) {
                 pinStateHtml = '<span class="staff-live-pin-state staff-live-pin-state--wait">En origen · esperando PIN</span>';
@@ -21944,42 +22061,79 @@ if (document.readyState === 'loading') {
 
             let pinActionsHtml = '';
             if (isStaffUser(currentUser, window.userProfile) && trip.driverId) {
-                if (trip.status === 'accepted') {
-                    if (!pinArrived) {
+                if (isDelivSheet) {
+                    if (trip.status === 'accepted') {
+                        if (!pinArrived) {
+                            pinActionsHtml = `
+                                <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-live-pin-arrived">
+                                    <i class="fas fa-store"></i> 🏪 Llegó al negocio
+                                </button>
+                                <button type="button" class="staff-live-trip-btn staff-live-trip-btn--emerald" id="staff-live-pin-full">
+                                    <i class="fas fa-box-open"></i> 📦 Ya recogió el pedido · Ir al cliente
+                                </button>`;
+                        } else {
+                            pinActionsHtml = `
+                                <button type="button" class="staff-live-trip-btn staff-live-trip-btn--emerald" id="staff-live-pin-start">
+                                    <i class="fas fa-box-open"></i> 📦 Pedido recogido · Ir al cliente
+                                </button>`;
+                        }
+                    } else if (trip.status === 'in_progress' && !trip.driverArrivedDestination) {
                         pinActionsHtml = `
-                            <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-live-pin-arrived">
-                                <i class="fas fa-map-marker-alt"></i> Marcar llegada
-                            </button>
-                            <button type="button" class="staff-live-trip-btn staff-live-trip-btn--warn" id="staff-live-pin-full">
-                                <i class="fas fa-forward"></i> Llegada + iniciar sin PIN
-                            </button>`;
-                    } else {
-                        pinActionsHtml = `
-                            <button type="button" class="staff-live-trip-btn staff-live-trip-btn--warn" id="staff-live-pin-start">
-                                <i class="fas fa-forward"></i> Iniciar sin PIN
+                            <button type="button" class="staff-live-trip-btn staff-live-trip-btn--emerald" id="staff-live-pin-dest">
+                                <i class="fas fa-check-circle"></i> ✅ Pedido entregado
                             </button>`;
                     }
-                } else if (trip.status === 'in_progress' && !trip.driverArrivedDestination) {
-                    pinActionsHtml = `
-                        <button type="button" class="staff-live-trip-btn staff-live-trip-btn--emerald" id="staff-live-pin-dest">
-                            <i class="fas fa-flag-checkered"></i> Llegó al destino
-                        </button>`;
+                } else {
+                    if (trip.status === 'accepted') {
+                        if (!pinArrived) {
+                            pinActionsHtml = `
+                                <button type="button" class="staff-live-trip-btn staff-live-trip-btn--primary" id="staff-live-pin-arrived">
+                                    <i class="fas fa-map-marker-alt"></i> Marcar llegada
+                                </button>
+                                <button type="button" class="staff-live-trip-btn staff-live-trip-btn--warn" id="staff-live-pin-full">
+                                    <i class="fas fa-forward"></i> Llegada + iniciar sin PIN
+                                </button>`;
+                        } else {
+                            pinActionsHtml = `
+                                <button type="button" class="staff-live-trip-btn staff-live-trip-btn--warn" id="staff-live-pin-start">
+                                    <i class="fas fa-forward"></i> Iniciar sin PIN
+                                </button>`;
+                        }
+                    } else if (trip.status === 'in_progress' && !trip.driverArrivedDestination) {
+                        pinActionsHtml = `
+                            <button type="button" class="staff-live-trip-btn staff-live-trip-btn--emerald" id="staff-live-pin-dest">
+                                <i class="fas fa-flag-checkered"></i> Llegó al destino
+                            </button>`;
+                    }
                 }
             }
 
-            const sheet = document.createElement('div');
-            sheet.id = 'staff-live-trip-sheet';
-            sheet.className = `staff-live-trip-sheet ${phaseClass}`.trim();
-            sheet.innerHTML = `
-                <div class="staff-live-trip-sheet-inner">
-                    <div class="staff-live-trip-sheet-head">
-                        <div>
-                            <p class="staff-live-trip-kicker"><i class="fas fa-circle staff-live-trip-dot"></i> Viaje en vivo · mapa</p>
-                            <h3 class="staff-live-trip-title">${escapeViewerText(statusLabel)}</h3>
-                            <p class="staff-live-trip-price">${escapeViewerText(String(price))}</p>
+            const peopleHtml = isDelivSheet
+                ? `
+                    <div class="staff-live-trip-people" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;">
+                        <div class="staff-live-trip-person" style="border-color:rgba(245,158,11,0.45);">
+                            <p class="staff-live-trip-role" style="color:#fbbf24;"><i class="fas fa-store"></i> 1. Negocio (recoger)</p>
+                            <p class="staff-live-trip-name">${escapeViewerText(storeName)}</p>
+                            ${storeWa
+                                ? `<a class="staff-live-trip-wa" href="${storeWa}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> ${escapeViewerText(storePhoneFmt)}</a>`
+                                : `<span class="staff-live-trip-wa-miss">${escapeViewerText(storePhoneFmt)}</span>`}
                         </div>
-                        <button type="button" class="staff-live-trip-close" id="staff-live-trip-close" aria-label="Cerrar">&times;</button>
-                    </div>
+                        <div class="staff-live-trip-person" style="border-color:rgba(59,130,246,0.45);">
+                            <p class="staff-live-trip-role" style="color:#93c5fd;"><i class="fas fa-user"></i> 2. Cliente (recibe)</p>
+                            <p class="staff-live-trip-name">${escapeViewerText(recipientName)}</p>
+                            ${clientWa
+                                ? `<a class="staff-live-trip-wa" href="${clientWa}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> ${escapeViewerText(clientPhoneFmt)}</a>`
+                                : `<span class="staff-live-trip-wa-miss">${escapeViewerText(clientPhoneFmt)}</span>`}
+                        </div>
+                        <div class="staff-live-trip-person">
+                            <p class="staff-live-trip-role"><i class="fas fa-motorcycle"></i> Repartidor</p>
+                            <p class="staff-live-trip-name">${escapeViewerText(driverName)}</p>
+                            ${driverWa
+                                ? `<a class="staff-live-trip-wa" href="${driverWa}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> ${escapeViewerText(driverPhoneFmt)}</a>`
+                                : `<span class="staff-live-trip-wa-miss">${escapeViewerText(driverPhoneFmt)}</span>`}
+                        </div>
+                    </div>`
+                : `
                     <div class="staff-live-trip-people">
                         <div class="staff-live-trip-person">
                             <p class="staff-live-trip-role"><i class="fas fa-user"></i> Pasajero</p>
@@ -21995,12 +22149,21 @@ if (document.readyState === 'loading') {
                                 ? `<a class="staff-live-trip-wa" href="${driverWa}" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> ${escapeViewerText(driverPhoneFmt)}</a>`
                                 : `<span class="staff-live-trip-wa-miss">${escapeViewerText(driverPhoneFmt)}</span>`}
                         </div>
-                    </div>
-                    <div class="staff-live-trip-route">
-                        <p><i class="fas fa-circle text-emerald-500 text-[8px]"></i> ${escapeViewerText(origin)}</p>
-                        <p class="staff-live-trip-route-arrow"><i class="fas fa-arrow-down"></i> ${escapeViewerText(pointsLabel)}</p>
-                        <p><i class="fas fa-flag-checkered text-red-500 text-[10px]"></i> ${escapeViewerText(dest)}</p>
-                    </div>
+                    </div>`;
+
+            const pinOrDeliveryBoxHtml = isDelivSheet
+                ? `
+                    <div class="staff-live-pin-box" id="staff-live-pin-box" data-delivery-no-pin="1" style="border-color:rgba(16,185,129,0.45);background:rgba(6,78,59,0.28);">
+                        <div class="staff-live-pin-head">
+                            <span style="color:#6ee7b7;"><i class="fas fa-store"></i> Etapa del envío · Sin PIN de pasajero</span>
+                            ${pinStateHtml}
+                        </div>
+                        <div style="font-size:12px;color:#e2e8f0;font-weight:700;margin:4px 0 6px;">
+                            1️⃣ Ir a <b>${escapeViewerText(storeName)}</b> a traer la comida → 2️⃣ Ir donde <b>${escapeViewerText(recipientName)}</b> a entregarla.
+                        </div>
+                        ${pinActionsHtml ? `<div class="staff-live-pin-actions">${pinActionsHtml}</div>` : ''}
+                    </div>`
+                : `
                     <div class="staff-live-pin-box" id="staff-live-pin-box">
                         <div class="staff-live-pin-head">
                             <span><i class="fas fa-key"></i> PIN del pasajero</span>
@@ -22015,10 +22178,31 @@ if (document.readyState === 'loading') {
                                 : `<span class="staff-live-pin-miss">${trip.driverId ? 'Sin PIN en el viaje' : 'Sin conductor'}</span>`}
                         </div>
                         ${pinActionsHtml ? `<div class="staff-live-pin-actions">${pinActionsHtml}</div>` : ''}
+                    </div>`;
+
+            const sheet = document.createElement('div');
+            sheet.id = 'staff-live-trip-sheet';
+            sheet.className = `staff-live-trip-sheet ${phaseClass}`.trim();
+            sheet.innerHTML = `
+                <div class="staff-live-trip-sheet-inner">
+                    <div class="staff-live-trip-sheet-head">
+                        <div>
+                            <p class="staff-live-trip-kicker"><i class="fas fa-circle staff-live-trip-dot"></i> ${isDelivSheet ? '🛵 Envío de tienda en vivo · Sin PIN' : 'Viaje en vivo · mapa'}</p>
+                            <h3 class="staff-live-trip-title">${escapeViewerText(statusLabel)}</h3>
+                            <p class="staff-live-trip-price">${escapeViewerText(String(price))}</p>
+                        </div>
+                        <button type="button" class="staff-live-trip-close" id="staff-live-trip-close" aria-label="Cerrar">&times;</button>
                     </div>
+                    ${peopleHtml}
+                    <div class="staff-live-trip-route">
+                        <p><i class="fas ${isDelivSheet ? 'fa-store text-amber-400' : 'fa-circle text-emerald-500'} text-[10px]"></i> ${isDelivSheet ? `<b>1. Recoger en ${escapeViewerText(storeName)}:</b> ` : ''}${escapeViewerText(origin)}</p>
+                        <p class="staff-live-trip-route-arrow"><i class="fas fa-arrow-down"></i> ${escapeViewerText(pointsLabel)}</p>
+                        <p><i class="fas fa-flag-checkered text-red-500 text-[10px]"></i> ${isDelivSheet ? `<b>2. Entregar a ${escapeViewerText(recipientName)}:</b> ` : ''}${escapeViewerText(dest)}</p>
+                    </div>
+                    ${pinOrDeliveryBoxHtml}
                     <div class="staff-live-trip-chat">
                         <button type="button" class="staff-live-trip-chat-toggle" id="staff-live-trip-chat-toggle" aria-expanded="true">
-                            <span><i class="fas fa-comments"></i> Chat del viaje${chatCount ? ` · ${chatCount}` : ''}</span>
+                            <span><i class="fas fa-comments"></i> ${isDelivSheet ? 'Chat con Negocio y Cliente' : 'Chat del viaje'}${chatCount ? ` · ${chatCount}` : ''}</span>
                             <i class="fas fa-chevron-up staff-live-trip-chat-chevron"></i>
                         </button>
                         <div class="staff-live-trip-chat-body" id="staff-live-trip-chat-body">
@@ -22042,7 +22226,7 @@ if (document.readyState === 'loading') {
                             <i class="fas fa-id-badge"></i> Ficha conductor
                         </button>
                     </div>
-                    <p class="staff-live-trip-hint">${phaseLegend}. Usa los botones de PIN arriba para marcar llegada o iniciar sin PIN.</p>
+                    <p class="staff-live-trip-hint">${phaseLegend}</p>
                 </div>`;
             document.body.appendChild(sheet);
 
@@ -33599,7 +33783,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (!skipConfirm && !confirm(`¿Irte con ${driverName} por ${formatLempiras(effectivePrice)}?`)) return;
 
                 const rating = d.ratingCount > 0 ? (d.ratingSum / d.ratingCount).toFixed(1) : (bid.rating || '5.0');
-                const pin = Math.floor(1000 + Math.random() * 9000).toString();
+                const pin = isDeliveryTrip(trip) ? null : Math.floor(1000 + Math.random() * 9000).toString();
                 const priceNum = effectivePrice > 0 ? effectivePrice : parseFloat(bid.price);
                 const isBirthdayGift = trip.birthdayFree || trip.paymentMethod === 'birthday_gift';
 
@@ -34938,6 +35122,41 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
                 if (shouldPlaySound) {
                     // Tonos HonduRaite (no el ding genérico de Google — Safari a menudo lo bloquea)
+                    try {
+                        window.playChatSound?.()
+                            || window.playEventNotificationTone?.('chat')
+                            || window.HonduTones?.playEventTone?.('chat');
+                    } catch (e) {}
+                }
+            }
+
+            if (Array.isArray(data.chatMerchant) && data.chatMerchant.length > (window.lastMerchantMessageCount || 0)) {
+                const newMerchantMessages = data.chatMerchant.slice(window.lastMerchantMessageCount || 0);
+                window.lastMerchantMessageCount = data.chatMerchant.length;
+                let shouldPlayMerchantSound = false;
+                newMerchantMessages.forEach((msg) => {
+                    if (msg.sender !== currentUser.uid) {
+                        shouldPlayMerchantSound = true;
+                        if (!window.chatOpen) {
+                            ['chat-badge', 'chat-badge-driver', 'driver-tools-chat-badge', 'driver-pin-chat-badge'].forEach((id) => {
+                                const badge = document.getElementById(id);
+                                if (!badge) return;
+                                const count = parseInt(badge.innerText || '0') + 1;
+                                badge.innerText = count;
+                                badge.classList.remove('hidden');
+                            });
+                        }
+                        notifyChatMessage({
+                            senderName: `🏪 ${msg.senderName || getDeliveryStoreName(data)}`,
+                            text: msg.text,
+                            tripId: data.id
+                        });
+                        if (!shouldNotifyInBackground()) {
+                            window.speakMessage?.(`${msg.senderName || getDeliveryStoreName(data)} dice: ${msg.text}`);
+                        }
+                    }
+                });
+                if (shouldPlayMerchantSound) {
                     try {
                         window.playChatSound?.()
                             || window.playEventNotificationTone?.('chat')
@@ -36333,6 +36552,113 @@ window.saveSimplePassengerProfile = async () => {
 
         let chatSendInFlight = false;
         let lastChatSendAt = 0;
+        window._activeDeliveryChatChannel = null;
+        window._activeDeliveryChatTripId = null;
+        window._activeDeliveryChatAutoStage = null;
+
+        window.getActiveDeliveryChatChannel = (trip) => {
+            const t = trip || activeTrip || window.currentActiveTripData;
+            if (!t || !isDeliveryTrip(t)) return 'client';
+            if (window.userProfile?.role === 'client' && t.clientId === currentUser?.uid && t.merchantId !== currentUser?.uid) {
+                return 'client';
+            }
+            const defaultCh = getDefaultDeliveryChatChannel(t);
+            if (window._activeDeliveryChatTripId !== t.id) {
+                window._activeDeliveryChatTripId = t.id;
+                window._activeDeliveryChatChannel = defaultCh;
+                window._activeDeliveryChatAutoStage = t.status;
+            } else if (window._activeDeliveryChatAutoStage !== t.status) {
+                window._activeDeliveryChatAutoStage = t.status;
+                window._activeDeliveryChatChannel = defaultCh;
+            }
+            return window._activeDeliveryChatChannel === 'merchant' ? 'merchant' : 'client';
+        };
+
+        window.setDeliveryTripChatChannel = (channel) => {
+            const t = activeTrip || window.currentActiveTripData;
+            const ch = channel === 'merchant' ? 'merchant' : 'client';
+            window._activeDeliveryChatChannel = ch;
+            if (t?.id) window._activeDeliveryChatTripId = t.id;
+            renderChat(t?.chat || []);
+        };
+
+        window.openDeliveryTripChat = (channel) => {
+            if (channel === 'merchant' || channel === 'client') {
+                window._activeDeliveryChatChannel = channel;
+                const t = activeTrip || window.currentActiveTripData;
+                if (t?.id) window._activeDeliveryChatTripId = t.id;
+            }
+            if (!window.chatOpen) {
+                window.toggleChat?.();
+            }
+            const t = activeTrip || window.currentActiveTripData;
+            renderChat(t?.chat || []);
+            setTimeout(() => document.getElementById('chat-input')?.focus?.(), 80);
+        };
+
+        window.sendTripChannelMessage = async (tripId, channel, text, extraMeta = {}) => {
+            const cleanText = String(text || '').trim();
+            const uid = currentUser?.uid || window.currentUser?.uid;
+            if (!tripId || !cleanText || !uid) return null;
+            const ch = channel === 'merchant' ? 'merchant' : 'client';
+            const now = Date.now();
+            const msg = {
+                sender: uid,
+                senderName: extraMeta.senderName || window.userProfile?.name || 'Usuario',
+                senderRole: extraMeta.senderRole || window.userProfile?.role || 'user',
+                channel: ch,
+                target: ch,
+                text: cleanText,
+                time: now
+            };
+            const patch = ch === 'merchant'
+                ? { chatMerchant: arrayUnion(msg), updatedAt: serverTimestamp() }
+                : { chat: arrayUnion(msg), updatedAt: serverTimestamp() };
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId), patch);
+            return msg;
+        };
+
+        window.switchStaffSheetChatChannel = (tripId, channel) => {
+            window._staffSheetChatChannels = window._staffSheetChatChannels || {};
+            window._staffSheetChatChannels[tripId] = channel === 'merchant' ? 'merchant' : 'client';
+            if (window._staffLiveSheetTripId === tripId) {
+                window.showStaffLiveTripMapSheet?.(tripId);
+            }
+        };
+
+        window.sendStaffSheetChatMessage = async (tripId) => {
+            const input = document.getElementById(`staff-chat-input-${tripId}`);
+            const text = input?.value?.trim();
+            if (!text) return window.showToast?.('Escribe un mensaje.', 'warning');
+            const t = (window.lastTripsSnapshot || []).find((x) => x.id === tripId)
+                || (activeTrip?.id === tripId ? activeTrip : null);
+            const isDeliv = t && isDeliveryTrip(t);
+            const channel = isDeliv
+                ? (window._staffSheetChatChannels?.[tripId] || getDefaultDeliveryChatChannel(t))
+                : 'client';
+            try {
+                if (input) input.disabled = true;
+                const msg = await window.sendTripChannelMessage(tripId, channel, text);
+                if (input) {
+                    input.value = '';
+                    input.disabled = false;
+                }
+                if (t && msg) {
+                    if (channel === 'merchant') {
+                        t.chatMerchant = [...(Array.isArray(t.chatMerchant) ? t.chatMerchant : []), msg];
+                    } else {
+                        t.chat = [...(Array.isArray(t.chat) ? t.chat : []), msg];
+                    }
+                }
+                if (window._staffLiveSheetTripId === tripId) {
+                    window.showStaffLiveTripMapSheet?.(tripId);
+                }
+            } catch (e) {
+                if (input) input.disabled = false;
+                console.error('sendStaffSheetChatMessage:', e);
+                window.showToast?.('No se pudo enviar el mensaje.', 'warning');
+            }
+        };
 
         window.sendChatMessage = async () => {
             const input = document.getElementById('chat-input');
@@ -36358,9 +36684,14 @@ window.saveSimplePassengerProfile = async () => {
                 return;
             }
 
+            const isDeliv = isDeliveryTrip(trip);
+            const channel = isDeliv ? window.getActiveDeliveryChatChannel(trip) : 'client';
+
             const msg = {
                 sender: uid,
                 senderName: window.userProfile?.name || 'Usuario',
+                senderRole: window.userProfile?.role || 'user',
+                ...(isDeliv ? { channel, target: channel } : {}),
                 text,
                 time: now
             };
@@ -36369,18 +36700,29 @@ window.saveSimplePassengerProfile = async () => {
             lastChatSendAt = now;
             try {
                 if (sendBtn) sendBtn.disabled = true;
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), {
-                    chat: arrayUnion(msg)
-                });
+                const patch = (isDeliv && channel === 'merchant')
+                    ? { chatMerchant: arrayUnion(msg), updatedAt: serverTimestamp() }
+                    : { chat: arrayUnion(msg), updatedAt: serverTimestamp() };
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), patch);
                 if (input) input.value = '';
-                const prev = Array.isArray(trip.chat) ? trip.chat : [];
-                const nextChat = [...prev, msg];
-                if (activeTrip?.id === trip.id) activeTrip = { ...activeTrip, chat: nextChat };
-                if (window.currentActiveTripData?.id === trip.id) {
-                    window.currentActiveTripData = { ...window.currentActiveTripData, chat: nextChat };
+                if (isDeliv && channel === 'merchant') {
+                    const prevM = Array.isArray(trip.chatMerchant) ? trip.chatMerchant : [];
+                    const nextM = [...prevM, msg];
+                    if (activeTrip?.id === trip.id) activeTrip = { ...activeTrip, chatMerchant: nextM };
+                    if (window.currentActiveTripData?.id === trip.id) {
+                        window.currentActiveTripData = { ...window.currentActiveTripData, chatMerchant: nextM };
+                    }
+                    window.lastMerchantMessageCount = nextM.length;
+                } else {
+                    const prev = Array.isArray(trip.chat) ? trip.chat : [];
+                    const nextChat = [...prev, msg];
+                    if (activeTrip?.id === trip.id) activeTrip = { ...activeTrip, chat: nextChat };
+                    if (window.currentActiveTripData?.id === trip.id) {
+                        window.currentActiveTripData = { ...window.currentActiveTripData, chat: nextChat };
+                    }
+                    window.lastMessageCount = nextChat.length;
                 }
-                window.lastMessageCount = nextChat.length;
-                renderChat(nextChat);
+                renderChat((activeTrip || window.currentActiveTripData)?.chat || []);
             } catch (e) {
                 console.error('sendChatMessage:', e);
                 const code = String(e?.code || '');
@@ -36524,10 +36866,58 @@ window.saveSimplePassengerProfile = async () => {
             const container = document.getElementById('chat-messages');
             if (!container) return;
 
-            const msgs = Array.isArray(messages) ? messages : [];
+            const trip = activeTrip || window.currentActiveTripData;
+            const isDeliv = trip && isDeliveryTrip(trip);
+            const showDualTabs = isDeliv && (window.userProfile?.role === 'driver' || isStaffViewerProfile(window.userProfile) || trip.merchantId === currentUser?.uid);
+            const activeCh = showDualTabs ? window.getActiveDeliveryChatChannel(trip) : 'client';
+
+            if (!document.getElementById('hr-store-trip-css')) {
+                const st = document.createElement('style');
+                st.id = 'hr-store-trip-css';
+                st.textContent = STORE_TRIP_CSS;
+                document.head.appendChild(st);
+            }
+
+            let tabsWrap = document.getElementById('delivery-chat-channel-tabs');
+            if (showDualTabs && container.parentNode) {
+                if (!tabsWrap) {
+                    tabsWrap = document.createElement('div');
+                    tabsWrap.id = 'delivery-chat-channel-tabs';
+                    container.parentNode.insertBefore(tabsWrap, container);
+                }
+                tabsWrap.innerHTML = buildDeliveryDualChatTabsHtml(trip, activeCh);
+                tabsWrap.classList.remove('hidden');
+            } else if (tabsWrap) {
+                tabsWrap.innerHTML = '';
+                tabsWrap.classList.add('hidden');
+            }
+
+            const chatInput = document.getElementById('chat-input');
+            if (chatInput) {
+                if (showDualTabs) {
+                    const targetLabel = activeCh === 'merchant'
+                        ? `🏪 Escribe a ${getDeliveryStoreName(trip)} (negocio)...`
+                        : `👤 Escribe a ${getDeliveryRecipientName(trip)} (cliente)...`;
+                    chatInput.placeholder = targetLabel;
+                } else {
+                    chatInput.placeholder = 'Escribe un mensaje...';
+                }
+            }
+
+            const msgs = isDeliv
+                ? getDeliveryChatMessages(trip, activeCh)
+                : (Array.isArray(messages) ? messages : []);
             const wasAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 50;
 
             container.innerHTML = "";
+            if (showDualTabs && msgs.length === 0) {
+                const emptyHint = document.createElement('div');
+                emptyHint.className = 'text-center text-[11px] font-bold text-slate-500 py-3 px-2';
+                emptyHint.innerHTML = activeCh === 'merchant'
+                    ? `🏪 Chat directo con <b>${escapeViewerText(getDeliveryStoreName(trip))}</b> (preparación / recogida del pedido)`
+                    : `👤 Chat directo con <b>${escapeViewerText(getDeliveryRecipientName(trip))}</b> (entrega del pedido)`;
+                container.appendChild(emptyHint);
+            }
 
             // Reproducir sonido si hay mensajes nuevos de otra persona
             if (msgs.length > 0) {
@@ -39788,8 +40178,33 @@ window.cancelSetupAndLogout = () => {
             }
         };
 
+        window.driverConfirmOrderPickedUp = async () => {
+            if (!activeTrip?.id) await refreshActiveTripFromServer();
+            if (!activeTrip?.id) return window.showToast("No hay envío activo.");
+            if (activeTrip.status === 'in_progress') {
+                return window.showToast("El pedido ya está en ruta hacia el cliente.");
+            }
+            try {
+                await startActiveTripAfterPin({ skipped: false, deliveryPickup: true });
+                document.getElementById('driver-panel-pin')?.classList.add('hidden');
+                document.getElementById('pin-input-group')?.classList.add('hidden');
+                document.getElementById('driver-pin-float')?.classList.add('hidden');
+                document.body.classList.remove('driver-pin-phase');
+                window._activeDeliveryChatChannel = 'client';
+                renderChat(activeTrip?.chat || []);
+                const recName = getDeliveryRecipientName(activeTrip);
+                window.showToast(`📦 ¡Pedido recogido! Ahora sigue la ruta hacia ${recName} para entregarlo.`, "success");
+            } catch (e) {
+                console.error('driverConfirmOrderPickedUp error:', e);
+                handleFirestoreError(e, 'Error al iniciar la ruta de entrega al cliente.');
+            }
+        };
+
         window.markArrival = async () => {
             if (!activeTrip) return window.showToast("No hay viaje activo.");
+            if (isDeliveryTrip(activeTrip) && activeTrip.status === 'accepted' && activeTrip.driverArrived) {
+                return await window.driverConfirmOrderPickedUp();
+            }
 
             // Fix fresco de alta precisión: esta posición es la que verá el pasajero en el mapa
             let arrivalPos = null;
@@ -39849,7 +40264,8 @@ window.cancelSetupAndLogout = () => {
                     const distLabel = dist >= 1000
                         ? `${(dist / 1000).toFixed(1)} km`
                         : `${Math.round(dist)} m`;
-                    return window.showToast(`Debes estar a 1 km o menos del pasajero (ahora ~${distLabel}).`);
+                    const targetWho = isDeliveryTrip(activeTrip) ? 'del negocio' : 'del pasajero';
+                    return window.showToast(`Debes estar a 1 km o menos ${targetWho} (ahora ~${distLabel}).`);
                 }
             }
 
@@ -39930,21 +40346,35 @@ window.cancelSetupAndLogout = () => {
                 activeTrip = { ...activeTrip, ...tripPatch, driverArrived: true };
                 window.currentActiveTripData = { ...activeTrip };
 
-                window.toggleTripFloatMinimized?.('driver-pin', false);
+                const isDeliv = isDeliveryTrip(activeTrip);
+                if (!isDeliv) {
+                    window.toggleTripFloatMinimized?.('driver-pin', false);
+                }
                 syncDriverTripControls?.(activeTrip);
                 window.syncTripFloatPanels?.(activeTrip);
-                const pinInput = document.getElementById('driver-pin-input');
-                if (pinInput) {
-                    pinInput.value = '';
-                    setTimeout(() => pinInput.focus(), 80);
+                window.syncDriverPickupArrivalUi?.(window.currentDriverPos);
+                if (!isDeliv) {
+                    const pinInput = document.getElementById('driver-pin-input');
+                    if (pinInput) {
+                        pinInput.value = '';
+                        setTimeout(() => pinInput.focus(), 80);
+                    }
                 }
 
-                window.showToast(
-                    arrivedLat != null
-                        ? '¡Llegada confirmada! Tu ubicación exacta ya la ve el pasajero en el mapa. Pide el PIN.'
-                        : '¡Llegada confirmada! Ingresa el PIN del pasajero.',
-                    'success'
-                );
+                if (isDeliv) {
+                    const stName = getDeliveryStoreName(activeTrip);
+                    window.showToast(
+                        `🏪 ¡Llegaste a ${stName}! Recoge el pedido y toca «Pedido recogido · Ir al cliente» (sin PIN).`,
+                        'success'
+                    );
+                } else {
+                    window.showToast(
+                        arrivedLat != null
+                            ? '¡Llegada confirmada! Tu ubicación exacta ya la ve el pasajero en el mapa. Pide el PIN.'
+                            : '¡Llegada confirmada! Ingresa el PIN del pasajero.',
+                        'success'
+                    );
+                }
             } catch (e) {
                 handleFirestoreError(e, 'Error al confirmar llegada.');
             }
@@ -39966,7 +40396,7 @@ window.cancelSetupAndLogout = () => {
             return activeTrip || null;
         }
 
-        async function startActiveTripAfterPin({ skipped = false, skipBy = 'driver' } = {}) {
+        async function startActiveTripAfterPin({ skipped = false, skipBy = 'driver', deliveryPickup = false } = {}) {
             if (!activeTrip?.id) throw new Error('Sin viaje activo');
             const patch = {
                 status: 'in_progress',
@@ -39974,6 +40404,9 @@ window.cancelSetupAndLogout = () => {
                 routeLegIndex: 1,
                 driverArrived: true
             };
+            if (deliveryPickup || isDeliveryTrip(activeTrip)) {
+                patch.storePickedUpAt = serverTimestamp();
+            }
             if (skipped) {
                 patch.pinSkippedByDriver = skipBy === 'driver';
                 patch.pinSkippedByStaff = skipBy === 'staff';
@@ -40009,6 +40442,9 @@ window.cancelSetupAndLogout = () => {
         }
 
         window.verifyPin = async () => {
+            if (activeTrip && isDeliveryTrip(activeTrip)) {
+                return await window.driverConfirmOrderPickedUp();
+            }
             let entered = document.getElementById('driver-pin-input')?.value?.trim()
                 || document.getElementById('driver-panel-pin-input')?.value?.trim();
             if (!entered) {
@@ -40065,6 +40501,9 @@ window.cancelSetupAndLogout = () => {
             await refreshActiveTripFromServer();
             if (!activeTrip?.id) {
                 return window.showToast('No hay viaje activo.');
+            }
+            if (isDeliveryTrip(activeTrip)) {
+                return await window.driverConfirmOrderPickedUp();
             }
             if (activeTrip.status === 'in_progress') {
                 document.getElementById('pin-input-group')?.classList.add('hidden');
@@ -41102,8 +41541,18 @@ window.cancelSetupAndLogout = () => {
             const floatEta = document.getElementById('client-trip-status-eta');
             const floatMinEta = document.getElementById('client-trip-min-eta');
             const floatMinMeta = document.getElementById('client-trip-min-meta');
+            const isDeliv = isDeliveryTrip(tripData);
+            const stName = isDeliv ? getDeliveryStoreName(tripData) : '';
             if (statusBadge) {
-                if (tripData?.driverArrived) {
+                if (isDeliv) {
+                    if (isDest) {
+                        statusBadge.textContent = '🛵 Pedido en camino';
+                    } else if (tripData?.driverArrived) {
+                        statusBadge.textContent = `🏪 En ${stName}`;
+                    } else {
+                        statusBadge.textContent = `🛵 Rumbo a ${stName}`;
+                    }
+                } else if (tripData?.driverArrived) {
                     statusBadge.textContent = '¡Ha llegado!';
                 } else if (isDest) {
                     statusBadge.textContent = 'Viaje en curso';
@@ -41115,7 +41564,15 @@ window.cancelSetupAndLogout = () => {
             }
             if (floatBadge && statusBadge) floatBadge.textContent = statusBadge.textContent;
             if (statusSub) {
-                if (tripData?.driverArrived) {
+                if (isDeliv) {
+                    if (isDest) {
+                        statusSub.textContent = 'El repartidor lleva tu pedido a tu ubicación';
+                    } else if (tripData?.driverArrived) {
+                        statusSub.textContent = 'Recogiendo tu pedido en el negocio';
+                    } else {
+                        statusSub.textContent = 'Va al negocio a recoger tu pedido';
+                    }
+                } else if (tripData?.driverArrived) {
                     statusSub.textContent = 'Muéstrale tu PIN';
                 } else if (isDest) {
                     statusSub.textContent = 'Sigue el recorrido en el mapa';

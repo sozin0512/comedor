@@ -248,13 +248,15 @@ export function triggerPassengerArrivedAlert(tripData) {
     if (session.fired.has('arrived')) return;
     session.fired.add('arrived');
 
-    const firstName = (tripData.driverName || 'Tu conductor').split(' ')[0];
+    const isDel = !!(tripData.isStoreDelivery || tripData.tripKind === 'store_delivery' || tripData.serviceType === 'food_delivery' || tripData.storeOrderId);
+    const firstName = (tripData.driverName || (isDel ? 'Tu repartidor' : 'Tu conductor')).split(' ')[0];
+    const storeName = String(tripData.storeName || 'el negocio').trim();
     dispatchPassengerAlert({
         tripId: tripData.id,
         tag: `passenger-arrived-${tripData.id}`,
-        title: '¡Tu conductor llegó!',
-        body: `${firstName} ya está en el punto. Muéstrale tu PIN.`,
-        speak: `${firstName} ya llegó. Muéstrale tu PIN de seguridad.`,
+        title: isDel ? `🏪 ${firstName} llegó a ${storeName}` : '¡Tu conductor llegó!',
+        body: isDel ? `${firstName} ya está en ${storeName} recogiendo tu pedido (sin PIN).` : `${firstName} ya está en el punto. Muéstrale tu PIN.`,
+        speak: isDel ? `${firstName} ya llegó a ${storeName} a recoger tu pedido.` : `${firstName} ya llegó. Muéstrale tu PIN de seguridad.`,
         toastType: 'success',
         phase: 'pickup'
     });

@@ -102,13 +102,14 @@ function getFleetTripPhase(tripOrMeta) {
     return tripOrMeta.phase || null;
 }
 
-function getFleetPhaseStyle(phase) {
+function getFleetPhaseStyle(phase, tripOrMeta = null) {
+    const isDeliv = !!(window.isDeliveryTrip?.(tripOrMeta) || tripOrMeta?.serviceType === 'delivery' || tripOrMeta?.storeDelivery || tripOrMeta?.storeOrderId);
     if (phase === 'in_progress') {
         return {
             phase: 'in_progress',
             color: '#dc2626',
             glow: '0 0 8px rgba(220, 38, 38, 0.9), 0 0 14px rgba(239, 68, 68, 0.45)',
-            label: 'Hacia destino final'
+            label: isDeliv ? 'En camino al cliente (entrega)' : 'Hacia destino final'
         };
     }
     if (phase === 'at_pickup') {
@@ -116,7 +117,7 @@ function getFleetPhaseStyle(phase) {
             phase: 'at_pickup',
             color: '#8b5cf6',
             glow: '0 0 8px rgba(139, 92, 246, 0.95), 0 0 14px rgba(167, 139, 250, 0.5)',
-            label: 'En origen · esperando PIN'
+            label: isDeliv ? 'En el negocio · recogiendo pedido' : 'En origen · esperando PIN'
         };
     }
     if (phase === 'to_pickup') {
@@ -124,7 +125,7 @@ function getFleetPhaseStyle(phase) {
             phase: 'to_pickup',
             color: '#10b981',
             glow: '0 0 8px rgba(16, 185, 129, 0.9), 0 0 14px rgba(52, 211, 153, 0.45)',
-            label: 'En camino al pasajero'
+            label: isDeliv ? 'En camino al negocio a recoger' : 'En camino al pasajero'
         };
     }
     return null;
@@ -138,7 +139,7 @@ function buildMarkerTitle(profile, data, uid) {
     const trip = activeTripDrivers.get(uid);
     if (trip) {
         const phase = getFleetTripPhase(trip);
-        const style = getFleetPhaseStyle(phase);
+        const style = getFleetPhaseStyle(phase, trip);
         title += ` • ${style?.label || 'En viaje'}`;
     } else if (isDriverOnline(data)) {
         title += ' • En línea';
