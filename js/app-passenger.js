@@ -28,10 +28,17 @@ async function resolveRouteEndpoint(el) {
     // para que no se quede con precios / km de la ruta anterior
     if (el._routeEndpoint?.address) {
         const cachedText = (el._routeEndpoint.address || '').trim();
-        if (cachedText !== uiText) {
+        const cachedPlace = (el._routeEndpoint.placeName || '').trim();
+        const matchesCached = !uiText
+            ? !el._userClearedInput
+            : (uiText === cachedText || (cachedPlace && uiText === cachedPlace));
+        if (!matchesCached) {
             el._routeEndpoint = null;
             el._selectedPlace = null;
         } else if (el._routeEndpoint.latLng || el._routeEndpoint.place) {
+            if (!uiText && !el._userClearedInput) {
+                window.writeAutocompleteText?.(el, cachedText);
+            }
             return el._routeEndpoint;
         }
     }
@@ -331,13 +338,18 @@ window.restoreRouteFieldSnapshot = (el, snap) => {
     window._routeChangeGuardSkip = true;
     window.storeRouteEndpoint?.(el, snap.endpoint);
     el._selectedPlace = snap.selectedPlace;
-    el.place = snap.place;
+    try { el.place = snap.place; } catch (_) {}
     const text = snap.text || '';
-    try {
-        if (typeof el.value !== 'undefined') el.value = text;
-        const input = el.shadowRoot?.querySelector('input') || el.querySelector('input');
-        if (input) input.value = text;
-    } catch (_) {}
+    if (typeof window.writeAutocompleteText === 'function') {
+        window.writeAutocompleteText(el, text, { dispatch: false });
+    } else {
+        try {
+            if (typeof el.value !== 'undefined') el.value = text;
+            const root = el.shadowRoot || el._hrShadow;
+            const input = root?.querySelector('input') || root?.querySelector('[part="input"]') || el.querySelector('input');
+            if (input) input.value = text;
+        } catch (_) {}
+    }
     setTimeout(() => { window._routeChangeGuardSkip = false; }, 80);
 };
 
@@ -513,7 +525,7 @@ window.calculateTripRoute = async (options = {}) => {
     window._tripRouteCalcInFlight = (window._tripRouteCalcInFlight || 0) + 1;
 
     try {
-    if (window.userProfile?.role !== 'client') {
+    if (window.userProfile?.role !== 'client' && !document.body.classList.contains('client-mode')) {
         return;
     }
 

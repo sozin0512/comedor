@@ -1106,12 +1106,25 @@
     const origAttachShadow = Element.prototype.attachShadow;
     if (typeof origAttachShadow === 'function') {
         Element.prototype.attachShadow = function hrAttachShadow(init) {
+            if (this._hrShadow) return this._hrShadow;
             const shadow = origAttachShadow.apply(this, arguments);
             try {
                 if (isPlacesHostName(this.localName)) {
                     this._hrShadow = shadow;
                     syncPlacesHostColorScheme(this);
                     injectStyleIntoRoot(shadow);
+                    const hostEl = this;
+                    const syncInitialShadowInput = () => {
+                        try {
+                            const pending = (hostEl._hrProgrammaticValue || hostEl._routeEndpoint?.address || "").trim();
+                            if (!pending || hostEl._userClearedInput) return;
+                            shadow.querySelectorAll("input, [part=\"input\"]").forEach((inp) => {
+                                if (!inp.value) inp.value = pending;
+                            });
+                        } catch (_) {}
+                    };
+                    setTimeout(syncInitialShadowInput, 0);
+                    setTimeout(syncInitialShadowInput, 80);
                     try {
                         shadow.addEventListener('cancel', (e) => {
                             if (!isPlacesDialog(e.target)) return;
@@ -1384,23 +1397,107 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         window.originMarker = null;
         window.stopMarkers = [];
 
+        window.getAutocompleteInnerInputs = (el) => {
+            if (!el) return [];
+            const list = [];
+            try {
+                const root = el.shadowRoot || el._hrShadow;
+                if (root?.querySelectorAll) {
+                    root.querySelectorAll('.input-container input, input, [part="input"]').forEach((inp) => {
+                        if (inp && !list.includes(inp)) list.push(inp);
+                    });
+                }
+            } catch (_) {}
+            try {
+                if (el.querySelectorAll) {
+                    el.querySelectorAll('input, [part="input"]').forEach((inp) => {
+                        if (inp && !list.includes(inp)) list.push(inp);
+                    });
+                }
+            } catch (_) {}
+            if (el.tagName === 'INPUT' && !list.includes(el)) list.push(el);
+            return list;
+        };
+
+        window.writeAutocompleteText = (el, text) => {
+            if (!el) return;
+            const val = String(text ?? '');
+            el._hrProgrammaticValue = val;
+            el._userClearedInput = !val.trim();
+            const applyToInputs = () => {
+                window._hrProgrammaticInputWrite = true;
+                try {
+                    if (typeof el.value !== 'undefined') el.value = val;
+                } catch (_) {}
+                try {
+                    const inputs = window.getAutocompleteInnerInputs?.(el) || [];
+                    const nativeSetter = Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement?.prototype || {},
+                        'value'
+                    )?.set;
+                    inputs.forEach((inp) => {
+                        try {
+                            if (nativeSetter) nativeSetter.call(inp, val);
+                            else inp.value = val;
+                            if (val) inp.setAttribute?.('value', val);
+                            else inp.removeAttribute?.('value');
+                        } catch (_) {
+                            try { inp.value = val; } catch (_2) {}
+                        }
+                    });
+                    return inputs.length > 0;
+                } catch (_) {
+                    return false;
+                } finally {
+                    window._hrProgrammaticInputWrite = false;
+                }
+            };
+            const wrote = applyToInputs();
+            if (!wrote && val) {
+                [50, 180, 450, 1000].forEach((ms) => {
+                    setTimeout(() => {
+                        if (el._hrProgrammaticValue === val && !el._userClearedInput) applyToInputs();
+                    }, ms);
+                });
+            }
+            if (el.id === 'origin-autocomplete') {
+                window.updateOriginGPSButton?.();
+            } else if (el.id === 'destination-autocomplete') {
+                window.updateDestinationMapButton?.();
+            }
+        };
+
         window.readAutocompleteText = (el) => {
             if (!el) return '';
-            // Prefer the actual UI input value first (this will be '' after clicking the X clear)
             try {
-                const input = el.shadowRoot?.querySelector('input')
-                    || el.shadowRoot?.querySelector('[part="input"]')
-                    || el.querySelector('input');
-                if (input) {
-                    return (input.value || '').trim();
+                const inputs = window.getAutocompleteInnerInputs?.(el) || [];
+                for (const input of inputs) {
+                    const v = (input.value || '').trim();
+                    if (v) return v;
+                }
+                if (inputs.length > 0) {
+                    if (el._userClearedInput) return '';
+                    const heal = (
+                        el._routeEndpoint?.placeName
+                        || el._routeEndpoint?.address
+                        || el._hrProgrammaticValue
+                        || ''
+                    ).trim();
+                    if (heal) {
+                        inputs.forEach((inp) => { try { inp.value = heal; } catch (_) {} });
+                        return heal;
+                    }
+                    return '';
                 }
             } catch (_) {}
             try {
                 const direct = el.value;
-                if (typeof direct === 'string') return direct.trim();
+                if (typeof direct === 'string' && direct.trim()) return direct.trim();
             } catch (_) {}
+            if (el._userClearedInput) return '';
             return el._routeEndpoint?.placeName?.trim()
                 || el._routeEndpoint?.address?.trim()
+                || el._hrProgrammaticValue?.trim()
                 || window.placeDisplayName?.(el._selectedPlace)
                 || el._selectedPlace?.formattedAddress?.trim()
                 || '';
@@ -1600,19 +1697,33 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         window.reverseGeocodeLatLng = (latLng) => new Promise((resolve) => {
             if (!latLng) return resolve(null);
             const pos = {
-                lat: typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat,
-                lng: typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng,
+                lat: Number(typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat),
+                lng: Number(typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng),
             };
-            if (!window.geocoder) {
-                return resolve({ address: 'Ubicación seleccionada en el mapa', latLng: pos });
+            const fallbackLabel = Number.isFinite(pos.lat) && Number.isFinite(pos.lng)
+                ? `📍 Ubicación (${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)})`
+                : 'Ubicación seleccionada en el mapa';
+            if (!window.geocoder || typeof window.geocoder.geocode !== 'function') {
+                return resolve({ address: fallbackLabel, latLng: pos });
             }
-            window.geocoder.geocode({ location: pos }, (results, status) => {
-                if (status !== 'OK' || !results?.length) {
-                    return resolve({
-                        address: 'Ubicación seleccionada en el mapa',
-                        latLng: pos,
-                    });
-                }
+            let settled = false;
+            const done = (val) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                resolve(val);
+            };
+            const timer = setTimeout(() => {
+                done({ address: fallbackLabel, latLng: pos });
+            }, 3500);
+            try {
+                window.geocoder.geocode({ location: pos }, (results, status) => {
+                    if (status !== 'OK' || !results?.length) {
+                        return done({
+                            address: fallbackLabel,
+                            latLng: pos,
+                        });
+                    }
                 const poi = results.find((r) =>
                     (r.types || []).some((t) => MAP_PLACE_GEOCODE_TYPES.has(t))
                 );
@@ -1628,13 +1739,16 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         address = shortName;
                     }
                 }
-                resolve({
-                    address,
-                    placeName,
-                    formattedAddress: formatted || null,
-                    latLng: pos,
+                    done({
+                        address,
+                        placeName,
+                        formattedAddress: formatted || null,
+                        latLng: pos,
+                    });
                 });
-            });
+            } catch (_) {
+                done({ address: fallbackLabel, latLng: pos });
+            }
         });
 
         window.isMobileMapPickDevice = () => {
@@ -1894,6 +2008,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             window.cancelMapPickMode?.({ silent: true });
             window.hideTripKeyboard?.();
             window._mapPickDragged = false;
+            window._mapPickUserMoved = false;
             window._mapPickSavedRouteSlot = 2; // slots deprecated for ordering; destination always final, stops follow list order + reordering arrows
             window._mapPickPanelRestore = window.savePanelStateForMapPick?.();
             const copy = mapPickContextCopy(pickContext);
@@ -1949,27 +2064,39 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             if (confirmBtn) confirmBtn.disabled = true;
             try {
                 const c = window.gMap.getCenter();
-                const latLng = { lat: c.lat(), lng: c.lng() };
+                const latLng = { lat: Number(c.lat()), lng: Number(c.lng()) };
+                const fallbackAddr = `📍 Ubicación (${latLng.lat.toFixed(5)}, ${latLng.lng.toFixed(5)})`;
                 let geo = state.previewGeo;
                 const sameCenter = geo?.latLng
                     && Math.abs(geo.latLng.lat - latLng.lat) < 0.00005
                     && Math.abs(geo.latLng.lng - latLng.lng) < 0.00005;
+
+                // Close overlay and restore panel IMMEDIATELY so user gets instant feedback
+                const saved = window._mapPickPanelRestore;
+                const onSelectFn = state.onSelect;
+                window.cancelMapPickMode({ restorePanel: false, silent: true });
+                if (saved) {
+                    saved.standardStopsAdderOpen = false;
+                    saved.bodyPanelHidden = false;
+                    saved.panelHidden = false;
+                }
+                window.restorePanelAfterMapPick?.(saved);
+                window._mapPickPanelRestore = null;
+
                 if (!sameCenter) {
                     geo = await window.reverseGeocodeLatLng(latLng);
                 }
-                if (!geo?.latLng) geo = { address: geo?.address || '', latLng };
-                const saved = window._mapPickPanelRestore;
-                let confirmed = false;
+                if (!geo || !geo.latLng) {
+                    geo = { address: (geo?.address || '').trim() || fallbackAddr, latLng };
+                } else if (!(geo.address || '').trim()) {
+                    geo = { ...geo, address: fallbackAddr, latLng };
+                }
                 try {
-                    await state.onSelect?.(geo);
-                    confirmed = true;
+                    await onSelectFn?.(geo);
                 } catch (e) {
                     console.error('confirmMapPick:', e);
                 }
-                window.cancelMapPickMode({ restorePanel: false });
-                if (saved && confirmed) saved.standardStopsAdderOpen = false;
-                window.restorePanelAfterMapPick?.(saved);
-                window._mapPickPanelRestore = null;
+                try { window.syncBookingProgression?.({ scroll: false }); } catch (_) {}
             } finally {
                 if (confirmBtn) confirmBtn.disabled = false;
             }
@@ -2007,18 +2134,19 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const btn = document.getElementById(id);
             if (!btn || btn.dataset.mapPickBound === '1') return;
             btn.dataset.mapPickBound = '1';
-            let lastTap = 0;
+            let lastTouchEndAt = 0;
             const run = (e) => {
-                // Avoid double-fire: touchend + synthetic click on iOS/Android WebView
                 const now = Date.now();
-                if (now - lastTap < 450) {
+                if (e?.type === 'touchend') {
+                    lastTouchEndAt = now;
+                } else if (e?.type === 'click' && now - lastTouchEndAt < 450) {
+                    // Ignore synthetic click right after touchend on mobile WebView
                     e.preventDefault?.();
                     e.stopPropagation?.();
                     return;
                 }
-                lastTap = now;
-                e.preventDefault?.();
-                e.stopPropagation?.();
+                e?.preventDefault?.();
+                e?.stopPropagation?.();
                 handler();
             };
             btn.addEventListener('click', run);
@@ -2029,6 +2157,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
         window._mapPickAtPoint = (latLng) => {
             if (!window._mapPickState || !latLng || !window.gMap) return;
+            window._mapPickUserMoved = true;
             window.setMapPickPinLifting?.(true);
             window.gMap.panTo(latLng);
             setTimeout(() => {
@@ -2041,6 +2170,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         window.gMap.addListener('dragstart', () => {
             if (!window._mapPickState) return;
             window._mapPickDragged = true;
+            window._mapPickUserMoved = true;
             window._mapPickSmoothActive = false; // user took control
             clearTimeout(window._mapPickSmoothTimer);
             window.setMapPickPinLifting?.(true);
@@ -2069,6 +2199,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         });
 
         window.mapLoaded = true;
+        try { window.syncDriverHotStoresOnMap?.(); } catch (_) {}
         window._drainMapReadyQueue?.();
         window.refreshDemandHeatmapFromCache?.();
         window.refreshOpsFleetMapFromCache?.();
@@ -2526,8 +2657,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const blurAutocompleteEl = (el) => {
                 if (!el) return;
                 try {
-                    const input = el.shadowRoot?.querySelector('input')
-                        || el.shadowRoot?.querySelector('[part="input"]')
+                    const root = el.shadowRoot || el._hrShadow;
+                    const input = root?.querySelector('input')
+                        || root?.querySelector('[part="input"]')
                         || el.querySelector?.('input');
                     input?.blur?.();
                 } catch (_) {}
@@ -2572,17 +2704,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const applyEndpointLabelToInput = (el, label) => {
                 const text = String(label || '').trim();
                 if (!el || !text) return;
-                try { el.value = text; } catch (_) {}
-                try {
-                    const input = el.shadowRoot?.querySelector('input')
-                        || el.shadowRoot?.querySelector('[part="input"]')
-                        || el.querySelector('input');
-                    if (input) {
-                        input.value = text;
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                } catch (_) {}
+                window.writeAutocompleteText?.(el, text);
             };
 
             const newPlacesSessionToken = async (el) => {
@@ -2609,8 +2731,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         newPlacesSessionToken(el);
                         const endpoint = window.placeToRouteEndpoint?.(place, window.readAutocompleteText?.(el));
                         const nextAddr = endpoint?.address || window.readAutocompleteText?.(el) || '';
-                        const ok = await window.guardRouteEndpointChange?.(el, nextAddr);
-                        if (!ok) {
+                        const ok = typeof window.guardRouteEndpointChange === 'function' ? await window.guardRouteEndpointChange(el, nextAddr) : true;
+                        if (ok === false) {
                             window.restoreRouteFieldSnapshot?.(el, snap);
                             dismissAutocompleteUi(el);
                             return;
@@ -2665,8 +2787,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 if (!text || text.length < 3) {
                     // Clear endpoint on empty or very short (including after clicking X)
                     if (current && current.address) {
-                        const ok = await window.guardRouteEndpointChange?.(el, '');
-                        if (!ok) {
+                        const ok = typeof window.guardRouteEndpointChange === 'function' ? await window.guardRouteEndpointChange(el, '') : true;
+                        if (ok === false) {
                             window.restoreRouteFieldSnapshot?.(el, snap);
                             return;
                         }
@@ -2689,8 +2811,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 if (current?.source === 'gps' || current?.source === 'map') {
                     const fixedAddr = (current.gpsAddress || current.address || '').trim();
                     if (text.trim() !== fixedAddr) {
-                        const ok = await window.guardRouteEndpointChange?.(el, text.trim());
-                        if (!ok) {
+                        const ok = typeof window.guardRouteEndpointChange === 'function' ? await window.guardRouteEndpointChange(el, text.trim()) : true;
+                        if (ok === false) {
                             window.restoreRouteFieldSnapshot?.(el, snap);
                             return;
                         }
@@ -2715,8 +2837,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 if (current?.address === text && current?.latLng) return;
 
                 if (current?.address && current.address.trim() !== text.trim()) {
-                    const ok = await window.guardRouteEndpointChange?.(el, text.trim());
-                    if (!ok) {
+                    const ok = typeof window.guardRouteEndpointChange === 'function' ? await window.guardRouteEndpointChange(el, text.trim()) : true;
+                    if (ok === false) {
                         window.restoreRouteFieldSnapshot?.(el, snap);
                         return;
                     }
@@ -2764,7 +2886,15 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         || el.querySelector('input');
                     if (!input || input.dataset.honduberHooked === '1') return !!input;
                     input.dataset.honduberHooked = '1';
-                    const sync = () => { void syncAutocompleteDraft(el); };
+                    const sync = (ev) => {
+                        if (window._hrProgrammaticInputWrite) return;
+                        if (ev && (ev.type === 'input' || ev.type === 'change')) {
+                            const curVal = (input.value || '').trim();
+                            el._userClearedInput = !curVal;
+                            el._hrProgrammaticValue = curVal;
+                        }
+                        void syncAutocompleteDraft(el);
+                    };
                     input.addEventListener('input', sync);
                     input.addEventListener('change', sync);
                     input.addEventListener('blur', sync);
@@ -2908,18 +3038,26 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
                 // Update on input events (including when clear X is clicked, which triggers input/change)
                 const hookForGPS = () => {
-                    const input = originEl.shadowRoot?.querySelector('input')
-                        || originEl.shadowRoot?.querySelector('[part="input"]')
+                    const root = originEl.shadowRoot || originEl._hrShadow;
+                    const input = root?.querySelector('input')
+                        || root?.querySelector('[part="input"]')
                         || originEl.querySelector('input');
                     if (input && !input.dataset.gpsHooked) {
                         input.dataset.gpsHooked = '1';
                         input.addEventListener('input', updateGPSBtn);
                         input.addEventListener('change', updateGPSBtn);
-                        // Also on clear if component fires specific
-                        if (input.parentElement) {
-                            // sometimes clear is a button inside
-                            const clearBtn = input.parentElement.querySelector('button[aria-label*="clear"], .clear-button, [part="clear"]');
-                            if (clearBtn) clearBtn.addEventListener('click', () => setTimeout(updateGPSBtn, 50));
+                        const clearRoot = root || input.parentElement;
+                        if (clearRoot?.querySelectorAll) {
+                            clearRoot.querySelectorAll('button[aria-label*="clear"], button[aria-label*="Borrar"], .clear-button, [part="clear"]').forEach((clearBtn) => {
+                                if (clearBtn.dataset.hrClearBound === '1') return;
+                                clearBtn.dataset.hrClearBound = '1';
+                                clearBtn.addEventListener('click', () => {
+                                    originEl._userClearedInput = true;
+                                    originEl._hrProgrammaticValue = '';
+                                    window.storeRouteEndpoint?.(originEl, null);
+                                    setTimeout(updateGPSBtn, 50);
+                                });
+                            });
                         }
                     }
                 };
@@ -3009,6 +3147,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 return;
             }
             el._routeEndpoint = endpoint;
+            el._userClearedInput = false;
+            el._hrProgrammaticValue = endpoint.placeName || endpoint.address;
         };
 
     } catch (error) {

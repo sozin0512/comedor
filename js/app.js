@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.24.4";
+} from "./auth-credentials.js?v=2026.10.24.6";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.24.4";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.24.4";
+import { APP_CONFIG } from "./config.js?v=2026.10.24.6";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.24.6";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.24.4";
+} from "./market.js?v=2026.10.24.6";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.24.4";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.24.4";
+} from "./phone-utils.js?v=2026.10.24.6";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.24.6";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.24.4";
+} from "./referrals.js?v=2026.10.24.6";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.24.4";
+} from "./zones.js?v=2026.10.24.6";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.24.4";
+} from "./trip-notifications.js?v=2026.10.24.6";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.24.4";
+} from "./notification-tones.js?v=2026.10.24.6";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.24.4";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.24.6";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.24.4";
+} from "./passenger-alerts.js?v=2026.10.24.6";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.24.4";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.24.4";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.24.4";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.24.4";
+} from "./passenger-verification.js?v=2026.10.24.6";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.24.6";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.24.6";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.24.6";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.24.4";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.24.6";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.24.4";
+} from "./feedback.js?v=2026.10.24.6";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.24.4";
+} from "./greetings.js?v=2026.10.24.6";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,9 +148,9 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.24.4";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.24.4";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.24.4";
+} from "./service-types.js?v=2026.10.24.6";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.24.6";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.24.6";
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
 window.getDeliveryStoreName = getDeliveryStoreName;
@@ -159,16 +159,16 @@ window.getDeliveryStageMeta = getDeliveryStageMeta;
 window.getDeliveryChatMessages = getDeliveryChatMessages;
 window.getDefaultDeliveryChatChannel = getDefaultDeliveryChatChannel;
 window.buildDeliveryDualChatTabsHtml = buildDeliveryDualChatTabsHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.24.4";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.24.6";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.24.4";
-import * as HrAvail from "./service-availability.js?v=2026.10.24.4";
+} from "./service-availability.js?v=2026.10.24.6";
+import * as HrAvail from "./service-availability.js?v=2026.10.24.6";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.24.4";
+} from "./trip-wait.js?v=2026.10.24.6";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
     if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
@@ -184,49 +184,49 @@ import {
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles-v2.js?v=2026.10.24.4";
+} from "./driver-vehicles-v2.js?v=2026.10.24.6";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.24.4";
+} from "./route-fixed-fares.js?v=2026.10.24.6";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.24.4";
+} from "./commission-free-day.js?v=2026.10.24.6";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.24.4";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.24.4";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.24.4";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.24.4";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.24.4";
-import { formatLempiras } from "./money-format.js?v=2026.10.24.4";
-import { displayPersonName } from "./display-name.js?v=2026.10.24.4";
+} from "./route-conditions.js?v=2026.10.24.6";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.24.6";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.24.6";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.24.6";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.24.6";
+import { formatLempiras } from "./money-format.js?v=2026.10.24.6";
+import { displayPersonName } from "./display-name.js?v=2026.10.24.6";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.24.4";
+} from "./demand-heatmap.js?v=2026.10.24.6";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.24.4";
+} from "./ops-fleet-map.js?v=2026.10.24.6";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.24.4";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.24.4";
+} from "./live-trip-keepalive.js?v=2026.10.24.6";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.24.6";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.24.4";
+} from "./driver-session.js?v=2026.10.24.6";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -235,7 +235,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.24.4";
+} from "./session-keepalive.js?v=2026.10.24.6";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -323,29 +323,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.24.4";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.24.6";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.24.4";
+} from "./auth-ui.js?v=2026.10.24.6";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.24.4";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.24.4";
+} from "./age-verification.js?v=2026.10.24.6";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.24.6";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.24.4";
+} from "./trip-experience.js?v=2026.10.24.6";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.24.4";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.24.4";
+} from "./support-tickets.js?v=2026.10.24.6";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.24.6";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.24.4";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.24.4";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.24.6";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.24.6";
 
 
 let app;
@@ -12161,8 +12161,7 @@ if (document.readyState === 'loading') {
                 }, 14000);
             }
 
-            const randomPin = isDeliveryTrip(t) ? null : Math.floor(1000 + Math.random() * 9000).toString();
-            const rating = window.userProfile.ratingCount > 0
+                        const rating = window.userProfile.ratingCount > 0
                 ? (window.userProfile.ratingSum / window.userProfile.ratingCount).toFixed(1)
                 : '5.0';
 
@@ -12175,6 +12174,7 @@ if (document.readyState === 'loading') {
                 if (!tripSnap.exists()) throw new Error('Este viaje ya no existe.');
 
                 const t = tripSnap.data();
+                const randomPin = isDeliveryTrip(t) ? null : Math.floor(1000 + Math.random() * 9000).toString();
                 if (t.status !== 'pending') throw new Error('Otro conductor ya tomó este viaje.');
                 if (t.driverId && t.driverId !== currentUser.uid) {
                     throw new Error('Otro conductor ya tomó este viaje.');
@@ -30309,9 +30309,14 @@ onAuthStateChanged(auth, async (user) => {
                 }
                 try {
                     const role = window.userProfile?.role;
-                    if (role === 'driver') window.loadRoleDriverRuntime?.();
-                    else if (role === 'admin' || role === 'supervisor') window.loadRoleStaffRuntime?.();
-                    else window.loadRolePassengerRuntime?.();
+                    if (role === 'driver') {
+                        window.loadRoleDriverRuntime?.();
+                    } else if (role === 'admin' || role === 'supervisor') {
+                        window.loadRoleStaffRuntime?.();
+                        window.loadRolePassengerRuntime?.();
+                    } else {
+                        window.loadRolePassengerRuntime?.();
+                    }
                 } catch (e) { console.warn('[role-runtime]', e); }
 
                 if (canUsePassengerSaldo(profile)) {
@@ -31121,6 +31126,111 @@ window.loadRoleDriverRuntime = async () => {
     m.installDriverRuntime();
 };
 
+window.loadRolePassengerRuntime = window.loadRolePassengerRuntime || (async () => {
+    const m = await import(`./app-passenger.js?v=${APP_CONFIG.appVersion}`);
+    m.installPassengerRuntime();
+});
+
+window.writeAutocompleteText = window.writeAutocompleteText || function writeAutocompleteTextFallback(el, text, opts = {}) {
+    if (!el) return false;
+    const str = String(text ?? '');
+    const prevSkip = window._routeChangeGuardSkip;
+    const prevProg = window._hrProgrammaticInputWrite;
+    window._routeChangeGuardSkip = true;
+    window._hrProgrammaticInputWrite = true;
+    el._userClearedInput = !str.trim();
+    el._hrProgrammaticValue = str;
+    try {
+        try { if (typeof el.value !== 'undefined') el.value = str; } catch (_) {}
+        try {
+            if (str) el.setAttribute?.('value', str);
+            else el.removeAttribute?.('value');
+        } catch (_) {}
+        const root = el.shadowRoot || el._hrShadow;
+        const inputs = [];
+        const add = (n) => { if (n && !inputs.includes(n)) inputs.push(n); };
+        try {
+            root?.querySelectorAll?.('input, [part="input"]')?.forEach(add);
+            el.querySelectorAll?.('input')?.forEach(add);
+        } catch (_) {}
+        for (const input of inputs) {
+            try {
+                const proto = Object.getPrototypeOf(input);
+                const desc = Object.getOwnPropertyDescriptor(proto, 'value')
+                    || Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+                if (desc?.set) desc.set.call(input, str);
+                else input.value = str;
+            } catch (_) {
+                try { input.value = str; } catch (__) {}
+            }
+            if (opts.dispatch !== false) {
+                try { input.dispatchEvent(new Event('input', { bubbles: true })); } catch (_) {}
+                try { input.dispatchEvent(new Event('change', { bubbles: true })); } catch (_) {}
+            }
+        }
+        return inputs.length > 0;
+    } finally {
+        setTimeout(() => {
+            window._routeChangeGuardSkip = prevSkip;
+            window._hrProgrammaticInputWrite = prevProg;
+        }, 60);
+    }
+};
+
+window.captureRouteFieldSnapshot = window.captureRouteFieldSnapshot || ((el) => {
+    if (!el) return null;
+    return {
+        text: window.readAutocompleteText?.(el) || el._routeEndpoint?.address || '',
+        endpoint: el._routeEndpoint
+            ? {
+                address: el._routeEndpoint.address,
+                latLng: el._routeEndpoint.latLng ? { ...el._routeEndpoint.latLng } : null,
+                place: el._routeEndpoint.place || null,
+                source: el._routeEndpoint.source,
+                gpsAddress: el._routeEndpoint.gpsAddress
+            }
+            : null,
+        selectedPlace: el._selectedPlace || null,
+        place: el.place || null
+    };
+});
+
+window.restoreRouteFieldSnapshot = window.restoreRouteFieldSnapshot || ((el, snap) => {
+    if (!el || !snap) return;
+    window._routeChangeGuardSkip = true;
+    window.storeRouteEndpoint?.(el, snap.endpoint);
+    el._selectedPlace = snap.selectedPlace;
+    try { el.place = snap.place; } catch (_) {}
+    window.writeAutocompleteText?.(el, snap.text || '', { dispatch: false });
+    setTimeout(() => { window._routeChangeGuardSkip = false; }, 80);
+});
+
+window.resetRouteStopsPrompt = window.resetRouteStopsPrompt || (() => {
+    window._routeStopsPromptSig = null;
+    window._routeStopsPromptDone = false;
+});
+
+window.guardRouteEndpointChange = window.guardRouteEndpointChange || (async (el, nextAddress) => {
+    if (window._routeChangeGuardSkip) return true;
+    const fareCard = document.getElementById('fare-card');
+    const hasQuote = !!(window.currentTripQuote && fareCard && !fareCard.classList.contains('hidden') && window.currentRouteData);
+    if (!hasQuote) return true;
+    const id = el?.id || '';
+    const field = id.includes('origin') ? 'origen' : (id.includes('destination') ? 'destino' : 'dirección');
+    const quoteKey = field === 'origen' ? 'origin' : 'destination';
+    const prev = (el?._routeEndpoint?.address || window.currentTripQuote?.[quoteKey] || '').trim();
+    const next = (nextAddress || '').trim();
+    if (!prev || prev === next) return true;
+    if (!next) {
+        const ok = confirm(`¿Quitar el ${field}?\n\nSe ocultará la tarifa hasta que completes la ruta de nuevo.`);
+        if (ok) window.resetRouteStopsPrompt?.();
+        return ok;
+    }
+    const ok = confirm(`¿Cambiar el ${field} y recalcular el precio?\n\nActual: ${prev}\nNuevo: ${next}`);
+    if (ok) window.resetRouteStopsPrompt?.();
+    return ok;
+});
+
 /** Origen/destino para cotizar. Vive aquí: el mapa lo usa antes de cargar app-passenger.js. */
 window.resolveRouteEndpoint = async function resolveRouteEndpoint(el) {
     if (!el) return null;
@@ -31129,10 +31239,17 @@ window.resolveRouteEndpoint = async function resolveRouteEndpoint(el) {
 
     if (el._routeEndpoint?.address) {
         const cachedText = (el._routeEndpoint.address || '').trim();
-        if (cachedText !== uiText) {
+        const cachedPlace = (el._routeEndpoint.placeName || '').trim();
+        const matchesCached = !uiText
+            ? !el._userClearedInput
+            : (uiText === cachedText || (cachedPlace && uiText === cachedPlace));
+        if (!matchesCached) {
             el._routeEndpoint = null;
             el._selectedPlace = null;
         } else if (el._routeEndpoint.latLng || el._routeEndpoint.place) {
+            if (!uiText && !el._userClearedInput) {
+                window.writeAutocompleteText?.(el, cachedText);
+            }
             return el._routeEndpoint;
         }
     }
@@ -38523,16 +38640,12 @@ window.cancelSetupAndLogout = () => {
         const clearBookingAutocompleteField = (el) => {
             if (!el) return;
             window._routeChangeGuardSkip = true;
+            el._userClearedInput = true;
+            el._hrProgrammaticValue = '';
             window.storeRouteEndpoint?.(el, null);
             el._selectedPlace = null;
             try { el.place = null; } catch (_) {}
-            try {
-                if (typeof el.value !== 'undefined') el.value = '';
-                const input = el.shadowRoot?.querySelector('input')
-                    || el.shadowRoot?.querySelector('[part="input"]')
-                    || el.querySelector('input');
-                if (input) input.value = '';
-            } catch (_) {}
+            window.writeAutocompleteText?.(el, '', { dispatch: false });
             setTimeout(() => { window._routeChangeGuardSkip = false; }, 80);
         };
 
@@ -39224,12 +39337,11 @@ window.cancelSetupAndLogout = () => {
         window.clearExtraStopInput = () => {
             const el = document.getElementById('extra-stop-autocomplete');
             if (!el) return;
+            el._userClearedInput = true;
+            el._hrProgrammaticValue = '';
             window.storeRouteEndpoint?.(el, null);
             el._selectedPlace = null;
-            try {
-                const input = el.shadowRoot?.querySelector('input') || el.querySelector('input');
-                if (input) input.value = '';
-            } catch (_) {}
+            window.writeAutocompleteText?.(el, '', { dispatch: false });
         };
 
         window.resolveExtraStopFromUi = async () => {
@@ -39301,15 +39413,18 @@ window.cancelSetupAndLogout = () => {
             };
             if (!Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) return;
 
-            const address = geo.address || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+            const address = (geo.address || '').trim() || `📍 Ubicación (${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)})`;
             const snap = window.captureRouteFieldSnapshot?.(originEl);
-            const ok = await window.guardRouteEndpointChange?.(originEl, address);
-            if (!ok) {
+            const ok = typeof window.guardRouteEndpointChange === 'function'
+                ? await window.guardRouteEndpointChange(originEl, address)
+                : true;
+            if (ok === false) {
                 window.restoreRouteFieldSnapshot?.(originEl, snap);
                 return;
             }
 
             window._passengerOriginUserCleared = false;
+            originEl._userClearedInput = false;
 
             if (window.gMap) {
                 try {
@@ -39327,17 +39442,8 @@ window.cancelSetupAndLogout = () => {
                 source: 'map',
                 gpsAddress: address
             });
-            try {
-                originEl.value = address;
-            } catch (_) {}
-            try {
-                const input = originEl.shadowRoot?.querySelector('input') || originEl.querySelector('input');
-                if (input) {
-                    input.value = address;
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            } catch (_) {}
+            window.writeAutocompleteText?.(originEl, address);
+            try { window.placePickupMarker?.(latlng, address); } catch (_) {}
 
             // Ciudad sigue al pin de origen
             window.syncCityFromOriginCoords?.(latlng.lat, latlng.lng, { silent: false });
@@ -39373,10 +39479,11 @@ window.cancelSetupAndLogout = () => {
             // Si ya hay origen con coords, empezar ahí; si no, GPS / posición conocida
             const originEl = document.getElementById('origin-autocomplete');
             const ep = originEl?._routeEndpoint;
+            const lastGps = window._passengerLastGps || window.currentDriverPos;
             if (ep?.latLng?.lat != null && ep?.latLng?.lng != null) {
                 flyTo(ep.latLng.lat, ep.latLng.lng);
-            } else if (window.currentDriverPos?.lat != null && window.currentDriverPos?.lng != null) {
-                flyTo(window.currentDriverPos.lat, window.currentDriverPos.lng);
+            } else if (lastGps?.lat != null && lastGps?.lng != null) {
+                flyTo(lastGps.lat, lastGps.lng);
             }
 
             if (navigator.geolocation?.getCurrentPosition) {
@@ -39385,8 +39492,11 @@ window.cancelSetupAndLogout = () => {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
                         window.currentDriverPos = { lat, lng };
-                        // Solo volar al GPS si no había un origen ya fijado
-                        if (!ep?.latLng && window._mapPickState) flyTo(lat, lng);
+                        window._passengerLastGps = { lat, lng, accuracy: position.coords.accuracy ?? null, updatedAt: Date.now() };
+                        // Solo volar al GPS si no había un origen ya fijado y el usuario no movió ya el mapa
+                        if (!ep?.latLng && window._mapPickState && !window._mapPickUserMoved) {
+                            flyTo(lat, lng);
+                        }
                     },
                     () => {},
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
@@ -39403,13 +39513,17 @@ window.cancelSetupAndLogout = () => {
             };
             if (!Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) return;
 
-            const address = geo.address || `${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}`;
+            const address = (geo.address || '').trim() || `📍 Ubicación (${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)})`;
             const snap = window.captureRouteFieldSnapshot?.(destEl);
-            const ok = await window.guardRouteEndpointChange?.(destEl, address);
-            if (!ok) {
+            const ok = typeof window.guardRouteEndpointChange === 'function'
+                ? await window.guardRouteEndpointChange(destEl, address)
+                : true;
+            if (ok === false) {
                 window.restoreRouteFieldSnapshot?.(destEl, snap);
                 return;
             }
+
+            destEl._userClearedInput = false;
 
             if (window.gMap) {
                 try {
@@ -39425,18 +39539,10 @@ window.cancelSetupAndLogout = () => {
                 latLng: latlng,
                 place: null,
                 source: 'map',
+                gpsAddress: address
             });
-            try {
-                destEl.value = address;
-            } catch (_) {}
-            try {
-                const input = destEl.shadowRoot?.querySelector('input') || destEl.querySelector('input');
-                if (input) {
-                    input.value = address;
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-            } catch (_) {}
+            window.writeAutocompleteText?.(destEl, address);
+            try { window.placeDestinationMarker?.(latlng, address); } catch (_) {}
 
             window.currentRouteData = null;
             window.dispatchEvent(new CustomEvent('map-route-trigger'));
@@ -39465,14 +39571,24 @@ window.cancelSetupAndLogout = () => {
                 },
             });
 
-            // Fly smoothly to the passenger so the pin starts near them (harder to mess up)
+            // Fly smoothly to existing destination, origin, or passenger GPS so the pin starts near them
             const flyToUser = (lat, lng) => {
                 if (!window._mapPickState) return;
                 window.smoothMapGoTo?.(lat, lng, MAP_PICK_USER_ZOOM);
             };
 
-            if (window.currentDriverPos?.lat != null && window.currentDriverPos?.lng != null) {
-                flyToUser(window.currentDriverPos.lat, window.currentDriverPos.lng);
+            const destEl = document.getElementById('destination-autocomplete');
+            const originEl = document.getElementById('origin-autocomplete');
+            const destEp = destEl?._routeEndpoint;
+            const originEp = originEl?._routeEndpoint;
+            const lastGps = window._passengerLastGps || window.currentDriverPos;
+
+            if (destEp?.latLng?.lat != null && destEp?.latLng?.lng != null) {
+                flyToUser(destEp.latLng.lat, destEp.latLng.lng);
+            } else if (originEp?.latLng?.lat != null && originEp?.latLng?.lng != null) {
+                flyToUser(originEp.latLng.lat, originEp.latLng.lng);
+            } else if (lastGps?.lat != null && lastGps?.lng != null) {
+                flyToUser(lastGps.lat, lastGps.lng);
             }
 
             if (navigator.geolocation?.getCurrentPosition) {
@@ -39481,7 +39597,10 @@ window.cancelSetupAndLogout = () => {
                         const lat = position.coords.latitude;
                         const lng = position.coords.longitude;
                         window.currentDriverPos = { lat, lng };
-                        if (window._mapPickState) flyToUser(lat, lng);
+                        window._passengerLastGps = { lat, lng, accuracy: position.coords.accuracy ?? null, updatedAt: Date.now() };
+                        if (!destEp?.latLng && window._mapPickState && !window._mapPickUserMoved) {
+                            flyToUser(lat, lng);
+                        }
                     },
                     () => {},
                     { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
@@ -39562,8 +39681,10 @@ window.cancelSetupAndLogout = () => {
             const el = document.getElementById(elId);
             if (!el) return;
             const snap = window.captureRouteFieldSnapshot?.(el);
-            const ok = await window.guardRouteEndpointChange?.(el, fav.address);
-            if (!ok) {
+            const ok = typeof window.guardRouteEndpointChange === 'function'
+                ? await window.guardRouteEndpointChange(el, fav.address)
+                : true;
+            if (ok === false) {
                 window.restoreRouteFieldSnapshot?.(el, snap);
                 return;
             }
@@ -39572,7 +39693,7 @@ window.cancelSetupAndLogout = () => {
                 latLng: fav.lat != null ? { lat: fav.lat, lng: fav.lng } : null,
                 source: 'favorite'
             });
-            if (typeof el.value !== 'undefined') el.value = fav.address;
+            window.writeAutocompleteText?.(el, fav.address);
             if (target === 'origin' && fav.lat != null && fav.lng != null) {
                 window._passengerOriginUserCleared = false;
                 window.syncCityFromOriginCoords?.(fav.lat, fav.lng, { silent: false });
@@ -43242,7 +43363,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
          * No pisa si el usuario ya escribió o limpió a propósito para poner otra dirección.
          */
         window.ensurePassengerOriginFromGps = (opts = {}) => {
-            if (window.userProfile?.role !== 'client') return;
+            if (window.userProfile?.role !== 'client' && !document.body.classList.contains('client-mode')) return;
             if (window._passengerOriginAutofillBusy) return;
             if (!opts.force) {
                 if (window._passengerOriginUserCleared) return;
@@ -43279,7 +43400,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
             window._passengerOriginUserCleared = true;
         };
 
-             window.useCurrentLocation = (opts = {}) => {
+        window.useCurrentLocation = (opts = {}) => {
             const silent = opts.silent === true;
             const fromAutofill = opts.fromAutofill === true;
             if (!navigator.geolocation) {
@@ -43295,120 +43416,172 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
 
             if (!silent) window.showToast("Obteniendo tu ubicación actual...");
 
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    // Coordenadas crudas del GPS (no el centro del POI de geocoding)
-                    const latlng = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude
-                    };
-                    const gpsAccuracy = position.coords.accuracy != null
-                        ? Number(position.coords.accuracy)
-                        : null;
-                    window._passengerLastGps = {
-                        ...latlng,
-                        accuracy: gpsAccuracy,
-                        updatedAt: Date.now()
-                    };
+            const applyGpsCoordsToOrigin = async (latlng, gpsAccuracy = null) => {
+                if (!latlng || !Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) {
+                    opts.onError?.();
+                    return;
+                }
+                window._passengerLastGps = {
+                    ...latlng,
+                    accuracy: gpsAccuracy,
+                    updatedAt: Date.now()
+                };
+                window.currentDriverPos = { lat: latlng.lat, lng: latlng.lng };
 
-                    // Ciudad sigue al origen GPS
-                    window.syncCityFromOriginCoords?.(latlng.lat, latlng.lng, {
-                        silent: silent || fromAutofill
-                    });
+                // Ciudad sigue al origen GPS
+                const activeZone = window.syncCityFromOriginCoords?.(latlng.lat, latlng.lng, {
+                    silent: silent || fromAutofill
+                });
 
-                    // Centrar el mapa
-                    if (window.gMap) {
+                // Centrar el mapa
+                if (window.gMap) {
+                    try {
                         window.gMap.panTo(latlng);
                         window.gMap.setZoom(18);
+                    } catch (_) {}
+                }
+
+                // Si el usuario ya escribió algo mientras pedíamos GPS (autofill), no pisar
+                if (fromAutofill) {
+                    const originCheck = document.getElementById('origin-autocomplete');
+                    const typed = String(
+                        window.readAutocompleteText?.(originCheck)
+                        || originCheck?._routeEndpoint?.address
+                        || ''
+                    ).trim();
+                    if (typed && originCheck?._routeEndpoint?.source !== 'gps') {
+                        opts.onDone?.();
+                        return;
                     }
+                }
 
-                    // Obtener dirección (preferir nombre del lugar en el mapa si hay POI cerca)
-                    (async () => {
-                        try {
-                            // Si el usuario ya escribió algo mientras pedíamos GPS (autofill), no pisar
-                            if (fromAutofill) {
-                                const originCheck = document.getElementById('origin-autocomplete');
-                                const typed = String(
-                                    window.readAutocompleteText?.(originCheck)
-                                    || originCheck?._routeEndpoint?.address
-                                    || ''
-                                ).trim();
-                                if (typed && originCheck?._routeEndpoint?.source !== 'gps') {
-                                    opts.onDone?.();
-                                    return;
-                                }
-                            }
+                const originEl = document.getElementById('origin-autocomplete');
+                if (!originEl) {
+                    opts.onError?.();
+                    return;
+                }
 
-                            const geo = await window.reverseGeocodeLatLng?.(latlng);
-                            const address = geo?.address || `${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}`;
-                            const placeName = geo?.placeName || null;
-                            const formatted = geo?.formattedAddress || null;
-                            const originEl = document.getElementById('origin-autocomplete');
-                            const snap = window.captureRouteFieldSnapshot?.(originEl);
-                            const ok = await window.guardRouteEndpointChange?.(originEl, address);
-                            if (!ok) {
-                                window.restoreRouteFieldSnapshot?.(originEl, snap);
-                                opts.onError?.();
-                                return;
-                            }
+                const fallbackLabel = activeZone?.name
+                    ? `📍 Mi ubicación actual · ${activeZone.name} (${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)})`
+                    : `📍 Mi ubicación actual (${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)})`;
 
-                            // latLng = GPS exacto; la dirección es solo etiqueta (no mover el pin al POI)
-                            window.storeRouteEndpoint?.(originEl, {
-                                address,
-                                placeName,
-                                formattedAddress: formatted,
-                                latLng: latlng,
-                                place: null,
-                                source: 'gps',
-                                gpsAddress: address,
-                                accuracy: gpsAccuracy
-                            });
+                const snap = window.captureRouteFieldSnapshot?.(originEl);
+                const ok = typeof window.guardRouteEndpointChange === 'function'
+                    ? await window.guardRouteEndpointChange(originEl, fallbackLabel)
+                    : true;
+                if (ok === false) {
+                    window.restoreRouteFieldSnapshot?.(originEl, snap);
+                    opts.onError?.();
+                    return;
+                }
 
-                            if (originEl) {
-                                try {
-                                    originEl.value = address;
-                                } catch (e) {}
+                originEl._userClearedInput = false;
 
-                                const input = originEl.shadowRoot?.querySelector('input') ||
-                                             originEl.querySelector('input');
+                // 1) Guardar y escribir de inmediato para que el campo NUNCA quede en blanco
+                window.storeRouteEndpoint?.(originEl, {
+                    address: fallbackLabel,
+                    placeName: null,
+                    formattedAddress: fallbackLabel,
+                    latLng: latlng,
+                    place: null,
+                    source: 'gps',
+                    gpsAddress: fallbackLabel,
+                    accuracy: gpsAccuracy
+                });
+                window.writeAutocompleteText?.(originEl, fallbackLabel);
+                try { window.placePickupMarker?.(latlng, fallbackLabel); } catch (_) {}
+                window.updateOriginGPSButton?.();
+                window.showServiceOptionsIfReady?.();
 
-                                if (input) {
-                                    input.value = address;
-                                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                                }
-                            }
+                // 2) Refinar con geocodificación inversa (con timeout en reverseGeocodeLatLng)
+                try {
+                    const geo = await window.reverseGeocodeLatLng?.(latlng);
+                    const refinedAddress = (geo?.address || '').trim() || fallbackLabel;
+                    const placeName = geo?.placeName || null;
+                    const formatted = geo?.formattedAddress || refinedAddress;
 
-                            window.dispatchEvent(new CustomEvent('map-route-trigger'));
-                            window.updateOriginGPSButton?.();
-                            if (!silent) {
-                                window.showToast("Ubicación actual establecida como origen.");
-                            }
-                            opts.onDone?.();
-                        } catch (_) {
-                            if (!silent) window.showToast("No pudimos obtener la dirección exacta.");
-                            opts.onError?.();
+                    window.storeRouteEndpoint?.(originEl, {
+                        address: refinedAddress,
+                        placeName,
+                        formattedAddress: formatted,
+                        latLng: latlng,
+                        place: null,
+                        source: 'gps',
+                        gpsAddress: refinedAddress,
+                        accuracy: gpsAccuracy
+                    });
+                    window.writeAutocompleteText?.(originEl, refinedAddress);
+                    try { window.placePickupMarker?.(latlng, refinedAddress); } catch (_) {}
+                } catch (_) {}
+
+                window.currentRouteData = null;
+                window.dispatchEvent(new CustomEvent('map-route-trigger'));
+                window.updateOriginGPSButton?.();
+                window.showServiceOptionsIfReady?.();
+                await window.calculateTripRoute?.({ silent: true });
+                if (!silent) {
+                    window.showToast("Ubicación actual establecida como origen.", "success");
+                }
+                opts.onDone?.();
+            };
+
+            const onGeoSuccess = (position) => {
+                const latlng = {
+                    lat: Number(position.coords.latitude),
+                    lng: Number(position.coords.longitude)
+                };
+                const gpsAccuracy = position.coords.accuracy != null
+                    ? Number(position.coords.accuracy)
+                    : null;
+                void applyGpsCoordsToOrigin(latlng, gpsAccuracy);
+            };
+
+            const onFinalGeoError = (error) => {
+                // Si ya tenemos una posición reciente en caché, usarla como respaldo
+                const cached = window._passengerLastGps || window.currentDriverPos;
+                if (cached && Number.isFinite(Number(cached.lat)) && Number.isFinite(Number(cached.lng))) {
+                    void applyGpsCoordsToOrigin(
+                        { lat: Number(cached.lat), lng: Number(cached.lng) },
+                        cached.accuracy ?? null
+                    );
+                    return;
+                }
+
+                let message = "No se pudo obtener tu ubicación.";
+                if (error?.code === error?.PERMISSION_DENIED) {
+                    message = "Permiso de ubicación denegado. Actívalo en los ajustes.";
+                } else if (error?.code === error?.POSITION_UNAVAILABLE) {
+                    message = "Ubicación no disponible.";
+                } else if (error?.code === error?.TIMEOUT) {
+                    message = "Tiempo de espera agotado. Intenta de nuevo.";
+                }
+
+                if (!silent) window.showToast(message);
+                opts.onError?.(error);
+            };
+
+            navigator.geolocation.getCurrentPosition(
+                onGeoSuccess,
+                (err) => {
+                    if (err?.code === err?.PERMISSION_DENIED) {
+                        onFinalGeoError(err);
+                        return;
+                    }
+                    // Fallback a geolocalización rápida/red si falla o tarda el GPS de alta precisión
+                    navigator.geolocation.getCurrentPosition(
+                        onGeoSuccess,
+                        onFinalGeoError,
+                        {
+                            enableHighAccuracy: false,
+                            timeout: 8000,
+                            maximumAge: 120000
                         }
-                    })();
-                },
-                (error) => {
-                    let message = "No se pudo obtener tu ubicación.";
-
-                    if (error.code === error.PERMISSION_DENIED) {
-                        message = "Permiso de ubicación denegado. Actívalo en los ajustes.";
-                    } else if (error.code === error.POSITION_UNAVAILABLE) {
-                        message = "Ubicación no disponible.";
-                    } else if (error.code === error.TIMEOUT) {
-                        message = "Tiempo de espera agotado. Intenta de nuevo.";
-                    }
-
-                    if (!silent) window.showToast(message);
-                    opts.onError?.(error);
+                    );
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: fromAutofill ? 10000 : 12000,
-                    maximumAge: fromAutofill ? 30000 : 0
+                    timeout: fromAutofill ? 8000 : 8000,
+                    maximumAge: fromAutofill ? 45000 : 15000
                 }
             );
         };

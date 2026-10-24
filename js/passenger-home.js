@@ -8,8 +8,8 @@ import {
     isMalePassengerMotoRideBlocked,
     firstAllowedPassengerTripType,
     DECRETO_91_2012_MSG,
-} from './service-types.js?v=2026.10.24.4';
-import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.10.24.4';
+} from './service-types.js?v=2026.10.24.6';
+import { getDefaultZoneId, getZoneById } from './zones.js?v=2026.10.24.6';
 import { isUsMarket, isServiceAllowedInMarket, filterTypesForMarket } from './market.js';
 
 const BOOKING_SECTION_IDS = [
@@ -467,6 +467,7 @@ function applyMode(mode) {
             if (typeof window.openStoresMarketplace === 'function') {
                 window.openStoresMarketplace();
             } else {
+                try { window.loadHeavyUiAfterAuth?.(); } catch (_) {}
                 // Lazy module merchant-stores.js aún cargando: no dejar #control-panel en blanco
                 if (hub) hub.classList.remove('hidden');
                 if (bar) bar.classList.add('hidden');

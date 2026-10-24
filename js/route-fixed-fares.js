@@ -6,11 +6,11 @@
  * - Marcar puntos caros (lat/lng + radio + precio + activar/desactivar)
  * - Definir rutas fijas entre dos puntos (ej. Golf ↔ Aeropuerto)
  */
-import { haversineKm, findZoneForCoords, findNearestZone, getZoneById } from './zones.js?v=2026.10.24.4';
+import { haversineKm, findZoneForCoords, findNearestZone, getZoneById } from './zones.js?v=2026.10.24.6';
 import {
     normalizeServiceType, isFreightService, isTowService,
     setServiceRateOverrides, getDefaultServiceRates,
-} from './service-types.js?v=2026.10.24.4';
+} from './service-types.js?v=2026.10.24.6';
 
 import { formatLempiras } from './money-format.js';
 const HN_TZ = 'America/Tegucigalpa';
