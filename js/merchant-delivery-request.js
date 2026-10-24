@@ -36,6 +36,57 @@ export function isInHonduras(lat, lng) {
 }
 
 /**
+ * Normaliza los productos seleccionados opcionalmente en «Pedir envío».
+ * Si no se eligió ninguno, devuelve [].
+ */
+export function normalizeSelectedDeliveryItems(items = []) {
+    if (!Array.isArray(items) || !items.length) return [];
+    const out = [];
+    for (const raw of items) {
+        if (!raw || typeof raw !== 'object') continue;
+        const qty = Math.floor(Number(raw.qty) || 0);
+        const name = String(raw.name || '').trim().slice(0, 120);
+        if (qty <= 0 || !name) continue;
+        const priceNum = Number(raw.price ?? raw.basePrice ?? 0);
+        const price = Number.isFinite(priceNum) && priceNum >= 0 ? Math.round(priceNum * 100) / 100 : 0;
+        const productId = String(raw.productId || raw.id || '').trim().slice(0, 80);
+        const imageUrl = String(raw.imageUrl || raw.photoUrl || '').trim().slice(0, 500) || null;
+        out.push({
+            productId,
+            name,
+            price,
+            qty,
+            imageUrl,
+        });
+    }
+    return out;
+}
+
+/** Calcula el subtotal en Lempiras de los productos seleccionados. */
+export function calculateDeliveryItemsSubtotal(items = []) {
+    const clean = normalizeSelectedDeliveryItems(items);
+    const total = clean.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.qty) || 0), 0);
+    return Math.round(total * 100) / 100;
+}
+
+/** Resumen corto: «2× Sopa de Mondongo, 1× Fresco Natural». */
+export function formatDeliveryItemsSummary(items = []) {
+    const clean = normalizeSelectedDeliveryItems(items);
+    if (!clean.length) return '';
+    return clean.map((it) => `${it.qty}× ${it.name}`).join(', ');
+}
+
+/** Resumen detallado con precios: «🧾 2× Sopa de Mondongo (L. 240.00) + 1× Fresco Natural (L. 35.00) = L. 275.00 en productos». */
+export function formatDeliveryItemsBannerText(items = []) {
+    const clean = normalizeSelectedDeliveryItems(items);
+    if (!clean.length) return '';
+    const fmt = (n) => `L. ${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const subtotal = calculateDeliveryItemsSubtotal(clean);
+    const parts = clean.map((it) => `${it.qty}× ${it.name} (${fmt(it.price * it.qty)})`);
+    return `🧾 ${parts.join(' + ')} = ${fmt(subtotal)} en productos`;
+}
+
+/**
  * Precio estimado con las tarifas del servicio Envío (calculateServiceFare, editables por admin)
  * y el recargo de carro que ya usan los pedidos de tienda (CAR_DELIVERY_FACTOR).
  * commissionPercent = comisión del servicio que configuró el admin (informativo: la paga el conductor).
@@ -128,10 +179,14 @@ export function validateMerchantDeliveryForm(f = {}) {
 export function buildMerchantDeliveryTrip({ store, uid, form, estimate, zone = null, nowMs = Date.now(), serverTs = null }) {
     const v = normalizeMerchantVehicle(form.vehicle);
     const meta = MERCHANT_DELIVERY_VEHICLES[v];
+    const selectedItems = normalizeSelectedDeliveryItems(form.items || []);
+    const itemsSummary = formatDeliveryItemsSummary(selectedItems);
+    const itemsSubtotal = calculateDeliveryItemsSubtotal(selectedItems);
     const collect = form.collectAmount === '' || form.collectAmount == null ? 0 : Math.round(Number(form.collectAmount) * 100) / 100;
     const name = String(store?.name || 'Tienda').slice(0, 80);
     const notes = String(form.notes || '').slice(0, 300);
     const fee = Math.round(Number(estimate.price) * 100) / 100;
+    const basePkg = itemsSummary ? `Envío de ${name} · ${itemsSummary}` : `Envío de ${name}`;
     return {
         // El servidor (onMerchantDirectDeliveryCreated) recalcula la tarifa y lo pasa a «pending».
         status: 'verifying',
@@ -147,17 +202,23 @@ export function buildMerchantDeliveryTrip({ store, uid, form, estimate, zone = n
         merchantId: uid,
         deliveryVehicle: v,
         allowedDriverVehicles: meta.allowed.slice(),
+        itemsSummary: itemsSummary || null,
         deliveryDetails: {
+            storeId: store.id,
             category: store?.category || 'comida',
             restaurant: name, storeName: name, storePhone: store?.phone || '',
             recipientName: String(form.customerName || '').slice(0, 80),
             recipientPhone: String(form.customerPhone || '').replace(/[^\d+]/g, '').slice(0, 20),
-            packageDescription: (`Envío de ${name}` + (notes ? `: ${notes}` : '')).slice(0, 400),
+            packageDescription: (basePkg + (notes ? `: ${notes}` : '')).slice(0, 400),
             deliveryNotes: notes,
+            items: selectedItems,
+            itemsSummary: itemsSummary || '',
+            itemsSubtotal,
             storeDelivery: true,
             merchantDirectDelivery: true,
             deliveryVehicle: v,
             collectAmount: collect,
+            productCharge: collect,
             productsPaymentMethod: collect > 0 ? 'efectivo' : 'ninguno',
             productsPaid: false,
             itemsTotal: collect,
@@ -306,7 +367,9 @@ export function normalizeHondurasWhatsAppPhone(rawPhone = '') {
 }
 
 /** Construye el mensaje de WhatsApp con los detalles del envío y el link de seguimiento en vivo. */
-export function buildMerchantShareTripMessage({ trip = null, order = null, storeName = '', trackingUrl = '', baseOrigin = 'https://honduraite.com' } = {}) {
+export function buildMerchantShareTripMessage(arg = {}, secondBaseOrigin = 'https://honduraite.com') {
+    const isDirectTrip = arg && !arg.trip && !arg.order && (arg.deliveryDetails || arg.serviceType || arg.id);
+    const { trip = null, order = null, storeName = '', trackingUrl = '', baseOrigin = secondBaseOrigin || 'https://honduraite.com' } = isDirectTrip ? { trip: arg, baseOrigin: secondBaseOrigin || 'https://honduraite.com' } : (arg || {});
     const t = trip || {};
     const o = order || {};
     const dd = t.deliveryDetails || {};
@@ -350,10 +413,16 @@ export function buildMerchantShareTripMessage({ trip = null, order = null, store
         payLine = `💵 *Pedido a pagar al recibir:* ${fmt(collect)}`;
     }
 
+    const rawItems = Array.isArray(dd.items) && dd.items.length
+        ? dd.items
+        : (Array.isArray(o.items) && o.items.length ? o.items : []);
+    const itemsLine = formatDeliveryItemsSummary(rawItems) || String(dd.itemsSummary || t.itemsSummary || '').trim();
+
     const lines = [
         `👋 ¡Hola${recipient ? ` *${recipient}*` : ''}! Te compartimos el seguimiento de tu envío de *${store}* en *HonduRaite*.`,
         statusLine,
     ];
+    if (itemsLine) lines.push(`🍽️ *Productos:* ${itemsLine}`);
     if (destination) lines.push(`📍 *Entrega en:* ${destination}`);
     if (payLine) lines.push(payLine);
     if (url) {

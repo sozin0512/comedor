@@ -7,8 +7,9 @@ import {
     MERCHANT_DELIVERY_VEHICLES, haversineKm, validateMerchantDeliveryForm,
     buildMerchantDeliveryTrip, merchantDeliveryStatus, merchantVehicleAvailability, merchantCancelPatch,
     resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras, customerChargeText,
-    parseHondurasCoordsInput, buildDeliveryTrackingUrl, buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.24.3';
+    parseHondurasCoordsInput, buildDeliveryTrackingUrl, buildMerchantShareTripMessage, buildMerchantShareTripWhatsAppUrl,
+    normalizeSelectedDeliveryItems, calculateDeliveryItemsSubtotal, formatDeliveryItemsSummary, formatDeliveryItemsBannerText,
+} from './merchant-delivery-request.js?v=2026.10.24.4';
 
 function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -47,6 +48,29 @@ export const MERCHANT_DELIVERY_CSS = `
 .md-fee b{font-size:19px;color:var(--hn-blue,#0c4a8e)}
 .md-tar{display:inline-block;margin-top:4px;font-size:11px;font-weight:800;color:var(--hn-blue,#0c4a8e);background:#dbeafe;border-radius:999px;padding:2px 8px}
 .md-fee.bad{background:#fef2f2}.md-fee.bad .md-tar{background:#fee2e2;color:#b91c1c}
+.md-prods{background:linear-gradient(135deg,#fff7ed,#fffbeb);border:1.5px solid #fed7aa;border-radius:14px;padding:10px;margin-top:10px}
+.md-prods-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.md-prods-title{display:block;font-size:12.5px;font-weight:900;color:#9a3412}
+.md-prods-title small{font-weight:700;color:#78716c;font-size:11px}
+.md-prods-sub{display:block;font-size:11px;color:#78716c;margin-top:2px}
+.md-prod-empty-pill{font-size:10.5px;font-weight:800;color:#047857;background:#ecfdf5;border:1px solid #a7f3d0;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.md-prod-clear{border:1px solid #fecaca;background:#fef2f2;color:#dc2626;font-size:11px;font-weight:800;padding:4px 9px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.md-prod-search{width:100%;box-sizing:border-box;margin-top:7px;padding:7px 10px;border:1px solid #fdba74;border-radius:9px;font-size:12.5px;background:#fff}
+.md-prod-grid{display:grid;grid-template-columns:1fr;gap:6px;margin-top:8px;max-height:195px;overflow-y:auto;padding-right:2px}
+.md-prod-card{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border:1.5px solid #e2e8f0;border-radius:11px;padding:6px 8px;transition:all .15s}
+.md-prod-card.on{border-color:#f97316;background:#fff7ed;box-shadow:0 2px 8px rgba(249,115,22,.12)}
+.md-prod-thumb{width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid #e2e8f0;background:#f8fafc}
+.md-prod-thumb--icon{display:flex;align-items:center;justify-content:center;background:#ffedd5;color:#ea580c;font-size:14px;border-color:#fed7aa}
+.md-prod-info{min-width:0;flex:1}
+.md-prod-info b{display:block;font-size:12.5px;font-weight:800;color:#0f172a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.md-prod-info span{display:block;font-size:11.5px;font-weight:800;color:#ea580c}
+.md-prod-stepper{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.md-prod-stepper button{width:28px;height:28px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#0f172a;font-weight:900;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.md-prod-stepper button[data-md-prod-inc]{background:#ea580c;border-color:#ea580c;color:#fff}
+.md-prod-stepper button[disabled]{opacity:.38;cursor:not-allowed}
+.md-prod-stepper span{min-width:20px;text-align:center;font-size:13px;font-weight:900;color:#0f172a}
+.md-prod-banner{margin-top:8px;background:#ffedd5;border:1px solid #fb923c;border-radius:10px;padding:7px 9px;font-size:11.5px;font-weight:800;color:#7c2d12;line-height:1.35}
+.md-prod-none{margin-top:6px;font-size:11.5px;color:#64748b;background:rgba(255,255,255,.7);border:1px dashed #cbd5e1;border-radius:9px;padding:7px 9px}
 .md-cash{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:12px;padding:10px;margin-top:8px}
 .md-cash label{font-size:12px;font-weight:800;color:#065f46}
 .md-cash input{font-family:inherit;border:1px solid #a7f3d0;border-radius:10px;padding:10px;font-size:15px;width:100%;box-sizing:border-box;margin-top:4px}
@@ -56,6 +80,7 @@ export const MERCHANT_DELIVERY_CSS = `
 .md-go[disabled]{background:#bfdbfe;box-shadow:none}
 .md-req{display:flex;justify-content:space-between;gap:8px;padding:9px 0;border-top:1px solid #f1f5f9}
 .md-req:first-of-type{border-top:0}
+.md-req-items{font-size:11.5px;font-weight:800;color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:3px 7px;margin-top:3px;display:inline-block}
 .md-pill{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;background:#f1f5f9;white-space:nowrap}
 .md-cancel{border:1px solid #fecaca;color:#b91c1c;background:#fff;border-radius:10px;padding:5px 9px;font-weight:800;font-size:12px;cursor:pointer}
 .md-req-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -87,13 +112,53 @@ export function createMerchantDeliveryTab(ctx) {
             pickupAddress: '', pickupLat: null, pickupLng: null,
             dropoffAddress: '', dropoffLat: null, dropoffLng: null,
             customerName: '', customerPhone: '', notes: '', collectAmount: '',
+            items: [],
         },
+        selectedQtys: {},
+        productSearch: '',
         errors: {}, suggestions: [], requests: [], commission: null, busy: false, unsub: null, root: null, sugTimer: null,
         quote: null, quoteKey: '', quoting: false, quoteSeq: 0, map: null, savingStore: false,
         lastCreatedTrip: null,
     };
     const zoneId = ctx.zone?.id || ctx.store?.cityId || null;
     const avail = () => Object.fromEntries(Object.keys(MERCHANT_DELIVERY_VEHICLES).map((v) => [v, merchantVehicleAvailability(v, zoneId, ctx.availability)]));
+
+    function getStoreProducts() {
+        let list = [];
+        try {
+            if (typeof ctx.getProducts === 'function') list = ctx.getProducts() || [];
+            else if (Array.isArray(ctx.products)) list = ctx.products;
+            else if (typeof window !== 'undefined' && typeof window.getMyStoreProducts === 'function') list = window.getMyStoreProducts(ctx.store?.id) || [];
+            else if (Array.isArray(ctx.store?.products)) list = ctx.store.products;
+        } catch (_) { list = []; }
+        return (Array.isArray(list) ? list : []).filter((p) => p && p.available !== false && String(p.name || '').trim());
+    }
+
+    function syncSelectedItems(autoFillCharge = false) {
+        const products = getStoreProducts();
+        const byId = new Map(products.map((p) => [String(p.id || p.productId || ''), p]));
+        const raw = [];
+        for (const [pid, qVal] of Object.entries(st.selectedQtys || {})) {
+            const qty = Math.floor(Number(qVal) || 0);
+            if (qty <= 0) continue;
+            const p = byId.get(String(pid));
+            if (!p) continue;
+            const priceNum = Number(p.basePrice ?? p.price ?? 0) || 0;
+            raw.push({
+                productId: String(p.id || p.productId || pid),
+                name: String(p.name || '').trim(),
+                price: Math.round(priceNum * 100) / 100,
+                qty,
+                imageUrl: p.imageUrl || p.photoUrl || null,
+            });
+        }
+        st.form.items = normalizeSelectedDeliveryItems(raw);
+        if (autoFillCharge) {
+            const subtotal = calculateDeliveryItemsSubtotal(st.form.items);
+            st.form.collectAmount = subtotal > 0 ? String(subtotal) : '';
+        }
+        return st.form.items;
+    }
 
     function syncPickup() {
         const s = ctx.store || {};
@@ -139,11 +204,13 @@ export function createMerchantDeliveryTab(ctx) {
             const collect = Number(t.deliveryDetails?.collectAmount) || 0;
             const recipientName = t.deliveryDetails?.recipientName || '';
             const recipientPhone = t.deliveryDetails?.recipientPhone || '';
+            const itemsSummary = formatDeliveryItemsSummary(t.deliveryDetails?.items || []) || String(t.deliveryDetails?.itemsSummary || t.itemsSummary || '').trim();
             const canShare = s.key !== 'cancelled' && !!t.id;
             const canChat = (s.key === 'verifying' || s.key === 'searching' || s.key === 'accepted' || s.key === 'on_the_way' || s.key === 'pickup' || s.key === 'delivering') && !!t.id;
             return `<div class="md-req" data-md-req="${esc(t.id)}">
                 <div style="min-width:0;flex:1">
                     <div style="font-weight:800;font-size:13px"><i class="fas ${veh.icon}"></i> ${esc(t.destination || 'Entrega')}</div>
+                    ${itemsSummary ? `<div class="md-req-items" data-md-req-items><i class="fas fa-utensils"></i> ${esc(itemsSummary)}</div>` : ''}
                     <div style="font-size:12px;color:#64748b">Cliente paga ${esc(money((Number(t.priceNum) || 0) + collect))}${collect > 0 ? ` (envío ${esc(t.price || '')} + productos ${esc(money(collect))})` : ' (envío)'}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>
                     ${recipientName || recipientPhone ? `<div style="font-size:11px;color:#475569;margin-top:2px"><i class="fas fa-user"></i> Recibe: <b>${esc(recipientName || 'Cliente')}</b>${recipientPhone ? ` · ${esc(recipientPhone)}` : ''}</div>` : ''}
                     ${canShare ? `<div class="md-req-actions">
@@ -190,6 +257,55 @@ export function createMerchantDeliveryTab(ctx) {
         </div>`;
     }
 
+    function productsHtml() {
+        const products = getStoreProducts();
+        const selected = syncSelectedItems(false);
+        const selectedCount = selected.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+        const itemsBanner = formatDeliveryItemsBannerText(selected);
+        const q = String(st.productSearch || '').trim().toLowerCase();
+        const filtered = q
+            ? products.filter((p) => String(p.name || '').toLowerCase().includes(q) || String(p.category || '').toLowerCase().includes(q))
+            : products;
+
+        return `<div class="md-prods" id="md-products-section" data-md-products-section>
+            <div class="md-prods-head">
+                <div>
+                    <span class="md-prods-title">🍽️ Productos del pedido <small>(opcional — puedes dejarlo vacío)</small></span>
+                    <span class="md-prods-sub">Toca <b>+</b> para sumar tus productos registrados o déjalo vacío si solo ocupas el motorista.</span>
+                </div>
+                ${selectedCount > 0
+                    ? `<button type="button" class="md-prod-clear" data-md-clear-products id="md-clear-products-btn"><i class="fas fa-trash-alt"></i> Limpiar productos (${selectedCount})</button>`
+                    : `<span class="md-prod-empty-pill" data-md-empty-products id="md-empty-products-badge">✓ Envío libre (0 productos)</span>`}
+            </div>
+            ${products.length > 4 ? `<input id="md-product-search" data-md-field="productSearch" class="md-prod-search" value="${esc(st.productSearch)}" placeholder="🔍 Filtrar productos de tu tienda…">` : ''}
+            ${products.length
+                ? `<div class="md-prod-grid" data-md-product-list>
+                    ${filtered.map((prod) => {
+                        const pid = String(prod.id || prod.productId || '');
+                        const pr = Number(prod.basePrice ?? prod.price ?? 0) || 0;
+                        const qty = Math.floor(Number(st.selectedQtys[pid]) || 0);
+                        const img = prod.imageUrl || prod.photoUrl || '';
+                        return `<div class="md-prod-card ${qty > 0 ? 'on' : ''}" data-md-product-card="${esc(pid)}" data-md-prod-card="${esc(pid)}">
+                            ${img
+                                ? `<img src="${esc(img)}" alt="" class="md-prod-thumb">`
+                                : `<div class="md-prod-thumb md-prod-thumb--icon"><i class="fas fa-utensils"></i></div>`}
+                            <div class="md-prod-info">
+                                <b title="${esc(prod.name)}">${esc(prod.name)}</b>
+                                <span>${esc(money(pr))}</span>
+                            </div>
+                            <div class="md-prod-stepper">
+                                <button type="button" data-md-prod-dec="${esc(pid)}" ${qty <= 0 ? 'disabled' : ''} aria-label="Restar ${esc(prod.name)}">−</button>
+                                <span data-md-prod-qty="${esc(pid)}">${qty}</span>
+                                <button type="button" data-md-prod-inc="${esc(pid)}" aria-label="Sumar ${esc(prod.name)}">+</button>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>`
+                : `<div class="md-prod-none">Puedes enviar sin seleccionar productos, o registrar tu menú en la pestaña <b>Menú</b> para elegirlos con un toque.</div>`}
+            ${itemsBanner ? `<div class="md-prod-banner" id="md-selected-items-banner" data-md-items-banner>${esc(itemsBanner)}</div>` : ''}
+        </div>`;
+    }
+
     function html() {
         const a = avail(); const f = st.form; const e = st.errors; const p = price();
         const vehBtn = (v) => {
@@ -221,9 +337,11 @@ export function createMerchantDeliveryTab(ctx) {
                 ${field('customerPhone', 'Teléfono de quien recibe (opcional)', 'inputmode="tel"')}
                 ${field('notes', 'Notas para el conductor', 'maxlength="300" placeholder="Ej. casa verde, portón negro"', 'textarea')}
                 ${feeHtml()}
-                <div class="md-cash"><label for="md-collectAmount"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo (opcional)</label>
+                ${productsHtml()}
+                <div class="md-cash"><label for="md-collectAmount"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo por los productos (opcional)</label>
                     <input id="md-collectAmount" data-md-field="collectAmount" value="${esc(f.collectAmount)}" inputmode="decimal" placeholder="L. 0.00">
-                    <small>El valor de tus productos. El conductor lo cobra junto con el envío y te lo entrega.</small>
+                    <input id="md-productCharge" data-md-field="collectAmount" value="${esc(f.collectAmount)}" type="hidden">
+                    <small>El valor de tus productos. El conductor lo cobra junto con el envío y te lo entrega (puedes dejarlo en 0 o editarlo).</small>
                     ${e.collectAmount ? `<span class="md-err">${esc(e.collectAmount)}</span>` : ''}</div>
                 ${p && !p.blocked ? `<div class="md-total" data-md-summary>${esc(customerChargeText(p.price, collect))}</div>` : ''}
                 <button type="button" class="md-go" data-md-submit ${canGo ? '' : 'disabled'}>${st.busy ? 'Pidiendo…' : `Pedir ${st.vehicle ? MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase() : 'envío'}`}</button>
@@ -311,8 +429,17 @@ export function createMerchantDeliveryTab(ctx) {
 
     async function onInput(ev) {
         const k = ev.target?.dataset?.mdField; if (!k) return;
+        if (k === 'productSearch') {
+            st.productSearch = ev.target.value;
+            render();
+            return;
+        }
         st.form[k] = ev.target.value;
         if (k === 'collectAmount') {
+            const c1 = st.root?.querySelector('#md-collectAmount');
+            const c2 = st.root?.querySelector('#md-productCharge');
+            if (c1 && c1 !== ev.target) c1.value = ev.target.value;
+            if (c2 && c2 !== ev.target) c2.value = ev.target.value;
             const el = st.root.querySelector('[data-md-summary]'); const p = price(); const c = Number(ev.target.value) || 0;
             if (el && p) el.textContent = customerChargeText(p.price, c);
         }
@@ -339,6 +466,36 @@ export function createMerchantDeliveryTab(ctx) {
 
     async function onClick(ev) {
         if (st.suggestions.length && !ev.target.closest('.md-drop')) { st.suggestions = []; render(); }
+        const incBtn = ev.target.closest('[data-md-prod-inc]');
+        if (incBtn) {
+            const pid = incBtn.dataset.mdProdInc;
+            if (pid) {
+                st.selectedQtys[pid] = (Math.floor(Number(st.selectedQtys[pid]) || 0)) + 1;
+                syncSelectedItems(true);
+                render();
+            }
+            return;
+        }
+        const decBtn = ev.target.closest('[data-md-prod-dec]');
+        if (decBtn && !decBtn.disabled) {
+            const pid = decBtn.dataset.mdProdDec;
+            if (pid) {
+                const next = Math.max(0, (Math.floor(Number(st.selectedQtys[pid]) || 0)) - 1);
+                if (next <= 0) delete st.selectedQtys[pid];
+                else st.selectedQtys[pid] = next;
+                syncSelectedItems(true);
+                render();
+            }
+            return;
+        }
+        const clrBtn = ev.target.closest('[data-md-clear-products]');
+        if (clrBtn) {
+            st.selectedQtys = {};
+            st.productSearch = '';
+            syncSelectedItems(true);
+            render();
+            return;
+        }
         const v = ev.target.closest('[data-md-vehicle]');
         if (v && !v.disabled) { st.vehicle = v.dataset.mdVehicle; delete st.errors.vehicle; render(); return requote(); }
         const mp = ev.target.closest('[data-md-map]');
@@ -440,7 +597,8 @@ export function createMerchantDeliveryTab(ctx) {
 
     async function submit() {
         syncPickup();
-        const form = { ...st.form, vehicle: st.vehicle };
+        syncSelectedItems(false);
+        const form = { ...st.form, vehicle: st.vehicle, items: st.form.items };
         st.errors = validateMerchantDeliveryForm(form);
         const a = st.vehicle ? avail()[st.vehicle] : null;
         if (a && !a.available) st.errors.vehicle = a.message || 'No disponible';
@@ -453,8 +611,13 @@ export function createMerchantDeliveryTab(ctx) {
             const payload = buildMerchantDeliveryTrip({ store: ctx.store, uid: ctx.uid, form, estimate: est, zone: ctx.zone, serverTs: ctx.serverTs?.() ?? null });
             const id = await ctx.createTrip(payload);
             st.lastCreatedTrip = { id, ...payload };
+            try {
+                ctx.onTripCreated?.(payload, { id, items: (st.form.items || []).slice(), store: ctx.store });
+            } catch (_) {}
             ctx.toast?.(`Envío pedido · verificando precio y buscando ${MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase()}`, 'success');
-            st.form = { ...st.form, dropoffAddress: '', dropoffLat: null, dropoffLng: null, customerName: '', customerPhone: '', notes: '', collectAmount: '' };
+            st.selectedQtys = {};
+            st.productSearch = '';
+            st.form = { ...st.form, dropoffAddress: '', dropoffLat: null, dropoffLng: null, customerName: '', customerPhone: '', notes: '', collectAmount: '', items: [] };
             st.quote = null; st.quoteKey = '';
             if (!st.requests.some((r) => String(r.id) === String(id))) {
                 st.requests = [{ id, ...payload }, ...st.requests];

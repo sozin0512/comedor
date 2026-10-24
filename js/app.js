@@ -778,6 +778,10 @@ function renderGuestFollowPanel(t) {
     const vehModel = t.driverVehicle?.model || t.vehicleType || '';
     const vehicle = [vehModel, vehPlate ? `Placa ${vehPlate}` : ''].filter(Boolean).join(' · ');
     const pin = !isDelivery && t.pin ? String(t.pin) : '';
+    const rawItems = Array.isArray(dd.items) ? dd.items : [];
+    const itemsText = rawItems.length
+        ? rawItems.filter((it) => it && Number(it.qty) > 0 && it.name).map((it) => `${Number(it.qty)}× ${String(it.name).trim()}`).join(", ")
+        : String(dd.itemsSummary || t?.itemsSummary || "").trim();
     const feeNum = Number(t.priceNum) || 0;
     const collectNum = Number(dd.collectAmount) || 0;
     const price = isDelivery && collectNum > 0
@@ -791,6 +795,7 @@ function renderGuestFollowPanel(t) {
             </div>
             <p class="text-sm font-black text-slate-900 mt-1.5 leading-snug"><i class="fas ${isDelivery ? 'fa-store text-amber-600' : 'fa-map-pin text-blue-600'}"></i> ${String(storeName || t.origin || 'Origen').slice(0, 80)}</p>
             <p class="text-xs font-bold text-slate-600 mt-0.5"><i class="fas fa-location-dot text-emerald-600"></i> Entrega en: ${String(t.destination || 'Destino').slice(0, 90)}</p>
+            ${isDelivery && itemsText ? `<p class="text-xs font-extrabold text-orange-800 bg-orange-50 border border-orange-200 rounded-xl px-3 py-1.5 mt-1.5" data-follow-trip-items><i class="fas fa-utensils mr-1"></i>Productos: ${String(itemsText).slice(0, 220)}</p>` : ""}
             ${driver ? `<p class="text-sm font-bold text-slate-800 mt-2"><i class="fas ${isDelivery ? 'fa-motorcycle' : 'fa-user-circle'} text-emerald-600"></i> Repartidor: ${driver}${vehicle ? ` · ${vehicle}` : ''}</p>` : `<p class="text-xs font-bold text-amber-700 mt-2"><i class="fas fa-clock"></i> Asignando repartidor cercano…</p>`}
             ${price ? `<p class="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 mt-2">${price}</p>` : ''}
             ${pin && t.status === 'accepted' ? `<p class="mt-2 text-center text-lg font-black tracking-[0.3em] text-blue-700 bg-blue-50 rounded-2xl py-2">PIN ${pin}</p>` : ''}
