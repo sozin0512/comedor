@@ -233,3 +233,145 @@ export function customerChargeText(fee, collect) {
     const f = Number(fee) || 0; const c = Number(collect) || 0;
     return c > 0 ? `El conductor cobra al cliente: Envío ${m(f)} + productos ${m(c)} = ${m(f + c)}` : `El conductor cobra al cliente: Envío ${m(f)}`;
 }
+
+/**
+ * Determina si un documento de trips corresponde a un envío de tienda/negocio que NO debe
+ * secuestrar la pantalla principal del dueño en modo pasajero («trip-active» / «is-searching»).
+ */
+export function isMerchantOwnedDeliveryTrip(t = {}, uid = null, { hasStore = false, detachedIds = null } = {}) {
+    if (!t || typeof t !== 'object') return false;
+    if (t.merchantDirectDelivery === true) return true;
+    if (t.deliveryDetails && t.deliveryDetails.merchantDirectDelivery === true) return true;
+    if (t.createdVia === 'whatsapp_store') return true;
+    if (t.createdByMerchant === true && (!uid || !t.merchantId || t.merchantId === uid || t.clientId === uid)) return true;
+    if (t.storeDelivery === true && (!uid || !t.merchantId || t.merchantId === uid)) return true;
+    if (t.id && detachedIds) {
+        const hasId = Array.isArray(detachedIds)
+            ? detachedIds.includes(t.id)
+            : (typeof detachedIds.has === 'function' ? detachedIds.has(t.id) : false);
+        if (hasId) return true;
+    }
+    if (hasStore === true && t.serviceType === 'delivery' && (!uid || !t.clientId || t.clientId === uid)) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Si el negocio pega un link de Google Maps o coordenadas directas (ej. «14.4598, -87.6378» o
+ * «https://maps.google.com/?q=14.4598,-87.6378»), extrae lat/lng dentro de Honduras.
+ */
+export function parseHondurasCoordsInput(raw = '') {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const patterns = [
+        /[?&](?:q|query|ll)=(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/i,
+        /@(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/i,
+        /^\s*(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})\s*$/,
+    ];
+    for (const re of patterns) {
+        const m = s.match(re);
+        if (m) {
+            const lat = Number(m[1]);
+            const lng = Number(m[2]);
+            if (isInHonduras(lat, lng)) {
+                return {
+                    lat,
+                    lng,
+                    label: `Ubicación GPS (${lat.toFixed(5)}, ${lng.toFixed(5)})`,
+                };
+            }
+        }
+    }
+    return null;
+}
+
+/** Link público de seguimiento en vivo del envío para compartir al cliente. */
+export function buildDeliveryTrackingUrl(tripId, baseOrigin = 'https://honduraite.com') {
+    const cleanId = String(tripId || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleanId) return '';
+    const base = String(baseOrigin || 'https://honduraite.com').trim().replace(/\/+$/, '') || 'https://honduraite.com';
+    return `${base}/?followTrip=${encodeURIComponent(cleanId)}`;
+}
+
+/** Normaliza teléfono de Honduras o internacional para wa.me (sin «+»). */
+export function normalizeHondurasWhatsAppPhone(rawPhone = '') {
+    let digits = String(rawPhone || '').replace(/\D/g, '');
+    if (!digits) return '';
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (digits.length === 8 && /^[23789]/.test(digits)) return '504' + digits;
+    if (digits.length === 11 && digits.startsWith('504')) return digits;
+    if (digits.length >= 10 && digits.length <= 15) return digits;
+    return '';
+}
+
+/** Construye el mensaje de WhatsApp con los detalles del envío y el link de seguimiento en vivo. */
+export function buildMerchantShareTripMessage({ trip = null, order = null, storeName = '', trackingUrl = '', baseOrigin = 'https://honduraite.com' } = {}) {
+    const t = trip || {};
+    const o = order || {};
+    const dd = t.deliveryDetails || {};
+    const tripId = String(t.id || o.tripId || '').trim();
+    const url = String(trackingUrl || '').trim() || buildDeliveryTrackingUrl(tripId, baseOrigin);
+    const store = String(storeName || dd.storeName || dd.restaurant || t.merchantName || o.storeName || 'Tu tienda').trim();
+    const recipient = String(dd.recipientName || o.recipientName || o.clientName || '').trim();
+    const destination = String(t.destination || o.deliveryAddress || '').trim();
+    const driverName = String(t.driverName || o.driverName || '').trim();
+    const plate = String(t.driverVehicle?.plate || o.driverPlate || '').trim();
+    const vehModel = String(t.driverVehicle?.model || '').trim();
+    const driverDesc = [driverName, vehModel, plate ? `placa ${plate}` : ''].filter(Boolean).join(' · ');
+
+    const st = String(t.status || '');
+    const ost = String(o.status || '');
+    let statusLine = '🔎 *Estado:* Buscando repartidor para tu pedido';
+    if (st === 'completed' || ost === 'delivered') {
+        statusLine = '✅ *Estado:* Pedido entregado';
+    } else if (st === 'in_progress' || ost === 'out_for_delivery') {
+        statusLine = `🛵 *Estado:* ¡Tu pedido ya va en camino!${driverDesc ? ` (${driverDesc})` : ''}`;
+    } else if (st === 'accepted') {
+        statusLine = t.driverArrived
+            ? `🏪 *Estado:* El repartidor ya está en *${store}* recogiendo tu pedido${driverDesc ? ` (${driverDesc})` : ''}`
+            : `🛵 *Estado:* Repartidor asignado${driverDesc ? ` (${driverDesc})` : ''} · en camino a *${store}*`;
+    } else if (driverDesc) {
+        statusLine = `🛵 *Repartidor:* ${driverDesc}`;
+    }
+
+    const fmt = (n) => `L. ${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const fee = Number.isFinite(Number(t.priceNum)) ? Number(t.priceNum) : (Number(o.deliveryFee) || 0);
+    const collect = Number.isFinite(Number(dd.collectAmount))
+        ? Number(dd.collectAmount)
+        : (o.paymentMethod === 'saldo' && o.paymentStatus === 'paid' ? 0 : (Number(o.itemsTotal) || 0));
+
+    let payLine = '';
+    if (collect > 0 && fee > 0) {
+        payLine = `💵 *Total a pagar al recibir:* ${fmt(fee + collect)} (envío ${fmt(fee)} + pedido ${fmt(collect)})`;
+    } else if (fee > 0) {
+        payLine = `💵 *Envío a pagar al recibir:* ${fmt(fee)}`;
+    } else if (collect > 0) {
+        payLine = `💵 *Pedido a pagar al recibir:* ${fmt(collect)}`;
+    }
+
+    const lines = [
+        `👋 ¡Hola${recipient ? ` *${recipient}*` : ''}! Te compartimos el seguimiento de tu envío de *${store}* en *HonduRaite*.`,
+        statusLine,
+    ];
+    if (destination) lines.push(`📍 *Entrega en:* ${destination}`);
+    if (payLine) lines.push(payLine);
+    if (url) {
+        lines.push(`\n🗺️ *Sigue tu envío en vivo en el mapa aquí:*\n${url}`);
+    }
+    return lines.join('\n');
+}
+
+/** Construye la URL de WhatsApp (wa.me/<tel>?text=... o api.whatsapp.com/send?text=...) para compartir el viaje al cliente. */
+export function buildMerchantShareTripWhatsAppUrl({ trip = null, order = null, storeName = '', trackingUrl = '', phone = '', baseOrigin = 'https://honduraite.com' } = {}) {
+    const t = trip || {};
+    const o = order || {};
+    const dd = t.deliveryDetails || {};
+    const rawPhone = phone || dd.recipientPhone || o.recipientPhone || o.clientPhone || '';
+    const cleanPhone = normalizeHondurasWhatsAppPhone(rawPhone);
+    const msg = buildMerchantShareTripMessage({ trip: t, order: o, storeName, trackingUrl, baseOrigin });
+    if (cleanPhone) {
+        return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    }
+    return `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+}

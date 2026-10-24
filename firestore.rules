@@ -261,7 +261,10 @@ service cloud.firestore {
     function isGuestClientTrip() {
       return resource.data.guestClient == true
         || resource.data.guestInvitePending == true
-        || (resource.data.clientId is string && resource.data.clientId.matches('guest_.*'));
+        || (resource.data.clientId is string && resource.data.clientId.matches('guest_.*'))
+        || resource.data.get('storeDelivery', false) == true
+        || resource.data.get('merchantDirectDelivery', false) == true
+        || (resource.data.get('serviceType', '') == 'delivery' && resource.data.get('createdByMerchant', false) == true);
     }
 
     // Conductor asignado al viaje (puede actualizar y completar)
@@ -313,7 +316,7 @@ service cloud.firestore {
       // list: no enumerar todos los guest.
       allow get: if (
         isGuestClientTrip()
-        && resource.data.status in ['pending', 'accepted', 'in_progress', 'scheduled', 'completed']
+        && resource.data.status in ['verifying', 'pending', 'accepted', 'in_progress', 'scheduled', 'completed', 'cancelled']
       ) || (isSignedIn() && (
         isStaff(app) ||
         resource.data.clientId == requestUid() ||

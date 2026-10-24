@@ -140,13 +140,15 @@ function storeStatusKey(t = {}) {
     if (s === 'cancelled') return 'cancelled';
     return null;
 }
-function storeStatusText(key, t = {}) {
+function storeStatusText(key, t = {}, tripId = '') {
     const store = t.deliveryDetails?.storeName || t.merchantName || 'tu tienda';
     const plate = String(t.driverVehicle?.plate || t.driverVehiclePlate || '').trim();
+    const tid = String(tripId || t.id || '').trim();
+    const linkSuffix = tid ? `\n📍 Link para compartir al cliente: https://honduraite.com/?followTrip=${encodeURIComponent(tid)}` : '';
     switch (key) {
-        case 'searching': return `🔎 Buscando conductor para el envío de *${store}* (${t.price || ''}).`;
-        case 'accepted': return `✅ *${t.driverName || 'Un conductor'}* aceptó el envío${plate ? ` · placa *${plate}*` : ''}. Va hacia *${store}* a recoger.`;
-        case 'on_the_way': return `🛵 El envío de *${store}* va en camino a la entrega.`;
+        case 'searching': return `🔎 Buscando conductor para el envío de *${store}* (${t.price || ''}).${linkSuffix}`;
+        case 'accepted': return `✅ *${t.driverName || 'Un conductor'}* aceptó el envío${plate ? ` · placa *${plate}*` : ''}. Va hacia *${store}* a recoger.${linkSuffix}`;
+        case 'on_the_way': return `🛵 El envío de *${store}* va en camino a la entrega.${linkSuffix}`;
         case 'delivered': return `📦 Envío entregado. ¡Gracias por usar HonduRaite!`;
         case 'cancelled': return t.cancelReason === 'outside_delivery_zones'
             ? '❌ El envío se canceló: la dirección está fuera de las zonas de envío.'
@@ -470,7 +472,8 @@ module.exports = function createWaStoreDelivery(deps) {
             const ref = await db.collection(`${base}/trips`).add(trip);
             await clearSession(from);
             const changed = Math.abs(r.fee - (Number(sess.stFee) || 0)) >= 0.01;
-            await send.text(from, `✅ Envío pedido${changed ? ` (tarifa actualizada: ${lmoney(r.fee)})` : ''}. Te aviso aquí cuando un conductor acepte.\nEscribe *cancelar* para anularlo antes de que lo acepten.`);
+            const followUrl = `https://honduraite.com/?followTrip=${encodeURIComponent(ref.id)}`;
+            await send.text(from, `✅ Envío pedido${changed ? ` (tarifa actualizada: ${lmoney(r.fee)})` : ''}. Te aviso aquí cuando un conductor acepte.\n📍 Link de seguimiento para tu cliente: ${followUrl}\nEscribe *cancelar* para anularlo antes de que lo acepten.`);
             return { handled: true, tripId: ref.id };
         }
         return false;
@@ -483,7 +486,7 @@ module.exports = function createWaStoreDelivery(deps) {
         if (!k1 || k0 === k1) return { skipped: 'same' };
         if (k1 === 'cancelled' && after.cancelReason === 'merchant_cancel_whatsapp') return { skipped: 'own_cancel' };
         if ((after.waStoreStatusSent || {})[k1]) return { skipped: 'already' };
-        const body = storeStatusText(k1, after);
+        const body = storeStatusText(k1, after, tripId);
         const phone = normalizePhone(after.waStorePhone);
         const last = await lastInboundAtMs(phone);
         let res;
