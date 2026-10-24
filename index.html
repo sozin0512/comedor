@@ -153,6 +153,248 @@
         .maps-billing-banner p { margin: 0; }
         .maps-billing-banner p + p { margin-top: 0.35rem; font-weight: 600; color: #c2410c; }
         html[data-hr-restore-session] #login-screen { display: none !important; }
+
+/* ===================== ZONAS Y RESTAURANTES EN FUEGO · ESTILO ARCADE / ENERGÍA (5 NIVELES) ===================== */
+@keyframes hrFireWavePulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.62);
+    opacity: 0.88;
+  }
+  70% {
+    transform: translate(-50%, -50%) scale(1.75);
+    opacity: 0.22;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.05);
+    opacity: 0;
+  }
+}
+
+@keyframes hrFireOrbsFloat {
+  0%, 100% {
+    transform: translateY(0px) scale(0.92) rotate(0deg);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateY(-9px) scale(1.22) rotate(18deg);
+    opacity: 1;
+  }
+}
+
+@keyframes hrFireHaloSpin {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes hrFireArcadeBounce {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-3px) scale(1.03);
+  }
+}
+
+.hr-fire-tier-1 {
+  --fire-primary: #facc15;
+  --fire-secondary: #f59e0b;
+  --fire-accent: #fde047;
+  --fire-glow: rgba(250, 204, 21, 0.58);
+}
+.hr-fire-tier-2 {
+  --fire-primary: #fb923c;
+  --fire-secondary: #ea580c;
+  --fire-accent: #fdba74;
+  --fire-glow: rgba(251, 146, 60, 0.64);
+}
+.hr-fire-tier-3 {
+  --fire-primary: #f43f5e;
+  --fire-secondary: #dc2626;
+  --fire-accent: #fda4af;
+  --fire-glow: rgba(244, 63, 94, 0.68);
+}
+.hr-fire-tier-4 {
+  --fire-primary: #d946ef;
+  --fire-secondary: #7c3aed;
+  --fire-accent: #f0abfc;
+  --fire-glow: rgba(217, 70, 239, 0.72);
+}
+.hr-fire-tier-5 {
+  --fire-primary: #38bdf8;
+  --fire-secondary: #2563eb;
+  --fire-accent: #a855f7;
+  --fire-glow: rgba(56, 189, 248, 0.78);
+}
+
+.hr-fire-legend-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0.55rem 0;
+}
+.hr-fire-legend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.18rem 0.52rem;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.14);
+}
+
+.hot-store-card {
+  position: relative;
+  overflow: hidden;
+  border-width: 2px !important;
+  box-shadow: 0 6px 18px var(--fire-glow, rgba(251, 146, 60, 0.35));
+  animation: hrFireArcadeBounce 2.6s ease-in-out infinite;
+}
+
+.hr-fire-card-fx {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.hr-fire-wave-ring {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 2.5px solid var(--fire-primary, #fb923c);
+  box-shadow: 0 0 12px var(--fire-glow, rgba(251, 146, 60, 0.6));
+  animation: hrFireWavePulse 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  pointer-events: none;
+}
+.hr-fire-wave-ring--2 {
+  animation-delay: 0.72s;
+}
+.hr-fire-wave-ring--3 {
+  animation-delay: 1.44s;
+}
+
+.hr-fire-halo {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--fire-primary, #fb923c) 90deg,
+    var(--fire-accent, #fde047) 180deg,
+    var(--fire-secondary, #ea580c) 270deg,
+    transparent 360deg
+  );
+  opacity: 0.32;
+  filter: blur(2px);
+  animation: hrFireHaloSpin 3.2s linear infinite;
+  pointer-events: none;
+}
+
+.hr-fire-orb {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: radial-gradient(circle, #ffffff 0%, var(--fire-accent, #fde047) 45%, var(--fire-primary, #fb923c) 100%);
+  box-shadow: 0 0 8px var(--fire-primary, #fb923c);
+  animation: hrFireOrbsFloat 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.hr-fire-orb--1 { top: 18%; right: 14%; animation-delay: 0s; }
+.hr-fire-orb--2 { bottom: 20%; right: 6%; animation-delay: 0.55s; }
+.hr-fire-orb--3 { top: 14%; left: 48%; animation-delay: 1.1s; }
+
+.hr-fire-map-marker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 2.5px solid var(--fire-primary, #fb923c);
+  box-shadow: 0 0 20px var(--fire-glow, rgba(251, 146, 60, 0.72));
+  color: #ffffff;
+  cursor: pointer;
+  animation: hrFireArcadeBounce 2.2s ease-in-out infinite;
+}
+.hr-fire-map-marker .hr-fire-wave-ring,
+.hr-fire-map-marker .hr-fire-halo {
+  left: 50%;
+  top: 50%;
+}
+.hr-fire-map-core {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.hr-fire-map-tier-pill {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 1px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.hr-fire-map-title {
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffffff;
+  white-space: nowrap;
+}
+.hr-fire-map-stats {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #e2e8f0;
+  white-space: nowrap;
+}
+.driver-hot-stores-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.86);
+  border: 1.5px solid var(--fire-primary, #fb923c);
+  box-shadow: 0 0 12px var(--fire-glow, rgba(251, 146, 60, 0.45));
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.driver-hot-stores-chip__tier {
+  padding: 0.1rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+.driver-hot-stores-chip__stat {
+  color: #fde047;
+  font-weight: 900;
+}
+.driver-hot-stores-chip__timer {
+  color: #cbd5e1;
+  font-size: 0.62rem;
+}
+
     </style>
     <script type="module">
         try {

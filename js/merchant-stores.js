@@ -138,6 +138,11 @@ let staffStoresCityFilter = 'all';
 /** Reporte semanal: esta semana o la anterior. */
 let merchantWeekWhich = 'current';
 let weekPaintToken = 0;
+/** Envíos directos/tienda recientes para Zonas en Fuego (última hora). */
+let recentStoreDeliveryTrips = [];
+let unsubRecentStoreDeliveries = null;
+let fireZoneCheckTimer = null;
+const creditedDirectDeliveryTripIds = new Set();
 
 /** Comida y restaurante no llevan inventario. El resto sí. Igual que functions/store-stock.js. */
 function storeTracksStock(store) {
@@ -761,23 +766,425 @@ export function computeStarProducts(products = [], orders = []) {
 /**
  * Determina si un restaurante/tienda está "🔥 En fuego" (alta demanda de pedidos o calificación sobresaliente).
  */
+/** Ventana estricta de 1 hora (60 min = 3,600,000 ms) sin ventas/envíos para apagar el modo En Fuego. */
+export const FIRE_ZONE_WINDOW_MS = 60 * 60 * 1000;
+export const FIRE_ZONES_CHECK_INTERVAL_MS = 30 * 1000;
+
+/**
+ * Escala progresiva de 5 niveles de color estilo arcade/videojuego según envíos/ventas en la última hora.
+ */
+export const FIRE_COLOR_TIERS = [
+    {
+        level: 1,
+        min: 1,
+        max: 2,
+        id: 'amber',
+        name: 'Chispa Ámbar',
+        colorName: 'Amarillo / Ámbar Encendido',
+        label: '🔥 Encendiendo',
+        emoji: '🔥',
+        rangeLabel: '1 a 2 envíos / 1h',
+        primaryColor: '#facc15',
+        secondaryColor: '#f59e0b',
+        accentColor: '#fde047',
+        textColor: '#78350f',
+        badgeTextColor: '#1e293b',
+        gradient: 'linear-gradient(135deg, #facc15 0%, #f59e0b 100%)',
+        glowColor: 'rgba(250, 204, 21, 0.58)',
+        cssClass: 'hr-fire-tier-1',
+        mapRadius: 210,
+    },
+    {
+        level: 2,
+        min: 3,
+        max: 4,
+        id: 'orange',
+        name: 'Fuego Naranja',
+        colorName: 'Naranja Volcánico',
+        label: '🔥🔥 En Fuego',
+        emoji: '🔥🔥',
+        rangeLabel: '3 a 4 envíos / 1h',
+        primaryColor: '#fb923c',
+        secondaryColor: '#ea580c',
+        accentColor: '#fdba74',
+        textColor: '#ffffff',
+        badgeTextColor: '#ffffff',
+        gradient: 'linear-gradient(135deg, #fb923c 0%, #ea580c 100%)',
+        glowColor: 'rgba(251, 146, 60, 0.64)',
+        cssClass: 'hr-fire-tier-2',
+        mapRadius: 245,
+    },
+    {
+        level: 3,
+        min: 5,
+        max: 7,
+        id: 'red',
+        name: 'Llamarada Roja Carmesí',
+        colorName: 'Rojo Intenso / Neón',
+        label: '🔥🔥🔥 ¡Ardiendo!',
+        emoji: '🔥🔥🔥',
+        rangeLabel: '5 a 7 envíos / 1h',
+        primaryColor: '#f43f5e',
+        secondaryColor: '#dc2626',
+        accentColor: '#fda4af',
+        textColor: '#ffffff',
+        badgeTextColor: '#ffffff',
+        gradient: 'linear-gradient(135deg, #f43f5e 0%, #dc2626 100%)',
+        glowColor: 'rgba(244, 63, 94, 0.68)',
+        cssClass: 'hr-fire-tier-3',
+        mapRadius: 280,
+    },
+    {
+        level: 4,
+        min: 8,
+        max: 11,
+        id: 'purple',
+        name: 'Fuego Morado / Magenta Ultravioleta',
+        colorName: 'Morado / Fucsia Eléctrico',
+        label: '💜⚡ Súper Fuego',
+        emoji: '💜⚡',
+        rangeLabel: '8 a 11 envíos / 1h',
+        primaryColor: '#d946ef',
+        secondaryColor: '#7c3aed',
+        accentColor: '#f0abfc',
+        textColor: '#ffffff',
+        badgeTextColor: '#ffffff',
+        gradient: 'linear-gradient(135deg, #d946ef 0%, #7c3aed 100%)',
+        glowColor: 'rgba(217, 70, 239, 0.72)',
+        cssClass: 'hr-fire-tier-4',
+        mapRadius: 315,
+    },
+    {
+        level: 5,
+        min: 12,
+        max: Infinity,
+        id: 'blue-plasma',
+        name: 'Fuego Azul Plasma / Cian Legendario',
+        colorName: 'Azul Plasma / Cian Brillante',
+        label: '💙💎 Modo Leyenda (Fuego Azul)',
+        emoji: '💙💎',
+        rangeLabel: '12+ envíos / 1h',
+        primaryColor: '#38bdf8',
+        secondaryColor: '#2563eb',
+        accentColor: '#a855f7',
+        textColor: '#ffffff',
+        badgeTextColor: '#ffffff',
+        gradient: 'linear-gradient(135deg, #38bdf8 0%, #2563eb 60%, #a855f7 100%)',
+        glowColor: 'rgba(56, 189, 248, 0.78)',
+        cssClass: 'hr-fire-tier-5',
+        mapRadius: 350,
+    },
+];
+
+export function getFireTier(countLastHour) {
+    const n = Math.floor(Number(countLastHour) || 0);
+    if (n <= 0) return null;
+    if (n <= 2) return FIRE_COLOR_TIERS[0];
+    if (n <= 4) return FIRE_COLOR_TIERS[1];
+    if (n <= 7) return FIRE_COLOR_TIERS[2];
+    if (n <= 11) return FIRE_COLOR_TIERS[3];
+    return FIRE_COLOR_TIERS[4];
+}
+
+export function isStoreOpenNow(s, now = hnNowMinutes()) {
+    if (!s || s.isOpen === false) return false;
+    return Boolean(storeOpenInfo(s, now).open);
+}
+
+function extractActivityTimestampMs(docOrVal) {
+    if (docOrVal == null) return 0;
+    if (typeof docOrVal === 'number' && Number.isFinite(docOrVal)) return docOrVal > 0 ? docOrVal : 0;
+    if (typeof docOrVal?.toMillis === 'function') {
+        const ms = Number(docOrVal.toMillis());
+        return Number.isFinite(ms) && ms > 0 ? ms : 0;
+    }
+    if (typeof docOrVal?.seconds === 'number') {
+        return docOrVal.seconds * 1000;
+    }
+    if (typeof docOrVal === 'object') {
+        const candidates = [
+            docOrVal.lastSaleAtMs,
+            docOrVal.lastActivityMs,
+            docOrVal.lastOrderAtMs,
+            docOrVal.lastDeliveryAtMs,
+            docOrVal.createdAtMs,
+            docOrVal.storeOrderCreatedAtMs,
+            docOrVal.deliveryDetails?.orderCreatedAtMs,
+            docOrVal.createdAt,
+            docOrVal.updatedAt,
+        ];
+        for (const c of candidates) {
+            const ms = extractActivityTimestampMs(c);
+            if (ms > 0) return ms;
+        }
+    }
+    return 0;
+}
+
+export function recordStoreSaleActivity(storeId, opts = {}) {
+    if (!storeId) return null;
+    const nowMs = Number.isFinite(Number(opts.nowMs)) ? Number(opts.nowMs) : Date.now();
+    const cutoff = nowMs - FIRE_ZONE_WINDOW_MS;
+
+    if (opts.tripDoc && typeof opts.tripDoc === 'object') {
+        const tid = opts.tripDoc.id || `local_${nowMs}`;
+        const tripEntry = {
+            ...opts.tripDoc,
+            id: tid,
+            storeId: opts.tripDoc.storeId || storeId,
+            merchantId: opts.tripDoc.merchantId || storeId,
+            createdAtMs: extractActivityTimestampMs(opts.tripDoc) || nowMs,
+        };
+        recentStoreDeliveryTrips = [
+            tripEntry,
+            ...recentStoreDeliveryTrips.filter((t) => t.id !== tid && (extractActivityTimestampMs(t) || 0) >= cutoff),
+        ];
+    }
+
+    const applyToStoreObj = (target) => {
+        if (!target || typeof target !== 'object') return;
+        const prevTs = Array.isArray(target.recentSalesTimestamps) ? target.recentSalesTimestamps : [];
+        const validTs = prevTs
+            .map((x) => Number(x))
+            .filter((x) => Number.isFinite(x) && x >= cutoff && x <= nowMs + 60000);
+        validTs.push(nowMs);
+        target.lastSaleAtMs = nowMs;
+        target.lastDeliveryAtMs = nowMs;
+        target.recentSalesTimestamps = validTs;
+        target.recentSales1h = validTs.length;
+        target.ordersCount = (Number(target.ordersCount) || 0) + 1;
+    };
+
+    if (myStore && myStore.id === storeId) applyToStoreObj(myStore);
+    myStores.forEach((st) => {
+        if (st && st.id === storeId) applyToStoreObj(st);
+    });
+    if (storesCache.has(storeId)) applyToStoreObj(storesCache.get(storeId));
+    if (generalStoresById.has(storeId)) applyToStoreObj(generalStoresById.get(storeId));
+    if (adultStoresById.has(storeId)) applyToStoreObj(adultStoresById.get(storeId));
+
+    const storeObj = storesCache.get(storeId) || (myStore?.id === storeId ? myStore : null);
+    if (dbRef && appIdRef && storeId) {
+        const tsArr = storeObj?.recentSalesTimestamps || [nowMs];
+        updateDoc(publicDoc('stores', storeId), {
+            lastSaleAtMs: nowMs,
+            lastDeliveryAtMs: nowMs,
+            recentSalesTimestamps: tsArr.slice(-50),
+            recentSales1h: tsArr.length,
+            updatedAt: serverTimestamp(),
+        }).catch(() => {});
+    }
+
+    try {
+        syncDriverHotStoresOnMap();
+    } catch (_) {}
+
+    return storeObj ? storeHotInfo(storeObj) : null;
+}
+
 export function storeHotInfo(s, activeOrdersCount = 0) {
-    const ratingCount = Math.max(0, Math.floor(Number(s?.ratingCount) || 0));
-    const ratingAvg = ratingCount > 0 ? Math.round((Number(s?.ratingAvg) || 0) * 10) / 10 : 0;
-    const ordersCount = Math.max(0, Math.floor(Number(s?.ordersCount ?? s?.recentOrdersCount) || 0));
-    const computedScore = ordersCount * 2 + activeOrdersCount * 4 + (ratingAvg >= 4.5 ? 6 : 0);
-    const hotScore = Math.max(Number(s?.hotScore) || 0, computedScore);
-    const isHot = Boolean(
-        s?.isHot
-        || hotScore >= 6
-        || activeOrdersCount >= 2
-        || ordersCount >= 3
-        || (ratingAvg >= 4.6 && ratingCount >= 2)
+    const opts = arguments[2] || {};
+    const nowMs = Number.isFinite(Number(opts.nowMs)) ? Number(opts.nowMs) : Date.now();
+    const nowMin = Number.isFinite(Number(opts.nowMinutes)) ? Number(opts.nowMinutes) : hnNowMinutes();
+    const ratingCount = Math.max(0, Math.floor(Number(s?.ratingCount ?? s?.reviewsCount ?? 0) || 0));
+    const ratingSum = Number(s?.ratingSum ?? 0);
+    const ratingAvgRaw = Number(s?.ratingAvg ?? s?.rating ?? (ratingCount > 0 ? ratingSum / ratingCount : 0));
+    const ratingAvg = Number.isFinite(ratingAvgRaw) && ratingAvgRaw > 0 ? Math.min(5, Math.round(ratingAvgRaw * 10) / 10) : 0;
+    const ordersCount = Math.max(0, Math.floor(Number(s?.ordersCount ?? s?.recentOrdersCount ?? s?.completedOrdersCount ?? 0) || 0));
+
+    // Regla 1a: Se desactiva inmediatamente si el negocio está cerrado (isOpen === false o fuera de horario)
+    if (!s || s.isOpen === false || !isStoreOpenNow(s, nowMin)) {
+        return {
+            isHot: false,
+            deactivatedReason: 'store_closed',
+            hotScore: 0,
+            ratingAvg,
+            ratingCount,
+            ordersCount,
+            activeOrdersCount: 0,
+            countLastHour: 0,
+            fireTier: null,
+            fireLevel: 0,
+            remainingMs: 0,
+            remainingMinutes: 0,
+            lastActivityMs: 0,
+            label: '',
+            shipmentsLabel: '0 envíos esta hora',
+            expiryLabel: '🔒 Negocio cerrado · Fuego desactivado',
+        };
+    }
+
+    const cutoffMs = nowMs - FIRE_ZONE_WINDOW_MS;
+    const storeId = s.id || '';
+
+    const ordersList = Array.isArray(opts.orders) ? opts.orders : [...merchantOrders, ...clientOrders];
+    const tripsList = Array.isArray(opts.trips) ? opts.trips : recentStoreDeliveryTrips;
+
+    const seenOrderIds = new Set();
+    const orderTimestamps = [];
+    for (const o of ordersList) {
+        if (!o || o.status === 'cancelled') continue;
+        if (storeId && o.storeId !== storeId) continue;
+        const oid = o.id || `ord_${orderTimestamps.length}`;
+        if (seenOrderIds.has(oid)) continue;
+        seenOrderIds.add(oid);
+        const ms = extractActivityTimestampMs(o);
+        if (ms > 0) orderTimestamps.push(ms);
+    }
+
+    const seenTripIds = new Set();
+    const tripTimestamps = [];
+    for (const t of tripsList) {
+        if (!t || t.status === 'cancelled') continue;
+        const tStoreId = t.storeId || t.merchantId || t.deliveryDetails?.storeId || '';
+        if (storeId && tStoreId !== storeId) continue;
+        const tid = t.id || `trp_${tripTimestamps.length}`;
+        if (seenTripIds.has(tid)) continue;
+        seenTripIds.add(tid);
+        const ms = extractActivityTimestampMs(t);
+        if (ms > 0) tripTimestamps.push(ms);
+    }
+
+    const storeTsArray = Array.isArray(s.recentSalesTimestamps)
+        ? s.recentSalesTimestamps.map((x) => extractActivityTimestampMs(x)).filter((ms) => ms > 0)
+        : [];
+    const directStoreLastMs = Math.max(
+        extractActivityTimestampMs(s.lastSaleAtMs),
+        extractActivityTimestampMs(s.lastDeliveryAtMs),
+        extractActivityTimestampMs(s.lastOrderAtMs),
+        extractActivityTimestampMs(s.lastActivityMs),
+        0
     );
-    const label = activeOrdersCount >= 2
-        ? `${activeOrdersCount} pedidos activos`
-        : (ordersCount >= 3 ? `${ordersCount} pedidos recientes` : 'Alta demanda');
-    return { isHot, hotScore, ratingAvg, ratingCount, ordersCount, activeOrdersCount, label };
+
+    const allKnownTimestamps = [
+        ...(directStoreLastMs > 0 ? [directStoreLastMs] : []),
+        ...storeTsArray,
+        ...orderTimestamps,
+        ...tripTimestamps,
+    ];
+    const lastActivityMs = allKnownTimestamps.length ? Math.max(...allKnownTimestamps) : 0;
+
+    // Regla 1b: Se desactiva inmediatamente si lleva más de 1 hora (60 min = 3,600,000 ms) sin registrar venta o envío
+    if (lastActivityMs > 0 && (nowMs - lastActivityMs) > FIRE_ZONE_WINDOW_MS) {
+        return {
+            isHot: false,
+            deactivatedReason: 'inactive_1h',
+            hotScore: 0,
+            ratingAvg,
+            ratingCount,
+            ordersCount,
+            activeOrdersCount: 0,
+            countLastHour: 0,
+            fireTier: null,
+            fireLevel: 0,
+            remainingMs: 0,
+            remainingMinutes: 0,
+            lastActivityMs,
+            label: '',
+            shipmentsLabel: '0 envíos esta hora',
+            expiryLabel: '⏱️ Inactivo > 1 hora sin envíos · Fuego apagado',
+        };
+    }
+
+    const recentOrders1h = orderTimestamps.filter((ms) => ms >= cutoffMs && ms <= nowMs + 60000).length;
+    const recentTrips1h = tripTimestamps.filter((ms) => ms >= cutoffMs && ms <= nowMs + 60000).length;
+    const recentStoreTs1h = storeTsArray.filter((ms) => ms >= cutoffMs && ms <= nowMs + 60000).length;
+    const explicitRecent1h = Math.max(0, Math.floor(Number(s?.recentSales1h ?? s?.ordersLastHour ?? s?.recentOrders1h ?? 0) || 0));
+    const activeCount = Math.max(0, Math.floor(Number(activeOrdersCount) || 0));
+
+    let countLastHour = Math.max(
+        recentOrders1h + recentTrips1h,
+        recentStoreTs1h,
+        explicitRecent1h,
+        activeCount
+    );
+    if (lastActivityMs > 0 && (nowMs - lastActivityMs) <= FIRE_ZONE_WINDOW_MS && countLastHour === 0) {
+        countLastHour = 1;
+    }
+
+    if (countLastHour <= 0) {
+        return {
+            isHot: false,
+            deactivatedReason: 'inactive_1h',
+            hotScore: 0,
+            ratingAvg,
+            ratingCount,
+            ordersCount,
+            activeOrdersCount: activeCount,
+            countLastHour: 0,
+            fireTier: null,
+            fireLevel: 0,
+            remainingMs: 0,
+            remainingMinutes: 0,
+            lastActivityMs: 0,
+            label: '',
+            shipmentsLabel: '0 envíos esta hora',
+            expiryLabel: '⏱️ Sin envíos en la última hora · Fuego apagado',
+        };
+    }
+
+    const fireTier = getFireTier(countLastHour);
+    const effectiveLastMs = lastActivityMs > 0 ? lastActivityMs : nowMs;
+    const elapsedMs = Math.max(0, nowMs - effectiveLastMs);
+    const remainingMs = Math.max(0, FIRE_ZONE_WINDOW_MS - elapsedMs);
+    const remainingMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+    const hotScore = countLastHour * 10
+        + activeCount * 4
+        + (ratingAvg >= 4.5 ? 5 : 0);
+
+    const shipmentsLabel = `⚡ ${countLastHour} ${countLastHour === 1 ? 'envío' : 'envíos'} esta hora`;
+    const expiryLabel = `⏱️ Activo · expira en ${remainingMinutes} min si no hay otro envío`;
+    const label = `${fireTier.label} · ${shipmentsLabel}`;
+
+    return {
+        isHot: true,
+        deactivatedReason: null,
+        hotScore,
+        ratingAvg,
+        ratingCount,
+        ordersCount,
+        activeOrdersCount: activeCount,
+        countLastHour,
+        fireTier,
+        fireLevel: fireTier.level,
+        remainingMs,
+        remainingMinutes,
+        lastActivityMs: effectiveLastMs,
+        label,
+        shipmentsLabel,
+        expiryLabel,
+    };
+}
+
+export function buildHotStoreMapMarkerHtml(s, hotInput = null) {
+    const hot = hotInput || storeHotInfo(s);
+    if (!hot?.isHot || !hot.fireTier) return '';
+    const tier = hot.fireTier;
+    const branch = formatStoreBranchLabel(s);
+    const displayName = branch ? `${s.name || 'Tienda'} · ${branch}` : (s.name || 'Tienda');
+    return `
+        <div class="hr-fire-map-marker ${esc(tier.cssClass)}"
+             data-hot-map-store-id="${esc(s.id || '')}"
+             data-fire-level="${tier.level}"
+             style="--fire-primary:${tier.primaryColor};--fire-secondary:${tier.secondaryColor};--fire-accent:${tier.accentColor};--fire-glow:${tier.glowColor};">
+            <span class="hr-fire-wave-ring hr-fire-wave-ring--1" aria-hidden="true"></span>
+            <span class="hr-fire-wave-ring hr-fire-wave-ring--2" aria-hidden="true"></span>
+            <span class="hr-fire-wave-ring hr-fire-wave-ring--3" aria-hidden="true"></span>
+            <span class="hr-fire-halo" aria-hidden="true"></span>
+            <span class="hr-fire-orb hr-fire-orb--1" aria-hidden="true"></span>
+            <span class="hr-fire-orb hr-fire-orb--2" aria-hidden="true"></span>
+            <span class="hr-fire-orb hr-fire-orb--3" aria-hidden="true"></span>
+            <div class="hr-fire-map-core">
+                <span class="hr-fire-map-tier-pill" style="background:${tier.gradient};color:${tier.badgeTextColor};">
+                    ${esc(tier.label)}
+                </span>
+                <strong class="hr-fire-map-title">${esc(displayName)}</strong>
+                <span class="hr-fire-map-stats">
+                    <b>${esc(hot.shipmentsLabel)}</b> · <span>⏱️ ${hot.remainingMinutes} min</span>
+                </span>
+            </div>
+        </div>
+    `;
 }
 
 function storeInitials(name) {
@@ -2008,35 +2415,64 @@ function adultZoneEntryHtml() {
 
 export function buildHotStoresStripHtml(stores = []) {
     const now = hnNowMinutes();
-    const hotList = (stores || [])
-        .filter((s) => !isStoreAdultsOnly(s) && storeHotInfo(s).isHot)
-        .sort((a, b) => storeHotInfo(b).hotScore - storeHotInfo(a).hotScore);
-    if (!hotList.length) return '';
+    const candidates = (stores || [])
+        .filter((s) => !isStoreAdultsOnly(s) && isStoreOpenNow(s, now))
+        .map((s) => ({ store: s, hot: storeHotInfo(s) }))
+        .filter((x) => x.hot.isHot && x.hot.fireTier)
+        .sort((a, b) => b.hot.countLastHour - a.hot.countLastHour || b.hot.hotScore - a.hot.hotScore);
+    if (!candidates.length) return '';
+
+    const tierLegendPills = FIRE_COLOR_TIERS.map((t) => `
+        <span class="hr-fire-legend-pill ${esc(t.cssClass)}"
+              data-fire-tier-legend="${t.level}"
+              style="background:${t.gradient};color:${t.badgeTextColor};">
+            ${esc(t.emoji)} Nv.${t.level} ${esc(t.name)} (${esc(t.rangeLabel)})
+        </span>
+    `).join('');
+
     return `
         <section class="hot-stores-strip" aria-label="Restaurantes en fuego">
             <div class="hot-stores-strip__head">
                 <div>
                     <p class="hot-stores-strip__title">🔥 Restaurantes en fuego</p>
-                    <p class="hot-stores-strip__sub">Los más pedidos y mejor puntuados ahorita</p>
+                    <p class="hot-stores-strip__sub">Ondas de energía en vivo · sube de color con cada envío y se apaga al cerrar o tras 1h sin envíos</p>
                 </div>
                 <button type="button" class="hot-stores-strip__filter" data-stores-action="filter-cat" data-cat="hot">
-                    Ver todos (${hotList.length})
+                    Ver todos (${candidates.length})
                 </button>
             </div>
+            <div class="hr-fire-legend-bar" aria-label="Escala de colores en fuego">
+                ${tierLegendPills}
+            </div>
             <div class="hot-stores-strip__scroller" role="list">
-                ${hotList.slice(0, 8).map((s) => {
-                    const hot = storeHotInfo(s);
-                    const openInfo = storeOpenInfo(s, now);
+                ${candidates.slice(0, 8).map(({ store: s, hot }) => {
+                    const tier = hot.fireTier;
                     const branch = formatStoreBranchLabel(s);
                     return `
-                        <button type="button" class="hot-store-pill" data-stores-action="open-store" data-store-id="${esc(s.id)}" role="listitem">
-                            <span class="hot-store-pill__fire" aria-hidden="true">🔥</span>
+                        <button type="button"
+                                class="hot-store-pill hot-store-card ${esc(tier.cssClass)}"
+                                data-stores-action="open-store"
+                                data-store-id="${esc(s.id)}"
+                                data-fire-level="${tier.level}"
+                                style="--fire-primary:${tier.primaryColor};--fire-secondary:${tier.secondaryColor};--fire-accent:${tier.accentColor};--fire-glow:${tier.glowColor};border-color:${tier.primaryColor};"
+                                role="listitem">
+                            <span class="hr-fire-card-fx" aria-hidden="true">
+                                <span class="hr-fire-wave-ring hr-fire-wave-ring--1"></span>
+                                <span class="hr-fire-wave-ring hr-fire-wave-ring--2"></span>
+                                <span class="hr-fire-halo"></span>
+                                <span class="hr-fire-orb hr-fire-orb--1"></span>
+                                <span class="hr-fire-orb hr-fire-orb--2"></span>
+                            </span>
+                            <span class="hot-store-pill__fire" aria-hidden="true" style="background:${tier.gradient};color:${tier.badgeTextColor};border-radius:10px;padding:2px 6px;font-size:12px;">${esc(tier.emoji)}</span>
                             <span class="hot-store-pill__body">
+                                <span class="hot-store-card__flame-badge" style="display:inline-block;background:${tier.gradient};color:${tier.badgeTextColor};border-radius:999px;padding:1px 8px;font-size:10px;font-weight:900;margin-bottom:2px;">
+                                    ${esc(tier.label)} · Nivel ${tier.level}
+                                </span>
                                 <strong class="hot-store-pill__name">${esc(s.name || 'Restaurante')}${branch ? ` <small class="hot-store-pill__branch">· ${esc(branch)}</small>` : ''}</strong>
                                 <span class="hot-store-pill__meta">
                                     ${hot.ratingCount > 0 ? `<span class="hot-store-pill__stars">★ ${hot.ratingAvg.toFixed(1)} (${hot.ratingCount})</span> · ` : ''}
-                                    <span>${esc(hot.label)}</span>
-                                    · <span class="${openInfo.open ? 'text-emerald-700' : 'text-slate-500'}">${openInfo.open ? 'Abierto' : 'Cerrado'}</span>
+                                    <span class="hot-store-card__shipments" style="color:${tier.secondaryColor};font-weight:900;">${esc(hot.shipmentsLabel)}</span>
+                                    · <span class="hot-store-card__countdown" data-fire-countdown="${hot.remainingMinutes}">${esc(hot.expiryLabel)}</span>
                                 </span>
                             </span>
                         </button>
@@ -2267,7 +2703,11 @@ function storeCardHtml(s) {
                             ${info.label ? `<span class="hr-pill">${esc(info.label)}</span>` : ''}
                             ${(() => {
                                 const hot = storeHotInfo(s);
-                                return `${hot.isHot ? '<span class="hr-pill hr-pill--hot">🔥 En fuego</span>' : ''}${hot.ratingCount > 0 ? `<span class="hr-pill hr-pill--star">★ ${hot.ratingAvg.toFixed(1)} (${hot.ratingCount})</span>` : ''}`;
+                                const tier = hot.fireTier;
+                                const hotPill = hot.isHot && tier
+                                    ? `<span class="hr-pill hr-pill--hot ${esc(tier.cssClass)}" data-fire-level="${tier.level}" style="background:${tier.gradient};color:${tier.badgeTextColor};" title="${esc(hot.expiryLabel)}">${esc(tier.label)} · ⚡ ${hot.countLastHour}/1h · ⏱️ ${hot.remainingMinutes}m</span>`
+                                    : '';
+                                return `${hotPill}${hot.ratingCount > 0 ? `<span class="hr-pill hr-pill--star">★ ${hot.ratingAvg.toFixed(1)} (${hot.ratingCount})</span>` : ''}`;
                             })()}
                             ${adults ? '<span class="hr-pill hr-pill--adult">+18</span>' : ''}
                             ${staff && appr !== 'approved' ? `<span class="hr-pill hr-pill--${esc(apprMeta.tone)}">${esc(apprMeta.label)}</span>` : ''}
@@ -3857,6 +4297,9 @@ async function placeOrder() {
             updatedAt: serverTimestamp(),
         };
         await addDoc(publicCol('store_orders'), payload);
+        if (viewingStore?.id) {
+            recordStoreSaleActivity(viewingStore.id, { nowMs: Date.now() });
+        }
         resetCheckoutZone();
         cart = [];
         marketplaceView = 'my-orders';
@@ -5560,7 +6003,1463 @@ async function toggleStoreOpen() {
         myStore.isOpen = next;
         if (storesCache.has(myStore.id)) storesCache.get(myStore.id).isOpen = next;
         updateMerchantOpenToggle();
-        toast(next ? 'Tienda abierta' : 'Tienda cerrada', 'success');
+        try { syncDriverHotStoresOnMap(); } catch (_) {}
+        toast(next ? 'Tienda abierta' : 'Tienda cerrada · Zonas en fuego desactivadas', 'success');
+    } catch (e) {
+        toast('No se pudo cambiar estado', 'error');
+    }
+}
+
+async function addProduct() {
+    if (!myStore?.id) return toast('Crea la tienda primero', 'warning');
+    const name = document.getElementById('m-prod-name')?.value.trim() || '';
+    const price = Number(document.getElementById('m-prod-price')?.value);
+    const description = document.getElementById('m-prod-desc')?.value.trim() || '';
+    if (!name) return toast('Nombre del producto requerido', 'warning');
+    if (!Number.isFinite(price) || price <= 0) return toast('Precio inválido', 'warning');
+    const tracksStock = storeTracksStock(myStore);
+    const stockRaw = document.getElementById('m-prod-stock')?.value;
+    const stock = Math.floor(Number(stockRaw));
+    if (tracksStock && (!Number.isFinite(stock) || stock < 0 || String(stockRaw ?? '').trim() === '')) {
+        return toast('Escribe el stock (cuántos tienes). Usa 0 si se acabó.', 'warning');
+    }
+
+    try {
+        toast(pendingProductPhoto ? 'Subiendo foto y guardando…' : 'Guardando producto…', 'info');
+        const base = roundMoney(price);
+        const ref = await addDoc(publicCol('store_products'), {
+            storeId: myStore.id,
+            ownerId: getCurrentUser().uid,
+            name,
+            price: base,
+            basePrice: base,
+            displayPrice: base,
+            description,
+            photoUrl: null,
+            ...(tracksStock ? { stock } : {}),
+            available: true,
+            sortOrder: myProducts.length,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+
+        let photoUrl = null;
+        if (pendingProductPhoto) {
+            try {
+                photoUrl = await uploadProductPhoto(pendingProductPhoto, ref.id);
+                await updateDoc(ref, { photoUrl, updatedAt: serverTimestamp() });
+            } catch (photoErr) {
+                console.warn('[stores] photo upload', photoErr);
+                toast('Producto guardado, pero la foto no subió. Puedes editarla con el botón Foto.', 'warning');
+            }
+        }
+
+        pendingProductPhoto = null;
+        pendingProductPhotoPreview = null;
+        myProducts = await loadProducts(myStore.id);
+        renderMerchantBody();
+        toast(photoUrl ? 'Producto con foto agregado' : 'Producto agregado', 'success');
+    } catch (e) {
+        console.error(e);
+        toast('Error al agregar producto: ' + (e.message || e), 'error');
+    }
+}
+
+async function saveProductStock(productId) {
+    const input = document.querySelector(`[data-stock-for="${CSS.escape(productId)}"]`);
+    const stock = Math.floor(Number(input?.value));
+    if (!Number.isFinite(stock) || stock < 0) return toast('El stock tiene que ser 0 o más', 'warning');
+    try {
+        await updateDoc(publicDoc('store_products', productId), {
+            stock,
+            updatedAt: serverTimestamp(),
+        });
+        const p = myProducts.find((x) => x.id === productId);
+        if (p) p.stock = stock;
+        toast(stock === 0 ? 'Stock en 0. El cliente ya no puede pedirlo.' : `Stock actualizado: ${stock}`, 'success');
+    } catch (e) {
+        console.warn('[stores] stock', e);
+        toast('No se pudo guardar el stock', 'error');
+    }
+}
+
+async function toggleProduct(productId) {
+    const p = myProducts.find((x) => x.id === productId);
+    if (!p) return;
+    try {
+        await updateDoc(publicDoc('store_products', productId), {
+            available: p.available === false,
+            updatedAt: serverTimestamp(),
+        });
+        myProducts = await loadProducts(myStore.id);
+        renderMerchantBody();
+    } catch (e) {
+        toast('No se pudo actualizar', 'error');
+    }
+}
+
+async function deleteProduct(productId) {
+    if (!confirm('¿Borrar este producto del menú?')) return;
+    try {
+        await deleteDoc(publicDoc('store_products', productId));
+        myProducts = await loadProducts(myStore.id);
+        renderMerchantBody();
+        toast('Producto eliminado', 'info');
+    } catch (e) {
+        toast('No se pudo borrar', 'error');
+    }
+}
+
+/**
+ * Borra tienda + productos del menú.
+ * Staff (admin/supervisor) puede borrar cualquiera; el dueño solo la suya.
+ * Los pedidos (store_orders) se conservan como historial.
+ */
+async function deleteStoreAndProducts(storeId, { asStaff = false } = {}) {
+    const user = getCurrentUser();
+    if (!user?.uid || !storeId) return false;
+
+    let store = storesCache.get(storeId);
+    if (!store) {
+        try {
+            const snap = await getDoc(publicDoc('stores', storeId));
+            if (snap.exists()) store = { id: snap.id, ...snap.data() };
+        } catch (_) {}
+    }
+    if (!store) {
+        toast('Tienda no encontrada', 'error');
+        return false;
+    }
+
+    const isOwner = store.ownerId === user.uid;
+    if (!asStaff && !isOwner) {
+        toast('No tienes permiso para borrar esta tienda', 'error');
+        return false;
+    }
+    if (asStaff && !isStoresStaff() && !isOwner) {
+        toast('Solo admin o supervisor puede borrar tiendas ajenas', 'error');
+        return false;
+    }
+
+    const name = store.name || 'esta tienda';
+    const who = asStaff && !isOwner ? ' (moderación staff)' : '';
+    if (!confirm(`¿Eliminar «${name}»${who}?\n\nSe borrará la tienda y todo su menú. Los pedidos antiguos se conservan.`)) {
+        return false;
+    }
+    if (asStaff && !isOwner) {
+        if (!confirm(`Confirma borrar la tienda de otro usuario:\n«${name}»`)) return false;
+    }
+
+    toast('Eliminando tienda…', 'info');
+    try {
+        // Productos del menú
+        const prodSnap = await getDocs(query(publicCol('store_products'), where('storeId', '==', storeId), limit(500)));
+        let deletedProducts = 0;
+        for (const d of prodSnap.docs) {
+            try {
+                await deleteDoc(d.ref);
+                deletedProducts += 1;
+            } catch (pe) {
+                console.warn('[stores] delete product', d.id, pe);
+            }
+        }
+
+        await deleteDoc(publicDoc('stores', storeId));
+        storesCache.delete(storeId);
+
+        myStores = myStores.filter((s) => s.id !== storeId);
+        if (myStore?.id === storeId) {
+            myStore = myStores[0] || null;
+            setSavedSelectedStoreId(myStore?.id || null);
+            myProducts = myStore ? await loadProducts(myStore.id) : [];
+        }
+        if (viewingStore?.id === storeId) {
+            viewingStore = null;
+            viewingProducts = [];
+            marketplaceView = 'list';
+            cart = [];
+        }
+        if (cart.length && cart[0]?.storeId === storeId) {
+            cart = [];
+        }
+
+        toast(
+            deletedProducts
+                ? `Tienda eliminada (${deletedProducts} producto${deletedProducts === 1 ? '' : 's'})`
+                : 'Tienda eliminada',
+            'success'
+        );
+
+        // Refrescar UI abierta
+        const market = document.getElementById('stores-marketplace-panel');
+        if (market && !market.classList.contains('hidden')) {
+            renderMarketplace();
+        }
+        const merchant = document.getElementById('merchant-panel');
+        if (merchant && !merchant.classList.contains('hidden')) {
+            if (!myStore) {
+                merchantCreateMode = false;
+                merchantTab = 'store';
+            }
+            renderMerchantBody();
+            updateMerchantOpenToggle();
+        }
+        return true;
+    } catch (e) {
+        console.error('[stores] deleteStoreAndProducts', e);
+        const msg = String(e?.message || e || '');
+        if (/permission|insufficient|permiso/i.test(msg)) {
+            toast('Sin permiso para borrar. Revisa que seas admin/supervisor.', 'error');
+        } else {
+            toast('No se pudo eliminar la tienda', 'error');
+        }
+        return false;
+    }
+}
+
+async function adminDeleteStore(storeId) {
+    if (!isStoresStaff()) {
+        toast('Solo admin o supervisor puede borrar tiendas desde el marketplace', 'error');
+        return;
+    }
+    await deleteStoreAndProducts(storeId, { asStaff: true });
+}
+
+async function deleteMyStore(storeId) {
+    const id = storeId || myStore?.id;
+    if (!id) return toast('No hay tienda para borrar', 'warning');
+    // Dueño o staff
+    await deleteStoreAndProducts(id, { asStaff: isStoresStaff() });
+}
+
+async function setOrderStatus(orderId, status, extra = {}) {
+    try {
+        await updateDoc(publicDoc('store_orders', orderId), {
+            status,
+            updatedAt: serverTimestamp(),
+            ...extra,
+        });
+    } catch (e) {
+        console.error(e);
+        toast('No se pudo actualizar el pedido', 'error');
+        throw e;
+    }
+}
+
+/* ===================== PEDIR ENVÍO DIRECTO (tienda → moto / carro) ===================== */
+let merchantDeliveryTab = null;
+
+async function merchantPlacesFetch(q) {
+    if (typeof google === 'undefined' || !google.maps?.importLibrary) return [];
+    const places = await google.maps.importLibrary('places');
+    const zone = getZoneById(myStore?.cityId) || null;
+    const center = Number.isFinite(Number(myStore?.lat)) ? { lat: Number(myStore.lat), lng: Number(myStore.lng) } : (zone?.center || null);
+    const req = { input: q, includedRegionCodes: ['hn'], language: 'es' };
+    if (center) req.locationBias = { center, radius: 30000 };
+    const res = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
+    return (res?.suggestions || []).slice(0, 6).map((s) => ({
+        description: s.placePrediction?.text?.toString?.() || '',
+        prediction: s.placePrediction,
+    })).filter((s) => s.description);
+}
+async function merchantPlaceDetails(s) {
+    const place = s?.prediction?.toPlace?.();
+    if (!place) return null;
+    await place.fetchFields({ fields: ['location', 'formattedAddress'] });
+    const lat = place.location?.lat?.(); const lng = place.location?.lng?.();
+    return Number.isFinite(lat) ? { lat, lng, address: place.formattedAddress || s.description } : null;
+}
+
+/** Mapa con pin al centro (se arrastra el mapa). onMove({lat,lng}) al soltar. */
+function merchantCreatePinMap(el, center, onMove) {
+    if (typeof google === 'undefined' || !google.maps?.Map) { el.innerHTML = '<div style="padding:16px;color:#6b7280">El mapa no cargó. Revisa tu conexión.</div>'; return null; }
+    const map = new google.maps.Map(el, {
+        center, zoom: 17, gestureHandling: 'greedy', disableDefaultUI: true, clickableIcons: false,
+        restriction: { latLngBounds: { north: 16.6, south: 12.9, west: -89.4, east: -83.1 }, strictBounds: false },
+    });
+    const idle = map.addListener('idle', () => { const c = map.getCenter(); if (c) onMove({ lat: c.lat(), lng: c.lng() }); });
+    const click = map.addListener('click', (e) => { if (e.latLng) map.panTo(e.latLng); });
+    return { setCenter: (p) => map.panTo(p), destroy: () => { idle.remove(); click.remove(); } };
+}
+async function merchantReverseGeocode(lat, lng) {
+    if (typeof google === 'undefined' || !google.maps) return '';
+    const Geocoder = google.maps.Geocoder || (await google.maps.importLibrary('geocoding')).Geocoder;
+    const res = await new Geocoder().geocode({ location: { lat, lng }, language: 'es', region: 'hn' });
+    return res?.results?.[0]?.formatted_address || '';
+}
+function merchantGps() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) return reject(new Error('sin gps'));
+        navigator.geolocation.getCurrentPosition((p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }), reject, { enableHighAccuracy: true, timeout: 12000 });
+    });
+}
+
+function creditCompletedDirectDeliveryProducts(trip) {
+    if (!trip || trip.status !== 'completed') return;
+    const tid = trip.id || '';
+    if (tid && creditedDirectDeliveryTripIds.has(tid)) return;
+    const items = Array.isArray(trip.deliveryDetails?.items) ? trip.deliveryDetails.items : [];
+    if (!items.length) return;
+    if (tid) creditedDirectDeliveryTripIds.add(tid);
+
+    items.forEach((it) => {
+        const pid = String(it?.productId || it?.id || '').trim();
+        const qty = Math.max(1, Math.floor(Number(it?.qty ?? it?.quantity ?? 1) || 1));
+        if (!pid) return;
+        const localProd = myProducts.find((p) => p.id === pid);
+        if (localProd) {
+            localProd.soldCount = (Number(localProd.soldCount) || 0) + qty;
+            localProd.unitsSold = (Number(localProd.unitsSold) || 0) + qty;
+            localProd.ordersCount = (Number(localProd.ordersCount) || 0) + 1;
+        }
+        if (dbRef && appIdRef) {
+            updateDoc(publicDoc('store_products', pid), {
+                soldCount: increment(qty),
+                unitsSold: increment(qty),
+                ordersCount: increment(1),
+                updatedAt: serverTimestamp(),
+            }).catch(() => {});
+        }
+    });
+}
+
+function merchantDeliveryCtx() {
+    return {
+        getStore: () => myStore,
+        getProducts: () => (Array.isArray(myProducts) ? myProducts.filter((p) => p && p.available !== false) : []),
+        getUser: () => getCurrentUser(),
+        addTrip: (data) => addDoc(publicCol('trips'), data),
+        updateTrip: (id, patch) => updateDoc(publicDoc('trips', id), patch),
+        serverTimestamp,
+        toast,
+        onTripCreated: (payload, meta = {}) => {
+            const sid = myStore?.id || payload?.storeId || payload?.merchantId || '';
+            if (sid) {
+                recordStoreSaleActivity(sid, {
+                    nowMs: Date.now(),
+                    tripDoc: { id: meta?.id || `md_${Date.now()}`, ...payload },
+                    items: meta?.items || [],
+                });
+            }
+        },
+        subscribe: (cb) => {
+            const uid = getCurrentUser()?.uid;
+            if (!dbRef || !appIdRef || !uid) return () => {};
+            const q = query(publicCol('trips'), where('clientId', '==', uid), limit(40));
+            return onSnapshot(q, (snap) => {
+                const cutoff = Date.now() - FIRE_ZONE_WINDOW_MS;
+                const list = snap.docs
+                    .map((d) => ({ id: d.id, ...d.data() }))
+                    .filter((t) => {
+                        const isStoreShipment = Boolean(
+                            t.merchantDirectDelivery
+                            || t.createdByMerchant
+                            || t.source === 'whatsapp_store'
+                            || (myStore?.id && (t.storeId === myStore.id || t.merchantId === myStore.id))
+                        );
+                        if (!isStoreShipment) return false;
+                        if (t.status === 'completed') {
+                            creditCompletedDirectDeliveryProducts(t);
+                            return false;
+                        }
+                        if (t.status === 'cancelled') return false;
+                        return true;
+                    })
+                    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+                snap.docs.forEach((d) => {
+                    const t = { id: d.id, ...d.data() };
+                    if (t.status === 'cancelled') return;
+                    const tStoreId = t.storeId || t.merchantId || t.deliveryDetails?.storeId || '';
+                    if (!tStoreId) return;
+                    const ms = extractActivityTimestampMs(t);
+                    if (ms >= cutoff) {
+                        recentStoreDeliveryTrips = [
+                            t,
+                            ...recentStoreDeliveryTrips.filter((x) => x.id !== t.id && (extractActivityTimestampMs(x) || 0) >= cutoff),
+                        ];
+                    }
+                });
+                try { syncDriverHotStoresOnMap(); } catch (_) {}
+                cb(list);
+            }, () => {});
+        },
+    };
+}
+
+function renderMerchantBody() {
+    const body = document.getElementById('merchant-panel-body');
+    if (!body) return;
+    if (merchantDeliveryTab && merchantTab !== 'pedir-envio') { merchantDeliveryTab.unmount(); merchantDeliveryTab = null; }
+
+    if (merchantTab === 'store') {
+        body.innerHTML = renderMerchantStoreForm();
+        return;
+    }
+    if (!myStore) {
+        body.innerHTML = `
+            <div class="stores-empty">
+                <i class="fas fa-store"></i>
+                <p>Primero crea tu tienda virtual.</p>
+                <button type="button" class="stores-primary-btn mt-3" data-merchant-action="goto-store">Configurar tienda</button>
+            </div>`;
+        return;
+    }
+    if (merchantTab === 'pedir-envio') {
+        if (merchantDeliveryTab) merchantDeliveryTab.unmount();
+        body.innerHTML = '';
+        merchantDeliveryTab = createMerchantDeliveryTab(merchantDeliveryCtx());
+        merchantDeliveryTab.mount(body);
+        return;
+    }
+    if (merchantTab === 'envios') {
+        // Tarifa de envío por zona (la valida el servidor)
+        renderMerchantZonesTab(body, myStore).catch((e) => console.warn('[stores] envíos', e));
+        return;
+    }
+    if (merchantTab === 'products') {
+        body.innerHTML = renderMerchantProducts();
+        // Preview en vivo de precio + tarifa
+        requestAnimationFrame(() => bindMerchantProductPricePreview());
+        return;
+    }
+    if (merchantTab === 'semana') {
+        renderMerchantWeekTab(body);
+        return;
+    }
+    // orders (filtrados por la sucursal seleccionada si tiene varias)
+    const storeOrders = (myStores.length > 1 && myStore?.id)
+        ? merchantOrders.filter((o) => !o.storeId || o.storeId === myStore.id)
+        : merchantOrders;
+    const active = storeOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
+    const past = storeOrders.filter((o) => ['delivered', 'cancelled'].includes(o.status));
+    const appr = myStore ? storeApprovalStatus(myStore) : null;
+    const apprMeta = appr ? (STORE_APPROVAL[appr] || STORE_APPROVAL.pending) : null;
+    body.innerHTML = `
+        <div class="orders-list">
+            ${buildMerchantAlertsStatusBarHtml()}
+            ${myStore && appr && appr !== 'approved' ? `
+                <div class="rounded-2xl border px-3 py-2.5 mb-2 ${appr === 'rejected' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}">
+                    <p class="text-[11px] font-black ${appr === 'rejected' ? 'text-red-900' : 'text-amber-900'}">
+                        <i class="fas ${apprMeta.icon}"></i> ${esc(apprMeta.label)}
+                    </p>
+                    <p class="text-[10px] font-semibold mt-1 ${appr === 'rejected' ? 'text-red-800' : 'text-amber-800'} leading-snug">
+                        ${appr === 'rejected'
+                            ? 'Los clientes no ven tu tienda. Corrige datos en la pestaña Tienda y guarda para reenviar a revisión.'
+                            : 'Un supervisor debe verificar tu tienda antes de que aparezca en el marketplace. Ya puedes armar el menú.'}
+                    </p>
+                </div>
+            ` : ''}
+            ${myStore ? `
+                <div class="merchant-share-banner" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border-color:#93c5fd;margin-bottom:8px">
+                    <div class="min-w-0">
+                        <p class="merchant-share-title" style="color:#0c4a8e"><i class="fas fa-motorcycle"></i> ¿Necesitas enviar un pedido a un cliente?</p>
+                        <p class="merchant-share-sub" style="color:#1e3a8a">Pide un delivery desde aquí y comparte el viaje en vivo por WhatsApp al cliente</p>
+                    </div>
+                    <button type="button" class="stores-primary-btn stores-primary-btn--sm" data-merchant-action="goto-pedir-envio">
+                        <i class="fas fa-paper-plane"></i> 🛵 Pedir envío
+                    </button>
+                </div>
+                <div class="merchant-share-banner">
+                    <div class="min-w-0">
+                        <p class="merchant-share-title"><i class="fas fa-bullhorn"></i> Atrae clientes</p>
+                        <p class="merchant-share-sub">Comparte tu catálogo por WhatsApp o redes</p>
+                    </div>
+                    <button type="button" class="stores-primary-btn stores-primary-btn--sm" data-merchant-action="share-catalog">
+                        <i class="fas fa-share-alt"></i> Compartir
+                    </button>
+                </div>
+            ` : ''}
+            <p class="stores-section-label">Pedidos activos (${active.length})</p>
+            ${active.length ? active.map((o) => orderCardHtml(o, { merchant: true })).join('') : `
+                <div class="stores-empty stores-empty--sm"><p>Sin pedidos nuevos.</p></div>
+            `}
+            ${past.length ? `
+                <p class="stores-section-label mt-4">Historial</p>
+                ${past.slice(0, 10).map((o) => orderCardHtml(o, { merchant: true })).join('')}
+            ` : ''}
+        </div>
+    `;
+}
+
+function renderMerchantStoreForm() {
+    const editingExisting = !merchantCreateMode && myStore;
+    const cloningFrom = merchantCreateMode && merchantCloneFromStore ? merchantCloneFromStore : null;
+    const s = editingExisting
+        ? myStore
+        : cloningFrom
+            ? {
+                name: cloningFrom.name || '',
+                branchName: '',
+                category: cloningFrom.category || 'comida',
+                description: cloningFrom.description || '',
+                cityId: cloningFrom.cityId || '',
+                phone: cloningFrom.phone || '',
+                waAuthorizedPhones: cloningFrom.waAuthorizedPhones || [],
+                hours: cloningFrom.hours || null,
+                photoUrl: cloningFrom.photoUrl || null,
+            }
+            : {};
+    const storeCityId = initialStoreCityId(s);
+    const savedCityMismatch = editingExisting && s.cityId && storeCityId !== s.cityId;
+    const adultsLocked = !!(editingExisting && isStoreAdultsOnly(s) && !isStoresStaff());
+    const cats = STORE_CATEGORIES.map((c) =>
+        `<option value="${c.id}" ${s.category === c.id ? 'selected' : ''}>${esc(c.label)}</option>`
+    ).join('');
+    const logoPreview = pendingStorePhotoPreview
+        || ((editingExisting || cloningFrom) && s.photoUrl ? s.photoUrl : null);
+    const logoHtml = logoPreview
+        ? `<img src="${esc(logoPreview)}" alt="Logo de la tienda" class="m-store-logo-preview">`
+        : `<div class="m-store-logo-preview m-store-logo-preview--empty"><i class="fas fa-store"></i><span>Logo o foto del negocio</span></div>`;
+    const copySourceStore = cloningFrom || (!editingExisting && myStore ? myStore : null);
+    return `
+        <form id="merchant-store-form" class="merchant-form space-y-3" onsubmit="return false;">
+            <div class="stores-banner">
+                <p class="stores-banner-title">
+                    <i class="fas ${editingExisting ? 'fa-store' : cloningFrom ? 'fa-code-branch' : 'fa-plus-circle'}"></i>
+                    ${editingExisting ? 'Datos de esta sucursal / tienda' : cloningFrom ? `Nueva sucursal de ${esc(cloningFrom.name || 'tu restaurante')}` : 'Registrar tienda o sucursal nueva'}
+                </p>
+                <p class="stores-banner-sub">
+                    ${editingExisting
+                        ? 'Edita el nombre, la sucursal, la ubicación GPS y el horario propio de este punto.'
+                        : cloningFrom
+                            ? 'Configura la dirección/GPS y el horario de esta nueva sucursal. El menú se puede copiar automáticamente.'
+                            : 'Completa los datos y sube el logo. Puedes tener varias sucursales con distinta ubicación y horario.'}
+                </p>
+            </div>
+            ${editingExisting ? `
+                <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                    <span><i class="fas fa-code-branch"></i> ¿Tienes este mismo restaurante en otra ubicación u otro horario?</span>
+                    <button type="button" class="stores-secondary-btn text-[11px] py-1 px-2.5" data-merchant-action="clone-branch" data-store-id="${esc(s.id)}">
+                        + Agregar otra sucursal
+                    </button>
+                </div>
+            ` : `
+                <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    <span><i class="fas fa-info-circle"></i> Cada sucursal tiene su propia <b>ubicación GPS</b> y su propio <b>horario de apertura y cierre</b>.</span>
+                    ${myStore ? `<button type="button" class="stores-secondary-btn text-[11px] py-1 px-2.5" data-merchant-action="goto-my-store">Cancelar</button>` : ''}
+                </div>
+            `}
+            <div class="stores-field">
+                <span>Logo / imagen de la tienda</span>
+                <button type="button" class="m-store-logo-pick" data-merchant-action="pick-store-logo" aria-label="Elegir logo de la tienda">
+                    ${logoHtml}
+                    <span class="m-prod-photo-hint">
+                        <i class="fas fa-camera"></i>
+                        ${logoPreview ? 'Cambiar logo o foto' : 'Agregar logo o foto (recomendado)'}
+                    </span>
+                </button>
+                <input type="file" id="m-store-logo-input" accept="image/*" class="hidden">
+                <p class="text-[10px] text-slate-500 mt-1">Se muestra en el catálogo y en la portada de tu tienda.</p>
+            </div>
+            <label class="stores-field"><span>Nombre del restaurante / tienda *</span>
+                <input id="m-store-name" class="stores-input" required value="${esc(s.name || '')}" placeholder="Ej: Pupusas Doña Mary"></label>
+            <label class="stores-field"><span>Nombre de la sucursal / ubicación (si tienes varias)</span>
+                <input id="m-store-branch-name" class="stores-input" value="${esc(s.branchName || '')}" placeholder="Ej: Sucursal Centro, Sucursal Bulevar Morazán, Turno Noche"></label>
+            ${!editingExisting && copySourceStore ? `
+                <label class="stores-field stores-field--check" style="flex-direction:row;align-items:flex-start;gap:0.65rem;cursor:pointer;background:#ecfdf5;border:1px solid #a7f3d0;padding:0.65rem;border-radius:0.85rem;">
+                    <input type="checkbox" id="m-store-copy-menu" checked data-source-store-id="${esc(copySourceStore.id)}" style="width:1.1rem;height:1.1rem;margin-top:0.15rem;flex-shrink:0;">
+                    <span>
+                        <strong class="block text-xs text-emerald-950">Copiar automáticamente todo el menú de «${esc(copySourceStore.name || 'mi tienda')}»</strong>
+                        <small class="text-[10px] text-emerald-800 font-semibold leading-snug">Copia fotos, nombres y precios de tus platos para que no tengas que subirlos de nuevo.</small>
+                    </span>
+                </label>
+            ` : ''}
+            <label class="stores-field"><span>Categoría</span>
+                <select id="m-store-category" class="stores-input">${cats}</select></label>
+            <label class="stores-field"><span>Descripción</span>
+                <textarea id="m-store-desc" class="stores-input" rows="2" placeholder="Qué vendes...">${esc(s.description || '')}</textarea></label>
+            <label class="stores-field"><span>Ciudad de la tienda *</span>
+                <select id="m-store-city" class="stores-input" required>${buildStoreCityOptionsHtml(storeCityId)}</select></label>
+            ${savedCityMismatch ? `
+                <p class="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                    <i class="fas fa-exclamation-triangle"></i> Tu tienda estaba publicada en <b>${esc(s.cityName || s.cityId)}</b>.
+                    Revisa la ciudad y toca guardar para corregirla.
+                </p>` : ''}
+            <label class="stores-field"><span>Dirección / punto de recogida *</span>
+                <input id="m-store-address" class="stores-input" required value="${esc(s.address || '')}" placeholder="Colonia, calle, referencia"></label>
+            <div class="grid grid-cols-2 gap-2">
+                <label class="stores-field"><span>Abre a las</span>
+                    <input id="m-store-open-at" class="stores-input" type="time" value="${esc(s.hours?.open || '')}"></label>
+                <label class="stores-field"><span>Cierra a las</span>
+                    <input id="m-store-close-at" class="stores-input" type="time" value="${esc(s.hours?.close || '')}"></label>
+            </div>
+            <p class="text-[10px] text-slate-500 -mt-1 leading-snug">Horario de todos los días, hora de Honduras. Fuera de ese horario tu tienda sale como “Cerrada” y va al final de la lista. Déjalo vacío si prefieres abrir y cerrar a mano.</p>
+            <label class="stores-field"><span>WhatsApp del negocio *</span>
+                <input id="m-store-phone" class="stores-input" required value="${esc(s.phone || (!editingExisting ? (getUserProfile()?.phone || '') : ''))}" placeholder="+504..."></label>
+            <label class="stores-field"><span>Números autorizados para pedir por WhatsApp</span>
+                <textarea id="m-store-wa-phones" class="stores-input" rows="2" placeholder="+504 9999-0000, +504 8888-1111">${esc((Array.isArray(s.waAuthorizedPhones) ? s.waAuthorizedPhones : []).map((x) => `+${x}`).join(', '))}</textarea></label>
+            <p class="text-[10px] text-slate-500 -mt-1 leading-snug">Empleados que pueden pedir envíos de tu tienda escribiendo al WhatsApp de HonduRaite (máximo 10, separados por coma). El teléfono de la tienda y el tuyo ya están autorizados.</p>
+            <label class="stores-field stores-field--check" style="flex-direction:row;align-items:flex-start;gap:0.65rem;cursor:pointer;">
+                <input type="checkbox" id="m-store-adults-only" ${isStoreAdultsOnly(s) ? 'checked' : ''} ${adultsLocked ? 'disabled' : ''} style="width:1.1rem;height:1.1rem;margin-top:0.15rem;flex-shrink:0;">
+                <span>
+                    <strong class="block text-sm text-slate-800">Tienda solo para mayores de 18 (+18)</strong>
+                    <small class="text-[10px] text-slate-500 font-semibold leading-snug">${adultsLocked
+                        ? 'Marcada +18. Solo un supervisor puede quitar esta marca.'
+                        : 'Ej. alcohol, tabaco u otros productos restringidos. Un supervisor lo confirma al verificar.'}</small>
+                </span>
+            </label>
+            ${editingExisting ? (() => {
+                const appr = storeApprovalStatus(s);
+                const meta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
+                return `
+                <div class="rounded-xl border px-3 py-2.5 ${appr === 'approved' ? 'border-emerald-200 bg-emerald-50' : appr === 'rejected' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}">
+                    <p class="text-[11px] font-black ${appr === 'approved' ? 'text-emerald-900' : appr === 'rejected' ? 'text-red-900' : 'text-amber-900'}">
+                        <i class="fas ${meta.icon}"></i> Verificación: ${esc(meta.label)}
+                    </p>
+                    <p class="text-[10px] font-semibold mt-1 ${appr === 'approved' ? 'text-emerald-800' : appr === 'rejected' ? 'text-red-800' : 'text-amber-800'} leading-snug">
+                        ${appr === 'approved'
+                            ? 'Tu tienda es visible en el marketplace.'
+                            : appr === 'rejected'
+                                ? (s.rejectionReason ? `Motivo: ${esc(s.rejectionReason)}` : 'Un supervisor la rechazó. Corrige datos y guarda de nuevo para reenviar a revisión.')
+                                : 'Un supervisor debe marcar si nos parece bien o mal antes de que los clientes te vean.'}
+                    </p>
+                </div>`;
+            })() : `
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+                    <p class="text-[11px] font-black text-amber-900"><i class="fas fa-hourglass-half"></i> Requiere verificación</p>
+                    <p class="text-[10px] font-semibold text-amber-800 mt-1 leading-snug">
+                        Al crear, la tienda queda <b>en revisión</b>. Un supervisor la aprueba o rechaza y puede marcarla +18.
+                    </p>
+                </div>
+            `}
+            <div class="grid grid-cols-2 gap-2">
+                <label class="stores-field"><span>Lat (opcional)</span>
+                    <input id="m-store-lat" class="stores-input" type="number" step="any" value="${s.lat != null ? esc(s.lat) : ''}" placeholder="14.45"></label>
+                <label class="stores-field"><span>Lng (opcional)</span>
+                    <input id="m-store-lng" class="stores-input" type="number" step="any" value="${s.lng != null ? esc(s.lng) : ''}" placeholder="-87.63"></label>
+            </div>
+            <button type="button" class="stores-secondary-btn w-full" data-merchant-action="use-gps">
+                <i class="fas fa-crosshairs"></i> Usar mi GPS como ubicación de la tienda
+            </button>
+            <p class="text-[11px] text-slate-500">Los clientes verán tu tienda en la ciudad que elijas arriba. Si usas el GPS, la ciudad se elige sola.</p>
+            <button type="button" class="stores-primary-btn w-full" data-merchant-action="save-store">
+                ${editingExisting ? 'Guardar cambios' : 'Crear mi tienda'}
+            </button>
+            ${editingExisting && s.id ? `
+                <button type="button" class="stores-danger-btn w-full mt-2" data-merchant-action="delete-my-store" data-store-id="${esc(s.id)}">
+                    <i class="fas fa-trash-alt"></i> Eliminar mi tienda
+                </button>
+                <p class="text-[10px] text-slate-400 text-center mt-1">Borra la tienda y todo su menú. Los pedidos antiguos se conservan en historial.</p>
+            ` : ''}
+        </form>
+    `;
+}
+
+function buildStoreCatalogShareText(store, products) {
+    const name = store?.name || 'Mi tienda';
+    const city = store?.cityName || '';
+    const available = (products || []).filter((p) => p.available !== false);
+    const lines = available.slice(0, 40).map((p) => {
+        const price = Number(p.price);
+        const priceTxt = Number.isFinite(price) ? `${formatLempiras(price)}` : '';
+        return `• ${p.name}${priceTxt ? ` — ${priceTxt}` : ''}`;
+    });
+    const more = available.length > 40 ? `\n… y ${available.length - 40} productos más` : '';
+    const link = buildStoreShareLink(store?.id);
+    return (
+        `🛒 *${name}* en HonduRaite${city ? ` (${city})` : ''}\n` +
+        `📦 Catálogo de productos:\n\n` +
+        (lines.length ? lines.join('\n') : '• Menú disponible en la app') +
+        more +
+        `\n\n👉 Pide aquí en HonduRaite:\n${link}\n\n` +
+        `Entrega en moto o Taxi VIP 🇭🇳`
+    );
+}
+
+function buildStoreShareLink(storeId) {
+    try {
+        const u = new URL(window.location.href);
+        u.hash = storeId ? `tienda=${encodeURIComponent(storeId)}` : 'tiendas';
+        // Quitar query ruidosas si hay
+        return u.toString();
+    } catch (_) {
+        return `${window.location.origin}${window.location.pathname}#tienda=${encodeURIComponent(storeId || '')}`;
+    }
+}
+
+async function shareStoreCatalog() {
+    if (!myStore?.id) {
+        toast('Crea tu tienda primero', 'warning');
+        return;
+    }
+    if (!myProducts.length) {
+        myProducts = await loadProducts(myStore.id);
+    }
+    if (!myProducts.length) {
+        toast('Agrega productos al menú antes de compartir el catálogo', 'warning');
+        return;
+    }
+    const text = buildStoreCatalogShareText(myStore, myProducts);
+    const title = `${myStore.name || 'Mi tienda'} · HonduRaite`;
+    const url = buildStoreShareLink(myStore.id);
+
+    try {
+        if (navigator.share) {
+            await navigator.share({ title, text, url });
+            toast('Catálogo compartido', 'success');
+            return;
+        }
+    } catch (e) {
+        if (e?.name === 'AbortError') return;
+        console.warn('[stores] share', e);
+    }
+
+    // Fallback WhatsApp
+    try {
+        const wa = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+        window.open(wa, '_blank', 'noopener');
+        toast('Abriendo WhatsApp para compartir…', 'success');
+        return;
+    } catch (_) {}
+
+    try {
+        await navigator.clipboard.writeText(text);
+        toast('Catálogo copiado. Pégalo donde quieras compartirlo.', 'success');
+    } catch (_) {
+        // Último recurso: prompt
+        window.prompt('Copia tu catálogo:', text);
+    }
+}
+
+export function buildMerchantStarProductsHtml(products = myProducts, orders = merchantOrders) {
+    const storeOrders = myStore?.id ? (orders || []).filter((o) => !o.storeId || o.storeId === myStore.id) : (orders || []);
+    const stars = computeStarProducts(products, storeOrders).slice(0, 5);
+    if (!stars.length) {
+        return `
+            <div class="star-products-box star-products-box--empty">
+                <div class="star-products-box__head">
+                    <span class="star-products-box__title">⭐ Tus productos estrella</span>
+                    <span class="star-products-box__badge">Ranking de clientes</span>
+                </div>
+                <p class="star-products-box__hint">Cuando tus clientes reciban y puntúen sus pedidos (1 a 5 ★), aquí verás tus platos mejor calificados y más vendidos.</p>
+            </div>
+        `;
+    }
+    return `
+        <div class="star-products-box">
+            <div class="star-products-box__head">
+                <span class="star-products-box__title">⭐ Tus productos estrella (${stars.length})</span>
+                <span class="star-products-box__badge">Visibles para clientes nuevos</span>
+            </div>
+            <div class="star-products-box__list">
+                ${stars.map((p, idx) => {
+                    const r = productRatingInfo(p);
+                    return `
+                        <div class="star-products-row" data-merchant-star-id="${esc(p.id)}">
+                            <span class="star-products-row__rank">#${idx + 1}</span>
+                            <div class="min-w-0 flex-1">
+                                <p class="star-products-row__name">${esc(p.name)} ${r.isStar ? '<span class="star-pill">⭐ Estrella</span>' : ''}</p>
+                                <p class="star-products-row__meta">
+                                    ${r.count > 0 ? `<b>★ ${r.avg.toFixed(1)}</b> (${r.count} ${r.count === 1 ? 'voto' : 'votos'})` : 'Sin votos aún'}
+                                    · <span>${r.ordersCount} vendidos</span>
+                                    · <span>${money(productBasePrice(p))}</span>
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+export function buildEditProductCardHtml(p, store = myStore, stores = myStores) {
+    if (!p) return '';
+    const tracksStock = storeTracksStock(store);
+    const price = productBasePrice(p);
+    const left = productStockLeft(p, store);
+    const photoSrc = pendingEditProductPhotoPreview || p.photoUrl || '';
+    const otherBranchesCount = Array.isArray(stores) ? stores.filter((s) => s.id !== store?.id).length : 0;
+    return `
+        <div class="merchant-edit-product-card" data-edit-product-card="${esc(p.id)}">
+            <div class="merchant-edit-product-card__head">
+                <p class="merchant-edit-product-card__title"><i class="fas fa-pen"></i> Editar producto: ${esc(p.name)}</p>
+                <button type="button" class="merchant-edit-product-card__close" data-merchant-action="cancel-edit-product" aria-label="Cancelar edición">✕</button>
+            </div>
+            <div class="merchant-edit-product-card__grid">
+                <button type="button" class="merchant-edit-photo-btn" data-merchant-action="pick-edit-form-photo" data-product-id="${esc(p.id)}">
+                    ${photoSrc
+                        ? `<img src="${esc(photoSrc)}" alt="${esc(p.name)}" class="merchant-edit-photo-preview">`
+                        : `<div class="merchant-edit-photo-preview merchant-edit-photo-preview--empty"><i class="fas fa-camera"></i></div>`}
+                    <span><i class="fas fa-camera"></i> Cambiar imagen</span>
+                </button>
+                <div class="merchant-edit-product-card__fields">
+                    <label class="stores-field">
+                        <span>Nombre del producto *</span>
+                        <input id="m-edit-prod-name" class="stores-input" value="${esc(p.name || '')}" placeholder="Nombre del plato o producto">
+                    </label>
+                    <label class="stores-field">
+                        <span>Precio para el cliente (L.) *</span>
+                        <input id="m-edit-prod-price" class="stores-input" type="number" min="1" step="0.01" inputmode="decimal" value="${esc(price)}">
+                    </label>
+                    ${tracksStock ? `
+                        <label class="stores-field">
+                            <span>Stock disponible</span>
+                            <input id="m-edit-prod-stock" class="stores-input" type="number" min="0" step="1" inputmode="numeric" value="${esc(left ?? 0)}">
+                        </label>
+                    ` : ''}
+                    <label class="stores-field">
+                        <span>Descripción (opcional)</span>
+                        <input id="m-edit-prod-desc" class="stores-input" value="${esc(p.description || '')}" placeholder="Ingredientes, tamaño, acompañamientos...">
+                    </label>
+                </div>
+            </div>
+            ${otherBranchesCount > 0 ? `
+                <label class="merchant-edit-sync-check">
+                    <input type="checkbox" id="m-edit-prod-sync-branches" checked>
+                    <span>Actualizar precio, nombre y foto también en mis otras sucursales (${otherBranchesCount})</span>
+                </label>
+            ` : ''}
+            <div class="merchant-edit-product-card__actions">
+                <button type="button" class="stores-primary-btn" data-merchant-action="save-edit-product" data-product-id="${esc(p.id)}">
+                    <i class="fas fa-save"></i> Guardar cambios
+                </button>
+                <button type="button" class="stores-secondary-btn" data-merchant-action="cancel-edit-product">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+export function startEditProduct(productId) {
+    const p = myProducts.find((x) => x.id === productId);
+    if (!p) return null;
+    editingProductId = productId;
+    pendingEditProductPhoto = null;
+    pendingEditProductPhotoPreview = null;
+    renderMerchantBody();
+    return p;
+}
+
+export function cancelEditProduct() {
+    editingProductId = null;
+    pendingEditProductPhoto = null;
+    pendingEditProductPhotoPreview = null;
+    renderMerchantBody();
+}
+
+function pickPhotoForEditingProduct(productId) {
+    if (!productId) return;
+    pickPhotoWithSourceChoice({
+        facing: 'environment',
+        maxSize: 960,
+        title: 'Cambiar imagen del producto',
+        cameraLabel: 'Tomar foto',
+        galleryLabel: 'Elegir de la galería',
+        onCapture: (dataUrl) => {
+            if (!dataUrl) return;
+            pendingEditProductPhoto = dataUrl;
+            pendingEditProductPhotoPreview = dataUrl;
+            renderMerchantBody();
+            toast('Imagen lista. Toca «Guardar cambios» para aplicarla.', 'info');
+        },
+        onError: (msg) => toast(msg || 'No se pudo procesar la foto', 'error'),
+    });
+}
+
+async function syncProductUpdateAcrossBranches(origProduct, patch) {
+    const uid = getCurrentUser()?.uid;
+    if (!uid || !origProduct || myStores.length <= 1) return 0;
+    const otherStoreIds = myStores.map((s) => s.id).filter((id) => id && id !== myStore?.id);
+    if (!otherStoreIds.length) return 0;
+    const origNameLower = String(origProduct.name || '').trim().toLowerCase();
+    const origSourceId = origProduct.sourceProductId || origProduct.id;
+    let updatedCount = 0;
+    for (const sid of otherStoreIds) {
+        try {
+            const list = await loadProducts(sid);
+            const match = list.find(
+                (item) => (item.sourceProductId && item.sourceProductId === origSourceId)
+                    || item.id === origSourceId
+                    || String(item.name || '').trim().toLowerCase() === origNameLower
+            );
+            if (match) {
+                await updateDoc(publicDoc('store_products', match.id), {
+                    ...patch,
+                    updatedAt: serverTimestamp(),
+                });
+                updatedCount += 1;
+            }
+        } catch (err) {
+            console.warn('[stores] syncProductUpdateAcrossBranches', sid, err);
+        }
+    }
+    return updatedCount;
+}
+
+export async function saveEditedProduct(productId) {
+    const pid = productId || editingProductId;
+    const p = myProducts.find((x) => x.id === pid);
+    if (!p || !myStore?.id) return false;
+
+    const name = document.getElementById('m-edit-prod-name')?.value.trim() || '';
+    const priceRaw = Number(document.getElementById('m-edit-prod-price')?.value);
+    const description = document.getElementById('m-edit-prod-desc')?.value.trim() || '';
+    const syncBranches = !!document.getElementById('m-edit-prod-sync-branches')?.checked;
+    if (!name) {
+        toast('El nombre del producto es obligatorio', 'warning');
+        return false;
+    }
+    if (!Number.isFinite(priceRaw) || priceRaw <= 0) {
+        toast('Escribe un precio válido mayor a L. 0', 'warning');
+        return false;
+    }
+    const base = roundMoney(priceRaw);
+    const tracksStock = storeTracksStock(myStore);
+    const patch = {
+        name,
+        price: base,
+        basePrice: base,
+        displayPrice: base,
+        description,
+        updatedAt: serverTimestamp(),
+    };
+    if (tracksStock) {
+        const stockRaw = document.getElementById('m-edit-prod-stock')?.value;
+        const stock = Math.floor(Number(stockRaw));
+        if (!Number.isFinite(stock) || stock < 0) {
+            toast('El stock debe ser 0 o más', 'warning');
+            return false;
+        }
+        patch.stock = stock;
+    }
+
+    try {
+        toast(pendingEditProductPhoto ? 'Subiendo nueva imagen y guardando cambios…' : 'Guardando cambios del producto…', 'info');
+        if (pendingEditProductPhoto) {
+            try {
+                patch.photoUrl = await uploadProductPhoto(pendingEditProductPhoto, pid);
+            } catch (photoErr) {
+                console.warn('[stores] saveEditedProduct photo', photoErr);
+                toast('Se guardarán precio y nombre, pero la imagen no subió.', 'warning');
+            }
+        }
+        await updateDoc(publicDoc('store_products', pid), patch);
+        Object.assign(p, patch);
+
+        let syncedBranches = 0;
+        if (syncBranches && myStores.length > 1) {
+            const branchPatch = {
+                name: patch.name,
+                price: patch.price,
+                basePrice: patch.basePrice,
+                displayPrice: patch.displayPrice,
+                description: patch.description,
+                ...(patch.photoUrl ? { photoUrl: patch.photoUrl } : {}),
+            };
+            syncedBranches = await syncProductUpdateAcrossBranches(p, branchPatch);
+        }
+
+        editingProductId = null;
+        pendingEditProductPhoto = null;
+        pendingEditProductPhotoPreview = null;
+        myProducts = await loadProducts(myStore.id);
+        renderMerchantBody();
+        toast(
+            syncedBranches > 0
+                ? `✅ Producto actualizado aquí y en ${syncedBranches} sucursal(es) más`
+                : '✅ Producto actualizado (precio, nombre e imagen guardados)',
+            'success'
+        );
+        return true;
+    } catch (e) {
+        console.error('[stores] saveEditedProduct', e);
+        toast('No se pudo actualizar el producto: ' + (e.message || e), 'error');
+        return false;
+    }
+}
+
+function renderMerchantProducts() {
+    const preview = pendingProductPhotoPreview
+        ? `<img src="${esc(pendingProductPhotoPreview)}" alt="Vista previa" class="m-prod-photo-preview">`
+        : `<div class="m-prod-photo-preview m-prod-photo-preview--empty"><i class="fas fa-camera"></i><span>Foto del producto</span></div>`;
+    const tracksStock = storeTracksStock(myStore);
+    const hasMultipleBranches = myStores.length > 1;
+    return `
+        <div class="merchant-products">
+            <div class="merchant-share-banner">
+                <div class="min-w-0">
+                    <p class="merchant-share-title"><i class="fas fa-share-alt"></i> Comparte tu catálogo</p>
+                    <p class="merchant-share-sub">WhatsApp, redes o copiar texto · atrae más clientes</p>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                    ${hasMultipleBranches ? `
+                        <button type="button" class="stores-secondary-btn text-[11px] py-1.5 px-2.5" data-merchant-action="sync-menu-branches" title="Copiar platos nuevos a todas mis sucursales">
+                            <i class="fas fa-sync-alt"></i> Sincronizar sucursales
+                        </button>
+                    ` : ''}
+                    <button type="button" class="stores-primary-btn stores-primary-btn--sm" data-merchant-action="share-catalog">
+                        <i class="fas fa-bullhorn"></i> Compartir
+                    </button>
+                </div>
+            </div>
+            ${buildMerchantStarProductsHtml(myProducts, merchantOrders)}
+            <div class="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2.5 mb-3">
+                <p class="text-[11px] font-black text-violet-900"><i class="fas fa-percentage"></i> HonduRaite cobra el 10% de la semana</p>
+                <p class="text-[10px] font-semibold text-violet-800 mt-1 leading-snug">
+                    El cliente paga el precio que pongas y el envío completo de su zona.<br>
+                    Tú pagas el 10% de las ventas de productos, de lunes a domingo. El envío no entra. Lo ves en la pestaña Semana.
+                </p>
+            </div>
+            ${tracksStock ? `
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 mb-3">
+                <p class="text-[11px] font-black text-amber-900"><i class="fas fa-boxes"></i> Esta tienda lleva stock</p>
+                <p class="text-[10px] font-semibold text-amber-800 mt-1 leading-snug">Escribe cuántos tienes de cada producto. En 0 el cliente no puede pedirlo. Comida y restaurante no usan stock.</p>
+            </div>` : ''}
+            <form id="merchant-product-form" class="merchant-form space-y-2 mb-4 p-3 rounded-2xl border border-amber-100 bg-amber-50/50" onsubmit="return false;">
+                <p class="stores-section-label">Agregar producto</p>
+                <button type="button" class="m-prod-photo-pick" data-merchant-action="pick-product-photo" aria-label="Elegir foto del producto">
+                    ${preview}
+                    <span class="m-prod-photo-hint"><i class="fas fa-image"></i> ${pendingProductPhoto ? 'Cambiar foto' : 'Agregar foto (recomendado)'}</span>
+                </button>
+                <input type="file" id="m-prod-photo-input" accept="image/*" class="hidden">
+                <input id="m-prod-name" class="stores-input" placeholder="Nombre *" required>
+                <input id="m-prod-price" class="stores-input" type="number" min="1" step="0.01" placeholder="Precio que paga el cliente L. *" required inputmode="decimal">
+                ${tracksStock ? `<input id="m-prod-stock" class="stores-input" type="number" min="0" step="1" placeholder="Cuántos tienes en stock *" required inputmode="numeric">` : `<p class="text-[10px] font-semibold text-emerald-800">Comida y restaurante no llevan stock. Se piden y se preparan.</p>`}
+                <div id="m-prod-tariff-live" class="rounded-xl bg-white/80 border border-amber-100 px-2.5 py-2 text-[10px] font-semibold text-slate-600 leading-snug">
+                    Escribe tu precio base para ver cuánto verá el cliente.
+                </div>
+                <input id="m-prod-desc" class="stores-input" placeholder="Descripción (opcional)">
+                <button type="button" class="stores-primary-btn w-full" data-merchant-action="add-product">Agregar al menú</button>
+            </form>
+            <div class="flex items-center justify-between gap-2 mb-2">
+                <p class="stores-section-label !mb-0">Tu menú (${myProducts.length})</p>
+                <span class="text-[10px] font-bold text-slate-500">Toca «✏️ Editar» para cambiar precio, nombre o foto</span>
+            </div>
+            <div class="space-y-2">
+                ${myProducts.length ? myProducts.map((p) => {
+                    if (editingProductId === p.id) {
+                        return buildEditProductCardHtml(p, myStore, myStores);
+                    }
+                    const price = productBasePrice(p);
+                    const left = productStockLeft(p, myStore);
+                    const rInfo = productRatingInfo(p);
+                    return `
+                    <div class="product-card ${rInfo.isStar ? 'product-card--star' : ''}" data-merchant-product-card="${esc(p.id)}">
+                        ${productPhotoHtml(p)}
+                        <div class="min-w-0 flex-1">
+                            ${(rInfo.isStar || rInfo.count > 0 || rInfo.ordersCount > 0) ? `
+                                <div class="product-card-stars">
+                                    ${rInfo.isStar ? '<span class="star-pill">⭐ Producto estrella</span>' : ''}
+                                    ${rInfo.count > 0 ? `<span class="star-rating-chip">★ ${rInfo.avg.toFixed(1)} (${rInfo.count})</span>` : ''}
+                                    ${rInfo.ordersCount > 0 ? `<span class="star-orders-chip">🔥 ${rInfo.ordersCount} vendidos</span>` : ''}
+                                </div>
+                            ` : ''}
+                            <p class="product-card-name">${esc(p.name)}</p>
+                            <p class="product-card-price">${money(price)}</p>
+                            <p class="text-[10px] font-bold text-violet-700">El cliente paga este precio. El envío va aparte.</p>
+                            ${tracksStock ? `
+                                <label class="store-stock-edit">
+                                    <span>Stock</span>
+                                    <input type="number" min="0" step="1" inputmode="numeric" value="${left ?? 0}" data-stock-for="${esc(p.id)}" aria-label="Stock de ${esc(p.name)}">
+                                    <button type="button" data-merchant-action="save-stock" data-product-id="${esc(p.id)}">Guardar</button>
+                                </label>
+                            ` : ''}
+                            ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <button type="button" class="stores-edit-btn text-[10px] py-1.5 px-2.5" data-merchant-action="edit-product" data-product-id="${esc(p.id)}">
+                                <i class="fas fa-pen"></i> Editar
+                            </button>
+                            <button type="button" class="stores-secondary-btn text-[10px] py-1.5" data-merchant-action="change-product-photo" data-product-id="${esc(p.id)}">
+                                <i class="fas fa-camera"></i> Foto
+                            </button>
+                            <button type="button" class="stores-secondary-btn text-[10px] py-1.5" data-merchant-action="toggle-product" data-product-id="${esc(p.id)}">
+                                ${p.available === false ? 'Activar' : 'Pausar'}
+                            </button>
+                            <button type="button" class="stores-danger-btn text-[10px] py-1.5" data-merchant-action="delete-product" data-product-id="${esc(p.id)}">
+                                Borrar
+                            </button>
+                        </div>
+                    </div>`;
+                }).join('') : `<div class="stores-empty stores-empty--sm"><p>Agrega tu primer producto con foto.</p></div>`}
+            </div>
+            <input type="file" id="m-prod-photo-edit-input" accept="image/*" class="hidden">
+        </div>
+    `;
+}
+
+function updateMerchantProductPricePreview() {
+    const input = document.getElementById('m-prod-price');
+    const live = document.getElementById('m-prod-tariff-live');
+    if (!live) return;
+    const base = Number(input?.value);
+    if (!Number.isFinite(base) || base <= 0) {
+        live.innerHTML = 'Ese precio es el que paga el cliente. El envío de la zona lo paga él, completo.';
+        return;
+    }
+    const price = roundMoney(base);
+    live.innerHTML = `El cliente paga <b>${money(price)}</b>. El envío de su zona lo paga aparte. De tus ventas, HonduRaite cobra el 10% a la semana.`;
+}
+
+function bindMerchantProductPricePreview() {
+    const input = document.getElementById('m-prod-price');
+    if (!input || input.dataset.tariffBound === '1') return;
+    input.dataset.tariffBound = '1';
+    input.addEventListener('input', updateMerchantProductPricePreview);
+    updateMerchantProductPricePreview();
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
+ * Comprime imagen para catálogo (max ~960px, jpeg).
+ * Android a veces entrega type vacío u octet-stream al elegir de la galería.
+ */
+async function compressImageFile(file, maxSide = 960, quality = 0.82) {
+    if (!file) throw new Error('Sin archivo');
+    const type = String(file.type || '').toLowerCase().trim();
+    // No bloquear galería Android: type vacío / octet-stream / image/*
+    if (type && !type.startsWith('image/') && type !== 'application/octet-stream') {
+        throw new Error('Archivo no es imagen');
+    }
+    const dataUrl = await readFileAsDataUrl(file);
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            try {
+                let { width, height } = img;
+                if (!width || !height) {
+                    reject(new Error('Imagen inválida'));
+                    return;
+                }
+                const scale = Math.min(1, maxSide / Math.max(width, height));
+                width = Math.max(1, Math.round(width * scale));
+                height = Math.max(1, Math.round(height * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            } catch (e) {
+                reject(e);
+            }
+        };
+        img.onerror = () => reject(new Error('No se pudo leer la imagen de la galería. Prueba otra foto o JPG/PNG.'));
+        img.src = dataUrl;
+    });
+}
+
+async function uploadProductPhoto(dataUrlOrFile, productId) {
+    const user = getCurrentUser();
+    if (!user || !storageRef) throw new Error('Storage no disponible');
+    const path = `artifacts/${appIdRef}/users/${user.uid}/store_products/${productId || Date.now()}.jpg`;
+    return resolvePhotoUrl(storageRef, dataUrlOrFile, path);
+}
+
+async function uploadStoreLogo(dataUrlOrFile, storeId) {
+    const user = getCurrentUser();
+    if (!user || !storageRef) throw new Error('Storage no disponible');
+    const path = `artifacts/${appIdRef}/users/${user.uid}/store_logos/${storeId || Date.now()}.jpg`;
+    return resolvePhotoUrl(storageRef, dataUrlOrFile, path);
+}
+
+/**
+ * Emprendedor: cámara O galería (fotos ya en el celular).
+ * Antes los inputs tenían capture="environment" y en Android solo abrían la cámara.
+ */
+function pickStoreLogo() {
+    pickPhotoWithSourceChoice({
+        facing: 'environment',
+        maxSize: 1200,
+        title: 'Logo de la tienda',
+        cameraLabel: 'Tomar foto',
+        galleryLabel: 'Elegir de la galería',
+        onCapture: (dataUrl) => {
+            if (!dataUrl) return;
+            pendingStorePhoto = dataUrl;
+            pendingStorePhotoPreview = dataUrl;
+            renderMerchantBody();
+            toast('Logo listo. Guarda la tienda para publicarlo.', 'success');
+        },
+        onError: (msg) => toast(msg || 'No se pudo procesar el logo', 'error'),
+    });
+}
+
+function pickNewProductPhoto() {
+    pickPhotoWithSourceChoice({
+        facing: 'environment',
+        maxSize: 960,
+        title: 'Foto del producto',
+        cameraLabel: 'Tomar foto',
+        galleryLabel: 'Elegir de la galería',
+        onCapture: (dataUrl) => {
+            if (!dataUrl) return;
+            pendingProductPhoto = dataUrl;
+            pendingProductPhotoPreview = dataUrl;
+            renderMerchantBody();
+            toast('Foto lista. Completa nombre y precio.', 'success');
+        },
+        onError: (msg) => toast(msg || 'No se pudo procesar la foto', 'error'),
+    });
+}
+
+function pickEditProductPhoto(productId) {
+    if (!productId) return;
+    pickPhotoWithSourceChoice({
+        facing: 'environment',
+        maxSize: 960,
+        title: 'Cambiar foto del producto',
+        cameraLabel: 'Tomar foto',
+        galleryLabel: 'Elegir de la galería',
+        onCapture: async (dataUrl) => {
+            if (!dataUrl || !productId) return;
+            try {
+                toast('Subiendo foto…', 'info');
+                const url = await uploadProductPhoto(dataUrl, productId);
+                await updateDoc(publicDoc('store_products', productId), {
+                    photoUrl: url,
+                    updatedAt: serverTimestamp(),
+                });
+                myProducts = await loadProducts(myStore.id);
+                renderMerchantBody();
+                toast('Foto del producto actualizada', 'success');
+            } catch (e) {
+                console.error(e);
+                const msg = String(e?.message || e || '');
+                if (/permission|unauthorized|403|storage/i.test(msg)) {
+                    toast('Sin permiso para subir la foto. Cierra sesión y vuelve a entrar.', 'error');
+                } else {
+                    toast('No se pudo subir la foto: ' + msg, 'error');
+                }
+            }
+        },
+        onError: (msg) => toast(msg || 'No se pudo procesar la foto', 'error'),
+    });
+}
+
+async function saveStore() {
+    const user = getCurrentUser();
+    const profile = getUserProfile() || {};
+    if (!user) return toast('Inicia sesión', 'error');
+
+    const name = document.getElementById('m-store-name')?.value.trim() || '';
+    const branchName = document.getElementById('m-store-branch-name')?.value.trim() || '';
+    const category = document.getElementById('m-store-category')?.value || 'otro';
+    const description = document.getElementById('m-store-desc')?.value.trim() || '';
+    const address = document.getElementById('m-store-address')?.value.trim() || '';
+    const phone = phoneNorm(document.getElementById('m-store-phone')?.value || '');
+    const latRaw = document.getElementById('m-store-lat')?.value;
+    const lngRaw = document.getElementById('m-store-lng')?.value;
+    const lat = latRaw !== '' && latRaw != null ? Number(latRaw) : null;
+    const lng = lngRaw !== '' && lngRaw != null ? Number(lngRaw) : null;
+
+    if (!name || name.length < 2) return toast('Nombre de tienda requerido', 'warning');
+    if (!address || address.length < 4) return toast('Dirección de recogida requerida', 'warning');
+    if (!phone) return toast('WhatsApp del negocio requerido', 'warning');
+    const waAuthorizedPhones = [...new Set(String(document.getElementById('m-store-wa-phones')?.value || '')
+        .split(/[,;\n]+/).map((x) => x.replace(/\D/g, '')).filter(Boolean)
+        .map((d) => (d.startsWith('00') ? d.slice(2) : d)).map((d) => (d.length === 8 ? `504${d}` : d)))];
+    if (waAuthorizedPhones.some((d) => !/^504[2-9]\d{7}$/.test(d))) return toast('Revisa los números autorizados: deben ser de Honduras (8 dígitos)', 'warning');
+    if (waAuthorizedPhones.length > 10) return toast('Máximo 10 números autorizados', 'warning');
+
+    // Horario diario (opcional): las dos horas o ninguna
+    const openAt = document.getElementById('m-store-open-at')?.value || '';
+    const closeAt = document.getElementById('m-store-close-at')?.value || '';
+    if ((openAt && !closeAt) || (!openAt && closeAt)) {
+        return toast('Pon la hora de abrir y la de cerrar, o deja las dos vacías', 'warning');
+    }
+    if (openAt && parseHHMM(openAt) === parseHHMM(closeAt)) {
+        return toast('La hora de abrir y la de cerrar no pueden ser iguales', 'warning');
+    }
+    const hours = openAt && closeAt ? { open: openAt, close: closeAt, tz: 'America/Tegucigalpa' } : null;
+
+    // Ciudad REAL de la tienda (elegida y validada con la ubicación). Ya no se usa la ciudad del dispositivo.
+    const selectedCityId = document.getElementById('m-store-city')?.value || '';
+    const cityCheck = resolveStoreCity({ selectedId: selectedCityId, lat, lng });
+    if (!cityCheck.ok) {
+        if (cityCheck.suggested) {
+            const sel = document.getElementById('m-store-city');
+            if (sel && !sel.value) sel.value = cityCheck.suggested.id;
+        }
+        return toast(cityCheck.message, 'warning');
+    }
+    const storeCity = cityCheck.zone;
+    // Sin GPS (o con el centro de otra ciudad guardado por error): usar el centro de la ciudad de la tienda
+    const hasRealCoords = validCoords(lat, lng) && !isZoneCenterCoords(lat, lng);
+    const finalLat = hasRealCoords ? lat : (storeCity.center?.lat ?? null);
+    const finalLng = hasRealCoords ? lng : (storeCity.center?.lng ?? null);
+    const adultsChecked = !!document.getElementById('m-store-adults-only')?.checked;
+
+    await loadMyStore(myStore?.id || null);
+    const isNewStore = merchantCreateMode || !myStore?.id;
+    const cloneSource = isNewStore ? (merchantCloneFromStore || myStore || null) : null;
+    const copyMenuEl = document.getElementById('m-store-copy-menu');
+    const shouldCopyMenu = !!(isNewStore && copyMenuEl?.checked && cloneSource?.id);
+
+    // Si un supervisor la marcó +18, el dueño no puede quitarlo (las reglas también lo impiden)
+    const adultsOnly = adultsChecked || (!isNewStore && isStoreAdultsOnly(myStore) && !isStoresStaff());
+
+    const prevStatus = !isNewStore ? storeApprovalStatus(myStore) : 'pending';
+    // Si estaba rechazada y edita, vuelve a revisión. No puede auto-aprobarse.
+    let nextApproval = isNewStore ? 'pending' : prevStatus;
+    if (!isNewStore && prevStatus === 'rejected') {
+        nextApproval = 'pending';
+    }
+
+    const payload = {
+        ownerId: user.uid,
+        ownerName: profile.name || '',
+        name,
+        branchName: branchName || null,
+        parentStoreId: isNewStore && merchantCloneFromStore?.id
+            ? (merchantCloneFromStore.parentStoreId || merchantCloneFromStore.id)
+            : (myStore?.parentStoreId || null),
+        category,
+        description,
+        address,
+        phone,
+        waAuthorizedPhones,
+        lat: finalLat,
+        lng: finalLng,
+        cityId: storeCity.id,
+        cityName: storeCity.name,
+        cityDepartment: storeCity.department || null,
+        citySource: cityCheck.source,
+        locationApprox: !hasRealCoords,
+        isOpen: isNewStore ? true : (myStore?.isOpen !== false),
+        hours,
+        active: true,
+        adultsOnly,
+        requiresAge18: adultsOnly,
+        // Conservar logo anterior o el de la sucursal madre si no hay uno nuevo pendiente
+        photoUrl: (!isNewStore && myStore?.photoUrl)
+            ? myStore.photoUrl
+            : (isNewStore && merchantCloneFromStore?.photoUrl ? merchantCloneFromStore.photoUrl : null),
+        updatedAt: serverTimestamp(),
+    };
+
+    // Campos de verificación: el dueño solo puede reenviar a pending tras rechazo
+    if (isNewStore) {
+        payload.approvalStatus = 'pending';
+        payload.submittedForReviewAt = serverTimestamp();
+    } else if (prevStatus === 'rejected') {
+        payload.approvalStatus = 'pending';
+        payload.submittedForReviewAt = serverTimestamp();
+        payload.rejectionReason = null;
+        payload.reviewedAt = null;
+        payload.reviewedBy = null;
+    }
+
+    try {
+        toast(pendingStorePhoto ? 'Subiendo logo y guardando…' : 'Guardando tienda…', 'info');
+
+        if (!isNewStore && myStore?.id) {
+            if (pendingStorePhoto) {
+                try {
+                    payload.photoUrl = await uploadStoreLogo(pendingStorePhoto, myStore.id);
+                } catch (logoErr) {
+                    console.warn('[stores] logo upload', logoErr);
+                    toast('Tienda se guardará, pero el logo no subió. Intenta de nuevo.', 'warning');
+                }
+            }
+            await updateDoc(publicDoc('stores', myStore.id), payload);
+            myStore = { ...myStore, ...payload, approvalStatus: payload.approvalStatus || myStore.approvalStatus };
+            storesCache.set(myStore.id, myStore);
+            pendingStorePhoto = null;
+            pendingStorePhotoPreview = null;
+            if (nextApproval === 'pending' && prevStatus === 'rejected') {
+                toast('Cambios guardados · tienda reenviada a verificación', 'success');
+            } else {
+                toast(payload.photoUrl ? 'Tienda y logo actualizados' : 'Tienda actualizada', 'success');
+            }
+        } else {
+            payload.createdAt = serverTimestamp();
+            payload.approvalStatus = 'pending';
+            const ref = await addDoc(publicCol('stores'), payload);
+            let photoUrl = null;
+            if (pendingStorePhoto) {
+                try {
+                    photoUrl = await uploadStoreLogo(pendingStorePhoto, ref.id);
+                    await updateDoc(ref, { photoUrl, updatedAt: serverTimestamp() });
+                } catch (logoErr) {
+                    console.warn('[stores] logo upload on create', logoErr);
+                    toast('Tienda creada, pero el logo no subió. Puedes editarlo en Mi tienda.', 'warning');
+                }
+            }
+            const finalPhoto = photoUrl || payload.photoUrl || null;
+            myStore = { id: ref.id, ...payload, photoUrl: finalPhoto, approvalStatus: 'pending' };
+            storesCache.set(ref.id, myStore);
+            myStores = sortOwnedStores([...myStores.filter((x) => x.id !== ref.id), myStore]);
+            setSavedSelectedStoreId(ref.id, user.uid);
+            let copiedCount = 0;
+            if (shouldCopyMenu && cloneSource?.id) {
+                try {
+                    copiedCount = await copyMenuBetweenStores(cloneSource.id, ref.id);
+                } catch (copyErr) {
+                    console.warn('[stores] copyMenuBetweenStores', copyErr);
+                }
+            }
+            myProducts = await loadProducts(ref.id);
+            merchantCreateMode = false;
+            merchantCloneFromStore = null;
+            pendingStorePhoto = null;
+            pendingStorePhotoPreview = null;
+            toast(
+                copiedCount > 0
+                    ? `¡Sucursal creada con ${copiedCount} productos copiados del menú!`
+                    : '¡Tienda / sucursal creada! Está en revisión de un supervisor. Mientras, agrega o edita tus productos.',
+                'success'
+            );
+            merchantTab = 'products';
+            document.querySelectorAll('.merchant-tab').forEach((b) => {
+                b.classList.remove('hidden');
+                b.classList.toggle('active', b.getAttribute('data-merchant-tab') === 'products');
+            });
+            const titleEl = document.querySelector('#merchant-panel .stores-title');
+            if (titleEl) titleEl.textContent = 'Mi tienda virtual';
+        }
+        updateMerchantOpenToggle();
+        renderMerchantStoreSwitcher();
+        renderMerchantBody();
+    } catch (e) {
+        console.error(e);
+        toast('Error al guardar tienda: ' + (e.message || e), 'error');
+    }
+}
+
+async function useGpsForStore() {
+    if (!navigator.geolocation) return toast('GPS no disponible', 'error');
+    toast('Obteniendo ubicación…', 'info');
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const latEl = document.getElementById('m-store-lat');
+            const lngEl = document.getElementById('m-store-lng');
+            if (latEl) latEl.value = String(pos.coords.latitude.toFixed(6));
+            if (lngEl) lngEl.value = String(pos.coords.longitude.toFixed(6));
+            const gpsCity = cityFromStoreCoords(pos.coords.latitude, pos.coords.longitude);
+            const citySel = document.getElementById('m-store-city');
+            if (gpsCity && citySel) citySel.value = gpsCity.id;
+            toast(gpsCity ? `Ubicación GPS cargada · ${gpsCity.name}` : 'Ubicación GPS cargada', 'success');
+        },
+        () => toast('No se pudo obtener GPS', 'error'),
+        { enableHighAccuracy: true, timeout: 12000 }
+    );
+}
+
+async function toggleStoreOpen() {
+    if (!myStore?.id) return toast('Crea tu tienda primero', 'warning');
+    const next = myStore.isOpen === false;
+    try {
+        await updateDoc(publicDoc('stores', myStore.id), {
+            isOpen: next,
+            updatedAt: serverTimestamp(),
+        });
+        myStore.isOpen = next;
+        if (storesCache.has(myStore.id)) storesCache.get(myStore.id).isOpen = next;
+        updateMerchantOpenToggle();
+        try { syncDriverHotStoresOnMap(); } catch (_) {}
+        toast(next ? 'Tienda abierta' : 'Tienda cerrada · Zonas en fuego desactivadas', 'success');
     } catch (e) {
         toast('No se pudo cambiar estado', 'error');
     }
@@ -6050,7 +7949,7 @@ async function onMerchantClick(e) {
         document.querySelectorAll('.merchant-tab').forEach((b) => {
             b.classList.toggle('active', b === tabBtn);
         });
-        if (merchantTab === 'products' && myStore) {
+        if ((merchantTab === 'products' || merchantTab === 'pedir-envio') && myStore) {
             myProducts = await loadProducts(myStore.id);
         }
         return renderMerchantBody();
@@ -6087,6 +7986,12 @@ async function onMerchantClick(e) {
         document.querySelectorAll('.merchant-tab').forEach((b) => {
             b.classList.toggle('active', b.getAttribute('data-merchant-tab') === 'pedir-envio');
         });
+        if (myStore?.id && !myProducts.length) {
+            loadProducts(myStore.id).then((list) => {
+                myProducts = list || [];
+                if (merchantTab === 'pedir-envio') renderMerchantBody();
+            }).catch(() => {});
+        }
         return renderMerchantBody();
     }
     if (action === 'save-store') return saveStore();
@@ -7176,47 +9081,80 @@ async function tryOpenStoreFromHash() {
 let driverHotMapMarkers = [];
 let driverHotMapCircles = [];
 
-export function getHotStoresForDriverMap(stores = [...storesCache.values()], orders = merchantOrders) {
-    const now = hnNowMinutes();
-    const activeByStore = new Map();
-    for (const o of (orders || [])) {
-        if (!o?.storeId || ['delivered', 'cancelled'].includes(o.status)) continue;
-        activeByStore.set(o.storeId, (activeByStore.get(o.storeId) || 0) + 1);
-    }
-    return (stores || [])
-        .filter((s) => s && s.active !== false && storeApprovalStatus(s) === 'approved' && validCoords(s.lat, s.lng))
-        .map((s) => {
-            const activeCount = activeByStore.get(s.id) || Number(s.activeOrdersCount) || 0;
-            const hot = storeHotInfo(s, activeCount);
-            const openInfo = storeOpenInfo(s, now);
-            return { store: s, hot, openInfo };
-        })
-        .filter((entry) => entry.hot.isHot && entry.openInfo.open)
-        .sort((a, b) => b.hot.hotScore - a.hot.hotScore);
+function startRecentStoreDeliveriesListener() {
+    if (!dbRef || !appIdRef || unsubRecentStoreDeliveries) return;
+    try {
+        const q = query(publicCol('trips'), where('storeDelivery', '==', true), limit(80));
+        unsubRecentStoreDeliveries = onSnapshot(q, (snap) => {
+            const cutoff = Date.now() - FIRE_ZONE_WINDOW_MS;
+            const list = [];
+            snap.docs.forEach((d) => {
+                const t = { id: d.id, ...d.data() };
+                if (t.status === 'cancelled') return;
+                const ms = extractActivityTimestampMs(t);
+                if (ms >= cutoff) list.push(t);
+            });
+            recentStoreDeliveryTrips = list;
+            try { syncDriverHotStoresOnMap(); } catch (_) {}
+        }, () => {});
+    } catch (_) {}
 }
 
-export function buildDriverHotStoresBarHtml(hotEntries = getHotStoresForDriverMap()) {
-    if (!hotEntries.length) return '';
+export function startFireZonesAutoRefreshInterval() {
+    if (fireZoneCheckTimer) return fireZoneCheckTimer;
+    fireZoneCheckTimer = setInterval(() => {
+        try {
+            const cutoff = Date.now() - FIRE_ZONE_WINDOW_MS;
+            recentStoreDeliveryTrips = recentStoreDeliveryTrips.filter(
+                (t) => (extractActivityTimestampMs(t) || 0) >= cutoff
+            );
+            syncDriverHotStoresOnMap();
+            const mp = typeof document !== 'undefined' ? document.getElementById('stores-marketplace-panel') : null;
+            if (mp && !mp.classList.contains('hidden') && marketplaceView === 'list') {
+                renderMarketplace();
+            }
+        } catch (_) {}
+    }, FIRE_ZONES_CHECK_INTERVAL_MS);
+    return fireZoneCheckTimer;
+}
+
+export function getHotStoresForDriverMap(stores = [...storesCache.values()]) {
+    const now = hnNowMinutes();
+    const activeByStore = new Map();
+    [...merchantOrders, ...clientOrders].forEach((o) => {
+        if (o?.storeId && !['delivered', 'cancelled'].includes(o.status)) {
+            activeByStore.set(o.storeId, (activeByStore.get(o.storeId) || 0) + 1);
+        }
+    });
+    return (stores || [])
+        .filter((s) => storeApprovalStatus(s) === 'approved' && isStoreOpenNow(s, now))
+        .map((s) => ({ store: s, hot: storeHotInfo(s, activeByStore.get(s.id) || 0) }))
+        .filter(({ store: s, hot }) => hot.isHot && hot.fireTier && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng)))
+        .sort((a, b) => b.hot.countLastHour - a.hot.countLastHour || b.hot.hotScore - a.hot.hotScore || b.hot.ratingAvg - a.hot.ratingAvg)
+        .slice(0, 12);
+}
+
+export function buildDriverHotStoresBarHtml(hotStores = []) {
+    if (!Array.isArray(hotStores) || !hotStores.length) return '';
     return `
-        <div id="driver-hot-stores-bar" class="driver-hot-stores-bar" role="region" aria-label="Restaurantes en fuego en el mapa">
-            <div class="driver-hot-stores-bar__head">
-                <span class="driver-hot-stores-bar__title">🔥 Restaurantes en fuego (alta demanda de envíos)</span>
-                <span class="driver-hot-stores-bar__hint">Toca uno para verlo en el mapa</span>
-            </div>
+        <div class="driver-hot-stores-bar__inner">
+            <span class="driver-hot-stores-bar__badge">🔥 Zonas de comida en fuego</span>
             <div class="driver-hot-stores-bar__chips">
-                ${hotEntries.slice(0, 6).map(({ store: s, hot }) => {
+                ${hotStores.map(({ store: s, hot }) => {
+                    const tier = hot.fireTier || getFireTier(hot.countLastHour || 1);
                     const branch = formatStoreBranchLabel(s);
+                    const label = branch ? `${s.name || 'Tienda'} · ${branch}` : (s.name || 'Tienda');
                     return `
                         <button type="button"
-                                class="driver-hot-store-chip"
+                                class="driver-hot-stores-chip ${esc(tier?.cssClass || '')}"
                                 data-driver-hot-store-id="${esc(s.id)}"
-                                data-lat="${esc(s.lat)}"
-                                data-lng="${esc(s.lng)}">
-                            <span class="driver-hot-store-chip__fire">🔥</span>
-                            <span class="driver-hot-store-chip__body">
-                                <strong>${esc(s.name || 'Restaurante')}${branch ? ` · ${esc(branch)}` : ''}</strong>
-                                <small>${esc(hot.label)}${hot.ratingCount > 0 ? ` · ★ ${hot.ratingAvg.toFixed(1)}` : ''}</small>
-                            </span>
+                                data-fire-level="${tier?.level || 1}"
+                                style="--fire-primary:${tier?.primaryColor || '#f97316'};--fire-secondary:${tier?.secondaryColor || '#ea580c'};border-color:${tier?.primaryColor || '#f97316'};"
+                                title="Centrar mapa en ${esc(label)} · ${esc(hot.expiryLabel || '')}">
+                            <span class="driver-hot-stores-chip__tier" style="background:${tier?.gradient || '#ea580c'};color:${tier?.badgeTextColor || '#fff'};">${esc(tier?.emoji || '🔥')} Nv.${tier?.level || 1}</span>
+                            <span class="driver-hot-stores-chip__name">${esc(label)}</span>
+                            <span class="driver-hot-stores-chip__stat">⚡ ${hot.countLastHour || 1}/1h</span>
+                            <span class="driver-hot-stores-chip__timer">⏱️ ${hot.remainingMinutes || 60}m</span>
                         </button>
                     `;
                 }).join('')}
@@ -7227,7 +9165,7 @@ export function buildDriverHotStoresBarHtml(hotEntries = getHotStoresForDriverMa
 
 export function focusDriverMapOnHotStore(storeId) {
     const s = storesCache.get(storeId);
-    if (!s || !validCoords(s.lat, s.lng)) return false;
+    if (!s || !Number.isFinite(Number(s.lat)) || !Number.isFinite(Number(s.lng))) return false;
     const pos = { lat: Number(s.lat), lng: Number(s.lng) };
     try {
         if (typeof window !== 'undefined' && window.gMap) {
@@ -7237,64 +9175,132 @@ export function focusDriverMapOnHotStore(storeId) {
     } catch (_) {}
     const branch = formatStoreBranchLabel(s);
     const hot = storeHotInfo(s);
-    toast(`🔥 ${s.name || 'Restaurante'}${branch ? ` (${branch})` : ''} · ${hot.label}. ¡Acércate a esta zona para recibir pedidos!`, 'info');
+    const tierTxt = hot?.fireTier ? `${hot.fireTier.label} (${hot.shipmentsLabel} · expira en ${hot.remainingMinutes} min)` : 'Zona de alta demanda';
+    toast(`🔥 ${s.name || 'Restaurante'}${branch ? ` · ${branch}` : ''} — ${tierTxt}`, 'info');
     return true;
 }
 
 export function syncDriverHotStoresOnMap() {
     if (typeof document === 'undefined') return;
+    const hotList = getHotStoresForDriverMap();
+    let bar = document.getElementById('driver-hot-stores-bar');
     const driverView = document.getElementById('driver-view');
-    const hotEntries = getHotStoresForDriverMap();
-
-    // Renderizar barra en el panel del conductor si existe
-    if (driverView) {
-        let slot = document.getElementById('driver-hot-stores-slot');
-        if (!slot) {
-            slot = document.createElement('div');
-            slot.id = 'driver-hot-stores-slot';
-            driverView.insertBefore(slot, driverView.firstElementChild);
-            slot.addEventListener('click', (ev) => {
-                const btn = ev.target.closest('[data-driver-hot-store-id]');
-                if (!btn) return;
-                focusDriverMapOnHotStore(btn.getAttribute('data-driver-hot-store-id'));
-            });
+    if (driverView && !bar) {
+        bar = document.createElement('div');
+        bar.id = 'driver-hot-stores-bar';
+        bar.className = 'driver-hot-stores-bar hidden';
+        bar.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-driver-hot-store-id]');
+            if (!btn) return;
+            focusDriverMapOnHotStore(btn.getAttribute('data-driver-hot-store-id'));
+        });
+        driverView.prepend(bar);
+    }
+    if (bar) {
+        if (hotList.length > 0 && driverView && !driverView.classList.contains('hidden')) {
+            bar.innerHTML = buildDriverHotStoresBarHtml(hotList);
+            bar.classList.remove('hidden');
+        } else {
+            bar.innerHTML = '';
+            bar.classList.add('hidden');
         }
-        slot.innerHTML = buildDriverHotStoresBarHtml(hotEntries);
     }
 
-    // Actualizar pines y zonas de calor en Google Maps cuando esté disponible
+    // Dibujar zonas de energía arcade y marcadores animados por nivel de color en Google Maps / Leaflet
     try {
-        driverHotMapMarkers.forEach((m) => { try { m.setMap(null); } catch (_) {} });
-        driverHotMapCircles.forEach((c) => { try { c.setMap(null); } catch (_) {} });
+        driverHotMapMarkers.forEach((m) => {
+            try {
+                if (m.map !== undefined) m.map = null;
+                if (typeof m.setMap === 'function') m.setMap(null);
+                if (typeof m.remove === 'function') m.remove();
+            } catch (_) {}
+        });
+        driverHotMapCircles.forEach((c) => {
+            try {
+                if (typeof c.setMap === 'function') c.setMap(null);
+                if (typeof c.remove === 'function') c.remove();
+            } catch (_) {}
+        });
         driverHotMapMarkers = [];
         driverHotMapCircles = [];
+
+        const lMap = typeof window !== 'undefined' ? (window.leafletMap || window.lMap) : null;
+        if (lMap && typeof window.L !== 'undefined') {
+            hotList.forEach(({ store: s, hot }) => {
+                const tier = hot.fireTier || FIRE_COLOR_TIERS[0];
+                const circle = window.L.circle([Number(s.lat), Number(s.lng)], {
+                    radius: tier.mapRadius || 240,
+                    color: tier.primaryColor,
+                    fillColor: tier.secondaryColor,
+                    fillOpacity: 0.24,
+                    weight: 2,
+                }).addTo(lMap);
+                driverHotMapCircles.push(circle);
+                const icon = window.L.divIcon({
+                    className: `hr-leaflet-fire-icon ${tier.cssClass}`,
+                    html: buildHotStoreMapMarkerHtml(s, hot),
+                    iconSize: [160, 68],
+                    iconAnchor: [80, 34],
+                });
+                const marker = window.L.marker([Number(s.lat), Number(s.lng)], { icon }).addTo(lMap);
+                marker.on?.('click', () => focusDriverMapOnHotStore(s.id));
+                driverHotMapMarkers.push(marker);
+            });
+        }
+
         const gMap = typeof window !== 'undefined' ? window.gMap : null;
         if (!gMap || typeof google === 'undefined' || !google.maps) return;
-        hotEntries.slice(0, 12).forEach(({ store: s, hot }) => {
-            const center = { lat: Number(s.lat), lng: Number(s.lng) };
+        hotList.forEach(({ store: s, hot }) => {
+            const tier = hot.fireTier || FIRE_COLOR_TIERS[0];
+            const pos = { lat: Number(s.lat), lng: Number(s.lng) };
             if (google.maps.Circle) {
-                const circle = new google.maps.Circle({
+                const outerWave = new google.maps.Circle({
                     map: gMap,
-                    center,
-                    radius: 220,
-                    fillColor: '#f97316',
-                    fillOpacity: 0.2,
-                    strokeColor: '#ea580c',
-                    strokeOpacity: 0.75,
-                    strokeWeight: 2,
+                    center: pos,
+                    radius: (tier.mapRadius || 230) * 1.35,
+                    fillColor: tier.primaryColor,
+                    fillOpacity: 0.11,
+                    strokeColor: tier.primaryColor,
+                    strokeOpacity: 0.45,
+                    strokeWeight: 1.5,
                     clickable: false,
                 });
-                driverHotMapCircles.push(circle);
+                const innerCore = new google.maps.Circle({
+                    map: gMap,
+                    center: pos,
+                    radius: tier.mapRadius || 230,
+                    fillColor: tier.secondaryColor,
+                    fillOpacity: 0.24,
+                    strokeColor: tier.primaryColor,
+                    strokeOpacity: 0.85,
+                    strokeWeight: 2.5,
+                    clickable: false,
+                });
+                driverHotMapCircles.push(outerWave, innerCore);
             }
-            if (google.maps.Marker) {
-                const branch = formatStoreBranchLabel(s);
+            if (google.maps.marker?.AdvancedMarkerElement) {
+                const wrap = document.createElement('div');
+                wrap.innerHTML = buildHotStoreMapMarkerHtml(s, hot).trim();
+                const el = wrap.firstElementChild || wrap;
+                el.addEventListener('click', () => focusDriverMapOnHotStore(s.id));
+                const advMarker = new google.maps.marker.AdvancedMarkerElement({
+                    map: gMap,
+                    position: pos,
+                    content: el,
+                    title: `${tier.label} · ${s.name || 'Restaurante'} (${hot.shipmentsLabel})`,
+                    zIndex: 30 + (tier.level || 1),
+                });
+                driverHotMapMarkers.push(advMarker);
+            } else if (google.maps.Marker) {
                 const marker = new google.maps.Marker({
                     map: gMap,
-                    position: center,
-                    title: `🔥 ${s.name || 'Restaurante'}${branch ? ` (${branch})` : ''} · ${hot.label}`,
+                    position: pos,
+                    title: `${tier.label} ${s.name || 'Restaurante'} · ${hot.shipmentsLabel} · ${hot.expiryLabel}`,
                     label: {
-                        text: '🔥',
-                        fontSize: '16px',
+                        text: `${tier.emoji} ${hot.countLastHour}`,
+                        fontSize: '13px',
+                        fontWeight: '900',
+                        color: '#ffffff',
                     },
                 });
                 marker.addListener?.('click', () => focusDriverMapOnHotStore(s.id));
@@ -7303,7 +9309,6 @@ export function syncDriverHotStoresOnMap() {
         });
     } catch (_) {}
 }
-
 
 export function syncMerchantQuickAccessUi() {
     if (typeof document === 'undefined') return;
@@ -7380,6 +9385,11 @@ export function initMerchantStores(deps = {}) {
     window.closeStoresMarketplace = (opts) => closeMarketplace(opts || {});
     window.openMerchantPanel = openMerchantPanel;
     /** Menú por rol: resumen de tienda(s) y sucursales del emprendedor. */
+    window.getMyStoreProducts = (storeId = null) => {
+        if (storeId && myStore?.id && storeId !== myStore.id) return [];
+        return (Array.isArray(myProducts) ? myProducts : []).filter((p) => p && p.available !== false);
+    };
+    startFireZonesAutoRefreshInterval();
     window.getMyStoreSummary = () => (myStore ? {
         id: myStore.id,
         name: myStore.name || '',
@@ -7427,6 +9437,8 @@ export function initMerchantStores(deps = {}) {
 export function onMerchantAuthReady() {
     bindUiHooks();
     startStoresListener();
+    startRecentStoreDeliveriesListener();
+    startFireZonesAutoRefreshInterval();
     if (getCurrentUser()?.uid) {
         startClientOrdersListener();
     }
@@ -7465,7 +9477,13 @@ export const __testMerchant = {
     orderCardHtml,
     productRatingInfo,
     computeStarProducts,
+    FIRE_ZONE_WINDOW_MS,
+    FIRE_COLOR_TIERS,
+    getFireTier,
+    isStoreOpenNow,
+    recordStoreSaleActivity,
     storeHotInfo,
+    buildHotStoreMapMarkerHtml,
     buildHotStoresStripHtml,
     buildStoreStarProductsSectionHtml,
     buildOrderProductRatingModalHtml,
