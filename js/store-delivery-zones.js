@@ -6,7 +6,7 @@
  * El monto que queda en el pedido lo pone SIEMPRE el servidor (onStoreOrderCreatedZoneFee).
  */
 import { collection, doc, getDoc, getDocs, query, where } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { esc, money, rangeLabel, validateStoreFee, effectiveFee, zoneColor, zonesSvg } from './delivery-zones-shared.js?v=2026.10.24.1';
+import { esc, money, rangeLabel, validateStoreFee, effectiveFee, zoneColor, zonesSvg } from './delivery-zones-shared.js?v=2026.10.24.2';
 
 const FN_URL = 'https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js';
 export const ZONE_FEE_SOURCES = ['zone_base', 'store_custom'];

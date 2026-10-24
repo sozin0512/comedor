@@ -7,7 +7,7 @@ import {
     MERCHANT_DELIVERY_VEHICLES, haversineKm, validateMerchantDeliveryForm,
     buildMerchantDeliveryTrip, merchantDeliveryStatus, merchantVehicleAvailability, merchantCancelPatch,
     resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras, customerChargeText,
-} from './merchant-delivery-request.js?v=2026.10.24.1';
+} from './merchant-delivery-request.js?v=2026.10.24.2';
 
 function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
