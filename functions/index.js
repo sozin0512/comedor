@@ -4682,6 +4682,119 @@ async function refundStoreOrderSaldoAdmin(appId, orderId, after, reason = 'cance
     return true;
 }
 
+
+/**
+ * Actualiza contadores de productos estrella y "Restaurante en fuego" cuando un pedido
+ * pasa a delivered o cuando el cliente califica los productos recibidos (1 a 5 ★).
+ */
+async function syncStoreOrderStatsAndRatingsAdmin(appId, orderId, before, after) {
+    const db = admin.firestore();
+    const base = `artifacts/${appId}/public/data`;
+    const storeId = after?.storeId;
+    if (!storeId) return;
+
+    const justDelivered = before?.status !== 'delivered' && after?.status === 'delivered';
+    const justRated = !before?.ratedAt && !!after?.ratedAt && after?.productRatings && typeof after.productRatings === 'object';
+    if (!justDelivered && !justRated) return;
+
+    const items = Array.isArray(after.items) ? after.items : [];
+    const ratingsMap = (after.productRatings && typeof after.productRatings === 'object') ? after.productRatings : {};
+
+    // 1. Actualizar cada producto del pedido (y sucursales vinculadas por sourceProductId)
+    for (const item of items) {
+        const pid = String(item?.productId || '').trim();
+        if (!pid) continue;
+        const qty = Math.max(1, Number(item?.qty) || 1);
+        const rated = ratingsMap[pid];
+        const stars = rated ? Math.min(5, Math.max(1, Math.round(Number(rated.stars) || 0))) : 0;
+
+        try {
+            const prodRef = db.doc(`${base}/store_products/${pid}`);
+            const prodSnap = await prodRef.get();
+            if (!prodSnap.exists) continue;
+            const p = prodSnap.data() || {};
+            const nextOrders = (Number(p.ordersCount) || 0) + (justDelivered ? 1 : 0);
+            const nextUnits = (Number(p.unitsSold) || 0) + (justDelivered ? qty : 0);
+            const nextRatingCount = (Number(p.ratingCount) || 0) + (justRated && stars >= 1 ? 1 : 0);
+            const nextRatingSum = (Number(p.ratingSum) || 0) + (justRated && stars >= 1 ? stars : 0);
+            const nextRatingAvg = nextRatingCount > 0
+                ? Math.round((nextRatingSum / nextRatingCount) * 100) / 100
+                : (Number(p.ratingAvg) || 0);
+            const isStarProduct = Boolean(
+                (nextRatingAvg >= 4.5 && nextRatingCount >= 1)
+                || (nextRatingAvg >= 4.2 && nextOrders >= 3)
+                || nextOrders >= 5
+            );
+            const patch = {
+                ordersCount: nextOrders,
+                unitsSold: nextUnits,
+                ratingCount: nextRatingCount,
+                ratingSum: nextRatingSum,
+                ratingAvg: nextRatingAvg,
+                isStarProduct,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            await prodRef.set(patch, { merge: true });
+        } catch (e) {
+            console.warn('[stars] product stats update failed', pid, e?.message || e);
+        }
+    }
+
+    // 2. Actualizar la tienda (ratingAvg, ordersCount, hotScore, isHot)
+    try {
+        const storeRef = db.doc(`${base}/stores/${storeId}`);
+        const storeSnap = await storeRef.get();
+        if (storeSnap.exists) {
+            const s = storeSnap.data() || {};
+            const ratingEntries = Object.values(ratingsMap)
+                .map((r) => Math.min(5, Math.max(1, Math.round(Number(r?.stars) || 0))))
+                .filter((n) => n >= 1 && n <= 5);
+            const orderStarsAvg = ratingEntries.length
+                ? ratingEntries.reduce((a, b) => a + b, 0) / ratingEntries.length
+                : (Number(after.storeRating) || 0);
+
+            const nextOrdersCount = (Number(s.ordersCount) || 0) + (justDelivered ? 1 : 0);
+            const nextRatingCount = (Number(s.ratingCount) || 0) + (justRated && orderStarsAvg > 0 ? 1 : 0);
+            const nextRatingSum = (Number(s.ratingSum) || 0) + (justRated && orderStarsAvg > 0 ? orderStarsAvg : 0);
+            const nextRatingAvg = nextRatingCount > 0
+                ? Math.round((nextRatingSum / nextRatingCount) * 100) / 100
+                : (Number(s.ratingAvg) || 0);
+            const hotScore = Math.round((nextOrdersCount * 2 + (nextRatingAvg >= 4.5 ? 6 : 0) + (justDelivered ? 4 : 0)) * 10) / 10;
+            const isHot = Boolean(hotScore >= 6 || nextOrdersCount >= 3 || (nextRatingAvg >= 4.6 && nextRatingCount >= 2));
+
+            await storeRef.set({
+                ordersCount: nextOrdersCount,
+                ratingCount: nextRatingCount,
+                ratingSum: nextRatingSum,
+                ratingAvg: nextRatingAvg,
+                hotScore,
+                isHot,
+                lastOrderAtMs: Date.now(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+        }
+    } catch (e) {
+        console.warn('[stars] store hotScore update failed', storeId, e?.message || e);
+    }
+
+    // 3. Avisar al emprendedor cuando un cliente califica sus productos
+    if (justRated && after.ownerId) {
+        const storeName = after.storeName ? String(after.storeName).slice(0, 40) : 'tu negocio';
+        await sendPushToUser(appId, after.ownerId, {
+            title: '⭐ Nueva calificación de tus productos',
+            body: `${after.clientName || 'Un cliente'} calificó los productos de su pedido en ${storeName}.`,
+            data: {
+                type: 'store_order_rated',
+                toneEvent: 'store_order_update',
+                orderId: String(orderId || ''),
+                storeId: String(storeId || ''),
+                openMerchant: 'true',
+            },
+            highPriority: false,
+        }).catch(() => {});
+    }
+}
+
 /** Avisos al cliente (y refuerzo al emprendedor) cuando el pedido cambia de estado. */
 exports.onStoreOrderUpdatedPush = onDocumentUpdated(
     'artifacts/{appId}/public/data/store_orders/{orderId}',
@@ -4689,6 +4802,11 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
         const before = event.data.before.data() || {};
         const after = event.data.after.data() || {};
         const { appId, orderId } = event.params;
+        if (after) {
+            await syncStoreOrderStatsAndRatingsAdmin(appId, orderId, before, after).catch((e) => {
+                console.warn('syncStoreOrderStatsAndRatingsAdmin', e?.message || e);
+            });
+        }
         const tripCancelledNow = after.deliveryStage === 'trip_cancelled' && before.deliveryStage !== 'trip_cancelled';
         if (!after || (before.status === after.status && !tripCancelledNow)) return;
 

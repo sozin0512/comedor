@@ -45,9 +45,9 @@ const sq = (lat, lng, d) => [{ lat: lat - d, lng: lng - d }, { lat: lat - d, lng
 const zc = { id: 'c', name: 'Céntrica', active: true, priority: 1, baseFee: 45, polygon: sq(C.lat, C.lng, 0.005), cityId: 'comayagua' };
 const zf = { id: 'f', name: 'Fuera', active: true, priority: 2, baseFee: 110, minFee: 100, maxFee: 120, polygon: sq(C.lat, C.lng, 0.03), cityId: 'comayagua' };
 const qMoto = DZ.quoteDelivery({ zones: [zc], lat: C.lat, lng: C.lng });
-ok('sin vehículo la tarifa es la de la moto', qMoto.fee === 45 && qMoto.feeMoto === 45 && qMoto.feeCar === 56.25 && qMoto.vehicle === 'moto' && qMoto.carFactor === 1.25);
+ok('sin vehículo la tarifa es la de la moto (y carro mínimo L. 75)', qMoto.fee === 45 && qMoto.feeMoto === 45 && qMoto.feeCar === 75 && qMoto.vehicle === 'moto' && qMoto.carFactor === 1.25);
 const qCar = DZ.quoteDelivery({ zones: [zc], lat: C.lat, lng: C.lng, vehicle: 'carro' });
-ok('carro: 45 → 56.25', qCar.fee === 56.25 && qCar.vehicle === 'auto' && qCar.feeMoto === 45);
+ok('carro mínimo L. 75: 45 → 75', qCar.fee === 75 && qCar.vehicle === 'auto' && qCar.feeMoto === 45);
 const q115 = DZ.quoteDelivery({ zones: [zf], storeFees: { f: { mode: 'custom', fee: 115 } }, lat: C.lat + 0.02, lng: C.lng, vehicle: 'auto' });
 ok('carro sobre tarifa de la tienda: 115 → 143.75', q115.fee === 143.75 && q115.feeMoto === 115 && q115.feeCar === 143.75 && q115.source === 'store_custom');
 const q115m = DZ.quoteDelivery({ zones: [zf], storeFees: { f: { mode: 'custom', fee: 115 } }, lat: C.lat + 0.02, lng: C.lng, vehicle: 'moto' });

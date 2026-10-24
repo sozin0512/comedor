@@ -96,6 +96,14 @@ let cart = [];
 /** @type {object|null} */
 let myStore = null;
 /** @type {object[]} */
+let myStores = [];
+/** @type {object|null} Sucursal origen cuando se clona una nueva sucursal del mismo restaurante */
+let merchantCloneFromStore = null;
+/** @type {string|null} Producto en edición dentro de la pestaña Menú */
+let editingProductId = null;
+let pendingEditProductPhoto = null;
+let pendingEditProductPhotoPreview = null;
+/** @type {object[]} */
 let myProducts = [];
 /** @type {object[]} */
 let merchantOrders = [];
@@ -561,6 +569,7 @@ function cityStoreCounts(cityId) {
     const general = base.filter((s) => !isStoreAdultsOnly(s));
     const counts = {
         all: general.length,
+        hot: general.filter((s) => storeHotInfo(s).isHot).length,
         adultos: canSeeAdultStores() ? base.filter((s) => isStoreAdultsOnly(s)).length : 0,
     };
     STORE_CATEGORIES.forEach((c) => {
@@ -646,6 +655,124 @@ function storeOpenInfo(s, now = hnNowMinutes()) {
     return within
         ? { open: true, label: `Cierra ${fmtHour12(h.close)}` }
         : { open: false, label: `Abre ${fmtHour12(h.open)}` };
+}
+
+export function formatStoreHoursSummary(s) {
+    const h = storeHours(s);
+    if (!h) return 'Horario libre';
+    return `${fmtHour12(h.open)} – ${fmtHour12(h.close)}`;
+}
+
+export function formatStoreBranchLabel(s) {
+    const b = String(s?.branchName || '').trim();
+    return b || '';
+}
+
+function getSavedSelectedStoreId(uid = getCurrentUser()?.uid) {
+    if (!uid || typeof localStorage === 'undefined') return null;
+    try { return localStorage.getItem(`hr_selected_my_store_${uid}`) || null; } catch (_) { return null; }
+}
+
+function setSavedSelectedStoreId(storeId, uid = getCurrentUser()?.uid) {
+    if (!uid || typeof localStorage === 'undefined') return;
+    try {
+        if (storeId) localStorage.setItem(`hr_selected_my_store_${uid}`, String(storeId));
+        else localStorage.removeItem(`hr_selected_my_store_${uid}`);
+    } catch (_) {}
+}
+
+/**
+ * Calificación (1-5 ★) y estado de "Producto estrella" de un plato.
+ */
+export function productRatingInfo(p) {
+    const count = Math.max(0, Math.floor(Number(p?.ratingCount) || 0));
+    const sum = Number(p?.ratingSum) || 0;
+    const rawAvg = Number(p?.ratingAvg) || (count > 0 ? sum / count : 0);
+    const avg = count > 0 ? Math.round(rawAvg * 10) / 10 : 0;
+    const ordersCount = Math.max(0, Math.floor(Number(p?.ordersCount ?? p?.unitsSold) || 0));
+    const isStar = Boolean(
+        p?.isStarProduct
+        || (avg >= 4.5 && count >= 1)
+        || (avg >= 4.2 && ordersCount >= 3)
+        || ordersCount >= 5
+    );
+    return { avg, count, ordersCount, isStar };
+}
+
+/**
+ * Calcula el ranking de "Productos estrella" combinando datos del producto y pedidos entregados/calificados.
+ */
+export function computeStarProducts(products = [], orders = []) {
+    const byId = new Map();
+    for (const p of (products || [])) {
+        if (!p || p.available === false) continue;
+        byId.set(p.id, {
+            ...p,
+            _extraStarsSum: 0,
+            _extraStarsCount: 0,
+            _extraOrders: 0,
+        });
+    }
+    for (const o of (orders || [])) {
+        if (!o || o.status === 'cancelled') continue;
+        const ratings = (o.productRatings && typeof o.productRatings === 'object') ? o.productRatings : {};
+        const items = Array.isArray(o.items) ? o.items : [];
+        for (const it of items) {
+            const pid = it?.productId;
+            if (!pid || !byId.has(pid)) continue;
+            const entry = byId.get(pid);
+            if (o.status === 'delivered' && !Number(entry.ordersCount)) {
+                entry._extraOrders += Math.max(1, Number(it.qty) || 1);
+            }
+            const r = ratings[pid];
+            const st = r ? Math.min(5, Math.max(1, Math.round(Number(r.stars) || 0))) : 0;
+            if (st >= 1 && !Number(entry.ratingCount)) {
+                entry._extraStarsSum += st;
+                entry._extraStarsCount += 1;
+            }
+        }
+    }
+    const enriched = [...byId.values()].map((p) => {
+        const baseCount = Math.max(0, Math.floor(Number(p.ratingCount) || 0));
+        const count = baseCount || p._extraStarsCount;
+        const avg = baseCount > 0
+            ? Math.round((Number(p.ratingAvg) || (Number(p.ratingSum) / baseCount) || 0) * 10) / 10
+            : (p._extraStarsCount > 0 ? Math.round((p._extraStarsSum / p._extraStarsCount) * 10) / 10 : 0);
+        const ordersCount = Math.max(Number(p.ordersCount ?? p.unitsSold) || 0, p._extraOrders);
+        const isStar = Boolean(
+            p.isStarProduct
+            || (avg >= 4.5 && count >= 1)
+            || (avg >= 4.2 && ordersCount >= 3)
+            || ordersCount >= 5
+        );
+        const score = (avg > 0 ? avg * 2 : 0) + Math.min(ordersCount, 25) * 0.35 + (isStar ? 3 : 0);
+        return { ...p, ratingAvg: avg, ratingCount: count, ordersCount, isStarProduct: isStar, _starScore: score };
+    });
+    return enriched
+        .filter((p) => p.isStarProduct || p.ratingCount > 0 || p.ordersCount > 0)
+        .sort((a, b) => b._starScore - a._starScore || (b.ratingAvg || 0) - (a.ratingAvg || 0) || (b.ordersCount || 0) - (a.ordersCount || 0));
+}
+
+/**
+ * Determina si un restaurante/tienda está "🔥 En fuego" (alta demanda de pedidos o calificación sobresaliente).
+ */
+export function storeHotInfo(s, activeOrdersCount = 0) {
+    const ratingCount = Math.max(0, Math.floor(Number(s?.ratingCount) || 0));
+    const ratingAvg = ratingCount > 0 ? Math.round((Number(s?.ratingAvg) || 0) * 10) / 10 : 0;
+    const ordersCount = Math.max(0, Math.floor(Number(s?.ordersCount ?? s?.recentOrdersCount) || 0));
+    const computedScore = ordersCount * 2 + activeOrdersCount * 4 + (ratingAvg >= 4.5 ? 6 : 0);
+    const hotScore = Math.max(Number(s?.hotScore) || 0, computedScore);
+    const isHot = Boolean(
+        s?.isHot
+        || hotScore >= 6
+        || activeOrdersCount >= 2
+        || ordersCount >= 3
+        || (ratingAvg >= 4.6 && ratingCount >= 2)
+    );
+    const label = activeOrdersCount >= 2
+        ? `${activeOrdersCount} pedidos activos`
+        : (ordersCount >= 3 ? `${ordersCount} pedidos recientes` : 'Alta demanda');
+    return { isHot, hotScore, ratingAvg, ratingCount, ordersCount, activeOrdersCount, label };
 }
 
 function storeInitials(name) {
@@ -917,13 +1044,13 @@ function ensureShell() {
     }
 
     let merchant = document.getElementById('merchant-panel');
-    if (!merchant || merchant.getAttribute('data-layout') !== 'world-v1') {
+    if (!merchant || merchant.getAttribute('data-layout') !== 'world-v2') {
         const wasOpen = merchant && !merchant.classList.contains('hidden');
         merchant?.remove();
         merchant = document.createElement('div');
         merchant.id = 'merchant-panel';
         merchant.className = 'stores-world stores-world--merchant hidden';
-        merchant.setAttribute('data-layout', 'world-v1');
+        merchant.setAttribute('data-layout', 'world-v2');
         merchant.innerHTML = `
             <div class="stores-world-inner">
                 <header class="stores-world-head stores-world-head--merchant">
@@ -939,6 +1066,7 @@ function ensureShell() {
                             <i class="fas fa-store"></i> <span id="merchant-open-label">Cerrada</span>
                         </button>
                     </div>
+                    <div id="merchant-store-switcher" class="merchant-store-switcher"></div>
                     <nav class="merchant-tabs" role="tablist">
                         <button type="button" class="merchant-tab active" data-merchant-tab="orders">Pedidos</button>
                         <button type="button" class="merchant-tab" data-merchant-tab="products">Menú</button>
@@ -1091,14 +1219,14 @@ function injectProfileEntry() {
         <button type="button" id="btn-merchant-my-store"
                 class="w-full flex items-center justify-center gap-3 py-3 border border-emerald-200 bg-emerald-50 rounded-2xl text-sm font-bold text-emerald-900 active:bg-emerald-100">
             <i class="fas fa-store text-emerald-600"></i>
-            <span>Mi tienda (1 por cuenta)</span>
+            <span>Mis tiendas / sucursales</span>
         </button>
         <button type="button" id="btn-merchant-create-store"
                 class="w-full flex items-center justify-center gap-3 py-3 border border-amber-200 bg-amber-50 rounded-2xl text-sm font-bold text-amber-900 active:bg-amber-100">
             <i class="fas fa-plus-circle text-amber-600"></i>
-            <span>Crear mi tienda</span>
+            <span>Agregar sucursal o tienda</span>
         </button>
-        <p class="text-[10px] text-slate-500 text-center font-semibold px-1">Solo 1 tienda por usuario. Si ya tienes, se abre la tuya.</p>
+        <p class="text-[10px] text-slate-500 text-center font-semibold px-1">Puedes administrar varias sucursales (con distinta ubicación y horario) desde tu cuenta.</p>
     `;
     const referral = profileScroll.querySelector('.bg-emerald-50');
     if (referral?.parentElement) {
@@ -1145,7 +1273,7 @@ function injectHeaderMenuEntry() {
         cBtn.id = 'header-menu-create-store';
         cBtn.className = 'header-more-item';
         cBtn.setAttribute('role', 'menuitem');
-        cBtn.innerHTML = `<i class="fas fa-plus-circle text-amber-600"></i><span>Crear mi tienda (máx. 1)</span>`;
+        cBtn.innerHTML = `<i class="fas fa-plus-circle text-amber-600"></i><span>Agregar sucursal / tienda</span>`;
         cBtn.addEventListener('click', () => {
             menu.classList.add('hidden');
             openMerchantPanel({ createNew: true });
@@ -1238,33 +1366,71 @@ function syncAdultStoresListener() {
     });
 }
 
+function sortOwnedStores(list = []) {
+    return list.slice().sort((a, b) => {
+        const ap = a.parentStoreId ? 1 : 0;
+        const bp = b.parentStoreId ? 1 : 0;
+        if (ap !== bp) return ap - bp;
+        const ta = a.createdAt?.toMillis?.() || 0;
+        const tb = b.createdAt?.toMillis?.() || 0;
+        if (ta !== tb) return ta - tb;
+        return String(a.branchName || a.name || '').localeCompare(String(b.branchName || b.name || ''), 'es');
+    });
+}
+
 function refreshMyStoreFromCache() {
     const uid = getCurrentUser()?.uid;
     if (!uid) {
         myStore = null;
+        myStores = [];
         return;
     }
-    myStore = [...storesCache.values()].find((s) => s.ownerId === uid) || myStore;
+    const fromCache = [...storesCache.values()].filter((s) => s.ownerId === uid && s.deleted !== true);
+    if (fromCache.length) {
+        const merged = new Map(myStores.map((s) => [s.id, s]));
+        fromCache.forEach((s) => merged.set(s.id, s));
+        myStores = sortOwnedStores([...merged.values()]);
+    }
+    const savedId = getSavedSelectedStoreId(uid);
+    if (myStore?.id && myStores.some((s) => s.id === myStore.id)) {
+        myStore = myStores.find((s) => s.id === myStore.id) || myStore;
+    } else if (savedId && myStores.some((s) => s.id === savedId)) {
+        myStore = myStores.find((s) => s.id === savedId) || myStores[0] || null;
+    } else if (myStores.length) {
+        myStore = myStores[0];
+    }
     updateMerchantOpenToggle();
+    renderMerchantStoreSwitcher();
+    syncDriverHotStoresOnMap();
 }
 
-async function loadMyStore() {
+async function loadMyStore(preferredStoreId = null) {
     const uid = getCurrentUser()?.uid;
-    if (!uid) return null;
+    if (!uid) {
+        myStore = null;
+        myStores = [];
+        return null;
+    }
     try {
-        const q = query(publicCol('stores'), where('ownerId', '==', uid), limit(1));
+        const q = query(publicCol('stores'), where('ownerId', '==', uid), limit(25));
         const snap = await getDocs(q);
         if (snap.empty) {
             myStore = null;
+            myStores = [];
             return null;
         }
-        const d = snap.docs[0];
-        myStore = { id: d.id, ...d.data() };
-        storesCache.set(myStore.id, myStore);
+        const list = snap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((s) => s.deleted !== true);
+        myStores = sortOwnedStores(list);
+        myStores.forEach((s) => storesCache.set(s.id, s));
+        const wantedId = preferredStoreId || myStore?.id || getSavedSelectedStoreId(uid);
+        myStore = (wantedId && myStores.find((s) => s.id === wantedId)) || myStores[0] || null;
+        if (myStore?.id) setSavedSelectedStoreId(myStore.id, uid);
         return myStore;
     } catch (e) {
         console.warn('[stores] loadMyStore', e);
-        return null;
+        return myStore || null;
     }
 }
 
@@ -1346,6 +1512,7 @@ function handleMerchantOrdersSnapshot(docs) {
         }
         merchantOrders = next;
     }
+    renderMerchantStoreSwitcher();
     if (!document.getElementById('merchant-panel')?.classList.contains('hidden') && merchantTab === 'orders') {
         renderMerchantBody();
     }
@@ -1673,9 +1840,9 @@ function renderCategoryChips() {
                 <span>Mi tienda</span>
             </button>
             <button type="button" class="stores-action-chip stores-action-chip--create"
-                    data-stores-action="create-store" title="Crear mi tienda (máx. 1)">
+                    data-stores-action="create-store" title="Agregar sucursal o crear tienda">
                 <i class="fas fa-plus"></i>
-                <span>Crear tienda</span>
+                <span>+ Sucursal / tienda</span>
             </button>
             ${staffInvite}
         `;
@@ -1707,6 +1874,7 @@ function renderCategoryChips() {
     const adultAllowed = canSeeAdultStores();
     const chips = [
         { id: 'all', label: 'Todas', shortLabel: 'Todas', icon: 'fa-border-all' },
+        { id: 'hot', label: '🔥 En fuego', shortLabel: '🔥 En fuego', icon: 'fa-fire' },
         ...STORE_CATEGORIES,
         // Zona +18: mayores de edad y staff; sin fecha de nacimiento sale con candado (pide la fecha). Menores: no.
         ...(adultZoneVisible() ? [ADULT_ZONE_CHIP] : []),
@@ -1757,7 +1925,9 @@ function filteredStoreList() {
         all = canSeeAdultStores() ? all.filter((s) => isStoreAdultsOnly(s)) : [];
     } else {
         all = all.filter((s) => !isStoreAdultsOnly(s));
-        if (storesCategoryFilter && storesCategoryFilter !== 'all') {
+        if (storesCategoryFilter === 'hot') {
+            all = all.filter((s) => storeHotInfo(s).isHot);
+        } else if (storesCategoryFilter && storesCategoryFilter !== 'all') {
             all = all.filter((s) => (s.category || 'otro') === storesCategoryFilter);
         }
     }
@@ -1767,7 +1937,7 @@ function filteredStoreList() {
 
     if (q) {
         list = list.filter((s) => {
-            const hay = `${s.name || ''} ${s.description || ''} ${s.address || ''} ${s.category || ''} ${s.cityName || ''}`.toLowerCase();
+            const hay = `${s.name || ''} ${s.branchName || ''} ${s.description || ''} ${s.address || ''} ${s.category || ''} ${s.cityName || ''}`.toLowerCase();
             return hay.includes(q);
         });
     }
@@ -1822,6 +1992,84 @@ function adultZoneEntryHtml() {
         </button>`;
 }
 
+export function buildHotStoresStripHtml(stores = []) {
+    const now = hnNowMinutes();
+    const hotList = (stores || [])
+        .filter((s) => !isStoreAdultsOnly(s) && storeHotInfo(s).isHot)
+        .sort((a, b) => storeHotInfo(b).hotScore - storeHotInfo(a).hotScore);
+    if (!hotList.length) return '';
+    return `
+        <section class="hot-stores-strip" aria-label="Restaurantes en fuego">
+            <div class="hot-stores-strip__head">
+                <div>
+                    <p class="hot-stores-strip__title">🔥 Restaurantes en fuego</p>
+                    <p class="hot-stores-strip__sub">Los más pedidos y mejor puntuados ahorita</p>
+                </div>
+                <button type="button" class="hot-stores-strip__filter" data-stores-action="filter-cat" data-cat="hot">
+                    Ver todos (${hotList.length})
+                </button>
+            </div>
+            <div class="hot-stores-strip__scroller" role="list">
+                ${hotList.slice(0, 8).map((s) => {
+                    const hot = storeHotInfo(s);
+                    const openInfo = storeOpenInfo(s, now);
+                    const branch = formatStoreBranchLabel(s);
+                    return `
+                        <button type="button" class="hot-store-pill" data-stores-action="open-store" data-store-id="${esc(s.id)}" role="listitem">
+                            <span class="hot-store-pill__fire" aria-hidden="true">🔥</span>
+                            <span class="hot-store-pill__body">
+                                <strong class="hot-store-pill__name">${esc(s.name || 'Restaurante')}${branch ? ` <small class="hot-store-pill__branch">· ${esc(branch)}</small>` : ''}</strong>
+                                <span class="hot-store-pill__meta">
+                                    ${hot.ratingCount > 0 ? `<span class="hot-store-pill__stars">★ ${hot.ratingAvg.toFixed(1)} (${hot.ratingCount})</span> · ` : ''}
+                                    <span>${esc(hot.label)}</span>
+                                    · <span class="${openInfo.open ? 'text-emerald-700' : 'text-slate-500'}">${openInfo.open ? 'Abierto' : 'Cerrado'}</span>
+                                </span>
+                            </span>
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        </section>
+    `;
+}
+
+export function buildStoreStarProductsSectionHtml(products = [], store = viewingStore) {
+    const stars = computeStarProducts(products, clientOrders.filter((o) => o.storeId === store?.id)).slice(0, 4);
+    if (!stars.length) return '';
+    return `
+        <section class="store-star-products" aria-label="Productos estrella del restaurante">
+            <div class="store-star-products__head">
+                <p class="store-star-products__title">⭐ Productos estrella de este restaurante</p>
+                <span class="store-star-products__badge">Favoritos de los clientes</span>
+            </div>
+            <div class="store-star-products__grid">
+                ${stars.map((p) => {
+                    const price = productBasePrice(p);
+                    const rInfo = productRatingInfo(p);
+                    const available = productCanSell(p, store);
+                    return `
+                        <div class="store-star-card" data-star-product-id="${esc(p.id)}">
+                            ${productPhotoHtml(p, 'store-star-card__photo')}
+                            <div class="store-star-card__info">
+                                <div class="store-star-card__badges">
+                                    <span class="star-pill">⭐ Producto estrella</span>
+                                    ${rInfo.count > 0 ? `<span class="star-rating-chip">★ ${rInfo.avg.toFixed(1)} (${rInfo.count})</span>` : ''}
+                                    ${rInfo.ordersCount > 0 ? `<span class="star-orders-chip">🔥 ${rInfo.ordersCount} pedidos</span>` : ''}
+                                </div>
+                                <p class="store-star-card__name">${esc(p.name)}</p>
+                                <p class="store-star-card__price">${money(price)}</p>
+                            </div>
+                            ${available ? `
+                                <button type="button" class="stores-add-btn" data-stores-action="cart-add" data-product-id="${esc(p.id)}">Agregar</button>
+                            ` : `<span class="text-[10px] font-bold text-slate-400">Agotado</span>`}
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </section>
+    `;
+}
+
 function renderMarketplace() {
     const body = document.getElementById('stores-panel-body');
     if (!body) return;
@@ -1851,6 +2099,10 @@ function renderMarketplace() {
                     </div>
                     <button type="button" class="hr-link-btn" data-stores-action="clear-filters">Salir</button>
                 </div>`);
+        }
+        if (!isAdultView && storesCategoryFilter === 'all' && !storesSearchQuery.trim()) {
+            const hotStrip = buildHotStoresStripHtml(list);
+            if (hotStrip) parts.push(hotStrip);
         }
         if (!list.length) {
             const others = citiesWithStores().filter((c) => c.id !== city.cityId).slice(0, 4);
@@ -1923,11 +2175,15 @@ function renderMarketplace() {
             <div class="store-detail-head">
                 ${logoBlock}
                 <div class="min-w-0">
-                    <p class="store-detail-name">${esc(viewingStore.name)}${adults ? ' <span class="store-badge-18">+18</span>' : ''}</p>
+                    <p class="store-detail-name">${esc(viewingStore.name)}${viewingStore.branchName ? ` <span class="hr-pill hr-pill--branch">📍 ${esc(viewingStore.branchName)}</span>` : ''}${adults ? ' <span class="store-badge-18">+18</span>' : ''}</p>
                     <p class="store-detail-meta">${esc(catLabel(viewingStore.category))}${viewingStore.cityName ? ` · ${esc(viewingStore.cityName)}` : ''}</p>
                     <div class="hr-pills">
                         <span class="hr-pill ${open ? 'hr-pill--open' : 'hr-pill--closed'}">${open ? '<span class="hr-dot hr-dot--open"></span>Abierta' : 'Cerrada'}</span>
                         ${openInfo.label ? `<span class="hr-pill">${esc(openInfo.label)}</span>` : ''}
+                        ${(() => {
+                            const hot = storeHotInfo(viewingStore);
+                            return `${hot.isHot ? '<span class="hr-pill hr-pill--hot">🔥 En fuego</span>' : ''}${hot.ratingCount > 0 ? `<span class="hr-pill hr-pill--star">★ ${hot.ratingAvg.toFixed(1)} (${hot.ratingCount})</span>` : ''}`;
+                        })()}
                         <span class="hr-pill hr-pill--soft">Moto</span>
                         <span class="hr-pill hr-pill--soft">Taxi VIP</span>
                     </div>
@@ -1938,6 +2194,7 @@ function renderMarketplace() {
             </div>
             ${staffBar}
             ${formatStoreMenuDeliveryLine(storeMenuDeliveryState, viewingStore).bannerHtml}
+            ${buildStoreStarProductsSectionHtml(viewingProducts, viewingStore)}
             <div class="store-products">
                 <p class="stores-section-label">Menú / productos</p>
                 ${viewingProducts.length ? viewingProducts.map(productCardHtml).join('') : `
@@ -1989,11 +2246,15 @@ function storeCardHtml(s) {
                 <span class="hr-store-card-head">
                     ${storeAvatarHtml(s)}
                     <span class="hr-store-card-info">
-                        <span class="hr-store-name">${esc(s.name || 'Tienda')}</span>
-                        <span class="hr-store-meta">${esc(catLabel(s.category))}${s.cityName ? ` · ${esc(s.cityName)}` : ''}</span>
+                        <span class="hr-store-name">${esc(s.name || 'Tienda')}${s.branchName ? ` <span class="hr-store-branch-tag">· ${esc(s.branchName)}</span>` : ''}</span>
+                        <span class="hr-store-meta">${esc(catLabel(s.category))}${s.cityName ? ` · ${esc(s.cityName)}` : ''}${s.address ? ` · ${esc(s.address)}` : ''}</span>
                         <span class="hr-pills">
                             <span class="hr-pill ${open ? 'hr-pill--open' : 'hr-pill--closed'}">${open ? '<span class="hr-dot hr-dot--open"></span>Abierta' : 'Cerrada'}</span>
                             ${info.label ? `<span class="hr-pill">${esc(info.label)}</span>` : ''}
+                            ${(() => {
+                                const hot = storeHotInfo(s);
+                                return `${hot.isHot ? '<span class="hr-pill hr-pill--hot">🔥 En fuego</span>' : ''}${hot.ratingCount > 0 ? `<span class="hr-pill hr-pill--star">★ ${hot.ratingAvg.toFixed(1)} (${hot.ratingCount})</span>` : ''}`;
+                            })()}
                             ${adults ? '<span class="hr-pill hr-pill--adult">+18</span>' : ''}
                             ${staff && appr !== 'approved' ? `<span class="hr-pill hr-pill--${esc(apprMeta.tone)}">${esc(apprMeta.label)}</span>` : ''}
                         </span>
@@ -2355,10 +2616,19 @@ export function productCardHtml(p) {
             ? `<p class="text-[9px] font-bold text-emerald-700">Quedan ${left}</p>`
             : `<p class="text-[9px] font-bold text-slate-400">Sin stock</p>`);
     const deliveryLine = formatStoreMenuDeliveryLine(storeMenuDeliveryState, viewingStore).html;
+    const rInfo = productRatingInfo(p);
+    const starRow = (rInfo.isStar || rInfo.count > 0)
+        ? `<div class="product-card-stars">
+            ${rInfo.isStar ? '<span class="star-pill">⭐ Producto estrella</span>' : ''}
+            ${rInfo.count > 0 ? `<span class="star-rating-chip">★ ${rInfo.avg.toFixed(1)} (${rInfo.count})</span>` : ''}
+            ${rInfo.ordersCount >= 3 ? `<span class="star-orders-chip">🔥 ${rInfo.ordersCount} pedidos</span>` : ''}
+           </div>`
+        : '';
     return `
-        <div class="product-card ${available ? '' : 'product-card--off'}">
+        <div class="product-card ${available ? '' : 'product-card--off'} ${rInfo.isStar ? 'product-card--star' : ''}">
             ${productPhotoHtml(p)}
             <div class="min-w-0 flex-1">
+                ${starRow}
                 <p class="product-card-name">${esc(p.name)}</p>
                 ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
                 <p class="product-card-price">${money(price)}</p>
@@ -2737,6 +3007,188 @@ function orderCardHtml(o, { merchant = false } = {}) {
     `;
 }
 
+export function buildOrderProductRatingModalHtml(order, draftRatings = {}, comment = '') {
+    const items = Array.isArray(order?.items) ? order.items : [];
+    const existing = (order?.productRatings && typeof order.productRatings === 'object') ? order.productRatings : {};
+    return `
+        <div id="order-product-rating-modal" class="order-rating-modal fixed inset-0 z-[99996]" role="dialog" aria-modal="true" aria-label="Puntuar productos recibidos">
+            <div class="order-rating-modal__backdrop" data-rate-action="close"></div>
+            <div class="order-rating-modal__card">
+                <div class="order-rating-modal__head">
+                    <div>
+                        <p class="order-rating-modal__kicker">Pedido entregado · ${esc(order?.storeName || 'Restaurante')}</p>
+                        <h3 class="order-rating-modal__title">⭐ ¿Qué tal estuvieron tus productos?</h3>
+                    </div>
+                    <button type="button" class="order-rating-modal__close" data-rate-action="close" aria-label="Cerrar">✕</button>
+                </div>
+                <p class="order-rating-modal__sub">Tu puntuación ayuda a destacar los <b>⭐ Productos estrella</b> y los <b>🔥 Restaurantes en fuego</b>.</p>
+                <div class="order-rating-modal__list">
+                    ${items.map((it, idx) => {
+                        const pid = String(it.productId || `item_${idx}`);
+                        const currentStars = Number(draftRatings[pid] ?? existing[pid]?.stars ?? 5) || 5;
+                        return `
+                            <div class="order-rating-item" data-rate-product-row="${esc(pid)}">
+                                <div class="order-rating-item__info">
+                                    <p class="order-rating-item__name">${esc(it.qty || 1)}× ${esc(it.name || 'Producto')}</p>
+                                    <span class="order-rating-item__score" data-rate-score-label="${esc(pid)}">${currentStars} ★</span>
+                                </div>
+                                <div class="order-rating-stars" role="radiogroup" aria-label="Calificación de ${esc(it.name || 'Producto')}">
+                                    ${[1, 2, 3, 4, 5].map((star) => `
+                                        <button type="button"
+                                                class="order-rating-star ${star <= currentStars ? 'is-on' : ''}"
+                                                data-rate-action="pick-star"
+                                                data-product-id="${esc(pid)}"
+                                                data-stars="${star}"
+                                                aria-label="${star} estrellas">★</button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <label class="stores-field mt-2">
+                    <span>Comentario (opcional)</span>
+                    <textarea id="order-rating-comment" class="stores-input" rows="2" maxlength="300" placeholder="¡Las baleadas llegaron calientitas y deliciosas!">${esc(comment || order?.ratingComment || '')}</textarea>
+                </label>
+                <div class="order-rating-modal__actions">
+                    <button type="button" class="stores-primary-btn w-full" data-rate-action="submit" data-order-id="${esc(order?.id || '')}">
+                        ⭐ Enviar mi puntuación
+                    </button>
+                    <button type="button" class="stores-secondary-btn w-full" data-rate-action="close">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+export async function submitOrderProductRatings(orderId, ratingsByProductId = {}, comment = '') {
+    const order = clientOrders.find((o) => o.id === orderId) || merchantOrders.find((o) => o.id === orderId);
+    if (!order || order.status !== 'delivered') {
+        toast('Solo puedes puntuar pedidos ya entregados', 'warning');
+        return false;
+    }
+    const items = Array.isArray(order.items) ? order.items : [];
+    const productRatings = {};
+    let sum = 0;
+    let count = 0;
+    items.forEach((it, idx) => {
+        const pid = String(it.productId || `item_${idx}`);
+        const stars = Math.min(5, Math.max(1, Math.round(Number(ratingsByProductId[pid] ?? 5) || 5)));
+        productRatings[pid] = {
+            stars,
+            name: String(it.name || 'Producto').slice(0, 120),
+            qty: Number(it.qty) || 1,
+        };
+        sum += stars;
+        count += 1;
+    });
+    const storeRating = count > 0 ? Math.round((sum / count) * 10) / 10 : 5;
+    const cleanComment = String(comment || '').trim().slice(0, 300);
+
+    try {
+        await updateDoc(publicDoc('store_orders', orderId), {
+            productRatings,
+            storeRating,
+            ratingComment: cleanComment || null,
+            ratedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+    } catch (e) {
+        console.warn('[stores] submitOrderProductRatings firestore', e);
+    }
+
+    // Actualizar estado en memoria para respuesta visual inmediata
+    order.productRatings = productRatings;
+    order.storeRating = storeRating;
+    order.ratingComment = cleanComment || null;
+    order.ratedAt = order.ratedAt || { toMillis: () => Date.now() };
+
+    for (const [pid, r] of Object.entries(productRatings)) {
+        for (const list of [viewingProducts, myProducts]) {
+            const p = list.find((x) => x.id === pid);
+            if (p) {
+                const prevCount = Number(p.ratingCount) || 0;
+                const prevSum = Number(p.ratingSum) || (Number(p.ratingAvg || 0) * prevCount);
+                p.ratingCount = prevCount + 1;
+                p.ratingSum = prevSum + r.stars;
+                p.ratingAvg = Math.round((p.ratingSum / p.ratingCount) * 10) / 10;
+                p.ordersCount = Math.max(1, Number(p.ordersCount ?? p.unitsSold) || 0);
+                if (p.ratingAvg >= 4.5) p.isStarProduct = true;
+            }
+        }
+    }
+    const targetStore = storesCache.get(order.storeId) || (myStore?.id === order.storeId ? myStore : null);
+    if (targetStore) {
+        const sc = Number(targetStore.ratingCount) || 0;
+        const ss = Number(targetStore.ratingSum) || (Number(targetStore.ratingAvg || 0) * sc);
+        targetStore.ratingCount = sc + 1;
+        targetStore.ratingSum = ss + storeRating;
+        targetStore.ratingAvg = Math.round((targetStore.ratingSum / targetStore.ratingCount) * 10) / 10;
+    }
+
+    toast('⭐ ¡Gracias! Tu puntuación de los productos fue guardada.', 'success');
+    if (marketplaceView === 'my-orders' || marketplaceView === 'store') renderMarketplace();
+    return true;
+}
+
+export function openOrderProductRatingModal(orderId) {
+    const order = clientOrders.find((o) => o.id === orderId) || merchantOrders.find((o) => o.id === orderId);
+    if (!order) return null;
+    const draft = {};
+    const existing = (order.productRatings && typeof order.productRatings === 'object') ? order.productRatings : {};
+    (order.items || []).forEach((it, idx) => {
+        const pid = String(it.productId || `item_${idx}`);
+        draft[pid] = Number(existing[pid]?.stars) || 5;
+    });
+    const html = buildOrderProductRatingModalHtml(order, draft, order.ratingComment || '');
+    if (typeof document === 'undefined') return html;
+    document.getElementById('order-product-rating-modal')?.remove();
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html.trim();
+    const modal = wrap.firstElementChild;
+    if (!modal) return null;
+
+    const refreshStarsUi = (pid) => {
+        const val = draft[pid] || 5;
+        const row = modal.querySelector(`[data-rate-product-row="${CSS.escape(pid)}"]`);
+        if (!row) return;
+        const lbl = row.querySelector(`[data-rate-score-label="${CSS.escape(pid)}"]`);
+        if (lbl) lbl.textContent = `${val} ★`;
+        row.querySelectorAll('[data-rate-action="pick-star"]').forEach((btn) => {
+            const s = Number(btn.getAttribute('data-stars')) || 0;
+            btn.classList.toggle('is-on', s <= val);
+        });
+    };
+
+    modal.addEventListener('click', async (ev) => {
+        const actEl = ev.target.closest('[data-rate-action]');
+        if (!actEl) return;
+        const act = actEl.getAttribute('data-rate-action');
+        if (act === 'close') {
+            modal.remove();
+            return;
+        }
+        if (act === 'pick-star') {
+            const pid = actEl.getAttribute('data-product-id');
+            const stars = Number(actEl.getAttribute('data-stars')) || 5;
+            if (pid) {
+                draft[pid] = stars;
+                refreshStarsUi(pid);
+            }
+            return;
+        }
+        if (act === 'submit') {
+            actEl.disabled = true;
+            const comment = modal.querySelector('#order-rating-comment')?.value || '';
+            await submitOrderProductRatings(order.id, draft, comment);
+            modal.remove();
+        }
+    });
+
+    document.body.appendChild(modal);
+    return modal;
+}
+
 function clientOrderActionsHtml(o) {
     if (o.status === 'pending' || o.status === 'accepted') {
         return `<button type="button" class="stores-danger-btn mt-2" data-stores-action="cancel-order" data-order-id="${esc(o.id)}">Cancelar pedido</button>`;
@@ -2746,6 +3198,32 @@ function clientOrderActionsHtml(o) {
     }
     if (o.status === 'ready' && o.tripId) {
         return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-check-circle"></i> ¡Pedido preparado! Llamando a tu delivery (${esc(orderRideName(o))})… te avisamos cuando lo acepte</p>`;
+    }
+    if (o.status === 'delivered') {
+        const hasRatings = o.ratedAt || (o.productRatings && Object.keys(o.productRatings).length > 0);
+        if (hasRatings) {
+            const avg = Number(o.storeRating) || 5;
+            const summary = Object.values(o.productRatings || {})
+                .map((r) => `${r.name || 'Plato'}: ${'★'.repeat(Math.max(1, Number(r.stars) || 5))}`)
+                .join(' · ');
+            return `
+                <div class="order-rated-summary mt-2">
+                    <div class="order-rated-summary__top">
+                        <span class="order-rated-badge">⭐ Calificaste ★ ${avg.toFixed(1)}/5</span>
+                        <button type="button" class="order-rated-edit-btn" data-stores-action="open-rate-order" data-order-id="${esc(o.id)}">Editar puntuación</button>
+                    </div>
+                    ${summary ? `<p class="order-rated-summary__items">${esc(summary)}</p>` : ''}
+                    ${o.ratingComment ? `<p class="order-rated-summary__comment">“${esc(o.ratingComment)}”</p>` : ''}
+                </div>
+            `;
+        }
+        return `
+            <div class="order-rate-cta mt-2">
+                <button type="button" class="stores-rate-order-btn w-full" data-stores-action="open-rate-order" data-order-id="${esc(o.id)}">
+                    ⭐ Puntuar los productos que te llegaron
+                </button>
+            </div>
+        `;
     }
     if (o.tripId) {
         return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> ${o.driverName ? `${esc(String(o.driverName).split(/\s+/)[0])} va con tu pedido` : 'Envío activo'} · sigue el viaje en el mapa</p>`;
@@ -3293,6 +3771,7 @@ function onMarketplaceClick(e) {
         return renderMarketplace();
     }
     if (action === 'cancel-order' && orderId) return cancelClientOrder(orderId);
+    if (action === 'open-rate-order' && orderId) return openOrderProductRatingModal(orderId);
     if (action === 'open-merchant') {
         closeMarketplace();
         return openMerchantPanel({ createNew: false });
@@ -3344,9 +3823,265 @@ function onMarketplaceClick(e) {
  * createNew: true → formulario vacío para registrar otra tienda
  * createNew: false → administrar la tienda existente (pedidos / menú)
  */
+export function buildMerchantAlertsStatusBarHtml() {
+    const hasNotifApi = typeof Notification !== 'undefined';
+    const perm = hasNotifApi ? Notification.permission : 'granted';
+    const isActive = perm === 'granted';
+    const isDenied = perm === 'denied';
+    return `
+        <div class="merchant-alerts-bar ${isActive ? 'merchant-alerts-bar--ok' : 'merchant-alerts-bar--warn'}" data-alerts-state="${esc(perm)}">
+            <div class="merchant-alerts-bar__info">
+                <span class="merchant-alerts-bar__badge">
+                    ${isActive ? '🔔 ✅ Avisos y sonido activos en este dispositivo' : isDenied ? '🔔 ⚠️ Avisos bloqueados en el navegador' : '🔔 ⚠️ Avisos pendientes de activar'}
+                </span>
+                <p class="merchant-alerts-bar__sub">
+                    ${isActive
+                        ? 'Cuando caiga un pedido nuevo sonará la alerta y vibrará tu teléfono. Toca «Probar aviso» para verificar el volumen.'
+                        : 'Activa los avisos y toca «Probar aviso» para comprobar que tu celular suene cuando entre un pedido.'}
+                </p>
+            </div>
+            <div class="merchant-alerts-bar__actions">
+                ${!isActive ? `
+                    <button type="button" class="merchant-alerts-btn merchant-alerts-btn--enable" data-merchant-action="enable-order-alerts">
+                        🔔 Activar avisos
+                    </button>
+                ` : ''}
+                <button type="button" class="merchant-alerts-btn merchant-alerts-btn--test" data-merchant-action="test-order-alert">
+                    🔊 Probar aviso
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+export async function enableMerchantOrderAlerts() {
+    try {
+        if (typeof window !== 'undefined' && typeof window.enablePushNotifications === 'function') {
+            await window.enablePushNotifications();
+        } else if (typeof Notification !== 'undefined' && Notification.requestPermission) {
+            await Notification.requestPermission();
+        }
+    } catch (_) {}
+    renderMerchantBody();
+    toast('🔔 Estado de avisos actualizado. Toca «🔊 Probar aviso» para escuchar cómo suena.', 'info');
+}
+
+export async function testMerchantOrderAlert() {
+    playNewOrderTone();
+    try { window.playEventNotificationTone?.('store_new_order'); } catch (_) {}
+    try { navigator.vibrate?.([220, 100, 260, 100, 320]); } catch (_) {}
+    toast('🔔 Prueba de aviso: ¡Así te sonará cuando te caiga un pedido nuevo!', 'success');
+    try {
+        if (typeof Notification !== 'undefined') {
+            if (Notification.permission === 'default' && Notification.requestPermission) {
+                await Notification.requestPermission();
+            }
+            if (Notification.permission === 'granted') {
+                const title = `🔔 Prueba de aviso · ${myStore?.name || 'Tu tienda'}`;
+                const body = '¡Así te llegará la notificación y el sonido cuando un cliente haga un pedido nuevo!';
+                if (navigator.serviceWorker?.getRegistration) {
+                    const reg = await navigator.serviceWorker.getRegistration();
+                    if (reg?.showNotification) {
+                        await reg.showNotification(title, {
+                            body,
+                            tag: 'merchant-test-alert',
+                            renotify: true,
+                            vibrate: [220, 100, 260],
+                        });
+                        renderMerchantBody();
+                        return true;
+                    }
+                }
+                new Notification(title, { body, tag: 'merchant-test-alert' });
+            }
+        }
+    } catch (_) {}
+    renderMerchantBody();
+    return true;
+}
+
+export function buildMerchantStoreSwitcherHtml(
+    stores = myStores,
+    activeStoreId = myStore?.id,
+    createMode = merchantCreateMode,
+    cloneFrom = merchantCloneFromStore,
+    orders = merchantOrders
+) {
+    const list = Array.isArray(stores) ? stores : [];
+    if (!list.length && !createMode) return '';
+    const now = hnNowMinutes();
+    const pills = list.map((s) => {
+        const isCurrent = !createMode && s.id === activeStoreId;
+        const openInfo = storeOpenInfo(s, now);
+        const branch = formatStoreBranchLabel(s);
+        const hoursTxt = formatStoreHoursSummary(s);
+        const activeCount = (orders || []).filter(
+            (o) => o.storeId === s.id && !['delivered', 'cancelled'].includes(o.status)
+        ).length;
+        return `
+            <button type="button"
+                    class="merchant-branch-chip ${isCurrent ? 'is-active' : ''}"
+                    data-merchant-action="select-my-store"
+                    data-store-id="${esc(s.id)}"
+                    title="${esc(s.name || 'Tienda')}${branch ? ` · ${esc(branch)}` : ''} (${esc(hoursTxt)})">
+                <span class="merchant-branch-chip__dot ${openInfo.open ? 'is-open' : 'is-closed'}" aria-hidden="true"></span>
+                <span class="merchant-branch-chip__body">
+                    <strong class="merchant-branch-chip__title">${esc(s.name || 'Tienda')}${branch ? ` <span class="merchant-branch-chip__tag">· ${esc(branch)}</span>` : ''}</strong>
+                    <small class="merchant-branch-chip__meta">${esc(s.cityName || 'Honduras')} · ${esc(hoursTxt)}</small>
+                </span>
+                ${activeCount > 0 ? `<span class="merchant-branch-chip__badge" title="${activeCount} pedidos activos">${activeCount}</span>` : ''}
+            </button>
+        `;
+    }).join('');
+
+    const cloneBtn = myStore?.id ? `
+        <button type="button"
+                class="merchant-branch-add merchant-branch-add--clone ${createMode && cloneFrom ? 'is-active' : ''}"
+                data-merchant-action="clone-branch"
+                data-store-id="${esc(myStore.id)}"
+                title="Crear otra sucursal de este mismo restaurante con otra ubicación y otro horario">
+            <i class="fas fa-code-branch"></i>
+            <span>+ Agregar sucursal</span>
+        </button>
+    ` : '';
+
+    const newBrandBtn = list.length ? `
+        <button type="button"
+                class="merchant-branch-add merchant-branch-add--new ${createMode && !cloneFrom ? 'is-active' : ''}"
+                data-merchant-action="start-create-new"
+                title="Registrar otro restaurante o negocio">
+            <i class="fas fa-plus"></i>
+            <span>+ Otro negocio</span>
+        </button>
+    ` : '';
+
+    return `
+        <div class="merchant-store-switcher__inner" role="region" aria-label="Mis sucursales y restaurantes">
+            <div class="merchant-store-switcher__head">
+                <span class="merchant-store-switcher__label">
+                    <i class="fas fa-store-alt"></i>
+                    ${list.length > 1 ? `Tus sucursales / tiendas (${list.length})` : 'Tu restaurante / sucursales'}
+                </span>
+                <span class="merchant-store-switcher__hint">Cada sucursal tiene su ubicación y horario</span>
+            </div>
+            <div class="merchant-store-switcher__scroller">
+                ${pills}
+                ${cloneBtn}
+                ${newBrandBtn}
+            </div>
+        </div>
+    `;
+}
+
+function renderMerchantStoreSwitcher() {
+    if (typeof document === 'undefined') return;
+    const wrap = document.getElementById('merchant-store-switcher');
+    if (!wrap) return;
+    wrap.innerHTML = buildMerchantStoreSwitcherHtml(myStores, myStore?.id, merchantCreateMode, merchantCloneFromStore, merchantOrders);
+}
+
+export async function selectMyStore(storeId) {
+    if (!storeId) return null;
+    const found = myStores.find((s) => s.id === storeId) || storesCache.get(storeId) || null;
+    if (!found) return null;
+    myStore = found;
+    merchantCreateMode = false;
+    merchantCloneFromStore = null;
+    editingProductId = null;
+    setSavedSelectedStoreId(myStore.id);
+    myProducts = await loadProducts(myStore.id);
+    document.querySelectorAll('.merchant-tab').forEach((b) => {
+        b.classList.remove('hidden');
+        b.classList.toggle('active', b.getAttribute('data-merchant-tab') === merchantTab);
+    });
+    const titleEl = document.querySelector('#merchant-panel .stores-title');
+    if (titleEl) {
+        const b = formatStoreBranchLabel(myStore);
+        titleEl.textContent = b ? `${myStore.name || 'Mi tienda'} · ${b}` : 'Mi tienda virtual';
+    }
+    updateMerchantOpenToggle();
+    renderMerchantStoreSwitcher();
+    renderMerchantBody();
+    return myStore;
+}
+
+export async function copyMenuBetweenStores(fromStoreId, toStoreId) {
+    const uid = getCurrentUser()?.uid;
+    if (!uid || !fromStoreId || !toStoreId || fromStoreId === toStoreId) return 0;
+    const sourceProducts = await loadProducts(fromStoreId);
+    if (!sourceProducts.length) return 0;
+    const existingTarget = await loadProducts(toStoreId);
+    const existingNames = new Set(existingTarget.map((p) => String(p.name || '').trim().toLowerCase()));
+    let copied = 0;
+    for (const p of sourceProducts) {
+        const key = String(p.name || '').trim().toLowerCase();
+        if (!key || existingNames.has(key)) continue;
+        const base = roundMoney(productBasePrice(p));
+        await addDoc(publicCol('store_products'), {
+            storeId: toStoreId,
+            ownerId: uid,
+            sourceProductId: p.sourceProductId || p.id,
+            name: p.name,
+            price: base,
+            basePrice: base,
+            displayPrice: base,
+            description: p.description || '',
+            photoUrl: p.photoUrl || null,
+            ...(p.stock != null ? { stock: Number(p.stock) || 0 } : {}),
+            available: p.available !== false,
+            sortOrder: existingTarget.length + copied,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+        copied += 1;
+    }
+    return copied;
+}
+
+export async function syncMenuToAllBranches() {
+    if (!myStore?.id || myStores.length <= 1) {
+        toast('Agrega otra sucursal primero para sincronizar el menú', 'info');
+        return 0;
+    }
+    let totalCopied = 0;
+    for (const branch of myStores) {
+        if (branch.id === myStore.id) continue;
+        totalCopied += await copyMenuBetweenStores(myStore.id, branch.id);
+    }
+    toast(
+        totalCopied > 0
+            ? `✅ Se copiaron ${totalCopied} producto(s) nuevos a tus otras sucursales`
+            : '✅ Todas tus sucursales ya tienen los productos de este menú',
+        'success'
+    );
+    return totalCopied;
+}
+
+export async function startCloneBranch(sourceStoreId = myStore?.id) {
+    const base = myStores.find((s) => s.id === sourceStoreId) || myStore;
+    if (!base) {
+        return openMerchantPanel({ createNew: true });
+    }
+    pendingStorePhoto = null;
+    pendingStorePhotoPreview = base.photoUrl || null;
+    merchantCloneFromStore = base;
+    merchantCreateMode = true;
+    merchantTab = 'store';
+    document.querySelectorAll('.merchant-tab').forEach((b) => {
+        const tab = b.getAttribute('data-merchant-tab');
+        b.classList.toggle('active', tab === 'store');
+        b.classList.toggle('hidden', tab !== 'store');
+    });
+    const titleEl = document.querySelector('#merchant-panel .stores-title');
+    if (titleEl) titleEl.textContent = `Nueva sucursal · ${base.name || 'Restaurante'}`;
+    renderMerchantStoreSwitcher();
+    renderMerchantBody();
+    toast(`📍 Configura la ubicación y el horario de la nueva sucursal de ${base.name || 'tu restaurante'}`, 'info');
+}
+
 export async function openMerchantPanel(opts = {}) {
     let createNew = opts.createNew === true;
-    // Al abrir crear nueva, no arrastrar logo pendiente de otra sesión de formulario
+    const cloneFromId = opts.cloneFromStoreId || null;
     if (createNew) {
         pendingStorePhoto = null;
         pendingStorePhotoPreview = null;
@@ -3354,48 +4089,53 @@ export async function openMerchantPanel(opts = {}) {
 
     bindUiHooks();
     startStoresListener();
-    await loadMyStore();
+    await loadMyStore(opts.storeId || null);
 
-    // Límite: 1 tienda por usuario
-    if (createNew && myStore?.id) {
-        toast('Solo puedes tener 1 tienda por cuenta. Abriendo la tuya.', 'info');
-        createNew = false;
+    if (cloneFromId) {
+        merchantCloneFromStore = myStores.find((s) => s.id === cloneFromId) || myStore || null;
+        if (merchantCloneFromStore?.photoUrl) pendingStorePhotoPreview = merchantCloneFromStore.photoUrl;
+        createNew = true;
+    } else if (!createNew) {
+        merchantCloneFromStore = null;
     }
 
     merchantCreateMode = createNew;
+    editingProductId = null;
 
     if (createNew) {
-        // Formulario de alta: no precargar datos (solo si no tiene tienda)
         merchantTab = 'store';
-        myProducts = [];
     } else {
         if (!myStore) {
-            toast('Aún no tienes tienda. Completa el formulario para crear la única de tu cuenta.', 'info');
+            toast('Aún no tienes tienda. Completa el formulario para crear tu primera tienda.', 'info');
             merchantCreateMode = true;
             merchantTab = 'store';
             myProducts = [];
         } else {
-            merchantTab = 'orders';
+            merchantTab = opts.tab || 'orders';
             myProducts = await loadProducts(myStore.id);
         }
     }
 
     startMerchantOrdersListener();
     enterStoresWorld();
-    // Merchant encima del marketplace
     document.getElementById('merchant-panel')?.classList.remove('hidden');
     document.getElementById('stores-marketplace-panel')?.classList.add('hidden');
 
-    // Título del panel según modo
     const titleEl = document.querySelector('#merchant-panel .stores-title');
     if (titleEl) {
-        titleEl.textContent = merchantCreateMode ? 'Crear tienda nueva' : 'Mi tienda virtual';
+        if (merchantCreateMode) {
+            titleEl.textContent = merchantCloneFromStore
+                ? `Nueva sucursal · ${merchantCloneFromStore.name || 'Restaurante'}`
+                : 'Crear tienda o sucursal';
+        } else {
+            const b = formatStoreBranchLabel(myStore);
+            titleEl.textContent = b ? `${myStore?.name || 'Mi tienda'} · ${b}` : 'Mi tienda virtual';
+        }
     }
 
     document.querySelectorAll('.merchant-tab').forEach((b) => {
         const tab = b.getAttribute('data-merchant-tab');
         b.classList.toggle('active', tab === merchantTab);
-        // En modo crear: solo pestaña Tienda tiene sentido hasta guardar
         if (merchantCreateMode) {
             b.classList.toggle('hidden', tab !== 'store');
         } else {
@@ -3403,6 +4143,7 @@ export async function openMerchantPanel(opts = {}) {
         }
     });
     updateMerchantOpenToggle();
+    renderMerchantStoreSwitcher();
     renderMerchantBody();
 }
 
@@ -3543,13 +4284,17 @@ function renderMerchantBody() {
         renderMerchantWeekTab(body);
         return;
     }
-    // orders
-    const active = merchantOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
-    const past = merchantOrders.filter((o) => ['delivered', 'cancelled'].includes(o.status));
+    // orders (filtrados por la sucursal seleccionada si tiene varias)
+    const storeOrders = (myStores.length > 1 && myStore?.id)
+        ? merchantOrders.filter((o) => !o.storeId || o.storeId === myStore.id)
+        : merchantOrders;
+    const active = storeOrders.filter((o) => !['delivered', 'cancelled'].includes(o.status));
+    const past = storeOrders.filter((o) => ['delivered', 'cancelled'].includes(o.status));
     const appr = myStore ? storeApprovalStatus(myStore) : null;
     const apprMeta = appr ? (STORE_APPROVAL[appr] || STORE_APPROVAL.pending) : null;
     body.innerHTML = `
         <div class="orders-list">
+            ${buildMerchantAlertsStatusBarHtml()}
             ${myStore && appr && appr !== 'approved' ? `
                 <div class="rounded-2xl border px-3 py-2.5 mb-2 ${appr === 'rejected' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}">
                     <p class="text-[11px] font-black ${appr === 'rejected' ? 'text-red-900' : 'text-amber-900'}">
@@ -3586,42 +4331,62 @@ function renderMerchantBody() {
 }
 
 function renderMerchantStoreForm() {
-    // En modo "crear nueva" el formulario va vacío aunque ya exista otra tienda
     const editingExisting = !merchantCreateMode && myStore;
-    const s = editingExisting ? myStore : {};
+    const cloningFrom = merchantCreateMode && merchantCloneFromStore ? merchantCloneFromStore : null;
+    const s = editingExisting
+        ? myStore
+        : cloningFrom
+            ? {
+                name: cloningFrom.name || '',
+                branchName: '',
+                category: cloningFrom.category || 'comida',
+                description: cloningFrom.description || '',
+                cityId: cloningFrom.cityId || '',
+                phone: cloningFrom.phone || '',
+                waAuthorizedPhones: cloningFrom.waAuthorizedPhones || [],
+                hours: cloningFrom.hours || null,
+                photoUrl: cloningFrom.photoUrl || null,
+            }
+            : {};
     const storeCityId = initialStoreCityId(s);
     const savedCityMismatch = editingExisting && s.cityId && storeCityId !== s.cityId;
-    // +18 marcado: el dueño no puede quitarlo (solo un supervisor)
     const adultsLocked = !!(editingExisting && isStoreAdultsOnly(s) && !isStoresStaff());
     const cats = STORE_CATEGORIES.map((c) =>
         `<option value="${c.id}" ${s.category === c.id ? 'selected' : ''}>${esc(c.label)}</option>`
     ).join('');
     const logoPreview = pendingStorePhotoPreview
-        || (editingExisting && s.photoUrl ? s.photoUrl : null);
+        || ((editingExisting || cloningFrom) && s.photoUrl ? s.photoUrl : null);
     const logoHtml = logoPreview
         ? `<img src="${esc(logoPreview)}" alt="Logo de la tienda" class="m-store-logo-preview">`
         : `<div class="m-store-logo-preview m-store-logo-preview--empty"><i class="fas fa-store"></i><span>Logo o foto del negocio</span></div>`;
+    const copySourceStore = cloningFrom || (!editingExisting && myStore ? myStore : null);
     return `
         <form id="merchant-store-form" class="merchant-form space-y-3" onsubmit="return false;">
             <div class="stores-banner">
                 <p class="stores-banner-title">
-                    <i class="fas ${editingExisting ? 'fa-store' : 'fa-plus-circle'}"></i>
-                    ${editingExisting ? 'Datos de mi tienda' : 'Registrar tienda nueva'}
+                    <i class="fas ${editingExisting ? 'fa-store' : cloningFrom ? 'fa-code-branch' : 'fa-plus-circle'}"></i>
+                    ${editingExisting ? 'Datos de esta sucursal / tienda' : cloningFrom ? `Nueva sucursal de ${esc(cloningFrom.name || 'tu restaurante')}` : 'Registrar tienda o sucursal nueva'}
                 </p>
                 <p class="stores-banner-sub">
                     ${editingExisting
-                        ? 'Edita logo, nombre, dirección y contacto de tu negocio.'
-                        : 'Completa los datos y sube el logo. Las entregas las hacen moto o Taxi VIP.'}
+                        ? 'Edita el nombre, la sucursal, la ubicación GPS y el horario propio de este punto.'
+                        : cloningFrom
+                            ? 'Configura la dirección/GPS y el horario de esta nueva sucursal. El menú se puede copiar automáticamente.'
+                            : 'Completa los datos y sube el logo. Puedes tener varias sucursales con distinta ubicación y horario.'}
                 </p>
             </div>
             ${editingExisting ? `
-                <p class="text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2">
-                    <i class="fas fa-info-circle"></i> Solo se permite <b>1 tienda por cuenta</b>. Aquí editas la tuya.
-                </p>
+                <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                    <span><i class="fas fa-code-branch"></i> ¿Tienes este mismo restaurante en otra ubicación u otro horario?</span>
+                    <button type="button" class="stores-secondary-btn text-[11px] py-1 px-2.5" data-merchant-action="clone-branch" data-store-id="${esc(s.id)}">
+                        + Agregar otra sucursal
+                    </button>
+                </div>
             ` : `
-                <p class="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                    <i class="fas fa-info-circle"></i> Cada usuario puede crear <b>solo 1 tienda</b> en HonduRaite.
-                </p>
+                <div class="flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                    <span><i class="fas fa-info-circle"></i> Cada sucursal tiene su propia <b>ubicación GPS</b> y su propio <b>horario de apertura y cierre</b>.</span>
+                    ${myStore ? `<button type="button" class="stores-secondary-btn text-[11px] py-1 px-2.5" data-merchant-action="goto-my-store">Cancelar</button>` : ''}
+                </div>
             `}
             <div class="stores-field">
                 <span>Logo / imagen de la tienda</span>
@@ -3635,8 +4400,19 @@ function renderMerchantStoreForm() {
                 <input type="file" id="m-store-logo-input" accept="image/*" class="hidden">
                 <p class="text-[10px] text-slate-500 mt-1">Se muestra en el catálogo y en la portada de tu tienda.</p>
             </div>
-            <label class="stores-field"><span>Nombre de la tienda *</span>
+            <label class="stores-field"><span>Nombre del restaurante / tienda *</span>
                 <input id="m-store-name" class="stores-input" required value="${esc(s.name || '')}" placeholder="Ej: Pupusas Doña Mary"></label>
+            <label class="stores-field"><span>Nombre de la sucursal / ubicación (si tienes varias)</span>
+                <input id="m-store-branch-name" class="stores-input" value="${esc(s.branchName || '')}" placeholder="Ej: Sucursal Centro, Sucursal Bulevar Morazán, Turno Noche"></label>
+            ${!editingExisting && copySourceStore ? `
+                <label class="stores-field stores-field--check" style="flex-direction:row;align-items:flex-start;gap:0.65rem;cursor:pointer;background:#ecfdf5;border:1px solid #a7f3d0;padding:0.65rem;border-radius:0.85rem;">
+                    <input type="checkbox" id="m-store-copy-menu" checked data-source-store-id="${esc(copySourceStore.id)}" style="width:1.1rem;height:1.1rem;margin-top:0.15rem;flex-shrink:0;">
+                    <span>
+                        <strong class="block text-xs text-emerald-950">Copiar automáticamente todo el menú de «${esc(copySourceStore.name || 'mi tienda')}»</strong>
+                        <small class="text-[10px] text-emerald-800 font-semibold leading-snug">Copia fotos, nombres y precios de tus platos para que no tengas que subirlos de nuevo.</small>
+                    </span>
+                </label>
+            ` : ''}
             <label class="stores-field"><span>Categoría</span>
                 <select id="m-store-category" class="stores-input">${cats}</select></label>
             <label class="stores-field"><span>Descripción</span>
@@ -3794,11 +4570,261 @@ async function shareStoreCatalog() {
     }
 }
 
+export function buildMerchantStarProductsHtml(products = myProducts, orders = merchantOrders) {
+    const storeOrders = myStore?.id ? (orders || []).filter((o) => !o.storeId || o.storeId === myStore.id) : (orders || []);
+    const stars = computeStarProducts(products, storeOrders).slice(0, 5);
+    if (!stars.length) {
+        return `
+            <div class="star-products-box star-products-box--empty">
+                <div class="star-products-box__head">
+                    <span class="star-products-box__title">⭐ Tus productos estrella</span>
+                    <span class="star-products-box__badge">Ranking de clientes</span>
+                </div>
+                <p class="star-products-box__hint">Cuando tus clientes reciban y puntúen sus pedidos (1 a 5 ★), aquí verás tus platos mejor calificados y más vendidos.</p>
+            </div>
+        `;
+    }
+    return `
+        <div class="star-products-box">
+            <div class="star-products-box__head">
+                <span class="star-products-box__title">⭐ Tus productos estrella (${stars.length})</span>
+                <span class="star-products-box__badge">Visibles para clientes nuevos</span>
+            </div>
+            <div class="star-products-box__list">
+                ${stars.map((p, idx) => {
+                    const r = productRatingInfo(p);
+                    return `
+                        <div class="star-products-row" data-merchant-star-id="${esc(p.id)}">
+                            <span class="star-products-row__rank">#${idx + 1}</span>
+                            <div class="min-w-0 flex-1">
+                                <p class="star-products-row__name">${esc(p.name)} ${r.isStar ? '<span class="star-pill">⭐ Estrella</span>' : ''}</p>
+                                <p class="star-products-row__meta">
+                                    ${r.count > 0 ? `<b>★ ${r.avg.toFixed(1)}</b> (${r.count} ${r.count === 1 ? 'voto' : 'votos'})` : 'Sin votos aún'}
+                                    · <span>${r.ordersCount} vendidos</span>
+                                    · <span>${money(productBasePrice(p))}</span>
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+export function buildEditProductCardHtml(p, store = myStore, stores = myStores) {
+    if (!p) return '';
+    const tracksStock = storeTracksStock(store);
+    const price = productBasePrice(p);
+    const left = productStockLeft(p, store);
+    const photoSrc = pendingEditProductPhotoPreview || p.photoUrl || '';
+    const otherBranchesCount = Array.isArray(stores) ? stores.filter((s) => s.id !== store?.id).length : 0;
+    return `
+        <div class="merchant-edit-product-card" data-edit-product-card="${esc(p.id)}">
+            <div class="merchant-edit-product-card__head">
+                <p class="merchant-edit-product-card__title"><i class="fas fa-pen"></i> Editar producto: ${esc(p.name)}</p>
+                <button type="button" class="merchant-edit-product-card__close" data-merchant-action="cancel-edit-product" aria-label="Cancelar edición">✕</button>
+            </div>
+            <div class="merchant-edit-product-card__grid">
+                <button type="button" class="merchant-edit-photo-btn" data-merchant-action="pick-edit-form-photo" data-product-id="${esc(p.id)}">
+                    ${photoSrc
+                        ? `<img src="${esc(photoSrc)}" alt="${esc(p.name)}" class="merchant-edit-photo-preview">`
+                        : `<div class="merchant-edit-photo-preview merchant-edit-photo-preview--empty"><i class="fas fa-camera"></i></div>`}
+                    <span><i class="fas fa-camera"></i> Cambiar imagen</span>
+                </button>
+                <div class="merchant-edit-product-card__fields">
+                    <label class="stores-field">
+                        <span>Nombre del producto *</span>
+                        <input id="m-edit-prod-name" class="stores-input" value="${esc(p.name || '')}" placeholder="Nombre del plato o producto">
+                    </label>
+                    <label class="stores-field">
+                        <span>Precio para el cliente (L.) *</span>
+                        <input id="m-edit-prod-price" class="stores-input" type="number" min="1" step="0.01" inputmode="decimal" value="${esc(price)}">
+                    </label>
+                    ${tracksStock ? `
+                        <label class="stores-field">
+                            <span>Stock disponible</span>
+                            <input id="m-edit-prod-stock" class="stores-input" type="number" min="0" step="1" inputmode="numeric" value="${esc(left ?? 0)}">
+                        </label>
+                    ` : ''}
+                    <label class="stores-field">
+                        <span>Descripción (opcional)</span>
+                        <input id="m-edit-prod-desc" class="stores-input" value="${esc(p.description || '')}" placeholder="Ingredientes, tamaño, acompañamientos...">
+                    </label>
+                </div>
+            </div>
+            ${otherBranchesCount > 0 ? `
+                <label class="merchant-edit-sync-check">
+                    <input type="checkbox" id="m-edit-prod-sync-branches" checked>
+                    <span>Actualizar precio, nombre y foto también en mis otras sucursales (${otherBranchesCount})</span>
+                </label>
+            ` : ''}
+            <div class="merchant-edit-product-card__actions">
+                <button type="button" class="stores-primary-btn" data-merchant-action="save-edit-product" data-product-id="${esc(p.id)}">
+                    <i class="fas fa-save"></i> Guardar cambios
+                </button>
+                <button type="button" class="stores-secondary-btn" data-merchant-action="cancel-edit-product">
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+export function startEditProduct(productId) {
+    const p = myProducts.find((x) => x.id === productId);
+    if (!p) return null;
+    editingProductId = productId;
+    pendingEditProductPhoto = null;
+    pendingEditProductPhotoPreview = null;
+    renderMerchantBody();
+    return p;
+}
+
+export function cancelEditProduct() {
+    editingProductId = null;
+    pendingEditProductPhoto = null;
+    pendingEditProductPhotoPreview = null;
+    renderMerchantBody();
+}
+
+function pickPhotoForEditingProduct(productId) {
+    if (!productId) return;
+    pickPhotoWithSourceChoice({
+        facing: 'environment',
+        maxSize: 960,
+        title: 'Cambiar imagen del producto',
+        cameraLabel: 'Tomar foto',
+        galleryLabel: 'Elegir de la galería',
+        onCapture: (dataUrl) => {
+            if (!dataUrl) return;
+            pendingEditProductPhoto = dataUrl;
+            pendingEditProductPhotoPreview = dataUrl;
+            renderMerchantBody();
+            toast('Imagen lista. Toca «Guardar cambios» para aplicarla.', 'info');
+        },
+        onError: (msg) => toast(msg || 'No se pudo procesar la foto', 'error'),
+    });
+}
+
+async function syncProductUpdateAcrossBranches(origProduct, patch) {
+    const uid = getCurrentUser()?.uid;
+    if (!uid || !origProduct || myStores.length <= 1) return 0;
+    const otherStoreIds = myStores.map((s) => s.id).filter((id) => id && id !== myStore?.id);
+    if (!otherStoreIds.length) return 0;
+    const origNameLower = String(origProduct.name || '').trim().toLowerCase();
+    const origSourceId = origProduct.sourceProductId || origProduct.id;
+    let updatedCount = 0;
+    for (const sid of otherStoreIds) {
+        try {
+            const list = await loadProducts(sid);
+            const match = list.find(
+                (item) => (item.sourceProductId && item.sourceProductId === origSourceId)
+                    || item.id === origSourceId
+                    || String(item.name || '').trim().toLowerCase() === origNameLower
+            );
+            if (match) {
+                await updateDoc(publicDoc('store_products', match.id), {
+                    ...patch,
+                    updatedAt: serverTimestamp(),
+                });
+                updatedCount += 1;
+            }
+        } catch (err) {
+            console.warn('[stores] syncProductUpdateAcrossBranches', sid, err);
+        }
+    }
+    return updatedCount;
+}
+
+export async function saveEditedProduct(productId) {
+    const pid = productId || editingProductId;
+    const p = myProducts.find((x) => x.id === pid);
+    if (!p || !myStore?.id) return false;
+
+    const name = document.getElementById('m-edit-prod-name')?.value.trim() || '';
+    const priceRaw = Number(document.getElementById('m-edit-prod-price')?.value);
+    const description = document.getElementById('m-edit-prod-desc')?.value.trim() || '';
+    const syncBranches = !!document.getElementById('m-edit-prod-sync-branches')?.checked;
+    if (!name) {
+        toast('El nombre del producto es obligatorio', 'warning');
+        return false;
+    }
+    if (!Number.isFinite(priceRaw) || priceRaw <= 0) {
+        toast('Escribe un precio válido mayor a L. 0', 'warning');
+        return false;
+    }
+    const base = roundMoney(priceRaw);
+    const tracksStock = storeTracksStock(myStore);
+    const patch = {
+        name,
+        price: base,
+        basePrice: base,
+        displayPrice: base,
+        description,
+        updatedAt: serverTimestamp(),
+    };
+    if (tracksStock) {
+        const stockRaw = document.getElementById('m-edit-prod-stock')?.value;
+        const stock = Math.floor(Number(stockRaw));
+        if (!Number.isFinite(stock) || stock < 0) {
+            toast('El stock debe ser 0 o más', 'warning');
+            return false;
+        }
+        patch.stock = stock;
+    }
+
+    try {
+        toast(pendingEditProductPhoto ? 'Subiendo nueva imagen y guardando cambios…' : 'Guardando cambios del producto…', 'info');
+        if (pendingEditProductPhoto) {
+            try {
+                patch.photoUrl = await uploadProductPhoto(pendingEditProductPhoto, pid);
+            } catch (photoErr) {
+                console.warn('[stores] saveEditedProduct photo', photoErr);
+                toast('Se guardarán precio y nombre, pero la imagen no subió.', 'warning');
+            }
+        }
+        await updateDoc(publicDoc('store_products', pid), patch);
+        Object.assign(p, patch);
+
+        let syncedBranches = 0;
+        if (syncBranches && myStores.length > 1) {
+            const branchPatch = {
+                name: patch.name,
+                price: patch.price,
+                basePrice: patch.basePrice,
+                displayPrice: patch.displayPrice,
+                description: patch.description,
+                ...(patch.photoUrl ? { photoUrl: patch.photoUrl } : {}),
+            };
+            syncedBranches = await syncProductUpdateAcrossBranches(p, branchPatch);
+        }
+
+        editingProductId = null;
+        pendingEditProductPhoto = null;
+        pendingEditProductPhotoPreview = null;
+        myProducts = await loadProducts(myStore.id);
+        renderMerchantBody();
+        toast(
+            syncedBranches > 0
+                ? `✅ Producto actualizado aquí y en ${syncedBranches} sucursal(es) más`
+                : '✅ Producto actualizado (precio, nombre e imagen guardados)',
+            'success'
+        );
+        return true;
+    } catch (e) {
+        console.error('[stores] saveEditedProduct', e);
+        toast('No se pudo actualizar el producto: ' + (e.message || e), 'error');
+        return false;
+    }
+}
+
 function renderMerchantProducts() {
     const preview = pendingProductPhotoPreview
         ? `<img src="${esc(pendingProductPhotoPreview)}" alt="Vista previa" class="m-prod-photo-preview">`
         : `<div class="m-prod-photo-preview m-prod-photo-preview--empty"><i class="fas fa-camera"></i><span>Foto del producto</span></div>`;
     const tracksStock = storeTracksStock(myStore);
+    const hasMultipleBranches = myStores.length > 1;
     return `
         <div class="merchant-products">
             <div class="merchant-share-banner">
@@ -3806,10 +4832,18 @@ function renderMerchantProducts() {
                     <p class="merchant-share-title"><i class="fas fa-share-alt"></i> Comparte tu catálogo</p>
                     <p class="merchant-share-sub">WhatsApp, redes o copiar texto · atrae más clientes</p>
                 </div>
-                <button type="button" class="stores-primary-btn stores-primary-btn--sm" data-merchant-action="share-catalog">
-                    <i class="fas fa-bullhorn"></i> Compartir
-                </button>
+                <div class="flex flex-wrap gap-1.5">
+                    ${hasMultipleBranches ? `
+                        <button type="button" class="stores-secondary-btn text-[11px] py-1.5 px-2.5" data-merchant-action="sync-menu-branches" title="Copiar platos nuevos a todas mis sucursales">
+                            <i class="fas fa-sync-alt"></i> Sincronizar sucursales
+                        </button>
+                    ` : ''}
+                    <button type="button" class="stores-primary-btn stores-primary-btn--sm" data-merchant-action="share-catalog">
+                        <i class="fas fa-bullhorn"></i> Compartir
+                    </button>
+                </div>
             </div>
+            ${buildMerchantStarProductsHtml(myProducts, merchantOrders)}
             <div class="rounded-2xl border border-violet-200 bg-violet-50 px-3 py-2.5 mb-3">
                 <p class="text-[11px] font-black text-violet-900"><i class="fas fa-percentage"></i> HonduRaite cobra el 10% de la semana</p>
                 <p class="text-[10px] font-semibold text-violet-800 mt-1 leading-snug">
@@ -3838,15 +4872,29 @@ function renderMerchantProducts() {
                 <input id="m-prod-desc" class="stores-input" placeholder="Descripción (opcional)">
                 <button type="button" class="stores-primary-btn w-full" data-merchant-action="add-product">Agregar al menú</button>
             </form>
-            <p class="stores-section-label">Tu menú (${myProducts.length})</p>
+            <div class="flex items-center justify-between gap-2 mb-2">
+                <p class="stores-section-label !mb-0">Tu menú (${myProducts.length})</p>
+                <span class="text-[10px] font-bold text-slate-500">Toca «✏️ Editar» para cambiar precio, nombre o foto</span>
+            </div>
             <div class="space-y-2">
                 ${myProducts.length ? myProducts.map((p) => {
+                    if (editingProductId === p.id) {
+                        return buildEditProductCardHtml(p, myStore, myStores);
+                    }
                     const price = productBasePrice(p);
                     const left = productStockLeft(p, myStore);
+                    const rInfo = productRatingInfo(p);
                     return `
-                    <div class="product-card">
+                    <div class="product-card ${rInfo.isStar ? 'product-card--star' : ''}" data-merchant-product-card="${esc(p.id)}">
                         ${productPhotoHtml(p)}
                         <div class="min-w-0 flex-1">
+                            ${(rInfo.isStar || rInfo.count > 0 || rInfo.ordersCount > 0) ? `
+                                <div class="product-card-stars">
+                                    ${rInfo.isStar ? '<span class="star-pill">⭐ Producto estrella</span>' : ''}
+                                    ${rInfo.count > 0 ? `<span class="star-rating-chip">★ ${rInfo.avg.toFixed(1)} (${rInfo.count})</span>` : ''}
+                                    ${rInfo.ordersCount > 0 ? `<span class="star-orders-chip">🔥 ${rInfo.ordersCount} vendidos</span>` : ''}
+                                </div>
+                            ` : ''}
                             <p class="product-card-name">${esc(p.name)}</p>
                             <p class="product-card-price">${money(price)}</p>
                             <p class="text-[10px] font-bold text-violet-700">El cliente paga este precio. El envío va aparte.</p>
@@ -3860,6 +4908,9 @@ function renderMerchantProducts() {
                             ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
                         </div>
                         <div class="flex flex-col gap-1">
+                            <button type="button" class="stores-edit-btn text-[10px] py-1.5 px-2.5" data-merchant-action="edit-product" data-product-id="${esc(p.id)}">
+                                <i class="fas fa-pen"></i> Editar
+                            </button>
                             <button type="button" class="stores-secondary-btn text-[10px] py-1.5" data-merchant-action="change-product-photo" data-product-id="${esc(p.id)}">
                                 <i class="fas fa-camera"></i> Foto
                             </button>
@@ -4041,6 +5092,7 @@ async function saveStore() {
     if (!user) return toast('Inicia sesión', 'error');
 
     const name = document.getElementById('m-store-name')?.value.trim() || '';
+    const branchName = document.getElementById('m-store-branch-name')?.value.trim() || '';
     const category = document.getElementById('m-store-category')?.value || 'otro';
     const description = document.getElementById('m-store-desc')?.value.trim() || '';
     const address = document.getElementById('m-store-address')?.value.trim() || '';
@@ -4087,14 +5139,11 @@ async function saveStore() {
     const finalLng = hasRealCoords ? lng : (storeCity.center?.lng ?? null);
     const adultsChecked = !!document.getElementById('m-store-adults-only')?.checked;
 
-    // Revalidar: máximo 1 tienda por usuario
-    await loadMyStore();
+    await loadMyStore(myStore?.id || null);
     const isNewStore = merchantCreateMode || !myStore?.id;
-    if (isNewStore && myStore?.id) {
-        merchantCreateMode = false;
-        toast('Ya tienes una tienda. Solo se permite una por cuenta.', 'warning');
-        return openMerchantPanel({ createNew: false });
-    }
+    const cloneSource = isNewStore ? (merchantCloneFromStore || myStore || null) : null;
+    const copyMenuEl = document.getElementById('m-store-copy-menu');
+    const shouldCopyMenu = !!(isNewStore && copyMenuEl?.checked && cloneSource?.id);
 
     // Si un supervisor la marcó +18, el dueño no puede quitarlo (las reglas también lo impiden)
     const adultsOnly = adultsChecked || (!isNewStore && isStoreAdultsOnly(myStore) && !isStoresStaff());
@@ -4110,6 +5159,10 @@ async function saveStore() {
         ownerId: user.uid,
         ownerName: profile.name || '',
         name,
+        branchName: branchName || null,
+        parentStoreId: isNewStore && merchantCloneFromStore?.id
+            ? (merchantCloneFromStore.parentStoreId || merchantCloneFromStore.id)
+            : (myStore?.parentStoreId || null),
         category,
         description,
         address,
@@ -4127,8 +5180,10 @@ async function saveStore() {
         active: true,
         adultsOnly,
         requiresAge18: adultsOnly,
-        // Conservar logo anterior si no hay uno nuevo pendiente
-        photoUrl: (!isNewStore && myStore?.photoUrl) ? myStore.photoUrl : null,
+        // Conservar logo anterior o el de la sucursal madre si no hay uno nuevo pendiente
+        photoUrl: (!isNewStore && myStore?.photoUrl)
+            ? myStore.photoUrl
+            : (isNewStore && merchantCloneFromStore?.photoUrl ? merchantCloneFromStore.photoUrl : null),
         updatedAt: serverTimestamp(),
     };
 
@@ -4180,15 +5235,28 @@ async function saveStore() {
                     toast('Tienda creada, pero el logo no subió. Puedes editarlo en Mi tienda.', 'warning');
                 }
             }
-            myStore = { id: ref.id, ...payload, photoUrl: photoUrl || null, approvalStatus: 'pending' };
+            const finalPhoto = photoUrl || payload.photoUrl || null;
+            myStore = { id: ref.id, ...payload, photoUrl: finalPhoto, approvalStatus: 'pending' };
             storesCache.set(ref.id, myStore);
+            myStores = sortOwnedStores([...myStores.filter((x) => x.id !== ref.id), myStore]);
+            setSavedSelectedStoreId(ref.id, user.uid);
+            let copiedCount = 0;
+            if (shouldCopyMenu && cloneSource?.id) {
+                try {
+                    copiedCount = await copyMenuBetweenStores(cloneSource.id, ref.id);
+                } catch (copyErr) {
+                    console.warn('[stores] copyMenuBetweenStores', copyErr);
+                }
+            }
+            myProducts = await loadProducts(ref.id);
             merchantCreateMode = false;
+            merchantCloneFromStore = null;
             pendingStorePhoto = null;
             pendingStorePhotoPreview = null;
             toast(
-                photoUrl
-                    ? '¡Tienda creada! Está en revisión de un supervisor. Mientras, agrega productos.'
-                    : '¡Tienda creada! Está en revisión de un supervisor. Mientras, agrega productos.',
+                copiedCount > 0
+                    ? `¡Sucursal creada con ${copiedCount} productos copiados del menú!`
+                    : '¡Tienda / sucursal creada! Está en revisión de un supervisor. Mientras, agrega o edita tus productos.',
                 'success'
             );
             merchantTab = 'products';
@@ -4200,6 +5268,7 @@ async function saveStore() {
             if (titleEl) titleEl.textContent = 'Mi tienda virtual';
         }
         updateMerchantOpenToggle();
+        renderMerchantStoreSwitcher();
         renderMerchantBody();
     } catch (e) {
         console.error(e);
@@ -4400,9 +5469,11 @@ async function deleteStoreAndProducts(storeId, { asStaff = false } = {}) {
         await deleteDoc(publicDoc('stores', storeId));
         storesCache.delete(storeId);
 
+        myStores = myStores.filter((s) => s.id !== storeId);
         if (myStore?.id === storeId) {
-            myStore = null;
-            myProducts = [];
+            myStore = myStores[0] || null;
+            setSavedSelectedStoreId(myStore?.id || null);
+            myProducts = myStore ? await loadProducts(myStore.id) : [];
         }
         if (viewingStore?.id === storeId) {
             viewingStore = null;
@@ -4747,19 +5818,35 @@ async function onMerchantClick(e) {
     if (action === 'save-store') return saveStore();
     if (action === 'use-gps') return useGpsForStore();
     if (action === 'toggle-open') return toggleStoreOpen();
+    if (action === 'select-my-store') {
+        const sid = t.getAttribute('data-store-id');
+        return selectMyStore(sid);
+    }
+    if (action === 'clone-branch') {
+        const sid = t.getAttribute('data-store-id') || myStore?.id;
+        return startCloneBranch(sid);
+    }
     if (action === 'start-create-new') {
-        // Ya no se permiten varias tiendas
-        return openMerchantPanel({ createNew: false });
+        merchantCloneFromStore = null;
+        return openMerchantPanel({ createNew: true });
     }
     if (action === 'goto-my-store') {
         pendingStorePhoto = null;
         pendingStorePhotoPreview = null;
+        merchantCloneFromStore = null;
         return openMerchantPanel({ createNew: false });
     }
+    if (action === 'test-order-alert') return testMerchantOrderAlert();
+    if (action === 'enable-order-alerts') return enableMerchantOrderAlerts();
+    if (action === 'sync-menu-branches') return syncMenuToAllBranches();
     if (action === 'pick-store-logo') return pickStoreLogo();
     if (action === 'share-catalog') return shareStoreCatalog();
     if (action === 'add-product') return addProduct();
     if (action === 'pick-product-photo') return pickNewProductPhoto();
+    if (action === 'edit-product' && productId) return startEditProduct(productId);
+    if (action === 'cancel-edit-product') return cancelEditProduct();
+    if (action === 'pick-edit-form-photo' && productId) return pickPhotoForEditingProduct(productId);
+    if (action === 'save-edit-product') return saveEditedProduct(productId);
     if (action === 'change-product-photo' && productId) return pickEditProductPhoto(productId);
     if (action === 'toggle-product' && productId) return toggleProduct(productId);
     if (action === 'delete-product' && productId) return deleteProduct(productId);
@@ -5741,6 +6828,138 @@ async function tryOpenStoreFromHash() {
     }
 }
 
+/* ===================== REPARTIDORES: RESTAURANTES EN FUEGO EN EL MAPA ===================== */
+let driverHotMapMarkers = [];
+let driverHotMapCircles = [];
+
+export function getHotStoresForDriverMap(stores = [...storesCache.values()], orders = merchantOrders) {
+    const now = hnNowMinutes();
+    const activeByStore = new Map();
+    for (const o of (orders || [])) {
+        if (!o?.storeId || ['delivered', 'cancelled'].includes(o.status)) continue;
+        activeByStore.set(o.storeId, (activeByStore.get(o.storeId) || 0) + 1);
+    }
+    return (stores || [])
+        .filter((s) => s && s.active !== false && storeApprovalStatus(s) === 'approved' && validCoords(s.lat, s.lng))
+        .map((s) => {
+            const activeCount = activeByStore.get(s.id) || Number(s.activeOrdersCount) || 0;
+            const hot = storeHotInfo(s, activeCount);
+            const openInfo = storeOpenInfo(s, now);
+            return { store: s, hot, openInfo };
+        })
+        .filter((entry) => entry.hot.isHot && entry.openInfo.open)
+        .sort((a, b) => b.hot.hotScore - a.hot.hotScore);
+}
+
+export function buildDriverHotStoresBarHtml(hotEntries = getHotStoresForDriverMap()) {
+    if (!hotEntries.length) return '';
+    return `
+        <div id="driver-hot-stores-bar" class="driver-hot-stores-bar" role="region" aria-label="Restaurantes en fuego en el mapa">
+            <div class="driver-hot-stores-bar__head">
+                <span class="driver-hot-stores-bar__title">🔥 Restaurantes en fuego (alta demanda de envíos)</span>
+                <span class="driver-hot-stores-bar__hint">Toca uno para verlo en el mapa</span>
+            </div>
+            <div class="driver-hot-stores-bar__chips">
+                ${hotEntries.slice(0, 6).map(({ store: s, hot }) => {
+                    const branch = formatStoreBranchLabel(s);
+                    return `
+                        <button type="button"
+                                class="driver-hot-store-chip"
+                                data-driver-hot-store-id="${esc(s.id)}"
+                                data-lat="${esc(s.lat)}"
+                                data-lng="${esc(s.lng)}">
+                            <span class="driver-hot-store-chip__fire">🔥</span>
+                            <span class="driver-hot-store-chip__body">
+                                <strong>${esc(s.name || 'Restaurante')}${branch ? ` · ${esc(branch)}` : ''}</strong>
+                                <small>${esc(hot.label)}${hot.ratingCount > 0 ? ` · ★ ${hot.ratingAvg.toFixed(1)}` : ''}</small>
+                            </span>
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        </div>
+    `;
+}
+
+export function focusDriverMapOnHotStore(storeId) {
+    const s = storesCache.get(storeId);
+    if (!s || !validCoords(s.lat, s.lng)) return false;
+    const pos = { lat: Number(s.lat), lng: Number(s.lng) };
+    try {
+        if (typeof window !== 'undefined' && window.gMap) {
+            window.gMap.panTo?.(pos);
+            window.gMap.setZoom?.(16);
+        }
+    } catch (_) {}
+    const branch = formatStoreBranchLabel(s);
+    const hot = storeHotInfo(s);
+    toast(`🔥 ${s.name || 'Restaurante'}${branch ? ` (${branch})` : ''} · ${hot.label}. ¡Acércate a esta zona para recibir pedidos!`, 'info');
+    return true;
+}
+
+export function syncDriverHotStoresOnMap() {
+    if (typeof document === 'undefined') return;
+    const driverView = document.getElementById('driver-view');
+    const hotEntries = getHotStoresForDriverMap();
+
+    // Renderizar barra en el panel del conductor si existe
+    if (driverView) {
+        let slot = document.getElementById('driver-hot-stores-slot');
+        if (!slot) {
+            slot = document.createElement('div');
+            slot.id = 'driver-hot-stores-slot';
+            driverView.insertBefore(slot, driverView.firstElementChild);
+            slot.addEventListener('click', (ev) => {
+                const btn = ev.target.closest('[data-driver-hot-store-id]');
+                if (!btn) return;
+                focusDriverMapOnHotStore(btn.getAttribute('data-driver-hot-store-id'));
+            });
+        }
+        slot.innerHTML = buildDriverHotStoresBarHtml(hotEntries);
+    }
+
+    // Actualizar pines y zonas de calor en Google Maps cuando esté disponible
+    try {
+        driverHotMapMarkers.forEach((m) => { try { m.setMap(null); } catch (_) {} });
+        driverHotMapCircles.forEach((c) => { try { c.setMap(null); } catch (_) {} });
+        driverHotMapMarkers = [];
+        driverHotMapCircles = [];
+        const gMap = typeof window !== 'undefined' ? window.gMap : null;
+        if (!gMap || typeof google === 'undefined' || !google.maps) return;
+        hotEntries.slice(0, 12).forEach(({ store: s, hot }) => {
+            const center = { lat: Number(s.lat), lng: Number(s.lng) };
+            if (google.maps.Circle) {
+                const circle = new google.maps.Circle({
+                    map: gMap,
+                    center,
+                    radius: 220,
+                    fillColor: '#f97316',
+                    fillOpacity: 0.2,
+                    strokeColor: '#ea580c',
+                    strokeOpacity: 0.75,
+                    strokeWeight: 2,
+                    clickable: false,
+                });
+                driverHotMapCircles.push(circle);
+            }
+            if (google.maps.Marker) {
+                const branch = formatStoreBranchLabel(s);
+                const marker = new google.maps.Marker({
+                    map: gMap,
+                    position: center,
+                    title: `🔥 ${s.name || 'Restaurante'}${branch ? ` (${branch})` : ''} · ${hot.label}`,
+                    label: {
+                        text: '🔥',
+                        fontSize: '16px',
+                    },
+                });
+                marker.addListener?.('click', () => focusDriverMapOnHotStore(s.id));
+                driverHotMapMarkers.push(marker);
+            }
+        });
+    } catch (_) {}
+}
+
 export function initMerchantStores(deps = {}) {
     dbRef = deps.db;
     appIdRef = deps.appId;
@@ -5761,8 +6980,16 @@ export function initMerchantStores(deps = {}) {
     window.openStoresMarketplace = openMarketplace;
     window.closeStoresMarketplace = (opts) => closeMarketplace(opts || {});
     window.openMerchantPanel = openMerchantPanel;
-    /** Menú por rol: «Mi tienda» vs «Crear mi tienda (máx. 1)». */
-    window.getMyStoreSummary = () => (myStore ? { id: myStore.id, name: myStore.name || '', approvalStatus: myStore.approvalStatus || '' } : null);
+    /** Menú por rol: resumen de tienda(s) y sucursales del emprendedor. */
+    window.getMyStoreSummary = () => (myStore ? {
+        id: myStore.id,
+        name: myStore.name || '',
+        branchName: myStore.branchName || '',
+        approvalStatus: myStore.approvalStatus || '',
+        count: Math.max(1, myStores.length),
+    } : null);
+    window.syncDriverHotStoresOnMap = syncDriverHotStoresOnMap;
+    window.focusDriverMapOnHotStore = focusDriverMapOnHotStore;
     window.openCreateStorePanel = openCreateStorePanel;
     window.openMyStorePanel = openMyStorePanel;
     window.closeMerchantPanel = closeMerchantPanel;
@@ -5816,5 +7043,25 @@ export function onMerchantAuthReady() {
     });
 }
 
-export const __testMerchant = { handleClientOrdersListUpdate, showClientOrderLiveBanner, markCheckoutFieldInvalid, clearCheckoutFieldErrors, orderCardHtml };
+export const __testMerchant = {
+    handleClientOrdersListUpdate,
+    showClientOrderLiveBanner,
+    markCheckoutFieldInvalid,
+    clearCheckoutFieldErrors,
+    orderCardHtml,
+    productRatingInfo,
+    computeStarProducts,
+    storeHotInfo,
+    buildHotStoresStripHtml,
+    buildStoreStarProductsSectionHtml,
+    buildOrderProductRatingModalHtml,
+    submitOrderProductRatings,
+    buildMerchantAlertsStatusBarHtml,
+    testMerchantOrderAlert,
+    buildMerchantStoreSwitcherHtml,
+    buildMerchantStarProductsHtml,
+    buildEditProductCardHtml,
+    buildDriverHotStoresBarHtml,
+    getHotStoresForDriverMap,
+};
 export { STORE_CATEGORIES, ORDER_STATUS, STORE_APPROVAL, calcSplitTariff, getTarifaDelMomento };

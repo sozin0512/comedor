@@ -106,6 +106,59 @@ check('Mínimo para carro en zona céntrica (y envíos de tienda) es L. 75.00 (m
     assert.match(merchantStoresSrc, /CAR_MIN_DELIVERY_FEE/);
 });
 
+
+check('Emprendedor puede editar producto (precio, nombre, descripción, imagen y stock) y sincronizar en sus sucursales', () => {
+    assert.match(merchantStoresSrc, /export function buildEditProductCardHtml\(/);
+    assert.match(merchantStoresSrc, /export function startEditProduct\(productId\)/);
+    assert.match(merchantStoresSrc, /export async function saveEditedProduct\(productId\)/);
+    assert.match(merchantStoresSrc, /data-merchant-action="edit-product"/);
+    assert.match(merchantStoresSrc, /id="m-edit-prod-name"/);
+    assert.match(merchantStoresSrc, /id="m-edit-prod-price"/);
+    assert.match(merchantStoresSrc, /id="m-edit-prod-desc"/);
+    assert.match(merchantStoresSrc, /id="m-edit-prod-sync-branches"/);
+    assert.match(merchantStoresSrc, /data-merchant-action="pick-edit-form-photo"/);
+    assert.match(merchantStoresSrc, /data-merchant-action="save-edit-product"/);
+});
+
+check('Emprendedor puede tener varias sucursales del mismo restaurante con diferente ubicación GPS y diferente horario', () => {
+    assert.ok(!merchantStoresSrc.includes('Solo puedes tener 1 tienda por cuenta'), 'No debe bloquear la creación de sucursales');
+    assert.ok(!merchantStoresSrc.includes('Ya tienes una tienda. Solo se permite una por cuenta.'), 'saveStore no debe bloquear múltiples sucursales');
+    assert.match(merchantStoresSrc, /export function buildMerchantStoreSwitcherHtml\(/);
+    assert.match(merchantStoresSrc, /data-merchant-action="select-my-store"/);
+    assert.match(merchantStoresSrc, /data-merchant-action="clone-branch"/);
+    assert.match(merchantStoresSrc, /id="m-store-branch-name"/);
+    assert.match(merchantStoresSrc, /id="m-store-copy-menu"/);
+    assert.match(merchantStoresSrc, /export async function copyMenuBetweenStores\(/);
+    assert.match(merchantStoresSrc, /export async function syncMenuToAllBranches\(/);
+});
+
+check('Emprendedor ve si los avisos le funcionan y puede tocar «🔊 Probar aviso»', () => {
+    assert.match(merchantStoresSrc, /export function buildMerchantAlertsStatusBarHtml\(\)/);
+    assert.match(merchantStoresSrc, /export async function testMerchantOrderAlert\(\)/);
+    assert.match(merchantStoresSrc, /data-merchant-action="test-order-alert"/);
+    assert.match(merchantStoresSrc, /🔊 Probar aviso/);
+    assert.match(merchantStoresSrc, /Avisos y sonido activos en este dispositivo/);
+});
+
+check('Cliente puntúa productos entregados, Emprendedor y Clientes ven Productos Estrella y Restaurantes en Fuego, y Repartidores ven Restaurantes en Fuego en el mapa', () => {
+    const rulesSrc = fs.readFileSync('firestore.rules', 'utf8');
+    assert.match(rulesSrc, /'productRatings',\s*'storeRating',\s*'ratingComment',\s*'ratedAt',\s*'updatedAt'/);
+    assert.match(fnSrc, /async function syncStoreOrderStatsAndRatingsAdmin\(/);
+    assert.match(merchantStoresSrc, /export function productRatingInfo\(p\)/);
+    assert.match(merchantStoresSrc, /export function computeStarProducts\(products = \[\], orders = \[\]\)/);
+    assert.match(merchantStoresSrc, /export function storeHotInfo\(s, activeOrdersCount = 0\)/);
+    assert.match(merchantStoresSrc, /export function buildOrderProductRatingModalHtml\(/);
+    assert.match(merchantStoresSrc, /⭐ Puntuar los productos que te llegaron/);
+    assert.match(merchantStoresSrc, /export function buildHotStoresStripHtml\(/);
+    assert.match(merchantStoresSrc, /🔥 Restaurantes en fuego/);
+    assert.match(merchantStoresSrc, /export function buildStoreStarProductsSectionHtml\(/);
+    assert.match(merchantStoresSrc, /⭐ Productos estrella de este restaurante/);
+    assert.match(merchantStoresSrc, /export function buildMerchantStarProductsHtml\(/);
+    assert.match(merchantStoresSrc, /⭐ Tus productos estrella/);
+    assert.match(merchantStoresSrc, /export function buildDriverHotStoresBarHtml\(/);
+    assert.match(merchantStoresSrc, /export function syncDriverHotStoresOnMap\(\)/);
+});
+
 for (const { name, fn } of queue) {
     await fn();
     pass++;

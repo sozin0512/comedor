@@ -24914,3 +24914,781 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
   align-items: center;
   gap: 0.25rem;
 }
+
+/* ===================== MULTI-SUCURSALES / TIENDAS DEL EMPRENDEDOR ===================== */
+.merchant-store-switcher:empty {
+  display: none;
+}
+.merchant-store-switcher__inner {
+  margin-top: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.merchant-store-switcher__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.merchant-store-switcher__label {
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.merchant-store-switcher__hint {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #64748b;
+}
+.merchant-store-switcher__scroller {
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+}
+.merchant-branch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.42rem 0.65rem;
+  border-radius: 0.8rem;
+  border: 1.5px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+.merchant-branch-chip.is-active {
+  border-color: #059669;
+  background: #ecfdf5;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.15);
+}
+.merchant-branch-chip__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: #94a3b8;
+}
+.merchant-branch-chip__dot.is-open {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+.merchant-branch-chip__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.merchant-branch-chip__title {
+  font-size: 0.74rem;
+  font-weight: 900;
+  color: #0f172a;
+  white-space: nowrap;
+}
+.merchant-branch-chip__tag {
+  color: #047857;
+  font-weight: 800;
+}
+.merchant-branch-chip__meta {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+}
+.merchant-branch-chip__badge {
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 900;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.merchant-branch-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.42rem 0.65rem;
+  border-radius: 0.8rem;
+  border: 1.5px dashed #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.7rem;
+  font-weight: 900;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.merchant-branch-add--new {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #334155;
+}
+.merchant-branch-add.is-active {
+  border-style: solid;
+  background: #fef3c7;
+}
+
+/* ===================== BARRA DE AVISOS Y PRUEBA DE SONIDO DEL EMPRENDEDOR ===================== */
+.merchant-alerts-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  margin-bottom: 0.65rem;
+  border-radius: 1rem;
+  border: 1px solid #a7f3d0;
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+}
+.merchant-alerts-bar--warn {
+  border-color: #fde68a;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+}
+.merchant-alerts-bar__info {
+  min-width: 0;
+  flex: 1 1 13rem;
+}
+.merchant-alerts-bar__badge {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: #064e3b;
+}
+.merchant-alerts-bar--warn .merchant-alerts-bar__badge {
+  color: #92400e;
+}
+.merchant-alerts-bar__sub {
+  font-size: 0.66rem;
+  font-weight: 600;
+  color: #047857;
+  margin-top: 0.15rem;
+  line-height: 1.3;
+}
+.merchant-alerts-bar--warn .merchant-alerts-bar__sub {
+  color: #b45309;
+}
+.merchant-alerts-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.merchant-alerts-btn {
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.merchant-alerts-btn--test {
+  background: #0f172a;
+  color: #fff;
+}
+.merchant-alerts-btn--enable {
+  background: #d97706;
+  color: #fff;
+}
+
+/* ===================== EDITAR PRODUCTO (PRECIO, NOMBRE, IMAGEN, DESCRIPCIÓN) ===================== */
+.stores-edit-btn {
+  border-radius: 0.75rem;
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 900;
+  cursor: pointer;
+}
+.merchant-edit-product-card {
+  border-radius: 1rem;
+  border: 2px solid #3b82f6;
+  background: #eff6ff;
+  padding: 0.85rem;
+  space-y: 0.6rem;
+}
+.merchant-edit-product-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+}
+.merchant-edit-product-card__title {
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: #1e3a8a;
+}
+.merchant-edit-product-card__close {
+  border: none;
+  background: #dbeafe;
+  color: #1e3a8a;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.merchant-edit-product-card__grid {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.merchant-edit-photo-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  border-radius: 0.85rem;
+  border: 1.5px dashed #60a5fa;
+  background: #fff;
+  color: #1d4ed8;
+  font-size: 0.66rem;
+  font-weight: 800;
+  cursor: pointer;
+  width: 6.2rem;
+  flex-shrink: 0;
+}
+.merchant-edit-photo-preview {
+  width: 5.2rem;
+  height: 5.2rem;
+  object-fit: cover;
+  border-radius: 0.65rem;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 1.35rem;
+}
+.merchant-edit-product-card__fields {
+  flex: 1 1 13rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.merchant-edit-sync-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 0.7rem;
+  background: #dbeafe;
+  color: #1e3a8a;
+  font-size: 0.68rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.merchant-edit-product-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+/* ===================== PRODUCTOS ESTRELLA Y RESTAURANTES EN FUEGO ===================== */
+.star-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.14rem 0.45rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+.star-rating-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.42rem;
+  border-radius: 999px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #b45309;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+.star-orders-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.14rem 0.42rem;
+  border-radius: 999px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #c2410c;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+.product-card-stars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  margin-bottom: 0.22rem;
+}
+.product-card--star {
+  border-color: #fcd34d !important;
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 60%);
+}
+.star-products-box {
+  border-radius: 1rem;
+  border: 1px solid #fcd34d;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 0.75rem;
+}
+.star-products-box__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.star-products-box__title {
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: #78350f;
+}
+.star-products-box__badge {
+  font-size: 0.62rem;
+  font-weight: 900;
+  padding: 0.15rem 0.48rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+.star-products-box__hint {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #92400e;
+  line-height: 1.35;
+}
+.star-products-box__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+.star-products-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.42rem 0.55rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+.star-products-row__rank {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #d97706;
+  min-width: 1.4rem;
+}
+.star-products-row__name {
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+.star-products-row__meta {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.hr-pill--hot {
+  background: linear-gradient(135deg, #ffedd5, #fed7aa) !important;
+  color: #c2410c !important;
+  border: 1px solid #fb923c !important;
+  font-weight: 900 !important;
+}
+.hr-pill--star {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+  border: 1px solid #fcd34d !important;
+  font-weight: 900 !important;
+}
+.hr-pill--branch,
+.hr-store-branch-tag {
+  color: #047857;
+  font-weight: 800;
+  font-size: 0.72rem;
+}
+
+.hot-stores-strip {
+  margin-bottom: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  border: 1px solid #fdba74;
+}
+.hot-stores-strip__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.hot-stores-strip__title {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #9a3412;
+}
+.hot-stores-strip__sub {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #c2410c;
+}
+.hot-stores-strip__filter {
+  border: 1px solid #fb923c;
+  background: #fff;
+  color: #c2410c;
+  font-size: 0.65rem;
+  font-weight: 900;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.hot-stores-strip__scroller {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+}
+.hot-store-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.85rem;
+  background: #fff;
+  border: 1.5px solid #fdba74;
+  text-align: left;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.hot-store-pill__fire {
+  font-size: 1.15rem;
+}
+.hot-store-pill__name {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+.hot-store-pill__branch {
+  color: #047857;
+  font-weight: 800;
+}
+.hot-store-pill__meta {
+  display: block;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: #475569;
+}
+.hot-store-pill__stars {
+  color: #d97706;
+  font-weight: 900;
+}
+
+.store-star-products {
+  margin-bottom: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #fffbeb, #fef3c7);
+  border: 1px solid #fcd34d;
+}
+.store-star-products__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.store-star-products__title {
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: #78350f;
+}
+.store-star-products__badge {
+  font-size: 0.62rem;
+  font-weight: 900;
+  color: #b45309;
+  background: #fff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #fde68a;
+}
+.store-star-products__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.store-star-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem;
+  border-radius: 0.85rem;
+  background: #fff;
+  border: 1px solid #fde68a;
+}
+.store-star-card__photo {
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 0.65rem;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.store-star-card__info {
+  min-width: 0;
+  flex: 1;
+}
+.store-star-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-bottom: 0.15rem;
+}
+.store-star-card__name {
+  font-size: 0.78rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+.store-star-card__price {
+  font-size: 0.75rem;
+  font-weight: 900;
+  color: #059669;
+}
+
+/* ===================== MODAL DE PUNTUACIÓN DE PRODUCTOS ENTREGADOS ===================== */
+.stores-rate-order-btn {
+  border-radius: 0.85rem;
+  border: 1.5px solid #f59e0b;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #78350f;
+  font-size: 0.76rem;
+  font-weight: 900;
+  padding: 0.6rem 0.85rem;
+  cursor: pointer;
+}
+.order-rated-summary {
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.75rem;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+.order-rated-summary__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.order-rated-badge {
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #b45309;
+}
+.order-rated-edit-btn {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font-size: 0.66rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.order-rated-summary__items {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #78350f;
+  margin-top: 0.18rem;
+}
+.order-rated-summary__comment {
+  font-size: 0.64rem;
+  font-style: italic;
+  color: #92400e;
+  margin-top: 0.15rem;
+}
+.order-rating-modal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.order-rating-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+}
+.order-rating-modal__card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 24rem;
+  background: #fff;
+  border-radius: 1.35rem;
+  padding: 1.1rem;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.35);
+}
+.order-rating-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.order-rating-modal__kicker {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #d97706;
+  text-transform: uppercase;
+}
+.order-rating-modal__title {
+  font-size: 0.95rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+.order-rating-modal__close {
+  border: none;
+  background: #f1f5f9;
+  color: #475569;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  font-weight: 900;
+  cursor: pointer;
+}
+.order-rating-modal__sub {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #475569;
+  margin: 0.35rem 0 0.65rem;
+}
+.order-rating-modal__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 45dvh;
+  overflow-y: auto;
+}
+.order-rating-item {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.order-rating-item__info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+}
+.order-rating-item__name {
+  font-size: 0.76rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+.order-rating-item__score {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: #d97706;
+}
+.order-rating-stars {
+  display: flex;
+  gap: 0.35rem;
+}
+.order-rating-star {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #cbd5e1;
+  font-size: 1.15rem;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 0.6rem;
+  cursor: pointer;
+}
+.order-rating-star.is-on {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #f59e0b;
+}
+.order-rating-modal__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+/* ===================== REPARTIDOR: RESTAURANTES EN FUEGO EN EL MAPA ===================== */
+.driver-hot-stores-bar {
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.95rem;
+  background: linear-gradient(135deg, #7c2d12, #9a3412);
+  border: 1px solid #fb923c;
+  color: #fff;
+}
+.driver-hot-stores-bar__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.driver-hot-stores-bar__title {
+  font-size: 0.74rem;
+  font-weight: 900;
+  color: #ffedd5;
+}
+.driver-hot-stores-bar__hint {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #fed7aa;
+}
+.driver-hot-stores-bar__chips {
+  display: flex;
+  gap: 0.45rem;
+  overflow-x: auto;
+  padding-bottom: 0.1rem;
+}
+.driver-hot-store-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(253, 186, 116, 0.5);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.driver-hot-store-chip__fire {
+  font-size: 1rem;
+}
+.driver-hot-store-chip__body strong {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #fff;
+}
+.driver-hot-store-chip__body small {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fed7aa;
+}

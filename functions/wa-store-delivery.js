@@ -231,7 +231,7 @@ module.exports = function createWaStoreDelivery(deps) {
             ]);
         }
         return send.list(from, '¿Cuál es tu tienda?', 'Ver tiendas',
-            stores.map((s) => ({ id: `st_store:${s.id}`, title: s.name || 'Tienda', description: String(s.address || s.cityName || '').slice(0, 72) })),
+            stores.map((s) => ({ id: `st_store:${s.id}`, title: (s.branchName ? `${s.name || 'Tienda'} · ${s.branchName}` : (s.name || 'Tienda')).slice(0, 24), description: String([s.branchName, s.address || s.cityName || ''].filter(Boolean).join(' · ')).slice(0, 72) })),
             'Tus tiendas');
     }
 

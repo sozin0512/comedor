@@ -181,7 +181,7 @@ module.exports = function createWaCustomerOrder(deps) {
         }
         const page = Math.max(0, Number(sess.coStorePage) || 0);
         const slice = list.slice(page * 9, page * 9 + 9);
-        const rows = slice.map((s) => { const nm = s.name || 'Tienda'; return { id: `co_st:${s.id}`, title: cut(nm, 24), description: cut(`${nm.length > 24 ? `${nm} · ` : ''}${s._km.toFixed(1)} km${s.address ? ` · ${s.address}` : ''}`, 72) }; });
+        const rows = slice.map((s) => { const nm = s.branchName ? `${s.name || 'Tienda'} (${s.branchName})` : (s.name || 'Tienda'); return { id: `co_st:${s.id}`, title: cut(nm, 24), description: cut(`${nm.length > 24 ? `${nm} · ` : ''}${s.branchName ? `${s.branchName} · ` : ''}${s._km.toFixed(1)} km${s.address ? ` · ${s.address}` : ''}`, 72) }; });
         if (list.length > (page + 1) * 9) rows.push({ id: 'co_st_more', title: 'Ver más ▶', description: `${list.length - (page + 1) * 9} más` });
         await save({ ...sess, step: 'co_store', coStoreIds: slice.map((s) => s.id) });
         return send.list(from, `${sess.coKind === 'rest' ? '🍔 Restaurantes' : '🛍️ Tiendas'} abiertos cerca (${list.length}):`, 'Ver lista', rows, sess.coKind === 'rest' ? 'Restaurantes' : 'Tiendas');

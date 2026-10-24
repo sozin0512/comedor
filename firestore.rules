@@ -684,6 +684,13 @@ service cloud.firestore {
               resource.data.clientId == requestUid()
               && request.resource.data.status == 'cancelled'
             )
+            || (
+              resource.data.clientId == requestUid()
+              && resource.data.status == 'delivered'
+              && request.resource.data.status == 'delivered'
+              && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['productRatings', 'storeRating', 'ratingComment', 'ratedAt', 'updatedAt'])
+            )
           )
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(storeOrderZoneKeys())
           && !(

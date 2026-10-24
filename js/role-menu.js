@@ -118,7 +118,7 @@ function passengerItems(ctx) {
     return [
         item({ k: 'car', label: 'Pedir viaje / Inicio', act: 'home' }),
         item({ k: 'store', label: 'Tiendas virtuales', act: 'stores' }),
-        item({ k: 'mystore', label: 'Mi tienda', act: store ? 'mystore' : 'createstore', sub: store ? esc(store.name || 'Abrir mi tienda') : '¿Aún no tienes? <b>Crear mi tienda (máx. 1)</b>' }),
+        item({ k: 'mystore', label: 'Mi tienda', act: store ? 'mystore' : 'createstore', sub: store ? esc(store.count > 1 ? `${store.name || 'Mi tienda'} (+${store.count - 1} sucursal${store.count - 1 === 1 ? '' : 'es'})` : (store.name || 'Abrir mi tienda')) : '¿Aún no tienes? <b>Crear mi tienda o restaurante</b>' }),
         item({ k: 'history', label: 'Mis viajes + Facturas', act: 'history' }),
         item({ k: 'pin', label: 'Lugares favoritos', act: 'favorites' }),
         item({ k: 'card', label: 'Métodos de pago', act: 'payments' })
