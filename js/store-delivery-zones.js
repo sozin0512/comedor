@@ -202,11 +202,38 @@ export function checkoutPointSource() {
     return Q.pointSource || '';
 }
 
+export function setCheckoutPoint(point, source = 'gps') {
+    const lat = Number(point?.lat ?? point?.latitude);
+    const lng = Number(point?.lng ?? point?.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || (lat === 0 && lng === 0)) {
+        return null;
+    }
+    Q.point = { lat, lng };
+    if (source) Q.pointSource = source;
+    return Q.point;
+}
+
 export function checkoutPoint() {
     if (Q.point) return Q.point;
     try {
-        const ep = window.destinationEndpoint || window.currentDestinationEndpoint;
-        if (Number.isFinite(Number(ep?.lat)) && Number.isFinite(Number(ep?.lng))) return { lat: Number(ep.lat), lng: Number(ep.lng) };
+        const doc = typeof document !== 'undefined' ? document : null;
+        const candidates = [
+            window.destinationEndpoint,
+            window.currentDestinationEndpoint,
+            doc?.getElementById?.('destination-autocomplete')?._routeEndpoint?.latLng,
+            doc?.getElementById?.('origin-autocomplete')?._routeEndpoint?.latLng,
+            window.userLocation,
+            window.currentUserLocation,
+            window.lastKnownLatLng,
+            window.currentDriverPos,
+        ];
+        for (const ep of candidates) {
+            const lat = Number(ep?.lat ?? ep?.latitude);
+            const lng = Number(ep?.lng ?? ep?.longitude);
+            if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0)) {
+                return { lat, lng };
+            }
+        }
     } catch (_) {}
     return null;
 }
@@ -361,6 +388,12 @@ export function deliveryTripPrice(order, distancePrice) {
 
 /** Cotización del servidor (misma que «Confirmar pedido»): zona del admin + tarifa de la tienda. Para «Pedir envío». */
 export async function quoteStoreDeliveryFeeFor({ storeId, lat, lng, vehicle }) {
+    const la = Number(lat);
+    const ln = Number(lng);
+    const hasCoords = Number.isFinite(la) && Number.isFinite(ln) && Math.abs(la) <= 90 && Math.abs(ln) <= 180 && !(la === 0 && ln === 0);
+    if (hasCoords && storeId) {
+        return fetchQuote(storeId, { lat: la, lng: ln }, vehicle);
+    }
     return callFn('quoteStoreDeliveryFee', { storeId, lat, lng, vehicle: vehicle === 'auto' ? 'auto' : 'moto' });
 }
 

@@ -26,7 +26,7 @@ import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.23.3';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
-    setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, CAR_DELIVERY_FACTOR, quoteStoreDeliveryFeeFor,
+    setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, quoteStoreDeliveryFeeFor,
 } from './store-delivery-zones.js?v=2026.10.23.3';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
@@ -1901,7 +1901,7 @@ function renderMarketplace() {
         const appr = storeApprovalStatus(viewingStore);
         const apprMeta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
         const logoBlock = viewingStore.photoUrl
-            ? `<div class="store-detail-logo-wrap"><img class="store-detail-logo" src="${esc(viewingStore.photoUrl)}" alt="${esc(viewingStore.name || 'Tienda')}" loading="lazy" onerror="this.style.opacity='0'"></div>`
+            ? `<button type="button" class="store-detail-logo-wrap product-photo-zoom-btn" data-stores-action="zoom-product-photo" data-photo-url="${esc(viewingStore.photoUrl)}" data-photo-title="${esc(viewingStore.name || 'Tienda')}" data-photo-desc="${esc(viewingStore.description || viewingStore.address || '')}" title="Toca para ampliar foto" aria-label="Ampliar foto de ${esc(viewingStore.name || 'Tienda')}"><img class="store-detail-logo" src="${esc(viewingStore.photoUrl)}" alt="${esc(viewingStore.name || 'Tienda')}" loading="lazy" onerror="this.style.opacity='0'"><span class="product-photo-zoom-badge" aria-hidden="true"><i class="fas fa-search-plus"></i></span></button>`
             : storeAvatarHtml(viewingStore, 'hr-store-avatar--lg');
         const staffBar = isStoresStaff()
             ? `<div class="store-staff-bar">
@@ -1937,9 +1937,7 @@ function renderMarketplace() {
                 </div>
             </div>
             ${staffBar}
-            <p class="text-[10px] text-slate-500 px-1 mb-2 leading-snug">
-                Pagas el precio de la tienda. El envío lo pagas completo, según la zona: moto o carro.
-            </p>
+            ${formatStoreMenuDeliveryLine(storeMenuDeliveryState, viewingStore).bannerHtml}
             <div class="store-products">
                 <p class="stores-section-label">Menú / productos</p>
                 ${viewingProducts.length ? viewingProducts.map(productCardHtml).join('') : `
@@ -2021,14 +2019,329 @@ function storeCardHtml(s) {
     `;
 }
 
-function productPhotoHtml(p, cls = 'product-card-photo') {
-    if (p.photoUrl) {
-        return `<img class="${cls}" src="${esc(p.photoUrl)}" alt="${esc(p.name || 'Producto')}" loading="lazy" onerror="this.classList.add('is-broken');this.src='';this.alt='';">`;
+const storeMenuDeliveryState = {
+    storeId: null,
+    status: 'idle', // idle | loading | ready
+    point: null,
+    quote: null,
+    distanceFareMoto: null,
+    distanceFareCar: null,
+    distanceKm: null,
+    seq: 0,
+};
+
+function detectUserCoordsForStoreMenu() {
+    const pt = checkoutPoint();
+    if (pt && validCoords(pt.lat, pt.lng)) {
+        return { lat: Number(pt.lat), lng: Number(pt.lng) };
+    }
+    return null;
+}
+
+function computeStoreDistanceFallback(store, point) {
+    if (!validCoords(store?.lat, store?.lng) || !validCoords(point?.lat, point?.lng)) return null;
+    const km = Math.round(Math.max(0.5, haversineKm(Number(store.lat), Number(store.lng), Number(point.lat), Number(point.lng))) * 100) / 100;
+    const fareRes = calculateServiceFare('delivery', km, null, 1);
+    const moto = roundMoney(Number(fareRes?.price ?? fareRes?.total ?? fareRes) || 0);
+    if (!Number.isFinite(moto) || moto <= 0) return null;
+    const car = roundMoney(moto * CAR_DELIVERY_FACTOR);
+    return { km, moto, car };
+}
+
+export function formatStoreMenuDeliveryLine(state = storeMenuDeliveryState, store = viewingStore) {
+    const q = state?.quote;
+    if (q?.inZone && q.fee != null && Number.isFinite(Number(q.fee))) {
+        const feeMoto = money(q.feeMoto ?? q.fee);
+        const feeCar = q.feeCar != null && Number.isFinite(Number(q.feeCar)) ? ` · Carro ${money(q.feeCar)}` : '';
+        return {
+            kind: 'zone',
+            html: `<p class="product-card-delivery product-card-delivery--zone" data-store-delivery-line="1">🛵 Envío a ${esc(q.zoneName || 'tu zona')}: <b>${esc(feeMoto)}</b>${esc(feeCar)}</p>`,
+            bannerHtml: `<div id="store-menu-delivery-banner" class="store-delivery-zone-banner store-delivery-zone-banner--ok"><i class="fas fa-motorcycle"></i><div class="min-w-0 flex-1"><b>🛵 Envío a ${esc(q.zoneName || 'tu zona')}: ${esc(feeMoto)}</b><small>En moto ${esc(feeMoto)}${esc(feeCar)} · se paga al conductor</small></div><button type="button" class="store-delivery-zone-banner__btn" data-stores-action="detect-store-fee-gps"><i class="fas fa-location-arrow"></i> Mi ubicación</button></div>`,
+        };
+    }
+    if (q?.blocked) {
+        return {
+            kind: 'blocked',
+            html: `<p class="product-card-delivery product-card-delivery--blocked" data-store-delivery-line="1"><i class="fas fa-ban"></i> Fuera de la zona de envío de esta tienda</p>`,
+            bannerHtml: `<div id="store-menu-delivery-banner" class="store-delivery-zone-banner store-delivery-zone-banner--warn"><i class="fas fa-ban"></i><div class="min-w-0 flex-1"><b>Tu ubicación está fuera de las zonas de envío de esta tienda</b><small>Si vas a recibir en otra dirección, actualiza tu ubicación.</small></div><button type="button" class="store-delivery-zone-banner__btn" data-stores-action="detect-store-fee-gps"><i class="fas fa-location-arrow"></i> Actualizar GPS</button></div>`,
+        };
+    }
+    if (state?.point && Number.isFinite(Number(state?.distanceFareMoto)) && Number(state.distanceFareMoto) > 0) {
+        const feeMoto = money(state.distanceFareMoto);
+        const feeCar = Number.isFinite(Number(state.distanceFareCar)) && Number(state.distanceFareCar) > 0
+            ? ` · Carro ${money(state.distanceFareCar)}`
+            : '';
+        return {
+            kind: 'distance',
+            html: `<p class="product-card-delivery product-card-delivery--distance" data-store-delivery-line="1">🛵 Envío a tu ubicación: <b>${esc(feeMoto)}</b>${esc(feeCar)}</p>`,
+            bannerHtml: `<div id="store-menu-delivery-banner" class="store-delivery-zone-banner store-delivery-zone-banner--ok"><i class="fas fa-motorcycle"></i><div class="min-w-0 flex-1"><b>🛵 Envío a tu ubicación: ${esc(feeMoto)}</b><small>Tarifa según tu ubicación${state.distanceKm ? ` (${Number(state.distanceKm).toFixed(1)} km)` : ''}${esc(feeCar)} · se paga al conductor</small></div><button type="button" class="store-delivery-zone-banner__btn" data-stores-action="detect-store-fee-gps"><i class="fas fa-location-arrow"></i> Mi ubicación</button></div>`,
+        };
+    }
+    if (state?.status === 'loading') {
+        return {
+            kind: 'loading',
+            html: `<p class="product-card-delivery product-card-delivery--loading" data-store-delivery-line="1"><i class="fas fa-spinner fa-spin"></i> Calculando envío a tu zona…</p>`,
+            bannerHtml: `<div id="store-menu-delivery-banner" class="store-delivery-zone-banner"><i class="fas fa-spinner fa-spin"></i><div class="min-w-0 flex-1"><b>Calculando envío según tu zona…</b><small>Consultando tarifa para tu ubicación</small></div></div>`,
+        };
+    }
+    return {
+        kind: 'prompt',
+        html: `<button type="button" class="product-card-delivery product-card-delivery--prompt" data-store-delivery-line="1" data-stores-action="detect-store-fee-gps">📍 Toca para ver el envío a tu ubicación</button>`,
+        bannerHtml: `<div id="store-menu-delivery-banner" class="store-delivery-zone-banner store-delivery-zone-banner--prompt"><i class="fas fa-map-marker-alt"></i><div class="min-w-0 flex-1"><b>📍 ¿Cuánto cuesta el envío a tu zona?</b><small>Activa tu ubicación para ver el monto exacto de envío en cada producto.</small></div><button type="button" class="store-delivery-zone-banner__btn" data-stores-action="detect-store-fee-gps"><i class="fas fa-location-arrow"></i> Ver mi envío</button></div>`,
+    };
+}
+
+function updateStoreMenuDeliveryDom() {
+    if (typeof document === 'undefined') return;
+    const fmt = formatStoreMenuDeliveryLine(storeMenuDeliveryState, viewingStore);
+    const banner = document.getElementById('store-menu-delivery-banner');
+    if (banner) {
+        banner.outerHTML = fmt.bannerHtml;
+    }
+    document.querySelectorAll('[data-store-delivery-line]').forEach((el) => {
+        el.outerHTML = fmt.html;
+    });
+}
+
+export async function refreshStoreMenuDeliveryQuote(store = viewingStore, { force = false, pointOverride = null } = {}) {
+    if (!store?.id) return null;
+    const pt = pointOverride || detectUserCoordsForStoreMenu();
+    if (!pt) {
+        storeMenuDeliveryState.storeId = store.id;
+        storeMenuDeliveryState.point = null;
+        storeMenuDeliveryState.quote = null;
+        storeMenuDeliveryState.distanceFareMoto = null;
+        storeMenuDeliveryState.distanceFareCar = null;
+        storeMenuDeliveryState.distanceKm = null;
+        storeMenuDeliveryState.status = 'idle';
+        updateStoreMenuDeliveryDom();
+        // Si el permiso de ubicación ya está concedido, obtener coordenadas en silencio
+        try {
+            if (typeof navigator !== 'undefined' && navigator.permissions?.query && navigator.geolocation?.getCurrentPosition) {
+                const perm = await navigator.permissions.query({ name: 'geolocation' });
+                if (perm?.state === 'granted') {
+                    navigator.geolocation.getCurrentPosition((pos) => {
+                        const lat = Number(pos?.coords?.latitude);
+                        const lng = Number(pos?.coords?.longitude);
+                        if (validCoords(lat, lng)) {
+                            setCheckoutPoint({ lat, lng }, 'gps');
+                            refreshStoreMenuDeliveryQuote(store, { force: true, pointOverride: { lat, lng } }).catch(() => {});
+                        }
+                    }, () => {}, { enableHighAccuracy: false, timeout: 6000, maximumAge: 120000 });
+                }
+            }
+        } catch (_) {}
+        return null;
+    }
+
+    setCheckoutPoint(pt, checkoutPointSource() || 'auto');
+    const sameStoreAndPoint = !force
+        && storeMenuDeliveryState.storeId === store.id
+        && storeMenuDeliveryState.status === 'ready'
+        && storeMenuDeliveryState.point
+        && Math.abs(storeMenuDeliveryState.point.lat - pt.lat) < 0.0002
+        && Math.abs(storeMenuDeliveryState.point.lng - pt.lng) < 0.0002;
+    if (sameStoreAndPoint) {
+        updateStoreMenuDeliveryDom();
+        return storeMenuDeliveryState;
+    }
+
+    const seq = ++storeMenuDeliveryState.seq;
+    storeMenuDeliveryState.storeId = store.id;
+    storeMenuDeliveryState.point = { lat: Number(pt.lat), lng: Number(pt.lng) };
+    storeMenuDeliveryState.status = 'loading';
+    const distFallback = computeStoreDistanceFallback(store, pt);
+    storeMenuDeliveryState.distanceKm = distFallback?.km ?? null;
+    storeMenuDeliveryState.distanceFareMoto = distFallback?.moto ?? null;
+    storeMenuDeliveryState.distanceFareCar = distFallback?.car ?? null;
+    updateStoreMenuDeliveryDom();
+
+    try {
+        const q = await quoteStoreDeliveryFeeFor({
+            storeId: store.id,
+            lat: Number(pt.lat),
+            lng: Number(pt.lng),
+            vehicle: 'moto',
+        });
+        if (seq !== storeMenuDeliveryState.seq) return storeMenuDeliveryState;
+        storeMenuDeliveryState.quote = q || null;
+        storeMenuDeliveryState.status = 'ready';
+    } catch (_) {
+        if (seq !== storeMenuDeliveryState.seq) return storeMenuDeliveryState;
+        storeMenuDeliveryState.quote = null;
+        storeMenuDeliveryState.status = 'ready';
+    }
+    updateStoreMenuDeliveryDom();
+    return storeMenuDeliveryState;
+}
+
+function detectStoreMenuFeeWithGps() {
+    if (typeof navigator === 'undefined' || !navigator.geolocation?.getCurrentPosition) {
+        return toast('Tu teléfono no permite usar la ubicación', 'warning');
+    }
+    storeMenuDeliveryState.status = 'loading';
+    updateStoreMenuDeliveryDom();
+    toast('Obteniendo tu ubicación para calcular el envío…', 'info');
+    navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+            const lat = Number(pos?.coords?.latitude);
+            const lng = Number(pos?.coords?.longitude);
+            if (!validCoords(lat, lng)) {
+                storeMenuDeliveryState.status = 'idle';
+                updateStoreMenuDeliveryDom();
+                return toast('Ubicación inválida', 'warning');
+            }
+            setCheckoutPoint({ lat, lng }, 'gps');
+            await refreshStoreMenuDeliveryQuote(viewingStore, { force: true, pointOverride: { lat, lng } });
+            const q = storeMenuDeliveryState.quote;
+            if (q?.inZone && q.fee != null) {
+                toast(`Envío a ${q.zoneName || 'tu zona'}: ${money(q.feeMoto ?? q.fee)}`, 'success');
+            } else if (storeMenuDeliveryState.distanceFareMoto) {
+                toast(`Envío a tu ubicación: ${money(storeMenuDeliveryState.distanceFareMoto)}`, 'success');
+            }
+        },
+        () => {
+            storeMenuDeliveryState.status = 'idle';
+            updateStoreMenuDeliveryDom();
+            toast('No se pudo obtener tu ubicación. Activa el GPS e intenta de nuevo.', 'warning');
+        },
+        { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+    );
+}
+
+export function productPhotoHtml(p, cls = 'product-card-photo') {
+    if (p?.photoUrl) {
+        const price = productBasePrice(p);
+        return `<button type="button" class="product-photo-zoom-btn" data-stores-action="zoom-product-photo" data-product-id="${esc(p.id || '')}" data-photo-url="${esc(p.photoUrl)}" data-photo-title="${esc(p.name || 'Producto')}" data-photo-desc="${esc(p.description || '')}" data-photo-price="${esc(price > 0 ? money(price) : '')}" title="Toca para ampliar foto" aria-label="Ampliar foto de ${esc(p.name || 'Producto')}"><img class="${cls}" src="${esc(p.photoUrl)}" alt="${esc(p.name || 'Producto')}" loading="lazy" onerror="this.classList.add('is-broken');this.src='';this.alt='';"><span class="product-photo-zoom-badge" aria-hidden="true"><i class="fas fa-search-plus"></i></span></button>`;
     }
     return `<div class="${cls} ${cls}--placeholder" aria-hidden="true"><i class="fas fa-image"></i></div>`;
 }
 
-function productCardHtml(p) {
+export function buildProductPhotoLightboxHtml({
+    productId = '',
+    photoUrl = '',
+    title = '',
+    desc = '',
+    priceText = '',
+    canAdd = false,
+    inCartQty = 0,
+    deliveryLineHtml = '',
+} = {}) {
+    return `
+        <div id="store-product-photo-lightbox" class="product-photo-lightbox fixed inset-0 z-[99995]" role="dialog" aria-modal="true" aria-label="${esc(title || 'Foto del producto')}">
+            <div class="product-photo-lightbox__backdrop" data-lightbox-action="close"></div>
+            <div class="product-photo-lightbox__dialog">
+                <div class="product-photo-lightbox__topbar">
+                    <span class="product-photo-lightbox__hint"><i class="fas fa-search-plus"></i> Toca la foto para acercar</span>
+                    <button type="button" class="product-photo-lightbox__close" data-lightbox-action="close" aria-label="Cerrar foto">✕</button>
+                </div>
+                <div class="product-photo-lightbox__stage" data-lightbox-action="close-stage">
+                    <img class="product-photo-lightbox__img max-h-[78dvh] object-contain"
+                         src="${esc(photoUrl)}"
+                         alt="${esc(title || 'Producto')}"
+                         data-lightbox-action="toggle-zoom">
+                </div>
+                <div class="product-photo-lightbox__meta">
+                    <div class="product-photo-lightbox__meta-row">
+                        <div class="min-w-0 flex-1">
+                            <h3 class="product-photo-lightbox__title">${esc(title || 'Producto')}</h3>
+                            ${desc ? `<p class="product-photo-lightbox__desc">${esc(desc)}</p>` : ''}
+                        </div>
+                        ${priceText ? `<span class="product-photo-lightbox__price">${esc(priceText)}</span>` : ''}
+                    </div>
+                    ${deliveryLineHtml ? `<div class="product-photo-lightbox__delivery">${deliveryLineHtml}</div>` : ''}
+                    <div class="product-photo-lightbox__actions">
+                        ${canAdd && productId ? `
+                            <button type="button" class="stores-primary-btn product-photo-lightbox__add" data-lightbox-action="add-to-cart" data-product-id="${esc(productId)}">
+                                <i class="fas fa-cart-plus"></i> ${inCartQty > 0 ? `Agregar otro (${inCartQty} en carrito)` : 'Agregar al carrito'}
+                            </button>
+                        ` : ''}
+                        <button type="button" class="stores-secondary-btn product-photo-lightbox__dismiss" data-lightbox-action="close">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+export function openProductPhotoZoomModal(opts = {}) {
+    const pid = String(opts.productId || '').trim();
+    const product = pid
+        ? (viewingProducts.find((x) => x.id === pid) || myProducts.find((x) => x.id === pid) || null)
+        : null;
+    const photoUrl = String(opts.photoUrl || product?.photoUrl || '').trim();
+    if (!photoUrl) return null;
+    const title = opts.title || product?.name || 'Producto';
+    const desc = opts.desc != null && opts.desc !== '' ? opts.desc : (product?.description || '');
+    const priceText = opts.priceText || (product ? money(productBasePrice(product)) : '');
+    const canAdd = !!(product && viewingStore && viewingProducts.some((x) => x.id === product.id) && productCanSell(product, viewingStore));
+    const inCartQty = (product && cart.find((c) => c.productId === product.id)?.qty) || 0;
+    const deliveryLineHtml = viewingStore ? formatStoreMenuDeliveryLine(storeMenuDeliveryState, viewingStore).html : '';
+    const html = buildProductPhotoLightboxHtml({
+        productId: product?.id || pid,
+        photoUrl,
+        title,
+        desc,
+        priceText,
+        canAdd,
+        inCartQty,
+        deliveryLineHtml,
+    });
+    if (typeof document === 'undefined') return html;
+    document.getElementById('store-product-photo-lightbox')?.remove();
+    const wrap = document.createElement('div');
+    wrap.innerHTML = html.trim();
+    const modal = wrap.firstElementChild;
+    if (!modal) return null;
+
+    const close = () => {
+        document.removeEventListener('keydown', onKey);
+        modal.remove();
+    };
+    const onKey = (ev) => {
+        if (ev.key === 'Escape') close();
+    };
+    document.addEventListener('keydown', onKey);
+
+    modal.addEventListener('click', (ev) => {
+        const gpsBtn = ev.target.closest?.('[data-stores-action="detect-store-fee-gps"]');
+        if (gpsBtn) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            close();
+            detectStoreMenuFeeWithGps();
+            return;
+        }
+        const actEl = ev.target.closest?.('[data-lightbox-action]');
+        const act = actEl?.getAttribute?.('data-lightbox-action');
+        if (act === 'close' || (act === 'close-stage' && ev.target === actEl)) {
+            ev.preventDefault();
+            close();
+            return;
+        }
+        if (act === 'toggle-zoom') {
+            ev.preventDefault();
+            ev.stopPropagation();
+            actEl.classList.toggle('is-zoomed');
+            return;
+        }
+        if (act === 'add-to-cart') {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const targetPid = actEl.getAttribute('data-product-id') || product?.id || pid;
+            if (targetPid) {
+                addToCart(targetPid);
+                toast(`${title} agregado al carrito`, 'success');
+            }
+            close();
+        }
+    });
+
+    document.body.appendChild(modal);
+    return modal;
+}
+
+export function productCardHtml(p) {
     const left = productStockLeft(p, viewingStore);
     const available = productCanSell(p, viewingStore);
     const inCart = cart.find((c) => c.productId === p.id);
@@ -2038,6 +2351,7 @@ function productCardHtml(p) {
         : (left > 0
             ? `<p class="text-[9px] font-bold text-emerald-700">Quedan ${left}</p>`
             : `<p class="text-[9px] font-bold text-slate-400">Sin stock</p>`);
+    const deliveryLine = formatStoreMenuDeliveryLine(storeMenuDeliveryState, viewingStore).html;
     return `
         <div class="product-card ${available ? '' : 'product-card--off'}">
             ${productPhotoHtml(p)}
@@ -2045,7 +2359,7 @@ function productCardHtml(p) {
                 <p class="product-card-name">${esc(p.name)}</p>
                 ${p.description ? `<p class="product-card-desc">${esc(p.description)}</p>` : ''}
                 <p class="product-card-price">${money(price)}</p>
-                <p class="text-[9px] text-slate-400 font-semibold leading-snug">Envío aparte, según tu zona</p>
+                ${deliveryLine}
                 ${stockLine}
             </div>
             ${available ? `
@@ -2076,7 +2390,7 @@ function renderCartHtml() {
                 return `
                 <div class="cart-line">
                     ${i.photoUrl
-                        ? `<img class="cart-line-photo" src="${esc(i.photoUrl)}" alt="" loading="lazy">`
+                        ? `<button type="button" class="product-photo-zoom-btn cart-line-photo-btn" data-stores-action="zoom-product-photo" data-product-id="${esc(i.productId)}" data-photo-url="${esc(i.photoUrl)}" data-photo-title="${esc(i.name || 'Producto')}" data-photo-price="${esc(money(unit))}" title="Toca para ampliar foto" aria-label="Ampliar foto de ${esc(i.name || 'Producto')}"><img class="cart-line-photo" src="${esc(i.photoUrl)}" alt="${esc(i.name || 'Producto')}" loading="lazy"><span class="product-photo-zoom-badge" aria-hidden="true"><i class="fas fa-search-plus"></i></span></button>`
                         : `<div class="cart-line-photo cart-line-photo--placeholder"><i class="fas fa-image"></i></div>`}
                     <div class="min-w-0 flex-1">
                         <p class="font-bold text-sm text-slate-900">${esc(i.name)}</p>
@@ -2550,6 +2864,7 @@ async function openStore(storeId) {
     }
     marketplaceView = 'store';
     renderMarketplace();
+    refreshStoreMenuDeliveryQuote(store).catch(() => {});
 }
 
 function addToCart(productId) {
@@ -2930,6 +3245,22 @@ function onMarketplaceClick(e) {
         if (input) input.value = '';
         document.getElementById('stores-search-clear')?.classList.add('hidden');
         return renderMarketplace();
+    }
+    if (action === 'zoom-product-photo') {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return openProductPhotoZoomModal({
+            productId,
+            photoUrl: t.getAttribute('data-photo-url') || '',
+            title: t.getAttribute('data-photo-title') || '',
+            desc: t.getAttribute('data-photo-desc') || '',
+            priceText: t.getAttribute('data-photo-price') || '',
+        });
+    }
+    if (action === 'detect-store-fee-gps') {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return detectStoreMenuFeeWithGps();
     }
     if (action === 'open-store' && storeId) return openStore(storeId);
     if (action === 'cart-add' && productId) return addToCart(productId);
@@ -4382,6 +4713,18 @@ async function onMerchantClick(e) {
         return renderMerchantBody();
     }
 
+    const zoomBtn = e.target.closest('[data-stores-action="zoom-product-photo"]');
+    if (zoomBtn) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return openProductPhotoZoomModal({
+            productId: zoomBtn.getAttribute('data-product-id') || '',
+            photoUrl: zoomBtn.getAttribute('data-photo-url') || '',
+            title: zoomBtn.getAttribute('data-photo-title') || '',
+            desc: zoomBtn.getAttribute('data-photo-desc') || '',
+            priceText: zoomBtn.getAttribute('data-photo-price') || '',
+        });
+    }
     const t = e.target.closest('[data-merchant-action]');
     if (!t) return;
     const action = t.getAttribute('data-merchant-action');

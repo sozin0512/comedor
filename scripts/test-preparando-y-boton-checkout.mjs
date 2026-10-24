@@ -43,7 +43,6 @@ check('Notificación en vivo del cliente y barra de 5 pasos en Mis pedidos', () 
     assert.match(merchantStoresSrc, /export function orderProgressStepperHtml\(o\)/);
     assert.match(merchantStoresSrc, /Preparando el pedido/);
     assert.match(merchantStoresSrc, /¡Pedido preparado! Llamando a tu delivery/);
-    // Auto-start listener on login
     const matches = merchantStoresSrc.match(/startClientOrdersListener\(\);/g) || [];
     assert.ok(matches.length >= 4, `Expected startClientOrdersListener() in init + authReady + openMarketplace + myOrders, got ${matches.length}`);
 });
@@ -51,6 +50,29 @@ check('Notificación en vivo del cliente y barra de 5 pasos en Mis pedidos', () 
 check('Push notifications del servidor usan «👨‍🍳 Preparando el pedido» y «✅ Pedido preparado · llamando delivery»', () => {
     assert.match(fnSrc, /preparing:\s*\{\s*title:\s*'👨‍🍳 Preparando el pedido'/);
     assert.match(fnSrc, /ready:\s*\{\s*title:\s*'✅ Pedido preparado · llamando delivery'/);
+});
+
+check('Foto de producto clickeable para ampliar (zoom-product-photo) y modal lightbox pantalla completa z-[99995]', () => {
+    assert.match(merchantStoresSrc, /export function productPhotoHtml\(/);
+    assert.match(merchantStoresSrc, /data-stores-action="zoom-product-photo"/);
+    assert.match(merchantStoresSrc, /product-photo-zoom-badge/);
+    assert.match(merchantStoresSrc, /export function buildProductPhotoLightboxHtml\(/);
+    assert.match(merchantStoresSrc, /export function openProductPhotoZoomModal\(/);
+    assert.match(merchantStoresSrc, /id="store-product-photo-lightbox"[^>]*z-\[99995\]/);
+    assert.match(merchantStoresSrc, /max-h-\[78dvh\] object-contain/);
+    assert.match(merchantStoresSrc, /Agregar al carrito/);
+    assert.match(appCss, /\.product-photo-lightbox\s*\{[^}]*z-index:\s*99995\s*!important;/);
+});
+
+check('Se eliminó «Envío aparte, según tu zona» y se muestra el envío real de la zona del cliente en cada producto', () => {
+    assert.ok(!merchantStoresSrc.includes('Envío aparte, según tu zona'), 'No debe existir el texto fijo «Envío aparte, según tu zona»');
+    assert.match(merchantStoresSrc, /export function formatStoreMenuDeliveryLine\(/);
+    assert.match(merchantStoresSrc, /export async function refreshStoreMenuDeliveryQuote\(/);
+    assert.match(merchantStoresSrc, /🛵 Envío a \$\{esc\(q\.zoneName \|\| 'tu zona'\)\}: <b>\$\{esc\(feeMoto\)\}<\/b>\$\{esc\(feeCar\)\}/);
+    assert.match(merchantStoresSrc, /🛵 Envío a tu ubicación: <b>\$\{esc\(feeMoto\)\}<\/b>\$\{esc\(feeCar\)\}/);
+    assert.match(merchantStoresSrc, /📍 Toca para ver el envío a tu ubicación/);
+    assert.match(merchantStoresSrc, /data-stores-action="detect-store-fee-gps"/);
+    assert.match(zonesSrc, /export function setCheckoutPoint\(point, source = 'gps'\)/);
 });
 
 console.log(`\n${pass}/${pass} PASS`);
