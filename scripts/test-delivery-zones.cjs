@@ -55,7 +55,7 @@ const C = { lat: 14.4598, lng: -87.6378 };
   ok('cotizar: fuera + bloquear', DZ.quoteDelivery({ zones: [zc], lat: 0, lng: 1, outsideBehavior: 'block' }).blocked === true);
   ok('cotizar: fuera + distancia', DZ.quoteDelivery({ zones: [zc], lat: 0, lng: 1, outsideBehavior: 'distance' }).blocked === false);
   const qRide = DZ.quoteDelivery({ zones: [{ ...zc, baseFee: 45 }], lat: C.lat, lng: C.lng });
-  ok('cotizar sin vehículo: fee es la moto y el carro es 25% más', qRide.fee === 45 && qRide.feeMoto === 45 && qRide.feeCar === 56.25 && qRide.vehicle === 'moto');
+  ok('cotizar sin vehículo: fee es la moto y el carro tiene mínimo L. 75.00', qRide.fee === 45 && qRide.feeMoto === 45 && qRide.feeCar === 75 && qRide.vehicle === 'moto');
   const q115 = DZ.quoteDelivery({ zones: [zf], storeFees: { f: { mode: 'custom', fee: 115 } }, lat: C.lat + 0.02, lng: C.lng, vehicle: 'carro' });
   ok('cotizar carro: 115 → 143.75', q115.fee === 143.75 && q115.feeCar === 143.75 && q115.feeMoto === 115 && q115.vehicle === 'auto');
   ok('cotizar moto explícita sigue en 115', DZ.quoteDelivery({ zones: [zf], storeFees: { f: { mode: 'custom', fee: 115 } }, lat: C.lat + 0.02, lng: C.lng, vehicle: 'moto' }).fee === 115);

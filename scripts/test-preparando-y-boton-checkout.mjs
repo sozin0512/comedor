@@ -8,10 +8,9 @@ const zonesSrc = fs.readFileSync('js/store-delivery-zones.js', 'utf8');
 const fnSrc = fs.readFileSync('functions/index.js', 'utf8');
 
 let pass = 0;
+const queue = [];
 function check(name, fn) {
-    fn();
-    pass++;
-    console.log(`PASS | ${name}`);
+    queue.push({ name, fn });
 }
 
 check('#toast-container tiene z-[99999] en index.html y z-index: 99999 en css/app.css (por encima de .stores-world 46000)', () => {
@@ -75,4 +74,41 @@ check('Se eliminó «Envío aparte, según tu zona» y se muestra el envío real
     assert.match(zonesSrc, /export function setCheckoutPoint\(point, source = 'gps'\)/);
 });
 
+check('Mínimo para carro en zona céntrica (y envíos de tienda) es L. 75.00 (moto L. 35 -> Carro L. 75.00, nunca L. 44.00)', async () => {
+    const { createRequire } = await import('node:module');
+    const req = createRequire(import.meta.url);
+    const DZ = req('../functions/delivery-zones.js');
+    assert.equal(DZ.CAR_MIN_DELIVERY_FEE, 75);
+    assert.equal(DZ.computeCarDeliveryFee(35), 75);
+    assert.equal(DZ.computeCarDeliveryFee(40), 75);
+    assert.equal(DZ.computeCarDeliveryFee(110), 137.5);
+    const zoneCentrica = {
+        id: 'comayagua-centrica', cityId: 'comayagua', name: 'Zona Céntrica',
+        active: true, priority: 1, baseFee: 35, minFee: 30, maxFee: 60,
+        polygon: [{ lat: 14.47, lng: -87.66 }, { lat: 14.47, lng: -87.61 }, { lat: 14.43, lng: -87.61 }, { lat: 14.43, lng: -87.66 }],
+    };
+    const qMoto = DZ.quoteDelivery({ zones: [zoneCentrica], storeFees: {}, lat: 14.45, lng: -87.63, cityId: 'comayagua', vehicle: 'moto' });
+    const qCar = DZ.quoteDelivery({ zones: [zoneCentrica], storeFees: {}, lat: 14.45, lng: -87.63, cityId: 'comayagua', vehicle: 'auto' });
+    assert.equal(qMoto.feeMoto, 35);
+    assert.equal(qMoto.feeCar, 75);
+    assert.equal(qCar.fee, 75);
+    const ver = DZ.verifyMerchantDirectDelivery({
+        trip: { merchantId: 'u1', destinationLat: 14.45, destinationLng: -87.63, deliveryVehicle: 'auto', priceNum: 44 },
+        store: { id: 's1', ownerId: 'u1', lat: 14.452, lng: -87.638 },
+        quote: qCar,
+        rate: DZ.DEFAULT_DELIVERY_RATE,
+    });
+    assert.equal(ver.ok, true);
+    assert.equal(ver.corrected, true);
+    assert.equal(ver.patch.priceNum, 75);
+    assert.equal(ver.patch.price, 'L. 75.00');
+    assert.match(zonesSrc, /export const CAR_MIN_DELIVERY_FEE = 75;/);
+    assert.match(merchantStoresSrc, /CAR_MIN_DELIVERY_FEE/);
+});
+
+for (const { name, fn } of queue) {
+    await fn();
+    pass++;
+    console.log(`PASS | ${name}`);
+}
 console.log(`\n${pass}/${pass} PASS`);

@@ -20,6 +20,10 @@
 const MAX_FEE = 2000;
 /** Carro sobre la tarifa de zona (o sobre el precio por km si no hay zona). Moto = tarifa tal cual. */
 const CAR_DELIVERY_FACTOR = 1.25;
+const CAR_MIN_DELIVERY_FEE = 75;
+function computeCarDeliveryFee(motoFee) {
+    return Math.max(CAR_MIN_DELIVERY_FEE, money(Number(motoFee) * CAR_DELIVERY_FACTOR));
+}
 /** «L. 1,234.00», igual que js/money-format.js y js/delivery-zones-shared.js. */
 const lmoney = (n) => 'L. ' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const MAX_POINTS = 80;
@@ -143,7 +147,7 @@ function quoteDelivery({ zones, storeFees, lat, lng, cityId, outsideBehavior, ve
     if (!zone) return { inZone: false, reason: 'outside', behavior, blocked: behavior === 'block', ...ride };
     const r = resolveStoreFee(zone, storeFees?.[zone.id]);
     const feeMoto = r.fee;
-    const feeCar = money(r.fee * CAR_DELIVERY_FACTOR);
+    const feeCar = computeCarDeliveryFee(r.fee);
     return {
         inZone: true, zoneId: zone.id, zoneName: zone.name, source: r.source, baseFee: zone.baseFee,
         feeMoto, feeCar, fee: choice === 'auto' ? feeCar : feeMoto, ...ride,
@@ -168,7 +172,7 @@ function deliveryRateFrom(fixedFares) {
 function distanceDeliveryFee(km, vehicle, rate) {
     const dist = Math.max(MERCHANT_DIRECT_MIN_KM, Number(km) || 0);
     let fee = money(rate.base + dist * rate.perKm);
-    if (deliveryVehicleChoice(vehicle) === 'auto') fee = money(fee * CAR_DELIVERY_FACTOR);
+    if (deliveryVehicleChoice(vehicle) === 'auto') fee = computeCarDeliveryFee(fee);
     return fee;
 }
 /**
@@ -492,4 +496,4 @@ module.exports = function createDeliveryZones(deps) {
         helpers: { quoteFor }
     };
 };
-Object.assign(module.exports, { verifyMerchantDirectDelivery, distanceDeliveryFee, deliveryRateFrom, DEFAULT_DELIVERY_RATE, pointInPolygon, polygonAreaKm2, validateZoneInput, findZoneForPoint, validateStoreFee, resolveStoreFee, quoteDelivery, deliveryVehicleChoice, diffZone, cleanPolygon, SEED_ZONES, ZONE_SOURCES, MAX_FEE, CAR_DELIVERY_FACTOR });
+Object.assign(module.exports, { verifyMerchantDirectDelivery, distanceDeliveryFee, deliveryRateFrom, DEFAULT_DELIVERY_RATE, pointInPolygon, polygonAreaKm2, validateZoneInput, findZoneForPoint, validateStoreFee, resolveStoreFee, quoteDelivery, deliveryVehicleChoice, diffZone, cleanPolygon, SEED_ZONES, ZONE_SOURCES, MAX_FEE, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee });

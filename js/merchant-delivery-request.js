@@ -1,3 +1,4 @@
+export const CAR_MIN_DELIVERY_FEE = 75;
 /**
  * «Pedir envío» desde la tienda (sin pedido de cliente): la tienda/restaurante pide
  * un delivery directo en moto o carro. Funciones puras (sin Firebase ni DOM):
@@ -39,12 +40,16 @@ export function isInHonduras(lat, lng) {
  * y el recargo de carro que ya usan los pedidos de tienda (CAR_DELIVERY_FACTOR).
  * commissionPercent = comisión del servicio que configuró el admin (informativo: la paga el conductor).
  */
-export function estimateMerchantDelivery({ km, vehicle, fareFn, carFactor = 1, commissionPercent = null }) {
+export function estimateMerchantDelivery({ km, vehicle, fareFn, carFactor = 1.25, carMinFee = CAR_MIN_DELIVERY_FEE, commissionPercent = null }) {
     const v = normalizeMerchantVehicle(vehicle);
     const dist = Math.max(0.5, Number(km) || 0);
     if (!v || typeof fareFn !== 'function') return null;
     let price = Number(fareFn('delivery', dist, null, 1)) || 0;
-    if (v === 'auto') price *= Number(carFactor) || 1;
+    if (v === 'auto') {
+        price *= Number(carFactor) || 1;
+        const minFloor = Number.isFinite(Number(carMinFee)) ? Number(carMinFee) : CAR_MIN_DELIVERY_FEE;
+        price = Math.max(minFloor, price);
+    }
     price = Math.round(price * 100) / 100;
     const pct = Number(commissionPercent);
     const commission = Number.isFinite(pct) && pct >= 0 && pct <= 100 ? Math.round(price * pct) / 100 : null;
@@ -62,17 +67,19 @@ export function estimateMerchantDelivery({ km, vehicle, fareFn, carFactor = 1, c
  * Las tarifas fijas/rutas (route-fixed-fares.js) NO aplican a Envío (isPassengerService excluye delivery),
  * igual que en la app del pasajero.
  */
-export function resolveMerchantDeliveryPrice({ quote = null, km, vehicle, fareFn, carFactor = 1, commissionPercent = null }) {
+export function resolveMerchantDeliveryPrice({ quote = null, km, vehicle, fareFn, carFactor = 1.25, carMinFee = CAR_MIN_DELIVERY_FEE, commissionPercent = null }) {
     const v = normalizeMerchantVehicle(vehicle);
     if (!v) return null;
     const dist = Math.round(Math.max(0.5, Number(km) || 0) * 100) / 100;
+    const minFloor = Number.isFinite(Number(carMinFee)) ? Number(carMinFee) : CAR_MIN_DELIVERY_FEE;
     const pct = Number(commissionPercent);
     const withCommission = (o) => {
         const ok = Number.isFinite(pct) && pct >= 0 && pct <= 100 && commissionPercent != null;
         return { ...o, commissionPercent: ok ? pct : null, commission: ok ? Math.round(o.price * pct) / 100 : null };
     };
     if (quote && quote.inZone) {
-        const fee = Number(v === 'auto' ? quote.feeCar : quote.feeMoto);
+        let fee = Number(v === 'auto' ? quote.feeCar : quote.feeMoto);
+        if (v === 'auto' && Number.isFinite(fee)) fee = Math.max(minFloor, fee);
         if (Number.isFinite(fee) && fee >= 0) {
             const custom = quote.source === 'store_custom';
             return withCommission({
@@ -87,7 +94,7 @@ export function resolveMerchantDeliveryPrice({ quote = null, km, vehicle, fareFn
     if (quote && quote.blocked) {
         return withCommission({ vehicle: v, km: dist, price: 0, blocked: true, tariff: { kind: 'blocked', zoneId: null, zoneName: '', source: 'blocked', label: 'Fuera de las zonas de envío de tu ciudad' } });
     }
-    const est = estimateMerchantDelivery({ km: dist, vehicle: v, fareFn, carFactor });
+    const est = estimateMerchantDelivery({ km: dist, vehicle: v, fareFn, carFactor, carMinFee: minFloor });
     if (!est) return null;
     const offline = !quote || quote.reason === 'error';
     return withCommission({

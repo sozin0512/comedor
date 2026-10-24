@@ -10,8 +10,14 @@ import { esc, money, rangeLabel, validateStoreFee, effectiveFee, zoneColor, zone
 
 const FN_URL = 'https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js';
 export const ZONE_FEE_SOURCES = ['zone_base', 'store_custom'];
-/** Igual que functions/delivery-zones.js CAR_DELIVERY_FACTOR. El carro paga esto sobre la zona. */
+/** Igual que functions/delivery-zones.js CAR_DELIVERY_FACTOR. El carro paga esto sobre la zona (mínimo L. 75.00). */
 export const CAR_DELIVERY_FACTOR = 1.25;
+export const CAR_MIN_DELIVERY_FEE = 75;
+export function computeCarDeliveryFee(motoFee) {
+    const m = Number(motoFee);
+    if (!Number.isFinite(m) || m <= 0) return CAR_MIN_DELIVERY_FEE;
+    return Math.max(CAR_MIN_DELIVERY_FEE, Math.round(m * CAR_DELIVERY_FACTOR * 100) / 100);
+}
 let DEPS = {};
 
 function ensureCss() {
@@ -246,17 +252,23 @@ export function checkoutFeeHtml(st = Q) {
     const q = st.quote;
     const vehicle = st.vehicle === 'auto' ? 'auto' : (st.vehicle === 'moto' ? 'moto' : '');
     const gps = '<button type="button" class="tz-linkbtn" data-sz-checkout="gps"><i class="fas fa-location-arrow"></i> Usar mi ubicación</button>';
+    const carFeeVal = q?.inZone && (q.feeCar != null || q.feeMoto != null || q.fee != null)
+        ? (q.feeCar != null && Number.isFinite(Number(q.feeCar)) ? Math.max(CAR_MIN_DELIVERY_FEE, Number(q.feeCar)) : computeCarDeliveryFee(q.feeMoto ?? q.fee))
+        : null;
     const both = q?.inZone && q.feeMoto != null
-        ? `<small>Moto ${esc(money(q.feeMoto))} · Carro ${esc(money(q.feeCar))} (25% más)</small>`
-        : '<small>El carro cuesta 25% más que la moto. Se paga al conductor.</small>';
+        ? `<small>Moto ${esc(money(q.feeMoto))} · Carro ${esc(money(carFeeVal))} (mín. L. 75.00)</small>`
+        : '<small>El carro cuesta 25% más que la moto (mínimo L. 75.00). Se paga al conductor.</small>';
     let inner;
     if (!vehicle) inner = `<div class="tz-quote"><i class="fas fa-shipping-fast"></i><div><b>Elige moto o carro</b>${both}</div></div>`;
     else if (st.status === 'loading') inner = '<div class="tz-quote"><i class="fas fa-spinner fa-spin"></i><div><b>Calculando envío…</b></div></div>';
     else if (st.status === 'error') inner = `<div class="tz-quote"><i class="fas fa-route"></i><div><b>Envío: se calcula al despachar</b><small>No se pudo cotizar ahora · <button type="button" class="tz-linkbtn" data-sz-checkout="retry">reintentar</button></small></div></div>`;
-    else if (!q || q.reason === 'no_location') inner = `<div class="tz-quote"><i class="fas fa-map-marker-alt"></i><div><b>Envío: marca tu ubicación para ver el monto</b><small>Sin ubicación se calcula por distancia al despachar. ${vehicle === 'auto' ? 'En carro es 25% más.' : ''} ${gps}</small></div></div>`;
-    else if (q.inZone) inner = `<div class="tz-quote ok big"><i class="fas ${rideIcon(vehicle)}"></i><div><b>Envío en ${vehicle === 'auto' ? 'carro' : 'moto'} a ${esc(q.zoneName)}: ${esc(money(q.fee))}</b><small>${q.source === 'store_custom' ? 'Tarifa de la tienda' : 'Tarifa fija de la zona'}${vehicle === 'auto' ? ' · carro +25%' : ''} · la confirma el servidor · se paga al conductor</small></div></div>`;
+    else if (!q || q.reason === 'no_location') inner = `<div class="tz-quote"><i class="fas fa-map-marker-alt"></i><div><b>Envío: marca tu ubicación para ver el monto</b><small>Sin ubicación se calcula por distancia al despachar. ${vehicle === 'auto' ? 'En carro es 25% más (mín. L. 75.00).' : ''} ${gps}</small></div></div>`;
+    else if (q.inZone) {
+        const effFee = vehicle === 'auto' ? Math.max(CAR_MIN_DELIVERY_FEE, Number(q.feeCar ?? q.fee) || 0) : Number(q.feeMoto ?? q.fee);
+        inner = `<div class="tz-quote ok big"><i class="fas ${rideIcon(vehicle)}"></i><div><b>Envío en ${vehicle === 'auto' ? 'carro' : 'moto'} a ${esc(q.zoneName)}: ${esc(money(effFee))}</b><small>${q.source === 'store_custom' ? 'Tarifa de la tienda' : 'Tarifa fija de la zona'}${vehicle === 'auto' ? ' · carro +25% (mín. L. 75)' : ''} · la confirma el servidor · se paga al conductor</small></div></div>`;
+    }
     else if (q.blocked) inner = `<div class="tz-quote bad"><i class="fas fa-ban"></i><div><b>Por ahora no llegamos a esa dirección</b><small>Está fuera de las zonas de envío de la tienda. Prueba otra dirección · ${gps}</small></div></div>`;
-    else inner = `<div class="tz-quote"><i class="fas ${rideIcon(vehicle)}"></i><div><b>Envío en ${vehicle === 'auto' ? 'carro' : 'moto'}: se calcula por distancia al despachar</b><small>Esta dirección no está en ninguna zona. ${vehicle === 'auto' ? 'El carro paga 25% más que la moto.' : 'Se paga al conductor.'}</small></div></div>`;
+    else inner = `<div class="tz-quote"><i class="fas ${rideIcon(vehicle)}"></i><div><b>Envío en ${vehicle === 'auto' ? 'carro' : 'moto'}: se calcula por distancia al despachar</b><small>Esta dirección no está en ninguna zona. ${vehicle === 'auto' ? 'El carro paga 25% más que la moto (mín. L. 75.00).' : 'Se paga al conductor.'}</small></div></div>`;
     const src = st.pointSource === 'gps' ? '<small class="tz-mut tz-src">Ubicación: tu GPS</small>' : '';
     return `<div id="store-zone-fee-box" class="tz-checkout">${inner}${src}</div>`;
 }
@@ -382,7 +394,10 @@ export function orderFeeLineHtml(o) {
 /** Precio del viaje de entrega: si el servidor fijó tarifa de zona, esa; si no, la de distancia. */
 export function deliveryTripPrice(order, distancePrice) {
     const f = Number(order?.deliveryFee);
-    if (ZONE_FEE_SOURCES.includes(order?.deliveryFeeSource) && Number.isFinite(f) && f >= 0) return { priceNum: f, fromZone: true };
+    const isCar = String(order?.deliveryVehicle || "").toLowerCase() === "auto" || String(order?.deliveryVehicle || "").toLowerCase() === "carro";
+    if (ZONE_FEE_SOURCES.includes(order?.deliveryFeeSource) && Number.isFinite(f) && f >= 0) {
+        return { priceNum: isCar ? Math.max(CAR_MIN_DELIVERY_FEE, f) : f, fromZone: true };
+    }
     return { priceNum: distancePrice, fromZone: false };
 }
 

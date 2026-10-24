@@ -26,7 +26,7 @@ import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.23.3';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
-    setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, quoteStoreDeliveryFeeFor,
+    setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
 } from './store-delivery-zones.js?v=2026.10.23.3';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
@@ -2044,7 +2044,7 @@ function computeStoreDistanceFallback(store, point) {
     const fareRes = calculateServiceFare('delivery', km, null, 1);
     const moto = roundMoney(Number(fareRes?.price ?? fareRes?.total ?? fareRes) || 0);
     if (!Number.isFinite(moto) || moto <= 0) return null;
-    const car = roundMoney(moto * CAR_DELIVERY_FACTOR);
+    const car = computeCarDeliveryFee(moto);
     return { km, moto, car };
 }
 
@@ -2052,7 +2052,10 @@ export function formatStoreMenuDeliveryLine(state = storeMenuDeliveryState, stor
     const q = state?.quote;
     if (q?.inZone && q.fee != null && Number.isFinite(Number(q.fee))) {
         const feeMoto = money(q.feeMoto ?? q.fee);
-        const feeCar = q.feeCar != null && Number.isFinite(Number(q.feeCar)) ? ` · Carro ${money(q.feeCar)}` : '';
+        const rawCar = q.feeCar != null && Number.isFinite(Number(q.feeCar))
+            ? Math.max(CAR_MIN_DELIVERY_FEE, Number(q.feeCar))
+            : computeCarDeliveryFee(q.feeMoto ?? q.fee);
+        const feeCar = Number.isFinite(rawCar) ? ` · Carro ${money(rawCar)}` : '';
         return {
             kind: 'zone',
             html: `<p class="product-card-delivery product-card-delivery--zone" data-store-delivery-line="1">🛵 Envío a ${esc(q.zoneName || 'tu zona')}: <b>${esc(feeMoto)}</b>${esc(feeCar)}</p>`,
@@ -2409,7 +2412,7 @@ function renderCartHtml() {
             <div class="flex justify-between text-sm font-black text-slate-900">
                 <span>Total productos</span><span>${money(grand)}</span>
             </div>
-            <p class="text-[11px] text-slate-500 mt-1">En el siguiente paso eliges moto o carro. Tú pagas el envío completo de la zona. El carro cuesta 25% más.</p>
+            <p class="text-[11px] text-slate-500 mt-1">En el siguiente paso eliges moto o carro. Tú pagas el envío completo de la zona (en carro mínimo L. 75.00).</p>
         </div>
         <button type="button" class="stores-primary-btn w-full mt-4" data-stores-action="to-checkout">Continuar al envío</button>
     `;
@@ -2589,7 +2592,7 @@ function renderCheckoutHtml() {
                 <button type="button" class="store-ride-btn ${checkoutVehicle() === 'auto' ? 'is-on' : ''}" data-stores-action="pick-ride" data-ride="auto">
                     <i class="fas fa-car"></i>
                     <span>Carro</span>
-                    <small>25% más</small>
+                    <small>Desde L. 75</small>
                 </button>
             </div>
             <label class="stores-field">
@@ -4531,6 +4534,7 @@ function merchantDeliveryCtx() {
         zone,
         fareFn: calculateServiceFare,
         carFactor: CAR_DELIVERY_FACTOR,
+        carMinFee: CAR_MIN_DELIVERY_FEE,
         quoteFee: (q) => quoteStoreDeliveryFeeFor(q),
         createMap: merchantCreatePinMap,
         reverseGeocode: merchantReverseGeocode,
@@ -4592,7 +4596,8 @@ async function createDeliveryTripForOrder(order) {
     const ride = orderRide(order);
     // Con zona de envío, el viaje cobra la tarifa fija que el servidor puso en el pedido (el carro ya trae +25%).
     let { priceNum, fromZone } = deliveryTripPrice(order, calculateServiceFare('delivery', km, null, 1));
-    if (!fromZone && ride === 'auto') priceNum = Math.round(priceNum * CAR_DELIVERY_FACTOR * 100) / 100;
+    if (!fromZone && ride === 'auto') priceNum = computeCarDeliveryFee(priceNum);
+    else if (fromZone && ride === 'auto') priceNum = Math.max(CAR_MIN_DELIVERY_FEE, priceNum);
     const priceText = `${formatLempiras(priceNum)}`;
     const itemsLine = (order.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
     const packageDescription = `Pedido tienda: ${itemsLine}`.slice(0, 400);

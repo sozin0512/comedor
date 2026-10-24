@@ -39,7 +39,7 @@ ok('total del cliente = envío + productos', r.patch['deliveryDetails.customerTo
 // carro en zona
 t = appTrip(14.4705, -87.6455, 'auto', quote(14.4705, -87.6455, 'auto'));
 r = DZ.verifyMerchantDirectDelivery({ trip: t, store, quote: quote(14.4705, -87.6455, 'auto'), rate });
-ok('zona carro: pasa (35 × 1.25 = 43.75)', r.ok && !r.corrected && r.patch.priceNum === 43.75);
+ok('zona carro: pasa con mínimo L. 75.00 en zona céntrica (35 × 1.25 = 43.75 -> 75)', r.ok && !r.corrected && r.patch.priceNum === 75);
 // distancia: la app y el servidor dan lo mismo
 t = appTrip(14.38, -87.62, 'moto', quote(14.38, -87.62, 'moto'));
 r = DZ.verifyMerchantDirectDelivery({ trip: t, store, quote: quote(14.38, -87.62, 'moto'), rate });

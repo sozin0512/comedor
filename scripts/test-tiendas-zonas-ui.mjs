@@ -66,15 +66,15 @@ ok('pedido: «Envío a <zona>: L X»', Q({ inZone: true, zoneName: 'Comayagua c�
 ok('pedido: fuera → por distancia', Q({ inZone: false, reason: 'outside', blocked: false }).includes('se calcula por distancia'));
 ok('pedido: bloqueado', Q({ inZone: false, reason: 'outside', blocked: true }).includes('no llegamos'));
 ok('pedido: sin ubicación → botón GPS', Q({ inZone: false, reason: 'no_location' }).includes('data-sz-checkout="gps"'));
-const pick = SZ.checkoutFeeHtml({ status: 'idle', quote: { inZone: true, fee: 40, feeMoto: 40, feeCar: 50, zoneName: 'Comayagua céntrica', source: 'zone_base' } });
-ok('pedido: hay que elegir moto o carro', pick.includes('Elige moto o carro') && pick.includes('Moto L. 40.00') && pick.includes('Carro L. 50.00'));
-const carQ = SZ.checkoutFeeHtml({ status: 'ok', vehicle: 'auto', quote: { inZone: true, zoneName: 'Comayagua céntrica', fee: 50, source: 'zone_base' } });
-ok('pedido carro: zona + 25%', carQ.includes('Envío en carro a Comayagua céntrica: L. 50.00') && carQ.includes('carro +25%'));
+const pick = SZ.checkoutFeeHtml({ status: 'idle', quote: { inZone: true, fee: 40, feeMoto: 40, feeCar: 75, zoneName: 'Comayagua céntrica', source: 'zone_base' } });
+ok('pedido: hay que elegir moto o carro', pick.includes('Elige moto o carro') && pick.includes('Moto L. 40.00') && pick.includes('Carro L. 75.00'));
+const carQ = SZ.checkoutFeeHtml({ status: 'ok', vehicle: 'auto', quote: { inZone: true, zoneName: 'Comayagua céntrica', fee: 75, feeMoto: 40, feeCar: 75, source: 'zone_base' } });
+ok('pedido carro: zona + 25% (mín. L. 75.00)', carQ.includes('Envío en carro a Comayagua céntrica: L. 75.00') && carQ.includes('carro +25%'));
 ok('viaje: tarifa de zona manda', SZ.deliveryTripPrice({ deliveryFee: 40, deliveryFeeSource: 'zone_base' }, 61.5).priceNum === 40);
 ok('viaje: sin zona → distancia', SZ.deliveryTripPrice({ deliveryFee: null, deliveryFeeSource: 'distance' }, 61.5).priceNum === 61.5);
-ok('viaje: la zona ya incluye el carro', SZ.deliveryTripPrice({ deliveryFee: 50, deliveryFeeSource: 'zone_base', deliveryVehicle: 'auto' }, 61.5).priceNum === 50);
+ok('viaje: la zona ya incluye el carro (mín. L. 75)', SZ.deliveryTripPrice({ deliveryFee: 75, deliveryFeeSource: 'zone_base', deliveryVehicle: 'auto' }, 61.5).priceNum === 75 && SZ.deliveryTripPrice({ deliveryFee: 50, deliveryFeeSource: 'zone_base', deliveryVehicle: 'auto' }, 61.5).priceNum === 75);
 ok('tarjeta del pedido: línea de envío', SZ.orderFeeLineHtml({ deliveryFee: 110, deliveryFeeSource: 'store_custom', deliveryZoneName: 'Fuera' }).includes('Envío a Fuera: L. 110.00'));
-ok('tarjeta: carro', SZ.orderFeeLineHtml({ deliveryFee: 50, deliveryFeeSource: 'zone_base', deliveryZoneName: 'Céntrica', deliveryVehicle: 'auto' }).includes('Carro · Envío a Céntrica: L. 50.00'));
+ok('tarjeta: carro', SZ.orderFeeLineHtml({ deliveryFee: 75, deliveryFeeSource: 'zone_base', deliveryZoneName: 'Céntrica', deliveryVehicle: 'auto' }).includes('Carro · Envío a Céntrica: L. 75.00'));
 
 // ── panel Pedidos ──
 const now = Date.parse('2026-10-17T10:15:00-06:00'); const m = (x) => now - x * 60e3;
