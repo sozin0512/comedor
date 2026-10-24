@@ -24283,3 +24283,328 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
 .hr-unavail-ok { background: #2563EB; color: #fff; font-weight: 800; border: 0; border-radius: 14px; padding: 13px; font-size: 14px; }
 .hr-unavail-wa { display: block; border: 1px solid #E2E8F0; border-radius: 14px; padding: 12px; font-weight: 800; color: #0F172A; text-decoration: none; }
 .hr-unavail-sheet small { color: #94A3B8; font-size: 11px; }
+
+/* ===== Avisos de pedido en app (Preparando -> Pedido preparado) y validación de checkout ===== */
+#toast-container {
+  z-index: 99999 !important;
+}
+
+.stores-input.stores-input--invalid {
+  border: 2px solid #dc2626 !important;
+  background-color: #fef2f2 !important;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16) !important;
+  animation: hr-field-shake 0.28s ease-in-out;
+}
+.stores-field-error {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.32rem 0 0;
+  padding: 0.42rem 0.6rem;
+  border-radius: 0.65rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.stores-field-error.hidden {
+  display: none !important;
+}
+@keyframes hr-field-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* Progreso de 5 pasos en tarjeta de pedido (Mis pedidos y restaurante) */
+.order-progress-stepper {
+  margin-top: 0.6rem;
+  padding: 0.65rem 0.7rem;
+  border-radius: 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.order-progress-stepper--preparing {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+}
+.order-progress-stepper--ready {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+.order-progress-stepper--delivery {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.order-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+}
+.order-progress-headline {
+  margin: 0;
+  font-size: 0.74rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+.order-progress-step-badge {
+  font-size: 0.62rem;
+  font-weight: 900;
+  padding: 0.16rem 0.45rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  white-space: nowrap;
+}
+.order-progress-stepper--preparing .order-progress-headline { color: #5b21b6; }
+.order-progress-stepper--preparing .order-progress-step-badge { background: #ede9fe; color: #6d28d9; }
+.order-progress-stepper--ready .order-progress-headline { color: #065f46; }
+.order-progress-stepper--ready .order-progress-step-badge { background: #d1fae5; color: #047857; }
+.order-progress-stepper--delivery .order-progress-headline { color: #1e40af; }
+.order-progress-stepper--delivery .order-progress-step-badge { background: #dbeafe; color: #1d4ed8; }
+
+.order-progress-track {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+.order-progress-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.2rem;
+}
+.order-progress-dot {
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 900;
+  background: #e2e8f0;
+  color: #64748b;
+  border: 2px solid #cbd5e1;
+}
+.order-progress-node.is-done .order-progress-dot {
+  background: #10b981;
+  color: #fff;
+  border-color: #059669;
+}
+.order-progress-node.is-current .order-progress-dot {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #5b21b6;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
+}
+.order-progress-stepper--ready .order-progress-node.is-current .order-progress-dot {
+  background: #059669;
+  border-color: #047857;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.24);
+}
+.order-progress-stepper--delivery .order-progress-node.is-current .order-progress-dot {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.22);
+}
+.order-progress-label {
+  font-size: 0.56rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: #64748b;
+}
+.order-progress-node.is-done .order-progress-label,
+.order-progress-node.is-current .order-progress-label {
+  color: #0f172a;
+  font-weight: 900;
+}
+.order-progress-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #475569;
+  line-height: 1.35;
+}
+
+/* Botones y notas del flujo 2 pasos del restaurante (Preparando -> Pedido preparado) */
+.stores-prepare-btn {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px rgba(109, 40, 217, 0.28) !important;
+}
+.stores-ready-btn {
+  background: linear-gradient(135deg, #10b981, #047857) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px rgba(4, 120, 87, 0.28) !important;
+}
+.order-flow-hint {
+  width: 100%;
+  margin: 0.35rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.order-flow-hint--amber {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+.order-flow-hint--violet {
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  color: #5b21b6;
+}
+.order-flow-hint--emerald {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
+/* Banner flotante en vivo dentro de la app cuando el restaurante actualiza el pedido */
+.client-order-live-banner {
+  position: fixed;
+  top: max(0.75rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 0.35rem));
+  left: 0.75rem;
+  right: 0.75rem;
+  max-width: 28rem;
+  margin: 0 auto;
+  z-index: 99998;
+  border-radius: 1.15rem;
+  padding: 0.8rem 0.9rem;
+  background: #0f172a;
+  color: #fff;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.38);
+  border: 2px solid #7c3aed;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  animation: hr-sheet-up 0.22s ease-out;
+}
+.client-order-live-banner.hidden {
+  display: none !important;
+}
+.client-order-live-banner--preparing {
+  background: linear-gradient(135deg, #2e1065, #4c1d95);
+  border-color: #a78bfa;
+}
+.client-order-live-banner--ready {
+  background: linear-gradient(135deg, #064e3b, #047857);
+  border-color: #6ee7b7;
+}
+.client-order-live-banner--delivery {
+  background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
+  border-color: #93c5fd;
+}
+.client-order-live-banner-icon {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.client-order-live-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+.client-order-live-banner-kicker {
+  margin: 0;
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #fde68a;
+}
+.client-order-live-banner-title {
+  margin: 0.1rem 0 0;
+  font-size: 0.86rem;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.2;
+}
+.client-order-live-banner-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.3;
+}
+.client-order-live-banner-cta {
+  margin-top: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  border: none;
+  background: #fff;
+  color: #0f172a;
+  font-size: 0.66rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+.client-order-live-banner-close {
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Barra activa de estado del pedido en Tiendas y vista cliente */
+.client-active-order-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0.75rem 0.55rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.95rem;
+  background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+  border: 1.5px solid #c4b5fd;
+  color: #3b0764;
+  cursor: pointer;
+  text-align: left;
+  width: calc(100% - 1.5rem);
+}
+.client-active-order-bar.hidden {
+  display: none !important;
+}
+.client-active-order-bar--ready {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border-color: #6ee7b7;
+  color: #064e3b;
+}
+.client-active-order-bar--delivery {
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border-color: #93c5fd;
+  color: #1e3a8a;
+}
+.client-active-order-bar-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.client-active-order-bar-sub {
+  margin: 0.12rem 0 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.9;
+  line-height: 1.25;
+}

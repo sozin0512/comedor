@@ -26,7 +26,7 @@ import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.23.3';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
-    setCheckoutVehicle, checkoutVehicle, CAR_DELIVERY_FACTOR, quoteStoreDeliveryFeeFor,
+    setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, CAR_DELIVERY_FACTOR, quoteStoreDeliveryFeeFor,
 } from './store-delivery-zones.js?v=2026.10.23.3';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
@@ -45,8 +45,8 @@ const STORE_CATEGORIES = [
 const ORDER_STATUS = {
     pending: { label: 'Nuevo', tone: 'amber' },
     accepted: { label: 'Aceptado', tone: 'blue' },
-    preparing: { label: 'Preparando', tone: 'violet' },
-    ready: { label: 'Listo', tone: 'emerald' },
+    preparing: { label: 'Preparando el pedido', tone: 'violet' },
+    ready: { label: 'Pedido preparado', tone: 'emerald' },
     out_for_delivery: { label: 'En camino', tone: 'blue' },
     delivered: { label: 'Entregado', tone: 'slate' },
     cancelled: { label: 'Cancelado', tone: 'red' },
@@ -1386,6 +1386,160 @@ function startMerchantOrdersListener() {
     });
 }
 
+let knownClientOrderStatusById = new Map();
+let clientOrdersBootstrappedUid = null;
+let clientLiveBannerTimer = null;
+
+/** Texto de notificación en vivo dentro de la app para el cliente según estado del pedido. */
+export function clientOrderNotificationCopy(o) {
+    if (!o || !o.status) return null;
+    const store = o.storeName || 'El restaurante';
+    const rideLbl = orderRideName(o);
+    const driverFirst = o.driverName ? String(o.driverName).trim().split(/\s+/)[0] : '';
+    if (o.status === 'accepted') {
+        return {
+            tone: 'blue',
+            icon: '✅',
+            title: `Pedido aceptado · ${store}`,
+            body: `${store} aceptó tu pedido. Pronto marcarán «Preparando el pedido».`,
+            pill: `✅ ${store} aceptó tu pedido`,
+            sub: 'El delivery se llamará hasta que el pedido esté preparado',
+        };
+    }
+    if (o.status === 'preparing') {
+        return {
+            tone: 'violet',
+            icon: '👨‍🍳',
+            title: 'Preparando el pedido',
+            body: `${store} está preparando tu pedido… El delivery llegará hasta que esté preparado.`,
+            pill: `👨‍🍳 ${store} está preparando tu pedido…`,
+            sub: 'El delivery se llama al marcar «Pedido preparado» para no perder tiempo',
+        };
+    }
+    if (o.status === 'ready') {
+        return {
+            tone: 'emerald',
+            icon: '✅',
+            title: '¡Pedido preparado! Llamando a tu delivery',
+            body: `${store} terminó de preparar tu pedido. Ya estamos llamando a tu delivery (${rideLbl}) para recogerlo.`,
+            pill: `✅ ¡Pedido preparado! Ya estamos llamando a tu delivery…`,
+            sub: `Buscando repartidor (${rideLbl}) hacia ${store}`,
+        };
+    }
+    if (o.status === 'out_for_delivery') {
+        return {
+            tone: 'blue',
+            icon: '🛵',
+            title: 'Tu delivery va en camino',
+            body: `${driverFirst ? `${driverFirst} ya recogió` : 'El repartidor ya lleva'} tu pedido de ${store} hacia tu dirección.`,
+            pill: `🛵 Tu delivery${driverFirst ? ` (${driverFirst})` : ''} va en camino`,
+            sub: `Pedido de ${store} en ruta a tu entrega`,
+        };
+    }
+    if (o.status === 'delivered') {
+        return {
+            tone: 'emerald',
+            icon: '🎉',
+            title: '¡Pedido entregado!',
+            body: `Tu pedido de ${store} fue entregado. ¡Buen provecho!`,
+            pill: `🎉 Pedido entregado · ${store}`,
+            sub: '¡Gracias por pedir en HonduRaite!',
+        };
+    }
+    if (o.status === 'cancelled') {
+        return {
+            tone: 'red',
+            icon: '❌',
+            title: 'Pedido cancelado',
+            body: o.cancelReason === 'out_of_stock'
+                ? `${store} canceló el pedido porque se agotó un producto.`
+                : `Tu pedido en ${store} fue cancelado.`,
+            pill: `❌ Pedido cancelado · ${store}`,
+            sub: 'Toca para revisar en Mis pedidos',
+        };
+    }
+    return null;
+}
+
+function showClientOrderLiveBanner(o) {
+    const copy = clientOrderNotificationCopy(o);
+    if (!copy || typeof document === 'undefined') return;
+    try { window.playEventNotificationTone?.('store_order_update'); } catch (_) {}
+    try { navigator.vibrate?.([180, 90, 220]); } catch (_) {}
+    toast(`${copy.icon} ${copy.title}: ${copy.body}`, copy.tone === 'red' ? 'warning' : 'success');
+
+    let el = document.getElementById('client-order-live-banner');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'client-order-live-banner';
+        document.body.appendChild(el);
+        el.addEventListener('click', (ev) => {
+            if (ev.target.closest('[data-dismiss-live-banner]')) {
+                el.remove();
+                return;
+            }
+            if (ev.target.closest('[data-open-live-order]')) {
+                el.remove();
+                openMarketplace();
+                marketplaceView = 'my-orders';
+                renderMarketplace();
+            }
+        });
+    }
+    el.className = `client-order-live-banner client-order-live-banner--${copy.tone}`;
+    el.innerHTML = `
+        <span class="client-order-live-banner__icon" aria-hidden="true">${copy.icon}</span>
+        <div class="client-order-live-banner__body" data-open-live-order="1" style="cursor:pointer">
+            <p class="client-order-live-banner__title">${esc(copy.title)}</p>
+            <p class="client-order-live-banner__text">${esc(copy.body)}</p>
+        </div>
+        <button type="button" class="client-order-live-banner__btn" data-open-live-order="1">Ver pedido</button>
+        <button type="button" class="client-order-live-banner__close" data-dismiss-live-banner="1" aria-label="Cerrar">×</button>
+    `;
+    if (clientLiveBannerTimer) clearTimeout(clientLiveBannerTimer);
+    clientLiveBannerTimer = setTimeout(() => {
+        try { document.getElementById('client-order-live-banner')?.remove(); } catch (_) {}
+    }, 11000);
+}
+
+function activeClientOrderPillHtml() {
+    const active = clientOrders.find((o) => ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'].includes(o.status));
+    if (!active) return '';
+    const copy = clientOrderNotificationCopy(active) || {
+        icon: '⏳',
+        pill: `⏳ Pedido enviado a ${active.storeName || 'la tienda'}`,
+        sub: 'Esperando que el restaurante acepte y marque «Preparando el pedido»',
+    };
+    return `
+        <div class="client-active-order-bar" data-stores-action="my-orders" role="button" tabindex="0">
+            <span class="client-active-order-bar__dot" aria-hidden="true"></span>
+            <div class="client-active-order-bar__text">
+                <strong>${esc(copy.pill)}</strong>
+                <small>${esc(copy.sub)}</small>
+            </div>
+            <span class="client-active-order-bar__cta">Mis pedidos</span>
+        </div>
+    `;
+}
+
+function handleClientOrdersListUpdate(nextOrders, uid) {
+    const isBootstrap = clientOrdersBootstrappedUid !== uid;
+    for (const o of nextOrders) {
+        const prevStatus = knownClientOrderStatusById.get(o.id);
+        if (!isBootstrap && prevStatus && prevStatus !== o.status) {
+            if (['accepted', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'].includes(o.status)) {
+                showClientOrderLiveBanner(o);
+            }
+        }
+        knownClientOrderStatusById.set(o.id, o.status);
+    }
+    clientOrdersBootstrappedUid = uid;
+    clientOrders = nextOrders;
+    const slot = typeof document !== 'undefined' ? document.getElementById('client-active-order-slot') : null;
+    if (slot) slot.innerHTML = activeClientOrderPillHtml();
+    if (marketplaceView === 'my-orders') renderMarketplace();
+}
+
 function startClientOrdersListener() {
     if (unsubClientOrders) {
         unsubClientOrders();
@@ -1395,10 +1549,10 @@ function startClientOrdersListener() {
     if (!uid) return;
     const q = query(publicCol('store_orders'), where('clientId', '==', uid), limit(30));
     unsubClientOrders = onSnapshot(q, (snap) => {
-        clientOrders = snap.docs
+        const list = snap.docs
             .map((d) => ({ id: d.id, ...d.data() }))
             .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
-        if (marketplaceView === 'my-orders') renderMarketplace();
+        handleClientOrdersListUpdate(list, uid);
     }, (err) => console.warn('[stores] client orders', err));
 }
 
@@ -2155,16 +2309,73 @@ function renderClientOrdersHtml() {
     if (!clientOrders.length) {
         return `<div class="stores-empty"><i class="fas fa-receipt"></i><p>No tienes pedidos aún.</p></div>`;
     }
-    return `<div class="orders-list">${clientOrders.map(orderCardHtml).join('')}</div>`;
+    const activePill = activeClientOrderPillHtml();
+    return `<div id="client-active-order-slot">${activePill}</div><div class="orders-list">${clientOrders.map((o) => orderCardHtml(o, { merchant: false })).join('')}</div>`;
 }
 
-/** Estado visible: «Listo» con viaje pedido = «Buscando conductor» (nadie lo aceptó todavía). */
+/** Estado visible: «Pedido preparado» con viaje pedido = «Pedido preparado · buscando delivery» (nadie lo aceptó todavía). */
 export function orderStatusView(o) {
-    if (o?.status === 'ready' && o?.tripId) return { label: 'Buscando conductor', tone: 'amber' };
+    if (o?.status === 'ready' && o?.tripId) return { label: 'Pedido preparado · buscando delivery', tone: 'amber' };
     if (o?.status === 'out_for_delivery' && o?.driverName) {
         return { label: `En camino · ${String(o.driverName).split(/\s+/)[0]}`, tone: 'blue' };
     }
     return ORDER_STATUS[o?.status] || ORDER_STATUS.pending;
+}
+
+/** Barra de progreso de 5 pasos: 1. Recibido -> 2. Preparando el pedido -> 3. Pedido preparado (llamando delivery) -> 4. En camino -> 5. Entregado */
+export function orderProgressStepperHtml(o) {
+    if (!o || o.status === 'cancelled') return '';
+    const steps = [
+        { num: 1, label: 'Recibido' },
+        { num: 2, label: 'Preparando el pedido' },
+        { num: 3, label: 'Pedido preparado' },
+        { num: 4, label: 'En camino' },
+        { num: 5, label: 'Entregado' },
+    ];
+    let current = 1;
+    if (o.status === 'preparing') current = 2;
+    else if (o.status === 'ready') current = 3;
+    else if (o.status === 'out_for_delivery') current = 4;
+    else if (o.status === 'delivered') current = 5;
+
+    const rideLbl = orderRideName(o);
+    const driverFirst = o.driverName ? String(o.driverName).trim().split(/\s+/)[0] : '';
+    let caption = '';
+    let capClass = '';
+    if (o.status === 'pending') {
+        caption = '⏳ Paso 1/5: Pedido recibido. El delivery se llamará hasta que el restaurante marque «Pedido preparado».';
+    } else if (o.status === 'accepted') {
+        caption = '✅ Paso 1/5: El restaurante aceptó tu pedido. Pronto marcará «Preparando el pedido».';
+    } else if (o.status === 'preparing') {
+        caption = '👨‍🍳 Paso 2/5: Preparando el pedido en cocina. Aún NO se llama al delivery para que no pierda tiempo esperando.';
+    } else if (o.status === 'ready') {
+        caption = `✅ Paso 3/5: ¡Pedido preparado! Ya estamos llamando a tu delivery (${rideLbl}) para pasar a recogerlo.`;
+        capClass = 'order-progress-caption--ready';
+    } else if (o.status === 'out_for_delivery') {
+        caption = `🛵 Paso 4/5: Tu delivery${driverFirst ? ` (${driverFirst})` : ''} ya recogió el pedido y va en camino.`;
+        capClass = 'order-progress-caption--way';
+    } else if (o.status === 'delivered') {
+        caption = '🎉 Paso 5/5: Pedido entregado.';
+        capClass = 'order-progress-caption--ready';
+    }
+
+    const trackHtml = steps.map((s) => {
+        const cls = s.num < current
+            ? 'is-done'
+            : (s.num === current ? ('is-current' + (current >= 3 ? ' is-ready' : '')) : '');
+        const dotText = s.num < current ? '✓' : String(s.num);
+        return `<div class="order-progress-step ${cls}">
+            <span class="order-progress-dot">${dotText}</span>
+            <span class="order-progress-label">${esc(s.label)}</span>
+        </div>`;
+    }).join('');
+
+    return `
+        <div class="order-progress-stepper" data-order-step="${current}">
+            <div class="order-progress-track">${trackHtml}</div>
+            ${caption ? `<div class="order-progress-caption ${capClass}"><span>${esc(caption)}</span></div>` : ''}
+        </div>
+    `;
 }
 
 function orderCardHtml(o, { merchant = false } = {}) {
@@ -2203,6 +2414,7 @@ function orderCardHtml(o, { merchant = false } = {}) {
             ` : ''}
             ${o.notes ? `<p class="order-notes">${esc(o.notes)}</p>` : ''}
             ${o.cancelReason === 'out_of_stock' ? `<p class="order-notes">No había stock suficiente. Si pagaste con puntos, se reembolsan.</p>` : ''}
+            ${orderProgressStepperHtml(o)}
             ${actions}
         </div>
     `;
@@ -2212,8 +2424,11 @@ function clientOrderActionsHtml(o) {
     if (o.status === 'pending' || o.status === 'accepted') {
         return `<button type="button" class="stores-danger-btn mt-2" data-stores-action="cancel-order" data-order-id="${esc(o.id)}">Cancelar pedido</button>`;
     }
+    if (o.status === 'preparing') {
+        return `<p class="text-[11px] text-purple-800 font-bold mt-2"><i class="fas fa-utensils"></i> El restaurante está preparando tu pedido · el delivery se llamará en cuanto esté preparado</p>`;
+    }
     if (o.status === 'ready' && o.tripId) {
-        return `<p class="text-[11px] text-amber-700 font-bold mt-2"><i class="fas fa-search"></i> Buscando conductor… te avisamos cuando alguien lo acepte</p>`;
+        return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-check-circle"></i> ¡Pedido preparado! Llamando a tu delivery (${esc(orderRideName(o))})… te avisamos cuando lo acepte</p>`;
     }
     if (o.tripId) {
         return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> ${o.driverName ? `${esc(String(o.driverName).split(/\s+/)[0])} va con tu pedido` : 'Envío activo'} · sigue el viaje en el mapa</p>`;
@@ -2221,37 +2436,56 @@ function clientOrderActionsHtml(o) {
     return '';
 }
 
-function merchantOrderActionsHtml(o) {
+export function merchantOrderActionsHtml(o) {
     const id = esc(o.id);
+    const rideName = esc(orderRideName(o));
     if (o.status === 'pending') {
-        return `<div class="order-actions">
-            <button type="button" class="stores-primary-btn" data-merchant-action="accept-order" data-order-id="${id}">Aceptar</button>
-            <button type="button" class="stores-danger-btn" data-merchant-action="reject-order" data-order-id="${id}">Rechazar</button>
-        </div>`;
+        return `
+            <div class="order-flow-hint">
+                <i class="fas fa-clock"></i>
+                <span>El repartidor se llama hasta que marques <b>«Preparando el pedido»</b> y luego <b>«Pedido preparado»</b> para que no espere.</span>
+            </div>
+            <div class="order-actions">
+                <button type="button" class="stores-primary-btn" data-merchant-action="accept-order" data-order-id="${id}">Aceptar</button>
+                <button type="button" class="stores-prepare-btn" data-merchant-action="accept-and-prepare-order" data-order-id="${id}">👨‍🍳 Aceptar y preparar</button>
+                <button type="button" class="stores-danger-btn" data-merchant-action="reject-order" data-order-id="${id}">Rechazar</button>
+            </div>`;
     }
     if (o.status === 'accepted') {
-        return `<div class="order-actions">
-            <button type="button" class="stores-primary-btn" data-merchant-action="preparing-order" data-order-id="${id}">Marcar preparando</button>
-        </div>`;
+        return `
+            <div class="order-flow-hint">
+                <i class="fas fa-utensils"></i>
+                <span>Paso 1 de 2: Marca <b>«Preparando el pedido»</b> para avisar al cliente. El repartidor se llama hasta que marques <b>«Pedido preparado»</b> para que no espere.</span>
+            </div>
+            <div class="order-actions">
+                <button type="button" class="stores-prepare-btn w-full" data-merchant-action="preparing-order" data-order-id="${id}">
+                    👨‍🍳 Marcar: Preparando el pedido
+                </button>
+            </div>`;
     }
     if (o.status === 'preparing') {
-        return `<div class="order-actions">
-            <button type="button" class="stores-primary-btn" data-merchant-action="ready-order" data-order-id="${id}">
-                <i class="fas fa-shipping-fast"></i> Listo · pedir ${esc(orderRideName(o))}
-            </button>
-        </div>`;
+        return `
+            <div class="order-flow-hint order-flow-hint--ready">
+                <i class="fas fa-check-circle"></i>
+                <span>Paso 2 de 2: El cliente ve <b>«Preparando el pedido»</b>. El repartidor se llama hasta que marques <b>«Pedido preparado»</b> para que no espere.</span>
+            </div>
+            <div class="order-actions">
+                <button type="button" class="stores-ready-btn w-full" data-merchant-action="ready-order" data-order-id="${id}">
+                    ✅ Pedido preparado · llamar delivery (${rideName})
+                </button>
+            </div>`;
     }
     if (o.status === 'ready' && !o.tripId) {
         const why = o.deliveryStage === 'trip_cancelled' ? 'El viaje anterior se canceló. ' : '';
-        return `<p class="text-[11px] text-amber-700 font-bold mt-2"><i class="fas fa-exclamation-circle"></i> ${why}Listo · sin conductor</p>
+        return `<p class="text-[11px] text-amber-700 font-bold mt-2"><i class="fas fa-exclamation-circle"></i> ${why}Pedido preparado · sin conductor</p>
             <div class="order-actions">
-                <button type="button" class="stores-primary-btn" data-merchant-action="ready-order" data-order-id="${id}">
-                    <i class="fas fa-shipping-fast"></i> Pedir ${esc(orderRideName(o))}
+                <button type="button" class="stores-ready-btn w-full" data-merchant-action="ready-order" data-order-id="${id}">
+                    ✅ Pedido preparado · llamar delivery (${rideName})
                 </button>
             </div>`;
     }
     if (o.status === 'ready') {
-        return `<p class="text-[11px] text-amber-700 font-bold mt-2"><i class="fas fa-search"></i> Buscando conductor · aún nadie lo acepta</p>`;
+        return `<p class="text-[11px] text-emerald-700 font-bold mt-2"><i class="fas fa-search"></i> ✅ Pedido preparado · llamando delivery (${rideName}), esperando que un conductor acepte</p>`;
     }
     if (o.status === 'out_for_delivery') {
         return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> En camino${o.driverName ? ` con ${esc(o.driverName)}` : ''} · se marca entregado solo cuando el conductor termina</p>
@@ -2373,6 +2607,39 @@ function decCart(productId) {
     renderMarketplace();
 }
 
+function clearCheckoutFieldErrors() {
+    if (typeof document === 'undefined') return;
+    document.querySelectorAll('.stores-input--invalid').forEach((el) => el.classList.remove('stores-input--invalid'));
+    document.querySelectorAll('.stores-field-error').forEach((el) => el.remove());
+}
+
+function markCheckoutFieldInvalid(inputId, message) {
+    if (typeof document === 'undefined') return;
+    const el = document.getElementById(inputId);
+    if (!el) return;
+    el.classList.remove('stores-input--invalid');
+    // force reflow so shake animation replays on repeated taps
+    void el.offsetWidth;
+    el.classList.add('stores-input--invalid');
+    const parent = el.closest('.stores-field') || el.parentElement;
+    if (parent) {
+        parent.querySelectorAll(`[data-error-for="${inputId}"]`).forEach((n) => n.remove());
+        const msgEl = document.createElement('span');
+        msgEl.className = 'stores-field-error';
+        msgEl.setAttribute('data-error-for', inputId);
+        msgEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> <span>${esc(message)}</span>`;
+        parent.appendChild(msgEl);
+    }
+    const clearOnce = () => {
+        el.classList.remove('stores-input--invalid');
+        parent?.querySelectorAll?.(`[data-error-for="${inputId}"]`)?.forEach((n) => n.remove());
+        el.removeEventListener('input', clearOnce);
+    };
+    el.addEventListener('input', clearOnce);
+    try { el.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+    try { el.focus?.({ preventScroll: true }); } catch (_) { try { el.focus?.(); } catch (_2) {} }
+}
+
 async function placeOrder() {
     const user = getCurrentUser();
     const profile = getUserProfile() || {};
@@ -2383,16 +2650,43 @@ async function placeOrder() {
         return toast(`La tienda está cerrada${lbl ? ` · ${lbl}` : ''}`, 'warning');
     }
 
-    const address = document.getElementById('store-checkout-address')?.value.trim() || '';
+    clearCheckoutFieldErrors();
+    const addrEl = document.getElementById('store-checkout-address');
+    let address = addrEl?.value.trim() || '';
+    if (!address && checkoutPointSource() === 'gps') {
+        const gpsPt = checkoutPoint();
+        if (gpsPt && Number.isFinite(Number(gpsPt.lat)) && Number.isFinite(Number(gpsPt.lng))) {
+            address = `Ubicación GPS (${Number(gpsPt.lat).toFixed(4)}, ${Number(gpsPt.lng).toFixed(4)})`;
+            if (addrEl) addrEl.value = address;
+        }
+    }
     const recipientName = document.getElementById('store-checkout-recipient')?.value.trim() || '';
     const recipientPhone = phoneNorm(document.getElementById('store-checkout-phone')?.value || '');
     const notes = document.getElementById('store-checkout-notes')?.value.trim() || '';
 
-    if (!address || address.length < 5) return toast('Indica la dirección de entrega', 'warning');
-    if (!recipientName) return toast('Indica quién recibe', 'warning');
-    if (!recipientPhone) return toast('Indica el WhatsApp de quien recibe', 'warning');
+    if (!address || address.length < 5) {
+        markCheckoutFieldInvalid(
+            'store-checkout-address',
+            !address
+                ? 'Escribe la dirección de entrega (colonia, referencia, casa) o toca «Usar mi ubicación».'
+                : 'Escribe una dirección más detallada (al menos 5 letras).'
+        );
+        return toast('Indica la dirección de entrega', 'warning');
+    }
+    if (!recipientName) {
+        markCheckoutFieldInvalid('store-checkout-recipient', 'Escribe el nombre de la persona que recibe el pedido.');
+        return toast('Indica quién recibe', 'warning');
+    }
+    if (!recipientPhone) {
+        markCheckoutFieldInvalid('store-checkout-phone', 'Escribe el WhatsApp o teléfono de quien recibe.');
+        return toast('Indica el WhatsApp de quien recibe', 'warning');
+    }
     const ride = checkoutVehicle();
-    if (ride !== 'moto' && ride !== 'auto') return toast('Elige moto o carro para el envío', 'warning');
+    if (ride !== 'moto' && ride !== 'auto') {
+        const rideGroup = document.querySelector('.store-ride-pick');
+        try { rideGroup?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); } catch (_) {}
+        return toast('Elige moto o carro para el envío', 'warning');
+    }
 
     if (storeTracksStock(viewingStore)) {
         try { viewingProducts = await loadProducts(viewingStore.id); } catch (_) {}
@@ -4135,7 +4429,11 @@ async function onMerchantClick(e) {
 
     if (action === 'accept-order' && orderId) {
         await setOrderStatus(orderId, 'accepted', { acceptedAt: serverTimestamp() });
-        return toast('Pedido aceptado', 'success');
+        return toast('Pedido aceptado · marca «Preparando el pedido» al iniciar en cocina', 'success');
+    }
+    if (action === 'accept-and-prepare-order' && orderId) {
+        await setOrderStatus(orderId, 'preparing', { acceptedAt: serverTimestamp(), preparingAt: serverTimestamp() });
+        return toast('👨‍🍳 Marcado: Preparando el pedido (se notificó al cliente)', 'success');
     }
     if (action === 'reject-order' && orderId) {
         if (!confirm('¿Rechazar este pedido?')) return;
@@ -4151,21 +4449,24 @@ async function onMerchantClick(e) {
         return;
     }
     if (action === 'preparing-order' && orderId) {
-        await setOrderStatus(orderId, 'preparing');
-        return toast('Marcado como preparando', 'success');
+        await setOrderStatus(orderId, 'preparing', { preparingAt: serverTimestamp() });
+        return toast('👨‍🍳 Marcado: Preparando el pedido (se notificó al cliente)', 'success');
     }
     if (action === 'ready-order' && orderId) {
         const order = merchantOrders.find((o) => o.id === orderId);
         if (!order) return;
         if (order.tripId) return toast('Ya se pidió un conductor para este pedido.', 'info');
+        if (order.status !== 'preparing' && !(order.status === 'ready' && !order.tripId)) {
+            return toast('Primero marca «Preparando el pedido» antes de llamar al delivery.', 'warning');
+        }
         t.disabled = true;
         try {
             if (order.status !== 'ready') await setOrderStatus(orderId, 'ready', { readyAt: serverTimestamp() });
             const tripId = await createDeliveryTripForOrder(order);
-            toast(`Pedido listo · se pidió ${orderRideName(order)} · ` + tripId.slice(0, 6) + '…', 'success');
+            toast(`✅ Pedido preparado · llamando delivery (${orderRideName(order)}) · ` + tripId.slice(0, 6) + '…', 'success');
         } catch (err) {
             console.error(err);
-            toast(err.message || 'No se pudo pedir la moto', 'error');
+            toast(err.message || 'No se pudo pedir el delivery', 'error');
         } finally {
             t.disabled = false;
         }
@@ -5126,9 +5427,10 @@ export function initMerchantStores(deps = {}) {
     window.staffToggleStoreAdultsOnly = staffToggleAdultsOnly;
     window.staffFixStoreCity = staffFixStoreCity;
 
-    // When user logs in, warm listeners lightly
+    // When user logs in, warm listeners lightly (including client order status notifications)
     if (getCurrentUser()?.uid) {
         startStoresListener();
+        startClientOrdersListener();
     }
 
     // Enlace compartido #tienda=id | #crear-empresa
@@ -5139,6 +5441,9 @@ export function initMerchantStores(deps = {}) {
 export function onMerchantAuthReady() {
     bindUiHooks();
     startStoresListener();
+    if (getCurrentUser()?.uid) {
+        startClientOrdersListener();
+    }
     loadMyStore().then((store) => {
         updateMerchantOpenToggle();
         // Escuchar pedidos en vivo (sonido + toast) aunque no abra el panel
@@ -5163,4 +5468,5 @@ export function onMerchantAuthReady() {
     });
 }
 
+export const __testMerchant = { handleClientOrdersListUpdate, showClientOrderLiveBanner, markCheckoutFieldInvalid, clearCheckoutFieldErrors, orderCardHtml };
 export { STORE_CATEGORIES, ORDER_STATUS, STORE_APPROVAL, calcSplitTariff, getTarifaDelMomento };

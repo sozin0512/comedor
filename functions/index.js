@@ -4704,9 +4704,9 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
         }
 
         const labels = {
-            accepted: { title: '✅ Pedido aceptado', body: `${storeName} aceptó tu pedido y lo está preparando.` },
-            preparing: { title: '👨‍🍳 Preparando tu pedido', body: `${storeName} está preparando tu pedido.` },
-            ready: { title: '📦 Pedido listo', body: `${storeName}: tu pedido está listo. Buscando conductor…` },
+            accepted: { title: '✅ Pedido aceptado', body: `${storeName} aceptó tu pedido. Pronto marcará «Preparando el pedido».` },
+            preparing: { title: '👨‍🍳 Preparando el pedido', body: `${storeName} está preparando tu pedido. El delivery llegará hasta que esté preparado.` },
+            ready: { title: '✅ Pedido preparado · llamando delivery', body: `${storeName} marcó tu pedido preparado. ¡Ya estamos llamando a tu delivery!` },
             out_for_delivery: {
                 title: '🛵 Pedido en camino',
                 body: after.driverName

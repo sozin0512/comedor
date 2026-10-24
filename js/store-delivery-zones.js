@@ -198,6 +198,10 @@ export function setCheckoutVehicle(vehicle) {
     return refreshCheckoutQuote(true);
 }
 
+export function checkoutPointSource() {
+    return Q.pointSource || '';
+}
+
 export function checkoutPoint() {
     if (Q.point) return Q.point;
     try {
@@ -285,8 +289,26 @@ export async function refreshCheckoutQuote(force = false, store = null) {
 function useGpsForCheckout() {
     if (!navigator.geolocation) return toast('Tu teléfono no permite usar la ubicación', 'warning');
     toast('Buscando tu ubicación…', 'info');
-    navigator.geolocation.getCurrentPosition((pos) => {
-        Q.point = { lat: pos.coords.latitude, lng: pos.coords.longitude }; Q.pointSource = 'gps';
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = Number(pos.coords.latitude);
+        const lng = Number(pos.coords.longitude);
+        Q.point = { lat, lng }; Q.pointSource = 'gps';
+        const addrEl = typeof document !== 'undefined' ? document.getElementById('store-checkout-address') : null;
+        if (addrEl && !String(addrEl.value || '').trim()) {
+            let resolved = '';
+            try {
+                if (typeof google !== 'undefined' && google.maps) {
+                    const Geocoder = google.maps.Geocoder || (await google.maps.importLibrary?.('geocoding'))?.Geocoder;
+                    if (Geocoder) {
+                        const res = await new Geocoder().geocode({ location: { lat, lng }, language: 'es', region: 'hn' });
+                        resolved = res?.results?.[0]?.formatted_address || '';
+                    }
+                }
+            } catch (_) {}
+            addrEl.value = resolved || `Ubicación GPS (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+            addrEl.classList?.remove?.('stores-input--invalid');
+            try { addrEl.dispatchEvent?.(new Event('input', { bubbles: true })); } catch (_) {}
+        }
         refreshCheckoutQuote(true);
     }, () => toast('No se pudo obtener tu ubicación', 'warning'), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
 }
@@ -342,4 +364,4 @@ export async function quoteStoreDeliveryFeeFor({ storeId, lat, lng, vehicle }) {
     return callFn('quoteStoreDeliveryFee', { storeId, lat, lng, vehicle: vehicle === 'auto' ? 'auto' : 'moto' });
 }
 
-export const __test = { T, Q, merchantZonesHtml, checkoutFeeHtml };
+export const __test = { T, Q, merchantZonesHtml, checkoutFeeHtml, useGpsForCheckout };
