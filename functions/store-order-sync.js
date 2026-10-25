@@ -12,7 +12,7 @@
  */
 'use strict';
 
-const ACTIVE_ORDER = new Set(['accepted', 'preparing', 'ready', 'out_for_delivery']);
+const ACTIVE_ORDER = new Set(['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery']);
 
 function isStoreTrip(t) {
     return !!(t && (t.storeOrderId || t.deliveryDetails?.storeOrderId));
@@ -68,7 +68,14 @@ function storeOrderPatchForTripChange(before, after, order, tripId, nowMs = Date
     }
     if (a === 'cancelled' || a === 'canceled' || a === 'expired') {
         if (!ACTIVE_ORDER.has(st)) return null;
-        return { status: 'ready', deliveryStage: 'trip_cancelled', tripId: null, driverId: null, driverName: null, driverVehicleType: null, lastTripId: tripId };
+        const preserveLastDriver = {
+            lastDriverId: after.driverId || before?.driverId || order.driverId || order.lastDriverId || null,
+            lastDriverName: after.driverName || before?.driverName || order.driverName || order.lastDriverName || null,
+        };
+        if (after.cancelledBy === 'client' || after.cancelledBy === 'merchant' || after.cancelledBy === 'staff' || after.cancelStoreOrder === true) {
+            return { status: 'cancelled', cancelledBy: after.cancelledBy || 'staff', deliveryStage: 'trip_cancelled', tripId: null, driverId: null, driverName: null, driverVehicleType: null, lastTripId: tripId, ...preserveLastDriver };
+        }
+        return { status: 'ready', deliveryStage: 'trip_cancelled', tripId: null, driverId: null, driverName: null, driverVehicleType: null, lastTripId: tripId, ...preserveLastDriver };
     }
     return null;
 }

@@ -1,12 +1,16 @@
 /**
  * Supervisión · «Pedidos» de tiendas (solo admin/supervisor).
- * En vivo (todas las tiendas, con «atascados»), historial con búsqueda + CSV y contadores.
- * Solo lee store_orders (las reglas ya limitan la lectura a staff, dueño y cliente).
- * Los estados de las tiendas NO cambian: se agrupan para la vista.
+ * En vivo (todas las tiendas, incluyendo envíos por WhatsApp y directos de tienda, con «atascados»),
+ * historial con búsqueda + CSV y contadores.
+ * Sincroniza store_orders y trips de tienda para que:
+ *   1) Los pedidos de WhatsApp (ej. La Sopota) y envíos directos aparezcan aquí en vivo e historial.
+ *   2) El avance a «En camino» y «Entregado» dependa del repartidor, nunca de que el restaurante toque un botón.
+ *   3) Los pedidos cancelados o en papelera no se queden pegados en «En cocina».
+ *   4) Staff pueda cancelar (con confirmación), devolver un pedido cancelado por error al repartidor o marcarlo como Entregado.
  */
-import { collection, onSnapshot, query, where, orderBy, limit, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { esc, money } from './delivery-zones-shared.js?v=2026.10.25.3';
-import { orderWaitChipHtml, injectWaitChipCss, startWaitTicker } from './trip-wait.js?v=2026.10.25.3';
+import { collection, doc, onSnapshot, query, where, orderBy, limit, getDocs, getDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { esc, money } from './delivery-zones-shared.js?v=2026.10.25.4';
+import { orderWaitChipHtml, injectWaitChipCss, startWaitTicker } from './trip-wait.js?v=2026.10.25.4';
 
 export const STAGES = [
     { id: 'recibido', label: 'Recibido', statuses: ['pending', 'accepted'], color: '#2563EB', limitMin: 10 },
@@ -17,9 +21,11 @@ export const STAGES = [
 ];
 const STATUS_LABEL = { pending: 'Nuevo', accepted: 'Aceptado', preparing: 'Preparando', ready: 'Listo · sin moto', out_for_delivery: 'En camino', delivered: 'Entregado', cancelled: 'Cancelado' };
 const ACTIVE_STATUSES = ['pending', 'accepted', 'preparing', 'ready', 'out_for_delivery'];
+const ACTIVE_TRIP_STATUSES = ['verifying', 'pending', 'accepted', 'in_progress'];
 const SOUND_KEY = 'hr_staff_orders_sound';
 const TZ = 'America/Tegucigalpa';
 const DAY = 864e5;
+const STALE_KITCHEN_AUTO_CANCEL_MS = 12 * 3600e3; // >12h en cocina sin viaje activo = abandonado/cancelado
 
 // ───────── lógica pura (con pruebas) ─────────
 export function stageOf(status) { return STAGES.find((s) => s.statuses.includes(status)) || STAGES[0]; }
@@ -43,6 +49,197 @@ export function stuckInfo(o, now = Date.now()) {
 export function fmtDur(min) { return min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`; }
 export function zoneName(o) { return o.deliveryZoneName || ''; }
 export function feeOf(o) { const f = Number(o.deliveryFee); return Number.isFinite(f) ? f : null; }
+
+/** Detecta si un documento de `trips` es un envío de tienda/restaurante (WhatsApp o directo). */
+export function isStoreDeliveryTripDoc(t) {
+    if (!t || typeof t !== 'object') return false;
+    const d = t.deliveryDetails || {};
+    return Boolean(
+        t.storeDelivery ||
+        t.merchantDirectDelivery ||
+        t.createdByMerchant ||
+        t.createdVia === 'whatsapp_store' ||
+        t.storeOrderId ||
+        t.storeId ||
+        d.fromStore ||
+        d.merchantDirect ||
+        d.whatsappStore ||
+        d.storeOrderId ||
+        d.storeId
+    );
+}
+
+/** Convierte un viaje de tienda (`trips`) sin documento en `store_orders` en una tarjeta normalizada para el tablero. */
+export function normalizeTripAsStoreOrder(t) {
+    if (!t) return null;
+    const d = t.deliveryDetails || {};
+    const rawSt = String(t.status || 'pending');
+    const isTrashed = Boolean(t.trashedAtMs || t.trashedAt);
+    let status = 'ready';
+    if (isTrashed || rawSt === 'cancelled' || rawSt === 'canceled' || rawSt === 'expired') {
+        status = 'cancelled';
+    } else if (rawSt === 'completed') {
+        status = 'delivered';
+    } else if (rawSt === 'in_progress') {
+        status = 'out_for_delivery';
+    } else if (rawSt === 'accepted') {
+        status = 'ready';
+    } else {
+        status = 'ready';
+    }
+    const items = Array.isArray(d.items) && d.items.length
+        ? d.items.map((it) => ({
+            name: it.name || it.title || 'Producto',
+            qty: Number(it.qty || it.quantity || 1) || 1,
+            price: Number(it.price || 0) || 0,
+        }))
+        : (d.itemsDetailText || d.packageDescription
+            ? [{ name: d.itemsDetailText || d.packageDescription, qty: 1, price: Number(d.itemsTotal || d.collectFromCustomer || 0) || 0 }]
+            : [{ name: 'Envío de tienda', qty: 1, price: Number(d.itemsTotal || d.collectFromCustomer || 0) || 0 }]);
+    const fee = Number.isFinite(Number(d.deliveryFee)) ? Number(d.deliveryFee) : (Number.isFinite(Number(t.priceNum)) ? Number(t.priceNum) : null);
+    const itemsTotal = Number(d.itemsTotal ?? d.collectFromCustomer ?? 0) || 0;
+    const isWa = Boolean(t.createdVia === 'whatsapp_store' || d.whatsappStore || t.whatsappOrder);
+    return {
+        id: t.storeOrderId || d.storeOrderId || t.id,
+        tripId: t.id,
+        fromTripOnly: !(t.storeOrderId || d.storeOrderId),
+        sourceType: isWa ? 'whatsapp_store' : 'merchant_direct',
+        storeId: t.storeId || d.storeId || t.merchantId || `store_${(t.storeName || d.storeName || 'tienda').toLowerCase().replace(/\s+/g, '_')}`,
+        storeName: t.storeName || d.storeName || t.clientName || 'Tienda',
+        clientName: d.recipientName || t.destination || 'Cliente',
+        recipientName: d.recipientName || '',
+        clientPhone: d.recipientPhone || t.clientPhone || '',
+        recipientPhone: d.recipientPhone || '',
+        deliveryAddress: d.deliveryAddress || t.destination || '',
+        deliveryZoneId: t.deliveryZoneId || d.deliveryZoneId || null,
+        deliveryZoneName: t.deliveryZoneName || d.deliveryZoneName || '',
+        deliveryFee: fee,
+        deliveryFeeSource: t.deliveryFeeSource || d.deliveryFeeSource || '',
+        items,
+        itemsTotal,
+        paymentMethod: t.paymentMethod || 'efectivo',
+        status,
+        deliveryStage: rawSt === 'in_progress'
+            ? 'picked_up'
+            : rawSt === 'accepted'
+                ? (t.driverArrived ? 'at_store' : 'driver_assigned')
+                : (status === 'cancelled' ? 'trip_cancelled' : 'searching_driver'),
+        driverId: t.driverId || null,
+        driverName: t.driverName || null,
+        lastDriverId: t.lastDriverId || t.driverId || null,
+        lastDriverName: t.lastDriverName || t.driverName || null,
+        cancelledBy: t.cancelledBy === t.clientId ? 'merchant' : (t.cancelledBy ? 'driver' : (isTrashed ? 'staff' : '')),
+        createdAt: t.createdAt || t.createdAtMs || Date.now(),
+        updatedAt: t.completedAt || t.cancelledAt || t.startedAt || t.acceptedAt || t.updatedAt || t.createdAt || Date.now(),
+    };
+}
+
+/**
+ * Reconcilia `store_orders` con `trips`:
+ * 1) Une los envíos de WhatsApp / directos de tienda (`trips` sin `store_orders`).
+ * 2) Si el viaje de un pedido ya está `in_progress` o `completed`, avanza el pedido sin depender del restaurante.
+ * 3) Si un pedido tiene `deliveryStage === 'trip_cancelled'`, o su viaje está cancelado/en papelera, o lleva >12h pegado en cocina sin viaje activo, lo pasa a `cancelled`.
+ */
+export function reconcileStoreOrdersAndTrips(orders = [], trips = [], { now = Date.now(), onAutoCancelOrder = null, onAutoSyncOrder = null } = {}) {
+    const tripById = new Map();
+    const tripByOrderId = new Map();
+    for (const t of (trips || [])) {
+        if (!t || !t.id) continue;
+        tripById.set(String(t.id), t);
+        const oid = String(t.storeOrderId || t.deliveryDetails?.storeOrderId || '');
+        if (oid) {
+            const prev = tripByOrderId.get(oid);
+            if (!prev || tsMs(t.createdAt) >= tsMs(prev.createdAt)) {
+                tripByOrderId.set(oid, t);
+            }
+        }
+    }
+
+    const seenOrderIds = new Set();
+    const seenTripIds = new Set();
+    const out = [];
+
+    for (const rawOrder of (orders || [])) {
+        if (!rawOrder || !rawOrder.id) continue;
+        const o = { ...rawOrder };
+        seenOrderIds.add(String(o.id));
+        const linkedId = String(o.tripId || o.deliveryTripId || o.lastTripId || '');
+        if (linkedId) seenTripIds.add(linkedId);
+        const linkedTrip = (linkedId && tripById.get(linkedId)) || tripByOrderId.get(String(o.id)) || null;
+        if (linkedTrip?.id) {
+            seenTripIds.add(String(linkedTrip.id));
+            if (!o.tripId && linkedTrip.status !== 'cancelled' && linkedTrip.status !== 'canceled') {
+                o.tripId = linkedTrip.id;
+            }
+            if (linkedTrip.driverId && !o.driverId) {
+                o.driverId = linkedTrip.driverId;
+                o.driverName = linkedTrip.driverName || o.driverName || null;
+            }
+            if ((linkedTrip.lastDriverId || linkedTrip.driverId) && !o.lastDriverId) {
+                o.lastDriverId = linkedTrip.lastDriverId || linkedTrip.driverId;
+                o.lastDriverName = linkedTrip.lastDriverName || linkedTrip.driverName || o.lastDriverName || null;
+            }
+        }
+
+        if (ACTIVE_STATUSES.includes(o.status)) {
+            const tripStatus = String(linkedTrip?.status || '');
+            const tripTrashed = Boolean(linkedTrip?.trashedAtMs || linkedTrip?.trashedAt);
+            const tripCancelled = tripTrashed || tripStatus === 'cancelled' || tripStatus === 'canceled' || tripStatus === 'expired';
+            const explicitlyCancelled = Boolean(
+                o.deliveryStage === 'trip_cancelled' ||
+                o.cancelledAt ||
+                o.cancelledBy
+            );
+            const since = stateSinceMs(o);
+            const hasLiveTrip = linkedTrip && ACTIVE_TRIP_STATUSES.includes(tripStatus) && !tripTrashed;
+            const isStaleKitchen = ['pending', 'accepted', 'preparing', 'ready'].includes(o.status)
+                && !hasLiveTrip
+                && since > 0
+                && (now - since) > STALE_KITCHEN_AUTO_CANCEL_MS;
+
+            if (tripStatus === 'completed' && !tripTrashed) {
+                o.status = 'delivered';
+                o.deliveryStage = 'delivered';
+                o.driverId = linkedTrip.driverId || o.driverId || null;
+                o.driverName = linkedTrip.driverName || o.driverName || null;
+                if (typeof onAutoSyncOrder === 'function') {
+                    try { onAutoSyncOrder(o, { status: 'delivered', deliveryStage: 'delivered', driverId: o.driverId, driverName: o.driverName }); } catch (_) {}
+                }
+            } else if (tripStatus === 'in_progress' && !tripTrashed && o.status !== 'out_for_delivery') {
+                o.status = 'out_for_delivery';
+                o.deliveryStage = 'picked_up';
+                o.driverId = linkedTrip.driverId || o.driverId || null;
+                o.driverName = linkedTrip.driverName || o.driverName || null;
+                if (typeof onAutoSyncOrder === 'function') {
+                    try { onAutoSyncOrder(o, { status: 'out_for_delivery', deliveryStage: 'picked_up', driverId: o.driverId, driverName: o.driverName }); } catch (_) {}
+                }
+            } else if (tripStatus === 'accepted' && !tripTrashed && linkedTrip.driverId) {
+                o.driverId = linkedTrip.driverId;
+                o.driverName = linkedTrip.driverName || o.driverName || null;
+                o.deliveryStage = linkedTrip.driverArrived ? 'at_store' : 'driver_assigned';
+            } else if (explicitlyCancelled || (tripCancelled && !o.tripId) || (tripCancelled && o.tripId === linkedTrip?.id) || isStaleKitchen) {
+                o.status = 'cancelled';
+                o.cancelledBy = o.cancelledBy || (tripTrashed ? 'staff' : 'merchant');
+                if (typeof onAutoCancelOrder === 'function') {
+                    try { onAutoCancelOrder(o, { reason: explicitlyCancelled ? 'trip_cancelled' : isStaleKitchen ? 'stale_kitchen' : 'linked_trip_cancelled' }); } catch (_) {}
+                }
+            }
+        }
+        out.push(o);
+    }
+
+    for (const t of (trips || [])) {
+        if (!t || !t.id || !isStoreDeliveryTripDoc(t)) continue;
+        if (seenTripIds.has(String(t.id))) continue;
+        const oid = String(t.storeOrderId || t.deliveryDetails?.storeOrderId || '');
+        if (oid && seenOrderIds.has(oid)) continue;
+        const norm = normalizeTripAsStoreOrder(t);
+        if (norm) out.push(norm);
+    }
+
+    return out;
+}
+
 export function filterOrders(list, f = {}) {
     const q = String(f.q || '').trim().toLowerCase();
     return list.filter((o) => {
@@ -51,7 +248,7 @@ export function filterOrders(list, f = {}) {
         if (f.stage && stageOf(o.status).id !== f.stage) return false;
         if (f.stuckOnly && !stuckInfo(o, f.now)) return false;
         if (q) {
-            const hay = [o.id, shortId(o.id), o.storeName, o.clientName, o.recipientName, o.clientPhone, o.recipientPhone, o.deliveryAddress, zoneName(o),
+            const hay = [o.id, shortId(o.id), o.storeName, o.clientName, o.recipientName, o.clientPhone, o.recipientPhone, o.deliveryAddress, zoneName(o), o.driverName, o.lastDriverName,
                 ...(o.items || []).map((i) => i.name)].join(' ').toLowerCase();
             if (!hay.includes(q.replace(/^#/, '')) && !hay.includes(q)) return false;
         }
@@ -100,8 +297,10 @@ export function counters(list, { fromMs, toMs, now = Date.now() } = {}) {
 // ───────── estado y datos ─────────
 let DEPS = {};
 let M = null;
+const autoCleanedOrderIds = new Set();
 const S = {
     tab: 'live', active: [], todayDone: [], hist: [], histRange: '7', histFrom: null, histTo: null, histLoading: false,
+    rawActiveOrders: [], rawTodayOrders: [], rawTrips: [],
     f: { storeId: '', zone: '', stage: '', stuckOnly: false, q: '' }, page: 0, pageSize: 25,
     cRange: '14', cZone: '', alert: null, sound: false, seen: null, now: Date.now(), error: '',
 };
@@ -147,23 +346,59 @@ function setSound(on) {
 
 // ───────── vista ─────────
 const zoneTagHtml = (o) => { const z = zoneName(o); return z ? `<span class="tz-tag blue">${esc(z)}</span>` : '<span class="tz-tag">Sin zona</span>'; };
+const sourceTagHtml = (o) => {
+    if (o.sourceType === 'whatsapp_store' || o.whatsappOrder) {
+        return '<span class="tz-tag ok" style="background:#DCFCE7;color:#166534;font-weight:800">📲 WhatsApp</span>';
+    }
+    if (o.sourceType === 'merchant_direct' || o.fromTripOnly) {
+        return '<span class="tz-tag pur" style="background:#F3E8FF;color:#6B21A8;font-weight:800">🛵 Envío tienda</span>';
+    }
+    return '';
+};
 const when = (ms) => new Date(ms).toLocaleTimeString('es-HN', { hour: 'numeric', minute: '2-digit', timeZone: TZ });
 const dayShort = (k) => { const d = new Date(`${k}T12:00:00-06:00`); return d.toLocaleDateString('es-HN', { day: 'numeric', month: 'short', timeZone: TZ }).replace('.', ''); };
+function statusLabelOf(o) {
+    if (o.status === 'ready' && o.driverId) {
+        return o.deliveryStage === 'at_store' ? 'En tienda · recogiendo' : 'Moto hacia tienda';
+    }
+    return STATUS_LABEL[o.status] || o.status;
+}
 function liveCardHtml(o, now) {
     const st = stuckInfo(o, now); const since = stateSinceMs(o); const min = since ? Math.max(0, Math.floor((now - since) / 60000)) : null;
     const fee = feeOf(o); const isNew = S.alert?.id === o.id;
     const items = (o.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
-    const tail = o.status === 'delivered' ? `Entregado ${esc(when(tsMs(o.updatedAt) || since))}` : o.status === 'cancelled' ? `Lo canceló ${o.cancelledBy === 'client' ? 'el cliente' : o.cancelledBy === 'system' ? 'el sistema (fuera de zona)' : 'la tienda'}${o.paymentStatus === 'refunded' ? ' · reembolsado' : ''}` : `${min != null ? (min < 1 ? 'Hace segundos' : `${fmtDur(min)} en este estado`) : ''}`;
+    const tail = o.status === 'delivered'
+        ? `Entregado ${esc(when(tsMs(o.updatedAt) || since))}${o.driverName ? ` · 🛵 ${esc(o.driverName)}` : ''}`
+        : o.status === 'cancelled'
+            ? `Lo canceló ${o.cancelledBy === 'client' ? 'el cliente' : o.cancelledBy === 'driver' ? 'el repartidor' : o.cancelledBy === 'staff' ? 'supervisión' : o.cancelledBy === 'system' ? 'el sistema (fuera de zona)' : 'la tienda'}${o.paymentStatus === 'refunded' ? ' · reembolsado' : ''}`
+            : `${min != null ? (min < 1 ? 'Hace segundos' : `${fmtDur(min)} en este estado`) : ''}${o.driverName ? ` · 🛵 ${esc(o.driverName)}` : ''}`;
+    const lastDrvId = o.driverId || o.lastDriverId || '';
+    const lastDrvName = o.driverName || o.lastDriverName || '';
+    const isActive = ACTIVE_STATUSES.includes(o.status);
+    const isCancelled = o.status === 'cancelled';
+    const actionBtns = [];
+    if (isActive) {
+        if (lastDrvId && !o.driverId) {
+            actionBtns.push(`<button type="button" class="tz-btn pri sm" style="font-size:11px;padding:3px 8px;background:#2563EB" data-pd="restore-driver" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId || o.lastTripId || '')}" data-driver-id="${esc(lastDrvId)}" data-driver-name="${esc(lastDrvName)}">🔄 Devolver a ${esc(lastDrvName || 'repartidor')}</button>`);
+        }
+        actionBtns.push(`<button type="button" class="tz-btn ghost sm" style="font-size:11px;padding:3px 8px" data-pd="assign-driver" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId || o.lastTripId || '')}">🛵 ${o.driverId ? 'Cambiar repartidor' : 'Asignar repartidor'}</button>`);
+        actionBtns.push(`<button type="button" class="tz-btn ghost sm" style="font-size:11px;padding:3px 8px;color:#059669;border-color:#A7F3D0" data-pd="mark-delivered" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId || o.lastTripId || '')}" data-driver-id="${esc(lastDrvId)}" data-driver-name="${esc(lastDrvName)}">✅ Entregado</button>`);
+        actionBtns.push(`<button type="button" class="tz-btn ghost sm" style="font-size:11px;padding:3px 8px;color:#DC2626;border-color:#FECACA" data-pd="cancel-order" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId || '')}" data-from-trip="${o.fromTripOnly ? '1' : '0'}">✕ Cancelar</button>`);
+    } else if (isCancelled) {
+        actionBtns.push(`<button type="button" class="tz-btn pri sm" style="font-size:11px;padding:4px 8px;background:#059669" data-pd="mark-delivered" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId || o.lastTripId || '')}" data-driver-id="${esc(lastDrvId)}" data-driver-name="${esc(lastDrvName)}" title="Si el repartidor canceló por error pero sí entregó el pedido">✅ Marcar Entregado</button>`);
+        actionBtns.push(`<button type="button" class="tz-btn ghost sm" style="font-size:11px;padding:4px 8px;color:#1D4ED8;border-color:#BFDBFE" data-pd="restore-driver" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId || o.lastTripId || '')}" data-driver-id="${esc(lastDrvId)}" data-driver-name="${esc(lastDrvName)}" title="Devolver el pedido activo al repartidor">🔄 ${lastDrvName ? `Devolver a ${esc(lastDrvName)}` : 'Cargar a repartidor'}</button>`);
+    }
     return `<div class="pd-card ${st ? 'stuck' : ''} ${isNew ? 'new' : ''}">
         ${isNew ? '<span class="pd-newtag">NUEVO</span>' : ''}
         ${st ? `<div class="pd-stuck">⚠ ${esc(st.text)}</div>` : ''}
-        <div class="pd-top"><code>${esc(shortId(o.id))}</code><span class="tz-tag ${o.status === 'cancelled' ? 'bad' : o.status === 'delivered' ? 'ok' : o.status === 'ready' ? 'pur' : 'blue'}">${esc(STATUS_LABEL[o.status] || o.status)}</span></div>
+        <div class="pd-top"><code>${esc(shortId(o.id))}</code><span class="tz-tag ${o.status === 'cancelled' ? 'bad' : o.status === 'delivered' ? 'ok' : o.status === 'ready' ? 'pur' : 'blue'}">${esc(statusLabelOf(o))}</span></div>
         <b class="pd-store">${esc(o.storeName || 'Tienda')}</b>
         ${o.status === 'delivered' || o.status === 'cancelled' ? '' : `<div class="hr-wait-row">${orderWaitChipHtml(o)}</div>`}
         <div class="pd-sub">${esc(o.clientName || o.recipientName || 'Cliente')} · ${esc(items)}</div>
-        <div>${zoneTagHtml(o)}</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">${zoneTagHtml(o)}${sourceTagHtml(o)}</div>
         <div class="pd-money"><span>Envío <b>${fee == null ? '—' : esc(money(fee))}</b></span><b>${esc(money(Number(o.itemsTotal || 0) + (fee || 0)))}</b></div>
         <div class="pd-foot ${st ? 'bad' : ''}">${tail} · ${o.paymentMethod === 'saldo' ? 'Puntos' : 'Efectivo'}</div>
+        ${actionBtns.length ? `<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px dashed #E2E8F0">${actionBtns.join('')}</div>` : ''}
     </div>`;
 }
 function filtersHtml(list, { history = false } = {}) {
@@ -195,7 +430,7 @@ function liveHtml() {
     const cols = STAGES.map((st) => {
         const items = list.filter((o) => stageOf(o.status).id === st.id)
             .sort((a, b) => (st.limitMin ? (stuckInfo(b, now) ? 1 : 0) - (stuckInfo(a, now) ? 1 : 0) || stateSinceMs(a) - stateSinceMs(b) : tsMs(b.updatedAt) - tsMs(a.updatedAt)));
-        const max = st.limitMin ? 60 : 8;
+        const max = st.limitMin ? 60 : 12;
         return `<div class="pd-col"><div class="pd-colhead"><i style="background:${st.color}"></i><div><b>${st.label}${st.limitMin ? '' : ' · hoy'}</b><small>${st.statuses.join(' · ')}</small></div><span class="pd-count">${items.length}</span></div>
             ${items.slice(0, max).map((o) => liveCardHtml(o, now)).join('') || '<div class="pd-empty">—</div>'}
             ${items.length > max ? `<button type="button" class="tz-linkbtn" data-pd="tab" data-tab="history">Ver ${items.length - max} más en Historial →</button>` : ''}</div>`;
@@ -211,7 +446,7 @@ function liveHtml() {
     </div>
     <div class="pd-row"><button type="button" class="pd-chip ${!S.f.stuckOnly ? 'on' : ''}" data-pd="stuck" data-v="0">Todos los activos · ${S.active.length}</button>
         <button type="button" class="pd-chip ${S.f.stuckOnly ? 'on' : ''}" data-pd="stuck" data-v="1">Solo atascados · ${stuck.length}</button>${filtersHtml(all)}</div>
-    <p class="tz-small tz-mut">Límites de «atascado»: Recibido 10 min · En cocina 30 min · En camino 45 min · <span class="pd-live"></span> En vivo · se actualiza solo</p>
+    <p class="tz-small tz-mut">Incluye pedidos en app, WhatsApp (📲) y envíos directos de tienda (🛵). El estado avanza automáticamente cuando el repartidor recoge y entrega · <span class="pd-live"></span> En vivo</p>
     <div class="pd-board">${cols}</div>`;
 }
 function historyHtml() {
@@ -225,7 +460,7 @@ function historyHtml() {
     const zc = new Map(); list.forEach((o) => { const z = zoneName(o) || 'Sin zona'; zc.set(z, (zc.get(z) || 0) + 1); });
     const zonesPct = [...zc.entries()].sort((a, b) => b[1] - a[1]).map(([z, n]) => `<span class="tz-tag ${z === 'Sin zona' ? '' : 'blue'}">${esc(z)} ${Math.round((n / (list.length || 1)) * 100)}%</span>`).join(' ');
     return `<div class="tz-card">${filtersHtml(S.hist, { history: true })}
-        <div class="pd-row"><p class="tz-small tz-mut pd-grow">Busca por número de pedido, tienda, cliente, teléfono o producto. El CSV exporta <b>todo lo filtrado</b> (no solo esta página).</p>
+        <div class="pd-row"><p class="tz-small tz-mut pd-grow">Busca por número de pedido, tienda, cliente, teléfono o producto. En pedidos cancelados por error puedes <b>Devolver al repartidor</b> o <b>Marcar como Entregado</b>.</p>
         <button type="button" class="tz-btn pri" data-pd="csv" ${list.length ? '' : 'disabled'}><i class="fas fa-download"></i> Exportar CSV · ${list.length} filas</button></div></div>
     <div class="pd-kpis pd-kpis4">
         <div class="pd-kpi"><span>Pedidos (con filtros)</span><b class="tz-num">${list.length}</b><small>Entregados ${list.filter((o) => o.status === 'delivered').length} · cancelados ${list.filter((o) => o.status === 'cancelled').length}</small></div>
@@ -234,12 +469,20 @@ function historyHtml() {
         <div class="pd-kpi"><span>Por zona</span><div class="pd-tags">${zonesPct || '—'}</div></div>
     </div>
     <div class="tz-card"><div class="tz-tablewrap"><table class="tz-table">
-        <thead><tr><th>Fecha</th><th>Hora</th><th>Pedido</th><th>Tienda</th><th>Cliente</th><th>Zona</th><th class="r">Productos</th><th class="r">Envío</th><th class="r">Total</th><th>Pago</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Fecha</th><th>Hora</th><th>Pedido</th><th>Tienda</th><th>Cliente · Repartidor</th><th>Zona</th><th class="r">Productos</th><th class="r">Envío</th><th class="r">Total</th><th>Pago</th><th>Estado / Acciones</th></tr></thead>
         <tbody>${S.histLoading ? '<tr><td colspan="11" class="tz-mut">Cargando…</td></tr>' : rows.map((o) => {
             const ms = tsMs(o.createdAt); const fee = feeOf(o); const st = stageOf(o.status);
-            return `<tr><td>${esc(dayShort(dayKey(ms)))}</td><td>${esc(when(ms))}</td><td><code>${esc(shortId(o.id))}</code></td><td><b>${esc(o.storeName || '')}</b></td><td>${esc(o.clientName || o.recipientName || '')}</td><td>${zoneTagHtml(o)}</td>
+            const lastDrvId = o.driverId || o.lastDriverId || '';
+            const lastDrvName = o.driverName || o.lastDriverName || '';
+            const rowActions = o.status === 'cancelled'
+                ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                    <button type="button" class="tz-btn pri sm" style="font-size:10.5px;padding:2px 6px;background:#059669" data-pd="mark-delivered" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId || o.lastTripId || '')}" data-driver-id="${esc(lastDrvId)}" data-driver-name="${esc(lastDrvName)}">✅ Entregado</button>
+                    <button type="button" class="tz-btn ghost sm" style="font-size:10.5px;padding:2px 6px" data-pd="restore-driver" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId || o.lastTripId || '')}" data-driver-id="${esc(lastDrvId)}" data-driver-name="${esc(lastDrvName)}">🔄 ${lastDrvName ? esc(lastDrvName) : 'Repartidor'}</button>
+                  </div>`
+                : '';
+            return `<tr><td>${esc(dayShort(dayKey(ms)))}</td><td>${esc(when(ms))}</td><td><code>${esc(shortId(o.id))}</code> ${sourceTagHtml(o)}</td><td><b>${esc(o.storeName || '')}</b></td><td>${esc(o.clientName || o.recipientName || '')}${lastDrvName ? `<br><small class="tz-mut">🛵 ${esc(lastDrvName)}</small>` : ''}</td><td>${zoneTagHtml(o)}</td>
                 <td class="r">${esc(money(o.itemsTotal))}</td><td class="r">${fee == null ? '—' : esc(money(fee))}${o.deliveryFeeSource === 'distance' && fee != null ? '<br><small class="tz-mut">por km</small>' : ''}</td><td class="r"><b>${esc(money(Number(o.itemsTotal || 0) + (fee || 0)))}</b></td>
-                <td>${o.paymentMethod === 'saldo' ? 'Puntos' : 'Efectivo'}</td><td><span class="tz-tag ${st.id === 'entregado' ? 'ok' : st.id === 'cancelado' ? 'bad' : 'blue'}">${esc(STATUS_LABEL[o.status] || o.status)}</span></td></tr>`;
+                <td>${o.paymentMethod === 'saldo' ? 'Puntos' : 'Efectivo'}</td><td><span class="tz-tag ${st.id === 'entregado' ? 'ok' : st.id === 'cancelado' ? 'bad' : 'blue'}">${esc(STATUS_LABEL[o.status] || o.status)}</span>${rowActions}</td></tr>`;
         }).join('') || '<tr><td colspan="11" class="tz-mut">Sin pedidos con estos filtros.</td></tr>'}
         ${rows.length ? `<tr class="tot"><td colspan="6">Esta página (${rows.length} de ${list.length})</td><td class="r">${esc(money(pi))}</td><td class="r">${esc(money(pf))}</td><td class="r">${esc(money(pi + pf))}</td><td colspan="2"></td></tr>` : ''}</tbody></table></div>
         <div class="pd-row"><span class="tz-small tz-mut">Mostrando ${list.length ? S.page * S.pageSize + 1 : 0}–${Math.min(list.length, (S.page + 1) * S.pageSize)} de ${list.length}</span><span class="tz-sp"></span>
@@ -305,6 +548,132 @@ function download(name, text) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
+async function writeDocPatch(colName, docId, patch) {
+    if (!docId || !DEPS.db || !DEPS.appId) return false;
+    const upd = DEPS.updateDoc || (typeof window !== 'undefined' ? window.__hrUpdateDoc : null);
+    if (typeof upd !== 'function') return false;
+    await upd(doc(DEPS.db, 'artifacts', DEPS.appId, 'public', 'data', colName, String(docId)), patch);
+    return true;
+}
+function findOrderAny(orderId, tripId) {
+    const all = [...S.active, ...S.todayDone, ...S.hist];
+    return all.find((x) => (orderId && String(x.id) === String(orderId)) || (tripId && String(x.tripId || x.lastTripId || '') === String(tripId))) || null;
+}
+async function handleStaffCancelOrder(orderId, tripId, fromTripOnly) {
+    const ord = findOrderAny(orderId, tripId);
+    const storeName = ord?.storeName || 'la tienda';
+    const clientName = ord?.clientName || ord?.recipientName || 'Cliente';
+    const ok = typeof window !== 'undefined' && typeof window.openCancelConfirmModal === 'function'
+        ? await window.openCancelConfirmModal({
+            role: 'staff',
+            storeName,
+            clientName,
+            orderShortId: shortId(orderId || tripId),
+        })
+        : (typeof window !== 'undefined' && typeof window.confirm === 'function'
+            ? window.confirm(`¿Confirmas cancelar el pedido ${shortId(orderId || tripId)} de «${storeName}»?`)
+            : true);
+    if (!ok) return;
+    const nowTs = Timestamp.fromMillis(Date.now());
+    try {
+        if (orderId && !fromTripOnly) {
+            await writeDocPatch('store_orders', orderId, {
+                status: 'cancelled',
+                cancelledBy: 'staff',
+                cancelledAt: nowTs,
+                updatedAt: nowTs,
+            });
+        }
+        const tId = tripId || ord?.tripId || (fromTripOnly ? orderId : '');
+        if (tId) {
+            await writeDocPatch('trips', tId, {
+                status: 'cancelled',
+                cancelledBy: 'staff',
+                cancelStoreOrder: true,
+                cancelledAt: nowTs,
+            });
+        }
+        if (ord) {
+            ord.status = 'cancelled';
+            ord.cancelledBy = 'staff';
+            S.active = S.active.filter((x) => x.id !== ord.id);
+            if (!S.todayDone.some((x) => x.id === ord.id)) S.todayDone.unshift(ord);
+            render();
+        }
+        window.showToast?.(`Pedido ${shortId(orderId || tripId)} cancelado.`, 'info');
+    } catch (err) {
+        console.warn('[pedidos] cancel error:', err);
+        window.showToast?.('No se pudo cancelar el pedido.', 'error');
+    }
+}
+async function handleStaffRestoreDriver(orderId, tripId, driverId, driverName) {
+    const ord = findOrderAny(orderId, tripId);
+    const tId = tripId || ord?.tripId || ord?.lastTripId || (ord?.fromTripOnly ? orderId : '');
+    if (typeof window !== 'undefined' && typeof window.staffRestoreOrReassignStoreOrder === 'function') {
+        return window.staffRestoreOrReassignStoreOrder({
+            orderId: ord?.fromTripOnly ? '' : orderId,
+            tripId: tId,
+            driverId: driverId || ord?.driverId || ord?.lastDriverId || '',
+            driverName: driverName || ord?.driverName || ord?.lastDriverName || '',
+            mode: 'restore_active',
+            orderDoc: ord,
+        });
+    }
+    if (tId && driverId && typeof window.staffAssignTripToViewer === 'function') {
+        return window.staffAssignTripToViewer(tId, driverId);
+    }
+    if (tId && typeof window.staffOpenAssignAnyDriver === 'function') {
+        return window.staffOpenAssignAnyDriver(tId);
+    }
+}
+async function handleStaffMarkDelivered(orderId, tripId, driverId, driverName) {
+    const ord = findOrderAny(orderId, tripId);
+    const tId = tripId || ord?.tripId || ord?.lastTripId || (ord?.fromTripOnly ? orderId : '');
+    if (typeof window !== 'undefined' && typeof window.staffRestoreOrReassignStoreOrder === 'function') {
+        return window.staffRestoreOrReassignStoreOrder({
+            orderId: ord?.fromTripOnly ? '' : orderId,
+            tripId: tId,
+            driverId: driverId || ord?.driverId || ord?.lastDriverId || '',
+            driverName: driverName || ord?.driverName || ord?.lastDriverName || '',
+            mode: 'mark_delivered',
+            orderDoc: ord,
+        });
+    }
+    const label = driverName || ord?.driverName || ord?.lastDriverName || 'el repartidor';
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        if (!window.confirm(`¿Confirmas marcar el pedido ${shortId(orderId || tId)} como ENTREGADO por ${label}?`)) return;
+    }
+    const nowTs = Timestamp.fromMillis(Date.now());
+    try {
+        if (orderId && !ord?.fromTripOnly) {
+            await writeDocPatch('store_orders', orderId, {
+                status: 'delivered',
+                deliveryStage: 'delivered',
+                deliveredAt: nowTs,
+                deliveredBy: 'staff_recovered',
+                cancelledBy: null,
+                updatedAt: nowTs,
+            });
+        }
+        if (tId) {
+            await writeDocPatch('trips', tId, {
+                status: 'completed',
+                completedAt: nowTs,
+                completedByRole: 'staff_recovered',
+                cancelledAt: null,
+                cancelledBy: null,
+            });
+        }
+        if (ord) {
+            ord.status = 'delivered';
+            S.active = S.active.filter((x) => x.id !== ord.id);
+            render();
+        }
+        window.showToast?.(`✅ Pedido ${shortId(orderId || tId)} marcado como Entregado.`, 'success');
+    } catch (e) {
+        console.warn('[pedidos] mark-delivered error:', e);
+    }
+}
 function onClick(e) {
     const b = e.target.closest('[data-pd]'); if (!b) return;
     const a = b.getAttribute('data-pd');
@@ -315,6 +684,29 @@ function onClick(e) {
         if (sid && typeof window.openStaffStoreBranchModal === 'function') {
             window.openStaffStoreBranchModal(sid, { mode: 'create' });
         }
+        return;
+    }
+    if (a === 'cancel-order') {
+        const oid = b.getAttribute('data-order-id') || '';
+        const tid = b.getAttribute('data-trip-id') || '';
+        const fromTrip = b.getAttribute('data-from-trip') === '1';
+        handleStaffCancelOrder(oid, tid, fromTrip);
+        return;
+    }
+    if (a === 'restore-driver' || a === 'assign-driver') {
+        const oid = b.getAttribute('data-order-id') || '';
+        const tid = b.getAttribute('data-trip-id') || '';
+        const did = a === 'assign-driver' ? '' : (b.getAttribute('data-driver-id') || '');
+        const dname = a === 'assign-driver' ? '' : (b.getAttribute('data-driver-name') || '');
+        handleStaffRestoreDriver(oid, tid, did, dname);
+        return;
+    }
+    if (a === 'mark-delivered') {
+        const oid = b.getAttribute('data-order-id') || '';
+        const tid = b.getAttribute('data-trip-id') || '';
+        const did = b.getAttribute('data-driver-id') || '';
+        const dname = b.getAttribute('data-driver-name') || '';
+        handleStaffMarkDelivered(oid, tid, did, dname);
         return;
     }
     if (a === 'clear') { S.f = { storeId: '', zone: '', stage: '', stuckOnly: false, q: '' }; S.page = 0; return render(); }
@@ -343,34 +735,87 @@ function onChange(e) {
 
 // ───────── Firestore ─────────
 const col = () => collection(DEPS.db, 'artifacts', DEPS.appId, 'public', 'data', 'store_orders');
+const tripsCol = () => collection(DEPS.db, 'artifacts', DEPS.appId, 'public', 'data', 'trips');
 const mapDocs = (snap) => snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-function onActive(list) {
-    const ids = new Set(list.map((o) => o.id));
+
+function recomputeLiveFromSources() {
+    const now = Date.now();
+    S.now = now;
+    const todayStart = startOfDayMs(now);
+    const byOrderId = new Map();
+    for (const o of (S.rawTodayOrders || [])) byOrderId.set(o.id, o);
+    for (const o of (S.rawActiveOrders || [])) byOrderId.set(o.id, o);
+
+    const reconciled = reconcileStoreOrdersAndTrips([...byOrderId.values()], S.rawTrips || [], {
+        now,
+        onAutoCancelOrder: (ord, meta) => {
+            if (!ord?.id || ord.fromTripOnly || autoCleanedOrderIds.has(ord.id)) return;
+            autoCleanedOrderIds.add(ord.id);
+            writeDocPatch('store_orders', ord.id, {
+                status: 'cancelled',
+                cancelledBy: ord.cancelledBy || 'staff',
+                cancelReason: meta?.reason || 'auto_cleanup',
+                updatedAt: Timestamp.fromMillis(now),
+            }).catch(() => {});
+        },
+        onAutoSyncOrder: (ord, patch) => {
+            if (!ord?.id || ord.fromTripOnly || autoCleanedOrderIds.has(`${ord.id}_${patch.status}`)) return;
+            autoCleanedOrderIds.add(`${ord.id}_${patch.status}`);
+            writeDocPatch('store_orders', ord.id, {
+                ...patch,
+                updatedAt: Timestamp.fromMillis(now),
+            }).catch(() => {});
+        },
+    });
+
+    const activeList = reconciled.filter((o) => ACTIVE_STATUSES.includes(o.status));
+    const doneTodayList = reconciled.filter((o) => !ACTIVE_STATUSES.includes(o.status) && tsMs(o.createdAt) >= todayStart);
+
+    const ids = new Set(activeList.map((o) => o.id));
     if (S.seen) {
-        const fresh = list.filter((o) => o.status === 'pending' && !S.seen.has(o.id) && Date.now() - tsMs(o.createdAt) < 10 * 60e3);
+        const fresh = activeList.filter((o) => (o.status === 'pending' || (o.fromTripOnly && o.status === 'ready')) && !S.seen.has(o.id) && now - tsMs(o.createdAt) < 10 * 60e3);
         if (fresh.length) { S.alert = fresh.sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt))[0]; if (S.sound) beep(); }
-        list.forEach((o) => S.seen.add(o.id));
+        activeList.forEach((o) => S.seen.add(o.id));
     } else S.seen = ids;
-    S.active = list;
+
+    S.active = activeList;
+    S.todayDone = doneTodayList;
     render();
 }
+
 async function loadHistory(fromMs) {
     const r = fromMs ? { fromMs } : rangeFor(String(Math.max(Number(S.histRange) || 0, Number(S.cRange) || 0, 14)), Date.now());
     if (S.histFrom != null && r.fromMs >= S.histFrom) return;
     S.histLoading = true; render();
     try {
-        const snap = await getDocs(query(col(), where('createdAt', '>=', Timestamp.fromMillis(r.fromMs)), orderBy('createdAt', 'desc'), limit(3000)));
-        S.hist = mapDocs(snap); S.histFrom = r.fromMs;
+        const [ordersSnap, tripsSnap] = await Promise.all([
+            getDocs(query(col(), where('createdAt', '>=', Timestamp.fromMillis(r.fromMs)), orderBy('createdAt', 'desc'), limit(3000))),
+            getDocs(query(tripsCol(), where('createdAt', '>=', Timestamp.fromMillis(r.fromMs)), orderBy('createdAt', 'desc'), limit(1500))).catch(() => ({ docs: [] })),
+        ]);
+        const histOrders = mapDocs(ordersSnap);
+        const histTrips = mapDocs(tripsSnap).filter(isStoreDeliveryTripDoc);
+        S.hist = reconcileStoreOrdersAndTrips(histOrders, histTrips, { now: Date.now() });
+        S.histFrom = r.fromMs;
     } catch (e) { S.error = 'No se pudo cargar el historial.'; console.warn('[pedidos] historial', e); }
     S.histLoading = false; render();
 }
 function ensureRange(key) { const r = rangeFor(key, Date.now()); if (S.histFrom == null || r.fromMs < S.histFrom) loadHistory(r.fromMs); }
 function subscribe() {
-    M.unsubs.push(onSnapshot(query(col(), where('status', 'in', ACTIVE_STATUSES), limit(300)), (snap) => onActive(mapDocs(snap)),
-        (e) => { S.error = 'Sin acceso a pedidos (solo admin o supervisor).'; console.warn('[pedidos] vivo', e); render(); }));
+    S.rawActiveOrders = [];
+    S.rawTodayOrders = [];
+    S.rawTrips = [];
+    M.unsubs.push(onSnapshot(query(col(), where('status', 'in', ACTIVE_STATUSES), limit(300)), (snap) => {
+        S.rawActiveOrders = mapDocs(snap);
+        recomputeLiveFromSources();
+    }, (e) => { S.error = 'Sin acceso a pedidos (solo admin o supervisor).'; console.warn('[pedidos] vivo', e); render(); }));
     M.unsubs.push(onSnapshot(query(col(), where('createdAt', '>=', Timestamp.fromMillis(startOfDayMs())), orderBy('createdAt', 'desc'), limit(500)), (snap) => {
-        S.todayDone = mapDocs(snap).filter((o) => !ACTIVE_STATUSES.includes(o.status)); render();
+        S.rawTodayOrders = mapDocs(snap);
+        recomputeLiveFromSources();
     }, (e) => console.warn('[pedidos] hoy', e)));
+    M.unsubs.push(onSnapshot(query(tripsCol(), orderBy('createdAt', 'desc'), limit(300)), (snap) => {
+        S.rawTrips = mapDocs(snap);
+        recomputeLiveFromSources();
+    }, (e) => console.warn('[pedidos] trips tienda', e)));
 }
 function unmount() {
     if (!M) return;

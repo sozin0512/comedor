@@ -1428,6 +1428,15 @@ function detailBody(t, { k, cause, devCause, chat, price, paid, pinVisible, c, t
       <div><div class="k">${(t.serviceType === 'delivery' || t.storeDelivery || t.storeOrderId) ? 'FLUJO ENVÍO' : 'PIN DE VIAJE'}</div>${(t.serviceType === 'delivery' || t.storeDelivery || t.storeOrderId) ? '<div style="margin-top:3px;font-weight:800;color:#059669">Sin PIN (envío)</div><div class="vj-sub">1. Negocio → 2. Cliente</div>' : `<div style="margin-top:3px;font-size:16px;letter-spacing:3px" class="num">${pinVisible ? esc(pinVisible) : (t.pin || t.tripPin || t.hasPin ? '• • • •' : '—')}</div>${t.pin || t.tripPin || t.hasPin ? `<span class="vj-link vj-sub" data-act="pin" data-id="${esc(t.id)}">Mostrar (queda en el registro)</span>` : '<div class="vj-sub">Sin PIN</div>'}`}</div>
       <div><div class="k">PRECIO Y FACTURA</div><div style="margin-top:3px">${paid ? 'Cobrado' : 'Base'} <b>${fmtL(price)}</b>${paid ? ` · comisión ${fmtL(c.amount)} (${c.pct}%)` : ' · cobro L 0.00'}</div>${paid ? `<span class="vj-link vj-sub" data-act="factura" data-id="${esc(t.id)}">Ver factura</span>` : '<div class="vj-sub">Sin factura (no hubo cobro)</div>'}</div>
     </div>
+    ${isCancelled(t) || t.status === "pending" || t.status === "accepted" || t.status === "in_progress" ? `
+    <div class="vj-card" style="margin-top:12px;padding:10px 12px;background:#F8FAFC;border:1.5px solid #BFDBFE">
+      <div style="font-weight:800;font-size:12.5px;color:#1E3A8A;margin-bottom:6px">🛵 Recuperar o reasignar pedido / viaje${(t.driverName || t.lastDriverName) ? ` · Conductor: ${esc(t.driverName || t.lastDriverName)}` : ""}</div>
+      <div class="vj-row" style="gap:6px;flex-wrap:wrap">
+        <button class="vj-b" style="background:#059669" data-act="markDelivered" data-id="${esc(t.id)}">✅ Marcar como Entregado</button>
+        ${(t.driverId || t.lastDriverId) ? `<button class="vj-b" style="background:#2563EB" data-act="restoreDriver" data-id="${esc(t.id)}" data-uid="${esc(t.driverId || t.lastDriverId)}">🔄 Devolver a ${esc(t.driverName || t.lastDriverName || "repartidor")}</button>` : ""}
+        <button class="vj-b o" data-act="assign" data-id="${esc(t.id)}">🛵 Elegir / cambiar repartidor</button>
+      </div>
+    </div>` : ""}
     <div class="vj-row" style="margin-top:14px;position:relative">
       ${t.staffReviewedAtMs ? `<button class="vj-b o" data-act="unreview" data-id="${esc(t.id)}">Revisado ✓ · deshacer</button>` : `<button class="vj-b" data-act="reviewOne" data-id="${esc(t.id)}">✓ Marcar revisado</button>`}
       <button class="vj-b o" data-act="contact" data-id="${esc(t.id)}">Contactar pasajero</button>
@@ -1649,26 +1658,52 @@ function driverCandidates(t) {
         const km = Number.isFinite(lat) && Number.isFinite(Number(l.lat ?? l.latitude)) ? haversineKm(lat, lng, Number(l.lat ?? l.latitude), Number(l.lng ?? l.longitude)) : null;
         out.push({ uid, name: u.name || l.name || extra.name || 'Conductor', online, km, ...extra });
     };
+    if (t.driverId) add(t.driverId, { prevAssigned: true, name: t.driverName });
+    if (t.lastDriverId) add(t.lastDriverId, { prevAssigned: true, name: t.lastDriverName });
+    (Array.isArray(t.declinedDriverIds) ? t.declinedDriverIds : []).forEach((uid) => add(uid, { prevAssigned: true }));
     bidIds(t).forEach((uid) => add(uid, { bid: true, name: t.driverBids?.[uid]?.driverName }));
     viewerIds(t).forEach((uid) => add(uid, { viewed: true, name: t.viewedBy?.[uid]?.name }));
     ST.locs.forEach((_, uid) => add(uid));
-    out.sort((a, b) => (!!b.bid - !!a.bid) || (!!b.viewed - !!a.viewed) || (b.online - a.online) || ((a.km ?? 1e9) - (b.km ?? 1e9)));
+    ST.users.forEach((u, uid) => { if (String(u.role || "").toLowerCase() === "driver") add(uid, { name: u.name }); });
+    out.sort((a, b) => (!!b.prevAssigned - !!a.prevAssigned) || (!!b.bid - !!a.bid) || (!!b.viewed - !!a.viewed) || (b.online - a.online) || ((a.km ?? 1e9) - (b.km ?? 1e9)));
     return out.slice(0, 30);
 }
-function openAssign(id) {
+function openAssign(id, { mode = "assign" } = {}) {
     const t = ST.trips.find((x) => x.id === id);
     if (!t) return;
     const list = driverCandidates(t);
     openModal(`
-      <h4>Asignar manual · ${shortId(t.id)}</h4>
-      <p class="vj-sub" style="margin:0 0 8px">${esc(placeOf(t, 'origin'))} → ${esc(placeOf(t, 'destination'))} · ${fmtL0(priceOf(t))}. Primero quienes ofertaron o lo vieron, luego los más cercanos en línea.</p>
-      ${list.map((d) => `<div class="row"><span><b>${esc(d.name)}</b><div class="vj-sub">${d.bid ? 'Ofertó · ' : d.viewed ? 'Lo vio · ' : ''}${d.online ? '<span style="color:var(--ok)">en línea</span>' : 'desconectado'}${d.km != null ? ` · ${d.km.toFixed(1)} km` : ''}</div></span>
-        <button class="vj-b" data-uid="${esc(d.uid)}">Asignar</button></div>`).join('') || '<div class="vj-empty">No hay conductores para mostrar.</div>'}
+      <h4>${mode === "delivered" ? "Marcar como Entregado · elegir repartidor" : "Asignar o devolver pedido a repartidor"} · ${shortId(t.id)}</h4>
+      <p class="vj-sub" style="margin:0 0 8px">${esc(placeOf(t, 'origin'))} → ${esc(placeOf(t, 'destination'))} · ${fmtL0(priceOf(t))}. Puedes <b>Devolverlo activo</b> al repartidor o <b>Marcarlo como Entregado</b> si ya lo entregó.</p>
+      ${list.map((d) => `<div class="row"><span><b>${esc(d.name)}</b>${d.prevAssigned ? ' <span class="vj-tag warn">Tenía el pedido</span>' : ''}<div class="vj-sub">${d.bid ? 'Ofertó · ' : d.viewed ? 'Lo vio · ' : ''}${d.online ? '<span style="color:var(--ok)">en línea</span>' : 'desconectado'}${d.km != null ? ` · ${d.km.toFixed(1)} km` : ''}</div></span>
+        <span class="vj-row" style="gap:5px">
+          <button class="vj-b" style="background:#2563EB" data-uid="${esc(d.uid)}" data-mode="assign">🔄 Cargar activo</button>
+          <button class="vj-b" style="background:#059669" data-uid="${esc(d.uid)}" data-mode="delivered">✅ Entregado</button>
+        </span></div>`).join('') || '<div class="vj-empty">No hay conductores para mostrar.</div>'}
       <div class="vj-row" style="justify-content:flex-end;margin-top:12px"><button class="vj-b g" data-close>Cerrar</button></div>`,
     (m) => m.querySelectorAll('button[data-uid]').forEach((b) => b.addEventListener('click', async () => {
-        if (typeof window.staffAssignTripToViewer !== 'function') { toast('Asignar no está disponible en esta vista.', 'warning'); return; }
         b.disabled = true;
-        try { await window.staffAssignTripToViewer(t.id, b.dataset.uid); closeModal(); } catch (err) { toast(errMsg(err), 'error'); b.disabled = false; }
+        try {
+            const btnMode = b.dataset.mode || mode;
+            if (btnMode === "delivered" && typeof window.staffRestoreOrReassignStoreOrder === "function") {
+                await window.staffRestoreOrReassignStoreOrder({
+                    orderId: t.storeOrderId || t.deliveryDetails?.storeOrderId || "",
+                    tripId: t.id,
+                    driverId: b.dataset.uid,
+                    mode: "mark_delivered",
+                });
+                closeModal();
+                closeDrawer();
+                return;
+            }
+            if (typeof window.staffAssignTripToViewer === 'function') {
+                await window.staffAssignTripToViewer(t.id, b.dataset.uid);
+                closeModal();
+                closeDrawer();
+            } else {
+                toast('Asignar no está disponible en esta vista.', 'warning');
+            }
+        } catch (err) { toast(errMsg(err), 'error'); b.disabled = false; }
     })));
 }
 function openViewers(id) {
@@ -1883,6 +1918,32 @@ function onClick(e, scope) {
         case 'classic': openClassic(); break;
         case 'resend': resend(id, el); break;
         case 'assign': openAssign(id); break;
+        case 'restoreDriver': {
+            const t = ST.trips.find((x) => x.id === id);
+            const uid = el.dataset.uid || t?.driverId || t?.lastDriverId || "";
+            if (uid && typeof window.staffAssignTripToViewer === "function") {
+                window.staffAssignTripToViewer(id, uid);
+            } else {
+                openAssign(id, { mode: "assign" });
+            }
+            break;
+        }
+        case 'markDelivered': {
+            const t = ST.trips.find((x) => x.id === id);
+            const uid = t?.driverId || t?.lastDriverId || "";
+            if (uid && typeof window.staffRestoreOrReassignStoreOrder === "function") {
+                window.staffRestoreOrReassignStoreOrder({
+                    orderId: t?.storeOrderId || t?.deliveryDetails?.storeOrderId || "",
+                    tripId: id,
+                    driverId: uid,
+                    driverName: t?.driverName || t?.lastDriverName || "",
+                    mode: "mark_delivered",
+                });
+            } else {
+                openAssign(id, { mode: "delivered" });
+            }
+            break;
+        }
         case 'notifyPassenger': notifyPassenger(id); break;
         case 'detail': case 'pick':
             if (e.target.closest('[data-act="check"]')) break;

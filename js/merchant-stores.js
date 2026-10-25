@@ -13,32 +13,33 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.3';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.3';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.4';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.4';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.25.3';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.25.3';
-import { APP_CONFIG } from './config.js?v=2026.10.25.3';
-import { calculateAge } from './age-verification.js?v=2026.10.25.3';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.3';
+} from './zones.js?v=2026.10.25.4';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.25.4';
+import { APP_CONFIG } from './config.js?v=2026.10.25.4';
+import { calculateAge } from './age-verification.js?v=2026.10.25.4';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.4';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.25.3';
+} from './store-delivery-zones.js?v=2026.10.25.4';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.25.3';
+} from './store-week.js?v=2026.10.25.4';
 
 import { formatLempiras } from './money-format.js';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.3';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.25.4';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.4';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.25.3';
+} from './merchant-delivery-request.js?v=2026.10.25.4';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -4461,15 +4462,37 @@ async function cancelClientOrder(orderId) {
     const order = clientOrders.find((o) => o.id === orderId)
         || merchantOrders.find((o) => o.id === orderId);
     if (!order) return;
-    if (!['pending', 'accepted', 'preparing'].includes(order.status)) {
-        return toast('Ya no se puede cancelar este pedido', 'warning');
+    if (!['pending', 'accepted', 'preparing', 'ready'].includes(order.status)) {
+        return toast('Ya no se puede cancelar este pedido porque ya va en camino', 'warning');
     }
+    const itemsSummary = (order.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
+    const confirmed = await openCancelConfirmModal({
+        role: 'client',
+        storeName: order.storeName || 'Tienda',
+        clientName: order.clientName || 'Cliente',
+        orderShortId: String(orderId).slice(-6).toUpperCase(),
+        itemsSummary,
+        fallbackMessage: `¿Seguro que deseas cancelar tu pedido en ${order.storeName || 'la tienda'}?`,
+    });
+    if (!confirmed) return;
     try {
         await updateDoc(publicDoc('store_orders', orderId), {
             status: 'cancelled',
             cancelledBy: 'client',
+            cancelledAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         });
+        const linkedTripId = order.tripId || order.deliveryTripId;
+        if (linkedTripId) {
+            try {
+                await updateDoc(publicDoc('trips', linkedTripId), {
+                    status: 'cancelled',
+                    cancelledBy: 'client',
+                    cancelStoreOrder: true,
+                    cancelledAt: serverTimestamp(),
+                });
+            } catch (_) {}
+        }
         // Reembolso de puntos: Cloud Function (evita doble reembolso y sirve si cancela el negocio)
         if (order.paymentMethod === 'saldo' && order.paymentStatus === 'paid') {
             // Intento local (cliente puede tocar su propio saldo); la CF es respaldo idempotente
@@ -6552,6 +6575,13 @@ function merchantDeliveryCtx() {
         updateTrip: (id, patch) => updateDoc(publicDoc('trips', id), patch),
         createTrip: async (payload) => (await addDoc(publicCol('trips'), payload)).id,
         cancelTrip: (id, patch) => updateDoc(publicDoc('trips', id), patch),
+        confirm: (msg, meta = {}) => openCancelConfirmModal({
+            role: 'merchant',
+            storeName: myStore?.name || 'Mi negocio',
+            clientName: meta?.recipientName || 'Cliente',
+            orderShortId: meta?.tripId ? String(meta.tripId).slice(-6).toUpperCase() : '',
+            fallbackMessage: msg,
+        }),
         openChat: (tripId) => openOrderDriverChatModal({
             tripId,
             role: 'merchant',
@@ -6875,16 +6905,34 @@ async function onMerchantClick(e) {
         await setOrderStatus(orderId, 'preparing', { acceptedAt: serverTimestamp(), preparingAt: serverTimestamp() });
         return toast('👨‍🍳 Marcado: Preparando el pedido (se notificó al cliente)', 'success');
     }
-    if (action === 'reject-order' && orderId) {
-        if (!confirm('¿Rechazar este pedido?')) return;
+    if ((action === 'reject-order' || action === 'cancel-order') && orderId) {
         const order = merchantOrders.find((o) => o.id === orderId);
-        await setOrderStatus(orderId, 'cancelled', { cancelledBy: 'merchant' });
-        // Reembolso de puntos: el dueño no puede tocar el saldo del cliente → lo hace la Cloud Function
-        // (onStoreOrderUpdatedPush / refundStoreOrderSaldo). Aviso local:
+        const itemsSummary = (order?.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
+        const confirmed = await openCancelConfirmModal({
+            role: 'merchant',
+            storeName: order?.storeName || myStore?.name || 'Tienda',
+            clientName: order?.clientName || order?.recipientName || 'Cliente',
+            orderShortId: String(orderId).slice(-6).toUpperCase(),
+            itemsSummary,
+            fallbackMessage: action === 'reject-order' ? '¿Confirmas rechazar/cancelar este pedido?' : '¿Confirmas cancelar este pedido?',
+        });
+        if (!confirmed) return;
+        await setOrderStatus(orderId, 'cancelled', { cancelledBy: 'merchant', cancelledAt: serverTimestamp() });
+        const linkedTripId = order?.tripId || order?.deliveryTripId;
+        if (linkedTripId) {
+            try {
+                await updateDoc(publicDoc('trips', linkedTripId), {
+                    status: 'cancelled',
+                    cancelledBy: 'merchant',
+                    cancelStoreOrder: true,
+                    cancelledAt: serverTimestamp(),
+                });
+            } catch (_) {}
+        }
         if (order?.paymentMethod === 'saldo' && order?.paymentStatus === 'paid') {
-            toast('Pedido rechazado · se reembolsarán los puntos al cliente', 'info');
+            toast('Pedido cancelado · se reembolsarán los puntos al cliente', 'info');
         } else {
-            toast('Pedido rechazado', 'info');
+            toast('Pedido cancelado', 'info');
         }
         return;
     }
@@ -7610,6 +7658,8 @@ export function buildStaffBranchModalHtml(store, { mode = 'create', menuCount = 
                         </div>
                     </label>
 
+                    <!-- Estado / aviso visible junto al botón -->
+                    <div id="sb-inline-status" style="display:none;padding:0.65rem 0.8rem;border-radius:0.85rem;font-size:0.78rem;font-weight:800;line-height:1.35;"></div>
                     <!-- Botones de acción -->
                     <div style="display:flex;gap:0.55rem;margin-top:0.2rem;">
                         <button type="button" data-staff-branch-act="cancel" style="flex:1;padding:0.75rem;border-radius:0.9rem;border:1.5px solid #cbd5e1;background:#fff;color:#475569;font-weight:800;font-size:0.84rem;cursor:pointer;">
@@ -7660,7 +7710,6 @@ export async function openStaffStoreBranchModal(storeId, { mode = 'create' } = {
     document.body.appendChild(modal);
 
     const card = modal.querySelector('.hr-staff-branch-card');
-    card?.addEventListener('click', (ev) => ev.stopPropagation());
 
     const latInput = modal.querySelector('#sb-lat');
     const lngInput = modal.querySelector('#sb-lng');
@@ -7851,44 +7900,61 @@ export async function openStaffStoreBranchModal(storeId, { mode = 'create' } = {
             return;
         }
         if (act === 'save') {
-            const branchName = modal.querySelector('#sb-branch-name')?.value.trim() || '';
+            const statusBox = modal.querySelector('#sb-inline-status');
+            const showInlineStatus = (msg, kind = 'warn') => {
+                if (!statusBox) return;
+                statusBox.style.display = 'block';
+                statusBox.style.background = kind === 'ok' ? '#dcfce7' : kind === 'info' ? '#dbeafe' : '#fee2e2';
+                statusBox.style.color = kind === 'ok' ? '#166534' : kind === 'info' ? '#1e40af' : '#991b1b';
+                statusBox.style.border = `1.5px solid ${kind === 'ok' ? '#86efac' : kind === 'info' ? '#93c5fd' : '#fca5a5'}`;
+                statusBox.textContent = msg;
+            };
             const selectedCityId = citySelect?.value || store.cityId || 'comayagua';
             const phone = phoneNorm(modal.querySelector('#sb-phone')?.value || store.phone || '');
-            const address = addrInput?.value.trim() || '';
             const lat = Number(latInput?.value);
             const lng = Number(lngInput?.value);
+            const zoneFallback = getZoneById(selectedCityId) || cityFromStoreCoords(lat, lng) || getZoneById(getDefaultZoneId());
+            let address = addrInput?.value.trim() || '';
+            if (!address || address.length < 3) {
+                address = store.address ? `${store.address} (${zoneFallback?.name || selectedCityId})` : `Sucursal en ${zoneFallback?.name || selectedCityId} (${Number.isFinite(lat) ? lat.toFixed(4) : '14.45'}, ${Number.isFinite(lng) ? lng.toFixed(4) : '-87.64'})`;
+                if (addrInput) addrInput.value = address;
+            }
+            let branchName = modal.querySelector('#sb-branch-name')?.value.trim() || '';
+            if (!isEdit && !branchName) {
+                const shortAddr = address.split(',')[0].trim();
+                branchName = shortAddr && shortAddr.toLowerCase() !== (store.name || '').toLowerCase()
+                    ? `Sucursal ${shortAddr.slice(0, 28)}`
+                    : `Sucursal ${zoneFallback?.name || 'Nueva'}`;
+                const bnEl = modal.querySelector('#sb-branch-name');
+                if (bnEl) bnEl.value = branchName;
+            }
             const openAt = modal.querySelector('#sb-open-time')?.value || '';
             const closeAt = modal.querySelector('#sb-close-time')?.value || '';
             const sameMenu = !!modal.querySelector('#sb-same-menu')?.checked;
             const checkedDays = [...modal.querySelectorAll('[data-sb-day]:checked')].map((el) => Number(el.value));
             const operatingDays = ALL_WEEKDAY_NUMS.filter((d) => checkedDays.includes(d));
 
-            if (!isEdit && !branchName) {
-                toast('Escribe el nombre de la sucursal (ej. Sucursal Centro, Boulevard…)', 'warning');
-                modal.querySelector('#sb-branch-name')?.focus();
-                return;
-            }
-            if (!address || address.length < 3) {
-                toast('Escribe la dirección o punto de referencia de la sucursal', 'warning');
-                addrInput?.focus();
-                return;
-            }
             if (!validCoords(lat, lng)) {
+                showInlineStatus('⚠️ Coloca el pin en una ubicación válida del mapa.', 'warn');
                 toast('Coloca el pin en una ubicación válida del mapa', 'warning');
                 return;
             }
             if (!operatingDays.length) {
+                showInlineStatus('⚠️ Selecciona al menos un día de operación.', 'warn');
                 toast('Selecciona al menos un día de operación', 'warning');
                 return;
             }
             if ((openAt && !closeAt) || (!openAt && closeAt)) {
+                showInlineStatus('⚠️ Indica tanto la hora de apertura como la de cierre.', 'warn');
                 toast('Indica tanto la hora de apertura como la de cierre', 'warning');
                 return;
             }
             if (openAt && closeAt && parseHHMM(openAt) === parseHHMM(closeAt)) {
+                showInlineStatus('⚠️ La hora de abrir y cerrar no pueden ser iguales.', 'warn');
                 toast('La hora de abrir y cerrar no pueden ser iguales', 'warning');
                 return;
             }
+            showInlineStatus('⏳ Guardando sucursal verificada y vinculando menú…', 'info');
 
             const zone = getZoneById(selectedCityId) || cityFromStoreCoords(lat, lng) || getZoneById(getDefaultZoneId());
             const hours = openAt && closeAt

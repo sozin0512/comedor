@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.25.3";
+} from "./auth-credentials.js?v=2026.10.25.4";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.25.3";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.25.3";
+import { APP_CONFIG } from "./config.js?v=2026.10.25.4";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.25.4";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.25.3";
+} from "./market.js?v=2026.10.25.4";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.25.3";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.25.3";
+} from "./phone-utils.js?v=2026.10.25.4";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.25.4";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.25.3";
+} from "./referrals.js?v=2026.10.25.4";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.25.3";
+} from "./zones.js?v=2026.10.25.4";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.25.3";
+} from "./trip-notifications.js?v=2026.10.25.4";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.25.3";
+} from "./notification-tones.js?v=2026.10.25.4";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.25.3";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.25.4";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.25.3";
+} from "./passenger-alerts.js?v=2026.10.25.4";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.25.3";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.25.3";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.25.3";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.25.3";
+} from "./passenger-verification.js?v=2026.10.25.4";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.25.4";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.25.4";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.25.4";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.25.3";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.25.4";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.25.3";
+} from "./feedback.js?v=2026.10.25.4";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.25.3";
+} from "./greetings.js?v=2026.10.25.4";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,9 +148,10 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.25.3";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.25.3";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.25.3";
+} from "./service-types.js?v=2026.10.25.4";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.25.4";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.25.4";
+window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
 window.getDeliveryStoreName = getDeliveryStoreName;
@@ -173,23 +174,23 @@ import {
     rankDriversForStoreDelivery,
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml
-} from "./store-delivery-rotation.js?v=2026.10.25.3";
+} from "./store-delivery-rotation.js?v=2026.10.25.4";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.25.3";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.25.4";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.25.3";
-import * as HrAvail from "./service-availability.js?v=2026.10.25.3";
+} from "./service-availability.js?v=2026.10.25.4";
+import * as HrAvail from "./service-availability.js?v=2026.10.25.4";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.25.3";
+} from "./trip-wait.js?v=2026.10.25.4";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
     if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
@@ -205,49 +206,49 @@ import {
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles-v2.js?v=2026.10.25.3";
+} from "./driver-vehicles-v2.js?v=2026.10.25.4";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.25.3";
+} from "./route-fixed-fares.js?v=2026.10.25.4";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.25.3";
+} from "./commission-free-day.js?v=2026.10.25.4";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.25.3";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.25.3";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.25.3";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.25.3";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.25.3";
-import { formatLempiras } from "./money-format.js?v=2026.10.25.3";
-import { displayPersonName } from "./display-name.js?v=2026.10.25.3";
+} from "./route-conditions.js?v=2026.10.25.4";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.25.4";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.25.4";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.25.4";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.25.4";
+import { formatLempiras } from "./money-format.js?v=2026.10.25.4";
+import { displayPersonName } from "./display-name.js?v=2026.10.25.4";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.25.3";
+} from "./demand-heatmap.js?v=2026.10.25.4";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.25.3";
+} from "./ops-fleet-map.js?v=2026.10.25.4";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.25.3";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.25.3";
+} from "./live-trip-keepalive.js?v=2026.10.25.4";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.25.4";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.25.3";
+} from "./driver-session.js?v=2026.10.25.4";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -256,7 +257,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.25.3";
+} from "./session-keepalive.js?v=2026.10.25.4";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -344,29 +345,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.25.3";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.25.4";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.25.3";
+} from "./auth-ui.js?v=2026.10.25.4";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.25.3";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.25.3";
+} from "./age-verification.js?v=2026.10.25.4";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.25.4";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.25.3";
+} from "./trip-experience.js?v=2026.10.25.4";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.25.3";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.25.3";
+} from "./support-tickets.js?v=2026.10.25.4";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.25.4";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.25.3";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.25.3";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.25.4";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.25.4";
 
 
 let app;
@@ -482,9 +483,11 @@ function loadHeavyUiAfterAuth() {
                 isStaffUser: (u, p) => isStaffUser(u, p)
             });
         }).catch((e) => console.warn(e)));
+        window.__hrUpdateDoc = updateDoc;
         vLoad.push(hrLazy('ops-store-orders.js').then((m) => {
             m.initStoreOrdersAdmin({
                 db, appId,
+                updateDoc,
                 getCurrentUser: () => currentUser || window.currentUser || null,
                 getUserProfile: () => window.userProfile,
                 isStaffUser: (u, p) => isStaffUser(u, p)
@@ -16749,10 +16752,12 @@ if (document.readyState === 'loading') {
 
                 const trip = tripSnap.data();
                 const d = driverSnap.data();
-                const isPendingOpen = trip.status === 'pending' && !trip.driverId;
+                const isCancelledTrip = trip.status === 'cancelled' || trip.status === 'canceled' || trip.status === 'expired' || Boolean(trip.trashedAtMs);
+                const isPendingOpen = trip.status === 'pending';
+                const isAcceptedReassign = trip.status === 'accepted';
                 const isScheduledReassign = trip.status === 'scheduled' && !!trip.driverId;
-                if (!isPendingOpen && !isScheduledReassign) {
-                    return window.showToast?.('Solo se puede asignar en pendientes sin conductor o reasignar programados reservados.');
+                if (!isPendingOpen && !isScheduledReassign && !isCancelledTrip && !isAcceptedReassign) {
+                    return window.showToast?.('Este viaje ya está finalizado o en curso.');
                 }
                 if (d.role !== 'driver') return window.showToast?.('El usuario no es conductor.');
                 if (isScheduledReassign && trip.driverId === driverId) {
@@ -16768,11 +16773,13 @@ if (document.readyState === 'loading') {
                         ? formatScheduledTripWhen(trip)
                         : String(trip.scheduledFor))
                     : '';
-                const confirmMsg = isScheduledReassign
-                    ? `¿Reasignar el programado (${whenLabel}) a ${driverName}?\n\nSe quita a ${trip.driverName || 'el conductor actual'}.`
-                    : (reserveSched
-                        ? `¿Reservar el programado (${whenLabel}) a ${driverName}?`
-                        : `¿Asignar este viaje directamente a ${driverName}?\n\nEl conductor verá el viaje aceptado y deberá ir al origen.`);
+                const confirmMsg = isCancelledTrip
+                    ? `¿Reactivar y cargar este pedido/viaje cancelado a ${driverName}?\n\nEl pedido volverá a estar ACTIVO en el celular de ${driverName}.`
+                    : isScheduledReassign
+                        ? `¿Reasignar el programado (${whenLabel}) a ${driverName}?\n\nSe quita a ${trip.driverName || 'el conductor actual'}.`
+                        : (reserveSched
+                            ? `¿Reservar el programado (${whenLabel}) a ${driverName}?`
+                            : `¿Asignar este pedido/viaje directamente a ${driverName}?\n\nEl conductor verá el pedido aceptado en su pantalla.`);
                 if (!confirm(confirmMsg)) return;
 
                 const rating = d.ratingCount > 0 ? (d.ratingSum / d.ratingCount).toFixed(1) : '5.0';
@@ -16839,7 +16846,45 @@ if (document.readyState === 'loading') {
                     acceptPatch.priceNum = priceNum;
                 }
 
+                const cleanedDeclined = Array.isArray(trip.declinedDriverIds)
+                    ? trip.declinedDriverIds.filter((id) => id !== driverId)
+                    : [];
+                acceptPatch.declinedDriverIds = oldDriverId && oldDriverId !== driverId
+                    ? [...new Set([...cleanedDeclined, oldDriverId])]
+                    : cleanedDeclined;
+                acceptPatch.lastDriverId = driverId;
+                acceptPatch.lastDriverName = driverName;
+                if (isCancelledTrip) {
+                    acceptPatch.cancelledAt = null;
+                    acceptPatch.cancelledBy = null;
+                    acceptPatch.cancelStoreOrder = null;
+                    acceptPatch.trashedAtMs = null;
+                    acceptPatch.trashedAt = null;
+                    acceptPatch.restoredFromCancelledAt = serverTimestamp();
+                    acceptPatch.restoredFromCancelledBy = currentUser.uid;
+                }
                 await updateDoc(tripRef, acceptPatch);
+                const linkedOrderId = trip.storeOrderId || trip.deliveryDetails?.storeOrderId || null;
+                if (linkedOrderId) {
+                    try {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'store_orders', String(linkedOrderId)), {
+                            status: 'ready',
+                            deliveryStage: 'driver_assigned',
+                            tripId,
+                            driverId,
+                            driverName,
+                            driverPhone: d.phone || null,
+                            driverVehicle: d.vehicle || null,
+                            lastDriverId: driverId,
+                            lastDriverName: driverName,
+                            cancelledBy: null,
+                            cancelledAt: null,
+                            updatedAt: serverTimestamp(),
+                        });
+                    } catch (syncErr) {
+                        console.warn('[staffAssignTripToViewer] store_orders sync:', syncErr);
+                    }
+                }
 
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'), {
@@ -16888,7 +16933,7 @@ if (document.readyState === 'loading') {
          * Staff: abrir selector de CUALQUIER conductor para asignar/ofertar un viaje pendiente,
          * aunque no lo haya visto (viewedBy). También reasignar programados reservados.
          */
-        window.staffOpenAssignAnyDriver = async (tripId) => {
+        window.staffOpenAssignAnyDriver = async (tripId, opts = {}) => {
             if (!isStaffUser(currentUser, window.userProfile)) {
                 return window.showToast?.('Solo admin o supervisor puede asignar viajes.');
             }
@@ -16899,10 +16944,12 @@ if (document.readyState === 'loading') {
                 const tripSnap = await getDoc(tripRef);
                 if (!tripSnap.exists()) return window.showToast?.('El viaje ya no existe.');
                 const trip = { id: tripId, ...tripSnap.data() };
-                const isPendingOpen = trip.status === 'pending' && !trip.driverId;
+                const isCancelledTrip = trip.status === 'cancelled' || trip.status === 'canceled' || trip.status === 'expired' || Boolean(trip.trashedAtMs);
+                const isPendingOpen = trip.status === 'pending';
+                const isAcceptedReassign = trip.status === 'accepted';
                 const isScheduledReassign = trip.status === 'scheduled' && !!trip.driverId;
-                if (!isPendingOpen && !isScheduledReassign) {
-                    return window.showToast?.('Solo pendientes sin conductor o programados reservados.');
+                if (!isPendingOpen && !isScheduledReassign && !isCancelledTrip && !isAcceptedReassign && opts.mode !== 'mark_delivered') {
+                    return window.showToast?.('Este viaje ya está finalizado o en curso.');
                 }
 
                 let drivers = (window.allUsersData || []).filter((u) =>
@@ -16927,7 +16974,13 @@ if (document.readyState === 'loading') {
                     }
                 }
 
-                drivers.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'));
+                const prevDrvId = trip.driverId || trip.lastDriverId || (Array.isArray(trip.declinedDriverIds) && trip.declinedDriverIds[trip.declinedDriverIds.length - 1]) || '';
+                drivers.sort((a, b) => {
+                    const aPrev = a.uid === prevDrvId ? 1 : 0;
+                    const bPrev = b.uid === prevDrvId ? 1 : 0;
+                    if (aPrev !== bPrev) return bPrev - aPrev;
+                    return (a.name || '').localeCompare(b.name || '', 'es');
+                });
 
                 const clientLabel = escapeViewerText(displayPersonName(trip.clientName, 'Pasajero'));
                 const originLabel = escapeViewerText((trip.origin || '—').toString().slice(0, 48));
@@ -16963,8 +17016,10 @@ if (document.readyState === 'loading') {
                                     <span class="ops-assign-any-meta">★ ${rating} · ${vType} · ${plate}${phone ? ` · ${phone}` : ''}</span>
                                 </div>
                                 <div class="ops-assign-any-actions">
-                                    <button type="button" class="ops-trip-viewer-assign-btn" data-action="assign" data-uid="${u.uid}" title="Asignar viaje directo">ASIGNAR</button>
-                                    <button type="button" class="ops-trip-viewer-offer-btn" data-action="offer" data-uid="${u.uid}" title="Enviar oferta; el conductor debe aceptar">OFERTA</button>
+                                    ${u.uid === prevDrvId ? '<span style="font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;background:#FEF3C7;color:#92400E">Tenía el pedido</span>' : ''}
+                                    <button type="button" class="ops-trip-viewer-assign-btn" data-action="assign" data-uid="${u.uid}" title="Cargar pedido activo al repartidor">${isCancelledTrip ? '🔄 CARGAR ACTIVO' : 'ASIGNAR'}</button>
+                                    <button type="button" class="ops-trip-viewer-offer-btn" style="background:#059669;color:#fff;border-color:#059669" data-action="delivered" data-uid="${u.uid}" title="Marcar el pedido como entregado por este repartidor">✅ ENTREGADO</button>
+                                    ${!isCancelledTrip ? `<button type="button" class="ops-trip-viewer-offer-btn" data-action="offer" data-uid="${u.uid}" title="Enviar oferta; el conductor debe aceptar">OFERTA</button>` : ''}
                                 </div>
                             </div>`;
                     }).join('')
@@ -17030,6 +17085,14 @@ if (document.readyState === 'loading') {
                     try {
                         if (action === 'assign') {
                             await window.staffAssignTripToViewer(tripId, uid);
+                        } else if (action === 'delivered') {
+                            await window.staffRestoreOrReassignStoreOrder({
+                                orderId: opts.orderId || trip.storeOrderId || trip.deliveryDetails?.storeOrderId || '',
+                                tripId,
+                                driverId: uid,
+                                mode: 'mark_delivered',
+                            });
+                            close();
                         } else if (action === 'offer') {
                             await window.staffSendTripOfferToViewer(tripId, uid);
                         }
@@ -17040,6 +17103,134 @@ if (document.readyState === 'loading') {
             } catch (e) {
                 console.error('staffOpenAssignAnyDriver:', e);
                 window.showToast?.(e?.message || 'No se pudo abrir el selector de conductores.');
+            }
+        };
+
+        window.staffRestoreOrReassignStoreOrder = async ({ orderId = '', tripId = '', driverId = '', driverName = '', mode = 'restore_active', orderDoc = null } = {}) => {
+            if (!isStaffUser(currentUser, window.userProfile)) {
+                return window.showToast?.('Solo admin o supervisor puede gestionar este pedido.');
+            }
+            try {
+                let resolvedTripId = String(tripId || orderDoc?.tripId || orderDoc?.lastTripId || '').trim();
+                let resolvedOrderId = String(orderId || orderDoc?.id || '').trim();
+                let tripData = null;
+                if (resolvedTripId) {
+                    const tSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', resolvedTripId));
+                    if (tSnap.exists()) {
+                        tripData = { id: tSnap.id, ...tSnap.data() };
+                        if (!resolvedOrderId) {
+                            resolvedOrderId = String(tripData.storeOrderId || tripData.deliveryDetails?.storeOrderId || '');
+                        }
+                    }
+                }
+                if (!resolvedTripId && resolvedOrderId) {
+                    try {
+                        const qSnap = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), where('storeOrderId', '==', resolvedOrderId), limit(5)));
+                        if (!qSnap.empty) {
+                            const docs = qSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+                            tripData = docs[0];
+                            resolvedTripId = tripData.id;
+                        }
+                    } catch (_) {}
+                }
+                const targetDriverId = String(
+                    driverId ||
+                    tripData?.driverId ||
+                    tripData?.lastDriverId ||
+                    (Array.isArray(tripData?.declinedDriverIds) && tripData.declinedDriverIds[tripData.declinedDriverIds.length - 1]) ||
+                    orderDoc?.driverId ||
+                    orderDoc?.lastDriverId ||
+                    ''
+                ).trim();
+
+                if (mode === 'restore_active') {
+                    if (resolvedTripId && targetDriverId) {
+                        return await window.staffAssignTripToViewer(resolvedTripId, targetDriverId);
+                    }
+                    if (resolvedTripId) {
+                        return await window.staffOpenAssignAnyDriver(resolvedTripId, { mode: 'assign', orderId: resolvedOrderId });
+                    }
+                    if (resolvedOrderId) {
+                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'store_orders', resolvedOrderId), {
+                            status: 'ready',
+                            deliveryStage: 'searching_driver',
+                            cancelledBy: null,
+                            cancelledAt: null,
+                            updatedAt: serverTimestamp(),
+                        });
+                        window.showToast?.('🔄 Pedido reactivado y listo para asignar repartidor.', 'success');
+                    }
+                    return;
+                }
+
+                // mode === "mark_delivered"
+                if (!targetDriverId && resolvedTripId) {
+                    return await window.staffOpenAssignAnyDriver(resolvedTripId, { mode: 'mark_delivered', orderId: resolvedOrderId });
+                }
+                let drvData = null;
+                if (targetDriverId) {
+                    try {
+                        const dSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', targetDriverId));
+                        if (dSnap.exists()) drvData = dSnap.data();
+                    } catch (_) {}
+                }
+                const finalDriverName = drvData?.name || driverName || tripData?.driverName || tripData?.lastDriverName || orderDoc?.driverName || orderDoc?.lastDriverName || 'Repartidor';
+                const storeTitle = tripData?.storeName || tripData?.deliveryDetails?.storeName || orderDoc?.storeName || 'la tienda';
+                if (!confirm(`¿Confirmas marcar este pedido de «${storeTitle}» como ENTREGADO por ${finalDriverName}?\n\nEl pedido contará como completado/entregado en Tiendas y en el historial del repartidor.`)) {
+                    return;
+                }
+
+                if (resolvedTripId && tripData) {
+                    const priceNum = parseTripPrice(tripData);
+                    const tripPatch = {
+                        status: 'completed',
+                        priceNum,
+                        completedAt: serverTimestamp(),
+                        completedBy: currentUser?.uid || null,
+                        completedByRole: 'staff_recovered',
+                        cancelledAt: null,
+                        cancelledBy: null,
+                        cancelStoreOrder: null,
+                        trashedAtMs: null,
+                        trashedAt: null,
+                    };
+                    if (targetDriverId) {
+                        tripPatch.driverId = targetDriverId;
+                        tripPatch.driverName = finalDriverName;
+                        if (drvData?.phone) tripPatch.driverPhone = drvData.phone;
+                        if (drvData?.vehicle) tripPatch.driverVehicle = drvData.vehicle;
+                    }
+                    try {
+                        const commissionResolved = await resolveCommissionForTrip({ ...tripData, ...tripPatch });
+                        const split = calcTripCommissionSplit(priceNum, commissionResolved.commissionPercent);
+                        tripPatch.commissionPercent = commissionResolved.commissionPercent;
+                        tripPatch.commissionAmount = split.commissionAmount;
+                    } catch (_) {}
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', resolvedTripId), tripPatch);
+                }
+
+                if (resolvedOrderId) {
+                    const orderPatch = {
+                        status: 'delivered',
+                        deliveryStage: 'delivered',
+                        deliveredAt: serverTimestamp(),
+                        deliveredBy: targetDriverId || currentUser?.uid || 'staff_recovered',
+                        cancelledBy: null,
+                        cancelledAt: null,
+                        updatedAt: serverTimestamp(),
+                    };
+                    if (targetDriverId) {
+                        orderPatch.driverId = targetDriverId;
+                        orderPatch.driverName = finalDriverName;
+                    }
+                    if (resolvedTripId) orderPatch.tripId = resolvedTripId;
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'store_orders', resolvedOrderId), orderPatch);
+                }
+
+                window.showToast?.(`✅ Pedido marcado como ENTREGADO (${finalDriverName}).`, 'success');
+            } catch (err) {
+                console.error('staffRestoreOrReassignStoreOrder:', err);
+                window.showToast?.(err?.message || 'No se pudo actualizar el pedido.', 'error');
             }
         };
 
@@ -35191,7 +35382,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             } catch (e) { console.warn('[commission panel]', e); }
 
             const isInProgress = data.status === 'in_progress';
-            const waitingPin = data.status === 'accepted' && !!data.driverArrived;
+            const isDelivTrip = isDeliveryTrip(data);
+            const waitingPin = data.status === 'accepted' && !!data.driverArrived && !isDelivTrip;
             document.body.classList.toggle('driver-trip-dest-phase', isInProgress);
             document.body.classList.toggle('driver-pin-phase', waitingPin);
 
@@ -35217,7 +35409,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             // Pastilla flotante + botón en el sheet (el CSS del conductor ocultaba Cancelar)
             destControls?.classList.add('hidden');
             tripActions?.classList.remove('hidden');
-            const pickupPhase = data.status === 'accepted' && !data.driverArrived;
+            const pickupPhase = data.status === 'accepted' && (!data.driverArrived || isDelivTrip);
             panelArrivedBtn?.classList.toggle('hidden', !pickupPhase);
             panelDestBtn?.classList.toggle('hidden', !isInProgress);
 
@@ -38395,11 +38587,23 @@ window.cancelSetupAndLogout = () => {
                 return;
             }
 
-            const isConfirmed = CONFIRMED_TRIP_STATUSES.includes(trip.status);
-            const confirmMsg = isConfirmed
-                ? 'Este viaje ya fue confirmado. Si cancelas, deberás completar una encuesta de seguridad.\n\n¿Confirmas la cancelación?'
-                : '¿Confirmas la cancelación del viaje?';
-            if (!confirm(confirmMsg)) return;
+            const isDriverCancel = trip.driverId && currentUser && trip.driverId === currentUser.uid;
+            const isDelivCancel = isDeliveryTrip(trip);
+            if (typeof openCancelConfirmModal === 'function') {
+                const okModal = await openCancelConfirmModal({
+                    role: isDriverCancel ? 'driver' : 'client',
+                    storeName: isDelivCancel ? getDeliveryStoreName(trip) : (trip.origin || 'el punto de recogida'),
+                    clientName: isDelivCancel ? getDeliveryRecipientName(trip) : (trip.clientName || 'Pasajero'),
+                    orderShortId: `#${String(trip.storeOrderId || trip.id || '').slice(0, 6).toUpperCase()}`,
+                });
+                if (!okModal) return;
+            } else {
+                const isConfirmed = CONFIRMED_TRIP_STATUSES.includes(trip.status);
+                const confirmMsg = isConfirmed
+                    ? 'Este viaje ya fue confirmado. Si cancelas, deberás completar una encuesta de seguridad.\n\n¿Confirmas la cancelación?'
+                    : '¿Confirmas la cancelación del viaje?';
+                if (!confirm(confirmMsg)) return;
+            }
 
             const tripId = trip.id;
             const previousStatus = trip.status;
@@ -38435,6 +38639,8 @@ window.cancelSetupAndLogout = () => {
                         cancelledBy: currentUser.uid,
                         cancelledFromStatus: previousStatus,
                         cancelledAt: serverTimestamp(),
+                        lastDriverId: trip.driverId || trip.lastDriverId || (isDriverCancel ? currentUser.uid : null),
+                        lastDriverName: trip.driverName || trip.lastDriverName || (isDriverCancel ? (window.userProfile?.name || null) : null),
                         offeredToDriverId: null,
                         offeredToDriverName: null,
                         candidateDriverIds: [],
@@ -38443,6 +38649,17 @@ window.cancelSetupAndLogout = () => {
                         offerToBusyDriver: false,
                         offerSearchTier: null
                     });
+                    const linkedOrdId = trip.storeOrderId || trip.deliveryDetails?.storeOrderId || null;
+                    if (linkedOrdId && !isDriverCancel) {
+                        try {
+                            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'store_orders', String(linkedOrdId)), {
+                                status: 'cancelled',
+                                cancelledBy: trip.clientId === currentUser.uid ? 'client' : 'merchant',
+                                cancelledAt: serverTimestamp(),
+                                updatedAt: serverTimestamp(),
+                            });
+                        } catch (_) {}
+                    }
                     cancelled = true;
                     try {
                         await httpsCallable(cloudFunctions, 'refundCancelledTrip')({ tripId });
@@ -41116,6 +41333,16 @@ window.cancelSetupAndLogout = () => {
                     doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id),
                     tripPatch
                 );
+                const arrivedOrderId = activeTrip.storeOrderId || activeTrip.deliveryDetails?.storeOrderId || null;
+                if (arrivedOrderId) {
+                    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'store_orders', String(arrivedOrderId)), {
+                        deliveryStage: 'at_store',
+                        driverId: currentUser?.uid || activeTrip.driverId || null,
+                        driverName: window.userProfile?.name || activeTrip.driverName || null,
+                        driverArrivedAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                    }).catch(() => {});
+                }
 
                 // Optimistic update: PIN y UI al instante
                 activeTrip = { ...activeTrip, ...tripPatch, driverArrived: true };
@@ -41193,6 +41420,17 @@ window.cancelSetupAndLogout = () => {
                 }
             }
             await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), patch);
+            const pickedOrderId = activeTrip.storeOrderId || activeTrip.deliveryDetails?.storeOrderId || null;
+            if (pickedOrderId && (deliveryPickup || isDeliveryTrip(activeTrip))) {
+                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'store_orders', String(pickedOrderId)), {
+                    status: 'out_for_delivery',
+                    deliveryStage: 'picked_up',
+                    driverId: currentUser?.uid || activeTrip.driverId || null,
+                    driverName: window.userProfile?.name || activeTrip.driverName || null,
+                    pickedUpAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                }).catch(() => {});
+            }
             activeTrip = { ...activeTrip, ...patch, status: 'in_progress', routeLegIndex: 1, driverArrived: true };
             window.currentActiveTripData = { ...activeTrip };
             const correctedTrip = await ensureTripOriginAtPinStart(activeTrip);
@@ -41383,6 +41621,18 @@ window.cancelSetupAndLogout = () => {
 
                 // Primero completar el viaje (permiso de conductor asignado en rules)
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', activeTrip.id), tripUpdate);
+                const completedOrderId = activeTrip.storeOrderId || activeTrip.deliveryDetails?.storeOrderId || null;
+                if (completedOrderId && isDeliveryTrip(activeTrip)) {
+                    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'store_orders', String(completedOrderId)), {
+                        status: 'delivered',
+                        deliveryStage: 'delivered',
+                        driverId: currentUser?.uid || activeTrip.driverId || null,
+                        driverName: window.userProfile?.name || activeTrip.driverName || null,
+                        deliveredAt: serverTimestamp(),
+                        deliveredBy: currentUser?.uid || null,
+                        updatedAt: serverTimestamp(),
+                    }).catch(() => {});
+                }
                 try {
                     await redeemPromoIfNeeded({ ...activeTrip, ...tripUpdate }, activeTrip.id);
                 } catch (promoErr) {

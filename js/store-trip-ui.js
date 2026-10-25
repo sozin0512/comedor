@@ -312,6 +312,7 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
                 <span class="hr-store-step-arrow">→</span>
                 <span class="hr-store-step ${isStep2 ? "is-active" : ""}">2. 👤 Entregar al cliente</span>
             </div>
+            ${driverStageActionsHtml(t, stageMeta)}
         </div>
         ${s.direct ? `<div class="hr-store-box ${!isStep2 ? "hr-store-box--active-leg" : ""}">
             <p class="hr-store-box-title"><i class="fas fa-store"></i> 1. Recoger en negocio · ${esc(s.storeName)}</p>
@@ -335,6 +336,157 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
         </div>
         ${storeCollectHtml(t, deliveryPrice)}
     </div>`;
+}
+
+
+export function driverStageActionsHtml(t, stageMeta = null) {
+    const m = stageMeta || getDeliveryStageMeta(t);
+    if (!m) return "";
+    if (m.stage === "to_customer") {
+        return `<div class="hr-store-stage-actions" data-driver-stage-actions="to_customer">
+            <button type="button" class="hr-store-stage-btn hr-store-stage-btn--deliver" data-driver-delivery-act="delivered" onclick="window.driverSignalDestinationArrival ? window.driverSignalDestinationArrival() : window.finishTrip?.()">
+                ${esc(m.primaryBtnLabel)}
+            </button>
+            <button type="button" class="hr-store-stage-btn hr-store-stage-btn--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()">
+                ✕ Cancelar envío (pide confirmación)
+            </button>
+        </div>`;
+    }
+    if (m.stage === "at_store") {
+        return `<div class="hr-store-stage-actions" data-driver-stage-actions="at_store">
+            <button type="button" class="hr-store-stage-btn hr-store-stage-btn--pickup" data-driver-delivery-act="picked-up" onclick="window.driverConfirmOrderPickedUp?.()">
+                ${esc(m.primaryBtnLabel)}
+            </button>
+            <button type="button" class="hr-store-stage-btn hr-store-stage-btn--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()">
+                ✕ Cancelar envío (pide confirmación)
+            </button>
+        </div>`;
+    }
+    return `<div class="hr-store-stage-actions" data-driver-stage-actions="to_store">
+        <button type="button" class="hr-store-stage-btn hr-store-stage-btn--arrived" data-driver-delivery-act="arrived-store" onclick="window.markArrival?.()">
+            ${esc(m.primaryBtnLabel)}
+        </button>
+        ${m.secondaryBtnLabel ? `<button type="button" class="hr-store-stage-btn hr-store-stage-btn--pickup" data-driver-delivery-act="picked-up" onclick="window.driverConfirmOrderPickedUp?.()">
+            ${esc(m.secondaryBtnLabel)}
+        </button>` : ""}
+        <button type="button" class="hr-store-stage-btn hr-store-stage-btn--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()">
+            ✕ Cancelar envío (pide confirmación)
+        </button>
+    </div>`;
+}
+
+export function buildCancelConfirmModalHtml({
+    role = "client",
+    storeName = "Tienda",
+    clientName = "Cliente",
+    orderShortId = "",
+    itemsSummary = "",
+    refundNote = "",
+} = {}) {
+    const roleMeta = {
+        client: {
+            badge: "👤 Confirmación del Cliente",
+            badgeColor: "#DBEAFE",
+            badgeText: "#1E40AF",
+            title: `¿Seguro que deseas cancelar tu pedido en «${storeName}»?`,
+            desc: refundNote || "Se cancelará el pedido en el restaurante y, si ya había repartidor asignado, también se cancelará el envío. Si pagaste con puntos/saldo, se te reembolsarán automáticamente.",
+            keepLabel: "No, conservar mi pedido",
+            confirmLabel: "Sí, cancelar pedido",
+        },
+        merchant: {
+            badge: "🏪 Confirmación del Restaurante / Tienda",
+            badgeColor: "#FEF3C7",
+            badgeText: "#92400E",
+            title: `¿Confirmas cancelar el pedido de «${clientName}»?`,
+            desc: "El pedido pasará a estado Cancelado inmediatamente (saldrá de «En cocina») y se cancelará cualquier solicitud de repartidor vinculada.",
+            keepLabel: "No, seguir preparando",
+            confirmLabel: "Sí, cancelar pedido",
+        },
+        driver: {
+            badge: "🛵 Confirmación del Repartidor",
+            badgeColor: "#FCE7F3",
+            badgeText: "#9D174D",
+            title: `¿Confirmas cancelar este envío de «${storeName}»?`,
+            desc: "Si aún no recogiste el pedido, el envío volverá a ofrecerse a otro repartidor disponible y se notificará a la tienda.",
+            keepLabel: "No, continuar con el envío",
+            confirmLabel: "Sí, cancelar envío",
+        },
+        staff: {
+            badge: "🛡️ Confirmación de Supervisión / Admin",
+            badgeColor: "#F3E8FF",
+            badgeText: "#6B21A8",
+            title: `¿Confirmas cancelar el pedido de «${storeName}»?`,
+            desc: "Se marcará como Cancelado tanto el pedido en tienda como el viaje de envío vinculado.",
+            keepLabel: "Volver",
+            confirmLabel: "Sí, cancelar ahora",
+        },
+    }[role] || {
+        badge: "⚠️ Confirmar cancelación",
+        badgeColor: "#FEE2E2",
+        badgeText: "#991B1B",
+        title: "¿Confirmas cancelar este pedido?",
+        desc: "Esta acción cancelará el pedido y el envío vinculado.",
+        keepLabel: "No, volver",
+        confirmLabel: "Sí, cancelar",
+    };
+
+    const shortCode = orderShortId ? (String(orderShortId).startsWith("#") ? String(orderShortId) : `#${orderShortId}`) : "";
+    return `<div id="hr-cancel-confirm-modal" class="hr-cancel-modal" role="dialog" aria-modal="true" data-cancel-role="${esc(role)}">
+        <div class="hr-cancel-modal__backdrop" data-cancel-confirm="no"></div>
+        <div class="hr-cancel-modal__card">
+            <div class="hr-cancel-modal__top">
+                <span class="hr-cancel-modal__badge" style="background:${roleMeta.badgeColor};color:${roleMeta.badgeText}">${esc(roleMeta.badge)}</span>
+                ${shortCode ? `<code class="hr-cancel-modal__code">${esc(shortCode)}</code>` : ""}
+            </div>
+            <h3 class="hr-cancel-modal__title">${esc(roleMeta.title)}</h3>
+            ${itemsSummary ? `<div class="hr-cancel-modal__summary">📦 <b>Detalle:</b> ${esc(itemsSummary)}</div>` : ""}
+            <p class="hr-cancel-modal__desc">${esc(roleMeta.desc)}</p>
+            <div class="hr-cancel-modal__actions">
+                <button type="button" class="hr-cancel-modal__btn hr-cancel-modal__btn--keep" data-cancel-confirm="no">${esc(roleMeta.keepLabel)}</button>
+                <button type="button" class="hr-cancel-modal__btn hr-cancel-modal__btn--confirm" data-cancel-confirm="yes">✕ ${esc(roleMeta.confirmLabel)}</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+export function openCancelConfirmModal(opts = {}) {
+    const html = buildCancelConfirmModalHtml(opts);
+    if (typeof document === "undefined" || !document.body) {
+        if (typeof window !== "undefined" && typeof window.confirm === "function") {
+            return Promise.resolve(!!window.confirm(opts.fallbackMessage || `¿Confirmas cancelar el pedido de ${opts.storeName || "la tienda"}?`));
+        }
+        return Promise.resolve(true);
+    }
+    try {
+        if (!document.getElementById("hr-store-trip-css")) {
+            const st = document.createElement("style");
+            st.id = "hr-store-trip-css";
+            st.textContent = STORE_TRIP_CSS;
+            document.head?.appendChild(st);
+        }
+    } catch (_) {}
+    document.getElementById("hr-cancel-confirm-modal")?.remove();
+    return new Promise((resolve) => {
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html.trim();
+        const modal = wrap.firstElementChild;
+        if (!modal) {
+            resolve(typeof window !== "undefined" && typeof window.confirm === "function" ? !!window.confirm("¿Confirmas cancelar?") : true);
+            return;
+        }
+        const finish = (ok) => {
+            try { modal.remove(); } catch (_) {}
+            resolve(ok);
+        };
+        modal.addEventListener("click", (ev) => {
+            const btn = ev.target.closest("[data-cancel-confirm]");
+            if (!btn) return;
+            ev.preventDefault();
+            ev.stopPropagation();
+            finish(btn.getAttribute("data-cancel-confirm") === "yes");
+        });
+        document.body.appendChild(modal);
+    });
 }
 
 export const STORE_TRIP_CSS = `
@@ -378,4 +530,24 @@ export const STORE_TRIP_CSS = `
 .hr-store-chat-tab.is-active[data-delivery-chat-tab="merchant"]{border-color:#d97706;background:#fffbeb;color:#92400e}
 .hr-store-chat-tab.is-active[data-delivery-chat-tab="client"]{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
 .hr-store-chat-count{background:rgba(15,23,42,.12);padding:1px 6px;border-radius:999px;font-size:10px;font-weight:900}
+.hr-store-stage-actions{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.hr-store-stage-btn{width:100%;border:none;border-radius:11px;padding:10px 12px;font-weight:900;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:transform .1s}
+.hr-store-stage-btn:active{transform:scale(.98)}
+.hr-store-stage-btn--arrived{background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.35)}
+.hr-store-stage-btn--pickup{background:linear-gradient(135deg,#059669,#047857);color:#fff;box-shadow:0 4px 12px rgba(5,150,105,.35)}
+.hr-store-stage-btn--deliver{background:linear-gradient(135deg,#16A34A,#15803D);color:#fff;box-shadow:0 4px 12px rgba(22,163,74,.4)}
+.hr-store-stage-btn--cancel{background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.45);color:#FCA5A5;font-size:11.5px;padding:7px 10px}
+.hr-cancel-modal{position:fixed;inset:0;z-index:99998;display:flex;align-items:center;justify-content:center;padding:16px;font-family:Inter,system-ui,sans-serif}
+.hr-cancel-modal__backdrop{position:absolute;inset:0;background:rgba(15,23,42,.78);backdrop-filter:blur(4px)}
+.hr-cancel-modal__card{position:relative;z-index:1;background:#fff;color:#0F172A;width:100%;max-width:410px;border-radius:20px;padding:18px;box-shadow:0 24px 48px rgba(0,0,0,.4);border:1.5px solid #FECACA}
+.hr-cancel-modal__top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.hr-cancel-modal__badge{font-size:11px;font-weight:900;padding:4px 10px;border-radius:999px}
+.hr-cancel-modal__code{font:800 12px ui-monospace,monospace;background:#F1F5F9;color:#334155;padding:3px 8px;border-radius:7px}
+.hr-cancel-modal__title{font-size:16px;font-weight:900;color:#0F172A;margin:0 0 8px;line-height:1.3}
+.hr-cancel-modal__summary{font-size:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:8px 10px;margin-bottom:8px;color:#334155}
+.hr-cancel-modal__desc{font-size:12.5px;color:#475569;margin:0 0 14px;line-height:1.45}
+.hr-cancel-modal__actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.hr-cancel-modal__btn{border-radius:12px;padding:10px 12px;font-weight:900;font-size:12.5px;cursor:pointer;border:none}
+.hr-cancel-modal__btn--keep{background:#F1F5F9;color:#1E293B;border:1px solid #CBD5E1}
+.hr-cancel-modal__btn--confirm{background:#DC2626;color:#fff;box-shadow:0 4px 12px rgba(220,38,38,.3)}
 `;

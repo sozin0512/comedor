@@ -9,7 +9,7 @@ import {
     resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras, customerChargeText,
     parseHondurasCoordsInput, buildDeliveryTrackingUrl, buildMerchantShareTripMessage, buildMerchantShareTripWhatsAppUrl,
     normalizeSelectedDeliveryItems, calculateDeliveryItemsSubtotal, formatDeliveryItemsSummary, formatDeliveryItemsBannerText,
-} from './merchant-delivery-request.js?v=2026.10.25.3';
+} from './merchant-delivery-request.js?v=2026.10.25.4';
 
 function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -586,7 +586,8 @@ export function createMerchantDeliveryTab(ctx) {
         }
         const c = ev.target.closest('[data-md-cancel]');
         if (c) {
-            if (ctx.confirm && !ctx.confirm('¿Cancelar este envío?')) return;
+            const okCancel = ctx.confirm ? await ctx.confirm('¿Seguro que deseas cancelar este envío solicitado?', { tripId: c.dataset.mdCancel }) : (typeof window !== 'undefined' && typeof window.confirm === 'function' ? window.confirm('¿Seguro que deseas cancelar este envío?') : true);
+            if (!okCancel) return;
             c.disabled = true;
             try { await ctx.cancelTrip(c.dataset.mdCancel, merchantCancelPatch()); ctx.toast?.('Envío cancelado', 'info'); }
             catch (e) { ctx.toast?.('Ya no se puede cancelar: un conductor lo aceptó', 'error'); c.disabled = false; }
