@@ -183,4 +183,16 @@ ok('t196u: modal de crear sucursal no bloquea el burbujeo del botón #sb-save-bt
     assert.ok(fnBody.includes('sb-inline-status'), 'inline status feedback must exist');
 });
 
+// 8) t199u: Iconos y emojis de tiendas y sucursales en el mapa
+ok('t199u: pines con emojis para tiendas principales y sucursales en el mapa (🍲, 🥩, 🍻, 👗, ✨, ⚽ + 🏬 Sucursal)', () => {
+    const msSrc = fs.readFileSync(path.join(ROOT, 'js/merchant-stores.js'), 'utf8');
+    assert.ok(msSrc.includes('export function getStoreCategoryEmoji('));
+    assert.ok(msSrc.includes('export function getStoreMapPinMeta('));
+    assert.ok(msSrc.includes('export function resolveStoreMapPositions('));
+    assert.ok(msSrc.includes('export function buildStoreMapPinHtml('));
+    assert.ok(msSrc.includes('export function syncAllStoresOnMap('));
+    assert.ok(msSrc.includes('export function openStoreMapPinSheet('));
+});
+
 console.log(`${passed}/${passed} PASS`);
+

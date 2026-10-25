@@ -13,33 +13,33 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.4';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.4';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.5';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.5';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.25.4';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.25.4';
-import { APP_CONFIG } from './config.js?v=2026.10.25.4';
-import { calculateAge } from './age-verification.js?v=2026.10.25.4';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.4';
+} from './zones.js?v=2026.10.25.5';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.25.5';
+import { APP_CONFIG } from './config.js?v=2026.10.25.5';
+import { calculateAge } from './age-verification.js?v=2026.10.25.5';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.5';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.25.4';
+} from './store-delivery-zones.js?v=2026.10.25.5';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.25.4';
+} from './store-week.js?v=2026.10.25.5';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.25.4';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.4';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.25.5';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.5';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.25.4';
+} from './merchant-delivery-request.js?v=2026.10.25.5';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -1213,6 +1213,182 @@ export function storeHotInfo(s, activeOrdersCount = 0) {
     };
 }
 
+
+/**
+ * Devuelve un emoji representativo para cada tienda o sucursal según su nombre, giro o categoría.
+ */
+export function getStoreCategoryEmoji(s) {
+    if (!s) return "🏪";
+    const text = `${s.name || ""} ${s.branchName || ""} ${s.description || ""}`.toLowerCase();
+    const cat = String(s.category || "").toLowerCase().trim();
+    if (/sopota|\bsopa\b|\bsopas\b|caldo|mondongo|mariscada/.test(text)) return "🍲";
+    if (/asado|koki|parrill|carne|churrasc|steak|bbq/.test(text)) return "🥩";
+    if (/pizza|pizzer|itali/.test(text)) return "🍕";
+    if (/pollo|alitas|wings|chuco|rostiz/.test(text)) return "🍗";
+    if (/burger|hamburgues|smash/.test(text)) return "🍔";
+    if (/taco|balead|pupus|taquer|mexic|burrito/.test(text)) return "🌮";
+    if (/miche|cervez|licor|tragos|bebida|bar\b|coctel/.test(text)) return "🍻";
+    if (/cafe|café|coffee|panader|reposter|pastel|bistro/.test(text)) return "☕";
+    if (/helad|postre|nieve|palet|smoothie|frappe/.test(text)) return "🍦";
+    if (/sushi|marisco|pescad|ceviche|camar[oó]n/.test(text)) return "🍤";
+    if (/futbol|fútbol|sport|gol\b/.test(text)) return "⚽";
+    if (/perfum|essence|fraganc|cosmet|belleza|makeup/.test(text)) return "✨";
+    if (/fashion|ropa|boutique|calzado|zapato|moda|vestid/.test(text)) return "👗";
+    if (/farmac|botica|medic|salud|clinic|clínica/.test(text)) return "💊";
+    if (/pulper|supermerc|abarrot|mini\s*s[uú]per|minisuper|bodega/.test(text)) return "🛒";
+    if (/ferret|repuest|taller|herramient|auto/.test(text)) return "🛠️";
+    if (/celul|tecnolog|electron|comput/.test(text)) return "📱";
+    if (/mascot|veterin|pet/.test(text)) return "🐾";
+    if (/flor|regal|librer|papel/.test(text)) return "🎁";
+    if (cat === "comida" || cat === "restaurante") return "🍽️";
+    if (cat === "pulperia" || cat === "supermercado" || cat === "abarrotes") return "🛒";
+    if (cat === "farmacia") return "💊";
+    if (cat === "ferreteria") return "🛠️";
+    if (cat === "tienda" || cat === "ropa" || cat === "boutique") return "🛍️";
+    if (cat === "tecnologia") return "📱";
+    if (cat === "licoreria" || cat === "adultos" || isStoreAdultsOnly(s)) return "🍻";
+    return "🏪";
+}
+
+export function getStoreMapPinMeta(s, allStores = null) {
+    const emoji = getStoreCategoryEmoji(s);
+    const rawBranch = formatStoreBranchLabel(s);
+    const isBranch = Boolean(s?.parentStoreId || rawBranch);
+    const shortBranch = rawBranch
+        ? (rawBranch.length > 24 ? rawBranch.slice(0, 22).trim() + "…" : rawBranch)
+        : (isBranch ? "Sucursal" : "");
+    const list = Array.isArray(allStores) ? allStores : [...storesCache.values()];
+    const hasChildBranches = Boolean(
+        s?.id && !isBranch && list.some((x) => x && x.id !== s.id && (x.parentStoreId === s.id || x.sharedMenuStoreId === s.id))
+    );
+    const cat = String(s?.category || "otro").toLowerCase();
+    let accent = "#0284c7";
+    let badgeBg = "linear-gradient(135deg,#0c4a8e,#0284c7)";
+    if (isBranch) {
+        accent = "#7c3aed";
+        badgeBg = "linear-gradient(135deg,#6d28d9,#9333ea)";
+    } else if (cat === "comida" || cat === "restaurante") {
+        accent = "#ea580c";
+        badgeBg = "linear-gradient(135deg,#c2410c,#f97316)";
+    } else if (cat === "farmacia") {
+        accent = "#059669";
+        badgeBg = "linear-gradient(135deg,#047857,#10b981)";
+    } else if (cat === "pulperia") {
+        accent = "#2563eb";
+        badgeBg = "linear-gradient(135deg,#1d4ed8,#3b82f6)";
+    } else if (cat === "tienda") {
+        accent = "#db2777";
+        badgeBg = "linear-gradient(135deg,#be185d,#ec4899)";
+    }
+    return {
+        emoji,
+        isBranch,
+        rawBranch,
+        shortBranch,
+        hasChildBranches,
+        roleBadge: isBranch ? "🏬 Sucursal" : (hasChildBranches ? "🏪 Principal" : ""),
+        accent,
+        badgeBg,
+    };
+}
+
+/**
+ * Si dos o más tiendas/sucursales comparten exactamente la misma coordenada (o están a <18m),
+ * las separa ligeramente en círculo (~24m) para que todos los pines y emojis se vean en el mapa.
+ */
+export function resolveStoreMapPositions(stores = []) {
+    const valid = (Array.isArray(stores) ? stores : []).filter(
+        (s) => s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))
+    );
+    const groups = [];
+    const thresholdDeg = 0.00016;
+    valid.forEach((s) => {
+        const lat = Number(s.lat);
+        const lng = Number(s.lng);
+        let group = groups.find((g) => Math.hypot(g.lat - lat, g.lng - lng) < thresholdDeg);
+        if (!group) {
+            group = { lat, lng, items: [] };
+            groups.push(group);
+        }
+        group.items.push(s);
+    });
+    const out = new Map();
+    groups.forEach((g) => {
+        if (g.items.length === 1) {
+            const s = g.items[0];
+            out.set(s.id, { lat: Number(s.lat), lng: Number(s.lng), offsetApplied: false });
+            return;
+        }
+        const radiusDeg = 0.00022;
+        g.items.forEach((s, idx) => {
+            const angle = (2 * Math.PI * idx) / g.items.length;
+            out.set(s.id, {
+                lat: Number((Number(s.lat) + Math.sin(angle) * radiusDeg).toFixed(6)),
+                lng: Number((Number(s.lng) + Math.cos(angle) * radiusDeg).toFixed(6)),
+                offsetApplied: true,
+            });
+        });
+    });
+    return out;
+}
+
+export function buildStoreMapPinHtml(s, opts = {}) {
+    if (!s) return "";
+    const meta = getStoreMapPinMeta(s, opts.allStores);
+    const openInfo = opts.openInfo || storeOpenInfo(s);
+    const isOpen = Boolean(openInfo?.open);
+    const hot = opts.hot || storeHotInfo(s);
+    const isHot = Boolean(hot?.isHot && hot?.fireTier);
+    const tier = isHot ? hot.fireTier : null;
+    const borderCol = isHot ? tier.primaryColor : (opts.highlighted ? "#f59e0b" : meta.accent);
+    const nameShort = String(s.name || "Tienda").length > 22
+        ? String(s.name || "Tienda").slice(0, 20).trim() + "…"
+        : String(s.name || "Tienda");
+    return `
+        <div class="hr-store-map-pin ${meta.isBranch ? "hr-store-map-pin--branch" : "hr-store-map-pin--main"} ${isOpen ? "is-open" : "is-closed"} ${isHot ? "is-hot " + esc(tier.cssClass) : ""} ${opts.highlighted ? "is-highlighted" : ""}"
+             data-store-map-pin-id="${esc(s.id || "")}"
+             data-is-branch="${meta.isBranch ? "1" : "0"}"
+             style="--pin-accent:${borderCol};--pin-badge-bg:${meta.badgeBg};">
+            <span class="hr-store-map-pin__emoji" aria-hidden="true">
+                ${esc(meta.emoji)}
+                <span class="hr-store-map-pin__dot ${isOpen ? "is-open" : "is-closed"}" title="${isOpen ? "Abierta ahora" : "Cerrada"}"></span>
+            </span>
+            <span class="hr-store-map-pin__body">
+                <span class="hr-store-map-pin__top">
+                    <strong class="hr-store-map-pin__name">${esc(nameShort)}</strong>
+                    ${isHot ? `<span class="hr-store-map-pin__fire" style="background:${tier.gradient};color:${tier.badgeTextColor};">${esc(tier.emoji)}</span>` : ""}
+                </span>
+                ${meta.isBranch
+                    ? `<span class="hr-store-map-pin__branch-badge">🏬 ${esc(meta.shortBranch || "Sucursal")}</span>`
+                    : (meta.hasChildBranches
+                        ? `<span class="hr-store-map-pin__main-badge">🏪 Matriz · ${isOpen ? "Abierta" : "Cerrada"}</span>`
+                        : `<span class="hr-store-map-pin__sub">${isOpen ? "🟢 Abierta" : "⚪ Cerrada"}</span>`)}
+            </span>
+            <span class="hr-store-map-pin__tip" aria-hidden="true"></span>
+        </div>
+    `;
+}
+
+export function buildStoreMapSvgDataUri(s, opts = {}) {
+    const meta = getStoreMapPinMeta(s, opts.allStores);
+    const openInfo = opts.openInfo || storeOpenInfo(s);
+    const isOpen = Boolean(openInfo?.open);
+    const stroke = meta.isBranch ? "#7c3aed" : "#0c4a8e";
+    const fill = isOpen ? (meta.isBranch ? "#f3e8ff" : "#eff6ff") : "#f1f5f9";
+    const dot = isOpen ? "#10b981" : "#94a3b8";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="58" viewBox="0 0 52 58">
+        <filter id="sh" x="-15%" y="-15%" width="130%" height="130%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.35"/>
+        </filter>
+        <g filter="url(#sh)">
+            <path d="M26 55 L18 43 H12 A10 10 0 0 1 2 33 V13 A10 10 0 0 1 12 3 H40 A10 10 0 0 1 50 13 V33 A10 10 0 0 1 40 43 H34 Z" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
+            <text x="26" y="30" text-anchor="middle" font-size="22">${meta.emoji}</text>
+            <circle cx="41" cy="11" r="5.5" fill="${dot}" stroke="#ffffff" stroke-width="2"/>
+        </g>
+    </svg>`;
+    return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+}
+
 export function buildHotStoreMapMarkerHtml(s, hotInput = null) {
     const hot = hotInput || storeHotInfo(s);
     if (!hot?.isHot || !hot.fireTier) return '';
@@ -1775,6 +1951,8 @@ function rebuildStoresCache() {
         renderMarketplace();
     }
     refreshMyStoreFromCache();
+    try { syncDriverHotStoresOnMap(); } catch (_) {}
+    try { syncAllStoresOnMap(); } catch (_) {}
 }
 
 /**
@@ -2658,6 +2836,9 @@ function renderMarketplace() {
             const hotStrip = buildHotStoresStripHtml(list);
             if (hotStrip) parts.push(hotStrip);
         }
+        if (list.length > 0) {
+            parts.push(buildStoresMarketplaceMapSectionHtml(list, city));
+        }
         if (!list.length) {
             const others = citiesWithStores().filter((c) => c.id !== city.cityId).slice(0, 4);
             parts.push(`
@@ -2698,6 +2879,7 @@ function renderMarketplace() {
         }
         body.innerHTML = parts.join('');
         ensureProductPreviews(list);
+        try { mountStoresMarketplaceInlineMap(list, city); } catch (_) {}
     } else if (marketplaceView === 'store' && viewingStore) {
         setToolbarVisible(false);
         setMarketplaceTitle(viewingStore.name || 'Tienda');
@@ -4582,6 +4764,19 @@ function onMarketplaceClick(e) {
         return detectStoreMenuFeeWithGps();
     }
     if (action === 'open-store' && storeId) return openStore(storeId);
+    if (action === 'focus-store-on-map' && storeId) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return focusStoreOnMarketplaceOrMainMap(storeId);
+    }
+    if (action === 'view-all-stores-main-map') {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        closeMarketplace({ silent: true });
+        syncAllStoresOnMap();
+        if (storeId) openStoreMapPinSheet(storeId);
+        return;
+    }
     if (action === 'cart-add' && productId) return addToCart(productId);
     if (action === 'cart-inc' && productId) return incCart(productId);
     if (action === 'cart-dec' && productId) return decCart(productId);
@@ -6489,15 +6684,42 @@ async function merchantPlaceDetails(s) {
 }
 
 /** Mapa con pin al centro (se arrastra el mapa). onMove({lat,lng}) al soltar. */
-function merchantCreatePinMap(el, center, onMove) {
+function merchantCreatePinMap(el, center, onMove, opts = {}) {
     if (typeof google === 'undefined' || !google.maps?.Map) { el.innerHTML = '<div style="padding:16px;color:#6b7280">El mapa no cargó. Revisa tu conexión.</div>'; return null; }
-    const map = new google.maps.Map(el, {
+    const mapOpts = {
         center, zoom: 17, gestureHandling: 'greedy', disableDefaultUI: true, clickableIcons: false,
         restriction: { latLngBounds: { north: 16.6, south: 12.9, west: -89.4, east: -83.1 }, strictBounds: false },
-    });
+    };
+    if (APP_CONFIG?.googleMaps?.mapId) mapOpts.mapId = APP_CONFIG.googleMaps.mapId;
+    const map = new google.maps.Map(el, mapOpts);
+    let pinMarkers = [];
+    try {
+        pinMarkers = renderStoreEmojiPinsOnMapInstance(map, {
+            highlightStoreId: opts.highlightStoreId || null,
+            onPinClick: (s) => {
+                if (s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))) {
+                    const br = formatStoreBranchLabel(s);
+                    toast(`${getStoreCategoryEmoji(s)} ${s.name || "Tienda"}${br ? " · 🏬 " + br : ""}`, "info");
+                }
+            },
+        });
+    } catch (_) {}
     const idle = map.addListener('idle', () => { const c = map.getCenter(); if (c) onMove({ lat: c.lat(), lng: c.lng() }); });
     const click = map.addListener('click', (e) => { if (e.latLng) map.panTo(e.latLng); });
-    return { setCenter: (p) => map.panTo(p), destroy: () => { idle.remove(); click.remove(); } };
+    return {
+        map,
+        setCenter: (p) => map.panTo(p),
+        destroy: () => {
+            try { idle.remove(); } catch (_) {}
+            try { click.remove(); } catch (_) {}
+            (pinMarkers || []).forEach((m) => {
+                try {
+                    if (m.map !== undefined) m.map = null;
+                    if (typeof m.setMap === 'function') m.setMap(null);
+                } catch (_) {}
+            });
+        },
+    };
 }
 async function merchantReverseGeocode(lat, lng) {
     if (typeof google === 'undefined' || !google.maps) return '';
@@ -7313,6 +7535,11 @@ export async function loadSupervisorStores(opts = {}) {
                     else if (action === 'fix-city') await staffFixStoreCity(id);
                     else if (action === 'add-branch') await openStaffStoreBranchModal(id, { mode: 'create' });
                     else if (action === 'edit-branch') await openStaffStoreBranchModal(id, { mode: 'edit' });
+                    else if (action === 'focus-map') {
+                        try { window.closeSupervisorPanel?.(); } catch (_) {}
+                        syncAllStoresOnMap();
+                        openStoreMapPinSheet(id, { panMainMap: true });
+                    }
                     else if (action === 'open') {
                         try { window.closeSupervisorPanel?.(); } catch (_) {}
                         openMarketplace();
@@ -7407,6 +7634,9 @@ function staffStoreCardHtml(s) {
                 </button>
                 <button type="button" class="hr-staff-act" style="background:rgba(16,185,129,0.18);color:#6EE7B7;border-color:rgba(16,185,129,0.4);" data-staff-store-action="edit-branch" data-store-id="${esc(s.id)}">
                     <i class="fas fa-map-pin"></i> Pin / Horario
+                </button>
+                <button type="button" class="hr-staff-act" style="background:rgba(14,165,233,0.2);color:#7DD3FC;border-color:rgba(14,165,233,0.45);" data-staff-store-action="focus-map" data-store-id="${esc(s.id)}">
+                    ${esc(getStoreCategoryEmoji(s))} Ver en mapa
                 </button>
             </div>
         </article>
@@ -7770,7 +8000,7 @@ export async function openStaffStoreBranchModal(storeId, { mode = 'create' } = {
     if (mapEl) {
         mapCtrl = merchantCreatePinMap(mapEl, { lat: initLat, lng: initLng }, ({ lat, lng }) => {
             syncCoordsUi(lat, lng, { autoReverse: true, panMap: false });
-        });
+        }, { highlightStoreId: store.id });
         if (!mapCtrl && typeof window !== 'undefined' && window.L && mapEl) {
             try {
                 mapEl.innerHTML = '';
@@ -8640,6 +8870,7 @@ export function focusDriverMapOnHotStore(storeId) {
 }
 
 export function syncDriverHotStoresOnMap() {
+    try { syncAllStoresOnMap(); } catch (_) {}
     if (typeof document === 'undefined') return;
     const hotList = getHotStoresForDriverMap();
     let bar = document.getElementById('driver-hot-stores-bar');
@@ -8769,6 +9000,485 @@ export function syncDriverHotStoresOnMap() {
     } catch (_) {}
 }
 
+
+let allStoresMapMarkers = [];
+let marketplaceInlineMapCtrl = null;
+let mapReadyPollTimer = null;
+
+export function getMapEligibleStores(stores = [...storesCache.values()]) {
+    const staff = isStoresStaff();
+    const uid = getCurrentUser()?.uid || null;
+    const allowAdult = canSeeAdultStores();
+    return (Array.isArray(stores) ? stores : []).filter((s) => {
+        if (!s || s.deleted === true) return false;
+        const la = Number(s.lat);
+        const ln = Number(s.lng);
+        if (!validCoords(la, ln)) return false;
+        const isOwner = Boolean(uid && s.ownerId === uid);
+        if (!staff && !isOwner) {
+            if (storeApprovalStatus(s) !== "approved") return false;
+            if (s.active === false) return false;
+            if (isStoreAdultsOnly(s) && !allowAdult) return false;
+        }
+        return true;
+    });
+}
+
+export function renderStoreEmojiPinsOnMapInstance(gMap, {
+    stores = null,
+    highlightStoreId = null,
+    onPinClick = null,
+} = {}) {
+    if (!gMap || typeof google === "undefined" || !google.maps) return [];
+    const list = Array.isArray(stores) ? stores : getMapEligibleStores();
+    const posMap = resolveStoreMapPositions(list);
+    const now = hnNowMinutes();
+    const createdMarkers = [];
+
+    list.forEach((s) => {
+        const resolved = posMap.get(s.id) || { lat: Number(s.lat), lng: Number(s.lng) };
+        if (!validCoords(resolved.lat, resolved.lng)) return;
+        const pos = { lat: resolved.lat, lng: resolved.lng };
+        const meta = getStoreMapPinMeta(s, list);
+        const openInfo = storeOpenInfo(s, now);
+        const hot = storeHotInfo(s);
+        const highlighted = Boolean(highlightStoreId && s.id === highlightStoreId);
+        const titleTxt = `${meta.emoji} ${s.name || "Tienda"}${meta.rawBranch ? " · 🏬 " + meta.rawBranch : ""} (${openInfo.open ? "Abierta" : "Cerrada"})`;
+        const handleClick = () => {
+            if (typeof onPinClick === "function") onPinClick(s, pos);
+            else openStoreMapPinSheet(s.id, { panMainMap: true });
+        };
+
+        const canUseAdv = Boolean(google.maps.marker?.AdvancedMarkerElement && (typeof gMap.getMapId !== "function" || gMap.getMapId()));
+        if (canUseAdv) {
+            const wrap = document.createElement("div");
+            wrap.innerHTML = buildStoreMapPinHtml(s, { allStores: list, openInfo, hot, highlighted }).trim();
+            const el = wrap.firstElementChild || wrap;
+            el.addEventListener("click", (ev) => {
+                ev.stopPropagation?.();
+                handleClick();
+            });
+            const adv = new google.maps.marker.AdvancedMarkerElement({
+                map: gMap,
+                position: pos,
+                content: el,
+                title: titleTxt,
+                zIndex: highlighted ? 60 : (hot?.isHot ? 45 : (meta.isBranch ? 36 : 35)),
+            });
+            adv.addListener?.("gmp-click", handleClick);
+            createdMarkers.push(adv);
+        } else if (google.maps.Marker) {
+            const labelTxt = meta.isBranch
+                ? `${meta.emoji} ${s.name || "Tienda"} · 🏬 ${meta.shortBranch || "Sucursal"}`
+                : `${meta.emoji} ${s.name || "Tienda"}`;
+            const marker = new google.maps.Marker({
+                map: gMap,
+                position: pos,
+                title: titleTxt,
+                icon: {
+                    url: buildStoreMapSvgDataUri(s, { allStores: list, openInfo }),
+                    scaledSize: new google.maps.Size(48, 54),
+                    anchor: new google.maps.Point(24, 52),
+                    labelOrigin: new google.maps.Point(24, 64),
+                },
+                label: {
+                    text: labelTxt,
+                    color: meta.isBranch ? "#581c87" : "#0f172a",
+                    fontSize: "11px",
+                    fontWeight: "900",
+                    className: "hr-gmap-store-label",
+                },
+                zIndex: highlighted ? 60 : (meta.isBranch ? 36 : 35),
+            });
+            marker.addListener?.("click", handleClick);
+            createdMarkers.push(marker);
+        }
+    });
+
+    return createdMarkers;
+}
+
+export function syncAllStoresOnMap() {
+    if (typeof document === "undefined") return [];
+    allStoresMapMarkers.forEach((m) => {
+        try {
+            if (m.map !== undefined) m.map = null;
+            if (typeof m.setMap === "function") m.setMap(null);
+            if (typeof m.remove === "function") m.remove();
+        } catch (_) {}
+    });
+    allStoresMapMarkers = [];
+
+    const list = getMapEligibleStores();
+    if (!list.length) return [];
+
+    const posMap = resolveStoreMapPositions(list);
+    const now = hnNowMinutes();
+
+    const lMap = typeof window !== "undefined" ? (window.leafletMap || window.lMap) : null;
+    if (lMap && typeof window.L !== "undefined") {
+        list.forEach((s) => {
+            const resolved = posMap.get(s.id) || { lat: Number(s.lat), lng: Number(s.lng) };
+            if (!validCoords(resolved.lat, resolved.lng)) return;
+            const openInfo = storeOpenInfo(s, now);
+            const hot = storeHotInfo(s);
+            const icon = window.L.divIcon({
+                className: "hr-leaflet-store-pin-icon",
+                html: buildStoreMapPinHtml(s, { allStores: list, openInfo, hot }),
+                iconSize: [185, 54],
+                iconAnchor: [92, 50],
+            });
+            const marker = window.L.marker([resolved.lat, resolved.lng], { icon }).addTo(lMap);
+            marker.on?.("click", () => openStoreMapPinSheet(s.id, { panMainMap: true }));
+            allStoresMapMarkers.push(marker);
+        });
+    }
+
+    const gMap = typeof window !== "undefined" ? window.gMap : null;
+    if (gMap && typeof google !== "undefined" && google.maps) {
+        const gMarkers = renderStoreEmojiPinsOnMapInstance(gMap, {
+            stores: list,
+            onPinClick: (s) => openStoreMapPinSheet(s.id, { panMainMap: true }),
+        });
+        allStoresMapMarkers.push(...gMarkers);
+    }
+
+    return allStoresMapMarkers;
+}
+
+export function buildStoreMapPinSheetHtml(s) {
+    if (!s) return "";
+    const meta = getStoreMapPinMeta(s);
+    const openInfo = storeOpenInfo(s);
+    const isOpen = Boolean(openInfo?.open);
+    const hot = storeHotInfo(s);
+    const staff = isStoresStaff();
+    const hoursTxt = formatStoreHoursSummary(s);
+    const parentStore = s.parentStoreId ? storesCache.get(s.parentStoreId) : null;
+    const siblingBranches = [...storesCache.values()].filter((x) => {
+        if (!x || x.id === s.id || x.deleted === true) return false;
+        const rootA = s.parentStoreId || s.id;
+        const rootB = x.parentStoreId || x.id;
+        return rootA && rootA === rootB;
+    });
+
+    return `
+        <div id="hr-store-map-pin-sheet" class="hr-store-map-pin-sheet" role="dialog" aria-modal="true" aria-label="${esc(s.name || "Tienda")}">
+            <div class="hr-store-map-pin-sheet__backdrop" data-pin-sheet-act="close"></div>
+            <div class="hr-store-map-pin-sheet__card">
+                <button type="button" class="hr-store-map-pin-sheet__close" data-pin-sheet-act="close" aria-label="Cerrar">✕</button>
+                <div class="hr-store-map-pin-sheet__head">
+                    <div class="hr-store-map-pin-sheet__emoji-box" style="background:${meta.badgeBg};">
+                        <span>${esc(meta.emoji)}</span>
+                    </div>
+                    <div class="hr-store-map-pin-sheet__titles">
+                        <div class="hr-store-map-pin-sheet__badges">
+                            <span class="hr-store-map-pin-sheet__role ${meta.isBranch ? "is-branch" : "is-main"}">
+                                ${meta.isBranch ? "🏬 SUCURSAL EN EL MAPA" : "🏪 TIENDA EN EL MAPA"}
+                            </span>
+                            <span class="hr-store-map-pin-sheet__status ${isOpen ? "is-open" : "is-closed"}">
+                                ${isOpen ? "🟢 Abierta ahora" : "⚪ Cerrada"}
+                            </span>
+                            ${hot?.isHot && hot?.fireTier ? `<span class="hr-store-map-pin-sheet__hot" style="background:${hot.fireTier.gradient};color:${hot.fireTier.badgeTextColor};">${esc(hot.fireTier.label)}</span>` : ""}
+                        </div>
+                        <h3 class="hr-store-map-pin-sheet__name">${esc(s.name || "Tienda")}</h3>
+                        ${meta.rawBranch ? `<p class="hr-store-map-pin-sheet__branch">📍 Sucursal: <b>${esc(meta.rawBranch)}</b>${parentStore ? ` (Matriz: ${esc(parentStore.name || "Principal")})` : ""}</p>` : ""}
+                        <p class="hr-store-map-pin-sheet__meta">
+                            <span><i class="fas fa-clock"></i> ${esc(hoursTxt)}</span>
+                            ${s.address ? ` · <span><i class="fas fa-map-marker-alt"></i> ${esc(s.address)}</span>` : ""}
+                        </p>
+                    </div>
+                </div>
+                ${siblingBranches.length ? `
+                    <div class="hr-store-map-pin-sheet__siblings">
+                        <span class="hr-store-map-pin-sheet__siblings-label">🏬 Otras ubicaciones de ${esc(s.name || "esta tienda")} en el mapa:</span>
+                        <div class="hr-store-map-pin-sheet__siblings-list">
+                            ${siblingBranches.map((b) => {
+                                const bMeta = getStoreMapPinMeta(b);
+                                return `
+                                    <button type="button" class="hr-store-map-pin-sheet__sibling-chip" data-pin-sheet-act="switch-store" data-store-id="${esc(b.id)}">
+                                        ${esc(bMeta.emoji)} ${bMeta.isBranch ? `🏬 ${esc(bMeta.shortBranch || b.name)}` : `🏪 ${esc(b.name)} (Principal)`}
+                                    </button>
+                                `;
+                            }).join("")}
+                        </div>
+                    </div>
+                ` : ""}
+                <div class="hr-store-map-pin-sheet__actions">
+                    <button type="button" class="hr-store-map-pin-sheet__btn hr-store-map-pin-sheet__btn--primary" data-pin-sheet-act="open-menu" data-store-id="${esc(s.id)}">
+                        ${esc(meta.emoji)} Ver menú y pedir aquí
+                    </button>
+                    <button type="button" class="hr-store-map-pin-sheet__btn hr-store-map-pin-sheet__btn--secondary" data-pin-sheet-act="center-map" data-store-id="${esc(s.id)}">
+                        🎯 Centrar pin en el mapa
+                    </button>
+                    ${staff ? `
+                        <button type="button" class="hr-store-map-pin-sheet__btn hr-store-map-pin-sheet__btn--staff" data-pin-sheet-act="edit-pin" data-store-id="${esc(s.id)}">
+                            📍 Mover Pin / Horario
+                        </button>
+                        <button type="button" class="hr-store-map-pin-sheet__btn hr-store-map-pin-sheet__btn--staff-alt" data-pin-sheet-act="add-branch" data-store-id="${esc(s.id)}">
+                            ➕ Agregar sucursal
+                        </button>
+                    ` : ""}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+export function openStoreMapPinSheet(storeId, { panMainMap = false } = {}) {
+    if (typeof document === "undefined") return null;
+    const s = storesCache.get(storeId) || staffStoresList.find((x) => x.id === storeId) || null;
+    if (!s) return null;
+    if (panMainMap && validCoords(Number(s.lat), Number(s.lng))) {
+        const pos = { lat: Number(s.lat), lng: Number(s.lng) };
+        try {
+            if (window.gMap) {
+                window.gMap.panTo?.(pos);
+                window.gMap.setZoom?.(16);
+            }
+        } catch (_) {}
+    }
+    document.getElementById("hr-store-map-pin-sheet")?.remove();
+    const wrap = document.createElement("div");
+    wrap.innerHTML = buildStoreMapPinSheetHtml(s).trim();
+    const modal = wrap.firstElementChild;
+    if (!modal) return null;
+    document.body.appendChild(modal);
+
+    const close = () => {
+        try { modal.remove(); } catch (_) {}
+    };
+    modal.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-pin-sheet-act]");
+        if (!btn) return;
+        const act = btn.getAttribute("data-pin-sheet-act");
+        const targetId = btn.getAttribute("data-store-id") || s.id;
+        if (act === "close") {
+            close();
+            return;
+        }
+        if (act === "switch-store" && targetId) {
+            close();
+            openStoreMapPinSheet(targetId, { panMainMap: true });
+            focusStoreOnMarketplaceOrMainMap(targetId, { openSheet: false });
+            return;
+        }
+        if (act === "open-menu" && targetId) {
+            close();
+            openMarketplace();
+            setTimeout(() => openStore(targetId), 120);
+            return;
+        }
+        if (act === "center-map" && targetId) {
+            close();
+            closeMarketplace({ silent: true });
+            const st = storesCache.get(targetId) || s;
+            if (st && validCoords(Number(st.lat), Number(st.lng))) {
+                try {
+                    window.gMap?.panTo?.({ lat: Number(st.lat), lng: Number(st.lng) });
+                    window.gMap?.setZoom?.(17);
+                } catch (_) {}
+                const br = formatStoreBranchLabel(st);
+                toast(`${getStoreCategoryEmoji(st)} ${st.name || "Tienda"}${br ? " · 🏬 " + br : ""}`, "info");
+            }
+            return;
+        }
+        if (act === "edit-pin" && targetId) {
+            close();
+            openStaffStoreBranchModal(targetId, { mode: "edit" });
+            return;
+        }
+        if (act === "add-branch" && targetId) {
+            close();
+            openStaffStoreBranchModal(targetId, { mode: "create" });
+            return;
+        }
+    });
+    return modal;
+}
+
+export function buildStoresMarketplaceMapSectionHtml(stores = [], city = null) {
+    const withCoords = (Array.isArray(stores) ? stores : []).filter(
+        (s) => s && validCoords(Number(s.lat), Number(s.lng))
+    );
+    if (!withCoords.length) return "";
+    const cityName = city?.cityName || "tu ciudad";
+    const branchCount = withCoords.filter((s) => Boolean(s.parentStoreId || formatStoreBranchLabel(s))).length;
+    const mainCount = withCoords.length - branchCount;
+
+    return `
+        <section class="hr-stores-map-showcase" aria-label="Mapa de tiendas y sucursales">
+            <div class="hr-stores-map-showcase__head">
+                <div>
+                    <p class="hr-stores-map-showcase__title">🗺️ Mapa de tiendas y sucursales en ${esc(cityName)}</p>
+                    <p class="hr-stores-map-showcase__sub">
+                        <b>${mainCount}</b> ${mainCount === 1 ? "tienda principal" : "tiendas principales"}
+                        ${branchCount > 0 ? ` · <b>${branchCount}</b> ${branchCount === 1 ? "🏬 sucursal" : "🏬 sucursales"}` : ""}
+                        · Toca cualquier emoji en el mapa o en la barra para pedir o ver su ubicación
+                    </p>
+                </div>
+                <button type="button" class="hr-stores-map-showcase__fullbtn" data-stores-action="view-all-stores-main-map">
+                    🗺️ Ver en mapa completo
+                </button>
+            </div>
+            <div class="hr-stores-map-showcase__chips" role="list">
+                ${withCoords.map((s) => {
+                    const meta = getStoreMapPinMeta(s, withCoords);
+                    const open = storeOpenInfo(s).open;
+                    return `
+                        <button type="button"
+                                class="hr-store-map-chip ${meta.isBranch ? "is-branch" : "is-main"} ${open ? "is-open" : "is-closed"}"
+                                data-stores-action="focus-store-on-map"
+                                data-store-id="${esc(s.id)}"
+                                title="Ubicar en el mapa: ${esc(s.name || "Tienda")}${meta.rawBranch ? " · " + esc(meta.rawBranch) : ""}">
+                            <span class="hr-store-map-chip__emoji">${esc(meta.emoji)}</span>
+                            <span class="hr-store-map-chip__name">${esc(s.name || "Tienda")}</span>
+                            ${meta.isBranch
+                                ? `<span class="hr-store-map-chip__branch">🏬 ${esc(meta.shortBranch || "Sucursal")}</span>`
+                                : (meta.hasChildBranches ? `<span class="hr-store-map-chip__main">🏪 Principal</span>` : "")}
+                            <span class="hr-store-map-chip__dot ${open ? "is-open" : "is-closed"}"></span>
+                        </button>
+                    `;
+                }).join("")}
+            </div>
+            <div id="hr-marketplace-stores-map" class="hr-stores-map-showcase__canvas" aria-label="Mapa interactivo con emojis de tiendas y sucursales"></div>
+        </section>
+    `;
+}
+
+function mountStoresMarketplaceInlineMap(stores = [], city = null) {
+    if (typeof document === "undefined") return;
+    const mapEl = document.getElementById("hr-marketplace-stores-map");
+    if (!mapEl) return;
+    const withCoords = (Array.isArray(stores) ? stores : []).filter(
+        (s) => s && validCoords(Number(s.lat), Number(s.lng))
+    );
+    if (!withCoords.length) return;
+
+    try { marketplaceInlineMapCtrl?.destroy?.(); } catch (_) {}
+    marketplaceInlineMapCtrl = null;
+
+    const first = withCoords[0];
+    const center = {
+        lat: Number(first?.lat) || city?.center?.lat || 14.4514,
+        lng: Number(first?.lng) || city?.center?.lng || -87.6375,
+    };
+
+    if (typeof google !== "undefined" && google.maps?.Map) {
+        const mapOpts = {
+            center,
+            zoom: 15,
+            gestureHandling: "cooperative",
+            disableDefaultUI: true,
+            zoomControl: true,
+            clickableIcons: false,
+        };
+        if (APP_CONFIG?.googleMaps?.mapId) mapOpts.mapId = APP_CONFIG.googleMaps.mapId;
+        const gMap = new google.maps.Map(mapEl, mapOpts);
+        const markers = renderStoreEmojiPinsOnMapInstance(gMap, {
+            stores: withCoords,
+            onPinClick: (s) => openStoreMapPinSheet(s.id, { panMainMap: false }),
+        });
+        if (withCoords.length > 1 && google.maps.LatLngBounds) {
+            try {
+                const bounds = new google.maps.LatLngBounds();
+                const posMap = resolveStoreMapPositions(withCoords);
+                withCoords.forEach((s) => {
+                    const p = posMap.get(s.id) || { lat: Number(s.lat), lng: Number(s.lng) };
+                    bounds.extend(p);
+                });
+                gMap.fitBounds(bounds, 48);
+            } catch (_) {}
+        }
+        marketplaceInlineMapCtrl = {
+            gMap,
+            panToStore: (storeId) => {
+                const posMap = resolveStoreMapPositions(withCoords);
+                const st = withCoords.find((x) => x.id === storeId) || storesCache.get(storeId);
+                if (!st) return;
+                const p = posMap.get(st.id) || { lat: Number(st.lat), lng: Number(st.lng) };
+                if (validCoords(p.lat, p.lng)) {
+                    gMap.panTo(p);
+                    gMap.setZoom(17);
+                }
+            },
+            destroy: () => {
+                (markers || []).forEach((m) => {
+                    try {
+                        if (m.map !== undefined) m.map = null;
+                        if (typeof m.setMap === "function") m.setMap(null);
+                    } catch (_) {}
+                });
+            },
+        };
+    } else if (typeof window !== "undefined" && window.L) {
+        mapEl.innerHTML = "";
+        const lMap = window.L.map(mapEl, { zoomControl: true }).setView([center.lat, center.lng], 15);
+        window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(lMap);
+        const posMap = resolveStoreMapPositions(withCoords);
+        const now = hnNowMinutes();
+        withCoords.forEach((s) => {
+            const p = posMap.get(s.id) || { lat: Number(s.lat), lng: Number(s.lng) };
+            const icon = window.L.divIcon({
+                className: "hr-leaflet-store-pin-icon",
+                html: buildStoreMapPinHtml(s, { allStores: withCoords, openInfo: storeOpenInfo(s, now), hot: storeHotInfo(s) }),
+                iconSize: [185, 54],
+                iconAnchor: [92, 50],
+            });
+            const m = window.L.marker([p.lat, p.lng], { icon }).addTo(lMap);
+            m.on?.("click", () => openStoreMapPinSheet(s.id, { panMainMap: false }));
+        });
+        marketplaceInlineMapCtrl = {
+            panToStore: (storeId) => {
+                const st = withCoords.find((x) => x.id === storeId) || storesCache.get(storeId);
+                if (!st) return;
+                const p = posMap.get(st.id) || { lat: Number(st.lat), lng: Number(st.lng) };
+                lMap.setView([p.lat, p.lng], 17);
+            },
+            destroy: () => { try { lMap.remove(); } catch (_) {} },
+        };
+    }
+}
+
+export function focusStoreOnMarketplaceOrMainMap(storeId, { openSheet = true } = {}) {
+    const s = storesCache.get(storeId);
+    if (!s) return false;
+    try {
+        marketplaceInlineMapCtrl?.panToStore?.(storeId);
+    } catch (_) {}
+    if (validCoords(Number(s.lat), Number(s.lng))) {
+        try {
+            window.gMap?.panTo?.({ lat: Number(s.lat), lng: Number(s.lng) });
+            window.gMap?.setZoom?.(16);
+        } catch (_) {}
+    }
+    if (openSheet) openStoreMapPinSheet(storeId, { panMainMap: false });
+    return true;
+}
+
+function ensureMainMapStorePinsWatcher() {
+    if (mapReadyPollTimer || typeof window === "undefined") return;
+    let tries = 0;
+    mapReadyPollTimer = setInterval(() => {
+        tries += 1;
+        if (window.gMap && typeof google !== "undefined" && google.maps) {
+            clearInterval(mapReadyPollTimer);
+            mapReadyPollTimer = null;
+            try { syncAllStoresOnMap(); } catch (_) {}
+            try { syncDriverHotStoresOnMap(); } catch (_) {}
+            try {
+                google.maps.event?.addListenerOnce?.(window.gMap, "idle", () => {
+                    try { syncAllStoresOnMap(); } catch (_) {}
+                    try { syncDriverHotStoresOnMap(); } catch (_) {}
+                });
+            } catch (_) {}
+        } else if (tries > 50) {
+            clearInterval(mapReadyPollTimer);
+            mapReadyPollTimer = null;
+        }
+    }, 500);
+}
+
 export function syncMerchantQuickAccessUi() {
     if (typeof document === 'undefined') return;
     const hub = document.getElementById('passenger-home-hub');
@@ -8857,6 +9567,10 @@ export function initMerchantStores(deps = {}) {
         count: Math.max(1, myStores.length),
     } : null);
     window.syncDriverHotStoresOnMap = syncDriverHotStoresOnMap;
+    window.syncAllStoresOnMap = syncAllStoresOnMap;
+    window.getStoreCategoryEmoji = getStoreCategoryEmoji;
+    window.openStoreMapPinSheet = openStoreMapPinSheet;
+    ensureMainMapStorePinsWatcher();
     window.focusDriverMapOnHotStore = focusDriverMapOnHotStore;
     window.openCreateStorePanel = openCreateStorePanel;
     window.openMyStorePanel = openMyStorePanel;
@@ -8966,5 +9680,15 @@ export const __testMerchant = {
     mergeSharedMenuProducts,
     buildStaffBranchModalHtml,
     openStaffStoreBranchModal,
+    getStoreCategoryEmoji,
+    getStoreMapPinMeta,
+    resolveStoreMapPositions,
+    buildStoreMapPinHtml,
+    buildStoreMapSvgDataUri,
+    buildStoreMapPinSheetHtml,
+    buildStoresMarketplaceMapSectionHtml,
+    getMapEligibleStores,
+    syncAllStoresOnMap,
+    openStoreMapPinSheet,
 };
 export { STORE_CATEGORIES, ORDER_STATUS, STORE_APPROVAL, calcSplitTariff, getTarifaDelMomento };

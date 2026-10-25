@@ -1650,6 +1650,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
         window.gMap = new google.maps.Map(document.getElementById("map"), mapOptions);
         window.unlockDriverMapZoom?.();
+        try { setTimeout(() => { window.syncAllStoresOnMap?.(); window.syncDriverHotStoresOnMap?.(); }, 180); } catch (_) {}
         document.body?.classList.add('map-ready');
         document.body?.classList.remove('map-load-failed', 'map-billing-disabled');
         window.__mapsLoadError = false;

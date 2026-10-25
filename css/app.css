@@ -25934,3 +25934,430 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
   color: #cbd5e1;
   font-size: 0.62rem;
 }
+
+
+/* ===================== PINES CON EMOJI DE TIENDAS Y SUCURSALES EN EL MAPA ===================== */
+.hr-store-avatar {
+  position: relative;
+}
+.hr-store-avatar__emoji {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 21px;
+  height: 21px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  z-index: 3;
+}
+
+.hr-store-map-pin {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.94);
+  border: 2.2px solid var(--pin-accent, #0284c7);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.42), 0 0 0 2px rgba(255, 255, 255, 0.9);
+  color: #ffffff;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+  max-width: 220px;
+}
+.hr-store-map-pin:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.55), 0 0 0 2.5px #ffffff;
+}
+.hr-store-map-pin--branch {
+  background: linear-gradient(135deg, rgba(46, 16, 101, 0.96), rgba(88, 28, 135, 0.94));
+  border-color: #a855f7;
+}
+.hr-store-map-pin.is-highlighted {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.45), 0 8px 22px rgba(15, 23, 42, 0.5);
+}
+.hr-store-map-pin__emoji {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--pin-badge-bg, linear-gradient(135deg, #0c4a8e, #0284c7));
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+  flex-shrink: 0;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35);
+}
+.hr-store-map-pin__dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 1.5px solid #0f172a;
+}
+.hr-store-map-pin__dot.is-open {
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+.hr-store-map-pin__dot.is-closed {
+  background: #94a3b8;
+}
+.hr-store-map-pin__body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+.hr-store-map-pin__top {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.hr-store-map-pin__name {
+  font-size: 11px;
+  font-weight: 900;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hr-store-map-pin__fire {
+  font-size: 9.5px;
+  font-weight: 900;
+  padding: 0 4px;
+  border-radius: 999px;
+}
+.hr-store-map-pin__branch-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #e9d5ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hr-store-map-pin__main-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  color: #bae6fd;
+  white-space: nowrap;
+}
+.hr-store-map-pin__sub {
+  font-size: 9px;
+  font-weight: 700;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+.hr-store-map-pin__tip {
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid var(--pin-accent, #0284c7);
+}
+
+/* Sección de mapa interactivo dentro de Tiendas */
+.hr-stores-map-showcase {
+  background: linear-gradient(135deg, #f8fafc, #eff6ff);
+  border: 1.5px solid #bfdbfe;
+  border-radius: 18px;
+  padding: 12px;
+  margin-bottom: 14px;
+  box-shadow: 0 6px 18px rgba(12, 74, 142, 0.08);
+}
+.hr-stores-map-showcase__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.hr-stores-map-showcase__title {
+  font-size: 14px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0;
+}
+.hr-stores-map-showcase__sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+  margin: 2px 0 0;
+}
+.hr-stores-map-showcase__fullbtn {
+  border: 1.5px solid #2563eb;
+  background: #ffffff;
+  color: #1d4ed8;
+  font-size: 11.5px;
+  font-weight: 800;
+  padding: 6px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.hr-stores-map-showcase__chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+.hr-store-map-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #0f172a;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+}
+.hr-store-map-chip.is-branch {
+  background: #faf5ff;
+  border-color: #c084fc;
+  color: #581c87;
+}
+.hr-store-map-chip__emoji {
+  font-size: 15px;
+  line-height: 1;
+}
+.hr-store-map-chip__branch {
+  font-size: 10px;
+  font-weight: 900;
+  background: #f3e8ff;
+  color: #6b21a8;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.hr-store-map-chip__main {
+  font-size: 10px;
+  font-weight: 900;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.hr-store-map-chip__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+.hr-store-map-chip__dot.is-open { background: #10b981; }
+.hr-store-map-chip__dot.is-closed { background: #94a3b8; }
+.hr-stores-map-showcase__canvas {
+  width: 100%;
+  height: 225px;
+  border-radius: 14px;
+  border: 1.5px solid #cbd5e1;
+  overflow: hidden;
+  background: #e2e8f0;
+}
+
+/* Tarjeta flotante al tocar un pin de tienda o sucursal en el mapa */
+.hr-store-map-pin-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 100250;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 14px;
+}
+.hr-store-map-pin-sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(3px);
+}
+.hr-store-map-pin-sheet__card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 470px;
+  background: #ffffff;
+  border-radius: 22px;
+  border: 1.5px solid #cbd5e1;
+  padding: 16px;
+  box-shadow: 0 22px 50px rgba(15, 23, 42, 0.38);
+  color: #0f172a;
+}
+.hr-store-map-pin-sheet__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 900;
+  cursor: pointer;
+}
+.hr-store-map-pin-sheet__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-right: 28px;
+}
+.hr-store-map-pin-sheet__emoji-box {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 29px;
+  flex-shrink: 0;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.2);
+}
+.hr-store-map-pin-sheet__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.hr-store-map-pin-sheet__role {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+}
+.hr-store-map-pin-sheet__role.is-branch {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border: 1px solid #d8b4fe;
+}
+.hr-store-map-pin-sheet__role.is-main {
+  background: #e0f2fe;
+  color: #0c4a8e;
+  border: 1px solid #bae6fd;
+}
+.hr-store-map-pin-sheet__status {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.hr-store-map-pin-sheet__status.is-open {
+  background: #dcfce7;
+  color: #166534;
+}
+.hr-store-map-pin-sheet__status.is-closed {
+  background: #f1f5f9;
+  color: #475569;
+}
+.hr-store-map-pin-sheet__hot {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.hr-store-map-pin-sheet__name {
+  font-size: 17px;
+  font-weight: 900;
+  color: #0f172a;
+  margin: 0;
+}
+.hr-store-map-pin-sheet__branch {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #6b21a8;
+  margin: 3px 0 0;
+}
+.hr-store-map-pin-sheet__meta {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #475569;
+  margin: 4px 0 0;
+}
+.hr-store-map-pin-sheet__siblings {
+  margin-top: 12px;
+  padding: 9px 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+.hr-store-map-pin-sheet__siblings-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #475569;
+  margin-bottom: 6px;
+}
+.hr-store-map-pin-sheet__siblings-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hr-store-map-pin-sheet__sibling-chip {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  border-radius: 999px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.hr-store-map-pin-sheet__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+.hr-store-map-pin-sheet__btn {
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  font-weight: 900;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  text-align: center;
+}
+.hr-store-map-pin-sheet__btn--primary {
+  grid-column: span 2;
+  background: linear-gradient(135deg, #0c4a8e, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+}
+.hr-store-map-pin-sheet__btn--secondary {
+  grid-column: span 2;
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+.hr-store-map-pin-sheet__btn--staff {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+.hr-store-map-pin-sheet__btn--staff-alt {
+  background: #faf5ff;
+  border-color: #d8b4fe;
+  color: #6b21a8;
+}
