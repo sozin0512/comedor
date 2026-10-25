@@ -1581,10 +1581,20 @@ function resolveTripZoneMeta(trip) {
 }
 
 /** Pedido de tienda virtual: lo entregan moto o Taxi VIP (igual que la app, js/service-types.js). */
-function isStoreDeliveryTrip(t) {
-    if (!t || typeof t !== 'object') return false;
-    return !!(t.storeOrderId || t.storeDelivery === true || t.createdByMerchant === true || t.deliveryDetails?.storeOrderId);
-}
+const {
+    TRIP_STORE_OFFER_STEP_SEC,
+    TRIP_STORE_OFFER_STEP_MS,
+    isStoreDeliveryTrip,
+    getStoreOfferWindowSec,
+    getStoreOfferWindowMs,
+    getStoreOfferExpiresAtMs,
+    isStoreOfferExclusiveActive,
+    isStoreOfferWindowExpired,
+    getStoreOfferRemainingSec,
+    computeDriverStoreDeliveryStatsToday,
+    rankDriversForStoreDelivery,
+    planNextStoreDeliveryOffer,
+} = require('./store-delivery-rotation');
 
 /** Lo que eligió el cliente en el pedido. Vacío = moto o Taxi VIP (pedidos viejos). */
 function storeDeliveryChoice(t) {
@@ -2318,6 +2328,9 @@ function getOfferSentMs(trip) {
 function isExclusiveWindowOpen(trip) {
     if (!trip || trip.status !== 'pending' || trip.driverId) return false;
     if (trip.offerPhase === 'city') return false;
+    if (isStoreDeliveryTrip(trip)) {
+        return isStoreOfferExclusiveActive(trip);
+    }
     if (trip.offerPhase !== 'exclusive' || !trip.offeredToDriverId) return false;
     const sentMs = getOfferSentMs(trip);
     if (!sentMs) return true;
@@ -2326,6 +2339,9 @@ function isExclusiveWindowOpen(trip) {
 
 function isExclusiveWindowExpired(trip) {
     if (!trip || trip.offerPhase === 'city') return true;
+    if (isStoreDeliveryTrip(trip)) {
+        return isStoreOfferWindowExpired(trip);
+    }
     if (trip.offerPhase !== 'exclusive' || !trip.offeredToDriverId) return false;
     const sentMs = getOfferSentMs(trip);
     return sentMs > 0 && Date.now() - sentMs >= TRIP_OFFER_EXCLUSIVE_MS;
@@ -2577,10 +2593,85 @@ async function assignNextTripOfferServer(appId, tripId) {
         : 0;
     if (bidCount > 0) return false;
     if (trip.offerPhase === 'city') return false;
-    if (isExclusiveWindowOpen(trip)) return true;
-    if (trip.offerPhase === 'exclusive' && isExclusiveWindowExpired(trip)) return false;
+    const isStore = isStoreDeliveryTrip(trip);
+    const curDriver = trip.offeredToDriverId;
+    const curDeclined = curDriver && Array.isArray(trip.declinedDriverIds) && trip.declinedDriverIds.includes(curDriver);
+    if (isExclusiveWindowOpen(trip) && !curDeclined) return true;
+    if (!isStore && trip.offerPhase === 'exclusive' && isExclusiveWindowExpired(trip)) return false;
 
     const tripDocs = await fetchTripDocsForOffer(appId);
+
+    if (isStore) {
+        const tripZone = resolveTripZoneId(trip);
+        const cityKm = getCityCoverageKm(tripZone);
+        let candidates = await collectDriversForTripOffer(appId, trip, tripDocs, {
+            busyOnly: false,
+            allowSpill: false,
+            maxDistKm: cityKm,
+            includeStaleIfVeryClose: true
+        });
+        let busyFlag = false;
+        if (!candidates.length) {
+            candidates = await collectDriversForTripOffer(appId, trip, tripDocs, {
+                busyOnly: true,
+                allowSpill: false,
+                maxDistKm: cityKm,
+                includeStaleIfVeryClose: true
+            });
+            busyFlag = candidates.length > 0;
+        }
+
+        let switchedToCity = false;
+        await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(tripRef);
+            if (!fresh.exists) return;
+            const d = fresh.data();
+            if (d.status !== 'pending' || d.driverId || d.trashedAtMs) return;
+            if (d.offerPhase === 'city') return;
+            const freshCur = d.offeredToDriverId;
+            const freshDeclined = freshCur && Array.isArray(d.declinedDriverIds) && d.declinedDriverIds.includes(freshCur);
+            if (isExclusiveWindowOpen(d) && !freshDeclined) return;
+
+            const nowMs = Date.now();
+            const plan = planNextStoreDeliveryOffer(
+                { id: tripId, ...d },
+                candidates,
+                { tripDocs, nowMs, stepSec: TRIP_STORE_OFFER_STEP_SEC, includeCurrentInHistory: true }
+            );
+
+            if (plan.phase === 'exclusive' && plan.nextDriver) {
+                const next = plan.nextDriver;
+                tx.update(tripRef, {
+                    offerPhase: 'exclusive',
+                    offerWindowSec: plan.offerWindowSec,
+                    offeredToDriverId: next.driverId,
+                    offeredToDriverName: next.name || 'Repartidor',
+                    offerSentAt: FieldValue.serverTimestamp(),
+                    offerExpiresAtMs: plan.offerExpiresAtMs,
+                    offerStepIndex: plan.stepIndex,
+                    offerDistanceKm: next.distanceKm,
+                    offerStoreDeliveriesToday: next.storeDeliveriesToday,
+                    offerToBusyDriver: busyFlag || !!next.busy,
+                    offerSearchTier: busyFlag ? 'busy_near' : 'near',
+                    offerUsedNearbySpill: false,
+                    offeredHistoryIds: plan.offeredHistoryIds,
+                    offerQueueDriverIds: plan.offerQueueDriverIds,
+                    declinedDriverIds: d.declinedDriverIds || [],
+                    candidateDriverIds: [next.driverId]
+                });
+            } else {
+                switchedToCity = true;
+            }
+        });
+
+        if (switchedToCity) {
+            await openTripOfferToCity(appId, tripId);
+            return false;
+        }
+        const afterSnap = await tripRef.get();
+        return isExclusiveWindowOpen({ id: tripId, ...(afterSnap.data() || {}) });
+    }
+
     const offerResult = await findClosestDriverForExclusive(appId, trip, tripDocs);
     const next = offerResult.candidates[0];
 
@@ -2621,6 +2712,31 @@ async function assignNextTripOfferServer(appId, tripId) {
     return isExclusiveWindowOpen({ id: tripId, ...(afterSnap.data() || {}) });
 }
 
+const advanceSequentialTripOfferServer = assignNextTripOfferServer;
+
+async function runStoreDeliveryRotationLoop(appId, tripId, { maxSteps = 6, stepMs = TRIP_STORE_OFFER_STEP_MS } = {}) {
+    const tripRef = db.doc(`artifacts/${appId}/public/data/trips/${tripId}`);
+    for (let step = 0; step < maxSteps; step++) {
+        const assigned = await assignNextTripOfferServer(appId, tripId).catch((e) => {
+            console.warn('[runStoreDeliveryRotationLoop] assign', e?.message || e);
+            return false;
+        });
+        if (!assigned) return;
+        await new Promise((resolve) => setTimeout(resolve, stepMs + 250));
+        const snap = await tripRef.get().catch(() => null);
+        if (!snap || !snap.exists) return;
+        const t = snap.data() || {};
+        if (t.status !== 'pending' || t.driverId || t.trashedAtMs || t.offerPhase === 'city') return;
+    }
+    const finalSnap = await tripRef.get().catch(() => null);
+    if (finalSnap && finalSnap.exists) {
+        const ft = finalSnap.data() || {};
+        if (ft.status === 'pending' && !ft.driverId && ft.offerPhase !== 'city' && isExclusiveWindowExpired(ft)) {
+            await openTripOfferToCity(appId, tripId).catch(() => {});
+        }
+    }
+}
+
 async function openTripOfferToCity(appId, tripId) {
     const tripRef = db.doc(`artifacts/${appId}/public/data/trips/${tripId}`);
     const tripSnap = await tripRef.get();
@@ -2636,9 +2752,13 @@ async function openTripOfferToCity(appId, tripId) {
     }
     await tripRef.update({
         offerPhase: 'city',
+        offeredToDriverId: null,
+        offeredToDriverName: null,
+        offerSentAt: null,
+        offerExpiresAtMs: null,
         offerOpenedToCityAt: FieldValue.serverTimestamp()
     }).catch(() => {});
-    const opened = { ...trip, offerPhase: 'city' };
+    const opened = { ...trip, offerPhase: 'city', offeredToDriverId: null };
     await notifyEligibleDriversNewTrip(appId, tripId, opened, { expandDepartment: false }).catch((e) => {
         console.warn('openTripOfferToCity notify', e?.message || e);
     });
@@ -3624,7 +3744,17 @@ async function expandPendingTripToDepartment(appId, tripId, tripLike = null) {
 }
 
 async function alertDriversForPendingTrip(appId, tripId, trip) {
-    // Igual que staff: FCM YA. Sin esperar GPS exclusivo ni 18s.
+    // Envío de tienda: rotación justa de 15 s por repartidor antes de abrir a toda la ciudad.
+    if (isStoreDeliveryTrip(trip)) {
+        await notifyStaffNewTrip(appId, tripId, trip).catch((e) => {
+            console.warn('notifyStaffNewTrip', e?.message || e);
+        });
+        await runStoreDeliveryRotationLoop(appId, tripId).catch((e) => {
+            console.warn('runStoreDeliveryRotationLoop', e?.message || e);
+        });
+        return;
+    }
+    // Viajes normales de pasajeros: FCM YA y ciudad abierta inmediata.
     await Promise.all([
         notifyStaffNewTrip(appId, tripId, trip).catch((e) => {
             console.warn('notifyStaffNewTrip', e?.message || e);
@@ -3633,7 +3763,6 @@ async function alertDriversForPendingTrip(appId, tripId, trip) {
             console.warn('notifyEligibleDriversNewTrip immediate', e?.message || e);
         })
     ]);
-    // Ciudad abierta YA: el conductor lo ve y puede aceptar, como el supervisor.
     await openTripOfferToCity(appId, tripId).catch((e) => {
         console.warn('openTripOfferToCity', e?.message || e);
     });
@@ -3718,6 +3847,11 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
         const t = d.data();
         if (isStaffTripWaitingClientClaim(t)) continue;
         if (t.driverId || t.isDemandSimulation) continue;
+        if (isStoreDeliveryTrip(t) && t.offerPhase !== 'city') {
+            if (isExclusiveWindowOpen(t)) continue;
+            await assignNextTripOfferServer(APP_ID, d.id).catch(() => {});
+            continue;
+        }
         if (!t.eligibleDriverAlertSent) {
             await notifyEligibleDriversNewTrip(APP_ID, d.id, t, { immediate: true }).catch(() => {});
         } else {
@@ -4235,11 +4369,13 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 superVibrate: 'true',
                 ...(isStoreDeliveryTrip(after) ? { storeOrder: 'true', alertSound: 'nuevo_pedido' } : {})
             };
-            // Push al ofertado + candidatos del pool (web/iOS no miran el radar si no hay push)
+            // En envío de tienda (turno exclusivo de 15 s), solo notificar al repartidor en turno.
             const pushRecipients = new Set([String(after.offeredToDriverId)]);
-            (after.candidateDriverIds || []).forEach((id) => {
-                if (id) pushRecipients.add(String(id));
-            });
+            if (!isStoreDeliveryTrip(after)) {
+                (after.candidateDriverIds || []).forEach((id) => {
+                    if (id) pushRecipients.add(String(id));
+                });
+            }
             await Promise.all([...pushRecipients].map((driverId) => sendPushToUser(appId, driverId, {
                 title: offerTitle,
                 body: offerBody,
@@ -4254,7 +4390,7 @@ exports.onTripUpdatePush = onDocumentUpdated(
             });
         }
 
-        // El más cercano pasó / rechazó: abrir a la ciudad de inmediato
+        // El repartidor en turno pasó / rechazó: en envío de tienda pasa al siguiente de la fila por 15 s; en viaje normal abre a la ciudad
         if (
             after.status === 'pending'
             && !after.driverId
@@ -4262,7 +4398,11 @@ exports.onTripUpdatePush = onDocumentUpdated(
             && !after.offeredToDriverId
             && (before.offerPhase === 'exclusive' || after.offerPhase === 'exclusive')
         ) {
-            await openTripOfferToCity(appId, tripId).catch(() => {});
+            if (isStoreDeliveryTrip(after)) {
+                await assignNextTripOfferServer(appId, tripId).catch(() => {});
+            } else {
+                await openTripOfferToCity(appId, tripId).catch(() => {});
+            }
         }
 
         // —— Oferta de precio del conductor → push al pasajero (aunque esté en otra app) ——

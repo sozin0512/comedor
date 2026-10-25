@@ -228,6 +228,7 @@ module.exports = function createViajesPanel(deps) {
             if (!s.exists) return false;
             const t = s.data() || {};
             if (t.status !== 'pending' || t.driverId || hasBids(t) || t.autoResendAtMs || t.trashedAtMs) return false;
+            if (t.offerPhase === 'exclusive' && t.offeredToDriverId) return false;
             // Programado para más tarde: no hay apuro, no reenviar.
             const sch = t.scheduledFor;
             const schMs = sch && typeof sch.toMillis === 'function' ? sch.toMillis() : (typeof sch === 'number' ? sch : (sch ? Date.parse(sch) : 0));

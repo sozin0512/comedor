@@ -14,7 +14,7 @@ const VIBRATE_EVERY_MS = 2500;
 
 export function isStoreOrderTrip(t) {
     if (!t || typeof t !== 'object') return false;
-    return !!(t.storeOrderId || t.storeDelivery === true || t.createdByMerchant === true || t.deliveryDetails?.storeOrderId);
+    return !!(t.storeOrderId || t.storeOrder === true || t.storeDelivery === true || t.merchantDirectDelivery === true || t.createdByMerchant === true || t.tripKind === "store_order" || t.tripKind === "merchant_delivery" || t.deliveryDetails?.storeOrderId || t.deliveryDetails?.storeDelivery === true || t.deliveryDetails?.merchantDirectDelivery === true || t.requestSource === "whatsapp_store_delivery" || t.createdVia === "whatsapp_store" || t.waStoreId);
 }
 
 const S = { audio: null, unlocked: false, playing: false, activeIds: new Set(), handled: new Set(), vibTimer: null, pendingStart: false };

@@ -1868,12 +1868,21 @@ async function loadProducts(storeId) {
 let knownMerchantOrderIds = new Set();
 let merchantOrdersBootstrapped = false;
 
-function playNewStoreOrderAlert(order) {
+function playNewOrderTone() {
     try {
-        if (typeof window.playStoreOrderTone === 'function') window.playStoreOrderTone();
-        else if (typeof window.playEventNotificationTone === 'function') window.playEventNotificationTone('store_order');
-        else if (window.HonduTones?.playEventTone) window.HonduTones.playEventTone('store_order');
+        if (typeof window !== 'undefined') {
+            if (typeof window.playStoreOrderTone === 'function') window.playStoreOrderTone();
+            else if (typeof window.playEventNotificationTone === 'function') window.playEventNotificationTone('store_order');
+            else if (window.HonduTones?.playEventTone) window.HonduTones.playEventTone('store_order');
+        }
     } catch (_) {}
+}
+try {
+    if (typeof window !== 'undefined') window.playNewOrderTone = playNewOrderTone;
+} catch (_) {}
+
+function playNewStoreOrderAlert(order) {
+    playNewOrderTone();
 
     const items = Array.isArray(order?.items) ? order.items : [];
     const summary = items.slice(0, 2).map((i) => `${i.qty || 1}× ${i.name || 'producto'}`).join(', ');
@@ -4571,7 +4580,8 @@ export async function enableMerchantOrderAlerts() {
 }
 
 export async function testMerchantOrderAlert() {
-    playNewOrderTone();
+    if (typeof playNewOrderTone === 'function') playNewOrderTone();
+    else if (typeof window !== 'undefined' && typeof window.playStoreOrderTone === 'function') window.playStoreOrderTone();
     try { window.playEventNotificationTone?.('store_new_order'); } catch (_) {}
     try { navigator.vibrate?.([220, 100, 260, 100, 320]); } catch (_) {}
     toast('🔔 Prueba de aviso: ¡Así te sonará cuando te caiga un pedido nuevo!', 'success');
@@ -6561,7 +6571,15 @@ async function createDeliveryTripForOrder(order) {
         chat: [],
         viewedBy: {},
         declinedDriverIds: [],
+        offeredHistoryIds: [],
+        offerQueueDriverIds: [],
+        offerPhase: 'exclusive',
+        offerWindowSec: 15,
+        offerStepIndex: 0,
         offeredToDriverId: null,
+        offeredToDriverName: null,
+        offerSentAt: null,
+        offerExpiresAtMs: null,
         preferredDriverId: null,
         negotiationEnabled: false,
         createdByMerchant: true,
@@ -6569,6 +6587,11 @@ async function createDeliveryTripForOrder(order) {
     };
 
     const tripRef = await addDoc(publicCol('trips'), tripPayload);
+    try {
+        if (typeof window !== 'undefined' && typeof window.advanceSequentialTripOffer === 'function') {
+            await window.advanceSequentialTripOffer(tripRef.id);
+        }
+    } catch (_) {}
     // Sigue «Listo» hasta que un conductor acepte: el servidor lo pasa a «En camino» (store-order-sync.js).
     await updateDoc(publicDoc('store_orders', order.id), {
         status: 'ready',

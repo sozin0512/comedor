@@ -159,6 +159,27 @@ window.getDeliveryStageMeta = getDeliveryStageMeta;
 window.getDeliveryChatMessages = getDeliveryChatMessages;
 window.getDefaultDeliveryChatChannel = getDefaultDeliveryChatChannel;
 window.buildDeliveryDualChatTabsHtml = buildDeliveryDualChatTabsHtml;
+import {
+    TRIP_STORE_OFFER_STEP_SEC,
+    TRIP_STORE_OFFER_STEP_MS,
+    isStoreDeliveryTrip,
+    getStoreOfferWindowSec,
+    getStoreOfferWindowMs,
+    getStoreOfferExpiresAtMs,
+    isStoreOfferExclusiveActive,
+    isStoreOfferWindowExpired,
+    getStoreOfferRemainingSec,
+    computeDriverStoreDeliveryStatsToday,
+    rankDriversForStoreDelivery,
+    planNextStoreDeliveryOffer,
+    storeExclusiveTurnBadgeHtml
+} from "./store-delivery-rotation.js?v=2026.10.24.7";
+window.isStoreDeliveryTrip = isStoreDeliveryTrip;
+window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
+window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
+window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
+window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
+window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
 import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.24.7";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
@@ -6244,8 +6265,9 @@ if (document.readyState === 'loading') {
         // window.playNotificationSound / playDriverTripOfferSound / playStaffTripAlertSound / playChatSound
 
         function getDriverOfferAlertKey(trip) {
-            const ts = trip.offerSentAt?.seconds ?? trip.offerSentAt?.toMillis?.() ?? 0;
-            return `${trip.id}:${ts}`;
+            const ts = trip.offerSentAt?.seconds ?? trip.offerSentAt?.toMillis?.() ?? trip.offerExpiresAtMs ?? 0;
+            const step = trip.offerStepIndex ?? trip.offerPhase ?? '';
+            return `${trip.id}:${ts}:${step}`;
         }
 
         // Staff (supervisor / admin) alert for NEW pending trips - super + different sound
@@ -8578,21 +8600,28 @@ if (document.readyState === 'loading') {
             return 0;
         }
 
-        function isTripExclusiveActive(trip) {
-            // El viaje se ofrece a toda la ciudad al crearse, igual que lo ve staff.
+        function isTripExclusiveActive(trip, nowMs = Date.now()) {
+            // Rotación justa de 15 s SOLO para envíos de tiendas (isStoreDeliveryTrip).
+            // Los viajes normales de pasajeros siguen en ciudad abierta inmediata (false).
+            if (isStoreDeliveryTrip(trip)) {
+                return isStoreOfferExclusiveActive(trip, nowMs);
+            }
             return false;
         }
         window.isTripExclusiveActive = isTripExclusiveActive;
 
-        function isOfferExpired(trip) {
+        function isOfferExpired(trip, nowMs = Date.now()) {
+            if (isStoreDeliveryTrip(trip)) {
+                return isStoreOfferWindowExpired(trip, nowMs);
+            }
             if (!trip?.offeredToDriverId || !trip?.offerSentAt?.toMillis) return false;
             if (trip.negotiatedBy === 'driver' && trip.negotiatedPrice != null) {
                 const negAt = trip.lastNegotiationAt?.toMillis?.() || 0;
-                if (negAt && Date.now() - negAt < TRIP_OFFER_NEGOTIATION_HOLD_SEC * 1000) return false;
+                if (negAt && nowMs - negAt < TRIP_OFFER_NEGOTIATION_HOLD_SEC * 1000) return false;
             }
             const declinedAt = trip.passengerDeclinedNegotiationAt?.toMillis?.() || 0;
-            if (declinedAt && Date.now() - declinedAt < TRIP_OFFER_NEGOTIATION_HOLD_SEC * 1000) return false;
-            return Date.now() - trip.offerSentAt.toMillis() > TRIP_OFFER_TIMEOUT_SEC * 1000;
+            if (declinedAt && nowMs - declinedAt < TRIP_OFFER_NEGOTIATION_HOLD_SEC * 1000) return false;
+            return nowMs - trip.offerSentAt.toMillis() > TRIP_OFFER_TIMEOUT_SEC * 1000;
         }
 
         function getDriverBidsSorted(trip) {
@@ -8867,11 +8896,11 @@ if (document.readyState === 'loading') {
             return [...new Set(types)];
         }
 
-        function locCanServePassengerService(loc, serviceType, profile = null) {
+        function locCanServePassengerService(loc, serviceType, profile = null, trip = null) {
             const svc = serviceType || window.currentServiceType || 'auto';
             const plate = loc?.vehiclePlate || null;
-            if (driverCanServeTrip(loc?.vehicleType || 'auto', svc, plate)) return true;
-            return locApprovedVehicleTypes(loc, profile).some((t) => driverCanServeTrip(t, svc, plate));
+            if (driverCanServeTrip(loc?.vehicleType || 'auto', svc, plate, trip)) return true;
+            return locApprovedVehicleTypes(loc, profile).some((t) => driverCanServeTrip(t, svc, plate, trip));
         }
 
         function driverLocationCapabilityPatch(profile) {
@@ -9692,7 +9721,7 @@ if (document.readyState === 'loading') {
                 const loc = d.data();
                 if (!isDriverOnline(loc)) continue;
 
-                if (!locCanServePassengerService(loc, trip.serviceType || 'auto')) continue;
+                if (!locCanServePassengerService(loc, trip.serviceType || 'auto', null, trip)) continue;
                 if (!tripZoneId || !driverLocationMatchesTripCity(loc, tripZoneId, null, {
                     tripCityHasLocalDrivers: hasLocalFleet
                 })) continue;
@@ -9779,8 +9808,132 @@ if (document.readyState === 'loading') {
             return { candidates: candidates.slice(0, TRIP_OFFER_POOL_SIZE), tier: busyTier, busy: true };
         }
 
+        window._advancingStoreOfferIds = window._advancingStoreOfferIds || new Set();
+
+        window.advanceSequentialTripOffer = async (tripId) => {
+            if (!tripId) return null;
+            if (window._advancingStoreOfferIds.has(tripId)) return null;
+            window._advancingStoreOfferIds.add(tripId);
+            try {
+                const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+                const tripSnap = await getDoc(tripRef);
+                if (!tripSnap.exists()) return null;
+
+                const trip = { id: tripSnap.id, ...tripSnap.data() };
+                if (!isStoreDeliveryTrip(trip)) return null;
+                if (trip.isDemandSimulation || trip.trashedAtMs) return null;
+                if (trip.status !== 'pending' || trip.driverId) return null;
+
+                const curDriver = trip.offeredToDriverId;
+                const curDeclined = curDriver && Array.isArray(trip.declinedDriverIds) && trip.declinedDriverIds.includes(curDriver);
+                if (curDriver && !curDeclined && isStoreOfferExclusiveActive(trip)) {
+                    return trip;
+                }
+
+                let tripDocs = [];
+                try {
+                    const allSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
+                    tripDocs = allSnap.docs;
+                } catch (_) {}
+
+                const originCoords = await resolveTripOriginCoords(trip);
+                if (originCoords && (trip.originLat == null || trip.originLng == null)) {
+                    trip.originLat = originCoords.lat;
+                    trip.originLng = originCoords.lng;
+                }
+
+                let offerResult = await findDriversForTripOffer(trip, tripDocs);
+                let candidates = offerResult.candidates || [];
+                let offerTier = offerResult.tier || null;
+                let offerToBusyDriver = false;
+
+                if (!candidates.length) {
+                    offerResult = await findBusyDriversForTripOffer(trip, tripDocs);
+                    candidates = offerResult.candidates || [];
+                    offerTier = offerResult.tier || null;
+                    offerToBusyDriver = Boolean(offerResult.busy && candidates.length > 0);
+                }
+
+                let outcome = null;
+                await runTransaction(db, async (tx) => {
+                    const fresh = await tx.get(tripRef);
+                    if (!fresh.exists()) return;
+                    const d = fresh.data();
+                    if (d.status !== 'pending' || d.driverId || d.trashedAtMs) return;
+                    const freshCur = d.offeredToDriverId;
+                    const freshDeclined = freshCur && Array.isArray(d.declinedDriverIds) && d.declinedDriverIds.includes(freshCur);
+                    if (freshCur && !freshDeclined && isStoreOfferExclusiveActive(d)) return;
+
+                    const nowMs = Date.now();
+                    const plan = planNextStoreDeliveryOffer(
+                        { id: tripId, ...d, originLat: d.originLat ?? trip.originLat, originLng: d.originLng ?? trip.originLng },
+                        candidates,
+                        { tripDocs, nowMs, stepSec: TRIP_STORE_OFFER_STEP_SEC, includeCurrentInHistory: true }
+                    );
+
+                    const patch = {};
+                    if (originCoords && (d.originLat == null || d.originLng == null)) {
+                        patch.originLat = originCoords.lat;
+                        patch.originLng = originCoords.lng;
+                    }
+
+                    if (plan.phase === 'exclusive' && plan.nextDriver) {
+                        const next = plan.nextDriver;
+                        Object.assign(patch, {
+                            offerPhase: 'exclusive',
+                            offerWindowSec: plan.offerWindowSec,
+                            offeredToDriverId: next.driverId,
+                            offeredToDriverName: next.name || 'Repartidor',
+                            offerSentAt: serverTimestamp(),
+                            offerExpiresAtMs: plan.offerExpiresAtMs,
+                            offerStepIndex: plan.stepIndex,
+                            offerDistanceKm: next.distanceKm,
+                            offerStoreDeliveriesToday: next.storeDeliveriesToday,
+                            offerToBusyDriver: offerToBusyDriver || Boolean(next.busy),
+                            offerSearchTier: offerTier || null,
+                            offeredHistoryIds: plan.offeredHistoryIds,
+                            offerQueueDriverIds: plan.offerQueueDriverIds,
+                            declinedDriverIds: d.declinedDriverIds || [],
+                            candidateDriverIds: plan.ranked.slice(0, TRIP_OFFER_POOL_SIZE).map((c) => c.driverId),
+                        });
+                    } else {
+                        Object.assign(patch, {
+                            offerPhase: 'city',
+                            offerWindowSec: plan.offerWindowSec,
+                            offeredToDriverId: null,
+                            offeredToDriverName: null,
+                            offerSentAt: null,
+                            offerExpiresAtMs: null,
+                            offerStepIndex: plan.stepIndex,
+                            offeredHistoryIds: plan.offeredHistoryIds,
+                            offerQueueDriverIds: plan.offerQueueDriverIds,
+                            offerOpenedToCityAt: serverTimestamp(),
+                        });
+                    }
+
+                    tx.update(tripRef, patch);
+                    outcome = { id: tripId, ...d, ...patch };
+                });
+
+                return outcome;
+            } catch (err) {
+                console.warn('[advanceSequentialTripOffer]', err?.message || err);
+                return null;
+            } finally {
+                window._advancingStoreOfferIds.delete(tripId);
+            }
+        };
+
         window.assignNextTripOffer = async (tripId) => {
-            // Marketplace abierto: todos los conductores elegibles ven el viaje; sin rotación exclusiva.
+            if (!tripId) return;
+            try {
+                const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
+                const tripSnap = await getDoc(tripRef);
+                if (tripSnap.exists() && isStoreDeliveryTrip(tripSnap.data())) {
+                    return await window.advanceSequentialTripOffer(tripId);
+                }
+            } catch (_) {}
+            // Viajes normales de pasajeros: marketplace abierto a toda la ciudad sin rotación exclusiva.
             return;
 
             const tripRef = doc(db, 'artifacts', appId, 'public', 'data', 'trips', tripId);
@@ -10936,7 +11089,7 @@ if (document.readyState === 'loading') {
                             ${unverifiedHtml}
                         </div>
                     </div>
-                    ${isStoreOrderTrip(t) ? `<div class="uber-vert-chips" style="margin:4px 0">${storeOfferBadgesHtml(t)}</div>` : ''}
+                    ${isStoreOrderTrip(t) ? `<div class="uber-vert-chips" style="margin:4px 0">${storeOfferBadgesHtml(t)}</div>${storeExclusiveTurnBadgeHtml({ ...t, id: tripId })}` : ''}
                     ${fullRouteHtml}
                     ${storeCollectHtml(t, acceptPriceNum)}
                     <div class="uber-vert-price-row">
@@ -10959,6 +11112,7 @@ if (document.readyState === 'loading') {
                     </div>
                     ${waitChip && !getScheduledTripMs(t) ? `<div class="hr-wait-row">${waitChip}</div>` : ''}
                     ${schedBanner}
+                    ${storeExclusiveTurnBadgeHtml({ ...t, id: tripId })}
                     ${storeCollectHtml(t, acceptPriceNum)}
                     <button type="button" class="driver-offer-preview-btn" data-preview-offer="${tripId}" title="Dibuja la ruta en el mapa (solo orientación)">
                         <i class="fas fa-map-marked-alt" aria-hidden="true"></i> Ver en el mapa
@@ -11436,6 +11590,9 @@ if (document.readyState === 'loading') {
 
         function getDriverOfferPopupRemainingSec(trip) {
             if (!isTripExclusiveActive(trip)) return 0;
+            if (isStoreDeliveryTrip(trip)) {
+                return getStoreOfferRemainingSec(trip);
+            }
             const sentMs = getOfferSentMs(trip) || getTripCreatedAtMs(trip) || Date.now();
             const elapsed = Math.max(0, Date.now() - sentMs);
             return Math.max(0, Math.ceil((TRIP_OFFER_EXCLUSIVE_SEC * 1000 - elapsed) / 1000));
@@ -11444,7 +11601,12 @@ if (document.readyState === 'loading') {
         function paintDriverOfferPopupTimer(trip) {
             const exclusive = isTripExclusiveActive(trip);
             const remaining = exclusive ? getDriverOfferPopupRemainingSec(trip) : 0;
-            const total = TRIP_OFFER_EXCLUSIVE_SEC;
+            const total = isStoreDeliveryTrip(trip) ? getStoreOfferWindowSec(trip) : TRIP_OFFER_EXCLUSIVE_SEC;
+            if (trip?.id) {
+                document.querySelectorAll(`[data-store-exclusive-sec="${trip.id}"]`).forEach((el) => {
+                    el.textContent = `${remaining}s`;
+                });
+            }
             const ratio = exclusive ? Math.max(0, Math.min(1, remaining / total)) : 0;
             const secEl = document.getElementById('driver-trip-offer-popup-timer-sec');
             const arc = document.getElementById('driver-trip-offer-popup-timer-arc');
@@ -11478,8 +11640,10 @@ if (document.readyState === 'loading') {
                 }
                 paintDriverOfferPopupTimer(trip);
                 if (getDriverOfferPopupRemainingSec(trip) <= 0) {
-                    // El snapshot ocultará la oferta al expirar; no forzar hide aquí
                     stopDriverOfferPopupTimer();
+                    if (isStoreDeliveryTrip(trip) && trip?.id) {
+                        window.advanceSequentialTripOffer?.(trip.id)?.catch?.(() => {});
+                    }
                 }
             }, 1000);
         }
@@ -11792,6 +11956,49 @@ if (document.readyState === 'loading') {
                 // Always run staff alerts (works for supervisor/admin even without driver container)
                 const allPendingStaff = pendingAll.map(d => ({ id: d.id, ...d.data() }));
                 alertStaffNewPendingTrips(allPendingStaff);
+
+                // Rotación justa de 15 s para envíos de tienda:
+                // - Si un envío de tienda pendiente aún no tiene repartidor en turno (o su turno de 15 s venció/fue rechazado), avanzar al siguiente.
+                // - Mantener un reloj de 1 s mientras haya un turno exclusivo activo para actualizar el contador y rotar puntualmente a los 15 s.
+                window._activeStoreExclusiveTrips = [];
+                for (const stTrip of allPendingStaff) {
+                    if (!isStoreDeliveryTrip(stTrip) || stTrip.driverId) continue;
+                    if (stTrip.offerPhase === 'city') continue;
+                    const curDrv = stTrip.offeredToDriverId;
+                    const curDec = curDrv && Array.isArray(stTrip.declinedDriverIds) && stTrip.declinedDriverIds.includes(curDrv);
+                    if (!curDrv || curDec || isStoreOfferWindowExpired(stTrip)) {
+                        if (stTrip.offerPhase === 'exclusive' || curDrv) {
+                            window.advanceSequentialTripOffer?.(stTrip.id)?.catch?.(() => {});
+                        }
+                    } else if (isStoreOfferExclusiveActive(stTrip)) {
+                        window._activeStoreExclusiveTrips.push(stTrip);
+                    }
+                }
+                if (window._activeStoreExclusiveTrips.length > 0 && !window._storeExclusiveTicker) {
+                    window._storeExclusiveTicker = setInterval(() => {
+                        const list = window._activeStoreExclusiveTrips || [];
+                        if (!list.length) {
+                            clearInterval(window._storeExclusiveTicker);
+                            window._storeExclusiveTicker = null;
+                            return;
+                        }
+                        const nowMs = Date.now();
+                        let anyExpired = false;
+                        for (const item of list) {
+                            const rem = getStoreOfferRemainingSec(item, nowMs);
+                            document.querySelectorAll(`[data-store-exclusive-sec="${item.id}"]`).forEach((el) => {
+                                el.textContent = `${rem}s`;
+                            });
+                            if (rem <= 0 || isStoreOfferWindowExpired(item, nowMs)) {
+                                anyExpired = true;
+                                window.advanceSequentialTripOffer?.(item.id)?.catch?.(() => {});
+                            }
+                        }
+                        if (anyExpired && window._lastTripsSnapshot) {
+                            try { renderDriverTrips(window._lastTripsSnapshot); } catch (_) {}
+                        }
+                    }, 1000);
+                }
 
                 const scheduledDue = snap.docs
                     .map((d) => ({ id: d.id, ...d.data() }))

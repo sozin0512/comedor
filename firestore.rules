@@ -243,6 +243,14 @@ service cloud.firestore {
             .hasOnly(['chat', 'chatMerchant', 'chatSeenBy', 'updatedAt'])
         )
         || (
+          resource.data.status == 'pending'
+          && request.resource.data.status == 'pending'
+          && resource.data.get('driverId', null) == null
+          && request.resource.data.get('driverId', null) == null
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['offerPhase', 'offerWindowSec', 'offeredToDriverId', 'offeredToDriverName', 'offerSentAt', 'offerExpiresAtMs', 'offerStepIndex', 'offerDistanceKm', 'offerStoreDeliveriesToday', 'offeredHistoryIds', 'offerQueueDriverIds', 'offerOpenedToCityAt', 'declinedDriverIds', 'driverBids', 'candidateDriverIds', 'viewedBy', 'updatedAt'])
+        )
+        || (
           resource.data.status in ['verifying', 'pending']
           && resource.data.get('driverId', null) == null
           && request.resource.data.status == 'cancelled'
@@ -434,7 +442,7 @@ service cloud.firestore {
           && request.resource.data.status == 'pending'
           && request.resource.data.clientId == resource.data.clientId
           && request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['declinedDriverIds', 'driverBids', 'offeredToDriverId', 'offeredToDriverName', 'offerSentAt', 'offerDistanceKm', 'candidateDriverIds'])
+            .hasOnly(['declinedDriverIds', 'driverBids', 'offeredToDriverId', 'offeredToDriverName', 'offerSentAt', 'offerExpiresAtMs', 'offerWindowSec', 'offerPhase', 'offerStepIndex', 'offerDistanceKm', 'offerStoreDeliveriesToday', 'offeredHistoryIds', 'offerQueueDriverIds', 'offerOpenedToCityAt', 'candidateDriverIds'])
           && (
             !request.resource.data.diff(resource.data).affectedKeys().hasAny(['offeredToDriverId'])
             || resource.data.offeredToDriverId == requestUid()

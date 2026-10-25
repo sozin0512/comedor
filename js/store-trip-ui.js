@@ -33,6 +33,9 @@ export function isStoreOrderTrip(t) {
         || t.deliveryDetails?.storeOrderId
         || t.deliveryDetails?.storeDelivery === true
         || t.deliveryDetails?.merchantDirectDelivery === true
+        || t.requestSource === "whatsapp_store_delivery"
+        || t.createdVia === "whatsapp_store"
+        || t.waStoreId
     );
 }
 
