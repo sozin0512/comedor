@@ -7288,6 +7288,8 @@ if (document.readyState === 'loading') {
                 window.openPassengerCopaFromMenu?.();
             }
             else if (action === 'history') { window.showMyPastTrips?.(); window.closeHeaderMoreMenu?.(); }
+            else if (action === 'want-driver') { window.openWantToBeDriverFlow?.(); window.closeHeaderMoreMenu?.(); }
+            else if (action === 'guest-login') { window.openGuestAuthModal?.({ role: 'client', mode: 'login' }); window.closeHeaderMoreMenu?.(); }
             else if (action === 'install') { window.showInstallFlow?.(); window.closeHeaderMoreMenu?.(); }
             else if (action === 'logout') { window.confirmLogout?.(); window.closeHeaderMoreMenu?.(); }
         }
@@ -12399,6 +12401,10 @@ if (document.readyState === 'loading') {
 
         // --- SISTEMA DE PERFIL Y SEGURIDAD ---
         window.openProfilePanel = async () => {
+            if (!currentUser || !window.userProfile) {
+                window.requireAuthForService?.('ver tu perfil y saldo', { role: 'client', mode: 'login' });
+                return;
+            }
             if (canUsePassengerSaldo(window.userProfile) && currentUser) {
                 await refreshPassengerBalanceFromServer();
             }
@@ -28530,7 +28536,7 @@ window.saveProfileChanges = async () => {
                 } catch (_) {}
                 const switchingFromPassenger = userRole === 'driver'
                     && existingProfile.role === 'client'
-                    && !!existingProfile.allowSwitchToDriver;
+                    && (!!existingProfile.allowSwitchToDriver || !!window._openedDriverSetupFromPanel);
 
                 if (switchingFromPassenger) {
                     data.totalTrips = existingProfile.totalTrips || 0;
@@ -29926,8 +29932,157 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('focus', () => window.resumePersistentSession?.());
 window.addEventListener('pageshow', () => window.resumePersistentSession?.());
 
+function syncGuestHeaderButtons() {
+    const isGuest = !currentUser;
+    const isDriver = window.userProfile?.role === 'driver';
+    document.getElementById('header-guest-login-btn-mobile')?.classList.toggle('hidden', !isGuest);
+    const deskLogin = document.getElementById('header-guest-login-btn-desktop');
+    if (deskLogin) {
+        deskLogin.classList.toggle('hidden', !isGuest);
+        deskLogin.classList.toggle('inline-flex', isGuest);
+    }
+    const deskDriver = document.getElementById('header-want-driver-btn-desktop');
+    if (deskDriver) {
+        deskDriver.classList.toggle('hidden', isDriver);
+        deskDriver.classList.toggle('inline-flex', !isDriver);
+    }
+    document.getElementById('header-menu-guest-login')?.classList.toggle('hidden', !isGuest);
+    document.getElementById('header-menu-logout')?.classList.toggle('hidden', isGuest);
+    document.getElementById('header-menu-want-driver')?.classList.toggle('hidden', isDriver);
+    try { window.syncGuestAndDriverCtaInHome?.(); } catch (_) {}
+}
+window.syncGuestHeaderButtons = syncGuestHeaderButtons;
+
+window.requireAuthForService = function (reasonText = 'usar este servicio', options = {}) {
+    if (currentUser) {
+        if (typeof options.onAuthenticated === 'function') {
+            options.onAuthenticated(currentUser);
+        }
+        return true;
+    }
+    const role = options.role === 'driver' ? 'driver' : 'client';
+    const mode = options.mode === 'login' ? 'login' : 'register';
+    window._authModalExplicitlyOpen = true;
+    window._pendingAuthForServiceCallback = typeof options.onAuthenticated === 'function' ? options.onAuthenticated : null;
+    const cleanReason = String(reasonText || 'usar este servicio').trim();
+    const reasonTitle = options.reasonTitle || `Para ${cleanReason}, inicia sesión o crea tu cuenta en 30 segundos`;
+    const reasonSub = options.reasonSub || 'Puedes explorar HonduRaite libremente; solo pedimos cuenta al confirmar un servicio. Tus datos seleccionados se conservan.';
+    if (typeof window.openGuestAuthModal === 'function') {
+        window.openGuestAuthModal({
+            role,
+            mode,
+            icon: options.icon || '✨',
+            reasonTitle,
+            reasonSub
+        });
+    } else {
+        try { window.updateRole?.(role); } catch (_) {}
+        try { window.setAuthMode?.(mode); } catch (_) {}
+        setElementDisplay('login-screen', 'flex');
+    }
+    return false;
+};
+window.openAuthForServiceModal = window.requireAuthForService;
+
+window.openWantToBeDriverFlow = function (options = {}) {
+    const mode = options.mode === 'login' ? 'login' : 'register';
+    if (!currentUser) {
+        window._pendingWantToBeDriver = true;
+        window._authModalExplicitlyOpen = true;
+        userRole = 'driver';
+        try { localStorage.setItem('lastUserRole', 'driver'); } catch (_) {}
+        if (typeof window.openGuestAuthModal === 'function') {
+            window.openGuestAuthModal({
+                role: 'driver',
+                mode,
+                icon: '🚗',
+                reasonTitle: '¡Quiero ser conductor de HonduRaite!',
+                reasonSub: 'Crea tu cuenta de conductor (o inicia sesión) y enseguida registrarás tu vehículo, placa y fotos.'
+            });
+        } else {
+            try { window.updateRole?.('driver'); } catch (_) {}
+            try { window.setAuthMode?.(mode); } catch (_) {}
+            setElementDisplay('login-screen', 'flex');
+        }
+        return;
+    }
+    if (window.userProfile?.role === 'driver') {
+        window.showToast?.('Ya estás en modo Conductor.', 'info');
+        return;
+    }
+    window._openedDriverSetupFromPanel = true;
+    userRole = 'driver';
+    try { window.closeStoresMarketplace?.({ silent: true }); } catch (_) {}
+    setElementDisplay('login-screen', 'none');
+    setElementDisplay('app-interface', 'none');
+    window.showDriverSetupScreen?.();
+    if (window.userProfile) {
+        try { prefillDriverSetupFromProfile(window.userProfile); } catch (_) {}
+    }
+    window.showToast?.('Completa los datos de tu vehículo para registrarte como conductor de HonduRaite.', 'info');
+};
+
+window.openDriverLoginModal = function () {
+    window.openWantToBeDriverFlow({ mode: 'login' });
+};
+
+function enterGuestBrowseSession() {
+    window._isGuestBrowseMode = true;
+    window.userProfile = null;
+    try { document.getElementById('hr-entering-shell')?.remove(); } catch (_) {}
+    dismissBootLoading();
+    document.body.classList.remove('driver-mode', 'trip-active', 'is-searching');
+    document.body.classList.add('client-mode', 'guest-browse-mode');
+    try { window.ensureMapsLoaded?.(); } catch (_) {}
+    try { loadHeavyUiAfterAuth(); } catch (_) {}
+    try { window.loadRolePassengerRuntime?.(); } catch (_) {}
+    try { window.onMerchantAuthReady?.(); } catch (_) {}
+    try { window.loadCustomServiceZones?.(); } catch (_) {}
+    if (!window._authModalExplicitlyOpen) {
+        setElementDisplay('login-screen', 'none');
+    }
+    setElementDisplay('app-interface', 'flex');
+    document.getElementById('driver-view')?.classList.add('hidden');
+    document.getElementById('client-view')?.classList.remove('hidden');
+    document.getElementById('searching-state')?.classList.add('hidden');
+    const greetingEl = document.getElementById('user-greeting-display');
+    if (greetingEl) greetingEl.textContent = 'INVITADO';
+    const avatarEl = document.getElementById('avatar-placeholder');
+    if (avatarEl) {
+        avatarEl.innerHTML = '<i class="fas fa-user text-xs"></i>';
+        avatarEl.classList.add('bg-blue-600', 'text-white', 'font-bold');
+    }
+    setHeaderTwinVisible('admin-trigger-btn', false);
+    setHeaderTwinVisible('supervisor-trigger-btn', false);
+    syncGuestHeaderButtons();
+    const initialZoneId = window.activeServiceZoneId || getDefaultZoneId();
+    window.activeSearchRadiusKm = getCityCoverageKm(initialZoneId);
+    if (initialZoneId) {
+        try { setActiveServiceZone(initialZoneId, { biasMap: window.mapLoaded }); } catch (_) {}
+    }
+    try { initServiceZoneUI(); } catch (_) {}
+    try { window.dockControlPanelForClient?.(); } catch (_) {}
+    try { window.initControlPanelVisibility?.(); } catch (_) {}
+    try { ensurePassengerTripPanelUI(); } catch (_) {}
+    try { window.initTripExperienceUI?.(); } catch (_) {}
+    try { window.selectServiceType?.(window.currentServiceType || 'auto', { keepFareVisible: false, skipCityCheck: true, confirmStep: false }); } catch (_) {}
+    try { window.listenForNearbyDrivers?.(); } catch (_) {}
+    try { window.syncPassengerHomeForRole?.(); } catch (_) {}
+    try { window.syncGuestAndDriverCtaInHome?.(); } catch (_) {}
+    setTimeout(() => {
+        try {
+            if (typeof window.showCustomLogoInHeader === 'function') {
+                window.showCustomLogoInHeader();
+            }
+        } catch (_) {}
+    }, 600);
+}
+window.enterGuestBrowseSession = enterGuestBrowseSession;
+
 onAuthStateChanged(auth, async (user) => {
-            window.currentUserFeedbackUser = user;
+    window.currentUserFeedbackUser = user;
+    currentUser = user;
+    window.currentUser = user;
 
     // =============================================
     // MOSTRAR LOGO EN PANTALLA DE LOGIN
@@ -29941,6 +30096,7 @@ onAuthStateChanged(auth, async (user) => {
             try { window.resumePersistentSession?.(); } catch (_) {}
             return;
         }
+        try { document.documentElement.removeAttribute('data-hr-restore-session'); } catch (_) {}
         window.stopNotificationListener?.();
         window.stopPassengerPromoListeners?.();
         initClosedSessionPushReceiver({
@@ -29949,22 +30105,12 @@ onAuthStateChanged(auth, async (user) => {
             firebaseConfig: APP_CONFIG.firebase,
             vapidKey: APP_CONFIG.messaging?.vapidKey || ''
         }).catch(() => {});
-        // Restaurar última selección de rol (para recordar si eras conductor moto, auto, etc.)
         restoreDriverLoginForm().catch(() => {});
         setTimeout(() => {
             if (typeof window.restoreLastRoleSelection === 'function') {
                 window.restoreLastRoleSelection();
-            } else {
-                // fallback
-                const saved = localStorage.getItem('lastUserRole') || 'client';
-                const btn = document.getElementById(`role-${saved}`);
-                if (btn) {
-                    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('bg-white', 'text-blue-600', 'shadow-sm'));
-                    btn.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
-                }
             }
         }, 200);
-
         setTimeout(() => window.showLoginLogo?.(), 300);
         setTimeout(() => window.showLoginLogo?.(), 800);
         setTimeout(() => window.showLoginLogo?.(), 1500);
@@ -29972,9 +30118,21 @@ onAuthStateChanged(auth, async (user) => {
         setTimeout(() => window.consumeStaffTripShareLink?.(), 400);
         setTimeout(() => window.consumeStaffTripShareLink?.(), 1400);
         setTimeout(() => window.consumeStaffTripShareLink?.(), 3200);
+
+        const explicitFollowId = peekExplicitFollowTripIdFromUrl();
+        if (explicitFollowId) {
+            setTimeout(() => startGuestTripFollow(explicitFollowId, { explicitFollow: true }), 150);
+            return;
+        }
+        enterGuestBrowseSession();
+        return;
     }
 
     if (user) {
+        window._isGuestBrowseMode = false;
+        window._authModalExplicitlyOpen = false;
+        document.body.classList.remove('guest-browse-mode');
+        document.getElementById('login-service-reason-banner')?.classList.add('hidden');
         currentUser = user;
         window.__hrAuthReady = true;
         markKeepSession();
@@ -30248,7 +30406,9 @@ onAuthStateChanged(auth, async (user) => {
                 setElementDisplay('login-screen', 'none');
 
                 // Mostrar formulario según el rol elegido
-                if (userRole === 'driver') {
+                if (userRole === 'driver' || window._pendingWantToBeDriver) {
+                    window._pendingWantToBeDriver = false;
+                    userRole = 'driver';
                     window.showDriverSetupScreen();
                 } else {
                     showSimplePassengerSetup();
@@ -31046,6 +31206,19 @@ onAuthStateChanged(auth, async (user) => {
                     checkPendingVerifications();
                 }, 450);
                 showIOSInstallBannerIfNeeded?.();
+                syncGuestHeaderButtons();
+                if (window._pendingWantToBeDriver && profile.role === 'client') {
+                    window._pendingWantToBeDriver = false;
+                    setTimeout(() => {
+                        try { window.openWantToBeDriverFlow?.(); } catch (_) {}
+                    }, 300);
+                } else if (typeof window._pendingAuthForServiceCallback === 'function') {
+                    const pendingCb = window._pendingAuthForServiceCallback;
+                    window._pendingAuthForServiceCallback = null;
+                    setTimeout(() => {
+                        try { pendingCb(user); } catch (cbErr) { console.warn('[pendingAuthCallback]', cbErr); }
+                    }, 400);
+                }
             }
 
         } catch (err) {
@@ -37965,7 +38138,15 @@ window.saveSimplePassengerProfile = async () => {
         // Nueva función para cancelar el setup con confirmación
 window.cancelSetupAndLogout = () => {
     window.closeDriverRegisterGuide?.();
-    if (confirm("¿Estás seguro de que quieres cancelar el proceso de configuración?\n\nSe cerrará tu sesión actual y volverás a la pantalla de inicio de sesión.")) {
+    if (window._openedDriverSetupFromPanel && currentUser && window.userProfile?.role === 'client') {
+        window._openedDriverSetupFromPanel = false;
+        userRole = 'client';
+        window.hideAuthSetupScreen?.();
+        setElementDisplay('login-screen', 'none');
+        setElementDisplay('app-interface', 'flex');
+        return;
+    }
+    if (confirm("¿Estás seguro de que quieres cancelar el proceso de configuración?\n\nSe cerrará tu sesión actual y volverás a explorar HonduRaite.")) {
         window.processLogout();
     }
 };
@@ -39895,6 +40076,16 @@ window.cancelSetupAndLogout = () => {
         };
 
         window.sendTripRequest = async () => {
+            if (!currentUser) {
+                window.requireAuthForService('pedir tu viaje o envío', {
+                    role: 'client',
+                    mode: 'register',
+                    icon: '🚕',
+                    reasonTitle: 'Inicia sesión o regístrate para pedir tu viaje',
+                    reasonSub: 'Tu origen, destino y tarifa ya están listos. Solo falta tu cuenta para enviarlo al conductor.'
+                });
+                return;
+            }
             const profile = window.userProfile || {};
             const role = profile.role || 'client';
             const isPureDriver = role === 'driver' &&

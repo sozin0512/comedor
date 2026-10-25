@@ -152,6 +152,19 @@ function ensureHomeUi() {
                     </span>
                 </button>
             </div>
+            <div id="want-to-be-driver-card" style="margin-top:0.5rem;">
+                <button type="button" id="btn-want-to-be-driver" data-home-action="want-to-be-driver"
+                    style="width:100%;display:flex;align-items:center;gap:0.65rem;padding:0.55rem 0.75rem;border-radius:0.95rem;border:1px solid #e2e8f0;background:#ffffff;box-shadow:0 4px 14px rgba(15,23,42,0.05);text-align:left;transition:transform 0.12s ease;">
+                    <span style="width:2.2rem;height:2.2rem;border-radius:0.7rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:0.9rem;background:linear-gradient(135deg,#2563eb,#1d4ed8);">
+                        <i class="fas fa-id-card"></i>
+                    </span>
+                    <span style="flex:1;min-width:0;display:flex;flex-direction:column;gap:0.05rem;">
+                        <strong style="font-size:0.78rem;font-weight:900;color:#0f172a;line-height:1.15;">Quiero ser conductor</strong>
+                        <small style="font-size:0.64rem;font-weight:600;color:#64748b;line-height:1.2;">Registra tu auto, moto, taxi, paila o grúa en HonduRaite</small>
+                    </span>
+                    <i class="fas fa-chevron-right" style="color:#94a3b8;font-size:0.72rem;flex-shrink:0;"></i>
+                </button>
+            </div>
             <p class="passenger-home-foot">Toca una opción · vuelve con <b>Inicio</b></p>
         `;
         if (isNew) {
@@ -188,6 +201,47 @@ function ensureHomeUi() {
     if (!bound) {
         bound = true;
         clientView.addEventListener('click', (e) => {
+            const actionBtn = e.target.closest('[data-home-action]');
+            if (actionBtn && clientView.contains(actionBtn)) {
+                e.preventDefault();
+                const action = actionBtn.getAttribute('data-home-action');
+                if (action === 'side-driver') {
+                    switchPanelSideView('driver');
+                } else if (action === 'side-passenger') {
+                    switchPanelSideView('passenger');
+                } else if (action === 'want-to-be-driver') {
+                    if (typeof window.openWantToBeDriverFlow === 'function') {
+                        window.openWantToBeDriverFlow({ source: 'panel' });
+                    } else if (typeof window.openGuestAuthModal === 'function') {
+                        window.openGuestAuthModal({
+                            role: 'driver',
+                            mode: 'register',
+                            icon: '🚗',
+                            reasonTitle: 'Quiero ser conductor de HonduRaite',
+                            reasonSub: 'Crea tu cuenta de conductor y registra los datos de tu vehículo.'
+                        });
+                    }
+                } else if (action === 'driver-login') {
+                    if (typeof window.openDriverLoginModal === 'function') {
+                        window.openDriverLoginModal();
+                    } else if (typeof window.openGuestAuthModal === 'function') {
+                        window.openGuestAuthModal({
+                            role: 'driver',
+                            mode: 'login',
+                            icon: '🔑',
+                            reasonTitle: 'Acceso para Conductores',
+                            reasonSub: 'Ingresa con tu correo o teléfono de conductor.'
+                        });
+                    }
+                } else if (action === 'open-auth') {
+                    if (typeof window.openGuestAuthModal === 'function') {
+                        window.openGuestAuthModal({ role: 'client', mode: 'login' });
+                    } else if (typeof window.revealLoginScreen === 'function') {
+                        window.revealLoginScreen();
+                    }
+                }
+                return;
+            }
             const btn = e.target.closest('[data-home-mode]');
             if (!btn || !clientView.contains(btn)) return;
             const mode = btn.getAttribute('data-home-mode');
@@ -196,7 +250,50 @@ function ensureHomeUi() {
             setPassengerHomeMode(mode);
         });
     }
+    syncGuestAndDriverCtaInHome();
 }
+
+
+export function switchPanelSideView(side = 'passenger') {
+    const isDriverSide = side === 'driver';
+    const passengerSide = document.getElementById('panel-passenger-side-view');
+    const driverSide = document.getElementById('panel-driver-side-view');
+    const tabPassenger = document.getElementById('panel-side-tab-passenger');
+    const tabDriver = document.getElementById('panel-side-tab-driver');
+    if (passengerSide) passengerSide.classList.toggle('hidden', isDriverSide);
+    if (driverSide) driverSide.classList.toggle('hidden', !isDriverSide);
+    if (tabPassenger) {
+        tabPassenger.className = isDriverSide
+            ? 'flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5'
+            : 'flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all bg-white text-blue-600 shadow-sm flex items-center justify-center gap-1.5';
+    }
+    if (tabDriver) {
+        tabDriver.className = isDriverSide
+            ? 'flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all bg-slate-900 text-amber-300 shadow-sm flex items-center justify-center gap-1.5'
+            : 'flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5';
+    }
+}
+
+export function syncGuestAndDriverCtaInHome() {
+    const isGuest = !window.currentUser;
+    const prof = getUserProfile?.() || window.userProfile || null;
+    const isAlreadyDriver = prof?.role === 'driver';
+    const guestBar = document.getElementById('guest-welcome-auth-bar');
+    const guestPill = document.getElementById('panel-guest-login-pill');
+    const driverCard = document.getElementById('want-to-be-driver-card');
+    if (guestBar) guestBar.classList.toggle('hidden', !isGuest);
+    if (guestPill) {
+        guestPill.classList.toggle('hidden', !isGuest);
+        guestPill.classList.toggle('inline-flex', isGuest);
+    }
+    if (driverCard) {
+        driverCard.classList.toggle('hidden', isAlreadyDriver);
+    }
+}
+try {
+    window.switchPanelSideView = switchPanelSideView;
+    window.syncGuestAndDriverCtaInHome = syncGuestAndDriverCtaInHome;
+} catch (_) {}
 
 function getActiveCityId() {
     return window.activeServiceZoneId || getDefaultZoneId() || null;

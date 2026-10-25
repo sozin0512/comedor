@@ -4120,7 +4120,19 @@ function markCheckoutFieldInvalid(inputId, message) {
 async function placeOrder() {
     const user = getCurrentUser();
     const profile = getUserProfile() || {};
-    if (!user) return toast('Inicia sesión para pedir', 'error');
+    if (!user?.uid) {
+        if (typeof window.requireAuthForService === 'function') {
+            window.requireAuthForService('enviar tu pedido en Tiendas', {
+                role: 'client',
+                mode: 'register',
+                icon: '🛍️',
+                reasonTitle: 'Inicia sesión o regístrate para enviar tu pedido',
+                reasonSub: 'Tu carrito de compras y dirección quedan guardados automáticamente.'
+            });
+            return;
+        }
+        return toast('Inicia sesión para pedir', 'error');
+    }
     if (!viewingStore || !cart.length) return toast('Carrito vacío', 'warning');
     if (!storeOpenInfo(viewingStore).open) {
         const lbl = storeOpenInfo(viewingStore).label;
@@ -4450,6 +4462,10 @@ function onMarketplaceClick(e) {
     }
     if (action === 'place-order') return placeOrder();
     if (action === 'my-orders') {
+        if (!getCurrentUser()?.uid) {
+            window.requireAuthForService?.('ver tus pedidos en Tiendas', { role: 'client', mode: 'login', icon: '📦' });
+            return;
+        }
         marketplaceView = 'my-orders';
         startClientOrdersListener();
         return renderMarketplace();
@@ -4768,6 +4784,18 @@ export async function startCloneBranch(sourceStoreId = myStore?.id) {
 }
 
 export async function openMerchantPanel(opts = {}) {
+    if (!getCurrentUser()?.uid) {
+        if (typeof window.requireAuthForService === 'function') {
+            window.requireAuthForService('registrar o administrar tu tienda', {
+                role: 'client',
+                mode: 'register',
+                icon: '🏪',
+                reasonTitle: 'Inicia sesión o crea tu cuenta para administrar tu tienda',
+                reasonSub: 'Enseguida podrás registrar tus productos y pedir envíos.'
+            });
+            return;
+        }
+    }
     let createNew = opts.createNew === true;
     const cloneFromId = opts.cloneFromStoreId || null;
     if (createNew) {
@@ -8041,9 +8069,11 @@ export function initMerchantStores(deps = {}) {
     window.staffToggleStoreAdultsOnly = staffToggleAdultsOnly;
     window.staffFixStoreCity = staffFixStoreCity;
 
-    // When user logs in, warm listeners lightly (including client order status notifications)
+    // Start public stores & fire zones listeners for both guests and signed-in users
+    startStoresListener();
+    startRecentStoreDeliveriesListener();
+    startFireZonesAutoRefreshInterval();
     if (getCurrentUser()?.uid) {
-        startStoresListener();
         startClientOrdersListener();
     }
 
