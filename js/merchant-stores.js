@@ -13,33 +13,33 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.5';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.5';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.6';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.6';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.25.5';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.25.5';
-import { APP_CONFIG } from './config.js?v=2026.10.25.5';
-import { calculateAge } from './age-verification.js?v=2026.10.25.5';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.5';
+} from './zones.js?v=2026.10.25.6';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.25.6';
+import { APP_CONFIG } from './config.js?v=2026.10.25.6';
+import { calculateAge } from './age-verification.js?v=2026.10.25.6';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.6';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.25.5';
+} from './store-delivery-zones.js?v=2026.10.25.6';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.25.5';
+} from './store-week.js?v=2026.10.25.6';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.25.5';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.5';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.25.6';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.6';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.25.5';
+} from './merchant-delivery-request.js?v=2026.10.25.6';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -1296,12 +1296,18 @@ export function getStoreMapPinMeta(s, allStores = null) {
  * Si dos o más tiendas/sucursales comparten exactamente la misma coordenada (o están a <18m),
  * las separa ligeramente en círculo (~24m) para que todos los pines y emojis se vean en el mapa.
  */
+/**
+ * Si dos o más tiendas/sucursales comparten coordenada o están muy juntas (<60m),
+ * las distribuye en un anillo limpio (~85m de radio) alrededor de su centroide para que
+ * en zoom de ciudad (zoom 14) los pines circulares de 34px no se encimen.
+ * Las tiendas con ubicación propia (>=60m de cualquier otra) conservan su pin GPS exacto.
+ */
 export function resolveStoreMapPositions(stores = []) {
     const valid = (Array.isArray(stores) ? stores : []).filter(
         (s) => s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))
     );
     const groups = [];
-    const thresholdDeg = 0.00016;
+    const thresholdDeg = 0.00055; // ~60 metros
     valid.forEach((s) => {
         const lat = Number(s.lat);
         const lng = Number(s.lng);
@@ -1309,6 +1315,10 @@ export function resolveStoreMapPositions(stores = []) {
         if (!group) {
             group = { lat, lng, items: [] };
             groups.push(group);
+        } else {
+            const n = group.items.length;
+            group.lat = (group.lat * n + lat) / (n + 1);
+            group.lng = (group.lng * n + lng) / (n + 1);
         }
         group.items.push(s);
     });
@@ -1319,12 +1329,12 @@ export function resolveStoreMapPositions(stores = []) {
             out.set(s.id, { lat: Number(s.lat), lng: Number(s.lng), offsetApplied: false });
             return;
         }
-        const radiusDeg = 0.00022;
+        const radiusDeg = 0.00078; // ~85 metros de radio para separar limpio en zoom 14
         g.items.forEach((s, idx) => {
-            const angle = (2 * Math.PI * idx) / g.items.length;
+            const angle = (2 * Math.PI * idx) / g.items.length - Math.PI / 6;
             out.set(s.id, {
-                lat: Number((Number(s.lat) + Math.sin(angle) * radiusDeg).toFixed(6)),
-                lng: Number((Number(s.lng) + Math.cos(angle) * radiusDeg).toFixed(6)),
+                lat: Number((Number(g.lat) + Math.sin(angle) * radiusDeg).toFixed(6)),
+                lng: Number((Number(g.lng) + Math.cos(angle) * radiusDeg).toFixed(6)),
                 offsetApplied: true,
             });
         });
@@ -1340,31 +1350,26 @@ export function buildStoreMapPinHtml(s, opts = {}) {
     const hot = opts.hot || storeHotInfo(s);
     const isHot = Boolean(hot?.isHot && hot?.fireTier);
     const tier = isHot ? hot.fireTier : null;
-    const borderCol = isHot ? tier.primaryColor : (opts.highlighted ? "#f59e0b" : meta.accent);
-    const nameShort = String(s.name || "Tienda").length > 22
-        ? String(s.name || "Tienda").slice(0, 20).trim() + "…"
-        : String(s.name || "Tienda");
+    const highlighted = Boolean(opts.highlighted);
+    const showLabel = Boolean(opts.showLabel || highlighted);
+    const borderCol = isHot ? tier.primaryColor : (highlighted ? "#f59e0b" : (meta.isBranch ? "#7c3aed" : "#2563eb"));
+    const rawName = String(s.name || "Tienda").trim();
+    const microName = rawName.length > 15 ? rawName.slice(0, 14).trim() + "…" : rawName;
+    const microText = meta.isBranch ? `🏬 ${microName}` : microName;
     return `
-        <div class="hr-store-map-pin ${meta.isBranch ? "hr-store-map-pin--branch" : "hr-store-map-pin--main"} ${isOpen ? "is-open" : "is-closed"} ${isHot ? "is-hot " + esc(tier.cssClass) : ""} ${opts.highlighted ? "is-highlighted" : ""}"
+        <div class="hr-store-map-pin ${meta.isBranch ? "hr-store-map-pin--branch" : "hr-store-map-pin--main"} ${isOpen ? "is-open" : "is-closed"} ${isHot ? "is-hot " + esc(tier.cssClass) : ""} ${highlighted ? "is-highlighted" : ""} ${showLabel ? "is-label-visible" : ""}"
              data-store-map-pin-id="${esc(s.id || "")}"
              data-is-branch="${meta.isBranch ? "1" : "0"}"
-             style="--pin-accent:${borderCol};--pin-badge-bg:${meta.badgeBg};">
-            <span class="hr-store-map-pin__emoji" aria-hidden="true">
-                ${esc(meta.emoji)}
+             style="--pin-accent:${borderCol};--pin-badge-bg:${meta.badgeBg};"
+             title="${esc(rawName)}${meta.rawBranch ? " · Sucursal: " + esc(meta.rawBranch) : ""}">
+            <span class="hr-store-map-pin__circle">
+                <span class="hr-store-map-pin__emoji" aria-hidden="true">${esc(meta.emoji)}</span>
+                ${meta.isBranch ? `<span class="hr-store-map-pin__branch-tag" title="Sucursal">🏬</span>` : ""}
+                ${isHot ? `<span class="hr-store-map-pin__fire-tag" title="En Fuego">${esc(tier.emoji || "🔥")}</span>` : ""}
                 <span class="hr-store-map-pin__dot ${isOpen ? "is-open" : "is-closed"}" title="${isOpen ? "Abierta ahora" : "Cerrada"}"></span>
             </span>
-            <span class="hr-store-map-pin__body">
-                <span class="hr-store-map-pin__top">
-                    <strong class="hr-store-map-pin__name">${esc(nameShort)}</strong>
-                    ${isHot ? `<span class="hr-store-map-pin__fire" style="background:${tier.gradient};color:${tier.badgeTextColor};">${esc(tier.emoji)}</span>` : ""}
-                </span>
-                ${meta.isBranch
-                    ? `<span class="hr-store-map-pin__branch-badge">🏬 ${esc(meta.shortBranch || "Sucursal")}</span>`
-                    : (meta.hasChildBranches
-                        ? `<span class="hr-store-map-pin__main-badge">🏪 Matriz · ${isOpen ? "Abierta" : "Cerrada"}</span>`
-                        : `<span class="hr-store-map-pin__sub">${isOpen ? "🟢 Abierta" : "⚪ Cerrada"}</span>`)}
-            </span>
             <span class="hr-store-map-pin__tip" aria-hidden="true"></span>
+            <span class="hr-store-map-pin__micro-label">${esc(microText)}</span>
         </div>
     `;
 }
@@ -1373,17 +1378,22 @@ export function buildStoreMapSvgDataUri(s, opts = {}) {
     const meta = getStoreMapPinMeta(s, opts.allStores);
     const openInfo = opts.openInfo || storeOpenInfo(s);
     const isOpen = Boolean(openInfo?.open);
-    const stroke = meta.isBranch ? "#7c3aed" : "#0c4a8e";
-    const fill = isOpen ? (meta.isBranch ? "#f3e8ff" : "#eff6ff") : "#f1f5f9";
+    const highlighted = Boolean(opts.highlighted);
+    const stroke = highlighted ? "#f59e0b" : (meta.isBranch ? "#7c3aed" : "#2563eb");
+    const fill = meta.isBranch ? "#faf5ff" : "#ffffff";
     const dot = isOpen ? "#10b981" : "#94a3b8";
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="52" height="58" viewBox="0 0 52 58">
-        <filter id="sh" x="-15%" y="-15%" width="130%" height="130%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.35"/>
+    const branchBadge = meta.isBranch
+        ? `<circle cx="9" cy="9" r="6.5" fill="#7c3aed" stroke="#ffffff" stroke-width="1.5"/><text x="9" y="12" text-anchor="middle" font-size="8" font-weight="900" fill="#ffffff">S</text>`
+        : "";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="38" height="44" viewBox="0 0 38 44">
+        <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.32"/>
         </filter>
         <g filter="url(#sh)">
-            <path d="M26 55 L18 43 H12 A10 10 0 0 1 2 33 V13 A10 10 0 0 1 12 3 H40 A10 10 0 0 1 50 13 V33 A10 10 0 0 1 40 43 H34 Z" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
-            <text x="26" y="30" text-anchor="middle" font-size="22">${meta.emoji}</text>
-            <circle cx="41" cy="11" r="5.5" fill="${dot}" stroke="#ffffff" stroke-width="2"/>
+            <path d="M19 41 L14 34 A16 16 0 1 1 24 34 Z" fill="${fill}" stroke="${stroke}" stroke-width="2.6"/>
+            <text x="19" y="24" text-anchor="middle" font-size="18">${meta.emoji}</text>
+            ${branchBadge}
+            <circle cx="30" cy="28" r="4.5" fill="${dot}" stroke="#ffffff" stroke-width="1.6"/>
         </g>
     </svg>`;
     return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
@@ -9004,6 +9014,8 @@ export function syncDriverHotStoresOnMap() {
 let allStoresMapMarkers = [];
 let marketplaceInlineMapCtrl = null;
 let mapReadyPollTimer = null;
+let selectedStoreMapPinId = null;
+let mainMapZoomListenerBound = null;
 
 export function getMapEligibleStores(stores = [...storesCache.values()]) {
     const staff = isStoresStaff();
@@ -9034,6 +9046,16 @@ export function renderStoreEmojiPinsOnMapInstance(gMap, {
     const posMap = resolveStoreMapPositions(list);
     const now = hnNowMinutes();
     const createdMarkers = [];
+    const activeHighlightId = highlightStoreId || selectedStoreMapPinId || null;
+    const currentZoom = typeof gMap.getZoom === "function" ? Number(gMap.getZoom() || 14) : 14;
+    const isCloseZoom = currentZoom >= 16;
+
+    try {
+        const mapDiv = typeof gMap.getDiv === "function" ? gMap.getDiv() : null;
+        if (mapDiv && mapDiv.classList) {
+            mapDiv.classList.toggle("hr-map-zoom-close", isCloseZoom);
+        }
+    } catch (_) {}
 
     list.forEach((s) => {
         const resolved = posMap.get(s.id) || { lat: Number(s.lat), lng: Number(s.lng) };
@@ -9042,9 +9064,11 @@ export function renderStoreEmojiPinsOnMapInstance(gMap, {
         const meta = getStoreMapPinMeta(s, list);
         const openInfo = storeOpenInfo(s, now);
         const hot = storeHotInfo(s);
-        const highlighted = Boolean(highlightStoreId && s.id === highlightStoreId);
+        const highlighted = Boolean(activeHighlightId && s.id === activeHighlightId);
+        const showLabel = Boolean(isCloseZoom || highlighted);
         const titleTxt = `${meta.emoji} ${s.name || "Tienda"}${meta.rawBranch ? " · 🏬 " + meta.rawBranch : ""} (${openInfo.open ? "Abierta" : "Cerrada"})`;
         const handleClick = () => {
+            selectedStoreMapPinId = s.id;
             if (typeof onPinClick === "function") onPinClick(s, pos);
             else openStoreMapPinSheet(s.id, { panMainMap: true });
         };
@@ -9052,7 +9076,7 @@ export function renderStoreEmojiPinsOnMapInstance(gMap, {
         const canUseAdv = Boolean(google.maps.marker?.AdvancedMarkerElement && (typeof gMap.getMapId !== "function" || gMap.getMapId()));
         if (canUseAdv) {
             const wrap = document.createElement("div");
-            wrap.innerHTML = buildStoreMapPinHtml(s, { allStores: list, openInfo, hot, highlighted }).trim();
+            wrap.innerHTML = buildStoreMapPinHtml(s, { allStores: list, openInfo, hot, highlighted, showLabel }).trim();
             const el = wrap.firstElementChild || wrap;
             el.addEventListener("click", (ev) => {
                 ev.stopPropagation?.();
@@ -9065,35 +9089,75 @@ export function renderStoreEmojiPinsOnMapInstance(gMap, {
                 title: titleTxt,
                 zIndex: highlighted ? 60 : (hot?.isHot ? 45 : (meta.isBranch ? 36 : 35)),
             });
+            adv.__hrPinEl = el;
+            adv.__hrStoreId = s.id;
             adv.addListener?.("gmp-click", handleClick);
             createdMarkers.push(adv);
         } else if (google.maps.Marker) {
-            const labelTxt = meta.isBranch
-                ? `${meta.emoji} ${s.name || "Tienda"} · 🏬 ${meta.shortBranch || "Sucursal"}`
-                : `${meta.emoji} ${s.name || "Tienda"}`;
+            const rawName = String(s.name || "Tienda").trim();
+            const shortName = rawName.length > 14 ? rawName.slice(0, 13).trim() + "…" : rawName;
+            const microLabelTxt = meta.isBranch ? `🏬 ${shortName}` : shortName;
             const marker = new google.maps.Marker({
                 map: gMap,
                 position: pos,
                 title: titleTxt,
                 icon: {
-                    url: buildStoreMapSvgDataUri(s, { allStores: list, openInfo }),
-                    scaledSize: new google.maps.Size(48, 54),
-                    anchor: new google.maps.Point(24, 52),
-                    labelOrigin: new google.maps.Point(24, 64),
+                    url: buildStoreMapSvgDataUri(s, { allStores: list, openInfo, highlighted }),
+                    scaledSize: new google.maps.Size(34, 40),
+                    anchor: new google.maps.Point(17, 38),
+                    labelOrigin: new google.maps.Point(17, 48),
                 },
-                label: {
-                    text: labelTxt,
+                label: showLabel ? {
+                    text: microLabelTxt,
                     color: meta.isBranch ? "#581c87" : "#0f172a",
-                    fontSize: "11px",
-                    fontWeight: "900",
-                    className: "hr-gmap-store-label",
-                },
+                    fontSize: "10px",
+                    fontWeight: "800",
+                    className: "hr-gmap-store-micro-label",
+                } : null,
                 zIndex: highlighted ? 60 : (meta.isBranch ? 36 : 35),
             });
+            marker.__hrStore = s;
+            marker.__hrMicroLabelTxt = microLabelTxt;
+            marker.__hrIsBranch = meta.isBranch;
             marker.addListener?.("click", handleClick);
             createdMarkers.push(marker);
         }
     });
+
+    if (typeof gMap.addListener === "function" && gMap !== mainMapZoomListenerBound) {
+        if (gMap === (typeof window !== "undefined" ? window.gMap : null)) {
+            mainMapZoomListenerBound = gMap;
+        }
+        gMap.addListener("zoom_changed", () => {
+            const z = typeof gMap.getZoom === "function" ? Number(gMap.getZoom() || 14) : 14;
+            const close = z >= 16;
+            try {
+                const mapDiv = typeof gMap.getDiv === "function" ? gMap.getDiv() : null;
+                mapDiv?.classList?.toggle("hr-map-zoom-close", close);
+            } catch (_) {}
+            const activeMarkers = gMap === (typeof window !== "undefined" ? window.gMap : null)
+                ? allStoresMapMarkers
+                : createdMarkers;
+            activeMarkers.forEach((m) => {
+                try {
+                    const isSel = Boolean(selectedStoreMapPinId && (m.__hrStoreId === selectedStoreMapPinId || m.__hrStore?.id === selectedStoreMapPinId));
+                    const vis = close || isSel;
+                    if (m.__hrPinEl) {
+                        m.__hrPinEl.classList.toggle("is-label-visible", vis);
+                        m.__hrPinEl.classList.toggle("is-highlighted", isSel);
+                    } else if (typeof m.setLabel === "function" && m.__hrMicroLabelTxt) {
+                        m.setLabel(vis ? {
+                            text: m.__hrMicroLabelTxt,
+                            color: m.__hrIsBranch ? "#581c87" : "#0f172a",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                            className: "hr-gmap-store-micro-label",
+                        } : null);
+                    }
+                } catch (_) {}
+            });
+        });
+    }
 
     return createdMarkers;
 }
@@ -9117,16 +9181,19 @@ export function syncAllStoresOnMap() {
 
     const lMap = typeof window !== "undefined" ? (window.leafletMap || window.lMap) : null;
     if (lMap && typeof window.L !== "undefined") {
+        const z = typeof lMap.getZoom === "function" ? Number(lMap.getZoom() || 14) : 14;
+        const showLabel = z >= 16;
         list.forEach((s) => {
             const resolved = posMap.get(s.id) || { lat: Number(s.lat), lng: Number(s.lng) };
             if (!validCoords(resolved.lat, resolved.lng)) return;
             const openInfo = storeOpenInfo(s, now);
             const hot = storeHotInfo(s);
+            const highlighted = Boolean(selectedStoreMapPinId && s.id === selectedStoreMapPinId);
             const icon = window.L.divIcon({
                 className: "hr-leaflet-store-pin-icon",
-                html: buildStoreMapPinHtml(s, { allStores: list, openInfo, hot }),
-                iconSize: [185, 54],
-                iconAnchor: [92, 50],
+                html: buildStoreMapPinHtml(s, { allStores: list, openInfo, hot, highlighted, showLabel: showLabel || highlighted }),
+                iconSize: [38, 42],
+                iconAnchor: [19, 40],
             });
             const marker = window.L.marker([resolved.lat, resolved.lng], { icon }).addTo(lMap);
             marker.on?.("click", () => openStoreMapPinSheet(s.id, { panMainMap: true }));
@@ -9138,6 +9205,7 @@ export function syncAllStoresOnMap() {
     if (gMap && typeof google !== "undefined" && google.maps) {
         const gMarkers = renderStoreEmojiPinsOnMapInstance(gMap, {
             stores: list,
+            highlightStoreId: selectedStoreMapPinId,
             onPinClick: (s) => openStoreMapPinSheet(s.id, { panMainMap: true }),
         });
         allStoresMapMarkers.push(...gMarkers);
@@ -9229,6 +9297,8 @@ export function openStoreMapPinSheet(storeId, { panMainMap = false } = {}) {
     if (typeof document === "undefined") return null;
     const s = storesCache.get(storeId) || staffStoresList.find((x) => x.id === storeId) || null;
     if (!s) return null;
+    selectedStoreMapPinId = s.id;
+    try { syncAllStoresOnMap(); } catch (_) {}
     if (panMainMap && validCoords(Number(s.lat), Number(s.lng))) {
         const pos = { lat: Number(s.lat), lng: Number(s.lng) };
         try {
@@ -9246,7 +9316,9 @@ export function openStoreMapPinSheet(storeId, { panMainMap = false } = {}) {
     document.body.appendChild(modal);
 
     const close = () => {
+        selectedStoreMapPinId = null;
         try { modal.remove(); } catch (_) {}
+        try { syncAllStoresOnMap(); } catch (_) {}
     };
     modal.addEventListener("click", (ev) => {
         const btn = ev.target.closest("[data-pin-sheet-act]");
@@ -9422,8 +9494,8 @@ function mountStoresMarketplaceInlineMap(stores = [], city = null) {
             const icon = window.L.divIcon({
                 className: "hr-leaflet-store-pin-icon",
                 html: buildStoreMapPinHtml(s, { allStores: withCoords, openInfo: storeOpenInfo(s, now), hot: storeHotInfo(s) }),
-                iconSize: [185, 54],
-                iconAnchor: [92, 50],
+                iconSize: [38, 42],
+                iconAnchor: [19, 40],
             });
             const m = window.L.marker([p.lat, p.lng], { icon }).addTo(lMap);
             m.on?.("click", () => openStoreMapPinSheet(s.id, { panMainMap: false }));

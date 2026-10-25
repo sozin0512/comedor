@@ -25961,116 +25961,164 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
 .hr-store-map-pin {
   position: relative;
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 7px;
-  padding: 5px 10px 5px 6px;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.94);
-  border: 2.2px solid var(--pin-accent, #0284c7);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.42), 0 0 0 2px rgba(255, 255, 255, 0.9);
-  color: #ffffff;
+  justify-content: center;
+  width: 34px;
+  height: 38px;
+  padding: 0;
   cursor: pointer;
   user-select: none;
-  transition: transform 0.16s ease, box-shadow 0.16s ease;
-  max-width: 220px;
+  transition: transform 0.16s ease, filter 0.16s ease;
+  z-index: 20;
 }
 .hr-store-map-pin:hover {
-  transform: translateY(-2px) scale(1.04);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.55), 0 0 0 2.5px #ffffff;
+  transform: translateY(-2px) scale(1.1);
+  z-index: 45;
 }
-.hr-store-map-pin--branch {
-  background: linear-gradient(135deg, rgba(46, 16, 101, 0.96), rgba(88, 28, 135, 0.94));
-  border-color: #a855f7;
-}
-.hr-store-map-pin.is-highlighted {
-  border-color: #f59e0b;
-  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.45), 0 8px 22px rgba(15, 23, 42, 0.5);
-}
-.hr-store-map-pin__emoji {
+.hr-store-map-pin__circle {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
-  background: var(--pin-badge-bg, linear-gradient(135deg, #0c4a8e, #0284c7));
+  background: #ffffff;
+  border: 2.5px solid var(--pin-accent, #2563eb);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.34), 0 0 0 1.5px rgba(255, 255, 255, 0.92);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 17px;
-  line-height: 1;
   flex-shrink: 0;
-  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35);
+}
+.hr-store-map-pin--branch .hr-store-map-pin__circle {
+  background: #faf5ff;
+  border-color: #7c3aed;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.36), 0 0 0 1.5px rgba(255, 255, 255, 0.95);
+}
+.hr-store-map-pin.is-hot .hr-store-map-pin__circle {
+  border-color: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.35), 0 6px 16px rgba(234, 88, 12, 0.45);
+}
+.hr-store-map-pin.is-highlighted {
+  transform: translateY(-3px) scale(1.14);
+  z-index: 60;
+}
+.hr-store-map-pin.is-highlighted .hr-store-map-pin__circle {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3.5px rgba(245, 158, 11, 0.5), 0 8px 20px rgba(15, 23, 42, 0.45);
+}
+.hr-store-map-pin__emoji {
+  font-size: 18px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 1px 1px rgba(15, 23, 42, 0.14));
+}
+.hr-store-map-pin__branch-tag {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #7c3aed;
+  border: 1.5px solid #ffffff;
+  color: #ffffff;
+  font-size: 8.5px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.3);
+}
+.hr-store-map-pin__fire-tag {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ea580c, #f59e0b);
+  border: 1.5px solid #ffffff;
+  font-size: 9px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 5px rgba(234, 88, 12, 0.45);
 }
 .hr-store-map-pin__dot {
   position: absolute;
-  right: -1px;
-  bottom: -1px;
-  width: 9px;
-  height: 9px;
+  right: -2px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
   border-radius: 999px;
-  border: 1.5px solid #0f172a;
+  border: 1.5px solid #ffffff;
 }
 .hr-store-map-pin__dot.is-open {
   background: #10b981;
-  box-shadow: 0 0 6px #10b981;
+  box-shadow: 0 0 5px rgba(16, 185, 129, 0.75);
 }
 .hr-store-map-pin__dot.is-closed {
   background: #94a3b8;
 }
-.hr-store-map-pin__body {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.15;
-}
-.hr-store-map-pin__top {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.hr-store-map-pin__name {
-  font-size: 11px;
-  font-weight: 900;
-  color: #ffffff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.hr-store-map-pin__fire {
-  font-size: 9.5px;
-  font-weight: 900;
-  padding: 0 4px;
-  border-radius: 999px;
-}
-.hr-store-map-pin__branch-badge {
-  font-size: 9.5px;
-  font-weight: 800;
-  color: #e9d5ff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.hr-store-map-pin__main-badge {
-  font-size: 9.5px;
-  font-weight: 800;
-  color: #bae6fd;
-  white-space: nowrap;
-}
-.hr-store-map-pin__sub {
-  font-size: 9px;
-  font-weight: 700;
-  color: #cbd5e1;
-  white-space: nowrap;
-}
 .hr-store-map-pin__tip {
-  position: absolute;
-  left: 50%;
-  bottom: -7px;
-  transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 7px solid var(--pin-accent, #0284c7);
+  margin-top: -1px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--pin-accent, #2563eb);
+}
+.hr-store-map-pin--branch .hr-store-map-pin__tip {
+  border-top-color: #7c3aed;
+}
+.hr-store-map-pin.is-highlighted .hr-store-map-pin__tip {
+  border-top-color: #f59e0b;
+}
+.hr-store-map-pin__micro-label {
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 110px;
+  padding: 1.5px 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+  pointer-events: none;
+}
+.hr-store-map-pin--branch .hr-store-map-pin__micro-label {
+  background: rgba(88, 28, 135, 0.92);
+  border-color: #e9d5ff;
+}
+.hr-map-zoom-close .hr-store-map-pin__micro-label,
+.hr-store-map-pin.is-label-visible .hr-store-map-pin__micro-label,
+.hr-store-map-pin.is-highlighted .hr-store-map-pin__micro-label,
+.hr-store-map-pin:hover .hr-store-map-pin__micro-label {
+  display: inline-block;
+}
+.hr-gmap-store-micro-label {
+  background: rgba(15, 23, 42, 0.88);
+  color: #ffffff !important;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.3);
 }
 
 /* Sección de mapa interactivo dentro de Tiendas */

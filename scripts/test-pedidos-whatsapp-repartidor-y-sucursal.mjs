@@ -194,5 +194,18 @@ ok('t199u: pines con emojis para tiendas principales y sucursales en el mapa (�
     assert.ok(msSrc.includes('export function openStoreMapPinSheet('));
 });
 
+// 9) t200u: Pines circulares compactos de 34px sin encimarse en zoom móvil + separación espacial de 85m
+ok('t200u: pines circulares compactos (34px) con micro-label al hacer zoom/tocar y separación de 85m', () => {
+    const msSrc = fs.readFileSync(path.join(ROOT, 'js/merchant-stores.js'), 'utf8');
+    const cssSrc = fs.readFileSync(path.join(ROOT, 'css/app.css'), 'utf8');
+    assert.ok(msSrc.includes('hr-store-map-pin__circle'));
+    assert.ok(msSrc.includes('hr-store-map-pin__micro-label'));
+    assert.ok(msSrc.includes('const thresholdDeg = 0.00055'));
+    assert.ok(msSrc.includes('const radiusDeg = 0.00078'));
+    assert.ok(cssSrc.includes('.hr-store-map-pin__circle'));
+    assert.ok(cssSrc.includes('.hr-map-zoom-close .hr-store-map-pin__micro-label'));
+});
+
 console.log(`${passed}/${passed} PASS`);
+
 
