@@ -9,7 +9,7 @@ import {
     resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras, customerChargeText,
     parseHondurasCoordsInput, buildDeliveryTrackingUrl, buildMerchantShareTripMessage, buildMerchantShareTripWhatsAppUrl,
     normalizeSelectedDeliveryItems, calculateDeliveryItemsSubtotal, formatDeliveryItemsSummary, formatDeliveryItemsBannerText,
-} from './merchant-delivery-request.js?v=2026.10.24.6';
+} from './merchant-delivery-request.js?v=2026.10.24.7';
 
 function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
