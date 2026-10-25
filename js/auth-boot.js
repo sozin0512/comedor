@@ -129,10 +129,11 @@ function hideLoginScreen() {
 
 function revealLoginScreen() {
     window.__hrAuthReady = true;
+    window._authModalExplicitlyOpen = true;
     try { document.documentElement.removeAttribute('data-hr-restore-session'); } catch (_) {}
     document.getElementById('hr-entering-shell')?.remove();
     const login = document.getElementById('login-screen');
-    if (login) login.style.display = '';
+    if (login) login.style.display = 'flex';
     const boot = document.getElementById('hr-boot-loading');
     if (boot) {
         window.__hrBootDismissed = true;
@@ -140,6 +141,67 @@ function revealLoginScreen() {
         boot.classList.add('hr-boot-hide');
         setTimeout(() => { try { boot.remove(); } catch (_) {} }, 400);
     }
+}
+
+function enterGuestBrowseMode() {
+    window.__hrAuthReady = true;
+    window._isGuestBrowseMode = true;
+    try { document.documentElement.removeAttribute('data-hr-restore-session'); } catch (_) {}
+    document.getElementById('hr-entering-shell')?.remove();
+    if (!window._authModalExplicitlyOpen) {
+        const login = document.getElementById('login-screen');
+        if (login) login.style.display = 'none';
+    }
+    const appInterface = document.getElementById('app-interface');
+    if (appInterface) appInterface.style.display = 'flex';
+    const boot = document.getElementById('hr-boot-loading');
+    if (boot) {
+        window.__hrBootDismissed = true;
+        window.__hrAppReady = true;
+        boot.classList.add('hr-boot-hide');
+        setTimeout(() => { try { boot.remove(); } catch (_) {} }, 400);
+    }
+    try { window.ensureMapsLoaded?.(); } catch (_) {}
+    loadAppRuntime();
+}
+
+function closeAuthModalToGuest() {
+    window._authModalExplicitlyOpen = false;
+    window._pendingAuthForServiceCallback = null;
+    window._pendingWantToBeDriver = false;
+    const banner = document.getElementById('login-service-reason-banner');
+    if (banner) banner.classList.add('hidden');
+    const login = document.getElementById('login-screen');
+    if (login) login.style.display = 'none';
+    if (!window.currentUser) {
+        enterGuestBrowseMode();
+    } else {
+        const appInterface = document.getElementById('app-interface');
+        if (appInterface) appInterface.style.display = 'flex';
+    }
+}
+
+function openGuestAuthModal(options = {}) {
+    const role = options.role === 'driver' ? 'driver' : 'client';
+    const mode = options.mode === 'register' ? 'register' : 'login';
+    window._authModalExplicitlyOpen = true;
+    const banner = document.getElementById('login-service-reason-banner');
+    const titleEl = document.getElementById('login-service-reason-title');
+    const subEl = document.getElementById('login-service-reason-sub');
+    const iconEl = document.getElementById('login-service-reason-icon');
+    if (banner) {
+        if (options.reasonTitle) {
+            if (iconEl) iconEl.textContent = options.icon || '✨';
+            if (titleEl) titleEl.textContent = options.reasonTitle;
+            if (subEl) subEl.textContent = options.reasonSub || 'Tus datos del viaje o carrito se mantienen guardados.';
+            banner.classList.remove('hidden');
+        } else {
+            banner.classList.add('hidden');
+        }
+    }
+    try { window.updateRole?.(role); } catch (_) {}
+    try { window.setAuthMode?.(mode); } catch (_) {}
+    revealLoginScreen();
 }
 
 function showEnteringShell(text) {
@@ -270,6 +332,9 @@ function loadAppRuntime() {
 }
 window.loadAppRuntime = loadAppRuntime;
 window.revealLoginScreen = revealLoginScreen;
+window.enterGuestBrowseMode = enterGuestBrowseMode;
+window.closeAuthModalToGuest = closeAuthModalToGuest;
+window.openGuestAuthModal = openGuestAuthModal;
 
 let bootAuthSettled = false;
 let silentReloginTried = false;
@@ -280,12 +345,8 @@ async function attemptSilentRelogin() {
 
     if (shouldSkipDriverAutoLogin()) {
         clearSkipDriverAutoLogin();
-        if (isGuestTripLink()) {
-            loadAppRuntime();
-            return;
-        }
-        revealLoginScreen();
         restoreDriverLoginForm().catch(() => {});
+        enterGuestBrowseMode();
         return;
     }
 
@@ -296,7 +357,7 @@ async function attemptSilentRelogin() {
 
     const creds = await loadDriverLogin().catch(() => null);
     if (!creds?.identifier || !creds?.password) {
-        revealLoginScreen();
+        enterGuestBrowseMode();
         return;
     }
 
@@ -308,7 +369,7 @@ async function attemptSilentRelogin() {
         window.executeAuth?.();
     } catch (_) {
         window._authEntering = false;
-        revealLoginScreen();
+        enterGuestBrowseMode();
     }
 }
 
@@ -329,11 +390,11 @@ try {
         }
         if (bootAuthSettled) return;
         bootAuthSettled = true;
-        attemptSilentRelogin().catch(() => revealLoginScreen());
+        attemptSilentRelogin().catch(() => enterGuestBrowseMode());
     });
 } catch (e) {
     console.warn('[auth-boot] auth listener', e);
-    attemptSilentRelogin().catch(() => revealLoginScreen());
+    attemptSilentRelogin().catch(() => enterGuestBrowseMode());
 }
 
 try {

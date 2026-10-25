@@ -101,7 +101,7 @@ function ensureHomeUi() {
     if (!clientView) return;
 
     let hub = document.getElementById('passenger-home-hub');
-    if (!hub || hub.getAttribute('data-layout') !== 'hgrid-v1') {
+    if (!hub || hub.getAttribute('data-layout') !== 'hgrid-v2-guest-driver') {
         const isNew = !hub;
         if (!hub) {
             hub = document.createElement('section');
@@ -109,50 +109,137 @@ function ensureHomeUi() {
             hub.className = 'passenger-home-hub';
             hub.setAttribute('aria-label', 'Menú principal del pasajero');
         }
-        hub.setAttribute('data-layout', 'hgrid-v1');
+        hub.setAttribute('data-layout', 'hgrid-v2-guest-driver');
         hub.innerHTML = `
-            <div class="passenger-home-hero">
-                <p class="passenger-home-kicker">HonduRaite</p>
-                <h2 class="passenger-home-title">¿Qué buscas hoy?</h2>
-            </div>
-            <div class="passenger-home-grid" role="list">
-                <button type="button" class="passenger-home-card passenger-home-card--trip" data-home-mode="trip" role="listitem" title="Moto, Taxi VIP o taxi tradicional">
-                    <span class="passenger-home-card-icon"><i class="fas fa-car-side"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Viaje</strong>
-                        <small>Moto · VIP · Taxi</small>
-                    </span>
+            <!-- Selector de lado en el panel: Pasajero / Servicios vs Lado de Conductor -->
+            <div id="panel-side-switcher" class="flex items-center justify-between gap-1.5 mb-2.5 p-1 rounded-2xl bg-slate-100 border border-slate-200/80">
+                <button type="button" id="panel-side-tab-passenger" data-home-action="side-passenger" class="flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all bg-white text-blue-600 shadow-sm flex items-center justify-center gap-1.5">
+                    <i class="fas fa-compass text-[11px]"></i>
+                    <span>Servicios</span>
                 </button>
-                <button type="button" class="passenger-home-card passenger-home-card--stores" data-home-mode="stores" role="listitem" title="Comprar a emprendedores">
-                    <span class="passenger-home-card-icon"><i class="fas fa-store"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Tiendas</strong>
-                        <small>Pedidos</small>
-                    </span>
+                <button type="button" id="panel-side-tab-driver" data-home-action="side-driver" class="flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5">
+                    <i class="fas fa-car-side text-amber-500 text-[11px]"></i>
+                    <span>Conductor</span>
                 </button>
-                <button type="button" class="passenger-home-card passenger-home-card--delivery" data-home-mode="delivery" role="listitem" title="Recoger y entregar">
-                    <span class="passenger-home-card-icon"><i class="fas fa-box"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Envío</strong>
-                        <small>Mensajería</small>
-                    </span>
-                </button>
-                <button type="button" class="passenger-home-card passenger-home-card--freight" data-home-mode="freight" role="listitem" title="Paila o camión">
-                    <span class="passenger-home-card-icon"><i class="fas fa-truck"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Flete</strong>
-                        <small>Paila · Camión</small>
-                    </span>
-                </button>
-                <button type="button" class="passenger-home-card passenger-home-card--tow" data-home-mode="tow" role="listitem" title="Remolque y auxilio">
-                    <span class="passenger-home-card-icon"><i class="icon-grua" aria-hidden="true"></i></span>
-                    <span class="passenger-home-card-text">
-                        <strong>Grúa</strong>
-                        <small>Remolque</small>
-                    </span>
+                <button type="button" id="panel-guest-login-pill" data-home-action="open-auth" class="hidden py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-wide bg-blue-600 hover:bg-blue-700 text-white shadow-sm items-center gap-1 shrink-0">
+                    <i class="fas fa-user"></i>
+                    <span>Entrar</span>
                 </button>
             </div>
-            <p class="passenger-home-foot">Toca una opción · vuelve con <b>Inicio</b></p>
+
+            <!-- Barra informativa de modo invitado (sin registro obligatorio) -->
+            <div id="guest-welcome-auth-bar" class="hidden mb-2.5 px-3 py-2 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50 to-slate-50 border border-blue-200/80 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                    <p class="text-[11px] font-extrabold text-slate-800 leading-tight">👋 Explora HonduRaite sin registrarte</p>
+                    <p class="text-[10px] font-semibold text-slate-500 leading-tight mt-0.5">Solo te pediremos cuenta cuando pidas un servicio</p>
+                </div>
+                <button type="button" data-home-action="open-auth" class="shrink-0 px-2.5 py-1.5 rounded-xl bg-white hover:bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black shadow-sm whitespace-nowrap">
+                    Iniciar sesión
+                </button>
+            </div>
+
+            <!-- Lado Pasajero / Servicios -->
+            <div id="panel-passenger-side-view">
+                <div class="passenger-home-hero">
+                    <p class="passenger-home-kicker">HonduRaite</p>
+                    <h2 class="passenger-home-title">¿Qué buscas hoy?</h2>
+                </div>
+                <div class="passenger-home-grid" role="list">
+                    <button type="button" class="passenger-home-card passenger-home-card--trip" data-home-mode="trip" role="listitem" title="Moto, Taxi VIP o taxi tradicional">
+                        <span class="passenger-home-card-icon"><i class="fas fa-car-side"></i></span>
+                        <span class="passenger-home-card-text">
+                            <strong>Viaje</strong>
+                            <small>Moto · VIP · Taxi</small>
+                        </span>
+                    </button>
+                    <button type="button" class="passenger-home-card passenger-home-card--stores" data-home-mode="stores" role="listitem" title="Comprar a emprendedores">
+                        <span class="passenger-home-card-icon"><i class="fas fa-store"></i></span>
+                        <span class="passenger-home-card-text">
+                            <strong>Tiendas</strong>
+                            <small>Pedidos</small>
+                        </span>
+                    </button>
+                    <button type="button" class="passenger-home-card passenger-home-card--delivery" data-home-mode="delivery" role="listitem" title="Recoger y entregar">
+                        <span class="passenger-home-card-icon"><i class="fas fa-box"></i></span>
+                        <span class="passenger-home-card-text">
+                            <strong>Envío</strong>
+                            <small>Mensajería</small>
+                        </span>
+                    </button>
+                    <button type="button" class="passenger-home-card passenger-home-card--freight" data-home-mode="freight" role="listitem" title="Paila o camión">
+                        <span class="passenger-home-card-icon"><i class="fas fa-truck"></i></span>
+                        <span class="passenger-home-card-text">
+                            <strong>Flete</strong>
+                            <small>Paila · Camión</small>
+                        </span>
+                    </button>
+                    <button type="button" class="passenger-home-card passenger-home-card--tow" data-home-mode="tow" role="listitem" title="Remolque y auxilio">
+                        <span class="passenger-home-card-icon"><i class="icon-grua" aria-hidden="true"></i></span>
+                        <span class="passenger-home-card-text">
+                            <strong>Grúa</strong>
+                            <small>Remolque</small>
+                        </span>
+                    </button>
+                </div>
+                <p class="passenger-home-foot">Toca una opción · vuelve con <b>Inicio</b></p>
+
+                <!-- Tarjeta directa en el panel: Quiero ser conductor -->
+                <div id="want-to-be-driver-card" class="mt-2.5 p-3 rounded-2xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white border border-blue-800/60 shadow-md">
+                    <div class="flex items-center justify-between gap-2.5">
+                        <div class="min-w-0">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[9px] font-black uppercase tracking-wider border border-amber-400/30">
+                                <i class="fas fa-steering-wheel"></i> Conductores HonduRaite
+                            </span>
+                            <p class="text-xs font-black text-white mt-1 leading-snug">¿Quieres ser conductor de HonduRaite?</p>
+                            <p class="text-[10px] font-semibold text-blue-200/90 leading-snug mt-0.5">Auto · Taxi · Moto · Paila · Camión · Grúa</p>
+                        </div>
+                        <button type="button" id="btn-want-to-be-driver" data-home-action="want-to-be-driver" class="shrink-0 px-3.5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] uppercase tracking-wide shadow-md transition active:scale-95 whitespace-nowrap">
+                            🚗 Quiero ser conductor
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lado de Conductor dentro del mismo panel -->
+            <div id="panel-driver-side-view" class="hidden">
+                <div class="p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white border border-blue-800/60 shadow-lg">
+                    <div class="flex items-center justify-between gap-2 mb-2">
+                        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-black uppercase tracking-wider border border-amber-400/30">
+                            <i class="fas fa-id-card"></i> Lado de Conductor
+                        </span>
+                        <span class="text-[10px] font-bold text-blue-200">🇭🇳 HonduRaite</span>
+                    </div>
+                    <h3 class="text-base font-black text-white leading-tight">¡Conviértete en conductor de HonduRaite!</h3>
+                    <p class="text-xs text-blue-100/90 font-semibold mt-1 leading-relaxed">
+                        Genera ingresos en tu propio horario recibiendo solicitudes de viajes, envíos de tiendas, fletes o grúa directamente en tu celular.
+                    </p>
+                    <div class="grid grid-cols-3 gap-1.5 my-3 text-center">
+                        <div class="p-2 rounded-xl bg-white/10 border border-white/10">
+                            <p class="text-sm">🚗 🚕</p>
+                            <p class="text-[9px] font-black uppercase text-amber-200 mt-0.5">Auto / Taxi</p>
+                        </div>
+                        <div class="p-2 rounded-xl bg-white/10 border border-white/10">
+                            <p class="text-sm">🏍️ 📦</p>
+                            <p class="text-[9px] font-black uppercase text-amber-200 mt-0.5">Moto / Envíos</p>
+                        </div>
+                        <div class="p-2 rounded-xl bg-white/10 border border-white/10">
+                            <p class="text-sm">🛻 🚚 🏗️</p>
+                            <p class="text-[9px] font-black uppercase text-amber-200 mt-0.5">Paila / Grúa</p>
+                        </div>
+                    </div>
+                    <button type="button" id="btn-panel-driver-side-cta" data-home-action="want-to-be-driver" class="w-full py-3.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider shadow-lg transition active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fas fa-car-side text-sm"></i>
+                        <span>Quiero ser conductor</span>
+                    </button>
+                    <button type="button" data-home-action="driver-login" class="w-full mt-2 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-extrabold text-[11px] border border-white/20 transition flex items-center justify-center gap-1.5">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span>Ya soy conductor · Iniciar sesión</span>
+                    </button>
+                    <button type="button" data-home-action="side-passenger" class="w-full mt-2 py-1.5 text-[11px] font-bold text-blue-200 hover:text-white text-center">
+                        ← Volver a Servicios de Pasajero
+                    </button>
+                </div>
+            </div>
         `;
         if (isNew) {
             clientView.insertBefore(hub, clientView.firstChild);
@@ -188,6 +275,47 @@ function ensureHomeUi() {
     if (!bound) {
         bound = true;
         clientView.addEventListener('click', (e) => {
+            const actionBtn = e.target.closest('[data-home-action]');
+            if (actionBtn && clientView.contains(actionBtn)) {
+                e.preventDefault();
+                const action = actionBtn.getAttribute('data-home-action');
+                if (action === 'side-driver') {
+                    switchPanelSideView('driver');
+                } else if (action === 'side-passenger') {
+                    switchPanelSideView('passenger');
+                } else if (action === 'want-to-be-driver') {
+                    if (typeof window.openWantToBeDriverFlow === 'function') {
+                        window.openWantToBeDriverFlow({ source: 'panel' });
+                    } else if (typeof window.openGuestAuthModal === 'function') {
+                        window.openGuestAuthModal({
+                            role: 'driver',
+                            mode: 'register',
+                            icon: '🚗',
+                            reasonTitle: 'Quiero ser conductor de HonduRaite',
+                            reasonSub: 'Crea tu cuenta de conductor y registra los datos de tu vehículo.'
+                        });
+                    }
+                } else if (action === 'driver-login') {
+                    if (typeof window.openDriverLoginModal === 'function') {
+                        window.openDriverLoginModal();
+                    } else if (typeof window.openGuestAuthModal === 'function') {
+                        window.openGuestAuthModal({
+                            role: 'driver',
+                            mode: 'login',
+                            icon: '🔑',
+                            reasonTitle: 'Acceso para Conductores',
+                            reasonSub: 'Ingresa con tu correo o teléfono de conductor.'
+                        });
+                    }
+                } else if (action === 'open-auth') {
+                    if (typeof window.openGuestAuthModal === 'function') {
+                        window.openGuestAuthModal({ role: 'client', mode: 'login' });
+                    } else if (typeof window.revealLoginScreen === 'function') {
+                        window.revealLoginScreen();
+                    }
+                }
+                return;
+            }
             const btn = e.target.closest('[data-home-mode]');
             if (!btn || !clientView.contains(btn)) return;
             const mode = btn.getAttribute('data-home-mode');
@@ -196,7 +324,50 @@ function ensureHomeUi() {
             setPassengerHomeMode(mode);
         });
     }
+    syncGuestAndDriverCtaInHome();
 }
+
+
+export function switchPanelSideView(side = 'passenger') {
+    const isDriverSide = side === 'driver';
+    const passengerSide = document.getElementById('panel-passenger-side-view');
+    const driverSide = document.getElementById('panel-driver-side-view');
+    const tabPassenger = document.getElementById('panel-side-tab-passenger');
+    const tabDriver = document.getElementById('panel-side-tab-driver');
+    if (passengerSide) passengerSide.classList.toggle('hidden', isDriverSide);
+    if (driverSide) driverSide.classList.toggle('hidden', !isDriverSide);
+    if (tabPassenger) {
+        tabPassenger.className = isDriverSide
+            ? 'flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5'
+            : 'flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all bg-white text-blue-600 shadow-sm flex items-center justify-center gap-1.5';
+    }
+    if (tabDriver) {
+        tabDriver.className = isDriverSide
+            ? 'flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all bg-slate-900 text-amber-300 shadow-sm flex items-center justify-center gap-1.5'
+            : 'flex-1 py-2 px-2.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all text-slate-600 hover:text-slate-900 flex items-center justify-center gap-1.5';
+    }
+}
+
+export function syncGuestAndDriverCtaInHome() {
+    const isGuest = !window.currentUser;
+    const prof = getUserProfile?.() || window.userProfile || null;
+    const isAlreadyDriver = prof?.role === 'driver';
+    const guestBar = document.getElementById('guest-welcome-auth-bar');
+    const guestPill = document.getElementById('panel-guest-login-pill');
+    const driverCard = document.getElementById('want-to-be-driver-card');
+    if (guestBar) guestBar.classList.toggle('hidden', !isGuest);
+    if (guestPill) {
+        guestPill.classList.toggle('hidden', !isGuest);
+        guestPill.classList.toggle('inline-flex', isGuest);
+    }
+    if (driverCard) {
+        driverCard.classList.toggle('hidden', isAlreadyDriver);
+    }
+}
+try {
+    window.switchPanelSideView = switchPanelSideView;
+    window.syncGuestAndDriverCtaInHome = syncGuestAndDriverCtaInHome;
+} catch (_) {}
 
 function getActiveCityId() {
     return window.activeServiceZoneId || getDefaultZoneId() || null;

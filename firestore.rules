@@ -287,7 +287,16 @@ service cloud.firestore {
 
     // Perfil PÚBLICO
     match /artifacts/{app}/public/data/users/{userId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() || col in [
+        'appSettings',
+        'settings',
+        'service_zones',
+        'custom_zones',
+        'fixed_fares',
+        'service_availability',
+        'driver_global_challenges',
+        'passenger_global_challenges'
+      ];
       allow create: if isSignedIn() && isOwner(userId) && (profileCreateOk() || isAdmin(app));
       allow update: if isSignedIn() && (isOwner(userId) || isStaff(app)) && profileRoleChangeOk(app);
       allow delete: if isSignedIn() && (isOwner(userId) || isStaff(app));
@@ -591,7 +600,7 @@ service cloud.firestore {
 
     // Promociones (lectura usuarios autenticados; escritura staff)
     match /artifacts/{app}/public/data/promotions/{promoId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isSignedIn() && isStaff(app);
     }
 
@@ -608,11 +617,12 @@ service cloud.firestore {
       // Sin .get(campo, default): en consultas el default hace pasar la regla aunque
       // la consulta no filtre adultsOnly (probado en emulador). Tiendas sin el campo
       // solo las leen dueño/staff/adultos hasta correr el script de backfill.
-      allow get, list: if isSignedIn() && (
-        resource.data.adultsOnly == false
-        || resource.data.ownerId == requestUid()
-        || isStoresReaderStaff(app)
-        || isAdultUser(app)
+      allow get, list: if resource.data.adultsOnly == false || (
+        isSignedIn() && (
+          resource.data.ownerId == requestUid()
+          || isStoresReaderStaff(app)
+          || isAdultUser(app)
+        )
       );
       // Crear tienda: dueño; verificación siempre pending (no auto-aprobar)
       // adultsOnly siempre presente (bool) para que la consulta general la encuentre
@@ -658,7 +668,7 @@ service cloud.firestore {
     }
 
     match /artifacts/{app}/public/data/store_products/{productId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow create: if isSignedIn()
         && request.resource.data.ownerId == requestUid()
         && request.resource.data.storeId is string;
@@ -717,15 +727,15 @@ service cloud.firestore {
     // ZONAS DE ENVÍO (tarifa fija por zona). Escribe solo el servidor (callables).
     // ============================================================
     match /artifacts/{app}/public/data/delivery_zones/{zoneId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if false;
     }
     match /artifacts/{app}/public/data/delivery_zone_settings/{cityId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if false;
     }
     match /artifacts/{app}/public/data/store_delivery_fees/{storeId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if false;
     }
     // Historial (quién, cuándo, antes/después): solo staff lo lee; nadie lo edita ni borra.
@@ -879,7 +889,7 @@ service cloud.firestore {
     // Comisión y ajustes del panel Viajes: los lee la app; solo el admin los cambia
     // (antes cualquier supervisor podía cambiar el % por el catch-all). El panel guarda vía callable.
     match /artifacts/{app}/public/data/platformConfig/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true;
       allow write: if isAdmin(app);
     }
 

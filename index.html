@@ -1600,10 +1600,17 @@
     </div>
 
  <!-- PANTALLA LOGIN — diseño móvil primero -->
-<div id="login-screen" class="login-screen flex flex-col min-h-[100dvh]">
-    
+<div id="login-screen" class="login-screen flex flex-col min-h-[100dvh] z-[45000]" style="display: none;">
+    <!-- Barra superior: explorar sin registrarse -->
+    <div class="flex items-center justify-between px-4 pt-4 pb-1 shrink-0">
+        <button type="button" id="login-close-guest-btn" onclick="window.closeAuthModalToGuest && window.closeAuthModalToGuest()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white text-xs font-extrabold border border-white/25 shadow-sm transition active:scale-95">
+            <i class="fas fa-arrow-left text-[11px]"></i>
+            <span>Explorar HonduRaite sin cuenta</span>
+        </button>
+        <button type="button" onclick="window.closeAuthModalToGuest && window.closeAuthModalToGuest()" class="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center text-sm font-black border border-white/20" title="Seguir explorando sin registrarse" aria-label="Cerrar">✕</button>
+    </div>
     <!-- Hero: logo grande + marca -->
-    <div class="login-hero flex-shrink-0 pt-8 pb-5 px-5 text-center">
+    <div class="login-hero flex-shrink-0 pt-3 pb-4 px-5 text-center">
         <div class="login-logo-wrap mx-auto">
             <div class="login-logo-glow" aria-hidden="true"></div>
             <div class="login-logo-box">
@@ -1623,8 +1630,21 @@
     </div>
 
     <!-- Tarjeta de acceso -->
-    <div class="login-card flex-1 w-full max-w-md mx-auto px-5 pt-7 pb-8 rounded-t-[2.75rem] shadow-2xl">
-        
+    <div class="login-card flex-1 w-full max-w-md mx-auto px-5 pt-6 pb-8 rounded-t-[2.75rem] shadow-2xl">
+        <!-- Banner contextual cuando se pide registro al usar un servicio o querer ser conductor -->
+        <div id="login-service-reason-banner" class="hidden mb-3 p-3.5 rounded-2xl bg-gradient-to-r from-blue-50 via-indigo-50 to-amber-50 border border-blue-200 text-left shadow-sm">
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex items-start gap-2.5 min-w-0">
+                    <span id="login-service-reason-icon" class="text-xl leading-none mt-0.5">✨</span>
+                    <div class="min-w-0">
+                        <p id="login-service-reason-title" class="text-xs font-black text-slate-900 leading-snug">Inicia sesión o regístrate para usar este servicio</p>
+                        <p id="login-service-reason-sub" class="text-[11px] font-semibold text-slate-600 mt-0.5 leading-snug">Tus datos del viaje o carrito se mantienen guardados.</p>
+                    </div>
+                </div>
+                <button type="button" onclick="window.closeAuthModalToGuest && window.closeAuthModalToGuest()" class="shrink-0 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-black" title="Volver al mapa">Seguir viendo</button>
+            </div>
+        </div>
+
         <!-- Servicios disponibles -->
         <div class="login-services-grid mb-3 p-2 bg-blue-50 rounded-2xl border border-blue-100">
             <div class="text-center py-1">
@@ -2036,7 +2056,10 @@
 
     <!-- DERECHA: pocos iconos en móvil + menú "más" -->
     <div class="header-slot header-slot-right flex items-center justify-end gap-0.5 sm:gap-2 min-w-0">
-        <div class="header-actions-mobile flex items-center gap-0.5 sm:hidden">
+        <div class="header-actions-mobile flex items-center gap-1 sm:hidden">
+            <button type="button" id="header-guest-login-btn-mobile" onclick="window.openGuestAuthModal && window.openGuestAuthModal()" class="hidden px-2.5 py-1.5 rounded-xl bg-blue-600 text-white text-[10px] font-black shadow-sm whitespace-nowrap">
+                <i class="fas fa-sign-in-alt mr-1"></i>Entrar
+            </button>
             <div class="relative">
                 <button type="button" id="header-notif-btn-mobile" data-header-action="notif" class="header-icon-btn w-9 h-9 rounded-xl bg-gray-100 text-gray-600 flex items-center justify-center shadow-sm relative" title="Notificaciones" aria-label="Notificaciones">
                     <i class="fas fa-bell pointer-events-none"></i>
@@ -2052,6 +2075,12 @@
         </div>
 
         <div class="header-actions-desktop hidden sm:flex items-center gap-1 sm:gap-2">
+            <button type="button" id="header-want-driver-btn-desktop" onclick="window.openWantToBeDriverFlow && window.openWantToBeDriverFlow()" class="hidden px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-black shadow-sm items-center gap-1.5 whitespace-nowrap">
+                <i class="fas fa-car-side"></i><span>Quiero ser conductor</span>
+            </button>
+            <button type="button" id="header-guest-login-btn-desktop" onclick="window.openGuestAuthModal && window.openGuestAuthModal()" class="hidden px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black shadow-sm items-center gap-1.5 whitespace-nowrap">
+                <i class="fas fa-user-plus"></i><span>Iniciar sesión / Crear cuenta</span>
+            </button>
             <button id="theme-toggle-btn" type="button" data-theme-toggle onclick="window.toggleTheme()" class="header-icon-btn w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center shadow-sm" title="Cambiar a modo noche" aria-label="Cambiar a modo noche">
                 <i data-theme-icon class="fas fa-moon pointer-events-none"></i>
             </button>
@@ -2132,7 +2161,13 @@
         <button type="button" id="supervisor-trigger-btn-mobile" data-header-menu-action="supervisor" class="hidden header-more-item" role="menuitem">
             <i class="fas fa-user-check text-emerald-600"></i><span>Supervisión</span>
         </button>
-        <button type="button" data-header-menu-action="logout" class="header-more-item header-more-item-danger" role="menuitem">
+        <button type="button" id="header-menu-want-driver" data-header-menu-action="want-driver" class="header-more-item" role="menuitem">
+            <i class="fas fa-car-side text-amber-500"></i><span>Quiero ser conductor</span>
+        </button>
+        <button type="button" id="header-menu-guest-login" data-header-menu-action="guest-login" class="hidden header-more-item" role="menuitem">
+            <i class="fas fa-sign-in-alt text-blue-600"></i><span>Iniciar sesión / Registrarse</span>
+        </button>
+        <button type="button" id="header-menu-logout" data-header-menu-action="logout" class="header-more-item header-more-item-danger" role="menuitem">
             <i class="fas fa-power-off"></i><span>Cerrar sesión</span>
         </button>
     </div>
