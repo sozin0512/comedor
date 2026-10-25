@@ -1,7 +1,7 @@
 /** Verificación de identidad para pasajeros — obligatoria antes de aprobación por staff. */
 
 import { getAuthHeroHtml, getAuthCardShell } from './auth-ui.js';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.24.7';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.1';
 import { calculateAge } from './age-verification.js';
 
 const BANNER_ID = 'passenger-verify-banner';
