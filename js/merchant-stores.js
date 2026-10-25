@@ -13,32 +13,32 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.2';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.2';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.3';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.3';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.25.2';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.25.2';
-import { APP_CONFIG } from './config.js?v=2026.10.25.2';
-import { calculateAge } from './age-verification.js?v=2026.10.25.2';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.2';
+} from './zones.js?v=2026.10.25.3';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.25.3';
+import { APP_CONFIG } from './config.js?v=2026.10.25.3';
+import { calculateAge } from './age-verification.js?v=2026.10.25.3';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.3';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.25.2';
+} from './store-delivery-zones.js?v=2026.10.25.3';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.25.2';
+} from './store-week.js?v=2026.10.25.3';
 
 import { formatLempiras } from './money-format.js';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.2';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.3';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.25.2';
+} from './merchant-delivery-request.js?v=2026.10.25.3';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -621,9 +621,45 @@ function buildBrowseCityOptionsHtml(selectedId = '') {
 /** Honduras no usa horario de verano: UTC-6 todo el año. */
 const HN_UTC_OFFSET_MIN = -6 * 60;
 
+export const STORE_WEEKDAYS = [
+    { day: 1, short: 'Lun', label: 'Lunes' },
+    { day: 2, short: 'Mar', label: 'Martes' },
+    { day: 3, short: 'Mié', label: 'Miércoles' },
+    { day: 4, short: 'Jue', label: 'Jueves' },
+    { day: 5, short: 'Vie', label: 'Viernes' },
+    { day: 6, short: 'Sáb', label: 'Sábado' },
+    { day: 0, short: 'Dom', label: 'Domingo' },
+];
+const ALL_WEEKDAY_NUMS = [1, 2, 3, 4, 5, 6, 0];
+
 function hnNowMinutes(date = new Date()) {
     const utc = date.getUTCHours() * 60 + date.getUTCMinutes();
     return (utc + HN_UTC_OFFSET_MIN + 1440) % 1440;
+}
+
+export function hnNowDayOfWeek(date = new Date()) {
+    const hnDate = new Date(date.getTime() + HN_UTC_OFFSET_MIN * 60000);
+    return hnDate.getUTCDay();
+}
+
+export function storeOperatingDays(s) {
+    const raw = Array.isArray(s?.operatingDays)
+        ? s.operatingDays
+        : (Array.isArray(s?.hours?.days) ? s.hours.days : null);
+    if (!raw) return ALL_WEEKDAY_NUMS.slice();
+    const valid = [...new Set(raw.map((x) => Number(x)).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))];
+    return ALL_WEEKDAY_NUMS.filter((d) => valid.includes(d));
+}
+
+export function formatStoreOperatingDaysSummary(s) {
+    const days = storeOperatingDays(s);
+    if (!days.length) return 'Cerrado todos los días';
+    if (days.length === 7) return 'Todos los días';
+    const set = new Set(days);
+    if (days.length === 6 && !set.has(0)) return 'Lun a Sáb';
+    if (days.length === 5 && !set.has(6) && !set.has(0)) return 'Lun a Vie';
+    if (days.length === 2 && set.has(6) && set.has(0)) return 'Sáb y Dom';
+    return STORE_WEEKDAYS.filter((w) => set.has(w.day)).map((w) => w.short).join(', ');
 }
 
 function parseHHMM(v) {
@@ -644,33 +680,53 @@ function fmtHour12(min) {
 
 /** Horario diario de la tienda ({ open, close } en minutos) o null si no tiene. */
 function storeHours(s) {
-    const open = parseHHMM(s?.hours?.open);
-    const close = parseHHMM(s?.hours?.close);
+    const open = parseHHMM(s?.hours?.open ?? s?.openTime);
+    const close = parseHHMM(s?.hours?.close ?? s?.closeTime);
     if (open == null || close == null || open === close) return null;
     return { open, close };
 }
 
 /**
- * ¿Está abierta ahora? El interruptor del dueño (isOpen) manda; si además tiene horario,
- * fuera de horario sale cerrada. Hora de Honduras.
+ * ¿Está abierta ahora? El interruptor del dueño (isOpen) manda; además respeta
+ * los días de operación (operatingDays / hours.days) y el horario (hours.open / hours.close) en hora de Honduras.
  * @returns {{ open: boolean, label: string }}
  */
-function storeOpenInfo(s, now = hnNowMinutes()) {
+export function storeOpenInfo(s, now = hnNowMinutes(), dayOfWeek = hnNowDayOfWeek()) {
     const h = storeHours(s);
-    if (s?.isOpen === false) return { open: false, label: h ? `Abre ${fmtHour12(h.open)}` : '' };
-    if (!h) return { open: true, label: '' };
+    const days = storeOperatingDays(s);
+    const daysSummary = formatStoreOperatingDaysSummary(s);
+    const hasCustomDays = days.length < 7;
+    if (s?.isOpen === false) {
+        return { open: false, label: h ? `Abre ${fmtHour12(h.open)}${hasCustomDays ? ` (${daysSummary})` : ''}` : (hasCustomDays ? daysSummary : '') };
+    }
+    if (hasCustomDays && !days.includes(dayOfWeek)) {
+        // Si el turno de ayer cerró después de medianoche y aún estamos en la madrugada:
+        const prevDay = (dayOfWeek + 6) % 7;
+        const overnightOpen = h && h.open > h.close && now < h.close && days.includes(prevDay);
+        if (!overnightOpen) {
+            return {
+                open: false,
+                label: h ? `Opera ${daysSummary} · ${fmtHour12(h.open)}` : `Opera ${daysSummary}`,
+            };
+        }
+    }
+    if (!h) {
+        return { open: true, label: hasCustomDays ? daysSummary : '' };
+    }
     const within = h.open < h.close
         ? (now >= h.open && now < h.close)
         : (now >= h.open || now < h.close); // cierra después de medianoche
     return within
-        ? { open: true, label: `Cierra ${fmtHour12(h.close)}` }
-        : { open: false, label: `Abre ${fmtHour12(h.open)}` };
+        ? { open: true, label: `Cierra ${fmtHour12(h.close)}${hasCustomDays ? ` · ${daysSummary}` : ''}` }
+        : { open: false, label: `Abre ${fmtHour12(h.open)}${hasCustomDays ? ` · ${daysSummary}` : ''}` };
 }
 
 export function formatStoreHoursSummary(s) {
     const h = storeHours(s);
-    if (!h) return 'Horario libre';
-    return `${fmtHour12(h.open)} – ${fmtHour12(h.close)}`;
+    const days = storeOperatingDays(s);
+    const daysTxt = days.length < 7 ? `${formatStoreOperatingDaysSummary(s)} · ` : '';
+    if (!h) return days.length < 7 ? `${formatStoreOperatingDaysSummary(s)} · Horario libre` : 'Horario libre';
+    return `${daysTxt}${fmtHour12(h.open)} – ${fmtHour12(h.close)}`;
 }
 
 export function formatStoreBranchLabel(s) {
@@ -1855,13 +1911,51 @@ async function loadMyStore(preferredStoreId = null) {
     }
 }
 
-async function loadProducts(storeId) {
+export function mergeSharedMenuProducts(branchProducts = [], parentProducts = []) {
+    const own = Array.isArray(branchProducts) ? branchProducts : [];
+    const parent = Array.isArray(parentProducts) ? parentProducts : [];
+    if (!parent.length) return own.slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || '')));
+    if (!own.length) return parent.slice().sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || '')));
+    const merged = own.slice();
+    const seenIds = new Set(own.map((p) => String(p.sourceProductId || p.id || '').trim()).filter(Boolean));
+    const seenNames = new Set(own.map((p) => String(p.name || '').trim().toLowerCase()).filter(Boolean));
+    for (const p of parent) {
+        const pid = String(p.sourceProductId || p.id || '').trim();
+        const pname = String(p.name || '').trim().toLowerCase();
+        if ((pid && seenIds.has(pid)) || (pname && seenNames.has(pname))) continue;
+        merged.push(p);
+        if (pid) seenIds.add(pid);
+        if (pname) seenNames.add(pname);
+    }
+    return merged.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || '')));
+}
+
+async function loadProducts(storeId, { ownOnly = false } = {}) {
     if (!storeId) return [];
     const q = query(publicCol('store_products'), where('storeId', '==', storeId), limit(100));
     const snap = await getDocs(q);
-    return snap.docs
+    const ownList = snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0) || String(a.name || '').localeCompare(String(b.name || '')));
+    if (ownOnly) return ownList;
+
+    const store = storesCache.get(storeId)
+        || (viewingStore?.id === storeId ? viewingStore : null)
+        || (myStore?.id === storeId ? myStore : null)
+        || myStores.find((x) => x.id === storeId)
+        || staffStoresList.find((x) => x.id === storeId)
+        || null;
+    const sharedSourceId = store?.sharedMenuStoreId || store?.parentStoreId || null;
+    if (sharedSourceId && sharedSourceId !== storeId && store?.sameMenuAsParent !== false) {
+        try {
+            const pSnap = await getDocs(query(publicCol('store_products'), where('storeId', '==', sharedSourceId), limit(100)));
+            const parentList = pSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            return mergeSharedMenuProducts(ownList, parentList);
+        } catch (err) {
+            console.warn('[stores] loadProducts sharedMenuStoreId', sharedSourceId, err);
+        }
+    }
+    return ownList;
 }
 
 /** IDs ya vistos (para sonar solo en pedidos nuevos en vivo) */
@@ -2620,6 +2714,12 @@ function renderMarketplace() {
                     <div class="flex flex-wrap gap-2">
                         ${appr !== 'approved' ? `<button type="button" class="stores-primary-btn store-staff-delete-btn" data-stores-action="staff-approve-store" data-store-id="${esc(viewingStore.id)}"><i class="fas fa-check"></i> Nos parece bien</button>` : ''}
                         ${appr !== 'rejected' ? `<button type="button" class="stores-danger-btn store-staff-delete-btn" data-stores-action="staff-reject-store" data-store-id="${esc(viewingStore.id)}"><i class="fas fa-times"></i> Nos parece mal</button>` : ''}
+                        <button type="button" class="stores-primary-btn store-staff-delete-btn" style="background:linear-gradient(135deg,#0c4a8e,#2563eb);color:#fff;border-color:#1d4ed8;" data-stores-action="staff-add-branch" data-store-id="${esc(viewingStore.id)}">
+                            <i class="fas fa-plus-circle"></i> ➕ Agregar sucursal
+                        </button>
+                        <button type="button" class="stores-secondary-btn store-staff-delete-btn" data-stores-action="staff-edit-branch" data-store-id="${esc(viewingStore.id)}">
+                            <i class="fas fa-map-pin"></i> 📍 Pin / Horario
+                        </button>
                         <button type="button" class="stores-secondary-btn store-staff-delete-btn" data-stores-action="staff-toggle-18" data-store-id="${esc(viewingStore.id)}">
                             <i class="fas fa-user-shield"></i> ${adults ? 'Quitar +18' : 'Marcar +18'}
                         </button>
@@ -2694,10 +2794,20 @@ function storeCardHtml(s) {
     const apprMeta = STORE_APPROVAL[appr] || STORE_APPROVAL.pending;
     const preview = open ? (storeProductPreview.get(s.id) || []) : [];
     const adminDelete = staff
-        ? `<button type="button" class="store-admin-delete-btn" data-stores-action="admin-delete-store" data-store-id="${esc(s.id)}" title="Borrar tienda (admin/supervisor)">
-                <i class="fas fa-trash-alt pointer-events-none"></i>
-                <span class="pointer-events-none">Borrar</span>
-           </button>`
+        ? `<div class="grid grid-cols-3 gap-1 mt-1">
+                <button type="button" class="store-admin-delete-btn" style="margin-top:0;background:#eff6ff;border-color:#93c5fd;color:#1d4ed8;" data-stores-action="staff-add-branch" data-store-id="${esc(s.id)}" title="Agregar una nueva sucursal a esta tienda (admin/supervisor)">
+                    <i class="fas fa-plus-circle pointer-events-none"></i>
+                    <span class="pointer-events-none">+ Sucursal</span>
+                </button>
+                <button type="button" class="store-admin-delete-btn" style="margin-top:0;background:#f8fafc;border-color:#cbd5e1;color:#334155;" data-stores-action="staff-edit-branch" data-store-id="${esc(s.id)}" title="Editar pin, días y horario (admin/supervisor)">
+                    <i class="fas fa-map-pin pointer-events-none"></i>
+                    <span class="pointer-events-none">Pin / Horario</span>
+                </button>
+                <button type="button" class="store-admin-delete-btn" style="margin-top:0;" data-stores-action="admin-delete-store" data-store-id="${esc(s.id)}" title="Borrar tienda (admin/supervisor)">
+                    <i class="fas fa-trash-alt pointer-events-none"></i>
+                    <span class="pointer-events-none">Borrar</span>
+                </button>
+           </div>`
         : '';
     return `
         <div class="store-card-wrap ${staff ? 'store-card-wrap--staff' : ''} ${appr !== 'approved' ? 'store-card-wrap--pending' : ''}" role="listitem">
@@ -4527,6 +4637,16 @@ function onMarketplaceClick(e) {
         e.stopPropagation?.();
         return staffToggleAdultsOnly(storeId);
     }
+    if (action === 'staff-add-branch' && storeId) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return openStaffStoreBranchModal(storeId, { mode: 'create' });
+    }
+    if (action === 'staff-edit-branch' && storeId) {
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        return openStaffStoreBranchModal(storeId, { mode: 'edit' });
+    }
 }
 
 /* ===================== MERCHANT PANEL ===================== */
@@ -4719,12 +4839,12 @@ export async function selectMyStore(storeId) {
     return myStore;
 }
 
-export async function copyMenuBetweenStores(fromStoreId, toStoreId) {
-    const uid = getCurrentUser()?.uid;
+export async function copyMenuBetweenStores(fromStoreId, toStoreId, { ownerId: explicitOwnerId = null } = {}) {
+    const uid = explicitOwnerId || storesCache.get(toStoreId)?.ownerId || storesCache.get(fromStoreId)?.ownerId || getCurrentUser()?.uid;
     if (!uid || !fromStoreId || !toStoreId || fromStoreId === toStoreId) return 0;
     const sourceProducts = await loadProducts(fromStoreId);
     if (!sourceProducts.length) return 0;
-    const existingTarget = await loadProducts(toStoreId);
+    const existingTarget = await loadProducts(toStoreId, { ownOnly: true });
     const existingNames = new Set(existingTarget.map((p) => String(p.name || '').trim().toLowerCase()));
     let copied = 0;
     for (const p of sourceProducts) {
@@ -4733,7 +4853,7 @@ export async function copyMenuBetweenStores(fromStoreId, toStoreId) {
         const base = roundMoney(productBasePrice(p));
         await addDoc(publicCol('store_products'), {
             storeId: toStoreId,
-            ownerId: uid,
+            ownerId: p.ownerId || uid,
             sourceProductId: p.sourceProductId || p.id,
             name: p.name,
             price: base,
@@ -5163,11 +5283,30 @@ function renderMerchantStoreForm() {
                 <input id="m-store-address" class="stores-input" required value="${esc(s.address || '')}" placeholder="Colonia, calle, referencia"></label>
             <div class="grid grid-cols-2 gap-2">
                 <label class="stores-field"><span>Abre a las</span>
-                    <input id="m-store-open-at" class="stores-input" type="time" value="${esc(s.hours?.open || '')}"></label>
+                    <input id="m-store-open-at" class="stores-input" type="time" value="${esc(s.hours?.open || s.openTime || '')}"></label>
                 <label class="stores-field"><span>Cierra a las</span>
-                    <input id="m-store-close-at" class="stores-input" type="time" value="${esc(s.hours?.close || '')}"></label>
+                    <input id="m-store-close-at" class="stores-input" type="time" value="${esc(s.hours?.close || s.closeTime || '')}"></label>
             </div>
-            <p class="text-[10px] text-slate-500 -mt-1 leading-snug">Horario de todos los días, hora de Honduras. Fuera de ese horario tu tienda sale como “Cerrada” y va al final de la lista. Déjalo vacío si prefieres abrir y cerrar a mano.</p>
+            <div class="stores-field">
+                <span>📅 Días que opera</span>
+                <div class="flex flex-wrap gap-1.5 mt-1" id="m-store-operating-days">
+                    ${(() => {
+                        const activeDays = new Set(storeOperatingDays(s));
+                        return STORE_WEEKDAYS.map((w) => `
+                            <label class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border text-xs font-extrabold cursor-pointer select-none ${activeDays.has(w.day) ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 text-slate-700 border-slate-200'}" data-day-chip="${w.day}">
+                                <input type="checkbox" class="sr-only" data-m-store-day="${w.day}" value="${w.day}" ${activeDays.has(w.day) ? 'checked' : ''} onchange="const lbl=this.closest('[data-day-chip]');if(lbl){lbl.classList.toggle('bg-blue-600',this.checked);lbl.classList.toggle('text-white',this.checked);lbl.classList.toggle('border-blue-600',this.checked);lbl.classList.toggle('bg-slate-50',!this.checked);lbl.classList.toggle('text-slate-700',!this.checked);lbl.classList.toggle('border-slate-200',!this.checked);}">
+                                <span>${esc(w.short)}</span>
+                            </label>
+                        `).join('');
+                    })()}
+                </div>
+                <div class="flex flex-wrap gap-1.5 mt-1.5">
+                    <button type="button" class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="document.querySelectorAll('[data-m-store-day]').forEach(c=>{c.checked=true;c.dispatchEvent(new Event('change'));})">Todos los días</button>
+                    <button type="button" class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="document.querySelectorAll('[data-m-store-day]').forEach(c=>{c.checked=Number(c.value)!==0;c.dispatchEvent(new Event('change'));})">Lunes a Sábado</button>
+                    <button type="button" class="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200" onclick="document.querySelectorAll('[data-m-store-day]').forEach(c=>{const d=Number(c.value);c.checked=d>=1&&d<=5;c.dispatchEvent(new Event('change'));})">Lunes a Viernes</button>
+                </div>
+            </div>
+            <p class="text-[10px] text-slate-500 -mt-1 leading-snug">Horario y días de operación en hora de Honduras. Fuera de esos días u horario tu tienda sale como “Cerrada”.</p>
             <label class="stores-field"><span>WhatsApp del negocio *</span>
                 <input id="m-store-phone" class="stores-input" required value="${esc(s.phone || (!editingExisting ? (getUserProfile()?.phone || '') : ''))}" placeholder="+504..."></label>
             <label class="stores-field"><span>Números autorizados para pedir por WhatsApp</span>
@@ -5855,7 +5994,16 @@ async function saveStore() {
     if (openAt && parseHHMM(openAt) === parseHHMM(closeAt)) {
         return toast('La hora de abrir y la de cerrar no pueden ser iguales', 'warning');
     }
-    const hours = openAt && closeAt ? { open: openAt, close: closeAt, tz: 'America/Tegucigalpa' } : null;
+    const checkedDayInputs = typeof document !== 'undefined' ? [...document.querySelectorAll('[data-m-store-day]:checked')] : [];
+    const operatingDays = checkedDayInputs.length
+        ? ALL_WEEKDAY_NUMS.filter((d) => checkedDayInputs.some((el) => Number(el.value) === d))
+        : (typeof document !== 'undefined' && document.querySelectorAll('[data-m-store-day]').length ? [] : storeOperatingDays(myStore));
+    if (!operatingDays.length) {
+        return toast('Selecciona al menos un día de operación', 'warning');
+    }
+    const hours = openAt && closeAt
+        ? { open: openAt, close: closeAt, days: operatingDays, tz: 'America/Tegucigalpa' }
+        : (operatingDays.length < 7 ? { open: null, close: null, days: operatingDays, tz: 'America/Tegucigalpa' } : null);
 
     // Ciudad REAL de la tienda (elegida y validada con la ubicación). Ya no se usa la ciudad del dispositivo.
     const selectedCityId = document.getElementById('m-store-city')?.value || '';
@@ -5912,6 +6060,15 @@ async function saveStore() {
         locationApprox: !hasRealCoords,
         isOpen: isNewStore ? true : (myStore?.isOpen !== false),
         hours,
+        operatingDays,
+        openTime: openAt || null,
+        closeTime: closeAt || null,
+        sharedMenuStoreId: isNewStore && merchantCloneFromStore?.id
+            ? (merchantCloneFromStore.sharedMenuStoreId || merchantCloneFromStore.parentStoreId || merchantCloneFromStore.id)
+            : (myStore?.sharedMenuStoreId || null),
+        sameMenuAsParent: isNewStore && merchantCloneFromStore?.id
+            ? Boolean(shouldCopyMenu)
+            : (myStore?.sameMenuAsParent ?? null),
         active: true,
         adultsOnly,
         requiresAge18: adultsOnly,
@@ -7106,6 +7263,8 @@ export async function loadSupervisorStores(opts = {}) {
                     else if (action === 'toggle18') await staffToggleAdultsOnly(id);
                     else if (action === 'delete') await adminDeleteStore(id);
                     else if (action === 'fix-city') await staffFixStoreCity(id);
+                    else if (action === 'add-branch') await openStaffStoreBranchModal(id, { mode: 'create' });
+                    else if (action === 'edit-branch') await openStaffStoreBranchModal(id, { mode: 'edit' });
                     else if (action === 'open') {
                         try { window.closeSupervisorPanel?.(); } catch (_) {}
                         openMarketplace();
@@ -7151,7 +7310,7 @@ function staffStoreCardHtml(s) {
             <div class="flex gap-3 items-start">
                 ${storeAvatarHtml(s)}
                 <div class="min-w-0 flex-1">
-                    <h3 class="font-black text-white text-sm">${esc(s.name || 'Sin nombre')}</h3>
+                    <h3 class="font-black text-white text-sm">${esc(s.name || 'Sin nombre')}${s.branchName ? ` <span class="text-xs font-extrabold text-sky-300">· 📍 ${esc(s.branchName)}</span>` : ''}</h3>
                     <p class="text-[11px] text-slate-400 font-semibold mt-0.5">
                         ${esc(catLabel(s.category))}${s.cityName ? ` · ${esc(s.cityName)}` : ''}
                     </p>
@@ -7161,6 +7320,7 @@ function staffStoreCardHtml(s) {
                         <span class="text-[10px] font-bold ${open ? 'text-emerald-400' : 'text-slate-500'}">● ${open ? 'Abierta' : 'Cerrada'}</span>
                     </div>
                     ${s.address ? `<p class="text-[11px] text-slate-500 mt-1"><i class="fas fa-map-marker-alt"></i> ${esc(s.address)}</p>` : ''}
+                    <p class="text-[11px] text-sky-400/90 font-semibold mt-0.5"><i class="fas fa-clock"></i> ${esc(formatStoreHoursSummary(s))}${s.sharedMenuStoreId || s.parentStoreId ? ' · 🍽️ Menú compartido' : ''}</p>
                     ${s.phone ? `<p class="text-[11px] text-slate-500"><i class="fab fa-whatsapp"></i> ${esc(s.phone)}</p>` : ''}
                     ${s.description ? `<p class="text-[11px] text-slate-400 mt-1 line-clamp-2">${esc(s.description)}</p>` : ''}
                     ${s.ownerName || s.ownerId ? `<p class="text-[10px] text-slate-500 mt-1">Dueño: ${esc(s.ownerName || String(s.ownerId).slice(0, 12) + '…')}</p>` : ''}
@@ -7193,6 +7353,12 @@ function staffStoreCardHtml(s) {
                 </button>
                 <button type="button" class="hr-staff-act hr-staff-act--city ${issue ? 'is-flagged' : ''}" data-staff-store-action="fix-city" data-store-id="${esc(s.id)}">
                     <i class="fas fa-map-marker-alt"></i> Corregir ciudad
+                </button>
+                <button type="button" class="hr-staff-act" style="background:rgba(37,99,235,0.25);color:#93C5FD;border-color:rgba(59,130,246,0.45);grid-column:span 2;" data-staff-store-action="add-branch" data-store-id="${esc(s.id)}">
+                    <i class="fas fa-plus-circle"></i> ➕ Agregar sucursal
+                </button>
+                <button type="button" class="hr-staff-act" style="background:rgba(16,185,129,0.18);color:#6EE7B7;border-color:rgba(16,185,129,0.4);" data-staff-store-action="edit-branch" data-store-id="${esc(s.id)}">
+                    <i class="fas fa-map-pin"></i> Pin / Horario
                 </button>
             </div>
         </article>
@@ -7289,6 +7455,564 @@ async function staffFixStoreCity(storeId) {
         console.error('[stores] staffFixStoreCity', e);
         toast('No se pudo corregir la ciudad', 'error');
     }
+}
+
+
+/* ===================== STAFF: AGREGAR / EDITAR SUCURSAL (ADMIN / SUPERVISOR) ===================== */
+
+export function buildStaffBranchModalHtml(store, { mode = 'create', menuCount = null } = {}) {
+    const isEdit = mode === 'edit';
+    const s = store || {};
+    const cityId = initialStoreCityId(s) || s.cityId || 'comayagua';
+    const zone = getZoneById(cityId);
+    const hasCoords = validCoords(s.lat, s.lng);
+    const initLat = hasCoords ? Number(s.lat) : (zone?.center?.lat ?? 14.4514);
+    const initLng = hasCoords ? Number(s.lng) : (zone?.center?.lng ?? -87.6375);
+    const openVal = s.hours?.open || s.openTime || '08:00';
+    const closeVal = s.hours?.close || s.closeTime || '20:00';
+    const activeDays = new Set(storeOperatingDays(s));
+    const rootStoreId = s.sharedMenuStoreId || s.parentStoreId || s.id || '';
+    const menuLabel = menuCount != null ? `${menuCount} producto${menuCount === 1 ? '' : 's'}` : 'todo el menú actual';
+
+    return `
+        <div id="hr-staff-branch-modal" role="dialog" aria-modal="true" style="position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:0.75rem;background:rgba(15,23,42,0.78);backdrop-filter:blur(4px);box-sizing:border-box;">
+            <div class="hr-staff-branch-card" style="background:#ffffff;color:#0f172a;border-radius:1.35rem;width:100%;max-width:34rem;max-height:94dvh;overflow-y:auto;padding:1.15rem 1.2rem;box-shadow:0 25px 55px rgba(15,23,42,0.45);position:relative;box-sizing:border-box;">
+                <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:0.75rem;margin-bottom:0.75rem;">
+                    <div style="display:flex;align-items:center;gap:0.65rem;min-width:0;">
+                        <span style="width:2.6rem;height:2.6rem;border-radius:0.85rem;background:linear-gradient(135deg,#0c4a8e,#2563eb);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:1.15rem;flex-shrink:0;box-shadow:0 6px 14px rgba(37,99,235,0.28);">
+                            <i class="fas ${isEdit ? 'fa-map-marked-alt' : 'fa-store-alt'}"></i>
+                        </span>
+                        <div style="min-width:0;">
+                            <span style="display:inline-block;font-size:0.64rem;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;color:#1d4ed8;background:#dbeafe;padding:0.15rem 0.55rem;border-radius:999px;">
+                                🛡️ Admin / Supervisor · ${isEdit ? 'Editar sucursal' : 'Nueva sucursal'}
+                            </span>
+                            <h3 style="margin:0.2rem 0 0;font-size:1.05rem;font-weight:900;color:#0f172a;line-height:1.2;">
+                                ${isEdit ? `Editar ubicación y horario · ${esc(s.name || 'Tienda')}` : `Agregar sucursal a «${esc(s.name || 'Tienda')}»`}
+                            </h3>
+                            <p style="margin:0.1rem 0 0;font-size:0.72rem;font-weight:600;color:#64748b;">
+                                ${esc(catLabel(s.category))}${s.ownerName ? ` · Dueño: ${esc(s.ownerName)}` : ''}
+                            </p>
+                        </div>
+                    </div>
+                    <button type="button" data-staff-branch-act="close" aria-label="Cerrar" style="border:1px solid #e2e8f0;background:#f8fafc;color:#475569;width:2rem;height:2rem;border-radius:999px;font-weight:900;cursor:pointer;flex-shrink:0;">✕</button>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                    <!-- 1. Nombre de la sucursal y datos básicos -->
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:1rem;padding:0.75rem;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.55rem;">
+                            <label style="display:block;grid-column:span 2;">
+                                <span style="display:block;font-size:0.7rem;font-weight:800;color:#334155;margin-bottom:0.2rem;">🏪 Nombre de la sucursal *</span>
+                                <input id="sb-branch-name" type="text" value="${esc(isEdit ? (s.branchName || '') : '')}" placeholder="Ej: Sucursal Centro, Sucursal Boulevard, Mall Premier…" style="width:100%;padding:0.6rem 0.75rem;border-radius:0.75rem;border:1.5px solid #cbd5e1;font-size:0.85rem;font-weight:700;color:#0f172a;box-sizing:border-box;">
+                            </label>
+                            <label style="display:block;">
+                                <span style="display:block;font-size:0.7rem;font-weight:800;color:#334155;margin-bottom:0.2rem;">🌆 Ciudad *</span>
+                                <select id="sb-city" style="width:100%;padding:0.58rem 0.65rem;border-radius:0.75rem;border:1.5px solid #cbd5e1;font-size:0.82rem;font-weight:700;color:#0f172a;background:#fff;box-sizing:border-box;">
+                                    ${buildStoreCityOptionsHtml(cityId)}
+                                </select>
+                            </label>
+                            <label style="display:block;">
+                                <span style="display:block;font-size:0.7rem;font-weight:800;color:#334155;margin-bottom:0.2rem;">📲 WhatsApp sucursal</span>
+                                <input id="sb-phone" type="tel" value="${esc(s.phone || '')}" placeholder="+504..." style="width:100%;padding:0.58rem 0.7rem;border-radius:0.75rem;border:1.5px solid #cbd5e1;font-size:0.82rem;font-weight:700;color:#0f172a;box-sizing:border-box;">
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- 2. Pin en el mapa -->
+                    <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:1rem;padding:0.75rem;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.45rem;">
+                            <div>
+                                <span style="font-size:0.76rem;font-weight:900;color:#1e3a8a;display:block;">📍 Pon el pin exacto donde está ubicada la sucursal</span>
+                                <small style="font-size:0.68rem;font-weight:600;color:#1d4ed8;">Mueve el mapa o toca un punto para colocar el pin rojo en la sucursal</small>
+                            </div>
+                            <button type="button" data-staff-branch-act="gps" style="border:1px solid #2563eb;background:#fff;color:#1d4ed8;border-radius:0.65rem;padding:0.35rem 0.65rem;font-size:0.7rem;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:0.3rem;">
+                                <i class="fas fa-crosshairs"></i> Usar mi GPS
+                            </button>
+                        </div>
+
+                        <div style="position:relative;margin-bottom:0.45rem;">
+                            <input id="sb-place-search" type="text" placeholder="🔍 Buscar colonia, bulevar, plaza o referencia en el mapa…" autocomplete="off" style="width:100%;padding:0.55rem 0.75rem;border-radius:0.7rem;border:1px solid #93c5fd;background:#fff;font-size:0.78rem;font-weight:600;color:#0f172a;box-sizing:border-box;">
+                            <div id="sb-place-results" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:0.2rem;background:#fff;border:1px solid #cbd5e1;border-radius:0.75rem;box-shadow:0 10px 25px rgba(15,23,42,0.18);z-index:30;max-height:11rem;overflow-y:auto;"></div>
+                        </div>
+
+                        <div style="position:relative;width:100%;height:195px;border-radius:0.85rem;overflow:hidden;border:2px solid #3b82f6;background:#e2e8f0;">
+                            <div id="sb-pin-map" style="width:100%;height:100%;"></div>
+                            <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);pointer-events:none;z-index:10;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.35));font-size:2rem;line-height:1;">📍</div>
+                            <div style="position:absolute;left:0.5rem;bottom:0.45rem;background:rgba(15,23,42,0.82);color:#fff;padding:0.2rem 0.55rem;border-radius:999px;font-size:0.65rem;font-weight:800;z-index:10;pointer-events:none;" id="sb-coords-badge">
+                                Pin: ${initLat.toFixed(5)}, ${initLng.toFixed(5)}
+                            </div>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.45rem;margin-top:0.45rem;">
+                            <label style="display:block;">
+                                <span style="font-size:0.64rem;font-weight:800;color:#1e3a8a;">Latitud</span>
+                                <input id="sb-lat" type="number" step="any" value="${esc(initLat.toFixed(6))}" style="width:100%;padding:0.42rem 0.55rem;border-radius:0.6rem;border:1px solid #bfdbfe;background:#fff;font-size:0.75rem;font-weight:700;box-sizing:border-box;">
+                            </label>
+                            <label style="display:block;">
+                                <span style="font-size:0.64rem;font-weight:800;color:#1e3a8a;">Longitud</span>
+                                <input id="sb-lng" type="number" step="any" value="${esc(initLng.toFixed(6))}" style="width:100%;padding:0.42rem 0.55rem;border-radius:0.6rem;border:1px solid #bfdbfe;background:#fff;font-size:0.75rem;font-weight:700;box-sizing:border-box;">
+                            </label>
+                        </div>
+
+                        <label style="display:block;margin-top:0.45rem;">
+                            <span style="display:block;font-size:0.7rem;font-weight:800;color:#1e3a8a;margin-bottom:0.2rem;">🏠 Dirección escrita / punto de referencia *</span>
+                            <input id="sb-address" type="text" value="${esc(s.address || '')}" placeholder="Colonia, calle, frente a qué lugar está la sucursal…" style="width:100%;padding:0.58rem 0.75rem;border-radius:0.75rem;border:1.5px solid #93c5fd;background:#fff;font-size:0.82rem;font-weight:700;color:#0f172a;box-sizing:border-box;">
+                        </label>
+                    </div>
+
+                    <!-- 3. Horarios y días que va a estar operando -->
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:1rem;padding:0.75rem;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.45rem;">
+                            <span style="font-size:0.76rem;font-weight:900;color:#0f172a;">🕒 Horario y días que estará operando</span>
+                            <span style="font-size:0.65rem;font-weight:700;color:#475569;background:#e2e8f0;padding:0.15rem 0.5rem;border-radius:999px;">Hora de Honduras</span>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.55rem;margin-bottom:0.6rem;">
+                            <label style="display:block;">
+                                <span style="display:block;font-size:0.68rem;font-weight:800;color:#334155;margin-bottom:0.2rem;">☀️ Abre a las</span>
+                                <input id="sb-open-time" type="time" value="${esc(openVal)}" style="width:100%;padding:0.52rem 0.65rem;border-radius:0.7rem;border:1.5px solid #cbd5e1;background:#fff;font-size:0.84rem;font-weight:800;color:#0f172a;box-sizing:border-box;">
+                            </label>
+                            <label style="display:block;">
+                                <span style="display:block;font-size:0.68rem;font-weight:800;color:#334155;margin-bottom:0.2rem;">🌙 Cierra a las</span>
+                                <input id="sb-close-time" type="time" value="${esc(closeVal)}" style="width:100%;padding:0.52rem 0.65rem;border-radius:0.7rem;border:1.5px solid #cbd5e1;background:#fff;font-size:0.84rem;font-weight:800;color:#0f172a;box-sizing:border-box;">
+                            </label>
+                        </div>
+
+                        <span style="display:block;font-size:0.68rem;font-weight:800;color:#334155;margin-bottom:0.35rem;">📅 Días que opera esta sucursal</span>
+                        <div style="display:flex;flex-wrap:wrap;gap:0.35rem;" id="sb-days-wrap">
+                            ${STORE_WEEKDAYS.map((w) => {
+                                const on = activeDays.has(w.day);
+                                return `
+                                    <label data-sb-day-chip="${w.day}" style="display:inline-flex;align-items:center;gap:0.28rem;padding:0.42rem 0.68rem;border-radius:0.75rem;border:1.5px solid ${on ? '#2563eb' : '#cbd5e1'};background:${on ? '#2563eb' : '#ffffff'};color:${on ? '#ffffff' : '#334155'};font-size:0.74rem;font-weight:800;cursor:pointer;user-select:none;">
+                                        <input type="checkbox" data-sb-day="${w.day}" value="${w.day}" ${on ? 'checked' : ''} style="display:none;">
+                                        <span>${esc(w.label)}</span>
+                                    </label>
+                                `;
+                            }).join('')}
+                        </div>
+                        <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.45rem;">
+                            <button type="button" data-staff-branch-act="days-preset" data-preset="all" style="font-size:0.66rem;font-weight:800;padding:0.25rem 0.55rem;border-radius:0.55rem;border:1px solid #cbd5e1;background:#fff;color:#334155;cursor:pointer;">Todos los días (Lun–Dom)</button>
+                            <button type="button" data-staff-branch-act="days-preset" data-preset="mon-sat" style="font-size:0.66rem;font-weight:800;padding:0.25rem 0.55rem;border-radius:0.55rem;border:1px solid #cbd5e1;background:#fff;color:#334155;cursor:pointer;">Lunes a Sábado</button>
+                            <button type="button" data-staff-branch-act="days-preset" data-preset="mon-fri" style="font-size:0.66rem;font-weight:800;padding:0.25rem 0.55rem;border-radius:0.55rem;border:1px solid #cbd5e1;background:#fff;color:#334155;cursor:pointer;">Lunes a Viernes</button>
+                            <button type="button" data-staff-branch-act="days-preset" data-preset="weekend" style="font-size:0.66rem;font-weight:800;padding:0.25rem 0.55rem;border-radius:0.55rem;border:1px solid #cbd5e1;background:#fff;color:#334155;cursor:pointer;">Sábado y Domingo</button>
+                        </div>
+                    </div>
+
+                    <!-- 4. Siempre el mismo menú -->
+                    <label style="display:flex;align-items:flex-start;gap:0.65rem;background:#ecfdf5;border:1.5px solid #6ee7b7;border-radius:1rem;padding:0.75rem;cursor:pointer;">
+                        <input id="sb-same-menu" type="checkbox" checked data-root-store-id="${esc(rootStoreId)}" style="width:1.15rem;height:1.15rem;margin-top:0.15rem;accent-color:#059669;flex-shrink:0;">
+                        <div>
+                            <strong style="display:block;font-size:0.78rem;font-weight:900;color:#065f46;">
+                                🍽️ Usar siempre el mismo menú que «${esc(s.name || 'la tienda principal')}» (${esc(menuLabel)})
+                            </strong>
+                            <small style="display:block;font-size:0.69rem;font-weight:600;color:#047857;line-height:1.35;margin-top:0.12rem;">
+                                Vincula y sincroniza automáticamente todos los platos, fotos y precios de la tienda registrada para que esta sucursal tenga siempre el mismo menú sin volver a subirlo.
+                            </small>
+                        </div>
+                    </label>
+
+                    <!-- Botones de acción -->
+                    <div style="display:flex;gap:0.55rem;margin-top:0.2rem;">
+                        <button type="button" data-staff-branch-act="cancel" style="flex:1;padding:0.75rem;border-radius:0.9rem;border:1.5px solid #cbd5e1;background:#fff;color:#475569;font-weight:800;font-size:0.84rem;cursor:pointer;">
+                            Cancelar
+                        </button>
+                        <button type="button" id="sb-save-btn" data-staff-branch-act="save" style="flex:2;padding:0.78rem 1rem;border-radius:0.9rem;border:none;background:linear-gradient(135deg,#0c4a8e,#2563eb);color:#fff;font-weight:900;font-size:0.88rem;cursor:pointer;box-shadow:0 8px 20px rgba(37,99,235,0.3);">
+                            <i class="fas fa-check-circle"></i> ${isEdit ? 'Guardar ubicación y horario' : '➕ Crear sucursal verificada ahora'}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+export async function openStaffStoreBranchModal(storeId, { mode = 'create' } = {}) {
+    if (!isStoresStaff()) {
+        toast('Solo administradores o supervisores pueden gestionar sucursales desde aquí', 'error');
+        return null;
+    }
+    let store = storesCache.get(storeId)
+        || staffStoresList.find((x) => x.id === storeId)
+        || (viewingStore?.id === storeId ? viewingStore : null)
+        || (myStore?.id === storeId ? myStore : null)
+        || null;
+    if (!store && storeId && dbRef && appIdRef) {
+        try {
+            const snap = await getDoc(publicDoc('stores', storeId));
+            if (snap.exists()) store = { id: snap.id, ...snap.data() };
+        } catch (_) {}
+    }
+    if (!store) {
+        toast('No se encontró la tienda base', 'error');
+        return null;
+    }
+
+    const isEdit = mode === 'edit';
+    const rootStoreId = store.sharedMenuStoreId || store.parentStoreId || store.id;
+    let menuProducts = [];
+    try {
+        menuProducts = await loadProducts(rootStoreId);
+    } catch (_) {}
+
+    document.getElementById('hr-staff-branch-modal')?.remove();
+    const wrap = document.createElement('div');
+    wrap.innerHTML = buildStaffBranchModalHtml(store, { mode, menuCount: menuProducts.length }).trim();
+    const modal = wrap.firstElementChild;
+    document.body.appendChild(modal);
+
+    const card = modal.querySelector('.hr-staff-branch-card');
+    card?.addEventListener('click', (ev) => ev.stopPropagation());
+
+    const latInput = modal.querySelector('#sb-lat');
+    const lngInput = modal.querySelector('#sb-lng');
+    const addrInput = modal.querySelector('#sb-address');
+    const citySelect = modal.querySelector('#sb-city');
+    const badgeEl = modal.querySelector('#sb-coords-badge');
+    const mapEl = modal.querySelector('#sb-pin-map');
+    const searchInput = modal.querySelector('#sb-place-search');
+    const resultsBox = modal.querySelector('#sb-place-results');
+
+    let mapCtrl = null;
+    let reverseTimer = null;
+
+    const close = () => {
+        try { mapCtrl?.destroy?.(); } catch (_) {}
+        try { modal.remove(); } catch (_) {}
+    };
+
+    modal.addEventListener('click', (ev) => {
+        if (ev.target === modal) close();
+    });
+
+    const syncCoordsUi = (lat, lng, { autoReverse = false, panMap = false } = {}) => {
+        const la = Number(lat);
+        const ln = Number(lng);
+        if (!Number.isFinite(la) || !Number.isFinite(ln)) return;
+        if (latInput) latInput.value = la.toFixed(6);
+        if (lngInput) lngInput.value = ln.toFixed(6);
+        if (badgeEl) badgeEl.textContent = `Pin: ${la.toFixed(5)}, ${ln.toFixed(5)}`;
+        const detectedCity = cityFromStoreCoords(la, ln);
+        if (detectedCity && citySelect) {
+            citySelect.value = detectedCity.id;
+        }
+        if (panMap && mapCtrl?.setCenter) {
+            try { mapCtrl.setCenter({ lat: la, lng: ln }); } catch (_) {}
+        }
+        if (autoReverse) {
+            clearTimeout(reverseTimer);
+            reverseTimer = setTimeout(async () => {
+                try {
+                    const formatted = await merchantReverseGeocode(la, ln);
+                    if (formatted && addrInput && (!addrInput.value.trim() || addrInput.dataset.autoFilled === '1')) {
+                        addrInput.value = formatted;
+                        addrInput.dataset.autoFilled = '1';
+                    }
+                } catch (_) {}
+            }, 280);
+        }
+    };
+
+    addrInput?.addEventListener('input', () => {
+        addrInput.dataset.autoFilled = '0';
+    });
+
+    // Inicializar mapa interactivo (Google Maps o respaldo visual interactivo)
+    const initLat = Number(latInput?.value) || 14.4514;
+    const initLng = Number(lngInput?.value) || -87.6375;
+    if (mapEl) {
+        mapCtrl = merchantCreatePinMap(mapEl, { lat: initLat, lng: initLng }, ({ lat, lng }) => {
+            syncCoordsUi(lat, lng, { autoReverse: true, panMap: false });
+        });
+        if (!mapCtrl && typeof window !== 'undefined' && window.L && mapEl) {
+            try {
+                mapEl.innerHTML = '';
+                const lMap = window.L.map(mapEl, { zoomControl: false }).setView([initLat, initLng], 16);
+                window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(lMap);
+                lMap.on('moveend', () => {
+                    const c = lMap.getCenter();
+                    if (c) syncCoordsUi(c.lat, c.lng, { autoReverse: true });
+                });
+                lMap.on('click', (e) => {
+                    if (e.latlng) lMap.panTo(e.latlng);
+                });
+                mapCtrl = {
+                    setCenter: (p) => lMap.panTo([p.lat, p.lng]),
+                    destroy: () => { try { lMap.remove(); } catch (_) {} },
+                };
+            } catch (_) {}
+        }
+    }
+
+    citySelect?.addEventListener('change', () => {
+        const z = getZoneById(citySelect.value);
+        if (z?.center) {
+            syncCoordsUi(z.center.lat, z.center.lng, { autoReverse: false, panMap: true });
+        }
+    });
+
+    const onManualCoordChange = () => {
+        const la = Number(latInput?.value);
+        const ln = Number(lngInput?.value);
+        if (validCoords(la, ln)) {
+            syncCoordsUi(la, ln, { autoReverse: false, panMap: true });
+        }
+    };
+    latInput?.addEventListener('change', onManualCoordChange);
+    lngInput?.addEventListener('change', onManualCoordChange);
+
+    // Buscador de lugares en el mapa
+    let searchTimer = null;
+    searchInput?.addEventListener('input', () => {
+        const q = searchInput.value.trim();
+        clearTimeout(searchTimer);
+        if (q.length < 3) {
+            if (resultsBox) { resultsBox.style.display = 'none'; resultsBox.innerHTML = ''; }
+            return;
+        }
+        searchTimer = setTimeout(async () => {
+            try {
+                const suggestions = await merchantPlacesFetch(q);
+                if (!resultsBox) return;
+                if (!suggestions.length) {
+                    resultsBox.style.display = 'none';
+                    return;
+                }
+                resultsBox.innerHTML = suggestions.map((s, idx) => `
+                    <button type="button" data-sb-place-idx="${idx}" style="display:block;width:100%;text-align:left;padding:0.5rem 0.75rem;border:none;border-bottom:1px solid #f1f5f9;background:#fff;font-size:0.76rem;font-weight:700;color:#1e293b;cursor:pointer;">
+                        📍 ${esc(s.description)}
+                    </button>
+                `).join('');
+                resultsBox.style.display = 'block';
+                resultsBox.querySelectorAll('[data-sb-place-idx]').forEach((btn) => {
+                    btn.addEventListener('click', async () => {
+                        const item = suggestions[Number(btn.getAttribute('data-sb-place-idx'))];
+                        resultsBox.style.display = 'none';
+                        if (!item) return;
+                        searchInput.value = item.description;
+                        const details = await merchantPlaceDetails(item);
+                        if (details && validCoords(details.lat, details.lng)) {
+                            if (addrInput) {
+                                addrInput.value = details.address || item.description;
+                                addrInput.dataset.autoFilled = '1';
+                            }
+                            syncCoordsUi(details.lat, details.lng, { autoReverse: false, panMap: true });
+                        }
+                    });
+                });
+            } catch (_) {}
+        }, 250);
+    });
+
+    // Chips de días de operación
+    const refreshDayChipsUi = () => {
+        modal.querySelectorAll('[data-sb-day-chip]').forEach((lbl) => {
+            const cb = lbl.querySelector('input[type="checkbox"]');
+            const on = !!cb?.checked;
+            lbl.style.background = on ? '#2563eb' : '#ffffff';
+            lbl.style.color = on ? '#ffffff' : '#334155';
+            lbl.style.borderColor = on ? '#2563eb' : '#cbd5e1';
+        });
+    };
+    modal.querySelectorAll('[data-sb-day]').forEach((cb) => {
+        cb.addEventListener('change', refreshDayChipsUi);
+    });
+
+    // Acciones del modal
+    modal.addEventListener('click', async (ev) => {
+        const btn = ev.target.closest('[data-staff-branch-act]');
+        if (!btn) return;
+        const act = btn.getAttribute('data-staff-branch-act');
+        if (act === 'close' || act === 'cancel') {
+            close();
+            return;
+        }
+        if (act === 'days-preset') {
+            const preset = btn.getAttribute('data-preset');
+            modal.querySelectorAll('[data-sb-day]').forEach((cb) => {
+                const d = Number(cb.value);
+                if (preset === 'all') cb.checked = true;
+                else if (preset === 'mon-sat') cb.checked = d !== 0;
+                else if (preset === 'mon-fri') cb.checked = d >= 1 && d <= 5;
+                else if (preset === 'weekend') cb.checked = d === 6 || d === 0;
+            });
+            refreshDayChipsUi();
+            return;
+        }
+        if (act === 'gps') {
+            toast('Obteniendo ubicación GPS…', 'info');
+            try {
+                const pos = await merchantGps();
+                if (pos && validCoords(pos.lat, pos.lng)) {
+                    syncCoordsUi(pos.lat, pos.lng, { autoReverse: true, panMap: true });
+                    toast('📍 Pin movido a tu ubicación GPS', 'success');
+                }
+            } catch (_) {
+                toast('No se pudo obtener el GPS', 'error');
+            }
+            return;
+        }
+        if (act === 'save') {
+            const branchName = modal.querySelector('#sb-branch-name')?.value.trim() || '';
+            const selectedCityId = citySelect?.value || store.cityId || 'comayagua';
+            const phone = phoneNorm(modal.querySelector('#sb-phone')?.value || store.phone || '');
+            const address = addrInput?.value.trim() || '';
+            const lat = Number(latInput?.value);
+            const lng = Number(lngInput?.value);
+            const openAt = modal.querySelector('#sb-open-time')?.value || '';
+            const closeAt = modal.querySelector('#sb-close-time')?.value || '';
+            const sameMenu = !!modal.querySelector('#sb-same-menu')?.checked;
+            const checkedDays = [...modal.querySelectorAll('[data-sb-day]:checked')].map((el) => Number(el.value));
+            const operatingDays = ALL_WEEKDAY_NUMS.filter((d) => checkedDays.includes(d));
+
+            if (!isEdit && !branchName) {
+                toast('Escribe el nombre de la sucursal (ej. Sucursal Centro, Boulevard…)', 'warning');
+                modal.querySelector('#sb-branch-name')?.focus();
+                return;
+            }
+            if (!address || address.length < 3) {
+                toast('Escribe la dirección o punto de referencia de la sucursal', 'warning');
+                addrInput?.focus();
+                return;
+            }
+            if (!validCoords(lat, lng)) {
+                toast('Coloca el pin en una ubicación válida del mapa', 'warning');
+                return;
+            }
+            if (!operatingDays.length) {
+                toast('Selecciona al menos un día de operación', 'warning');
+                return;
+            }
+            if ((openAt && !closeAt) || (!openAt && closeAt)) {
+                toast('Indica tanto la hora de apertura como la de cierre', 'warning');
+                return;
+            }
+            if (openAt && closeAt && parseHHMM(openAt) === parseHHMM(closeAt)) {
+                toast('La hora de abrir y cerrar no pueden ser iguales', 'warning');
+                return;
+            }
+
+            const zone = getZoneById(selectedCityId) || cityFromStoreCoords(lat, lng) || getZoneById(getDefaultZoneId());
+            const hours = openAt && closeAt
+                ? { open: openAt, close: closeAt, days: operatingDays, tz: 'America/Tegucigalpa' }
+                : { open: null, close: null, days: operatingDays, tz: 'America/Tegucigalpa' };
+
+            const staffUser = getCurrentUser();
+            const staffProfile = getUserProfile() || {};
+            const saveBtn = modal.querySelector('#sb-save-btn');
+            if (saveBtn) saveBtn.disabled = true;
+
+            try {
+                if (isEdit) {
+                    const patch = {
+                        branchName: branchName || null,
+                        address,
+                        phone: phone || store.phone || '',
+                        lat,
+                        lng,
+                        locationApprox: false,
+                        cityId: zone?.id || selectedCityId,
+                        cityName: zone?.name || store.cityName || selectedCityId,
+                        cityDepartment: zone?.department || store.cityDepartment || null,
+                        citySource: 'staff',
+                        hours,
+                        operatingDays,
+                        openTime: openAt || null,
+                        closeTime: closeAt || null,
+                        sameMenuAsParent: sameMenu,
+                        ...(sameMenu && rootStoreId && rootStoreId !== store.id ? { sharedMenuStoreId: rootStoreId } : {}),
+                        updatedAt: serverTimestamp(),
+                        updatedByStaffUid: staffUser?.uid || null,
+                        updatedByStaffName: staffProfile.name || staffProfile.email || 'Staff',
+                    };
+                    await updateDoc(publicDoc('stores', store.id), patch);
+                    Object.assign(store, patch);
+                    storesCache.set(store.id, { ...(storesCache.get(store.id) || store), ...patch });
+                    if (viewingStore?.id === store.id) Object.assign(viewingStore, patch);
+                    if (myStore?.id === store.id) Object.assign(myStore, patch);
+                    if (sameMenu && rootStoreId && rootStoreId !== store.id) {
+                        try {
+                            await copyMenuBetweenStores(rootStoreId, store.id, { ownerId: store.ownerId });
+                        } catch (_) {}
+                    }
+                    toast(`✅ Sucursal actualizada (${formatStoreHoursSummary(store)})`, 'success');
+                } else {
+                    const newBranchPayload = {
+                        ownerId: store.ownerId || staffUser?.uid || '',
+                        ownerName: store.ownerName || '',
+                        name: store.name || 'Tienda',
+                        branchName,
+                        parentStoreId: rootStoreId,
+                        sharedMenuStoreId: sameMenu ? rootStoreId : null,
+                        sameMenuAsParent: sameMenu,
+                        category: store.category || 'comida',
+                        description: store.description || '',
+                        address,
+                        phone: phone || store.phone || '',
+                        waAuthorizedPhones: Array.isArray(store.waAuthorizedPhones) ? store.waAuthorizedPhones.slice(0, 10) : [],
+                        lat,
+                        lng,
+                        locationApprox: false,
+                        cityId: zone?.id || selectedCityId,
+                        cityName: zone?.name || store.cityName || selectedCityId,
+                        cityDepartment: zone?.department || store.cityDepartment || null,
+                        citySource: 'staff',
+                        isOpen: true,
+                        hours,
+                        operatingDays,
+                        openTime: openAt || null,
+                        closeTime: closeAt || null,
+                        active: true,
+                        adultsOnly: Boolean(isStoreAdultsOnly(store)),
+                        requiresAge18: Boolean(isStoreAdultsOnly(store)),
+                        photoUrl: store.photoUrl || null,
+                        tracksStock: Boolean(store.tracksStock),
+                        approvalStatus: 'approved',
+                        reviewedBy: staffUser?.uid || null,
+                        reviewedByName: staffProfile.name || staffProfile.email || 'Staff',
+                        reviewedAt: serverTimestamp(),
+                        createdByStaffUid: staffUser?.uid || null,
+                        createdByStaffName: staffProfile.name || staffProfile.email || 'Staff',
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp(),
+                    };
+                    toast('Creando sucursal y sincronizando menú…', 'info');
+                    const ref = await addDoc(publicCol('stores'), newBranchPayload);
+                    const createdStore = { id: ref.id, ...newBranchPayload };
+                    storesCache.set(ref.id, createdStore);
+                    staffStoresList = [createdStore, ...staffStoresList];
+                    let copiedCount = 0;
+                    if (sameMenu && rootStoreId) {
+                        try {
+                            copiedCount = await copyMenuBetweenStores(rootStoreId, ref.id, { ownerId: newBranchPayload.ownerId });
+                        } catch (copyErr) {
+                            console.warn('[stores] copyMenuBetweenStores staff', copyErr);
+                        }
+                    }
+                    toast(
+                        copiedCount > 0
+                            ? `✅ Sucursal «${store.name} · ${branchName}» creada con pin, horario y ${copiedCount} productos del menú`
+                            : `✅ Sucursal «${store.name} · ${branchName}» creada con el mismo menú compartido`,
+                        'success'
+                    );
+                }
+
+                close();
+                if (document.getElementById('staff-stores-review')) {
+                    try { await loadSupervisorStores({ keepFilter: true }); } catch (_) {}
+                }
+                const market = document.getElementById('stores-marketplace-panel');
+                if (market && !market.classList.contains('hidden')) {
+                    renderMarketplace();
+                }
+            } catch (err) {
+                console.error('[stores] openStaffStoreBranchModal save', err);
+                toast('No se pudo guardar la sucursal: ' + (err?.message || err), 'error');
+            } finally {
+                if (saveBtn) saveBtn.disabled = false;
+            }
+        }
+    });
+
+    return modal;
 }
 
 /* ===================== INVITAR EMPRESA (STAFF → WHATSAPP) ===================== */
@@ -8091,6 +8815,7 @@ export function initMerchantStores(deps = {}) {
     window.staffSetStoreApproval = staffSetStoreApproval;
     window.staffToggleStoreAdultsOnly = staffToggleAdultsOnly;
     window.staffFixStoreCity = staffFixStoreCity;
+    window.openStaffStoreBranchModal = openStaffStoreBranchModal;
 
     // Start public stores & fire zones listeners for both guests and signed-in users
     startStoresListener();
@@ -8166,5 +8891,14 @@ export const __testMerchant = {
     buildEditProductCardHtml,
     buildDriverHotStoresBarHtml,
     getHotStoresForDriverMap,
+    STORE_WEEKDAYS,
+    hnNowDayOfWeek,
+    storeOperatingDays,
+    formatStoreOperatingDaysSummary,
+    storeOpenInfo,
+    formatStoreHoursSummary,
+    mergeSharedMenuProducts,
+    buildStaffBranchModalHtml,
+    openStaffStoreBranchModal,
 };
 export { STORE_CATEGORIES, ORDER_STATUS, STORE_APPROVAL, calcSplitTariff, getTarifaDelMomento };

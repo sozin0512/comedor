@@ -5,8 +5,8 @@
  * Los estados de las tiendas NO cambian: se agrupan para la vista.
  */
 import { collection, onSnapshot, query, where, orderBy, limit, getDocs, Timestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { esc, money } from './delivery-zones-shared.js?v=2026.10.25.2';
-import { orderWaitChipHtml, injectWaitChipCss, startWaitTicker } from './trip-wait.js?v=2026.10.25.2';
+import { esc, money } from './delivery-zones-shared.js?v=2026.10.25.3';
+import { orderWaitChipHtml, injectWaitChipCss, startWaitTicker } from './trip-wait.js?v=2026.10.25.3';
 
 export const STAGES = [
     { id: 'recibido', label: 'Recibido', statuses: ['pending', 'accepted'], color: '#2563EB', limitMin: 10 },
@@ -176,6 +176,7 @@ function filtersHtml(list, { history = false } = {}) {
         <select class="tz-sel" data-pd-f="storeId"><option value="">Tienda: Todas</option>${stores.map(([id, n]) => `<option value="${esc(id)}" ${f.storeId === id ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select>
         <select class="tz-sel" data-pd-f="zone"><option value="">Zona: Todas</option>${zones.map((z) => `<option value="${esc(z)}" ${f.zone === z ? 'selected' : ''}>${esc(z)}</option>`).join('')}<option value="__none" ${f.zone === '__none' ? 'selected' : ''}>Sin zona</option></select>
         <select class="tz-sel" data-pd-f="stage"><option value="">Estado: Todos</option>${STAGES.map((s) => `<option value="${s.id}" ${f.stage === s.id ? 'selected' : ''}>${s.label}</option>`).join('')}</select>
+        ${f.storeId ? `<button type="button" class="tz-btn pri sm" data-pd="add-branch" data-store-id="${esc(f.storeId)}" title="Agregar sucursal con pin, días, horario y mismo menú"><i class="fas fa-plus-circle"></i> ➕ Agregar sucursal</button>` : ''}
         ${(f.storeId || f.zone || f.stage || f.q || f.stuckOnly) ? '<button type="button" class="tz-btn ghost sm" data-pd="clear">Quitar filtros</button>' : ''}
     </div>`;
 }
@@ -274,7 +275,7 @@ function countersHtml() {
         <div class="tz-card"><div class="tz-sec"><h3>Hora pico (pedidos por hora)</h3><span class="tz-small tz-mut">${label}</span></div>${heat}</div></div>
     <div class="tz-card"><div class="tz-sec"><h3>Pedidos por tienda</h3><span class="tz-small tz-mut">${label} · ordenado por pedidos</span></div><div class="tz-tablewrap"><table class="tz-table">
         <thead><tr><th>Tienda</th><th>Pedidos</th><th class="r">Entregados</th><th class="r">Cancelados</th><th class="r">Vendido</th><th class="r">Ticket medio</th><th>Zona más pedida</th></tr></thead>
-        <tbody>${c.byStore.map((s) => `<tr><td><b>${esc(s.name)}</b></td><td><span class="pd-sbar"><i style="width:${Math.round((s.total / maxS) * 100)}%"></i></span> <b>${s.total}</b></td><td class="r">${s.delivered}</td><td class="r ${s.cancelled ? 'tz-errtxt' : ''}">${s.cancelled}</td><td class="r">${esc(money(s.sold))}</td><td class="r">${esc(money(s.ticket))}</td><td>${s.topZone === 'Sin zona' ? '<span class="tz-tag">Sin zona</span>' : `<span class="tz-tag blue">${esc(s.topZone)}</span>`}</td></tr>`).join('') || '<tr><td colspan="7" class="tz-mut">Sin pedidos en este rango.</td></tr>'}
+        <tbody>${c.byStore.map((s) => `<tr><td><b>${esc(s.name)}</b> ${s.storeId ? `<button type="button" class="tz-btn ghost sm" style="margin-left:6px;padding:2px 7px;font-size:11px;" data-pd="add-branch" data-store-id="${esc(s.storeId)}" title="Agregar nueva sucursal a esta tienda">+ Sucursal</button>` : ''}</td><td><span class="pd-sbar"><i style="width:${Math.round((s.total / maxS) * 100)}%"></i></span> <b>${s.total}</b></td><td class="r">${s.delivered}</td><td class="r ${s.cancelled ? 'tz-errtxt' : ''}">${s.cancelled}</td><td class="r">${esc(money(s.sold))}</td><td class="r">${esc(money(s.ticket))}</td><td>${s.topZone === 'Sin zona' ? '<span class="tz-tag">Sin zona</span>' : `<span class="tz-tag blue">${esc(s.topZone)}</span>`}</td></tr>`).join('') || '<tr><td colspan="7" class="tz-mut">Sin pedidos en este rango.</td></tr>'}
         ${c.byStore.length ? `<tr class="tot"><td>Total</td><td>${tot.total}</td><td class="r">${tot.delivered}</td><td class="r">${tot.cancelled}</td><td class="r">${esc(money(tot.sold))}</td><td class="r">${esc(money(tot.delivered ? tot.sold / tot.delivered : 0))}</td><td></td></tr>` : ''}</tbody></table></div></div>`;
 }
 export function viewHtml() {
@@ -309,6 +310,13 @@ function onClick(e) {
     const a = b.getAttribute('data-pd');
     if (a === 'tab') { S.tab = b.getAttribute('data-tab'); if (S.tab !== 'live' && !S.hist.length) loadHistory(); return render(); }
     if (a === 'stuck') { S.f.stuckOnly = b.getAttribute('data-v') === '1'; return render(); }
+    if (a === 'add-branch') {
+        const sid = b.getAttribute('data-store-id') || S.f.storeId;
+        if (sid && typeof window.openStaffStoreBranchModal === 'function') {
+            window.openStaffStoreBranchModal(sid, { mode: 'create' });
+        }
+        return;
+    }
     if (a === 'clear') { S.f = { storeId: '', zone: '', stage: '', stuckOnly: false, q: '' }; S.page = 0; return render(); }
     if (a === 'alert-close') { S.alert = null; return render(); }
     if (a === 'test-sound') { beep(); return; }
