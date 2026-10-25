@@ -104,10 +104,10 @@ console.log('=== TEST: Entrada sin registro obligatorio + Quiero ser conductor e
     const homeJs = read('js/passenger-home.js');
     const appJs = read('js/app.js');
 
-    assert.match(
+    assert.doesNotMatch(
         homeJs,
-        /id="panel-side-switcher"/,
-        'passenger-home.js debe incluir el selector #panel-side-switcher (Servicios / Conductor) en el panel'
+        /id="panel-side-switcher"|id="guest-welcome-auth-bar"/,
+        'passenger-home.js debe conservar intacto el diseño limpio de #passenger-home-hub sin barras extras arriba'
     );
     assert.match(
         homeJs,
@@ -118,11 +118,6 @@ console.log('=== TEST: Entrada sin registro obligatorio + Quiero ser conductor e
         homeJs,
         /id="btn-want-to-be-driver"[^>]*data-home-action="want-to-be-driver"/,
         'passenger-home.js debe incluir el botón #btn-want-to-be-driver ("Quiero ser conductor")'
-    );
-    assert.match(
-        homeJs,
-        /id="panel-driver-side-view"/,
-        'passenger-home.js debe incluir la vista #panel-driver-side-view para el lado de conductor en el panel'
     );
     assert.match(
         appJs,
