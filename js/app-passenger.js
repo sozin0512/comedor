@@ -822,8 +822,8 @@ window.calculateTripRoute = async (options = {}) => {
 
             // Siempre establecer en "múltiples paradas"
             window.currentHourlyStopType = 'multi';
-            renderHourlyPassengerChips();
-            bindHourlyStopType();
+            window.renderHourlyPassengerChips?.();
+            window.bindHourlyStopType?.();
 
             // force active styles on the multi button (bindHourlyStopType only wires events once)
             const stdBtn = document.querySelector('#hourly-stop-type [data-hourly-stop="standard"]');
@@ -905,11 +905,11 @@ window.calculateTripRoute = async (options = {}) => {
         };
 
         // Tarifa: si aún no eligió personas, usar 1 solo para vista previa (no marcar como elegido).
-        const paxNeedsChoice = typeof requiresPassengerCountChoice === 'function'
-            ? requiresPassengerCountChoice(serviceType)
+        const paxNeedsChoice = typeof window.requiresPassengerCountChoice === 'function'
+            ? window.requiresPassengerCountChoice(serviceType)
             : (serviceType !== 'delivery' && !isFreightService(serviceType) && serviceType !== 'grua');
-        const paxAlreadyChosen = typeof hasChosenPassengerCount === 'function'
-            ? hasChosenPassengerCount()
+        const paxAlreadyChosen = typeof window.hasChosenPassengerCount === 'function'
+            ? window.hasChosenPassengerCount()
             : (window.passengersChosen === true && Number.isFinite(parseInt(window.currentPassengers, 10)));
         const calcPassengers = (serviceType === 'delivery' || isFreightService(serviceType) || serviceType === 'grua')
             ? 1

@@ -1,7 +1,12 @@
 /** Runtime staff: estadísticas, depósitos y personalización. Tras login admin/supervisor. */
 import { collection, getDocs, getDoc, doc, setDoc, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { APP_CONFIG } from './config.js';
-import { getCustomTones, saveTonePrefs, listTones, getMaxCustomBytes, getPlatformToneLabel } from './notification-tones.js';
+import {
+    getCustomTones, saveTonePrefs, listTones, getMaxCustomBytes, getPlatformToneLabel,
+    applyRemoteToneConfig, loadTonePrefs, TONE_EVENTS, buildToneOptionsHtml, playToneById,
+    isAllowedAudioFile, makeCustomToneId, upsertCustomTone, removeCustomTone,
+} from './notification-tones.js';
+import { uploadFile } from './storage.js';
 import { storeReferralFromURL, showReferralInviteModal, getPendingReferralCode } from './referrals.js';
 import { isCapacitorNative } from './capacitor-native.js';
 import { showEnlargedPhoto } from './photo-viewer.js';
@@ -19,6 +24,18 @@ export function installStaffRuntime() {
     window.__hrStaffRuntime = true;
     const db = window.db;
     const appId = window.appId;
+    const storage = window.storage;
+    const canManageUsers = () => (typeof window.canManageUsers === 'function'
+        ? window.canManageUsers()
+        : Boolean(
+            window.isStaffUser?.(window.currentUser, window.userProfile)
+            || window.isAdminUser?.(window.currentUser, window.userProfile)
+            || window.isSupervisorUser?.(window.currentUser, window.userProfile)
+            || window.currentRole === 'admin'
+            || window.currentRole === 'supervisor'
+            || window.userProfile?.role === 'admin'
+            || window.userProfile?.role === 'supervisor'
+        ));
 // ================================================
 // ESTADÍSTICAS GLOBALES (Admin y Supervisión)
 // ================================================

@@ -2867,10 +2867,7 @@ export function initDriverGlobalChallenges({
         )) return;
         try {
             window.showToast?.('Sincronizando copa…', 'warning');
-            const fn = window.httpsCallable?.(window.cloudFunctions, 'repairCopaCredits')
-                || (typeof httpsCallable === 'function' && typeof cloudFunctions !== 'undefined'
-                    ? httpsCallable(cloudFunctions, 'repairCopaCredits')
-                    : null);
+            const fn = window.httpsCallable?.(window.cloudFunctions, 'repairCopaCredits') || null;
             // Preferir el callable expuesto en app.js
             let result;
             if (typeof window.callRepairCopaCredits === 'function') {

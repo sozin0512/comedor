@@ -5,11 +5,11 @@
  * escribir estas colecciones desde el navegador.
  */
 import { collection, doc, onSnapshot, query, orderBy, limit } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { getAllKnownZones } from './zones.js?v=2026.10.25.1';
+import { getAllKnownZones } from './zones.js?v=2026.10.25.2';
 import {
     esc, money, numOrNull, polygonAreaKm2, validateZoneForm, zonesSvg, zoneColor, rangeLabel,
     polygonToText, textToPolygon, squareAround, addMidpoint, CHANGE_LABELS, changeValueText,
-} from './delivery-zones-shared.js?v=2026.10.25.1';
+} from './delivery-zones-shared.js?v=2026.10.25.2';
 
 const FN_URL = 'https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js';
 const DEFAULT_CITY = 'comayagua';
