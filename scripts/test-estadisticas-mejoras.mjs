@@ -14,6 +14,7 @@ const jsUrl = (f) => pathToFileURL(path.join(JS_TMP, f)).href;
 const {
     SERVICE_BREAKDOWN_DEFS,
     isTripTrashed,
+    isStoreDeliveryTrip,
     classifyTripServiceBucket,
     resolveTripCommissionRate,
     resolveTripCommissionAmount,
@@ -442,6 +443,91 @@ check('Req 7: Exportar a CSV genera archivo UTF-8 con BOM y las 6 secciones comp
     assert.match(bodyHtml, /Pedidos de Tiendas y Restaurantes \(store_orders\)/);
     assert.match(bodyHtml, /2 en papelera excluido\(s\)/);
     return `CSV (${csv.length} chars) + HTML validados`;
+});
+
+
+check('Req 8: Envios directos de comercios (como LA SOPOTA merchantDirectDelivery / whatsapp_store sin doc en store_orders) se incluyen en Envíos de Tiendas Y en Pedidos de Tiendas / Desempeño por comercio', () => {
+    const laSopotaTrips = [
+        {
+            id: '0tGIarPIv5sAoM9caevK',
+            serviceType: 'delivery',
+            deliveryVehicle: 'moto',
+            status: 'completed',
+            merchantDirectDelivery: true,
+            storeDelivery: true,
+            createdByMerchant: true,
+            storeId: 'gRPs0iH7ingQE4N8aj5g',
+            storeName: 'LA SOPOTA',
+            recipientName: 'andrea Cruz',
+            serviceZoneId: 'comayagua',
+            serviceZoneName: 'Comayagua',
+            priceNum: 45,
+            deliveryDetails: {
+                fromStore: true,
+                merchantDirect: true,
+                storeId: 'gRPs0iH7ingQE4N8aj5g',
+                storeName: 'LA SOPOTA',
+                recipientName: 'andrea Cruz',
+                itemsTotal: 300,
+            },
+            createdAt: new Date('2026-10-24T13:30:00-06:00'),
+            completedAt: new Date('2026-10-24T14:07:00-06:00'),
+        },
+        {
+            id: 'SbEPxh9pzRBIIHzoyLy9',
+            serviceType: 'delivery',
+            deliveryVehicle: 'moto',
+            status: 'completed',
+            merchantDirectDelivery: true,
+            storeDelivery: true,
+            createdByMerchant: true,
+            storeId: 'TWRCDBeoi4PfQZedDN6O',
+            storeName: 'LA SOPOTA',
+            recipientName: 'Jafet',
+            serviceZoneId: 'comayagua',
+            serviceZoneName: 'Comayagua',
+            priceNum: 45,
+            deliveryDetails: {
+                fromStore: true,
+                merchantDirect: true,
+                storeId: 'TWRCDBeoi4PfQZedDN6O',
+                storeName: 'LA SOPOTA',
+                recipientName: 'Jafet',
+                itemsTotal: 0,
+            },
+            createdAt: new Date('2026-10-24T13:50:00-06:00'),
+            completedAt: new Date('2026-10-24T14:15:00-06:00'),
+        },
+    ];
+    assert.equal(isStoreDeliveryTrip(laSopotaTrips[0]), true);
+    assert.equal(classifyTripServiceBucket(laSopotaTrips[0]), 'tiendas');
+
+    const snapSopota = computeGlobalStatsSnapshot({
+        trips: laSopotaTrips,
+        storeOrders: [],
+        deposits: [],
+        users: [],
+        commissionConfig,
+        filter: { period: 'today', city: 'comayagua' },
+        now: refNow,
+    });
+
+    const tiendasBucket = snapSopota.serviceBreakdown.find((s) => s.key === 'tiendas');
+    assert.equal(tiendasBucket.trips, 2);
+    assert.equal(tiendasBucket.revenue, 90);
+    assert.equal(tiendasBucket.commission, 9);
+
+    assert.equal(snapSopota.storeMetrics.totalOrders, 2);
+    assert.equal(snapSopota.storeMetrics.deliveredOrders, 2);
+    assert.equal(snapSopota.storeMetrics.itemsSoldTotal, 300);
+    assert.equal(snapSopota.storeMetrics.deliveryFeesTotal, 90);
+    assert.equal(snapSopota.storeMetrics.byStore.length, 1);
+    assert.equal(snapSopota.storeMetrics.byStore[0].storeName, 'LA SOPOTA');
+    assert.equal(snapSopota.storeMetrics.byStore[0].delivered, 2);
+    assert.equal(snapSopota.storeMetrics.byStore[0].itemsSold, 300);
+    assert.equal(snapSopota.storeMetrics.byStore[0].deliveryFees, 90);
+    assert.equal(snapSopota.storeMetrics.byStore[0].commission, 34.5); // 10% de 300 (L.30) + 10% de envio L.45 cuando itemsTotal=0 (L.4.5)
+    return `LA SOPOTA: ${snapSopota.storeMetrics.deliveredOrders}/${snapSopota.storeMetrics.totalOrders} entregados, prod=L.${snapSopota.storeMetrics.itemsSoldTotal}, envíos=L.${snapSopota.storeMetrics.deliveryFeesTotal}`;
 });
 
 console.log(`\nALL ${passed} TESTS PASSED!`);

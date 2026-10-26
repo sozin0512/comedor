@@ -630,7 +630,7 @@ async function handleStaffMarkDelivered(orderId, tripId, driverId, driverName) {
     const ord = findOrderAny(orderId, tripId);
     const tId = tripId || ord?.tripId || ord?.lastTripId || (ord?.fromTripOnly ? orderId : '');
     if (typeof window !== 'undefined' && typeof window.staffRestoreOrReassignStoreOrder === 'function') {
-        return window.staffRestoreOrReassignStoreOrder({
+        const done = await window.staffRestoreOrReassignStoreOrder({
             orderId: ord?.fromTripOnly ? '' : orderId,
             tripId: tId,
             driverId: driverId || ord?.driverId || ord?.lastDriverId || '',
@@ -638,10 +638,18 @@ async function handleStaffMarkDelivered(orderId, tripId, driverId, driverName) {
             mode: 'mark_delivered',
             orderDoc: ord,
         });
+        if (done && ord) {
+            ord.status = 'delivered';
+            ord.deliveryStage = 'delivered';
+            S.active = S.active.filter((x) => x.id !== ord.id);
+            if (!S.todayDone.some((x) => x.id === ord.id)) S.todayDone.unshift(ord);
+            render();
+        }
+        return done;
     }
     const label = driverName || ord?.driverName || ord?.lastDriverName || 'el repartidor';
     if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
-        if (!window.confirm(`¿Confirmas marcar el pedido ${shortId(orderId || tId)} como ENTREGADO por ${label}?`)) return;
+        if (!window.confirm(`¿Confirmas marcar el pedido ${shortId(orderId || tId)} como ENTREGADO por ${label}?`)) return false;
     }
     const nowTs = Timestamp.fromMillis(Date.now());
     try {
@@ -666,12 +674,16 @@ async function handleStaffMarkDelivered(orderId, tripId, driverId, driverName) {
         }
         if (ord) {
             ord.status = 'delivered';
+            ord.deliveryStage = 'delivered';
             S.active = S.active.filter((x) => x.id !== ord.id);
+            if (!S.todayDone.some((x) => x.id === ord.id)) S.todayDone.unshift(ord);
             render();
         }
         window.showToast?.(`✅ Pedido ${shortId(orderId || tId)} marcado como Entregado.`, 'success');
+        return true;
     } catch (e) {
         console.warn('[pedidos] mark-delivered error:', e);
+        return false;
     }
 }
 function onClick(e) {

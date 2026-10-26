@@ -286,18 +286,34 @@ export function resolveStatsDateRange({ period = 'today', from = '', to = '', no
     };
 }
 
-export function classifyTripServiceBucket(t) {
-    if (!t || typeof t !== 'object') return 'auto_taxi';
-    if (
-        t.storeOrderId
-        || t.storeOrder
+export function isStoreDeliveryTrip(t) {
+    if (!t || typeof t !== 'object') return false;
+    const d = t.deliveryDetails || {};
+    return Boolean(
+        t.storeDelivery
+        || t.merchantDirectDelivery
         || t.createdByMerchant
+        || t.storeOrder
+        || t.storeOrderId
+        || t.storeId
+        || t.whatsappOrder
+        || t.createdVia === 'whatsapp_store'
         || t.tripKind === 'store_order'
         || t.tripKind === 'merchant_delivery'
         || t.serviceType === 'tiendas'
-        || t.deliveryDetails?.storeOrderId
-        || t.deliveryDetails?.storeDelivery
-    ) {
+        || d.fromStore
+        || d.merchantDirect
+        || d.merchantDirectDelivery
+        || d.whatsappStore
+        || d.storeDelivery
+        || d.storeOrderId
+        || d.storeId
+    );
+}
+
+export function classifyTripServiceBucket(t) {
+    if (!t || typeof t !== 'object') return 'auto_taxi';
+    if (isStoreDeliveryTrip(t)) {
         return 'tiendas';
     }
     const st = String(t.serviceType || t.requestedVehicleType || t.vehicleType || 'auto').toLowerCase().trim();
@@ -312,16 +328,7 @@ export function classifyTripServiceBucket(t) {
 
 export function resolveRawServiceCommissionKey(t) {
     if (!t || typeof t !== 'object') return 'auto';
-    if (
-        t.storeOrderId
-        || t.storeOrder
-        || t.createdByMerchant
-        || t.tripKind === 'store_order'
-        || t.tripKind === 'merchant_delivery'
-        || t.serviceType === 'tiendas'
-        || t.deliveryDetails?.storeOrderId
-        || t.deliveryDetails?.storeDelivery
-    ) {
+    if (isStoreDeliveryTrip(t)) {
         return 'tiendas';
     }
     const st = String(t.serviceType || t.requestedVehicleType || t.vehicleType || 'auto').toLowerCase().trim();
@@ -610,7 +617,100 @@ export function computeGlobalStatsSnapshot({
         ? Number(commissionConfig.byService.store_products)
         : DEFAULT_STORE_COMMISSION_PCT;
 
-    for (const o of storeOrders || []) {
+    const tripByIdForStore = new Map();
+    const tripByOrderIdForStore = new Map();
+    for (const t of trips || []) {
+        if (!t || t.isDemandSimulation) continue;
+        if (t.id) tripByIdForStore.set(t.id, t);
+        const oid = t.storeOrderId || t.deliveryDetails?.storeOrderId || '';
+        if (oid && !tripByOrderIdForStore.has(oid)) tripByOrderIdForStore.set(oid, t);
+    }
+
+    const reconciledStoreOrders = [];
+    const coveredTripIdsForStore = new Set();
+    const seenStoreOrderIds = new Set();
+
+    for (const rawOrder of storeOrders || []) {
+        if (!rawOrder) continue;
+        if (rawOrder.id) seenStoreOrderIds.add(rawOrder.id);
+        const linkedTrip = (rawOrder.tripId && tripByIdForStore.get(rawOrder.tripId))
+            || (rawOrder.id && tripByOrderIdForStore.get(rawOrder.id))
+            || null;
+        if (linkedTrip?.id) coveredTripIdsForStore.add(linkedTrip.id);
+
+        let syncedStatus = String(rawOrder.status || 'pending').toLowerCase();
+        if (linkedTrip) {
+            const tSt = String(linkedTrip.status || '').toLowerCase();
+            if (tSt === 'completed') {
+                syncedStatus = 'delivered';
+            } else if ((tSt === 'cancelled' || tSt === 'canceled' || tSt === 'expired' || tSt === 'rejected') && syncedStatus !== 'delivered') {
+                syncedStatus = 'cancelled';
+            } else if (tSt === 'in_progress' && syncedStatus !== 'delivered' && syncedStatus !== 'cancelled') {
+                syncedStatus = 'out_for_delivery';
+            }
+        }
+        const syncedDeliveryFee = Number(rawOrder.deliveryFee) > 0
+            ? Number(rawOrder.deliveryFee)
+            : (linkedTrip ? parseNumericPrice(linkedTrip) : 0);
+
+        reconciledStoreOrders.push({
+            ...rawOrder,
+            status: syncedStatus,
+            deliveryFee: syncedDeliveryFee,
+            trashedAtMs: rawOrder.trashedAtMs || (isTripTrashed(linkedTrip) ? (linkedTrip.trashedAtMs || 1) : 0),
+        });
+    }
+
+    for (const t of trips || []) {
+        if (!t || t.isDemandSimulation || !isStoreDeliveryTrip(t)) continue;
+        const oid = t.storeOrderId || t.deliveryDetails?.storeOrderId || '';
+        if ((t.id && coveredTripIdsForStore.has(t.id)) || (oid && seenStoreOrderIds.has(oid))) continue;
+        if (t.id) coveredTripIdsForStore.add(t.id);
+
+        const d = t.deliveryDetails || {};
+        const rawSt = String(t.status || 'pending').toLowerCase();
+        const synthStatus = rawSt === 'completed'
+            ? 'delivered'
+            : (rawSt === 'cancelled' || rawSt === 'canceled' || rawSt === 'rejected' || rawSt === 'expired' || rawSt === 'no_driver'
+                ? 'cancelled'
+                : (rawSt === 'in_progress' ? 'out_for_delivery' : 'ready'));
+        const synthStoreName = t.storeName || d.storeName || d.restaurant || t.merchantName || t.originPlaceName || t.clientName || t.origin || 'Tienda';
+        const synthStoreId = t.storeId || d.storeId || t.merchantId || synthStoreName || 'tienda';
+        const synthClientName = d.recipientName || t.recipientName || (t.clientName && t.clientName !== synthStoreName ? t.clientName : '') || t.destination || 'Cliente';
+        const synthItemsTotal = round2(Number(d.itemsTotal ?? d.productCharge ?? d.collectAmount ?? d.collectFromCustomer ?? t.itemsTotal ?? 0) || 0);
+        const synthDeliveryFee = round2(Number(d.deliveryFee ?? t.deliveryFee ?? parseNumericPrice(t)) || 0);
+
+        reconciledStoreOrders.push({
+            id: oid || t.id || '',
+            tripId: t.id || '',
+            fromTripOnly: true,
+            storeId: synthStoreId,
+            storeName: synthStoreName,
+            clientName: synthClientName,
+            recipientName: synthClientName,
+            cityId: t.cityId || t.serviceZoneId || d.cityId || '',
+            cityName: t.cityName || t.serviceZoneName || d.cityName || '',
+            serviceZoneId: t.serviceZoneId || t.cityId || '',
+            serviceZoneName: t.serviceZoneName || t.cityName || '',
+            deliveryZoneName: t.deliveryZoneName || d.deliveryZoneName || t.serviceZoneName || t.cityName || '',
+            origin: t.origin || '',
+            destination: t.destination || '',
+            deliveryAddress: d.address || t.destination || '',
+            driverId: t.driverId || '',
+            status: synthStatus,
+            itemsTotal: synthItemsTotal,
+            deliveryFee: synthDeliveryFee,
+            commissionPercent: t.serverCommissionPercent ?? t.commissionPercent ?? null,
+            paymentMethod: t.paymentMethod || 'efectivo',
+            createdAt: t.createdAt || t.completedAt || t.updatedAt || null,
+            updatedAt: t.updatedAt || t.completedAt || null,
+            trashedAt: t.trashedAt || null,
+            trashedAtMs: t.trashedAtMs || 0,
+            deletedAt: t.deletedAt || null,
+        });
+    }
+
+    for (const o of reconciledStoreOrders) {
         if (!o || isTripTrashed(o)) continue;
         const createdMs = toMs(o.createdAt) || toMs(o.updatedAt);
         if (createdMs < range.startMs || createdMs > range.endMs) continue;
@@ -625,8 +725,9 @@ export function computeGlobalStatsSnapshot({
             : (o.weeklyCommissionRate != null && Number.isFinite(Number(o.weeklyCommissionRate))
                 ? round2(Number(o.weeklyCommissionRate) * 100)
                 : configuredStoreCommPct);
+        const commBaseAmt = itemsAmt > 0 ? itemsAmt : (o.fromTripOnly ? deliveryFeeAmt : 0);
         const orderCommAmt = st === 'delivered'
-            ? round2(itemsAmt * (orderCommPct / 100))
+            ? round2(commBaseAmt * (orderCommPct / 100))
             : 0;
 
         if (st === 'delivered') {
@@ -640,9 +741,9 @@ export function computeGlobalStatsSnapshot({
             storeActiveOrders++;
         }
 
-        const sKey = o.storeId || o.storeName || 'tienda';
+        const sKey = normalizeCitySlug(o.storeName || '') || o.storeId || 'tienda';
         const sRow = storesMap.get(sKey) || {
-            storeId: sKey,
+            storeId: o.storeId || sKey,
             storeName: o.storeName || 'Tienda',
             orders: 0,
             delivered: 0,
@@ -689,7 +790,7 @@ export function computeGlobalStatsSnapshot({
     }
 
     orderRows.sort((a, b) => b.dateMs - a.dateMs);
-    const byStore = [...storesMap.values()].sort((a, b) => b.itemsSold - a.itemsSold || b.orders - a.orders);
+    const byStore = [...storesMap.values()].sort((a, b) => (b.itemsSold + b.deliveryFees) - (a.itemsSold + a.deliveryFees) || b.orders - a.orders);
 
     let depositsApprovedAmount = 0;
     let depositsApprovedCount = 0;

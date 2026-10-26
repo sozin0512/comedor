@@ -1686,14 +1686,24 @@ function openAssign(id, { mode = "assign" } = {}) {
         try {
             const btnMode = b.dataset.mode || mode;
             if (btnMode === "delivered" && typeof window.staffRestoreOrReassignStoreOrder === "function") {
-                await window.staffRestoreOrReassignStoreOrder({
+                const pickedDrv = list.find((d) => d.uid === b.dataset.uid);
+                const done = await window.staffRestoreOrReassignStoreOrder({
                     orderId: t.storeOrderId || t.deliveryDetails?.storeOrderId || "",
                     tripId: t.id,
                     driverId: b.dataset.uid,
+                    driverName: pickedDrv?.name || "",
                     mode: "mark_delivered",
+                    orderDoc: {
+                        ...t,
+                        fromTripOnly: !(t.storeOrderId || t.deliveryDetails?.storeOrderId),
+                    },
                 });
-                closeModal();
-                closeDrawer();
+                if (done) {
+                    closeModal();
+                    closeDrawer();
+                } else {
+                    b.disabled = false;
+                }
                 return;
             }
             if (typeof window.staffAssignTripToViewer === 'function') {

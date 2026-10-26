@@ -13,33 +13,33 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.25.6';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.25.6';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.1';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.1';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.25.6';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.25.6';
-import { APP_CONFIG } from './config.js?v=2026.10.25.6';
-import { calculateAge } from './age-verification.js?v=2026.10.25.6';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.25.6';
+} from './zones.js?v=2026.10.26.1';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.26.1';
+import { APP_CONFIG } from './config.js?v=2026.10.26.1';
+import { calculateAge } from './age-verification.js?v=2026.10.26.1';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.1';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.25.6';
+} from './store-delivery-zones.js?v=2026.10.26.1';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.25.6';
+} from './store-week.js?v=2026.10.26.1';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.25.6';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.25.6';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.1';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.1';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.25.6';
+} from './merchant-delivery-request.js?v=2026.10.26.1';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -998,13 +998,17 @@ export function recordStoreSaleActivity(storeId, opts = {}) {
         ];
     }
 
+    const updatedTargets = new Set();
     const applyToStoreObj = (target) => {
-        if (!target || typeof target !== 'object') return;
+        if (!target || typeof target !== 'object' || updatedTargets.has(target)) return;
+        updatedTargets.add(target);
         const prevTs = Array.isArray(target.recentSalesTimestamps) ? target.recentSalesTimestamps : [];
-        const validTs = prevTs
-            .map((x) => Number(x))
-            .filter((x) => Number.isFinite(x) && x >= cutoff && x <= nowMs + 60000);
-        validTs.push(nowMs);
+        const validTs = [...new Set(
+            prevTs
+                .map((x) => Number(x))
+                .filter((x) => Number.isFinite(x) && x >= cutoff && x <= nowMs + 60000)
+        )];
+        if (!validTs.includes(nowMs)) validTs.push(nowMs);
         target.lastSaleAtMs = nowMs;
         target.lastDeliveryAtMs = nowMs;
         target.recentSalesTimestamps = validTs;
@@ -1078,23 +1082,26 @@ export function storeHotInfo(s, activeOrdersCount = 0) {
     const tripsList = Array.isArray(opts.trips) ? opts.trips : recentStoreDeliveryTrips;
 
     const seenOrderIds = new Set();
+    const seenTripIds = new Set();
     const orderTimestamps = [];
     for (const o of ordersList) {
-        if (!o || o.status === 'cancelled') continue;
+        if (!o || o.status === 'cancelled' || o.status === 'canceled' || o.trashedAtMs || o.trashedAt) continue;
         if (storeId && o.storeId !== storeId) continue;
         const oid = o.id || `ord_${orderTimestamps.length}`;
         if (seenOrderIds.has(oid)) continue;
         seenOrderIds.add(oid);
+        if (o.tripId) seenTripIds.add(o.tripId);
         const ms = extractActivityTimestampMs(o);
         if (ms > 0) orderTimestamps.push(ms);
     }
 
-    const seenTripIds = new Set();
     const tripTimestamps = [];
     for (const t of tripsList) {
-        if (!t || t.status === 'cancelled') continue;
+        if (!t || t.status === 'cancelled' || t.status === 'canceled' || t.trashedAtMs || t.trashedAt) continue;
         const tStoreId = t.storeId || t.merchantId || t.deliveryDetails?.storeId || '';
         if (storeId && tStoreId !== storeId) continue;
+        const linkedOrderId = t.storeOrderId || t.deliveryDetails?.storeOrderId || '';
+        if (linkedOrderId && seenOrderIds.has(linkedOrderId)) continue;
         const tid = t.id || `trp_${tripTimestamps.length}`;
         if (seenTripIds.has(tid)) continue;
         seenTripIds.add(tid);
@@ -1103,7 +1110,7 @@ export function storeHotInfo(s, activeOrdersCount = 0) {
     }
 
     const storeTsArray = Array.isArray(s.recentSalesTimestamps)
-        ? s.recentSalesTimestamps.map((x) => extractActivityTimestampMs(x)).filter((ms) => ms > 0)
+        ? [...new Set(s.recentSalesTimestamps.map((x) => extractActivityTimestampMs(x)).filter((ms) => ms > 0))]
         : [];
     const directStoreLastMs = Math.max(
         extractActivityTimestampMs(s.lastSaleAtMs),
@@ -1146,7 +1153,9 @@ export function storeHotInfo(s, activeOrdersCount = 0) {
     const recentOrders1h = orderTimestamps.filter((ms) => ms >= cutoffMs && ms <= nowMs + 60000).length;
     const recentTrips1h = tripTimestamps.filter((ms) => ms >= cutoffMs && ms <= nowMs + 60000).length;
     const recentStoreTs1h = storeTsArray.filter((ms) => ms >= cutoffMs && ms <= nowMs + 60000).length;
-    const explicitRecent1h = Math.max(0, Math.floor(Number(s?.recentSales1h ?? s?.ordersLastHour ?? s?.recentOrders1h ?? 0) || 0));
+    const explicitRecent1h = Array.isArray(s?.recentSalesTimestamps)
+        ? recentStoreTs1h
+        : Math.max(0, Math.floor(Number(s?.recentSales1h ?? s?.ordersLastHour ?? s?.recentOrders1h ?? 0) || 0));
     const activeCount = Math.max(0, Math.floor(Number(activeOrdersCount) || 0));
 
     let countLastHour = Math.max(

@@ -60,7 +60,7 @@ service cloud.firestore {
     // Supervisor o admin. Una sola lectura del doc de roles (límite de expresiones por regla).
     function isSupervisor(app) {
       return isSignedIn() && (
-        authEmail() in ['josuesoza0513@gmail.com', 'sozajob146@gmail.com']
+        authEmail() in ['josuesoza0513@gmail.com', 'sozajob146@gmail.com', 'soportehonduraite01@gmail.com']
         || trustedStaffRole(app) in ['admin', 'supervisor']
       );
     }
