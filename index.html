@@ -448,7 +448,7 @@
                 // Solo actualizar si version.json es mas NUEVA que este HTML (evita bucle si version.json se quedo atras).
                 function hrIsRemoteNewer(running, remote) {
                     function parts(v) {
-                        return String(v || '').trim().split(/[^d]+/).filter(Boolean).map(function (n) { return parseInt(n, 10) || 0; });
+                        return String(v || '').trim().split(/[^\d]+/).filter(Boolean).map(function (n) { return parseInt(n, 10) || 0; });
                     }
                     var a = parts(running), b = parts(remote);
                     if (!a.length || !b.length) return String(running).trim() !== String(remote).trim();
