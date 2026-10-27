@@ -6,7 +6,7 @@
  *  - Listado flotante dividido por lo que manejan con botón directo de WhatsApp y centrar en mapa
  */
 import { collection, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { isDriverOnline, getZoneById, findNearestZone } from './zones.js';
+import { isDriverOnline, getZoneById, findNearestZone } from './zones.js?v=2026.10.26.6';
 
 const TRIP_TRACK_FRESH_MS = 900000; // 15 min — GPS reciente
 const FLEET_STATUS_STORAGE_KEY = 'hr_ops_fleet_status_filter';
@@ -231,7 +231,9 @@ function isOnActiveTrip(uid) {
 
 export function isFleetDriverOnlineOrInTrip(uid, data = null) {
     if (uid && isOnActiveTrip(uid)) return true;
-    const loc = (data && Object.keys(data).length > 0) ? data : (uid ? fleetData.get(uid) : null);
+    const loc = (data && typeof data === 'object' && Object.keys(data).length > 0)
+        ? data
+        : (uid ? (latestDriverDocs.get(uid) || lastSnap?.docs?.find?.((d) => d.id === uid)?.data?.() || null) : null);
     if (!loc) return false;
     if (isDriverOnline(loc)) return true;
     return false;
