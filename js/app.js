@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.26.3";
+} from "./auth-credentials.js?v=2026.10.26.4";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.26.3";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.3";
+import { APP_CONFIG } from "./config.js?v=2026.10.26.4";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.4";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.26.3";
+} from "./market.js?v=2026.10.26.4";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.26.3";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.3";
+} from "./phone-utils.js?v=2026.10.26.4";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.4";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.26.3";
+} from "./referrals.js?v=2026.10.26.4";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.26.3";
+} from "./zones.js?v=2026.10.26.4";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.26.3";
+} from "./trip-notifications.js?v=2026.10.26.4";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.26.3";
+} from "./notification-tones.js?v=2026.10.26.4";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.3";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.4";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.26.3";
+} from "./passenger-alerts.js?v=2026.10.26.4";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.26.3";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.3";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.3";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.3";
+} from "./passenger-verification.js?v=2026.10.26.4";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.4";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.4";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.4";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.3";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.4";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.26.3";
+} from "./feedback.js?v=2026.10.26.4";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.26.3";
+} from "./greetings.js?v=2026.10.26.4";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,9 +148,9 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.26.3";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.3";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.26.3";
+} from "./service-types.js?v=2026.10.26.4";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.4";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS } from "./store-trip-ui.js?v=2026.10.26.4";
 window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
@@ -174,23 +174,23 @@ import {
     rankDriversForStoreDelivery,
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml
-} from "./store-delivery-rotation.js?v=2026.10.26.3";
+} from "./store-delivery-rotation.js?v=2026.10.26.4";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.3";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.4";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.26.3";
-import * as HrAvail from "./service-availability.js?v=2026.10.26.3";
+} from "./service-availability.js?v=2026.10.26.4";
+import * as HrAvail from "./service-availability.js?v=2026.10.26.4";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.26.3";
+} from "./trip-wait.js?v=2026.10.26.4";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
     if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
@@ -206,49 +206,49 @@ import {
     getPendingVehicles, getVehicleById, getActiveVehicleType, syncLegacyVehicleFieldsFromActive,
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, buildVehicleLabel, driverHasPendingVehicleVerification
-} from "./driver-vehicles-v2.js?v=2026.10.26.3";
+} from "./driver-vehicles-v2.js?v=2026.10.26.4";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.26.3";
+} from "./route-fixed-fares.js?v=2026.10.26.4";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.26.3";
+} from "./commission-free-day.js?v=2026.10.26.4";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.26.3";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.3";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.3";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.3";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.3";
-import { formatLempiras } from "./money-format.js?v=2026.10.26.3";
-import { displayPersonName } from "./display-name.js?v=2026.10.26.3";
+} from "./route-conditions.js?v=2026.10.26.4";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.4";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.4";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.4";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.4";
+import { formatLempiras } from "./money-format.js?v=2026.10.26.4";
+import { displayPersonName } from "./display-name.js?v=2026.10.26.4";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.26.3";
+} from "./demand-heatmap.js?v=2026.10.26.4";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.26.3";
+} from "./ops-fleet-map.js?v=2026.10.26.4";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.26.3";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.3";
+} from "./live-trip-keepalive.js?v=2026.10.26.4";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.4";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.26.3";
+} from "./driver-session.js?v=2026.10.26.4";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -257,7 +257,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.26.3";
+} from "./session-keepalive.js?v=2026.10.26.4";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -345,29 +345,29 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.3";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.4";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.26.3";
+} from "./auth-ui.js?v=2026.10.26.4";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.26.3";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.3";
+} from "./age-verification.js?v=2026.10.26.4";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.4";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.26.3";
+} from "./trip-experience.js?v=2026.10.26.4";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.26.3";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.3";
+} from "./support-tickets.js?v=2026.10.26.4";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.4";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.3";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.3";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.4";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.4";
 
 
 let app;
@@ -14733,16 +14733,20 @@ if (document.readyState === 'loading') {
             let driverStats = {};
             
             if (role === 'driver' && filteredUsers.length > 0) {
-                body += U.toolbar({
+                const staffDirHtml = typeof window.renderStaffDriversByCityAndVehicleHtml === 'function'
+                    ? `<div id="staff-drivers-by-city-vehicle-mount">${window.renderStaffDriversByCityAndVehicleHtml()}</div>`
+                    : '';
+                body += staffDirHtml + U.toolbar({
                     searchHtml: `<input type="text" id="driver-search-input" placeholder="Buscar nombre, WhatsApp, correo o placa…" class="ops-input" oninput="window.filterAdminDrivers()">`,
                     chipsHtml: [
+                        U.chip('🟢 En línea', "window.filterAdminDriversByStatus('online')", { variant: 'emerald' }),
                         U.chip('Descansando', "window.filterAdminDriversByStatus('resting')", { variant: 'muted' }),
                         U.chip('Depósito pendiente', "window.filterAdminDriversByStatus('pending')", { variant: 'muted' }),
                         U.chip('Papelera', "window.filterAdminDriversByStatus('papelera')", { variant: 'red' }),
                         U.chip('Todos', "window.filterAdminDriversByStatus('all')", { active: true, variant: 'emerald' }),
                         `<button id="copy-all-banks-btn" class="ops-chip ops-chip--emerald">📋 Copiar cuentas</button>`
                     ].join(''),
-                    hint: 'Cuentas bancarias visibles siempre para facilitar depósitos manuales.'
+                    hint: 'Filtra por En línea, Ciudad o Vehículo arriba, o usa los filtros rápidos aquí.'
                 }) + U.userListOpen() + `<div id="admin-drivers-container" class="ops-user-list">`;
 
                 // Computar para conductores
@@ -14905,7 +14909,7 @@ if (document.readyState === 'loading') {
                             ${waLinkAdmin ? `
                             <a href="${waLinkAdmin}" target="_blank" 
                                class="flex-1 min-w-[110px] bg-green-600 hover:bg-green-500 text-white text-[10px] py-2.5 rounded-xl font-bold flex items-center justify-center gap-1 active:scale-[0.985]">
-                                <i class="fab fa-whatsapp"></i> <span>CONTACTAR</span>
+                                <i class="fab fa-whatsapp"></i> <span>ESCRIBIR POR WHATSAPP</span>
                             </a>` : ''}
                             ${graceBtn}
                             ${clearDebtBtn}
@@ -15015,6 +15019,9 @@ if (document.readyState === 'loading') {
                          data-referral="${escData(referralCodeData)}"
                          data-search="${escData(searchBlob)}"
                          data-resting="${isRestingForCard ? 1 : 0}" data-pending="${hasPendingForCard ? 1 : 0}"
+                         data-online="${role === 'driver' && typeof window.isFleetDriverOnlineOrInTrip === 'function' && window.isFleetDriverOnlineOrInTrip(u.uid) ? 1 : 0}"
+                         data-vehicle-cat="${role === 'driver' && typeof window.classifyFleetVehicleCategory === 'function' ? window.classifyFleetVehicleCategory(u.vehicleType, u) : ''}"
+                         data-city-id="${role === 'driver' && typeof window.resolveFleetDriverCity === 'function' ? escData(window.resolveFleetDriverCity({}, u).cityId) : escData(u.serviceZoneId || u.cityId || '')}"
                          data-status="${status}"
                          ${openScreenOnClick}>
                         <div class="flex items-center gap-3 w-full">
@@ -21116,7 +21123,12 @@ if (document.readyState === 'loading') {
                 }
 
                 const clientsWithTrips = new Set();
-                const tripsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
+                let tripsSnap;
+            try {
+                tripsSnap = await getDocs(query(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), where('driverId', '==', driverId)));
+            } catch (_) {
+                tripsSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'trips'));
+            }
                 tripsSnap.forEach((d) => {
                     const t = d.data() || {};
                     const st = String(t.status || '');
@@ -21619,13 +21631,24 @@ if (document.readyState === 'loading') {
             const container = document.getElementById('supervisor-pending-list');
             if (!container) return;
             const status = window._supActiveDriverStatusFilter || 'all';
+            const vehFilter = window._supDriverVehicleFilter || 'all';
+            const onlineDirFilter = window._supDriverOnlineFilter || 'all';
+            const cityDirFilter = window._supDriverCityFilter || 'all';
             const term = (document.getElementById('sup-driver-search-input')?.value || '').toLowerCase().trim();
             container.querySelectorAll('.sup-active-driver-card').forEach((card) => {
                 const isResting = card.dataset.resting === '1';
                 const hasPending = card.dataset.pending === '1';
+                const isOnline = card.dataset.online === '1'
+                    || (typeof window.isFleetDriverOnlineOrInTrip === 'function' && window.isFleetDriverOnlineOrInTrip(card.dataset.uid));
+                const cardVeh = card.dataset.vehicleCat || '';
+                const cardCity = card.dataset.cityId || '';
                 let show = true;
-                if (status === 'resting') show = isResting;
+                if (status === 'online') show = isOnline;
+                else if (status === 'resting') show = isResting;
                 else if (status === 'pending') show = hasPending;
+                if (show && onlineDirFilter === 'online') show = isOnline;
+                if (show && vehFilter && vehFilter !== 'all') show = cardVeh === vehFilter;
+                if (show && cityDirFilter && cityDirFilter !== 'all') show = cardCity === cityDirFilter;
                 if (show) show = cardMatchesOpsSearch(card, term);
                 card.style.display = show ? '' : 'none';
             });
@@ -21774,20 +21797,34 @@ if (document.readyState === 'loading') {
             if (!searchInput) return;
             const term = searchInput.value;
             const statusFilter = window._adminDriverStatusFilter || 'all';
-            const filtering = !!foldOpsSearchText(term) || (statusFilter && statusFilter !== 'all');
+            const vehFilter = window._adminDriverVehicleFilter || 'all';
+            const onlineDirFilter = window._adminDriverOnlineFilter || 'all';
+            const cityDirFilter = window._adminDriverCityFilter || 'all';
+            const filtering = !!foldOpsSearchText(term)
+                || (statusFilter && statusFilter !== 'all')
+                || (vehFilter && vehFilter !== 'all')
+                || (onlineDirFilter && onlineDirFilter !== 'all')
+                || (cityDirFilter && cityDirFilter !== 'all');
             let total = 0;
             let visible = 0;
             document.querySelectorAll('.driver-card[data-role="driver"], .driver-card:not([data-role])').forEach((card) => {
-                // Solo tarjetas de conductores en la lista de drivers (compat: sin data-role)
                 if (card.dataset.role && card.dataset.role !== 'driver') return;
                 total += 1;
                 const isResting = card.dataset.resting === '1';
                 const hasPending = card.dataset.pending === '1';
+                const isOnline = card.dataset.online === '1'
+                    || (typeof window.isFleetDriverOnlineOrInTrip === 'function' && window.isFleetDriverOnlineOrInTrip(card.dataset.uid));
                 const cardStatus = (card.dataset.status || '').toLowerCase();
+                const cardVeh = card.dataset.vehicleCat || '';
+                const cardCity = card.dataset.cityId || '';
                 let show = true;
-                if (statusFilter === 'resting') show = isResting;
+                if (statusFilter === 'online') show = isOnline;
+                else if (statusFilter === 'resting') show = isResting;
                 else if (statusFilter === 'pending') show = hasPending;
                 else if (statusFilter === 'papelera' || statusFilter === 'rejected') show = cardStatus === 'rejected';
+                if (show && onlineDirFilter === 'online') show = isOnline;
+                if (show && vehFilter && vehFilter !== 'all') show = cardVeh === vehFilter;
+                if (show && cityDirFilter && cityDirFilter !== 'all') show = cardCity === cityDirFilter.toLowerCase();
                 if (show) show = adminUserCardMatchesSearch(card, term);
                 card.style.display = show ? '' : 'none';
                 if (show) visible += 1;
@@ -44343,8 +44380,11 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
         function groupUsersByZone(users) {
             const groupsMap = new Map();
             users.forEach((u) => {
-                const zoneId = u.serviceZoneId || u.cityId || '';
-                const zoneName = u.serviceZoneName || u.cityName || (zoneId ? `Zona ${zoneId}` : 'Sin ciudad');
+                const resolvedCity = (u.role === 'driver' && typeof window.resolveFleetDriverCity === 'function')
+                    ? window.resolveFleetDriverCity({}, u)
+                    : null;
+                const zoneId = u.serviceZoneId || u.cityId || resolvedCity?.cityId || '';
+                const zoneName = u.serviceZoneName || u.cityName || resolvedCity?.cityName || (zoneId ? `Zona ${zoneId}` : 'Sin ciudad');
                 const key = `${zoneName}||${zoneId}`;
                 if (!groupsMap.has(key)) {
                     groupsMap.set(key, { zoneId, zoneName, users: [] });
@@ -45739,14 +45779,18 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                 body += `<div class="ops-alert ops-alert--danger"><i class="fas fa-exclamation-triangle"></i> ${restingWithDebt} conductor(es) en descanso con deuda pendiente — alertas enviadas</div>`;
             }
 
+            if (typeof window.renderStaffDriversByCityAndVehicleHtml === 'function') {
+                body += `<div id="staff-drivers-by-city-vehicle-mount">${window.renderStaffDriversByCityAndVehicleHtml()}</div>`;
+            }
             body += U.toolbar({
                 searchHtml: `<input type="search" id="sup-driver-search-input" placeholder="Buscar nombre, WhatsApp, correo, placa o identidad…" class="ops-input" oninput="window.filterSupActiveDriversSearch()">`,
                 chipsHtml: [
+                    U.chip('🟢 En línea', "window.filterSupActiveDrivers('online')", { variant: 'emerald' }),
                     U.chip('Descansando', "window.filterSupActiveDrivers('resting')", { variant: 'muted' }),
                     U.chip('Depósito pendiente', "window.filterSupActiveDrivers('pending')", { variant: 'muted' }),
                     U.chip('Todos', "window.filterSupActiveDrivers('all')", { active: true, variant: 'emerald' })
                 ].join(''),
-                hint: 'Combina búsqueda con los filtros de estado.',
+                hint: 'Filtra por Ciudad, Vehículo o En línea arriba, o busca en las fichas.',
                 sticky: false
             });
 
@@ -45798,7 +45842,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                         <div class="ops-progress-bar-fill ops-progress-bar-fill--${statusColor}" style="width:${Math.min(Math.max(daysLeft / 180 * 100, 5), 100)}%"></div>
                     </div>
                     <div class="ops-trip-actions ops-trip-actions--grid">
-                    ${waLink ? `<a href="${waLink}" target="_blank" class="ops-btn ops-btn--emerald"><i class="fab fa-whatsapp"></i><span>Contactar</span></a>` : ''}
+                    ${waLink ? `<a href="${waLink}" target="_blank" class="ops-btn ops-btn--emerald"><i class="fab fa-whatsapp"></i><span>Escribir por WhatsApp</span></a>` : ''}
                     ${U.btn('Notificar', `window.sendIndividualNotification('${u.uid}', '${u.name.replace(/'/g, "\\'")}', 'driver')`, { variant: 'emerald', icon: 'fa-bell' })}
                     ${U.btn('Fletes', `window.staffEnableDriverFreight('${u.uid}', '${u.name.replace(/'/g, "\\'")}')`, { variant: 'emerald', icon: 'fa-truck-pickup' })}
                     ${U.btn('Extender', `window.extendDriverValidity('${u.uid}', this)`, { variant: 'emerald', icon: 'fa-clock' })}
@@ -45814,7 +45858,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                     </div>
                 `, 'driver', {
                     extraClass: 'sup-active-driver-card ops-user-card',
-                    attrs: `data-resting="${onBreak ? 1 : 0}" data-pending="${pendingDeposit > 0 ? 1 : 0}" ${buildOpsUserSearchAttrs(u)}`
+                    attrs: `data-uid="${u.uid}" data-resting="${onBreak ? 1 : 0}" data-pending="${pendingDeposit > 0 ? 1 : 0}" data-online="${typeof window.isFleetDriverOnlineOrInTrip === 'function' && window.isFleetDriverOnlineOrInTrip(u.uid) ? 1 : 0}" data-vehicle-cat="${typeof window.classifyFleetVehicleCategory === 'function' ? window.classifyFleetVehicleCategory(u.vehicleType, u) : ''}" data-city-id="${typeof window.resolveFleetDriverCity === 'function' ? window.resolveFleetDriverCity({}, u).cityId : (u.serviceZoneId || u.cityId || '')}" ${buildOpsUserSearchAttrs(u)}`
                 });
             });
 
