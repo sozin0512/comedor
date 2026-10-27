@@ -25863,11 +25863,13 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 10px;
-  border-radius: 16px;
+  max-width: 168px;
+  overflow: hidden;
+  padding: 5px 9px;
+  border-radius: 14px;
   background: rgba(15, 23, 42, 0.92);
-  border: 2.5px solid var(--fire-primary, #fb923c);
-  box-shadow: 0 0 20px var(--fire-glow, rgba(251, 146, 60, 0.72));
+  border: 2px solid var(--fire-primary, #fb923c);
+  box-shadow: 0 0 16px var(--fire-glow, rgba(251, 146, 60, 0.65));
   color: #ffffff;
   cursor: pointer;
   animation: hrFireArcadeBounce 2.2s ease-in-out infinite;
@@ -25894,7 +25896,10 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
   white-space: nowrap;
 }
 .hr-fire-map-title {
-  font-size: 11px;
+  max-width: 148px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
   font-weight: 900;
   color: #ffffff;
   white-space: nowrap;
@@ -25925,6 +25930,12 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
   border-radius: 999px;
   font-size: 0.62rem;
   font-weight: 900;
+}
+.driver-hot-stores-chip__name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .driver-hot-stores-chip__stat {
   color: #fde047;
@@ -25995,8 +26006,8 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
   box-shadow: 0 4px 12px rgba(124, 58, 237, 0.36), 0 0 0 1.5px rgba(255, 255, 255, 0.95);
 }
 .hr-store-map-pin.is-hot .hr-store-map-pin__circle {
-  border-color: #f97316;
-  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.35), 0 6px 16px rgba(234, 88, 12, 0.45);
+  border-color: var(--fire-primary, #f97316);
+  box-shadow: 0 0 0 3px var(--fire-glow, rgba(249, 115, 22, 0.38)), 0 6px 16px rgba(234, 88, 12, 0.45);
 }
 .hr-store-map-pin.is-highlighted {
   transform: translateY(-3px) scale(1.14);

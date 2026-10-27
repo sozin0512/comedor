@@ -13,33 +13,33 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.2';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.2';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.3';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.3';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.26.2';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.26.2';
-import { APP_CONFIG } from './config.js?v=2026.10.26.2';
-import { calculateAge } from './age-verification.js?v=2026.10.26.2';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.2';
+} from './zones.js?v=2026.10.26.3';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.26.3';
+import { APP_CONFIG } from './config.js?v=2026.10.26.3';
+import { calculateAge } from './age-verification.js?v=2026.10.26.3';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.3';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.26.2';
+} from './store-delivery-zones.js?v=2026.10.26.3';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.26.2';
+} from './store-week.js?v=2026.10.26.3';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.2';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.2';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.3';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.3';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.26.2';
+} from './merchant-delivery-request.js?v=2026.10.26.3';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -731,8 +731,18 @@ export function formatStoreHoursSummary(s) {
 }
 
 export function formatStoreBranchLabel(s) {
-    const b = String(s?.branchName || '').trim();
-    return b || '';
+    const raw = String(s?.branchName || '').trim();
+    if (!raw) return '';
+    const addr = String(s?.address || '').trim();
+    if (addr && raw.toLowerCase() === addr.toLowerCase()) {
+        const firstPart = raw.split(',')[0].trim();
+        if (firstPart && firstPart.length <= 26) return firstPart;
+    }
+    if (raw.includes(',') && raw.length > 28) {
+        const firstPart = raw.split(',')[0].trim();
+        if (firstPart && firstPart.length >= 3 && firstPart.length <= 26) return firstPart;
+    }
+    return raw.length > 28 ? raw.slice(0, 26).trim() + '…' : raw;
 }
 
 function getSavedSelectedStoreId(uid = getCurrentUser()?.uid) {
@@ -1365,16 +1375,18 @@ export function buildStoreMapPinHtml(s, opts = {}) {
     const rawName = String(s.name || "Tienda").trim();
     const microName = rawName.length > 15 ? rawName.slice(0, 14).trim() + "…" : rawName;
     const microText = meta.isBranch ? `🏬 ${microName}` : microName;
+    const fireBadgeIcon = isHot ? (tier.level >= 5 ? "💎" : (tier.level === 4 ? "⚡" : "🔥")) : "";
+    const fireVars = isHot ? `--fire-primary:${tier.primaryColor};--fire-glow:${tier.glowColor};` : "";
     return `
         <div class="hr-store-map-pin ${meta.isBranch ? "hr-store-map-pin--branch" : "hr-store-map-pin--main"} ${isOpen ? "is-open" : "is-closed"} ${isHot ? "is-hot " + esc(tier.cssClass) : ""} ${highlighted ? "is-highlighted" : ""} ${showLabel ? "is-label-visible" : ""}"
              data-store-map-pin-id="${esc(s.id || "")}"
              data-is-branch="${meta.isBranch ? "1" : "0"}"
-             style="--pin-accent:${borderCol};--pin-badge-bg:${meta.badgeBg};"
+             style="--pin-accent:${borderCol};--pin-badge-bg:${meta.badgeBg};${fireVars}"
              title="${esc(rawName)}${meta.rawBranch ? " · Sucursal: " + esc(meta.rawBranch) : ""}">
             <span class="hr-store-map-pin__circle">
                 <span class="hr-store-map-pin__emoji" aria-hidden="true">${esc(meta.emoji)}</span>
                 ${meta.isBranch ? `<span class="hr-store-map-pin__branch-tag" title="Sucursal">🏬</span>` : ""}
-                ${isHot ? `<span class="hr-store-map-pin__fire-tag" title="En Fuego">${esc(tier.emoji || "🔥")}</span>` : ""}
+                ${isHot ? `<span class="hr-store-map-pin__fire-tag" style="background:${tier.gradient};" title="${esc(tier.label)} · ${esc(hot.shipmentsLabel)}">${esc(fireBadgeIcon)}</span>` : ""}
                 <span class="hr-store-map-pin__dot ${isOpen ? "is-open" : "is-closed"}" title="${isOpen ? "Abierta ahora" : "Cerrada"}"></span>
             </span>
             <span class="hr-store-map-pin__tip" aria-hidden="true"></span>
@@ -1412,8 +1424,11 @@ export function buildHotStoreMapMarkerHtml(s, hotInput = null) {
     const hot = hotInput || storeHotInfo(s);
     if (!hot?.isHot || !hot.fireTier) return '';
     const tier = hot.fireTier;
+    const rawName = String(s.name || 'Tienda').trim();
+    const shortName = rawName.length > 18 ? rawName.slice(0, 17).trim() + '…' : rawName;
     const branch = formatStoreBranchLabel(s);
-    const displayName = branch ? `${s.name || 'Tienda'} · ${branch}` : (s.name || 'Tienda');
+    const shortBranch = branch.length > 14 ? branch.slice(0, 13).trim() + '…' : branch;
+    const displayName = shortBranch ? `${shortName} · ${shortBranch}` : shortName;
     return `
         <div class="hr-fire-map-marker ${esc(tier.cssClass)}"
              data-hot-map-store-id="${esc(s.id || '')}"
@@ -8933,89 +8948,48 @@ export function syncDriverHotStoresOnMap() {
         driverHotMapMarkers = [];
         driverHotMapCircles = [];
 
+        const posMap = resolveStoreMapPositions(getMapEligibleStores());
         const lMap = typeof window !== 'undefined' ? (window.leafletMap || window.lMap) : null;
         if (lMap && typeof window.L !== 'undefined') {
-            hotList.forEach(({ store: s, hot }) => {
-                const tier = hot.fireTier || FIRE_COLOR_TIERS[0];
-                const circle = window.L.circle([Number(s.lat), Number(s.lng)], {
-                    radius: tier.mapRadius || 240,
-                    color: tier.primaryColor,
-                    fillColor: tier.secondaryColor,
-                    fillOpacity: 0.24,
-                    weight: 2,
-                }).addTo(lMap);
-                driverHotMapCircles.push(circle);
-                const icon = window.L.divIcon({
-                    className: `hr-leaflet-fire-icon ${tier.cssClass}`,
-                    html: buildHotStoreMapMarkerHtml(s, hot),
-                    iconSize: [160, 68],
-                    iconAnchor: [80, 34],
+            const lz = typeof lMap.getZoom === 'function' ? Number(lMap.getZoom() || 14) : 14;
+            if (lz >= 13) {
+                hotList.forEach(({ store: s, hot }) => {
+                    const tier = hot.fireTier || FIRE_COLOR_TIERS[0];
+                    const resolved = posMap.get(s.id) || { lat: Number(s.lat), lng: Number(s.lng) };
+                    const circle = window.L.circle([resolved.lat, resolved.lng], {
+                        radius: Math.min(tier.mapRadius || 95, 110),
+                        color: tier.primaryColor,
+                        fillColor: tier.secondaryColor,
+                        fillOpacity: 0.14,
+                        weight: 1.5,
+                    }).addTo(lMap);
+                    driverHotMapCircles.push(circle);
                 });
-                const marker = window.L.marker([Number(s.lat), Number(s.lng)], { icon }).addTo(lMap);
-                marker.on?.('click', () => focusDriverMapOnHotStore(s.id));
-                driverHotMapMarkers.push(marker);
-            });
+            }
         }
 
         const gMap = typeof window !== 'undefined' ? window.gMap : null;
         if (!gMap || typeof google === 'undefined' || !google.maps) return;
-        hotList.forEach(({ store: s, hot }) => {
-            const tier = hot.fireTier || FIRE_COLOR_TIERS[0];
-            const pos = { lat: Number(s.lat), lng: Number(s.lng) };
-            if (google.maps.Circle) {
-                const outerWave = new google.maps.Circle({
-                    map: gMap,
-                    center: pos,
-                    radius: (tier.mapRadius || 230) * 1.35,
-                    fillColor: tier.primaryColor,
-                    fillOpacity: 0.11,
-                    strokeColor: tier.primaryColor,
-                    strokeOpacity: 0.45,
-                    strokeWeight: 1.5,
-                    clickable: false,
-                });
+        const gz = typeof gMap.getZoom === 'function' ? Number(gMap.getZoom() || 14) : 14;
+        if (gz >= 13 && google.maps.Circle) {
+            hotList.forEach(({ store: s, hot }) => {
+                const tier = hot.fireTier || FIRE_COLOR_TIERS[0];
+                const resolved = posMap.get(s.id) || { lat: Number(s.lat), lng: Number(s.lng) };
+                const pos = { lat: resolved.lat, lng: resolved.lng };
                 const innerCore = new google.maps.Circle({
                     map: gMap,
                     center: pos,
-                    radius: tier.mapRadius || 230,
+                    radius: Math.min(tier.mapRadius || 95, 110),
                     fillColor: tier.secondaryColor,
-                    fillOpacity: 0.24,
+                    fillOpacity: 0.14,
                     strokeColor: tier.primaryColor,
-                    strokeOpacity: 0.85,
-                    strokeWeight: 2.5,
+                    strokeOpacity: 0.55,
+                    strokeWeight: 1.5,
                     clickable: false,
                 });
-                driverHotMapCircles.push(outerWave, innerCore);
-            }
-            if (google.maps.marker?.AdvancedMarkerElement) {
-                const wrap = document.createElement('div');
-                wrap.innerHTML = buildHotStoreMapMarkerHtml(s, hot).trim();
-                const el = wrap.firstElementChild || wrap;
-                el.addEventListener('click', () => focusDriverMapOnHotStore(s.id));
-                const advMarker = new google.maps.marker.AdvancedMarkerElement({
-                    map: gMap,
-                    position: pos,
-                    content: el,
-                    title: `${tier.label} · ${s.name || 'Restaurante'} (${hot.shipmentsLabel})`,
-                    zIndex: 30 + (tier.level || 1),
-                });
-                driverHotMapMarkers.push(advMarker);
-            } else if (google.maps.Marker) {
-                const marker = new google.maps.Marker({
-                    map: gMap,
-                    position: pos,
-                    title: `${tier.label} ${s.name || 'Restaurante'} · ${hot.shipmentsLabel} · ${hot.expiryLabel}`,
-                    label: {
-                        text: `${tier.emoji} ${hot.countLastHour}`,
-                        fontSize: '13px',
-                        fontWeight: '900',
-                        color: '#ffffff',
-                    },
-                });
-                marker.addListener?.('click', () => focusDriverMapOnHotStore(s.id));
-                driverHotMapMarkers.push(marker);
-            }
-        });
+                driverHotMapCircles.push(innerCore);
+            });
+        }
     } catch (_) {}
 }
 

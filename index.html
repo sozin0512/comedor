@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.2">
+    <meta name="hr-app-version" content="2026.10.26.3">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -55,12 +55,12 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.2">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.3">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.2">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.2">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.2">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.3">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.3">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.3">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -108,7 +108,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.2"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.3"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -323,11 +323,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 10px;
-  border-radius: 16px;
+  max-width: 168px;
+  overflow: hidden;
+  padding: 5px 9px;
+  border-radius: 14px;
   background: rgba(15, 23, 42, 0.92);
-  border: 2.5px solid var(--fire-primary, #fb923c);
-  box-shadow: 0 0 20px var(--fire-glow, rgba(251, 146, 60, 0.72));
+  border: 2px solid var(--fire-primary, #fb923c);
+  box-shadow: 0 0 16px var(--fire-glow, rgba(251, 146, 60, 0.65));
   color: #ffffff;
   cursor: pointer;
   animation: hrFireArcadeBounce 2.2s ease-in-out infinite;
@@ -354,7 +356,10 @@
   white-space: nowrap;
 }
 .hr-fire-map-title {
-  font-size: 11px;
+  max-width: 148px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
   font-weight: 900;
   color: #ffffff;
   white-space: nowrap;
@@ -386,6 +391,12 @@
   font-size: 0.62rem;
   font-weight: 900;
 }
+.driver-hot-stores-chip__name {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .driver-hot-stores-chip__stat {
   color: #fde047;
   font-weight: 900;
@@ -414,10 +425,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.2';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.3';
         (function () {
             try {
-                var build = '2026.10.26.2';
+                var build = '2026.10.26.3';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
