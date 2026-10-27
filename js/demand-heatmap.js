@@ -174,6 +174,52 @@ function placeHotspot(center, count, tier) {
     // Ultimate fallback: no AdvancedMarkerElement at all → we only have the Circle (no label marker).
 }
 
+export function isPassengerRideForDemandHeatmap(trip) {
+    if (!trip || typeof trip !== 'object') return false;
+    if (Boolean(trip.trashedAt || trip.trashedAtMs || trip.deletedAt || trip.status === 'trashed')) {
+        return false;
+    }
+    if (
+        trip.storeDelivery
+        || trip.merchantDirectDelivery
+        || trip.createdByMerchant
+        || trip.storeOrder
+        || trip.storeOrderId
+        || trip.storeId
+        || trip.whatsappOrder
+        || trip.createdVia === 'whatsapp_store'
+    ) {
+        return false;
+    }
+    if (
+        trip.tripKind === 'store_order'
+        || trip.tripKind === 'merchant_delivery'
+        || trip.tripKind === 'delivery'
+    ) {
+        return false;
+    }
+    const d = trip.deliveryDetails || {};
+    if (
+        Boolean(
+            d.fromStore
+            || d.merchantDirect
+            || d.merchantDirectDelivery
+            || d.whatsappStore
+            || d.storeDelivery
+            || d.storeOrderId
+            || d.storeId
+            || (d && Object.keys(d).length > 0 && String(trip.serviceType || '').toLowerCase() === 'delivery')
+        )
+    ) {
+        return false;
+    }
+    const st = String(trip.serviceType || trip.requestedVehicleType || '').toLowerCase().trim();
+    if (st === 'delivery' || st === 'envio' || st === 'tiendas') {
+        return false;
+    }
+    return true;
+}
+
 function aggregateDemandCells(snap) {
     const zoneId = getZoneIdFn?.();
     const radiusKm = getRadiusKmFn?.() ?? 25;
@@ -181,6 +227,7 @@ function aggregateDemandCells(snap) {
 
     snap?.forEach?.((docSnap) => {
         const trip = { id: docSnap.id, ...docSnap.data() };
+        if (!isPassengerRideForDemandHeatmap(trip)) return;
         if (!DEMAND_STATUSES.has(trip.status)) return;
         if (!tripCreatedToday(trip)) return;
         if (!tripMatchesZone(trip, zoneId, radiusKm)) return;
@@ -210,8 +257,8 @@ function updateLegend(topCount, zoneCount) {
     legend.classList.remove('hidden');
     window.syncMapLocationChipVisibility?.();
     text.textContent = zoneCount === 1
-        ? `1 zona caliente (3+ pedidos) · pico ${topCount}`
-        : `${zoneCount} zonas calientes (3+ pedidos) · pico ${topCount}`;
+        ? `1 zona caliente (3+ viajes) · pico ${topCount}`
+        : `${zoneCount} zonas calientes (3+ viajes) · pico ${topCount}`;
 }
 
 function viewerCanSeeDemandHeatmap() {

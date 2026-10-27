@@ -26,6 +26,12 @@ const {
     renderGlobalStatsHtml,
 } = await import(jsUrl('stats-engine.js'));
 
+const demandHeatmapSrc = fs.readFileSync(path.join(ROOT, 'js', 'demand-heatmap.js'), 'utf8')
+    .replace(/https:\/\/www\.gstatic\.com\/firebasejs\/[^'"]+firebase-firestore\.js/g, 'data:text/javascript,export const collection=()=>{};export const onSnapshot=()=>{};');
+fs.writeFileSync(path.join(JS_TMP, 'demand-heatmap-test.js'), demandHeatmapSrc);
+const { isPassengerRideForDemandHeatmap } = await import(jsUrl('demand-heatmap-test.js'));
+
+
 let passed = 0;
 function check(name, fn) {
     try {
@@ -528,6 +534,67 @@ check('Req 8: Envios directos de comercios (como LA SOPOTA merchantDirectDeliver
     assert.equal(snapSopota.storeMetrics.byStore[0].deliveryFees, 90);
     assert.equal(snapSopota.storeMetrics.byStore[0].commission, 34.5); // 10% de 300 (L.30) + 10% de envio L.45 cuando itemsTotal=0 (L.4.5)
     return `LA SOPOTA: ${snapSopota.storeMetrics.deliveredOrders}/${snapSopota.storeMetrics.totalOrders} entregados, prod=L.${snapSopota.storeMetrics.itemsSoldTotal}, envíos=L.${snapSopota.storeMetrics.deliveryFeesTotal}`;
+});
+
+
+check('Req 9 (t210u): Zonas rojas de alta demanda (demand-heatmap.js) solo se activan con viajes de pasajeros y excluyen envíos de tiendas (LA SOPOTA) y deliveries', () => {
+    // Store deliveries (LA SOPOTA direct delivery, whatsapp_store, storeOrderId, delivery) -> EXCLUDED (false)
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'sopota-1',
+        serviceType: 'delivery',
+        deliveryVehicle: 'moto',
+        merchantDirectDelivery: true,
+        storeDelivery: true,
+        createdByMerchant: true,
+        storeId: 'gRPs0iH7ingQE4N8aj5g',
+        storeName: 'LA SOPOTA',
+    }), false);
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'sopota-wa',
+        serviceType: 'moto',
+        createdVia: 'whatsapp_store',
+        whatsappOrder: true,
+    }), false);
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'store-ord-1',
+        serviceType: 'auto',
+        storeOrderId: 'ord-123',
+    }), false);
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'mandado-1',
+        serviceType: 'delivery',
+        tripKind: 'delivery',
+    }), false);
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'trashed-ride',
+        serviceType: 'auto',
+        trashedAtMs: 1793000000000,
+    }), false);
+
+    // Passenger rides (auto, taxi, moto, vip, hourly, simulation) -> ALLOWED (true)
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'ride-auto',
+        serviceType: 'auto',
+        status: 'completed',
+    }), true);
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'ride-taxi',
+        serviceType: 'taxi',
+        status: 'pending',
+    }), true);
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'ride-moto',
+        serviceType: 'moto',
+        status: 'in_progress',
+    }), true);
+    assert.equal(isPassengerRideForDemandHeatmap({
+        id: 'ride-sim',
+        serviceType: 'auto',
+        isDemandSimulation: true,
+        status: 'pending',
+    }), true);
+    assert.match(demandHeatmapSrc, /1 zona caliente \(3\+ viajes\) · pico/);
+    return 'Envíos de tiendas/deliveries excluidos; viajes de pasajeros permitidos';
 });
 
 console.log(`\nALL ${passed} TESTS PASSED!`);
