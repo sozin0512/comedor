@@ -26,7 +26,7 @@ function legacyRecordFromProfile(profile) {
 export function buildVehicleLabel(type, vehicle = {}) {
     const plate = (vehicle.plate || '').trim();
     const model = (vehicle.model || '').trim();
-    const typeLabels = { moto: 'Moto', taxi: 'Taxi', auto: 'Auto', paila: 'Paila', camion: 'Camión', grua: 'Grúa' };
+    const typeLabels = { moto: 'Moto', taxi: 'Taxi', auto: 'Auto', vip: 'VIP', paila: 'Paila', camion: 'Camión', grua: 'Grúa' };
     const prefix = typeLabels[type] || 'Vehículo';
     if (model && plate) return `${prefix}: ${model} · ${plate}`;
     if (plate) return `${prefix}: ${plate}`;
@@ -229,4 +229,93 @@ export function buildDriverApprovalFields(profile, validUntilIso, onlyVehicleId 
         resubmitRequested: false,
         autoSuspended: false,
     };
+}
+
+/**
+ * Construye los campos sincronizados (vehicleType, vehicle, vehicles, activeVehicleId)
+ * cuando Admin o Supervisor corrige el tipo de vehículo, modelo o placa de un conductor
+ * (por ejemplo, si un conductor de moto se registró por error como carro).
+ */
+export function buildDriverVehicleUpdateFields(profile, { newType, newModel, newPlate } = {}) {
+    const cleanType = String(newType || profile?.vehicleType || 'auto').trim().toLowerCase();
+    const normalized = normalizeDriverProfileVehicles({ ...(profile || {}), role: 'driver' });
+    const baseVehicle = normalized.vehicle || profile?.vehicle || {};
+    const finalModel = newModel !== undefined ? String(newModel).trim() : String(baseVehicle.model || '').trim();
+    const finalPlate = newPlate !== undefined ? String(newPlate).trim().toUpperCase() : String(baseVehicle.plate || '').trim().toUpperCase();
+
+    const updatedVehicleObj = {
+        ...baseVehicle,
+        type: cleanType,
+        model: finalModel,
+        plate: finalPlate
+    };
+
+    const nowIso = new Date().toISOString();
+    let vehicles = Array.isArray(normalized.vehicles) ? [...normalized.vehicles] : [];
+
+    if (vehicles.length === 0) {
+        const newId = normalized.activeVehicleId || createVehicleId();
+        vehicles = [{
+            id: newId,
+            type: cleanType,
+            label: buildVehicleLabel(cleanType, updatedVehicleObj),
+            vehicle: updatedVehicleObj,
+            vehiclePhotos: profile?.vehiclePhotos || {},
+            cascoPhotos: profile?.cascoPhotos || null,
+            passengerCascoPhotos: profile?.passengerCascoPhotos || null,
+            helmetPhoto: profile?.helmetPhoto || null,
+            documentsPhotos: profile?.documentsPhotos || {},
+            approvalStatus: profile?.approvalStatus || 'approved',
+            documentsValidUntil: profile?.documentsValidUntil || null,
+            createdAt: profile?.createdAt || nowIso,
+            updatedAt: nowIso
+        }];
+        normalized.activeVehicleId = newId;
+    } else {
+        const activeId = normalized.activeVehicleId
+            || (vehicles.find((v) => v.approvalStatus === 'approved') || vehicles[0])?.id;
+        normalized.activeVehicleId = activeId;
+        vehicles = vehicles.map((v, idx) => {
+            const isTarget = (activeId && v.id === activeId) || (vehicles.length === 1 && idx === 0);
+            if (!isTarget) return v;
+            const mergedVeh = {
+                ...(v.vehicle || {}),
+                type: cleanType,
+                model: finalModel || v.vehicle?.model || '',
+                plate: finalPlate || v.vehicle?.plate || ''
+            };
+            return {
+                ...v,
+                type: cleanType,
+                label: buildVehicleLabel(cleanType, mergedVeh),
+                vehicle: mergedVeh,
+                updatedAt: nowIso
+            };
+        });
+    }
+
+    normalized.vehicles = vehicles;
+    syncLegacyVehicleFieldsFromActive(normalized);
+    normalized.vehicleType = cleanType;
+    normalized.vehicle = {
+        ...(normalized.vehicle || {}),
+        type: cleanType,
+        model: finalModel,
+        plate: finalPlate
+    };
+
+    const out = {
+        vehicleType: cleanType,
+        vehicle: normalized.vehicle,
+        vehicles: normalized.vehicles,
+        activeVehicleId: normalized.activeVehicleId,
+        lastDocumentsUpdate: nowIso
+    };
+
+    if (cleanType === 'paila' || cleanType === 'camion') {
+        out.freightEnabled = true;
+        out.canDoFreight = true;
+    }
+
+    return out;
 }

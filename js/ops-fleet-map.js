@@ -1227,8 +1227,13 @@ function buildDriverRowForHudHtml(d) {
                 </div>
                 ${metaParts ? `<p style="font-size:10px;color:#94a3b8;font-weight:600;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtmlSafe(metaParts)}</p>` : ''}
             </div>
-            <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+            <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">
                 ${waBtn}
+                <button type="button" onclick="event.stopPropagation();window.staffChangeDriverVehicleType?.('${escapeHtmlSafe(d.uid)}')"
+                    style="padding:5px 7px;border-radius:8px;background:rgba(79,70,229,0.28);color:#c7d2fe;border:1px solid rgba(129,140,248,0.45);font-size:10px;font-weight:800;cursor:pointer;"
+                    title="Cambiar tipo de vehículo (Moto / Carro / Taxi / VIP / Paila)">
+                    🏍️/🚗
+                </button>
                 ${mapBtn}
             </div>
         </div>
@@ -1723,8 +1728,13 @@ export function renderStaffDriversByCityAndVehicleHtml() {
                             </div>
                             ${metaLine ? `<p style="font-size:11px;color:#94a3b8;font-weight:600;margin:2px 0 0;">${escapeHtmlSafe(metaLine)}</p>` : ''}
                         </div>
-                        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;">
                             ${waBtn}
+                            <button type="button" onclick="window.staffChangeDriverVehicleType?.('${escapeHtmlSafe(d.uid)}')"
+                                style="padding:6px 10px;border-radius:10px;background:rgba(79,70,229,0.25);color:#c7d2fe;border:1px solid rgba(129,140,248,0.45);font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap;"
+                                title="Cambiar vehículo (ej. de Carro a Moto)">
+                                🏍️/🚗 Cambiar vehículo
+                            </button>
                             ${mapBtn}
                         </div>
                     </div>
@@ -1823,6 +1833,18 @@ if (typeof window !== 'undefined') {
     window.getFleetDriversDirectorySnapshot = getFleetDriversDirectorySnapshot;
     window.buildDriverWhatsAppHref = buildDriverWhatsAppHref;
     window.renderStaffDriversByCityAndVehicleHtml = renderStaffDriversByCityAndVehicleHtml;
+    window.refreshOpsFleetAfterProfileEdit = (uid, patch = {}) => {
+        if (uid && latestDriverDocs.has(uid)) {
+            const prev = latestDriverDocs.get(uid) || {};
+            latestDriverDocs.set(uid, { ...prev, ...patch });
+        }
+        if (lastSnap) renderOpsFleetMap(lastSnap);
+        else renderFleetMapHud();
+        const mount = document.getElementById('staff-drivers-by-city-vehicle-mount');
+        if (mount) {
+            mount.innerHTML = renderStaffDriversByCityAndVehicleHtml();
+        }
+    };
     window.setStaffDirectoryFilter = (patch = {}) => {
         if (patch.statusMode) staffDirectoryState.statusMode = patch.statusMode;
         if (patch.cityId) staffDirectoryState.cityId = patch.cityId;
