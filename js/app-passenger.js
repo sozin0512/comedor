@@ -29,9 +29,15 @@ async function resolveRouteEndpoint(el) {
     if (el._routeEndpoint?.address) {
         const cachedText = (el._routeEndpoint.address || '').trim();
         const cachedPlace = (el._routeEndpoint.placeName || '').trim();
+        // Google reescribe el texto del input tras elegir (nombre, dirección o "nombre, dirección"):
+        // no perder las coords exactas del lugar elegido por esa diferencia de texto.
+        const _n = (v) => String(v || '').trim().toLowerCase();
+        const _t = _n(uiText);
+        const _labels = [cachedText, cachedPlace, el._routeEndpoint.formattedAddress].map(_n).filter(Boolean);
         const matchesCached = !uiText
             ? !el._userClearedInput
-            : (uiText === cachedText || (cachedPlace && uiText === cachedPlace));
+            : (_labels.some((l) => l === _t || l.startsWith(_t + ',') || _t.startsWith(l + ','))
+                || (el._hrPlacePickedAt && Date.now() - el._hrPlacePickedAt < 5000 && !!el._routeEndpoint.latLng));
         if (!matchesCached) {
             el._routeEndpoint = null;
             el._selectedPlace = null;
@@ -794,6 +800,7 @@ window.calculateTripRoute = async (options = {}) => {
                 window.showToast('Este viaje dura más de 1 hora. Debes reservar un conductor por horas para este viaje.', 'warning');
                 window.currentBookingMode = 'hourly';
                 window.currentHourlyAdditionalStops = []; // fresh only when forcing from standard calc
+                window._hrHourlyAutoForced = true;
             }
 
             // ensure at least min hours based on route duration (preserve user choice of more)

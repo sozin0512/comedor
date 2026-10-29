@@ -1516,7 +1516,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         window.geocodeAddressString = (address) => new Promise((resolve) => {
             const text = String(address || '').trim();
             if (!text || !window.geocoder) return resolve(null);
-            const cacheKey = text.toLowerCase();
+            const _zoneName = String(window.activeServiceZone?.name || '').trim();
+            const cacheKey = `v2|${_zoneName.toLowerCase()}|${text.toLowerCase()}`;
             const hit = window._geocodeCache.get(cacheKey);
             if (hit && Date.now() - hit.ts < 30 * 60 * 1000) return resolve(hit.result);
 
@@ -1549,8 +1550,11 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 }
 
                 const us = typeof window.isUsMarket === 'function' && window.isUsMarket();
-                if (!us && !text.toLowerCase().includes('honduras') && !text.toLowerCase().includes('comayagua')) {
-                    result = await tryGeocode(text + ', Comayagua, Honduras');
+                // Antes se forzaba ", Comayagua, Honduras" (ciudad histórica): enviaba destinos de
+                // Tegucigalpa u otras ciudades a Comayagua. Usar la ciudad activa del pasajero.
+                const lowerText = text.toLowerCase();
+                if (!us && _zoneName && !lowerText.includes(_zoneName.toLowerCase())) {
+                    result = await tryGeocode(`${text}, ${_zoneName}, Honduras`);
                     if (result?.latLng) {
                         window._geocodeCache.set(cacheKey, { result, ts: Date.now() });
                         return resolve(result);
@@ -2762,6 +2766,19 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         el.place = place;
                         window.storeRouteEndpoint?.(el, endpoint);
                         el._hrPlacePickedAt = Date.now();
+                        if (el === destEl || el?.id === 'destination-autocomplete') {
+                            // Destino nuevo: quitar paradas viejas y salir del modo "por horas" forzado por la ruta anterior
+                            window.tripAdditionalStops = [];
+                            window.clearStopMarkers?.();
+                            window.resetRouteStopsPrompt?.();
+                            if (window._hrHourlyAutoForced && window.currentBookingMode === 'hourly') {
+                                window.currentBookingMode = 'standard';
+                                window._hrHourlyAutoForced = false;
+                                const tg = document.getElementById('trip-hourly-toggle');
+                                if (tg) tg.checked = false;
+                                document.getElementById('hourly-options')?.classList.add('hidden');
+                            }
+                        }
                         // Mostrar el nombre del mapa (ej. "Liceo Jesús"), no solo la calle larga
                         applyEndpointLabelToInput(el, nextAddr);
                         // Origen elegido a mano: actualizar ciudad al punto seleccionado
