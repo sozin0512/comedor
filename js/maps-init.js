@@ -2761,6 +2761,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         el._selectedPlace = place;
                         el.place = place;
                         window.storeRouteEndpoint?.(el, endpoint);
+                        el._hrPlacePickedAt = Date.now();
                         // Mostrar el nombre del mapa (ej. "Liceo Jesús"), no solo la calle larga
                         applyEndpointLabelToInput(el, nextAddr);
                         // Origen elegido a mano: actualizar ciudad al punto seleccionado
@@ -2867,10 +2868,20 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
                 // Texto parcial escrito (ej. "City"): NO se confirma como destino ni hereda coords/lugar viejos.
                 // Solo una sugerencia elegida (gmp-select) o GPS/mapa fijan coordenadas.
-                const sameAsCommitted = current?.address && current.address.trim() === text.trim();
+                // Igual al lugar elegido si coincide con nombre, dirección o dirección formateada
+                // (Google a veces reescribe el texto del input tras gmp-select).
+                const norm = (v) => String(v || '').trim().toLowerCase();
+                const t = norm(text);
+                const labels = [current?.address, current?.placeName, current?.formattedAddress,
+                    current?.place?.formattedAddress, window.placeDisplayName?.(current?.place)]
+                    .map(norm).filter(Boolean);
+                const recentPick = el._hrPlacePickedAt && (Date.now() - el._hrPlacePickedAt) < 2500;
+                const sameAsCommitted = !!current?.latLng && (recentPick
+                    || labels.some((l) => l === t || l.startsWith(t + ',') || t.startsWith(l + ',')));
+                if (sameAsCommitted) return; // lugar ya elegido: conservar sus coords exactas
                 if (!sameAsCommitted) el._selectedPlace = null;
                 window.storeRouteEndpoint?.(el, {
-                    address: text,
+                    address: sameAsCommitted ? (current?.address || text) : text,
                     latLng: sameAsCommitted ? (current?.latLng || null) : null,
                     place: sameAsCommitted ? (current?.place || null) : null,
                     source: sameAsCommitted ? (current?.source || 'manual') : 'draft',
