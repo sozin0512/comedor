@@ -286,7 +286,8 @@ export function syncWhenCardSummary() {
 
     const later = !!document.getElementById('trip-schedule-toggle')?.checked;
     const summaryText = document.getElementById('trip-when-summary-text')?.textContent?.trim() || '';
-    const hasSummary = later && summaryText && summaryText !== '—';
+    const pending = later && isScheduleDraftPending();
+    const hasSummary = later && !pending && summaryText && summaryText !== '—';
 
     btn?.classList.toggle('is-chosen', true);
     btn?.classList.toggle('is-later', later);
@@ -294,8 +295,11 @@ export function syncWhenCardSummary() {
     if (labelEl) {
         if (!later) {
             labelEl.textContent = 'Ahora · lo necesito ya';
+        } else if (pending) {
+            const dIso = readIsoFromCustomInputs();
+            labelEl.textContent = `⏳ Sin confirmar${dIso ? ' · ' + formatScheduleSummary(dIso) : ''}`;
         } else if (hasSummary) {
-            labelEl.textContent = `Programado · ${summaryText}`;
+            labelEl.textContent = `✅ Programado: ${summaryText}`;
         } else {
             labelEl.textContent = 'En otro momento · elige hora';
         }
@@ -303,8 +307,10 @@ export function syncWhenCardSummary() {
     if (badgeEl) {
         if (!later) {
             badgeEl.textContent = 'Toca para programar';
+        } else if (pending) {
+            badgeEl.textContent = 'Toca «Confirmar fecha y hora»';
         } else if (hasSummary) {
-            badgeEl.textContent = 'Listo · toca para cambiar';
+            badgeEl.textContent = 'Toca para cambiar';
         } else {
             badgeEl.textContent = 'Elige un atajo o fecha';
         }
@@ -385,6 +391,80 @@ function applyIsoToInputs(iso) {
     syncWhenCardSummary();
 }
 
+/* ---- Borrador de fecha/hora: nada queda programado hasta tocar «Confirmar» ---- */
+function isScheduleDraftPending() {
+    return typeof window !== 'undefined' && window._tripScheduleDraftPending === true;
+}
+
+function isIsoFarEnough(iso) {
+    const ms = iso ? new Date(iso).getTime() : NaN;
+    return Number.isFinite(ms) && ms >= Date.now() + (MIN_SCHEDULE_LEAD_MINUTES - 1) * 60 * 1000;
+}
+
+function showScheduleDraft() {
+    const box = document.getElementById('trip-when-draft');
+    const text = document.getElementById('trip-when-draft-text');
+    const err = document.getElementById('trip-when-draft-error');
+    const okBtn = document.getElementById('trip-when-draft-confirm');
+    if (!box) return;
+    const iso = readIsoFromCustomInputs();
+    window._tripScheduleDraftPending = true;
+    window.whenStepConfirmed = false;
+    box.classList.remove('hidden');
+    updateSummary(null);
+    if (text) text.textContent = iso ? `⏳ Sin confirmar: ${formatScheduleSummary(iso)}` : '⏳ Sin confirmar: elige fecha y hora';
+    const valid = !!iso && isIsoFarEnough(iso);
+    if (err) {
+        err.classList.toggle('hidden', valid || !iso);
+        err.textContent = valid || !iso ? '' : `Elige una hora al menos ${MIN_SCHEDULE_LEAD_MINUTES} minutos en el futuro.`;
+    }
+    if (okBtn) okBtn.disabled = !valid;
+    updateRequestButtonLabel();
+    syncWhenCardSummary();
+    window.syncBookingProgression?.({ scroll: false });
+}
+
+function hideScheduleDraft() {
+    if (typeof window !== 'undefined') window._tripScheduleDraftPending = false;
+    document.getElementById('trip-when-draft')?.classList.add('hidden');
+}
+
+export function confirmScheduleDraft() {
+    const iso = readIsoFromCustomInputs();
+    if (!iso || !isIsoFarEnough(iso)) {
+        showScheduleDraft();
+        window.showToast?.(`La hora debe ser al menos ${MIN_SCHEDULE_LEAD_MINUTES} minutos en el futuro.`, 'warning');
+        return false;
+    }
+    hideScheduleDraft();
+    window._tripScheduleConfirmedIso = iso;
+    applyIsoToInputs(iso);
+    window.whenStepConfirmed = true;
+    window.confirmWhenStep?.('later');
+    setTimeout(() => setWhenAdderOpen(false), 120);
+    window.showToast?.(`Programado: ${formatScheduleSummary(iso)}`, 'success');
+    return true;
+}
+
+export function cancelScheduleDraft() {
+    hideScheduleDraft();
+    const prev = window._tripScheduleConfirmedIso;
+    if (prev && isIsoFarEnough(prev)) {
+        applyIsoToInputs(prev);
+        window.whenStepConfirmed = true;
+    } else {
+        window._tripScheduleConfirmedIso = null;
+        showCustomFields(false);
+        setActivePreset('');
+        setHiddenScheduleFields({ enabled: true });
+        updateSummary(null);
+        window.whenStepConfirmed = false;
+    }
+    updateRequestButtonLabel();
+    syncWhenCardSummary();
+    window.syncBookingProgression?.({ scroll: false });
+}
+
 function readIsoFromCustomInputs() {
     const date = document.getElementById('trip-schedule-date')?.value || '';
     const time = document.getElementById('trip-schedule-time')?.value || '';
@@ -421,6 +501,7 @@ export function setTripScheduleMode(mode, { expandCustom = false } = {}) {
     const later = mode === 'later';
     setActiveWhenMode(later ? 'later' : 'now');
     if (!later) {
+        hideScheduleDraft();
         setHiddenScheduleFields({ enabled: false });
         showCustomFields(false);
         setActivePreset('');
@@ -450,15 +531,7 @@ export function setTripScheduleMode(mode, { expandCustom = false } = {}) {
             dateEl.value = pref.date;
             if (timeEl) timeEl.value = pref.time;
         }
-        const iso = readIsoFromCustomInputs();
-        if (iso) {
-            setHiddenScheduleFields({
-                enabled: true,
-                date: document.getElementById('trip-schedule-date')?.value || '',
-                time: document.getElementById('trip-schedule-time')?.value || ''
-            });
-            updateSummary(iso);
-        }
+        showScheduleDraft();
     }
     updateRequestButtonLabel();
     syncWhenCardSummary();
@@ -480,16 +553,15 @@ export function applySchedulePreset(presetId) {
             if (dateEl) dateEl.value = pref.date;
             if (timeEl) timeEl.value = pref.time;
         }
-        const iso = readIsoFromCustomInputs();
-        if (iso) {
-            applyIsoToInputs(iso);
-        } else {
-            updateSummary(null);
-        }
+        showScheduleDraft();
         return;
     }
+    hideScheduleDraft();
     showCustomFields(false);
-    if (p.iso) applyIsoToInputs(p.iso);
+    if (p.iso) {
+        applyIsoToInputs(p.iso);
+        window._tripScheduleConfirmedIso = p.iso;
+    }
 }
 
 /** Actualiza textos del panel al cambiar carro/moto/flete/entrega. */
@@ -524,7 +596,8 @@ export function buildTripOptionsFromUI() {
     const deliveryCategory = document.getElementById('delivery-category')?.value || 'otro';
 
     let scheduledFor = null;
-    if (scheduledToggle) {
+    const schedulePending = !!scheduledToggle && isScheduleDraftPending();
+    if (scheduledToggle && !schedulePending) {
         // Prefer date+time fields (nuevo UI)
         const date = document.getElementById('trip-schedule-date')?.value || '';
         const time = document.getElementById('trip-schedule-time')?.value || '';
@@ -564,11 +637,26 @@ export function buildTripOptionsFromUI() {
         }
         : null;
 
-    return { scheduledFor, riderInfo, deliveryCategory };
+    return { scheduledFor, riderInfo, deliveryCategory, schedulePending };
 }
 
 export function validateTripOptions(options) {
     if (document.getElementById('trip-schedule-toggle')?.checked) {
+        if (options.schedulePending || isScheduleDraftPending()) {
+            try {
+                setWhenAdderOpen(true);
+                showCustomFields(true);
+                showScheduleDraft();
+                const btn = document.getElementById('trip-when-draft-confirm');
+                btn?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+                btn?.classList.add('animate-pulse');
+                setTimeout(() => btn?.classList.remove('animate-pulse'), 2500);
+            } catch (_) {}
+            return {
+                ok: false,
+                message: 'Confirma la fecha y hora: toca «Confirmar fecha y hora» antes de pedir.'
+            };
+        }
         if (!options.scheduledFor) {
             try {
                 setWhenAdderOpen(true);
@@ -675,26 +763,11 @@ export function initTripScheduleUI() {
         if (!document.getElementById('trip-schedule-toggle')?.checked) return;
         setActivePreset('custom');
         showCustomFields(true);
-        const iso = readIsoFromCustomInputs();
-        if (iso) {
-            applyIsoToInputs(iso);
-            if (typeof window !== 'undefined') {
-                window.whenStepConfirmed = true;
-                window.syncBookingProgression?.({ scroll: true });
-            }
-        } else {
-            const date = document.getElementById('trip-schedule-date')?.value || '';
-            const time = document.getElementById('trip-schedule-time')?.value || '';
-            setHiddenScheduleFields({ enabled: true, date, time });
-            updateSummary(null);
-            updateRequestButtonLabel();
-            if (typeof window !== 'undefined') {
-                window.whenStepConfirmed = false;
-                window.syncBookingProgression?.({ scroll: false });
-            }
-        }
-        syncWhenCardSummary();
+        // Cambiar fecha/hora solo deja un borrador; se aplica al tocar «Confirmar fecha y hora»
+        showScheduleDraft();
     };
+    document.getElementById('trip-when-draft-confirm')?.addEventListener('click', (e) => { e.preventDefault(); confirmScheduleDraft(); });
+    document.getElementById('trip-when-draft-cancel')?.addEventListener('click', (e) => { e.preventDefault(); cancelScheduleDraft(); });
     document.getElementById('trip-schedule-date')?.addEventListener('change', onCustomChange);
     document.getElementById('trip-schedule-time')?.addEventListener('change', onCustomChange);
     document.getElementById('trip-schedule-time')?.addEventListener('input', onCustomChange);
@@ -711,6 +784,8 @@ export function initTripScheduleUI() {
 try {
     if (typeof window !== 'undefined') {
         window.setWhenAdderOpen = setWhenAdderOpen;
+        window.confirmScheduleDraft = confirmScheduleDraft;
+        window.cancelScheduleDraft = cancelScheduleDraft;
         window.syncWhenCardSummary = syncWhenCardSummary;
         window.bindWhenAdder = bindWhenAdder;
     }
