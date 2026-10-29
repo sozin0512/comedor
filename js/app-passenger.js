@@ -70,9 +70,15 @@ async function resolveRouteEndpoint(el) {
         }
     } catch (_) {}
 
+    // Texto a medio escribir: nunca geocodificar (daba "City" → otro país/centro de ciudad y
+    // esas respuestas tardías pisaban el lugar elegido).
+    if (el._routeEndpoint?.source === 'draft' && !window._hrResolveDraftForSubmit) return null;
+    const _pickMark = el._hrPlacePickedAt || 0;
     const text = window.readAutocompleteText?.(el) || el._routeEndpoint?.address || '';
     if (text.length >= 3) {
         const geocoded = await window.geocodeAddressString?.(text);
+        // Si mientras geocodificábamos se eligió una sugerencia, respetar ese lugar
+        if ((el._hrPlacePickedAt || 0) !== _pickMark && el._routeEndpoint?.latLng) return el._routeEndpoint;
         const endpoint = geocoded?.address
             ? { address: geocoded.address, latLng: geocoded.latLng || null }
             : { address: text, latLng: null };

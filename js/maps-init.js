@@ -2925,7 +2925,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     const oLl = oEl2._routeEndpoint?.latLng;
                     const dLl = dEl2._routeEndpoint?.latLng;
                     if (oLl?.lat != null && dLl?.lat != null) {
-                        window.calculateTripRoute?.({ silent: true, estimateOnly: true });
+                        // Ambos puntos ya tienen coords reales (lugar/GPS/mapa): ruta por calles, no línea recta
+                        window.calculateTripRoute?.({ silent: true });
                     }
                 }, 450);
             };
