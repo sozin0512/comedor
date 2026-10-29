@@ -3196,6 +3196,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
         window.storeRouteEndpoint = (el, endpoint) => {
             if (!el) return;
+            // Punto cambió: la ruta por calles guardada ya no vale
+            if (!endpoint?.latLng || !el._routeEndpoint?.latLng || endpoint.latLng.lat !== el._routeEndpoint.latLng.lat || endpoint.latLng.lng !== el._routeEndpoint.latLng.lng) window._hrLastRoadRoute = null;
             if (!endpoint || !endpoint.address) {
                 el._routeEndpoint = null;
                 return;

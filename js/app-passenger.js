@@ -1169,7 +1169,12 @@ window.calculateTripRoute = async (options = {}) => {
         window.scrollFareCardIntoView?.();
 
         if (window.currentRouteData && document.getElementById('ride-options-list')) {
-            window.renderRideOptions?.(window.currentRouteData, { syncFare: false });
+            // Ruta real lista: invalidar cálculos viejos de la lista y refrescar precios + tarjeta elegida
+            if (calcGen === window._tripRouteCalcGen) {
+                window._rideOptsGen = (window._rideOptsGen || 0) + 1;
+                window._hrLastRoadRoute = window.currentRouteData;
+                window.renderRideOptions?.(window.currentRouteData, { syncFare: false });
+            }
         }
 
         // Tras calcular ruta: desplegar siguiente tarjeta de la cadena (tipo / pasajeros / cuándo / pedir)
