@@ -2485,7 +2485,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 [
                     'position', 'top', 'bottom', 'left', 'right', 'height', 'max-height',
                     'min-height', 'z-index', 'transform', 'width', 'margin',
-                    'opacity', 'visibility', 'pointer-events'
+                    'opacity', 'visibility', 'pointer-events', 'overflow-y'
                 ].forEach((p) => {
                     try { panel.style.removeProperty(p); } catch (_) {}
                 });
@@ -2539,7 +2539,27 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     const compactWeb = !native && (typeof window.isCompactPlacesUi === 'function'
                         ? window.isCompactPlacesUi()
                         : window.matchMedia?.('(max-width: 639px)')?.matches);
-                    if (panel && native) {
+                    // iOS Safari/PWA: el teclado no redimensiona el layout y iOS desplaza el campo fuera de vista.
+                    // Fijar el panel de búsqueda arriba, dentro del visualViewport (encima del teclado).
+                    const iosWeb = !native && (/iP(hone|ad|od)/.test(navigator.userAgent || '')
+                        || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1));
+                    if (panel && iosWeb) {
+                        panel.style.setProperty('position', 'fixed', 'important');
+                        panel.style.setProperty('left', '0px', 'important');
+                        panel.style.setProperty('right', '0px', 'important');
+                        panel.style.setProperty('width', '100%', 'important');
+                        panel.style.setProperty('margin', '0px', 'important');
+                        panel.style.setProperty('transform', 'none', 'important');
+                        panel.style.setProperty('z-index', '40000', 'important');
+                        panel.style.setProperty('top', `${Math.round(offsetTop + safeTop)}px`, 'important');
+                        panel.style.setProperty('bottom', 'auto', 'important');
+                        panel.style.setProperty('height', `${Math.max(220, Math.round(height - safeTop))}px`, 'important');
+                        panel.style.setProperty('max-height', `${Math.max(220, Math.round(height - safeTop))}px`, 'important');
+                        panel.style.setProperty('overflow-y', 'auto', 'important');
+                        panel.style.setProperty('opacity', '1', 'important');
+                        panel.style.setProperty('pointer-events', 'auto', 'important');
+                        panel.style.setProperty('visibility', 'visible', 'important');
+                    } else if (panel && native) {
                         panel.style.setProperty('position', 'fixed', 'important');
                         panel.style.setProperty('left', '0px', 'important');
                         panel.style.setProperty('right', '0px', 'important');
@@ -2845,12 +2865,16 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     }
                 }
 
+                // Texto parcial escrito (ej. "City"): NO se confirma como destino ni hereda coords/lugar viejos.
+                // Solo una sugerencia elegida (gmp-select) o GPS/mapa fijan coordenadas.
+                const sameAsCommitted = current?.address && current.address.trim() === text.trim();
+                if (!sameAsCommitted) el._selectedPlace = null;
                 window.storeRouteEndpoint?.(el, {
                     address: text,
-                    latLng: current?.source === 'gps' ? (current?.latLng || null) : (current?.latLng || null),
-                    place: current?.place || el._selectedPlace || null,
-                    source: current?.source === 'gps' ? 'gps' : (current?.place || el._selectedPlace ? 'place' : 'manual'),
-                    gpsAddress: current?.gpsAddress || null
+                    latLng: sameAsCommitted ? (current?.latLng || null) : null,
+                    place: sameAsCommitted ? (current?.place || null) : null,
+                    source: sameAsCommitted ? (current?.source || 'manual') : 'draft',
+                    gpsAddress: sameAsCommitted ? (current?.gpsAddress || null) : null
                 });
                 window.currentRouteData = null;
                 window.showServiceOptionsIfReady?.();

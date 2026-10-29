@@ -355,6 +355,8 @@ window.restoreRouteFieldSnapshot = (el, snap) => {
 
 window.guardRouteEndpointChange = async (el, nextAddress) => {
     if (window._routeChangeGuardSkip) return true;
+    const _st=String(window.currentActiveTripData?.status||'').toLowerCase();
+    if (!['pending','searching','accepted','arrived','driver_arrived','in_progress','started'].includes(_st)) return true; // Planificando: reemplazo silencioso
     if (!hasActiveTripQuote()) return true;
 
     const field = getRouteFieldLabel(el);
