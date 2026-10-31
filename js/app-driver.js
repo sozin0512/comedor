@@ -399,15 +399,17 @@ const hrDestArrivalInner = async () => {
     const confirmMsg = legLabel.isFinal
         ? (isDeliv ? '¿Confirmas que entregaste el pedido al cliente? El envío se finalizará.' : '¿Confirmas que llegaste al destino final con el pasajero? El viaje se finalizará.')
         : `¿Confirmas que llegaste al punto ${legLabel.routeNum}? Se cargará la ruta al siguiente punto.`;
-    if (!confirm(confirmMsg)) return;
+    window.showToast?.('Confirma en la ventana para continuar.', 'info');
+    const ok = await (window.hrConfirm ? window.hrConfirm(confirmMsg, { okText: legLabel.isFinal ? 'Sí, finalizar' : 'Sí, continuar' }) : Promise.resolve(confirm(confirmMsg)));
+    if (!ok) return;
 
     try {
         if (!legLabel.isFinal) {
             const nextIdx = window.getTripCurrentLegIndex(trip) + 1;
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), {
+            await window.hrWithTimeout(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), {
                 routeLegIndex: nextIdx,
                 driverArrivedDestination: false,
-            });
+            }), 15000, 'sin-conexion');
             window.activeTrip = { ...trip, routeLegIndex: nextIdx, driverArrivedDestination: false };
             window.currentActiveTripData = { ...window.activeTrip };
             window._inProgressNavBootKey = null;
@@ -426,10 +428,10 @@ const hrDestArrivalInner = async () => {
             return;
         }
 
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), {
+        await window.hrWithTimeout(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), {
             driverArrivedDestination: true,
             driverArrivedDestinationAt: serverTimestamp()
-        });
+        }), 15000, 'sin-conexion');
         window.activeTrip = { ...trip, driverArrivedDestination: true };
         window.currentActiveTripData = { ...window.activeTrip };
 

@@ -13,33 +13,33 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.25';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.25';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.26';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.26';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.26.25';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.26.25';
-import { APP_CONFIG } from './config.js?v=2026.10.26.25';
-import { calculateAge } from './age-verification.js?v=2026.10.26.25';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.25';
+} from './zones.js?v=2026.10.26.26';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.26.26';
+import { APP_CONFIG } from './config.js?v=2026.10.26.26';
+import { calculateAge } from './age-verification.js?v=2026.10.26.26';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.26';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.26.25';
+} from './store-delivery-zones.js?v=2026.10.26.26';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.26.25';
+} from './store-week.js?v=2026.10.26.26';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.25';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.25';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.26';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.26';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.26.25';
+} from './merchant-delivery-request.js?v=2026.10.26.26';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
