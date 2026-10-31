@@ -1278,6 +1278,66 @@ async function refundTripSaldoIfNeeded(tripRef, trip) {
 /**
  * Cancelar viaje — pasajero o conductor (Admin SDK, sin depender de reglas cliente).
  */
+/**
+ * Chat del invitado (viaje por WhatsApp sin cuenta). El link de seguimiento
+ * (?trip=<id>) es la credencial: solo vale para viajes de invitado activos.
+ * Escribe en trip.chat con el mismo formato que la app, así el conductor lo ve
+ * y le llega el push normal (trigger de chat en onTripUpdated).
+ */
+exports.guestSendTripMessage = onCall(async (request) => {
+    const tripId = String(request.data?.tripId || '').trim();
+    if (!/^[a-zA-Z0-9_-]{8,64}$/.test(tripId)) {
+        throw new HttpsError('invalid-argument', 'Viaje no válido.');
+    }
+    let text = String(request.data?.text || '')
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+        .replace(/[<>]/g, '')
+        .trim();
+    if (!text) throw new HttpsError('invalid-argument', 'Escribe un mensaje.');
+    if (text.length > 500) text = text.slice(0, 500);
+
+    const tripRef = db.doc(`artifacts/${APP_ID}/public/data/trips/${tripId}`);
+    const msg = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(tripRef);
+        if (!snap.exists) throw new HttpsError('not-found', 'No encontramos ese viaje.');
+        const t = snap.data() || {};
+        const isGuest = t.guestClient === true || t.guestInvitePending === true
+            || t.createdVia === 'whatsapp' || String(t.clientId || '').startsWith('guest_');
+        if (!isGuest) throw new HttpsError('permission-denied', 'Este viaje requiere iniciar sesión.');
+        if (!['pending', 'accepted', 'in_progress', 'scheduled'].includes(String(t.status || ''))) {
+            throw new HttpsError('failed-precondition', 'El viaje ya no está activo.');
+        }
+        const now = Date.now();
+        const rl = t.guestChatRate || {};
+        const windowStart = Number(rl.windowStart) || 0;
+        const count = now - windowStart < 60000 ? (Number(rl.count) || 0) : 0;
+        if (now - (Number(rl.lastAt) || 0) < 1500 || count >= 12) {
+            throw new HttpsError('resource-exhausted', 'Estás enviando muy rápido. Espera unos segundos.');
+        }
+        const rawName = String(t.waProfileName || t.pendingClientName || t.clientName || 'Pasajero')
+            .replace(/\b\d{4}[- ]?\d{4}[- ]?\d{5}\b/g, '').replace(/[<>]/g, '').trim().slice(0, 60) || 'Pasajero';
+        const m = {
+            sender: String(t.clientId || `guest_${tripId}`),
+            senderName: rawName,
+            senderRole: 'pasajero',
+            guest: true,
+            text,
+            time: now
+        };
+        if (t.serviceType === 'delivery' || t.tripType === 'delivery' || t.isDelivery === true) {
+            m.channel = 'client';
+            m.target = 'client';
+        }
+        tx.update(tripRef, {
+            chat: FieldValue.arrayUnion(m),
+            guestChatRate: { lastAt: now, windowStart: count === 0 ? now : windowStart, count: count + 1 },
+            updatedAt: FieldValue.serverTimestamp()
+        });
+        return m;
+    });
+    return { ok: true, message: msg };
+});
+
 exports.cancelTrip = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
