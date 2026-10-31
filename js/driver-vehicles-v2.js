@@ -163,8 +163,25 @@ export function enrichDriverForVerificationDisplay(u) {
     return normalized;
 }
 
+/** Clave para detectar el mismo vehículo enviado varias veces (tipo + placa). */
+export function vehicleDupKey(v) {
+    const plate = String(v?.vehicle?.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return plate ? `${v?.type || ''}|${plate}` : '';
+}
+
+/** Quita solicitudes pendientes duplicadas (misma placa/tipo) de un vehículo ya resuelto. */
+export function dropPendingDuplicatesOf(vehicles, vehicleId) {
+    const list = Array.isArray(vehicles) ? vehicles : [];
+    const target = list.find((v) => v.id === vehicleId);
+    const key = vehicleDupKey(target);
+    if (!key) return [...list];
+    return list.filter((v) => v.id === vehicleId || v.approvalStatus !== 'pending' || vehicleDupKey(v) !== key);
+}
+
 export function approvePendingVehicles(vehicles, validUntilIso, onlyVehicleId = null) {
-    const list = Array.isArray(vehicles) ? [...vehicles] : [];
+    const list = Array.isArray(vehicles)
+        ? (onlyVehicleId ? dropPendingDuplicatesOf(vehicles, onlyVehicleId) : [...vehicles])
+        : [];
     return list.map((v) => {
         if (v.approvalStatus !== 'pending') return v;
         if (onlyVehicleId && v.id !== onlyVehicleId) return v;
@@ -183,7 +200,8 @@ export function approveAllPendingVehicles(vehicles, validUntilIso) {
 
 export function removeVehicleById(vehicles, vehicleId) {
     if (!vehicleId) return Array.isArray(vehicles) ? [...vehicles] : [];
-    return (vehicles || []).filter((v) => v.id !== vehicleId);
+    // Al rechazar, quitar también los envíos pendientes repetidos del mismo vehículo
+    return dropPendingDuplicatesOf(vehicles || [], vehicleId).filter((v) => v.id !== vehicleId);
 }
 
 /** Datos Firestore al aprobar conductor o vehículo adicional pendiente */
