@@ -346,19 +346,42 @@ window.syncDriverDestinationArrivalUi = (driverPos = null) => {
 };
 
 window.driverSignalDestinationArrival = async () => {
+    if (window.__hrDestBusy) return window.showToast?.('Finalizando viaje… espera un momento.', 'warning');
+    window.__hrDestBusy = true;
+    try { return await hrDestArrivalInner(); }
+    catch (e) {
+        console.error('driverSignalDestinationArrival', e);
+        window.showToast?.('No se pudo finalizar: ' + (e?.code || e?.message || 'error') + '. Intenta de nuevo.', 'error');
+    } finally { window.__hrDestBusy = false; }
+};
+const hrDestFreshPos = () => new Promise((resolve) => {
+    const fresh = window.currentDriverPos && (Date.now() - (window._driverLiveUpdatedAt || 0) < 15000);
+    if (fresh || !navigator.geolocation?.getCurrentPosition) return resolve(window.currentDriverPos || null);
+    const t = setTimeout(() => resolve(window.currentDriverPos || null), 4000);
+    navigator.geolocation.getCurrentPosition((p) => {
+        clearTimeout(t);
+        window.currentDriverPos = { lat: p.coords.latitude, lng: p.coords.longitude, accuracy: p.coords.accuracy };
+        window._driverLiveUpdatedAt = Date.now();
+        resolve(window.currentDriverPos);
+    }, () => { clearTimeout(t); resolve(window.currentDriverPos || null); }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 4000 });
+});
+const hrDestArrivalInner = async () => {
     const trip = window.activeTrip || window.currentActiveTripData;
     const uid = window.currentUser?.uid || window.currentUser?.uid;
     if (!trip?.id || trip.status !== 'in_progress' || trip.driverId !== uid) {
-        return window.showToast?.('Solo disponible durante un viaje en curso.');
+        return window.showToast?.('Solo disponible durante un viaje en curso.', 'error');
     }
     if (trip.driverArrivedDestination) {
-        return window.showToast?.('Ya registraste la llegada. Espera la confirmación del pasajero.');
+        // Ya marcó llegada antes (p. ej. falló el cierre): reintentar finalizar.
+        window.showToast?.('Finalizando viaje…', 'warning');
+        return await window.finishTrip?.({ skipConfirm: true });
     }
 
-    const pos = window.currentDriverPos;
+    window.showToast?.('Verificando ubicación…', 'warning');
+    const pos = await hrDestFreshPos();
     const dest = window.getTripDestinationCoords(trip);
     if (!pos || !dest) {
-        return window.showToast?.('Esperando ubicación GPS o destino del viaje.');
+        return window.showToast?.(!pos ? 'No tenemos tu ubicación GPS. Activa la ubicación e intenta de nuevo.' : 'El viaje no tiene destino con coordenadas. Avisa a soporte.', 'error');
     }
     const dist = window.getDistanceMetersBetween(pos, dest);
     if (dist > TRIP_DEST_CONFIRM_RADIUS_M) {
@@ -368,7 +391,7 @@ window.driverSignalDestinationArrival = async () => {
         const nowLabel = dist >= 1000
             ? `${(dist / 1000).toFixed(1)} km`
             : `${Math.round(dist)} m`;
-        return window.showToast?.(`Debes estar a ${needLabel} o menos del destino (ahora ~${nowLabel}).`);
+        return window.showToast?.(`Debes estar a ${needLabel} o menos del destino (ahora ~${nowLabel}).`, 'error');
     }
 
     const legLabel = window.getTripRouteLegLabel?.(trip) || { isFinal: true, routeNum: 2 };
@@ -414,9 +437,9 @@ window.driverSignalDestinationArrival = async () => {
         await window.finishTrip?.({ skipConfirm: true });
     } catch (e) {
         console.error('driverSignalDestinationArrival:', e);
-        window.showToast?.(legLabel.isFinal
-            ? 'No se pudo finalizar el viaje en el destino.'
-            : 'No se pudo avanzar al siguiente punto.');
+        window.showToast?.((legLabel.isFinal
+            ? 'No se pudo finalizar el viaje'
+            : 'No se pudo avanzar al siguiente punto') + ` (${e?.code || e?.message || 'sin conexión'}). Intenta de nuevo.`, 'error');
     }
 };
 
