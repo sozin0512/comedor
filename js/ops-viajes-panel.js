@@ -791,6 +791,7 @@ function liveCard(t, health) {
         ${searching ? `<button class="vj-b" data-act="resend" data-id="${esc(t.id)}">${IC_RESEND} Reenviar a más conductores</button>
         <button class="vj-b o" data-act="assign" data-id="${esc(t.id)}">Asignar manual</button>` : `<button class="vj-b o" data-act="detail" data-id="${esc(t.id)}">Ver detalle</button>`}
         <button class="vj-b g" data-act="notifyPassenger" data-id="${esc(t.id)}">Avisar</button>
+        <button class="vj-b rr" data-act="cancelTrip" data-id="${esc(t.id)}">Cancelar viaje</button>
         ${stale ? `<button class="vj-b rr" data-act="trashPop" data-id="${esc(t.id)}">Mandar a papelera</button>` : ''}
       </div>
       ${stale ? trashPopHtml(t) : ''}
@@ -1856,6 +1857,66 @@ async function revealPin(id) {
         refreshDrawer();
     } catch (e) { toast(errMsg(e), 'error'); }
 }
+const STAFF_CANCELLABLE = ['pending', 'accepted', 'in_progress', 'scheduled', 'verifying'];
+function openCancelTrip(id) {
+    const t = ST.trips.find((x) => x.id === id);
+    if (!t) return;
+    openModal(`<h4>¿Cancelar este viaje?</h4>
+      <p class="vj-sub" style="margin:0 0 8px">${esc(svcLabel(t))} · ${shortId(t.id)} · ${esc(clientName(t))}${t.driverId ? ` · conductor ${esc(driverName(t) || '')}` : ''}.<br>El viaje se cancela para todos: ${t.driverId ? 'el conductor queda libre y ' : 'los conductores dejan de verlo y '}el pasajero recibe un aviso. Queda registrado quién lo canceló.</p>
+      <label class="vj-sub" style="display:block;margin-bottom:4px">Motivo (opcional)</label>
+      <textarea data-cancel-reason rows="3" maxlength="300" style="width:100%;box-sizing:border-box;border:1px solid #D5DBE7;border-radius:9px;padding:8px;font:inherit" placeholder="Ej.: el pasajero pidió cancelar por teléfono"></textarea>
+      <div class="vj-row" style="justify-content:flex-end;margin-top:12px;gap:8px"><button class="vj-b g" data-close>No, volver</button><button class="vj-b red" data-cancel-yes style="background:#D92D20!important;color:#fff!important">Sí, cancelar viaje</button></div>`,
+    (m) => {
+        const yes = m.querySelector('[data-cancel-yes]');
+        yes.addEventListener('click', async () => {
+            if (yes.disabled) return;
+            yes.disabled = true; yes.textContent = 'Cancelando…';
+            const reason = String(m.querySelector('[data-cancel-reason]').value || '').trim().slice(0, 300);
+            const ok = await staffCancelTrip(t, reason);
+            if (ok) closeModal(); else { yes.disabled = false; yes.textContent = 'Sí, cancelar viaje'; }
+        });
+    });
+}
+async function staffCancelTrip(t, reason) {
+    const u = me() || {};
+    const prof = myProfile() || {};
+    const role = isAdmin() ? 'admin' : 'supervisor';
+    try {
+        await callFn('cancelTrip', { tripId: t.id, reason, asStaff: true });
+    } catch (e) {
+        const code = String(e?.code || '');
+        // Función vieja aún desplegada (no conoce staff) o sin red de functions: las reglas permiten a staff actualizar.
+        const fallback = /permission-denied|not-found|internal|unavailable|unimplemented/.test(code) && STAFF_CANCELLABLE.includes(t.status);
+        if (!fallback) { toast(`No se pudo cancelar: ${errMsg(e)}`, 'error'); return false; }
+        try {
+            const fs = DEPS.firestore || await import(FS_URL);
+            const ref = fs.doc(DEPS.db, 'artifacts', DEPS.appId, 'public', 'data', 'trips', t.id);
+            await fs.updateDoc(ref, {
+                status: 'cancelled', cancelledBy: u.uid || null, cancelledByRole: role,
+                cancelledByName: prof.name || u.email || null, cancelReason: reason || null, cancelledByStaff: true,
+                cancelledFromStatus: t.status, cancelledAt: fs.serverTimestamp(), cancelledAtMs: Date.now(),
+                lastDriverId: t.driverId || t.lastDriverId || null, lastDriverName: t.driverName || t.lastDriverName || null,
+                offeredToDriverId: null, offeredToDriverName: null, candidateDriverIds: [], offerSentAt: null
+            });
+            const msg = reason ? `HonduRaite canceló tu viaje. Motivo: ${reason}` : 'HonduRaite canceló tu viaje.';
+            if (t.clientId && !String(t.clientId).startsWith('guest_')) {
+                const nref = fs.doc(fs.collection(DEPS.db, 'artifacts', DEPS.appId, 'public', 'data', 'notifications'));
+                await fs.setDoc(nref, {
+                    targetRole: 'client', targetUserId: String(t.clientId), targetUserName: clientName(t), personal: true,
+                    sendPush: true, broadcastPush: false, pushDispatched: false, type: 'staff_trip_cancelled', tripId: t.id,
+                    title: 'Tu viaje fue cancelado', body: msg, message: msg, tag: `staff-cancel-${t.id}`,
+                    sentBy: u.uid || null, sentByName: myProfile().name || 'Staff',
+                    createdAt: fs.serverTimestamp(), createdAtMs: Date.now()
+                }).catch(() => {});
+            }
+        } catch (e2) { toast(`No se pudo cancelar: ${errMsg(e2)}`, 'error'); return false; }
+    }
+    const tr = ST.trips.find((x) => x.id === t.id);
+    if (tr) Object.assign(tr, { status: 'cancelled', cancelledByRole: role, cancelReason: reason || null, cancelledByStaff: true });
+    toast('Viaje cancelado. Se avisó al pasajero' + (t.driverId ? ' y el conductor quedó libre.' : '.'), 'success');
+    render();
+    return true;
+}
 async function notifyPassenger(id) {
     const t = ST.trips.find((x) => x.id === id);
     if (!t?.clientId) return;
@@ -1955,6 +2016,7 @@ function onClick(e, scope) {
             break;
         }
         case 'notifyPassenger': notifyPassenger(id); break;
+        case 'cancelTrip': openCancelTrip(id); break;
         case 'detail': case 'pick':
             if (e.target.closest('[data-act="check"]')) break;
             openDetail(id); break;

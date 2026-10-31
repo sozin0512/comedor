@@ -1300,8 +1300,66 @@ exports.cancelTrip = onCall(async (request) => {
     const isDriver = trip.driverId === uid;
     const cancellableStatuses = ['pending', 'accepted', 'in_progress', 'scheduled'];
 
-    if (!cancellableStatuses.includes(trip.status)) {
+    if (!cancellableStatuses.includes(trip.status)
+        && !(request.data?.asStaff === true && trip.status === 'verifying')) {
         throw new HttpsError('failed-precondition', 'Este viaje ya no se puede cancelar.');
+    }
+
+    // Supervisor / admin desde el panel «Supervisión · Viajes».
+    if (request.data?.asStaff === true || (!isClient && !isDriver)) {
+        const caller = await assertCallerCanModerate(request.auth);
+        const reason = String(request.data?.reason || '').trim().slice(0, 300) || null;
+        const staffRole = caller.isAdmin ? 'admin' : (caller.role || 'supervisor');
+        let staffName = null;
+        try {
+            const p = (await db.doc(`artifacts/${APP_ID}/public/data/users/${uid}`).get()).data() || {};
+            staffName = p.name || p.displayName || null;
+        } catch (_) { /* nombre opcional */ }
+        const previousStatus = trip.status;
+        await tripRef.update({
+            status: 'cancelled',
+            cancelledBy: uid,
+            cancelledByRole: staffRole,
+            cancelledByName: staffName,
+            cancelledByStaff: true,
+            cancelReason: reason,
+            cancelledFromStatus: previousStatus,
+            cancelledAt: FieldValue.serverTimestamp(),
+            cancelledAtMs: Date.now(),
+            lastDriverId: trip.driverId || trip.lastDriverId || null,
+            lastDriverName: trip.driverName || trip.lastDriverName || null,
+            offeredToDriverId: null,
+            offeredToDriverName: null,
+            candidateDriverIds: [],
+            offerSentAt: null,
+            offerDistanceKm: null,
+            offerToBusyDriver: false,
+            offerSearchTier: null
+        });
+        const body = reason ? `HonduRaite canceló tu viaje. Motivo: ${reason}` : 'HonduRaite canceló tu viaje.';
+        if (trip.clientId && !String(trip.clientId).startsWith('guest_')) {
+            await sendPushToUser(APP_ID, trip.clientId, {
+                title: 'Tu viaje fue cancelado',
+                body,
+                data: { type: 'trip_cancelled', tripId, openPassenger: 'true', tag: `trip-cancel-${tripId}` },
+                highPriority: true
+            }).catch(() => {});
+        }
+        if (trip.driverId) {
+            await sendPushToUser(APP_ID, trip.driverId, {
+                title: 'Viaje cancelado por HonduRaite',
+                body: reason ? `Quedas libre. Motivo: ${reason}` : 'Quedas libre para otros viajes.',
+                data: { type: 'trip_cancelled', tripId, tag: `trip-cancel-${tripId}` },
+                highPriority: true
+            }).catch(() => {});
+        }
+        let refund = { skipped: true };
+        try {
+            refund = await refundTripSaldoIfNeeded(tripRef, trip);
+        } catch (e) {
+            console.error('cancelTrip staff refund error:', e);
+        }
+        return { ok: true, tripId, cancelledFromStatus: previousStatus, cancelledBy: uid, cancelledByRole: staffRole, ...refund };
     }
 
     if (trip.status === 'pending' || trip.status === 'scheduled') {
