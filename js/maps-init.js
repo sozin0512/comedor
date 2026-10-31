@@ -3957,7 +3957,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
         /** Flotante unificado del pasajero (conductor + PIN). Evita doble panel. */
         window.syncClientTripFloat = (data) => {
-            if (!data || window.userProfile?.role !== 'client') return;
+            const isGuestFollow = !!data && (window._guestFollowTripId === data.id || document.body.classList.contains('guest-trip-follow'));
+            if (!data || (window.userProfile?.role !== 'client' && !isGuestFollow)) return;
             const floatEl = document.getElementById('client-trip-float');
             if (!floatEl || floatEl.classList.contains('hidden')) return;
 
@@ -3965,7 +3966,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const vehicle = data.driverVehicle || {};
             const status = tpPassengerDriverStatus(data);
             const photoUrl = data.driverPhoto || '/icons/placeholder-avatar.svg';
-            const driverName = data.driverName || 'Conductor';
+            const driverName = (window.hrSafePersonName ? window.hrSafePersonName(data.driverName) : data.driverName) || 'Conductor';
             const plate = (vehicle.plate || '').toString().trim().toUpperCase();
             const model = vehicle.model || '';
             const typeLabel = tpVehicleTypeLabel(vType);
@@ -4034,7 +4035,10 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const waBox = document.getElementById('client-trip-wa-contact');
             const waBtn = document.getElementById('client-trip-wa-btn');
             const waPhoneEl = document.getElementById('client-trip-wa-phone');
-            const showWa = data.status === 'accepted' && !data.driverArrived && !!data.driverId;
+            // Invitado (viaje por WhatsApp): sin chat en app, así que Llamar/WhatsApp todo el viaje.
+            const showWa = !!data.driverId && (isGuestFollow
+                ? ['accepted', 'in_progress', 'arrived'].includes(String(data.status || ''))
+                : (data.status === 'accepted' && !data.driverArrived));
             if (waBox) {
                 const rawPhone = data.driverPhone || '';
                 const phone = (typeof window.formatHondurasPhone === 'function'
@@ -4050,7 +4054,25 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         waBtn.removeAttribute('aria-disabled');
                     }
                     if (waPhoneEl) waPhoneEl.textContent = phone;
+                    let callBtn = document.getElementById('client-trip-call-btn');
+                    if (!callBtn && waBtn) {
+                        callBtn = document.createElement('a');
+                        callBtn.id = 'client-trip-call-btn';
+                        callBtn.setAttribute('data-no-drag', '');
+                        callBtn.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;padding:10px 12px;border-radius:14px;background:#2563eb;color:#fff;font-weight:900;font-size:13px;text-decoration:none;';
+                        callBtn.innerHTML = '<i class="fas fa-phone"></i> Llamar al conductor';
+                        waBtn.insertAdjacentElement('afterend', callBtn);
+                    }
+                    if (callBtn) {
+                        let d = String(rawPhone).replace(/\D/g, '');
+                        if (d.length === 8) d = '504' + d;
+                        callBtn.href = 'tel:+' + d;
+                        callBtn.classList.remove('hidden');
+                    }
+                    const hint = waBox.querySelector('.client-trip-wa-hint');
+                    if (hint && isGuestFollow) hint.textContent = 'Puedes llamar o escribirle al conductor durante todo el viaje.';
                 } else {
+                    document.getElementById('client-trip-call-btn')?.classList.add('hidden');
                     waBox.classList.add('hidden');
                     if (waBtn) {
                         waBtn.removeAttribute('href');

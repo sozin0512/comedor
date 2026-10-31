@@ -977,11 +977,15 @@ export function syncTripFloatPanels(data) {
     if (!layer) return;
 
     const isTripActive = document.body.classList.contains('trip-active');
-    const role = window.userProfile?.role;
+    // Invitado (viaje por WhatsApp sin cuenta): mismo flotante que un pasajero.
+    const isGuestFollow = !!data && !window.currentUser
+        && (window._guestFollowTripId === data.id || document.body.classList.contains('guest-trip-follow'));
+    const role = isGuestFollow ? 'client' : window.userProfile?.role;
     const isDriver = role === 'driver';
     const isClient = role === 'client';
     const isMine = !!data && (
-        (isDriver && document.body.classList.contains('driver-mode'))
+        isGuestFollow
+        || (isDriver && document.body.classList.contains('driver-mode'))
         || (isClient && document.body.classList.contains('client-mode'))
     );
     const inTrip = isTripActive && isMine && data && ['accepted', 'in_progress'].includes(data.status);

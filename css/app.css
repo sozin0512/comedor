@@ -26420,3 +26420,5 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
   border-color: #d8b4fe;
   color: #6b21a8;
 }
+
+body.guest-trip-follow .hr-guest-hide{display:none}
