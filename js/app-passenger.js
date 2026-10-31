@@ -630,14 +630,25 @@ window.calculateTripRoute = async (options = {}) => {
 
         if (!origin?.latLng || (!isHourlyCalc && !destination?.latLng)) {
             if (!silent) {
-                window.showToast('No pudimos localizar con precisión el origen. ' + (isHourlyCalc ? '' : 'Selecciona una sugerencia o escribe dirección completa para destino.'));
+                window.showToast(!origin?.latLng ? 'Falta el origen: elige una sugerencia, toca «Mi ubicación» o marca el mapa.' : 'Falta el destino: elige una sugerencia de la lista o marca el mapa.');
             }
+            window.setTripRouteError?.(!origin?.latLng
+                ? 'No encontramos tu punto de partida (origen). Elige una sugerencia de la lista, toca «Mi ubicación» o marca el punto en el mapa.'
+                : 'No encontramos el destino. Elige una sugerencia de la lista o marca el punto en el mapa.', !origin?.latLng ? 'origin' : 'destination');
             return;
         }
 
         // Ciudad sigue al origen (aunque el pasajero haya escrito o elegido otra dirección)
         if (origin?.latLng?.lat != null && origin?.latLng?.lng != null) {
-            window.syncCityFromOriginCoords?.(origin.latLng.lat, origin.latLng.lng, { silent: true });
+            const manualZ = window._hrManualZoneId;
+            const oz = window.zoneIdForCoords?.(origin.latLng.lat, origin.latLng.lng);
+            if (origin.source === 'gps' && manualZ && oz && oz !== manualZ) {
+                const zn = window.activeServiceZone?.name || 'la ciudad elegida';
+                window.setTripRouteError?.(`Tu origen es tu GPS, que está fuera de ${zn}. Escribe tu punto de partida en ${zn} o toca «Mi ubicación».`, 'origin');
+                if (!silent) window.showToast?.(`Falta el origen en ${zn}: tu GPS está en otra ciudad.`, 'warning');
+                return;
+            }
+            window.syncCityFromOriginCoords?.(origin.latLng.lat, origin.latLng.lng, { silent: true, fromGps: origin.source === 'gps' });
         }
 
         // Determine early if we have extra stops (for standard or hourly multi; envíos = solo origen → destino)

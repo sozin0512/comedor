@@ -277,9 +277,13 @@
         .place-autocomplete-element-full-window .input-container {
             pointer-events: auto !important;
         }
-        dialog,
+        dialog:not([open]):not(:popover-open) {
+            display: none !important;
+            pointer-events: none !important;
+            visibility: hidden !important;
+        }
         dialog[open],
-        .full-window-autocomplete-dialog,
+        .full-window-autocomplete-dialog[open],
         .dropdown,
         :host > [role="listbox"],
         :host > [part="prediction-list"],
@@ -674,6 +678,17 @@
 
     const stylePlacesDropdownCard = (el) => {
         if (!el || el.nodeType !== 1) return;
+        // Diálogo de Google cerrado: NO forzar display/opacity. Si no, queda una barra blanca
+        // vacía (fixed) encima del campo Origen y los clics caen en «Destino final».
+        if (el.localName === 'dialog' && !el.open) {
+            let popOpen = false;
+            try { popOpen = !!el.matches?.(':popover-open'); } catch (_) {}
+            if (!popOpen) {
+                ['display', 'visibility', 'opacity', 'pointer-events', 'position', 'top', 'bottom', 'left', 'right', 'inset', 'width', 'max-width', 'height', 'max-height', 'z-index', 'box-shadow', 'background', 'border', 'border-radius']
+                    .forEach((prop) => { try { el.style.removeProperty(prop); } catch (_) {} });
+                return;
+            }
+        }
         const dark = placesThemeIsDark();
         const host = getPlacesHostEl(el);
         const hasOwnInput = !!el.querySelector?.('input, .input-container');
@@ -2765,6 +2780,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         el._selectedPlace = place;
                         el.place = place;
                         window.storeRouteEndpoint?.(el, endpoint);
+                window._bookingEditingRoute = false; window.clearTripRouteError?.();
                         el._hrPlacePickedAt = Date.now();
                         if (el === destEl || el?.id === 'destination-autocomplete') {
                             // Destino nuevo: quitar paradas viejas y salir del modo "por horas" forzado por la ruta anterior
@@ -3000,6 +3016,22 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         || el.querySelector('input');
                     if (!input || input.dataset.stackHooked === '1') return !!input;
                     input.dataset.stackHooked = '1';
+                    // Origen rellenado por GPS / pin (p. ej. «3Q6X+4Q»): al tocar, seleccionar todo
+                    // para que lo que escriba la persona REEMPLACE el texto en vez de pegarse detrás.
+                    if (!root._hrSelectAllHooked) {
+                        root._hrSelectAllHooked = true;
+                        root.addEventListener('focusin', (ev) => {
+                            const t = ev.target;
+                            if (!t || t.localName !== 'input') return;
+                            const src = el._routeEndpoint?.source;
+                            const val = String(t.value || '');
+                            const autoFilled = src === 'gps' || src === 'map' || /^[23456789CFGHJMPQRVWX]{4}\+[23456789CFGHJMPQRVWX]{2,3}/i.test(val);
+                            if (!autoFilled || !val) return;
+                            if (Date.now() - (el._hrUserTypedAt || 0) < 3000) return;
+                            setTimeout(() => { try { t.select(); } catch (_) {} }, 0);
+                            setTimeout(() => { try { if (t.value === val) t.select(); } catch (_) {} }, 120);
+                        }, true);
+                    }
                     input.addEventListener('focus', () => {
                         clearTimeout(blurTimer);
                         setActive(true);
@@ -3012,6 +3044,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         setTimeout(() => window.applyPlacesListPlacement?.(el), 220);
                     });
                     // Borrar origen y seguir escribiendo: mantener modo búsqueda activo
+                    root.addEventListener('input', () => { el._hrUserTypedAt = Date.now(); }, true);
                     input.addEventListener('input', (ev) => {
                         // Solo lo que escribe la persona: GPS/favoritos/pin rellenan el campo con
                         // eventos sintéticos y no deben abrir el modo búsqueda.
@@ -3197,6 +3230,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         window.storeRouteEndpoint = (el, endpoint) => {
             if (!el) return;
             // Punto cambió: la ruta por calles guardada ya no vale
+            const _hrMoved = endpoint?.latLng && (!el._routeEndpoint?.latLng || endpoint.latLng.lat !== el._routeEndpoint.latLng.lat || endpoint.latLng.lng !== el._routeEndpoint.latLng.lng);
+            if (_hrMoved && endpoint.source !== 'draft') { window._bookingEditingRoute = false; window.clearTripRouteError?.(); }
             if (!endpoint?.latLng || !el._routeEndpoint?.latLng || endpoint.latLng.lat !== el._routeEndpoint.latLng.lat || endpoint.latLng.lng !== el._routeEndpoint.latLng.lng) window._hrLastRoadRoute = null;
             if (!endpoint || !endpoint.address) {
                 el._routeEndpoint = null;
