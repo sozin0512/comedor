@@ -2009,7 +2009,31 @@ function requiredRideVehicleType(tripServiceType) {
     return null;
 }
 
-function tripOfferPushTitle(serviceType) {
+/**
+ * Etiqueta del VEHÍCULO pedido (para conductores con moto y carro).
+ * Ej.: «🏍️ Viaje en MOTO», «🚗 Viaje en CARRO · Taxi VIP», «🛍️ Tienda · en MOTO».
+ */
+function tripVehicleBadgeLabel(serviceType, tripDoc = null) {
+    const trip = String(serviceType || tripDoc?.serviceType || 'auto').toLowerCase();
+    if (tripDoc && isStoreDeliveryTrip(tripDoc)) {
+        const types = requiredVehicleTypesForTrip(tripDoc);
+        if (types.length === 1 && types[0] === 'moto') return '🛍️ Tienda · en MOTO';
+        if (types.length === 1 && types[0] === 'auto') return '🛍️ Tienda · en CARRO';
+        return '🛍️ Tienda · MOTO o CARRO';
+    }
+    if (trip === 'moto') return '🏍️ Viaje en MOTO';
+    if (trip === 'delivery') return '📦 Envío en MOTO';
+    if (trip === 'taxi') return '🚕 Viaje en TAXI tradicional';
+    if (trip === 'flete_paila') return '🛻 Flete en PAILA';
+    if (trip === 'flete_camion') return '🚛 Flete en CAMIÓN';
+    if (trip === 'grua') return '🚨 Servicio de GRÚA';
+    return '🚗 Viaje en CARRO · Taxi VIP';
+}
+
+function tripOfferPushTitle(serviceType, tripDoc = null) {
+    return tripVehicleBadgeLabel(serviceType, tripDoc);
+}
+function tripOfferPushTitleLegacy(serviceType) {
     const trip = String(serviceType || 'auto').toLowerCase();
     if (trip === 'auto' || trip === 'vip' || trip === 'taxi_vip') {
         return 'HonduRaite · 🚗 ¡Taxi VIP para ti!';
@@ -2036,6 +2060,9 @@ function isRideService(type) {
 }
 
 function rideDemandTitle(serviceType) {
+    return `${tripVehicleBadgeLabel(serviceType)} · ¡Cliente esperando!`;
+}
+function rideDemandTitleLegacy(serviceType) {
     const trip = String(serviceType || 'auto').toLowerCase();
     if (trip === 'auto' || trip === 'vip' || trip === 'taxi_vip') {
         return 'HonduRaite · 🚗 ¡Cliente pide Taxi VIP!';
@@ -3499,7 +3526,7 @@ async function notifyEligibleDriversNewTrip(appId, tripId, trip, {
     const price = trip.price || 'Nuevo';
     const originShort = (trip.origin || '').slice(0, 42);
     const storeTrip = isStoreDeliveryTrip(trip);
-    const svcLabel = storeTrip ? '🛍️ Pedido de tienda' : staffTripNotificationLabel(serviceType);
+    const svcLabel = tripVehicleBadgeLabel(serviceType, trip);
     const titleCity = `🆕 ${svcLabel} en tu ciudad`;
     const titleNearby = freight
         ? `🆕 ${svcLabel} en tu zona`
@@ -4359,8 +4386,8 @@ exports.onTripUpdatePush = onDocumentUpdated(
                 ? ` Recogida programada en ${minsUntilPickup} min (${formatScheduledTripWhen(after.scheduledFor)}).`
                 : '';
             const offerTitle = minsUntilPickup > 0
-                ? '📅 Viaje programado'
-                : (isFreight ? '🚛 ¡Flete disponible!' : (isStoreDeliveryTrip(after) ? '🛍️ Pedido de tienda' : tripOfferPushTitle(after.serviceType)));
+                ? `📅 Programado · ${tripVehicleBadgeLabel(after.serviceType, after)}`
+                : (isFreight ? '🚛 ¡Flete disponible!' : tripOfferPushTitle(after.serviceType, after));
             const waitHint = minsUntilPickup > 0 ? '' : requestWaitPushSuffix(after);
             const offerBody = `${bodyCore}${waitHint}${bodyExtra ? ` · ${bodyExtra}` : ''}${scheduledHint}${busyHint}`;
             const offerData = {

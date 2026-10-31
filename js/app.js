@@ -5294,6 +5294,15 @@ if (document.readyState === 'loading') {
             }
             // Si ya hay un modal abierto de notificaciones, no duplicar
             if (document.getElementById('notif-prompt-modal')) return;
+            // Un modal a la vez: esperar a que se cierre «¡Ya puedes pedir viajes!» u otro modal
+            const blocking = document.getElementById('passenger-verify-choice-modal')
+                || document.querySelector('.passenger-verify-choice-overlay');
+            if (blocking) {
+                const waitStart = window._hrNotifWaitStart || (window._hrNotifWaitStart = Date.now());
+                if (Date.now() - waitStart < 10 * 60 * 1000) setTimeout(showNotificationEnableModal, 1500);
+                return;
+            }
+            window._hrNotifWaitStart = null;
 
             const isDriver = window.userProfile?.role === 'driver';
             const iosNeedsInstall = isIOS() && !isIosStandalonePwa();
@@ -5344,6 +5353,20 @@ if (document.readyState === 'loading') {
                 </div>
             `;
             document.body.appendChild(overlay);
+            // Cerrar fácil: botón ✕ y tocar fuera
+            try {
+                const sheet = overlay.firstElementChild;
+                sheet.style.position = 'relative';
+                const x = document.createElement('button');
+                x.type = 'button';
+                x.id = 'btn-close-notif';
+                x.setAttribute('aria-label', 'Cerrar');
+                x.textContent = '✕';
+                x.style.cssText = 'position:absolute;top:10px;right:10px;width:36px;height:36px;border-radius:9999px;border:none;background:#f1f5f9;color:#334155;font-size:16px;font-weight:900;cursor:pointer;';
+                sheet.appendChild(x);
+                x.onclick = () => overlay.querySelector('#btn-later-notif')?.click();
+                overlay.addEventListener('click', (ev) => { if (ev.target === overlay) overlay.querySelector('#btn-later-notif')?.click(); });
+            } catch (_) {}
 
             const enableBtn = overlay.querySelector('#btn-enable-notif');
             const laterBtn = overlay.querySelector('#btn-later-notif');
@@ -6664,16 +6687,41 @@ if (document.readyState === 'loading') {
                         const oEp = typeof resolveRouteEndpoint === 'function' ? await resolveRouteEndpoint(originEl) : null;
                         const dEp = typeof resolveRouteEndpoint === 'function' ? await resolveRouteEndpoint(destEl) : null;
                         let freshRoute = null;
-                        if (oEp?.latLng && dEp?.latLng && oEp.address && dEp.address) {
+                        let failReason = null;
+                        if (!oEp?.latLng || !oEp?.address) {
+                            failReason = { field: 'origin', msg: 'No encontramos tu punto de partida (origen). Elige una sugerencia de la lista, toca «Mi ubicación» o marca el punto en el mapa.' };
+                        } else if (!dEp?.latLng || !dEp?.address) {
+                            failReason = { field: 'destination', msg: 'No encontramos el destino. Elige una sugerencia de la lista o marca el punto en el mapa.' };
+                        } else {
                             const extraStops = window.tripAdditionalStops || [];
-                            if (extraStops.length > 0) {
-                                const metrics = await window.computeMultiStopRouteMetrics?.(oEp, dEp, extraStops, { estimateOnly: false });
-                                freshRoute = metrics?.combinedRoute || null;
-                            } else {
-                                freshRoute = await window.computeDrivingRoute(oEp, dEp, { mode: 'once' });
+                            const work = extraStops.length > 0
+                                ? Promise.resolve(window.computeMultiStopRouteMetrics?.(oEp, dEp, extraStops, { estimateOnly: false })).then((m) => m?.combinedRoute || null)
+                                : Promise.resolve(window.computeDrivingRoute(oEp, dEp, { mode: 'once' }));
+                            freshRoute = await Promise.race([
+                                work.catch(() => null),
+                                new Promise((r) => setTimeout(() => r('__timeout'), 15000))
+                            ]);
+                            if (freshRoute === '__timeout') {
+                                freshRoute = null;
+                                failReason = { field: null, retry: true, msg: 'El cálculo del precio tardó demasiado (conexión lenta).' };
+                            } else if (!freshRoute) {
+                                failReason = { field: null, retry: true, msg: 'No pudimos calcular la ruta por calles entre origen y destino.' };
                             }
                         }
                         if (myGen !== window._rideOptsGen) return; // llegó otra petición más nueva
+                        if (failReason) {
+                            const list = document.getElementById('ride-options-list');
+                            if (list) {
+                                list.innerHTML = '<div class="p-3 text-xs font-bold text-red-700 flex flex-col gap-2" data-hr-route-fail="1"><span></span><button type="button" class="trip-touch-btn" style="align-self:flex-start;padding:6px 12px;border-radius:10px;background:#0f172a;color:#fff;font-weight:800">Reintentar</button></div>';
+                                list.querySelector('span').textContent = failReason.msg;
+                                list.querySelector('button').addEventListener('click', () => { window.clearTripRouteError?.(); window.showServiceOptionsIfReady?.(); });
+                            }
+                            if (failReason.field) window.setTripRouteError?.(failReason.msg, failReason.field);
+                            else window.showToast?.(failReason.msg + ' Toca «Reintentar».', 'warning');
+                            return;
+                        }
+                        window.clearTripRouteError?.();
+                        window._bookingEditingRoute = false;
                         if (freshRoute) window.currentRouteData = freshRoute;
                         if (window.currentRouteData) {
                             window.renderRideOptions?.(window.currentRouteData);
@@ -6944,18 +6992,43 @@ if (document.readyState === 'loading') {
 
             let types = filterTypesForMarket(['moto', 'auto', 'taxi']); // no delivery for hourly
 
+            // Tipos que no se pueden pedir: se muestran en gris CON el motivo (no desaparecen).
+            const unavailableRows = [];
             // Restricción Decreto 91-2012 para pasajeros hombres en moto (viajes, no delivery). No aplica en EE. UU.
-            if (isMalePassengerMotoRideBlocked()) {
+            if (isMalePassengerMotoRideBlocked() && types.includes('moto')) {
                 types = types.filter(t => t !== 'moto');
+                unavailableRows.push({ type: 'moto', msg: 'Moto no disponible para ti: ' + DECRETO_91_2012_MSG + '.' });
             }
 
-            // Admin: ocultar taxi normal (y otros) deshabilitados en la ciudad activa
+            // Admin: taxi normal (y otros) deshabilitados en la ciudad activa
             {
                 const zoneId = window.activeServiceZoneId || getDefaultZoneId();
-                types = types.filter((t) => !isServiceTypeDisabledInCity(t, zoneId));
+                const zoneName = getZoneById(zoneId)?.name || '';
+                types = types.filter((t) => {
+                    if (!isServiceTypeDisabledInCity(t, zoneId)) return true;
+                    unavailableRows.push({ type: t, msg: getCityServiceDisabledMessage(t, zoneName, zoneId) });
+                    return false;
+                });
             }
 
             list.innerHTML = '';
+            if (unavailableRows.length) {
+                queueMicrotask(() => {
+                    unavailableRows.forEach(({ type, msg }) => {
+                        list.querySelectorAll('[data-unavailable-type="' + type + '"]').forEach((n) => n.remove());
+                        const meta = getServiceMeta(type);
+                        const row = document.createElement('div');
+                        row.className = 'ride-option-unavailable';
+                        row.dataset.unavailableType = type;
+                        row.setAttribute('aria-disabled', 'true');
+                        row.style.cssText = 'display:flex;gap:10px;align-items:center;padding:10px 12px;margin-top:6px;border-radius:12px;background:#f8fafc;border:1px dashed #cbd5e1;color:#64748b;font-size:12px;opacity:.85';
+                        row.innerHTML = '<span style="font-size:18px">' + (type === 'moto' ? '🏍️' : '🚗') + '</span><span><strong style="color:#334155"></strong><br><span class="hr-why"></span></span>';
+                        row.querySelector('strong').textContent = (meta?.label || type) + ' · No disponible';
+                        row.querySelector('.hr-why').textContent = msg;
+                        list.appendChild(row);
+                    });
+                });
+            }
 
             const quickConditions = route
                 ? buildRouteConditions(analyzeTrafficFromRoute(route), null)
@@ -7892,6 +7965,26 @@ if (document.readyState === 'loading') {
         window.onServiceZoneChange = (zoneId) => {
             const zone = setActiveServiceZone(zoneId);
             if (!zone) return;
+            if (window.userProfile?.role !== 'driver') {
+                // Ciudad elegida a mano por el pasajero: el GPS ya no la cambia.
+                window._hrManualZoneId = zone.id;
+                try {
+                    const originEl = document.getElementById('origin-autocomplete');
+                    const ep = originEl?._routeEndpoint;
+                    if (ep?.source === 'gps' && ep.latLng) {
+                        const gz = findZoneForCoords(Number(ep.latLng.lat), Number(ep.latLng.lng));
+                        if (gz && gz.id !== zone.id) {
+                            originEl._routeEndpoint = null;
+                            originEl._userClearedInput = true;
+                            window._passengerOriginUserCleared = true;
+                            window.writeAutocompleteText?.(originEl, '');
+                            try { window.clearPickupMarker?.(); } catch (_) {}
+                            window.currentRouteData = null;
+                            window.showToast?.(`Elegiste ${zone.name}. Tu GPS está en ${gz.name}: escribe tu punto de partida en ${zone.name}.`, 'warning');
+                        }
+                    }
+                } catch (_) {}
+            }
             updateServiceZoneSummary();
             updateZoneHint();
             window.syncServiceZoneToFirebase?.();
@@ -10851,6 +10944,14 @@ if (document.readyState === 'loading') {
                     : 'Los clientes que pidan viaje aparecerán abajo';
             }
 
+            try {
+                const vt = String(getActiveVehicleType(window.userProfile) || '').toLowerCase();
+                const regs = getRegisteredVehicleTypes(window.userProfile) || [];
+                if (vt && regs.length > 1) {
+                    const vl = vt === 'moto' ? '🏍️ MOTO' : ((vt === 'auto' || vt === 'vip') ? '🚗 CARRO' : vt.toUpperCase());
+                    subEl.textContent += ' · Vehículo activo: ' + vl + ' (cada oferta dice qué vehículo pide)';
+                }
+            } catch (_) {}
             const radarEl = document.getElementById('driver-radar-status');
             if (radarEl) {
                 radarEl.classList.toggle('driver-radar-status--hidden', count > 0 && !onActiveTrip);
@@ -10870,6 +10971,54 @@ if (document.readyState === 'loading') {
 
             window.syncDriverRadarFloatPanel?.();
         }
+
+        /**
+         * Badge GRANDE del vehículo pedido (conductores con moto Y carro).
+         * Devuelve { label, emoji, color, required[] }.
+         */
+        function getTripVehicleBadgeInfo(t) {
+            const svc = String(t?.serviceType || 'auto').toLowerCase();
+            const isStore = (() => { try { return typeof isStoreDeliveryTrip === 'function' ? isStoreDeliveryTrip(t) : !!t?.storeId; } catch (_) { return !!t?.storeId; } })();
+            if (svc === 'delivery' && isStore) {
+                let choice = String(t?.deliveryVehicle || t?.deliveryDetails?.deliveryVehicle || '').toLowerCase();
+                if (choice === 'car') choice = 'auto';
+                const allowedV = Array.isArray(t?.allowedDriverVehicles) ? t.allowedDriverVehicles.map((x) => String(x).toLowerCase()) : [];
+                if (!choice && allowedV.length === 1) choice = allowedV[0];
+                if (choice === 'moto') return { emoji: '🛍️🏍️', label: 'TIENDA · en MOTO', color: '#7c3aed', required: ['moto'] };
+                if (choice === 'auto' || choice === 'carro') return { emoji: '🛍️🚗', label: 'TIENDA · en CARRO', color: '#7c3aed', required: ['auto'] };
+                return { emoji: '🛍️', label: 'TIENDA · MOTO o CARRO', color: '#7c3aed', required: ['moto', 'auto'] };
+            }
+            if (svc === 'moto') return { emoji: '🏍️', label: 'VIAJE EN MOTO', color: '#ea580c', required: ['moto'] };
+            if (svc === 'delivery') return { emoji: '📦🏍️', label: 'ENVÍO EN MOTO', color: '#0891b2', required: ['moto'] };
+            if (svc === 'taxi') return { emoji: '🚕', label: 'VIAJE EN TAXI tradicional', color: '#ca8a04', required: ['taxi'] };
+            if (svc === 'flete_paila') return { emoji: '🛻', label: 'FLETE EN PAILA', color: '#475569', required: ['paila'] };
+            if (svc === 'flete_camion') return { emoji: '🚛', label: 'FLETE EN CAMIÓN', color: '#475569', required: ['camion'] };
+            if (svc === 'grua') return { emoji: '🚨', label: 'SERVICIO DE GRÚA', color: '#dc2626', required: ['grua'] };
+            return { emoji: '🚗', label: 'VIAJE EN CARRO · Taxi VIP', color: '#2563eb', required: ['auto'] };
+        }
+        window.getTripVehicleBadgeInfo = getTripVehicleBadgeInfo;
+
+        function tripVehicleBadgeHtml(t, { size = 'lg' } = {}) {
+            const info = getTripVehicleBadgeInfo(t);
+            let warn = '';
+            try {
+                const prof = window.userProfile || {};
+                const norm = (x) => { const d = String(x || '').toLowerCase(); return (d === 'vip' || d === 'taxi_vip' || d === 'carro') ? 'auto' : d; };
+                const active = norm(getActiveVehicleType(prof) || prof.vehicleType);
+                const registered = (getRegisteredVehicleTypes(prof) || []).map(norm);
+                const fits = info.required.includes(active);
+                const hasOther = registered.length > 1;
+                if (active && !fits && hasOther) {
+                    const need = info.required.map((r) => r === 'moto' ? 'MOTO' : (r === 'auto' ? 'CARRO' : r.toUpperCase())).join(' o ');
+                    warn = `<span class="hr-veh-badge-warn" style="display:block;font-size:12px;font-weight:800;margin-top:4px;background:rgba(255,255,255,.22);border-radius:8px;padding:3px 8px">⚠️ Este viaje es para tu ${need}. Tu vehículo activo es ${active === 'moto' ? 'MOTO' : (active === 'auto' ? 'CARRO' : active.toUpperCase())}: usa la ${need}.</span>`;
+                } else if (hasOther && fits) {
+                    warn = `<span class="hr-veh-badge-ok" style="display:block;font-size:11px;font-weight:700;margin-top:2px;opacity:.9">Usa tu ${active === 'moto' ? 'MOTO' : (active === 'auto' ? 'CARRO' : active.toUpperCase())} (tu vehículo activo)</span>`;
+                }
+            } catch (_) {}
+            const fs = size === 'lg' ? '20px' : '15px';
+            return `<div class="hr-veh-badge" data-veh-required="${info.required.join(',')}" style="background:${info.color};color:#fff;border-radius:14px;padding:${size === 'lg' ? '10px 14px' : '6px 10px'};margin:0 0 8px;font-weight:900;font-size:${fs};letter-spacing:.3px;line-height:1.2;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.18)"><span aria-hidden="true">${info.emoji}</span> ${info.label}${warn}</div>`;
+        }
+        window.tripVehicleBadgeHtml = tripVehicleBadgeHtml;
 
         function buildTripOfferCardHtml(tripId, t, { distanceKm, driverBusy = false, compact = false, queueIndex = null, idPrefix = '' } = {}) {
             const pfx = String(idPrefix || '');
@@ -11092,6 +11241,7 @@ if (document.readyState === 'loading') {
                 const fullRouteHtml = buildDriverOfferRouteHtml(t, { compact: true });
                 return `
                 <div class="driver-offer-card driver-offer-card--uber-vert" data-preview-offer="${tripId}" data-trip-id="${tripId}" data-offer-id-prefix="${pfx}">
+                    ${tripVehicleBadgeHtml(t)}
                     <div class="uber-vert-toolbar">
                         <span class="uber-vert-timer" id="uber-vert-timer-label" aria-live="polite">
                             <i class="fas fa-clock"></i> <span class="uber-vert-timer-sec">—</span>s
@@ -11134,6 +11284,7 @@ if (document.readyState === 'loading') {
 
             return `
                 <div class="trip-request-card driver-offer-card${getScheduledTripMs(t) ? ' driver-offer-card--scheduled' : ''}" data-preview-offer="${tripId}" data-offer-id-prefix="${pfx}">
+                    ${tripVehicleBadgeHtml(t)}
                     <div class="driver-offer-top">
                         <p class="driver-offer-name client-name-${tripId}">${escapeViewerText(displayPersonName(t.clientName, 'Pasajero'))}</p>
                         <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${storeOfferBadgesHtml(t)}${serviceBadge}${paxBadge}${distBadge}</div>
@@ -35463,7 +35614,32 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             window.syncTripFloatPanels?.(data);
         };
 
+        /** Viaje aceptado: el tipo de vehículo pedido queda SIEMPRE visible (panel y barra mini). */
+        window.syncDriverActiveVehicleBadge = (data) => {
+            const panel = document.getElementById('active-trip-panel');
+            if (!panel) return;
+            let box = document.getElementById('driver-active-veh-badge');
+            const show = !!data && window.userProfile?.role === 'driver'
+                && ['accepted', 'in_progress', 'arrived', 'started'].includes(String(data.status || ''));
+            if (!show) { box?.remove(); return; }
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'driver-active-veh-badge';
+                const minBtn = document.getElementById('driver-panel-min-btn');
+                if (minBtn && minBtn.parentElement === panel) minBtn.after(box); else panel.prepend(box);
+            }
+            box.innerHTML = tripVehicleBadgeHtml(data, { size: 'md' });
+            const mini = document.getElementById('trip-mini-bar');
+            const lbl = mini?.querySelector('.driver-active-eta-label');
+            if (lbl) {
+                const info = getTripVehicleBadgeInfo(data);
+                lbl.textContent = `En viaje · ${info.emoji} ${info.label}`;
+                lbl.style.color = info.color;
+            }
+        };
+
         window.syncDriverTripControls = (data) => {
+            try { window.syncDriverActiveVehicleBadge?.(data); } catch (_) {}
             const routeHero = document.getElementById('driver-route-hero');
             const destControls = document.getElementById('driver-destination-controls');
             const tripActions = document.getElementById('driver-trip-actions');
@@ -39220,7 +39396,37 @@ window.cancelSetupAndLogout = () => {
         window.serviceTypeChosen = window.serviceTypeChosen === true;
         window._bookingProgressLast = '';
 
+        /** Error de ruta concreto: deja/abre el editor de origen/destino y dice QUÉ falta. */
+        window.setTripRouteError = (msg, field = null) => {
+            window._tripRouteError = { msg, field, at: Date.now() };
+            const destEl = document.getElementById('destination-autocomplete');
+            let box = document.getElementById('trip-route-error');
+            if (!box && destEl) {
+                box = document.createElement('div');
+                box.id = 'trip-route-error';
+                box.setAttribute('role', 'alert');
+                box.style.cssText = 'margin:8px 0;padding:10px 12px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;font-weight:700;display:flex;gap:8px;align-items:flex-start';
+                const anchor = destEl.closest('.trip-dest-wrap, .relative') || destEl;
+                anchor.parentElement?.insertBefore(box, anchor.nextSibling);
+            }
+            if (box) {
+                box.innerHTML = '<i class="fas fa-exclamation-circle" style="margin-top:2px"></i><span></span>';
+                box.querySelector('span').textContent = msg;
+                box.classList.remove('hidden');
+                box.style.display = 'flex';
+            }
+            window.goBackBookingStep?.('route', { quiet: true });
+            const el = document.getElementById(field === 'destination' ? 'destination-autocomplete' : 'origin-autocomplete');
+            try { el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+        };
+        window.clearTripRouteError = () => {
+            window._tripRouteError = null;
+            const box = document.getElementById('trip-route-error');
+            if (box) { box.classList.add('hidden'); box.style.display = 'none'; }
+        };
+
         window.isBookingRouteReady = () => {
+            if (window._tripRouteError || window._bookingEditingRoute) return false;
             const originEl = document.getElementById('origin-autocomplete');
             const destEl = document.getElementById('destination-autocomplete');
             if (!originEl || !destEl) return false;
@@ -39355,7 +39561,7 @@ window.cancelSetupAndLogout = () => {
          * Tarjetas FLOTANTES sobre el mapa (fuera del panel central).
          * Se despliegan en cadena como «Agregar parada».
          */
-        window.goBackBookingStep = (target = 'auto') => {
+        window.goBackBookingStep = (target = 'auto', gbOpts = {}) => {
             const svc = normalizeServiceType(window.currentServiceType || 'auto');
             const needsPax = typeof requiresPassengerCountChoice === 'function'
                 ? requiresPassengerCountChoice(svc)
@@ -39387,8 +39593,14 @@ window.cancelSetupAndLogout = () => {
                 const panel = document.getElementById('control-panel');
                 panel?.classList.remove('panel-collapsed', 'panel-hidden');
                 try { window.showControlPanel?.(); } catch (_) {}
+                // Mantener el editor abierto hasta que la persona cambie origen/destino
+                window._bookingEditingRoute = true;
+                document.body.classList.remove('booking-float-active');
+                document.getElementById('booking-float-layer')?.classList.add('hidden');
                 window.syncBookingProgression?.({ scroll: false });
-                window.showToast?.('Corrige origen o destino y sigue.', 'info');
+                if (!gbOpts.quiet) {
+                    window.showToast?.(window._tripRouteError?.msg || 'Cambia el origen o el destino. Al elegir una dirección seguimos.', 'info');
+                }
                 return;
             }
             if (dest === 'service') {
@@ -44119,6 +44331,9 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
          * Actualiza la ciudad activa según el punto de origen.
          * El pasajero puede borrar el origen y poner otro: la ciudad sigue al nuevo punto.
          */
+        window.zoneIdForCoords = (lat, lng) => {
+            try { return findZoneForCoords(Number(lat), Number(lng))?.id || null; } catch (_) { return null; }
+        };
         window.syncCityFromOriginCoords = (lat, lng, opts = {}) => {
             const silent = opts.silent === true;
             const nlat = Number(lat);
@@ -44156,6 +44371,14 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
             if (prevId === zone.id) {
                 window.updatePlacesLocationBias?.(nlat, nlng);
                 return zone;
+            }
+            if (opts.fromGps && window._hrManualZoneId && window._hrManualZoneId !== zone.id) {
+                // La persona eligió otra ciudad a mano: respetarla.
+                return null;
+            }
+            if (!opts.fromGps && window._hrManualZoneId) {
+                // Origen escrito/elegido por la persona en otra ciudad: esa es su elección.
+                window._hrManualZoneId = zone.id;
             }
 
             setActiveServiceZone(zone.id, { persist: true, biasMap: true });
@@ -44229,6 +44452,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
             // Usuario pidió GPS a propósito: permitir rellenar de nuevo
             if (!fromAutofill) {
                 window._passengerOriginUserCleared = false;
+                window._hrManualZoneId = null; // tocó «mi ubicación» a propósito
             }
 
             if (!silent) window.showToast("Obteniendo tu ubicación actual...", "warning");
@@ -44246,8 +44470,17 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                 window.currentDriverPos = { lat: latlng.lat, lng: latlng.lng };
 
                 // Ciudad sigue al origen GPS
+                if (fromAutofill && window._hrManualZoneId) {
+                    const gz = window.zoneIdForCoords?.(latlng.lat, latlng.lng);
+                    if (gz && gz !== window._hrManualZoneId) {
+                        // GPS en otra ciudad distinta a la elegida: no rellenar el origen.
+                        opts.onDone?.();
+                        return;
+                    }
+                }
                 const activeZone = window.syncCityFromOriginCoords?.(latlng.lat, latlng.lng, {
-                    silent: silent || fromAutofill
+                    silent: silent || fromAutofill,
+                    fromGps: true
                 });
 
                 // Centrar el mapa
