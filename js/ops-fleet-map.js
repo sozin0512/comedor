@@ -6,7 +6,7 @@
  *  - Listado flotante dividido por lo que manejan con botón directo de WhatsApp y centrar en mapa
  */
 import { collection, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { isDriverOnline, getZoneById, findNearestZone } from './zones.js?v=2026.10.26.23';
+import { isDriverOnline, getZoneById, findNearestZone } from './zones.js?v=2026.10.26.24';
 
 const TRIP_TRACK_FRESH_MS = 900000; // 15 min — GPS reciente
 const FLEET_STATUS_STORAGE_KEY = 'hr_ops_fleet_status_filter';
