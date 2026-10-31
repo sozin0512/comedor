@@ -784,6 +784,16 @@ exports.registerUserProfile = onCall(async (request) => {
     }
 
     const patch = buildRegistrationPatch(rawProfile, uid, authEmail, existingRole);
+    // Reenvío de registro: no bajar viajes/calificación ni borrar la aceptación legal ya guardada.
+    const prev = { ...(pubSnap.exists ? pubSnap.data() : {}), ...(privSnap.exists ? privSnap.data() : {}) };
+    if (Number(prev.totalTrips) > Number(patch.totalTrips || 0) && 'totalTrips' in patch) patch.totalTrips = Number(prev.totalTrips);
+    if ('ratingCount' in patch && Number(prev.ratingCount) > Number(patch.ratingCount || 0)) {
+        patch.ratingCount = Number(prev.ratingCount);
+        patch.ratingSum = Number(prev.ratingSum) || 0;
+    }
+    if (prev.termsAccepted === true && prev.privacyAccepted === true && patch.termsAccepted === false) {
+        for (const k of ['termsAccepted', 'termsAcceptedAt', 'privacyAccepted', 'privacyAcceptedAt', 'privacyPolicyVersion']) delete patch[k];
+    }
     await pubRef.set(patch, { merge: true });
     await privRef.set(patch, { merge: true });
 
@@ -1025,7 +1035,7 @@ exports.getMyDriverPayoutRecords = onCall(async (request) => {
 
 const ACCEPT_TRIP_FIELDS = new Set([
     'status', 'driverId', 'driverName', 'driverPhone', 'driverPhoto', 'driverVehicle', 'driverVehiclePhotos',
-    'driverDocumentsPhotos', 'driverVehicleType', 'serviceType', 'driverIdentity', 'driverRating',
+    'driverVehicleType', 'serviceType', 'driverRating',
     'pin', 'driverArrived', 'acceptedAt', 'offeredToDriverId', 'offeredToDriverName', 'offerSentAt',
     'offerDistanceKm', 'driverFinishingOtherTrip', 'driverBusyOnTripId',
     'saldoCharged', 'saldoChargedAmount', 'saldoChargedAt',

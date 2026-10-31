@@ -4150,7 +4150,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 const vehicleType = document.getElementById('tp-vehicle-type');
                 const vehicleTypeIcon = document.getElementById('tp-vehicle-type-icon');
 
-                if (identity) identity.textContent = data.driverIdentity || 'N/D';
+                if (identity) identity.textContent = 'Verificado ✓';
                 if (plate) plate.textContent = (vehicle.plate || 'N/D').toUpperCase();
                 if (vehicleModel) vehicleModel.textContent = vehicle.model || 'Sin especificar';
                 if (vehicleType) vehicleType.textContent = tpVehicleTypeLabel(vType);
