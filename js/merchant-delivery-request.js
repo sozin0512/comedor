@@ -381,7 +381,7 @@ export function buildMerchantShareTripMessage(arg = {}, secondBaseOrigin = 'http
     const driverName = String(t.driverName || o.driverName || '').trim();
     const plate = String(t.driverVehicle?.plate || o.driverPlate || '').trim();
     const vehModel = String(t.driverVehicle?.model || '').trim();
-    const driverDesc = [driverName, vehModel, plate ? `placa ${plate}` : ''].filter(Boolean).join(' · ');
+    const driverDesc = [(window.hrSafePersonName ? window.hrSafePersonName(driverName) : driverName), vehModel, plate ? `placa ${plate}` : ''].filter(Boolean).join(' · ');
 
     const st = String(t.status || '');
     const ost = String(o.status || '');

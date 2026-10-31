@@ -785,6 +785,33 @@ function paintGuestTripOnMap(t) {
     }, 250);
 }
 
+/** Nombre seguro para mostrar a clientes: quita números de identidad/teléfono metidos en el nombre. */
+function hrSafePersonName(name) {
+    return String(name || '')
+        .replace(/[\d][\d\s.\-]{4,}[\d]/g, ' ')
+        .replace(/\b(casco|dni|identidad|id|rtn)\b[:#]?/gi, ' ')
+        .replace(/\s{2,}/g, ' ')
+        .trim()
+        .slice(0, 60);
+}
+window.hrSafePersonName = hrSafePersonName;
+
+function guestDriverContactHtml(t) {
+    if (!t || !['accepted', 'in_progress', 'arrived'].includes(String(t.status || ''))) return '';
+    let digits = String(t.driverPhone || '').replace(/\D/g, '');
+    if (digits.length === 8) digits = '504' + digits;
+    if (digits.length < 11 || digits.length > 13) return '';
+    const isDelivery = isStoreDeliveryFollowDoc(t);
+    const ref = String(t.id || t.tripId || '').slice(-6).toUpperCase();
+    const msg = isDelivery
+        ? `Hola, soy el cliente del envío HonduRaite${ref ? ' #' + ref : ''}. `
+        : `Hola, soy tu pasajero de HonduRaite${ref ? ' (viaje #' + ref + ')' : ''}${t.pin ? ', PIN ' + t.pin : ''}. `;
+    return `<div class="grid grid-cols-2 gap-2 mt-2" data-guest-driver-contact>
+        <a href="tel:+${digits}" class="flex items-center justify-center gap-2 rounded-2xl bg-blue-600 text-white font-black text-sm py-3 no-underline"><i class="fas fa-phone"></i> Llamar</a>
+        <a href="https://wa.me/${digits}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" class="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 text-white font-black text-sm py-3 no-underline"><i class="fab fa-whatsapp"></i> WhatsApp</a>
+    </div>`;
+}
+
 function renderGuestFollowPanel(t) {
     enterGuestFollowShell(t);
     let panel = document.getElementById('guest-follow-panel');
@@ -798,7 +825,7 @@ function renderGuestFollowPanel(t) {
     const isDelivery = isStoreDeliveryFollowDoc(t);
     const dd = t?.deliveryDetails || {};
     const storeName = dd.storeName || dd.restaurant || t?.merchantName || '';
-    const driver = t.driverName || t.offeredToDriverName || '';
+    const driver = hrSafePersonName(t.driverName || t.offeredToDriverName || '');
     const vehPlate = t.driverVehicle?.plate || t.vehiclePlate || t.driverPlate || '';
     const vehModel = t.driverVehicle?.model || t.vehicleType || '';
     const vehicle = [vehModel, vehPlate ? `Placa ${vehPlate}` : ''].filter(Boolean).join(' · ');
@@ -822,6 +849,7 @@ function renderGuestFollowPanel(t) {
             <p class="text-xs font-bold text-slate-600 mt-0.5"><i class="fas fa-location-dot text-emerald-600"></i> Entrega en: ${String(t.destination || 'Destino').slice(0, 90)}</p>
             ${isDelivery && itemsText ? `<p class="text-xs font-extrabold text-orange-800 bg-orange-50 border border-orange-200 rounded-xl px-3 py-1.5 mt-1.5" data-follow-trip-items><i class="fas fa-utensils mr-1"></i>Productos: ${String(itemsText).slice(0, 220)}</p>` : ""}
             ${driver ? `<p class="text-sm font-bold text-slate-800 mt-2"><i class="fas ${isDelivery ? 'fa-motorcycle' : 'fa-user-circle'} text-emerald-600"></i> Repartidor: ${driver}${vehicle ? ` · ${vehicle}` : ''}</p>` : `<p class="text-xs font-bold text-amber-700 mt-2"><i class="fas fa-clock"></i> Asignando repartidor cercano…</p>`}
+            ${driver ? guestDriverContactHtml(t) : ''}
             ${price ? `<p class="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 mt-2">${price}</p>` : ''}
             ${pin && t.status === 'accepted' ? `<p class="mt-2 text-center text-lg font-black tracking-[0.3em] text-blue-700 bg-blue-50 rounded-2xl py-2">PIN ${pin}</p>` : ''}
             <p class="text-[10px] text-slate-400 font-bold mt-2 m-0">${isDelivery ? 'Sigue en el mapa el recorrido en vivo de tu pedido hasta tu ubicación.' : 'Al terminar el viaje te pedimos crear cuenta. Ahora solo sigue el mapa.'}</p>
