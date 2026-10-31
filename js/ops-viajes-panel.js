@@ -360,7 +360,13 @@ function periodRange() {
 function passCity(t) { return UI.city === 'all' || cityOf(t).key === UI.city; }
 function passSvc(t) { return UI.svc === 'all' || svcKey(t) === UI.svc; }
 function passTest(t) { return !UI.excludeTest || !tripTestKind(t); }
-function passPeriod(t, rng) { const c = createdMs(t); return c >= rng[0] && c <= rng[1]; }
+function statsMs(t) {
+    const st = String(t.status || '').toLowerCase();
+    if (st === 'completed' && tsMs(t.completedAt)) return tsMs(t.completedAt);
+    if (t.scheduledFor && st !== 'cancelled' && st !== 'canceled') { const s = tsMs(t.scheduledFor) || new Date(t.scheduledFor).getTime(); if (s) return s; }
+    return createdMs(t);
+}
+function passPeriod(t, rng) { const c = statsMs(t); return c >= rng[0] && c <= rng[1]; }
 function baseTrips() { return ST.trips.filter((t) => !t.isDemandSimulation && !cityOf(t).us); }
 function filtered({ period = true, trash = 'include' } = {}) {
     const rng = periodRange();

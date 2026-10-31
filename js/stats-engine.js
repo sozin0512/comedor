@@ -96,6 +96,21 @@ export function toMs(val) {
     return 0;
 }
 
+/** Fecha que cuenta en estadísticas: completados por completedAt, programados pendientes por scheduledFor, resto por createdAt. */
+export function tripStatsMs(t) {
+    if (!t) return 0;
+    const st = String(t.status || '').toLowerCase();
+    if (st === 'completed') {
+        const c = toMs(t.completedAt);
+        if (c) return c;
+    }
+    if (t.scheduledFor && st !== 'cancelled' && st !== 'canceled') {
+        const s = toMs(t.scheduledFor);
+        if (s) return s;
+    }
+    return toMs(t.createdAt) || Number(t.createdAtMs) || toMs(t.completedAt) || 0;
+}
+
 export function isTripTrashed(t) {
     if (!t || typeof t !== 'object') return false;
     return Boolean(t.trashedAt || t.trashedAtMs || t.deletedAt || t.status === 'trashed');
@@ -439,7 +454,7 @@ export function computeGlobalStatsSnapshot({
     const periodTrips = [];
     for (const rawTrip of trips || []) {
         if (!rawTrip || rawTrip.isDemandSimulation) continue;
-        const createdMs = toMs(rawTrip.createdAt) || toMs(rawTrip.completedAt);
+        const createdMs = tripStatsMs(rawTrip);
         const inRange = createdMs >= range.startMs && createdMs <= range.endMs;
         const inCity = matchesCityFilter(rawTrip, cityFilter, profilesById);
         if (isTripTrashed(rawTrip)) {
@@ -507,7 +522,7 @@ export function computeGlobalStatsSnapshot({
         if (t.status !== 'completed') continue;
 
         const { price, pct, amount: commAmount } = resolveTripCommissionAmount(t, commissionConfig);
-        const tripMs = toMs(t.createdAt) || toMs(t.completedAt) || refNow.getTime();
+        const tripMs = tripStatsMs(t) || refNow.getTime();
         const tripDate = new Date(tripMs);
         const completedMs = toMs(t.completedAt);
         const startedMs = toMs(t.startedAt);
