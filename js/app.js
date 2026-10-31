@@ -10944,6 +10944,14 @@ if (document.readyState === 'loading') {
                     : 'Los clientes que pidan viaje aparecerán abajo';
             }
 
+            try {
+                const vt = String(getActiveVehicleType(window.userProfile) || '').toLowerCase();
+                const regs = getRegisteredVehicleTypes(window.userProfile) || [];
+                if (vt && regs.length > 1) {
+                    const vl = vt === 'moto' ? '🏍️ MOTO' : ((vt === 'auto' || vt === 'vip') ? '🚗 CARRO' : vt.toUpperCase());
+                    subEl.textContent += ' · Vehículo activo: ' + vl + ' (cada oferta dice qué vehículo pide)';
+                }
+            } catch (_) {}
             const radarEl = document.getElementById('driver-radar-status');
             if (radarEl) {
                 radarEl.classList.toggle('driver-radar-status--hidden', count > 0 && !onActiveTrip);
@@ -10963,6 +10971,55 @@ if (document.readyState === 'loading') {
 
             window.syncDriverRadarFloatPanel?.();
         }
+
+        /**
+         * Badge GRANDE del vehículo pedido (conductores con moto Y carro).
+         * Devuelve { label, emoji, color, required[] }.
+         */
+        function getTripVehicleBadgeInfo(t) {
+            const svc = String(t?.serviceType || 'auto').toLowerCase();
+            const isStore = (() => { try { return typeof isStoreDeliveryTrip === 'function' ? isStoreDeliveryTrip(t) : !!t?.storeId; } catch (_) { return !!t?.storeId; } })();
+            if (svc === 'delivery' && isStore) {
+                let choice = String(t?.deliveryVehicle || t?.deliveryDetails?.deliveryVehicle || '').toLowerCase();
+                if (choice === 'car') choice = 'auto';
+                const allowedV = Array.isArray(t?.allowedDriverVehicles) ? t.allowedDriverVehicles.map((x) => String(x).toLowerCase()) : [];
+                if (!choice && allowedV.length === 1) choice = allowedV[0];
+                if (choice === 'moto') return { emoji: '🛍️🏍️', label: 'TIENDA · en MOTO', color: '#7c3aed', required: ['moto'] };
+                if (choice === 'auto' || choice === 'carro') return { emoji: '🛍️🚗', label: 'TIENDA · en CARRO', color: '#7c3aed', required: ['auto'] };
+                return { emoji: '🛍️', label: 'TIENDA · MOTO o CARRO', color: '#7c3aed', required: ['moto', 'auto'] };
+            }
+            if (svc === 'moto') return { emoji: '🏍️', label: 'VIAJE EN MOTO', color: '#ea580c', required: ['moto'] };
+            if (svc === 'delivery') return { emoji: '📦🏍️', label: 'ENVÍO EN MOTO', color: '#0891b2', required: ['moto'] };
+            if (svc === 'taxi') return { emoji: '🚕', label: 'VIAJE EN TAXI tradicional', color: '#ca8a04', required: ['taxi'] };
+            if (svc === 'flete_paila') return { emoji: '🛻', label: 'FLETE EN PAILA', color: '#475569', required: ['paila'] };
+            if (svc === 'flete_camion') return { emoji: '🚛', label: 'FLETE EN CAMIÓN', color: '#475569', required: ['camion'] };
+            if (svc === 'grua') return { emoji: '🚨', label: 'SERVICIO DE GRÚA', color: '#dc2626', required: ['grua'] };
+            return { emoji: '🚗', label: 'VIAJE EN CARRO · Taxi VIP', color: '#2563eb', required: ['auto'] };
+        }
+        window.getTripVehicleBadgeInfo = getTripVehicleBadgeInfo;
+
+        function tripVehicleBadgeHtml(t, { size = 'lg' } = {}) {
+            const info = getTripVehicleBadgeInfo(t);
+            let warn = '';
+            try {
+                const prof = window.userProfile || {};
+                const norm = (x) => { const d = String(x || '').toLowerCase(); return (d === 'vip' || d === 'taxi_vip' || d === 'carro') ? 'auto' : d; };
+                const active = norm(getActiveVehicleType(prof) || prof.vehicleType);
+                const registered = (getRegisteredVehicleTypes(prof) || []).map(norm);
+                const fits = info.required.includes(active);
+                const hasOther = registered.length > 1;
+                if (active && !fits && hasOther) {
+                    const need = info.required.map((r) => r === 'moto' ? 'MOTO' : (r === 'auto' ? 'CARRO' : r.toUpperCase())).join(' o ');
+                    warn = `<span class="hr-veh-badge-warn" style="display:block;font-size:12px;font-weight:800;margin-top:4px;background:rgba(255,255,255,.22);border-radius:8px;padding:3px 8px">⚠️ Este viaje es para tu ${need}. Tu vehículo activo es ${active === 'moto' ? 'MOTO' : (active === 'auto' ? 'CARRO' : active.toUpperCase())}: usa la ${need}.</span>`;
+                } else if (hasOther && fits) {
+                    warn = `<span class="hr-veh-badge-ok" style="display:block;font-size:11px;font-weight:700;margin-top:2px;opacity:.9">Usa tu ${active === 'moto' ? 'MOTO' : (active === 'auto' ? 'CARRO' : active.toUpperCase())} (tu vehículo activo)</span>`;
+                }
+            } catch (_) {}
+            const fs = size === 'lg' ? '20px' : '15px';
+            return `<div class="hr-veh-badge" data-veh-required="${info.required.join(',')}" style="background:${info.color};color:#fff;border-radius:14px;padding:${size === 'lg' ? '10px 14px' : '6px 10px'};margin:0 0 8px;font-weight:900;font-size:${fs};letter-spacing:.3px;line-height:1.2;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.18)"><span aria-hidden="true">${info.emoji}</span> ${info.label}${warn}</div>`;
+        }
+        window.tripVehicleBadgeHtml = tripVehicleBadgeHtml;
+        window._hrBuildTripOfferCardHtml = (...a) => buildTripOfferCardHtml(...a); // pruebas visuales
 
         function buildTripOfferCardHtml(tripId, t, { distanceKm, driverBusy = false, compact = false, queueIndex = null, idPrefix = '' } = {}) {
             const pfx = String(idPrefix || '');
@@ -11185,6 +11242,7 @@ if (document.readyState === 'loading') {
                 const fullRouteHtml = buildDriverOfferRouteHtml(t, { compact: true });
                 return `
                 <div class="driver-offer-card driver-offer-card--uber-vert" data-preview-offer="${tripId}" data-trip-id="${tripId}" data-offer-id-prefix="${pfx}">
+                    ${tripVehicleBadgeHtml(t)}
                     <div class="uber-vert-toolbar">
                         <span class="uber-vert-timer" id="uber-vert-timer-label" aria-live="polite">
                             <i class="fas fa-clock"></i> <span class="uber-vert-timer-sec">—</span>s
@@ -11227,6 +11285,7 @@ if (document.readyState === 'loading') {
 
             return `
                 <div class="trip-request-card driver-offer-card${getScheduledTripMs(t) ? ' driver-offer-card--scheduled' : ''}" data-preview-offer="${tripId}" data-offer-id-prefix="${pfx}">
+                    ${tripVehicleBadgeHtml(t)}
                     <div class="driver-offer-top">
                         <p class="driver-offer-name client-name-${tripId}">${escapeViewerText(displayPersonName(t.clientName, 'Pasajero'))}</p>
                         <div class="driver-offer-badges">${schedBadge}${firstTripBadge}${queueBadge}${storeOfferBadgesHtml(t)}${serviceBadge}${paxBadge}${distBadge}</div>
@@ -35556,7 +35615,32 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             window.syncTripFloatPanels?.(data);
         };
 
+        /** Viaje aceptado: el tipo de vehículo pedido queda SIEMPRE visible (panel y barra mini). */
+        window.syncDriverActiveVehicleBadge = (data) => {
+            const panel = document.getElementById('active-trip-panel');
+            if (!panel) return;
+            let box = document.getElementById('driver-active-veh-badge');
+            const show = !!data && window.userProfile?.role === 'driver'
+                && ['accepted', 'in_progress', 'arrived', 'started'].includes(String(data.status || ''));
+            if (!show) { box?.remove(); return; }
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'driver-active-veh-badge';
+                const minBtn = document.getElementById('driver-panel-min-btn');
+                if (minBtn && minBtn.parentElement === panel) minBtn.after(box); else panel.prepend(box);
+            }
+            box.innerHTML = tripVehicleBadgeHtml(data, { size: 'md' });
+            const mini = document.getElementById('trip-mini-bar');
+            const lbl = mini?.querySelector('.driver-active-eta-label');
+            if (lbl) {
+                const info = getTripVehicleBadgeInfo(data);
+                lbl.textContent = `En viaje · ${info.emoji} ${info.label}`;
+                lbl.style.color = info.color;
+            }
+        };
+
         window.syncDriverTripControls = (data) => {
+            try { window.syncDriverActiveVehicleBadge?.(data); } catch (_) {}
             const routeHero = document.getElementById('driver-route-hero');
             const destControls = document.getElementById('driver-destination-controls');
             const tripActions = document.getElementById('driver-trip-actions');
