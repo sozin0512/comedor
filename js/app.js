@@ -11019,7 +11019,6 @@ if (document.readyState === 'loading') {
             return `<div class="hr-veh-badge" data-veh-required="${info.required.join(',')}" style="background:${info.color};color:#fff;border-radius:14px;padding:${size === 'lg' ? '10px 14px' : '6px 10px'};margin:0 0 8px;font-weight:900;font-size:${fs};letter-spacing:.3px;line-height:1.2;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.18)"><span aria-hidden="true">${info.emoji}</span> ${info.label}${warn}</div>`;
         }
         window.tripVehicleBadgeHtml = tripVehicleBadgeHtml;
-        window._hrBuildTripOfferCardHtml = (...a) => buildTripOfferCardHtml(...a); // pruebas visuales
 
         function buildTripOfferCardHtml(tripId, t, { distanceKm, driverBusy = false, compact = false, queueIndex = null, idPrefix = '' } = {}) {
             const pfx = String(idPrefix || '');
