@@ -1608,7 +1608,17 @@ const {
     computeDriverStoreDeliveryStatsToday,
     rankDriversForStoreDelivery,
     planNextStoreDeliveryOffer,
+    usesTimedExclusiveOffer,
 } = require('./store-delivery-rotation');
+
+/** VIP: 15 s exclusivo al conductor más cercano de la ciudad; luego abre a todos. */
+const VIP_EXCLUSIVE_OFFER_SEC = 15;
+function isVipRideTrip(t) {
+    if (!t || isStoreDeliveryTrip(t)) return false;
+    if (t.scheduledFor || t.staffCreatedBy) return false;
+    const svc = String(t.serviceType || '').toLowerCase();
+    return svc === 'vip' || svc === 'taxi_vip' || svc === 'auto';
+}
 
 /** Lo que eligió el cliente en el pedido. Vacío = moto o Taxi VIP (pedidos viejos). */
 function storeDeliveryChoice(t) {
@@ -2369,7 +2379,7 @@ function getOfferSentMs(trip) {
 function isExclusiveWindowOpen(trip) {
     if (!trip || trip.status !== 'pending' || trip.driverId) return false;
     if (trip.offerPhase === 'city') return false;
-    if (isStoreDeliveryTrip(trip)) {
+    if (usesTimedExclusiveOffer(trip)) {
         return isStoreOfferExclusiveActive(trip);
     }
     if (trip.offerPhase !== 'exclusive' || !trip.offeredToDriverId) return false;
@@ -2380,7 +2390,7 @@ function isExclusiveWindowOpen(trip) {
 
 function isExclusiveWindowExpired(trip) {
     if (!trip || trip.offerPhase === 'city') return true;
-    if (isStoreDeliveryTrip(trip)) {
+    if (usesTimedExclusiveOffer(trip)) {
         return isStoreOfferWindowExpired(trip);
     }
     if (trip.offerPhase !== 'exclusive' || !trip.offeredToDriverId) return false;
@@ -2736,7 +2746,15 @@ async function assignNextTripOfferServer(appId, tripId) {
         if (d.status !== 'pending' || d.driverId) return;
         if (d.offerPhase === 'city') return;
         if (isExclusiveWindowOpen(d)) return;
+        const vipFields = isVipRideTrip({ ...d, id: tripId })
+            ? {
+                vipExclusiveOffer: true,
+                offerWindowSec: VIP_EXCLUSIVE_OFFER_SEC,
+                offerExpiresAtMs: Date.now() + VIP_EXCLUSIVE_OFFER_SEC * 1000,
+            }
+            : {};
         tx.update(tripRef, {
+            ...vipFields,
             offeredToDriverId: next.driverId,
             offeredToDriverName: next.name,
             offerSentAt: FieldValue.serverTimestamp(),
@@ -3795,6 +3813,27 @@ async function alertDriversForPendingTrip(appId, tripId, trip) {
         });
         return;
     }
+    // VIP: primero solo al más cercano (15 s); si no acepta, ciudad abierta.
+    if (isVipRideTrip(trip)) {
+        await notifyStaffNewTrip(appId, tripId, trip).catch((e) => {
+            console.warn('notifyStaffNewTrip', e?.message || e);
+        });
+        const assigned = await assignNextTripOfferServer(appId, tripId).catch((e) => {
+            console.warn('[vip exclusive] assign', e?.message || e);
+            return false;
+        });
+        if (assigned) {
+            await new Promise((resolve) => setTimeout(resolve, VIP_EXCLUSIVE_OFFER_SEC * 1000 + 300));
+        }
+        const snap = await db.doc(`artifacts/${appId}/public/data/trips/${tripId}`).get().catch(() => null);
+        const t = snap?.exists ? snap.data() : null;
+        if (t && t.status === 'pending' && !t.driverId && t.offerPhase !== 'city') {
+            await openTripOfferToCity(appId, tripId).catch((e) => {
+                console.warn('openTripOfferToCity vip', e?.message || e);
+            });
+        }
+        return;
+    }
     // Viajes normales de pasajeros: FCM YA y ciudad abierta inmediata.
     await Promise.all([
         notifyStaffNewTrip(appId, tripId, trip).catch((e) => {
@@ -3891,6 +3930,12 @@ exports.expireTripOffers = onSchedule('every 1 minutes', async () => {
         if (isStoreDeliveryTrip(t) && t.offerPhase !== 'city') {
             if (isExclusiveWindowOpen(t)) continue;
             await assignNextTripOfferServer(APP_ID, d.id).catch(() => {});
+            continue;
+        }
+        // VIP en turno exclusivo: esperar sus 15 s; vencido → abrir a la ciudad.
+        if (t.vipExclusiveOffer === true && t.offerPhase === 'exclusive') {
+            if (isExclusiveWindowOpen(t)) continue;
+            await openTripOfferToCity(APP_ID, d.id).catch(() => {});
             continue;
         }
         if (!t.eligibleDriverAlertSent) {

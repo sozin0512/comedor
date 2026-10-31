@@ -78,6 +78,11 @@ export function isStoreDeliveryTrip(t) {
     );
 }
 
+/** Ventana exclusiva con tiempo: envíos de tienda (rotación) o viaje VIP (1 turno al más cercano y luego ciudad). */
+export function usesTimedExclusiveOffer(t) {
+    return isStoreDeliveryTrip(t) || t?.vipExclusiveOffer === true;
+}
+
 export function getStoreOfferWindowSec(trip) {
     const sec = Number(trip?.offerWindowSec);
     return Number.isFinite(sec) && sec > 0 ? sec : TRIP_STORE_OFFER_STEP_SEC;
@@ -111,7 +116,7 @@ export function getStoreOfferExpiresAtMs(trip) {
  * Los viajes normales de pasajeros devuelven siempre `false` (ciudad abierta).
  */
 export function isStoreOfferExclusiveActive(trip, nowMs = Date.now()) {
-    if (!isStoreDeliveryTrip(trip)) return false;
+    if (!usesTimedExclusiveOffer(trip)) return false;
     if (trip.status && trip.status !== 'pending') return false;
     if (trip.driverId || trip.trashedAtMs || trip.isDemandSimulation) return false;
     if (trip.offerPhase === 'city') return false;
@@ -125,7 +130,7 @@ export function isStoreOfferExclusiveActive(trip, nowMs = Date.now()) {
  * ¿Ya venció el turno exclusivo de 15 s del repartidor actual?
  */
 export function isStoreOfferWindowExpired(trip, nowMs = Date.now()) {
-    if (!isStoreDeliveryTrip(trip)) return true;
+    if (!usesTimedExclusiveOffer(trip)) return true;
     if (trip.offerPhase === 'city') return true;
     if (trip.offerPhase !== 'exclusive' || !trip.offeredToDriverId) return true;
     const expMs = getStoreOfferExpiresAtMs(trip);
