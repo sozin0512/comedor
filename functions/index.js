@@ -5309,6 +5309,8 @@ exports.onStoreOrderUpdatedPush = onDocumentUpdated(
  */
 async function sendScheduledPickupReminders(appId, docSnap, trip, now) {
     if (!trip?.driverId) return trip;
+    // Solo mientras sigue «scheduled»; aceptado/en curso/terminado/cancelado → sin recordatorios
+    if (trip.status && trip.status !== 'scheduled') return trip;
     const scheduledMs = getScheduledTripMs(trip);
     if (!scheduledMs) return trip;
     const minsLeft = Math.ceil((scheduledMs - now) / 60000);
@@ -5459,15 +5461,8 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
         }
     }
 
-    // Ya activo (accepted) pero sigue programado: avisos 10 / 5 min
-    const acceptedSnap = await db.collection(`artifacts/${appId}/public/data/trips`)
-        .where('status', '==', 'accepted')
-        .get();
-    for (const docSnap of acceptedSnap.docs) {
-        const trip = { id: docSnap.id, ...docSnap.data() };
-        if (!trip.driverId || !getScheduledTripMs(trip)) continue;
-        await sendScheduledPickupReminders(appId, docSnap, trip, now);
-    }
+    // 2026.10.26.28: ya NO se mandan «Viaje programado en 10/5 min» a viajes accepted/in_progress:
+    // el conductor ya va en camino (o está en ese viaje) y los avisos salían en medio de la navegación.
 });
 
 exports.onVerificationAlertPush = onDocumentCreated(

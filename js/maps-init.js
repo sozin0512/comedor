@@ -3633,11 +3633,108 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
       return markerContent;
   };
 
+  /**
+   * Suavizado del carrito PROPIO del conductor (evita que «rebote»):
+   * - varias fuentes (GPS crudo, posición pegada a la ruta, refresh de ruta) llamaban con
+   *   posiciones distintas y algunas sin rumbo (→ rumbo 0 = carro apuntando al norte);
+   * - se filtra jitter (<4 m parado), fixes imprecisos, saltos de rumbo, y se interpola
+   *   con UNA sola animación a la vez.
+   */
+  const SELF_SMOOTH = { anim: null, shown: null, heading: null, lastAt: 0 };
+  const selfDistM = (a, b) => {
+    const R = 6371000, toR = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * toR, dLng = (b.lng - a.lng) * toR;
+    const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+  };
+  const angDiff = (a, b) => { const d = ((b - a) % 360 + 540) % 360 - 180; return d; };
+  window._hrSelfMarkerSmooth = SELF_SMOOTH;
+  window.smoothSelfDriverMarker = (driverId, lat, lng, options, raw) => {
+    let target = { lat: Number(lat), lng: Number(lng) };
+    if (!Number.isFinite(target.lat) || !Number.isFinite(target.lng)) return;
+    // Pegar a la línea verde si está a ≤25 m (evita que se vaya a calles paralelas).
+    // Todas las fuentes (GPS crudo, refresh de ruta) pasan por aquí → misma posición.
+    try {
+      const path = window.currentRouteFullPath || window.currentNavRoute?.path || [];
+      if (path.length >= 2 && window.isDriverNavigating?.()) {
+        const t = window.currentActiveTripData || window.activeTrip;
+        const pk = t?.status === 'accepted' ? window.getTripPickupCoords?.(t) : null;
+        const nearPickup = pk && Number.isFinite(Number(pk.lat)) ? selfDistM(target, { lat: Number(pk.lat), lng: Number(pk.lng) }) < 60 : false;
+        const d = window.getDistanceToRouteMeters?.(path, target);
+        if (!nearPickup && Number.isFinite(d) && d <= 25) {
+          const sp = window.snapPositionToRoute?.(path, target);
+          if (sp?.lat != null && sp?.lng != null) target = { lat: Number(sp.lat), lng: Number(sp.lng) };
+        }
+      }
+    } catch (_) {}
+    const acc = Number(window.currentDriverPos?.accuracy ?? window._driverLiveAccuracy);
+    const now = Date.now();
+    const from = SELF_SMOOTH.shown;
+    // Rumbo estable: sin rumbo → conservar el último (nunca saltar a 0/norte)
+    const hasH = options.heading != null && Number.isFinite(Number(options.heading)) && !(Number(options.heading) === 0 && SELF_SMOOTH.heading != null && options._headingFromCaller !== true);
+    let heading = hasH ? Number(options.heading) : (SELF_SMOOTH.heading ?? window.currentDriverHeading ?? 0);
+    const dist = from ? selfDistM(from, target) : Infinity;
+    if (from && SELF_SMOOTH.heading != null && hasH && dist < 6 && Math.abs(angDiff(SELF_SMOOTH.heading, heading)) > 100) {
+      heading = SELF_SMOOTH.heading; // giro brusco estando casi quieto = ruido de GPS/brújula
+    }
+    // Limitar giro por actualización (evita que el carro «gire loco»): más suave a baja velocidad
+    if (SELF_SMOOTH.heading != null && Number.isFinite(heading)) {
+      const dH = angDiff(SELF_SMOOTH.heading, heading);
+      const maxStep = dist < 15 ? 30 : 60;
+      if (Math.abs(dH) > maxStep) heading = (SELF_SMOOTH.heading + Math.sign(dH) * maxStep + 360) % 360;
+    }
+    // Jitter: casi quieto o fix impreciso con movimiento pequeño → no mover
+    if (from && (dist < 4 || (Number.isFinite(acc) && acc > 50 && dist < acc * 0.6))) {
+      if (SELF_SMOOTH.heading == null || Math.abs(angDiff(SELF_SMOOTH.heading, heading)) > 3) {
+        SELF_SMOOTH.heading = heading;
+        raw(driverId, from.lat, from.lng, true, { ...options, heading, forceReposition: false });
+      }
+      return;
+    }
+    SELF_SMOOTH.heading = heading;
+    SELF_SMOOTH.target = target;
+    SELF_SMOOTH.targetAt = now;
+    if (SELF_SMOOTH.anim) cancelAnimationFrame(SELF_SMOOTH.anim);
+    SELF_SMOOTH.anim = null;
+    // Primer fix o salto grande (>150 m): colocar directo
+    if (!from || dist > 150 || document.hidden) {
+      SELF_SMOOTH.shown = target;
+      raw(driverId, target.lat, target.lng, true, { ...options, heading });
+      return;
+    }
+    const dur = Math.min(900, Math.max(250, now - (SELF_SMOOTH.lastAt || now)));
+    SELF_SMOOTH.lastAt = now;
+    const t0 = performance.now();
+    const step = (ts) => {
+      const k = Math.min(1, (ts - t0) / dur);
+      const e = k * (2 - k);
+      const p = { lat: from.lat + (target.lat - from.lat) * e, lng: from.lng + (target.lng - from.lng) * e };
+      SELF_SMOOTH.shown = p;
+      raw(driverId, p.lat, p.lng, true, { ...options, heading, forceReposition: true });
+      SELF_SMOOTH.anim = k < 1 ? requestAnimationFrame(step) : null;
+    };
+    SELF_SMOOTH.anim = requestAnimationFrame(step);
+  };
+
   window.updateDriverMarker = (driverId, lat, lng, isSelf = false, options = {}) => {
+    if (isSelf && !options._smoothed && window.mapLoaded && window.gMap && typeof requestAnimationFrame === 'function') {
+      // currentDriverPos debe quedar con la posición real, no la interpolada
+      const keepPos = window.currentDriverPos;
+      window.smoothSelfDriverMarker(driverId, lat, lng, options, (id, la, ln, self, o) => {
+        window._updateDriverMarkerRaw(id, la, ln, self, { ...o, _smoothed: true });
+      });
+      if (keepPos) window.currentDriverPos = keepPos;
+      return;
+    }
+    return window._updateDriverMarkerRaw(driverId, lat, lng, isSelf, options);
+  };
+
+  window._updateDriverMarkerRaw = (driverId, lat, lng, isSelf = false, options = {}) => {
     if (!window.mapLoaded || !window.gMap) return;
 
     const pos = { lat, lng };
-    if (isSelf) window.currentDriverPos = pos;
+    // Self: no pisar currentDriverPos con la posición interpolada/pegada a la ruta
+    if (isSelf && !options._smoothed) window.currentDriverPos = pos;
 
     const variant = options.variant || (isSelf ? 'self' : 'nearby');
     const driverName = options.name || '';
@@ -5442,8 +5539,12 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 return false;
             }
 
+            // Mismo destino con ruta viva: no borrar (evita parpadeo de la línea + voz repetida)
+            const sameLive = window.currentNavTargetKey === (window.navTargetKey?.(target) ?? target)
+                && window.currentNavRoute?.path?.length >= 2
+                && (window._progressRoutePolylines?.remaining?.getMap?.() || window._progressRoutePolylines?.base?.getMap?.());
             // Invalidar ruta previa para forzar recompute + anuncio de voz
-            try {
+            if (!sameLive) try {
                 window.currentNavRoute = null;
                 window.currentRouteFullPath = null;
                 window._navRouteReadySpoken = false;
@@ -7902,8 +8003,18 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             try { window.speechSynthesis?.cancel?.(); } catch (_) {}
         };
 
-        window.onDriverNavRouteReady = (route) => {
-            if (!window.isDriverNavigating?.() || window._navRouteReadySpoken) return;
+        window.onDriverNavRouteReady = (route, opts = {}) => {
+            if (!window.isDriverNavigating?.()) return;
+            // Anunciar 1 vez por tramo (viaje+fase) y en cada desvío; NO en refrescos/recover periódicos
+            const t = window.currentActiveTripData || window.activeTrip || {};
+            const legKey = `${t.id || ''}|${t.status || ''}|${t.driverArrived ? 1 : 0}|${t.currentStopIndex ?? ''}`;
+            if (opts.reroute !== true && window._navRouteReadyLegKey === legKey) {
+                window._navRouteReadySpoken = true;
+                return;
+            }
+            if (opts.reroute === true && window._navRouteReadyAt && Date.now() - window._navRouteReadyAt < 20000) return;
+            window._navRouteReadyLegKey = legKey;
+            window._navRouteReadyAt = Date.now();
             window._navRouteReadySpoken = true;
             window._navVoiceState = null;
             window._navArrivalSpoken = false;
@@ -8018,6 +8129,19 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 const el = document.getElementById(id);
                 if (el) el.textContent = val;
             });
+            // Chip compacto ETA + km (visible aunque el panel esté minimizado)
+            if (field === 'totalTime' || field === 'totalDist') {
+                const chipId = field === 'totalTime' ? 'driver-nav-eta-time' : 'driver-nav-eta-dist';
+                const el = document.getElementById(chipId);
+                if (el && val) el.textContent = val;
+                const chip = document.getElementById('driver-nav-eta-chip');
+                if (chip && val && !/^--/.test(val)) {
+                    const t = window.currentActiveTripData || window.activeTrip;
+                    const ph = document.getElementById('driver-nav-eta-phase');
+                    if (ph) ph.textContent = t?.status === 'in_progress' ? '· al destino' : '· al pasajero';
+                    chip.classList.remove('hidden');
+                }
+            }
         };
 
         window.setNavHudIcon = (iconClass) => {
@@ -8241,12 +8365,19 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             if (!force && (window.autoCenter === false || window._driverMapFreeLook)) return;
 
             const cam = window.getDriverNavCameraState?.(rawPos, rawHeading) || { pos: rawPos, heading: rawHeading || 0 };
-            const pos = cam.pos || rawPos;
+            let pos = cam.pos || rawPos;
+            // Cámara = misma posición filtrada que el carrito (no saltar con cada fix crudo)
+            const sm = window._hrSelfMarkerSmooth;
+            if (sm?.target && Date.now() - (sm.targetAt || 0) < 5000) {
+                const dLat = (sm.target.lat - pos.lat) * 111320;
+                const dLng = (sm.target.lng - pos.lng) * 111320 * Math.cos(pos.lat * Math.PI / 180);
+                if (Math.hypot(dLat, dLng) < 60) pos = sm.target;
+            }
             const h = Number.isFinite(cam.heading) ? cam.heading : 0;
             const lowPower = !!(window.hrUseLiteMaps?.()
                 || (typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode()));
             const lastCam = window._lastDriverNavCamPos;
-            const moved = !lastCam || Math.hypot(pos.lat - lastCam.lat, pos.lng - lastCam.lng) > (lowPower ? 0.0001 : 0.00003);
+            const moved = !lastCam || Math.hypot(pos.lat - lastCam.lat, pos.lng - lastCam.lng) > (lowPower ? 0.0001 : 0.00004);
             const headingDelta = window._lastDriverNavCamHeading == null
                 ? 999
                 : Math.abs(((h - window._lastDriverNavCamHeading + 540) % 360) - 180);
@@ -8408,6 +8539,11 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 && document.body.classList.contains('panel-minimized')) {
                 return;
             }
+            // Si el conductor está escribiendo en el chat, no robarle el teclado ni cerrar el panel
+            try {
+                const ae = document.activeElement;
+                if (ae?.closest?.('#chat-float, #chat-compose-form, #chat-input, [data-keep-keyboard]')) return;
+            } catch (_) {}
             // Cerrar teclado si quedó del PIN
             try {
                 document.getElementById('driver-pin-input')?.blur?.();
@@ -9326,20 +9462,6 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         lng: typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng }
                     : latLng;
 
-                // Evitar destruir/recrear el pin en cada tick GPS (parpadeo en pasajero)
-                const styleKey = options.style || 'auto';
-                const posKey = `${Number(pos.lat).toFixed(5)},${Number(pos.lng).toFixed(5)}|${styleKey}|${title || ''}`;
-                if (window.originMarker && window._originMarkerKey === posKey) {
-                    return;
-                }
-                window._originMarkerKey = posKey;
-
-                // Limpiar marcador anterior
-                if (window.originMarker) {
-                    if (window.originMarker.map !== undefined) window.originMarker.map = null;
-                    else if (typeof window.originMarker.setMap === 'function') window.originMarker.setMap(null);
-                    window.originMarker = null;
-                }
 
                 // Tras PIN / en curso: pin simple A (sin emoji de persona)
                 const tripStatus = window.currentActiveTripData?.status
@@ -9351,6 +9473,32 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 // Nunca emoji de cliente en viaje en curso, aunque llamen sin options
                 const useClientEmoji = !destPhase
                     && (options.style === 'client' || options.style !== 'simple');
+
+                // Evitar destruir/recrear el pin en cada refresh (el avatar del pasajero «saltaba»):
+                // clave = posición (~1 m) + estilo EFECTIVO; el título solo se actualiza en sitio.
+                const posKey = `${Number(pos.lat).toFixed(5)},${Number(pos.lng).toFixed(5)}|${useClientEmoji ? 'client' : 'A'}`;
+                if (window.originMarker && window._originMarkerKey === posKey) {
+                    try { if (title && window.originMarker.title !== title) window.originMarker.title = title; } catch (_) {}
+                    return;
+                }
+                window._originMarkerKey = posKey;
+                // Si solo cambió la posición y el estilo es el mismo: mover, no recrear
+                if (window.originMarker && window._originMarkerStyle === (useClientEmoji ? 'client' : 'A')) {
+                    try {
+                        if (window.originMarker.position !== undefined) window.originMarker.position = pos;
+                        else window.originMarker.setPosition?.(pos);
+                        return;
+                    } catch (_) {}
+                }
+                window._originMarkerStyle = useClientEmoji ? 'client' : 'A';
+
+                // Limpiar marcador anterior
+                if (window.originMarker) {
+                    if (window.originMarker.map !== undefined) window.originMarker.map = null;
+                    else if (typeof window.originMarker.setMap === 'function') window.originMarker.setMap(null);
+                    window.originMarker = null;
+                }
+
 
                 const hasAdvanced = window.canUseAdvancedMapMarkers?.() ?? false;
                 const placeSimpleAMarker = () => {
@@ -9393,6 +9541,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 if (hasAdvanced) {
                     if (useClientEmoji) {
                         const content = window.buildClientPickupMarkerContent();
+                        try { content.classList?.add('hr-marker-fade-in'); } catch (_) {}
                         window.originMarker = new google.maps.marker.AdvancedMarkerElement({
                             position: pos,
                             map: window.gMap,

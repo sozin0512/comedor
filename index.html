@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.27">
+    <meta name="hr-app-version" content="2026.10.26.28">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -55,12 +55,12 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.27">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.28">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.27">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.27">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.27">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.28">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.28">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.28">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -108,7 +108,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.27"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.28"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -425,10 +425,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.27';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.28';
         (function () {
             try {
-                var build = '2026.10.26.27';
+                var build = '2026.10.26.28';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -1554,6 +1554,9 @@
             <div data-sozin-copyright="light" class="mt-4"></div>
         </div>
     </div>
+
+    <!-- ETA compacto del conductor (visible aunque el panel esté minimizado o el HUD oculto) -->
+    <div id="driver-nav-eta-chip" class="driver-nav-eta-chip hidden" aria-live="polite"><i class="fas fa-clock"></i> <b id="driver-nav-eta-time">-- min</b> · <span id="driver-nav-eta-dist">-- km</span> <span id="driver-nav-eta-phase"></span></div>
 
     <!-- HUD NAVEGACIÓN: banner tipo Google Maps (giro + Luego + ETA en mini-barra) -->
     <div id="nav-hud-top" class="nav-hud-top-card">

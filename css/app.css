@@ -16720,7 +16720,8 @@
         /* Pastilla de ganancias: en el mapa, NUNCA encima del sheet inferior */
         body.driver-mode #driver-earnings-float .driver-earnings-float--min:not(.is-drag-positioned):not(.is-dragging) {
             top: max(4.6rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 3.4rem)) !important;
-            left: 0.75rem !important;
+            /* 2026.10.26.28: la burbuja nativa de Android (logo, arriba-izq, x≈margen, y≈120dp) la tapaba */
+            left: 5.6rem !important;
             bottom: auto !important;
             right: auto !important;
         }
@@ -26422,3 +26423,48 @@ html[data-theme="dark"] .hr-a2hs__steps li { color: #cbd5e1; }
 }
 
 body.guest-trip-follow .hr-guest-hide{display:none}
+
+/* 2026.10.26.28: .hidden de Tailwind se cargaba antes y display:flex lo pisaba → punto rojo de chat sin mensajes nuevos */
+.driver-active-tool-badge.hidden,
+.trip-chat-pill-badge.hidden { display: none !important; }
+.driver-nav-eta-chip{position:fixed;z-index:60;top:calc(env(safe-area-inset-top,0px) + 10px);left:50%;transform:translateX(-50%);box-shadow:0 4px 14px rgba(0,0,0,.18);border:1px solid #a7f3d0;pointer-events:none;margin:0;font-size:12px;font-weight:800;color:#0f172a;background:#ecfdf5;border-radius:999px;padding:2px 8px;display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+.driver-nav-eta-chip.hidden{display:none!important}
+body:not(.driver-mode) .driver-nav-eta-chip,body:not(.trip-active) .driver-nav-eta-chip{display:none!important}
+
+/* 2026.10.26.28: panel del conductor en viaje — las acciones (¡HE LLEGADO! / Cancelar) nunca quedan
+   tapadas ni recortadas por la fila Maps/Chat/Mapa o la tarjeta de ganancia: el sheet scrollea
+   y las acciones quedan fijas abajo dentro del sheet. */
+body.trip-active.driver-mode:not(.panel-minimized) #control-panel .driver-uber-sheet {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+body.trip-active.driver-mode:not(.panel-minimized) #driver-trip-actions:not(.hidden) {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    background: inherit;
+    background-color: #fff;
+    padding-top: 0.4rem;
+    padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 14px -10px rgba(15, 23, 42, 0.35);
+}
+html[data-theme="dark"] body.trip-active.driver-mode:not(.panel-minimized) #driver-trip-actions:not(.hidden) { background-color: #0f172a; }
+body.trip-active.driver-mode .driver-uber-secondary-row { position: relative; z-index: 1; }
+@keyframes hrMarkerFadeIn { from { opacity: 0; transform: translateY(6px) scale(.92); } to { opacity: 1; transform: none; } }
+.hr-marker-fade-in { animation: hrMarkerFadeIn .35s ease-out both; }
+/* 2026.10.26.28: «( 1 0 % )» / «L. 0 . 0 0» — heredaba tracking-widest/letter-spacing del sheet */
+.hr-comm, .hr-comm * { letter-spacing: normal !important; word-spacing: normal !important; font-variant-numeric: tabular-nums; text-transform: none !important; }
+/* Pastilla de ganancias: texto completo al lado de la burbuja nativa */
+body.driver-mode #driver-earnings-float .driver-earnings-float--min:not(.is-drag-positioned):not(.is-dragging) { max-width: calc(100vw - 6.4rem) !important; }
+body.driver-mode #driver-earnings-float .driver-earnings-min-pill { white-space: nowrap; overflow: visible; }
+.driver-nav-eta-chip, .driver-nav-eta-chip *{letter-spacing:normal!important;font-variant-numeric:tabular-nums}
+/* 2026.10.26.28: causa real de «( 1 0 % )» / «L. 1 5 0 . 0 0»: font-variant-emoji:emoji global hace que
+   Chrome/Android pinte los dígitos con Noto Color Emoji (anchos). En el panel del conductor, texto normal. */
+.hr-comm, .hr-comm *,
+body.driver-mode #control-panel, body.driver-mode #control-panel *,
+#driver-earnings-float, #driver-earnings-float *,
+.driver-nav-eta-chip, .driver-nav-eta-chip *,
+#nav-hud-top, #nav-hud-top *, #nav-hud-bottom, #nav-hud-bottom *,
+#trip-floats-layer, #trip-floats-layer *,
+#chat-float, #chat-float * { font-variant-emoji: text !important; }
