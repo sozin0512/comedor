@@ -5461,7 +5461,7 @@ exports.activateScheduledTrips = onSchedule('every 1 minutes', async () => {
         }
     }
 
-    // 2026.10.26.28: ya NO se mandan «Viaje programado en 10/5 min» a viajes accepted/in_progress:
+    // 2026.10.26.29: ya NO se mandan «Viaje programado en 10/5 min» a viajes accepted/in_progress:
     // el conductor ya va en camino (o está en ese viaje) y los avisos salían en medio de la navegación.
 });
 
