@@ -29,6 +29,8 @@ public class SessionKeepaliveService extends Service {
     public static final String EXTRA_BODY = "body";
     public static final String EXTRA_DRIVER_MODE = "driverMode";
     public static final String EXTRA_TRIP_MODE = "tripMode";
+    /** JSON con apiKey, projectId, appId, uid, tripId, idToken, refreshToken (GPS nativo de viaje). */
+    public static final String EXTRA_GPS_CONFIG = "gpsConfig";
 
     private static final String CHANNEL_ID = "honduraite_session_keepalive";
     private static final String TRIP_CHANNEL_ID = "honduraite_live_trip_v1";
@@ -73,6 +75,7 @@ public class SessionKeepaliveService extends Service {
                     lastTitle.isEmpty() ? getString(R.string.keepalive_title) : lastTitle,
                     lastBody.isEmpty() ? getString(R.string.keepalive_body) : lastBody
                 );
+                if (running && tripMode) NativeTripGps.get(this).start(null);
                 return START_STICKY;
             }
             stopSelf();
@@ -86,6 +89,7 @@ public class SessionKeepaliveService extends Service {
             tripMode = false;
             lastTitle = "";
             lastBody = "";
+            NativeTripGps.get(this).stop();
             BubbleOverlayHelper.hide();
             stopForeground(true);
             stopSelf();
@@ -119,7 +123,29 @@ public class SessionKeepaliveService extends Service {
         lastTitle = title;
         lastBody = body;
         promoteToForeground(title, body);
+        syncNativeGps(intent.getStringExtra(EXTRA_GPS_CONFIG));
         return START_STICKY;
+    }
+
+    /**
+     * Viaje activo del conductor → GPS nativo (sigue aunque el WebView esté pausado).
+     * Fuera de viaje → se apaga. Solo si el servicio quedó en primer plano con tipo LOCATION.
+     */
+    private void syncNativeGps(String gpsConfigJson) {
+        NativeTripGps gps = NativeTripGps.get(this);
+        if (!running || !tripMode || !hasLocationPermission()) {
+            gps.stop();
+            return;
+        }
+        if (gpsConfigJson == null || gpsConfigJson.isEmpty()) {
+            // Mismo viaje refrescando la notificación: no tocar. Pasajero / sin config: nada.
+            return;
+        }
+        try {
+            gps.start(new org.json.JSONObject(gpsConfigJson));
+        } catch (Exception e) {
+            android.util.Log.w("SessionKeepalive", "gpsConfig: " + e.getMessage());
+        }
     }
 
     @Override
@@ -131,6 +157,7 @@ public class SessionKeepaliveService extends Service {
             restart.putExtra(EXTRA_TRIP_MODE, tripMode);
             restart.putExtra(EXTRA_TITLE, lastTitle);
             restart.putExtra(EXTRA_BODY, lastBody);
+            // El GPS nativo sigue con la config guardada (NativeTripGps la persiste)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(restart);
             } else {
@@ -143,6 +170,7 @@ public class SessionKeepaliveService extends Service {
     @Override
     public void onDestroy() {
         running = false;
+        NativeTripGps.get(this).stop();
         BubbleOverlayHelper.hide();
         super.onDestroy();
     }

@@ -59,6 +59,7 @@ export async function startAndroidSessionKeepalive(options = {}) {
         tripMode = false,
         title,
         body,
+        gps = null,
     } = options;
 
     const resolvedTitle = title
@@ -79,6 +80,7 @@ export async function startAndroidSessionKeepalive(options = {}) {
             body: resolvedBody,
             driverMode: !!(driverMode || tripMode),
             tripMode: !!tripMode,
+            ...(gps && tripMode ? { gps } : {}),
         });
         // Conductor en el S24: batería / pantalla completa / "sobre otras apps" abren
         // diálogos y Ajustes que pausan la app justo cuando el aviso está registrando.
@@ -139,9 +141,15 @@ export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
             ? (isDriver ? 'Hacia el destino' : 'Viaje en curso')
             : (isDriver ? 'En camino al pasajero' : 'Conductor en camino'));
 
+    // 2026.10.26.30: el conductor manda al APK lo necesario para que el GPS siga NATIVO
+    // (el WebView se pausa en segundo plano y antes dejaba de subir ubicación).
+    const isAssignedDriver = !!(trip?.driverId && trip.driverId === window.currentUser?.uid);
+    const gps = isAssignedDriver ? await buildNativeTripGpsConfig(trip) : null;
+
     await startAndroidSessionKeepalive({
         driverMode: isDriver || true, // LOCATION type for both during live trip
         tripMode: true,
+        gps,
         title: 'Viaje en curso · HonduRaite',
         body: isDriver
             ? `${phaseLabel}. GPS en vivo — no cierres la app.`
@@ -157,6 +165,81 @@ export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
         try { window.startPassengerLiveLocationSharing?.(trip.id); } catch (_) {}
     }
     return true;
+}
+
+async function buildNativeTripGpsConfig(trip) {
+    try {
+        const user = window.currentUser;
+        if (!user?.uid || !trip?.id) return null;
+        const { APP_CONFIG } = await import('./config.js');
+        const idToken = await user.getIdToken?.();
+        const refreshToken = user.refreshToken || '';
+        if (!idToken && !refreshToken) return null;
+        maybeExplainBackgroundGps(trip.id).catch(() => {});
+        return {
+            apiKey: APP_CONFIG.firebase.apiKey,
+            projectId: APP_CONFIG.firebase.projectId,
+            appId: window.appId || APP_CONFIG.appId,
+            uid: user.uid,
+            tripId: String(trip.id),
+            idToken: idToken || '',
+            refreshToken,
+        };
+    } catch (_) {
+        return null;
+    }
+}
+
+const bgGpsExplainedTrips = new Set();
+/**
+ * Aviso claro en español (una vez por viaje) si algo impide el GPS en segundo plano:
+ * APK viejo sin GPS nativo, ubicación «aproximada» o optimización de batería activa.
+ */
+async function maybeExplainBackgroundGps(tripId) {
+    if (bgGpsExplainedTrips.has(tripId)) return;
+    bgGpsExplainedTrips.add(tripId);
+    let loc = null;
+    try { loc = await SessionKeepalive.getLocationPermissionStatus(); } catch (_) { loc = null; }
+    if (!loc) {
+        window.showToast?.(
+            'Actualiza la app HonduRaite: esta versión deja de enviar tu ubicación cuando sales de la app durante un viaje.',
+            'warning'
+        );
+        return;
+    }
+    let battery = true;
+    try { battery = !!(await SessionKeepalive.hasBatteryExemption())?.granted; } catch (_) {}
+    if (loc.fine && battery) return;
+    if (document.querySelector('[data-bg-gps-explain]')) return;
+    const modal = document.createElement('div');
+    modal.dataset.bgGpsExplain = '1';
+    modal.className = 'fixed inset-0 bg-black/70 z-[45000] flex items-center justify-center p-4';
+    const items = [];
+    if (!loc.fine) {
+        items.push('<li><b>Ubicación precisa:</b> en Ajustes → Permisos → Ubicación, activa «Usar ubicación precisa» y elige «Permitir solo con la app en uso» o «Permitir todo el tiempo».</li>');
+    }
+    if (!battery) {
+        items.push('<li><b>Batería sin restricciones:</b> si no, el teléfono puede apagar el GPS cuando abres WhatsApp, Maps o bloqueas la pantalla.</li>');
+    }
+    modal.innerHTML = `
+        <div class="bg-white rounded-3xl w-full max-w-md p-6 max-h-[92dvh] overflow-y-auto">
+            <h2 class="text-lg font-black text-gray-900 mb-2">Tu ubicación durante el viaje</h2>
+            <p class="text-sm text-gray-600 mb-3">Mientras dure el viaje, HonduRaite comparte tu ubicación con el pasajero y la central aunque cambies de app o bloquees la pantalla (verás la notificación «Viaje en curso»). Al terminar o cancelar el viaje se detiene. Para que funcione:</p>
+            <ul class="text-sm text-gray-700 list-disc pl-5 space-y-2 mb-4">${items.join('')}</ul>
+            <div class="flex gap-2">
+                <button type="button" data-act="later" class="flex-1 py-3 rounded-2xl bg-slate-100 font-bold text-gray-700">Ahora no</button>
+                <button type="button" data-act="fix" class="flex-1 py-3 rounded-2xl bg-emerald-600 font-bold text-white">Configurar</button>
+            </div>
+        </div>`;
+    modal.querySelector('[data-act="later"]').addEventListener('click', () => modal.remove());
+    modal.querySelector('[data-act="fix"]').addEventListener('click', async () => {
+        modal.remove();
+        try {
+            if (!battery) await SessionKeepalive.requestBatteryExemption();
+            else await SessionKeepalive.openAppSettings();
+        } catch (_) {}
+    });
+    document.body.appendChild(modal);
 }
 
 export async function ensureAndroidSessionKeepalive(options = {}) {

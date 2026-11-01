@@ -41,6 +41,10 @@ public class SessionKeepalivePlugin extends Plugin {
         intent.putExtra(SessionKeepaliveService.EXTRA_BODY, body);
         intent.putExtra(SessionKeepaliveService.EXTRA_DRIVER_MODE, driverMode);
         intent.putExtra(SessionKeepaliveService.EXTRA_TRIP_MODE, tripMode);
+        JSObject gps = call.getObject("gps", null);
+        if (gps != null && tripMode) {
+            intent.putExtra(SessionKeepaliveService.EXTRA_GPS_CONFIG, gps.toString());
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getContext().startForegroundService(intent);
@@ -82,8 +86,24 @@ public class SessionKeepalivePlugin extends Plugin {
     @PluginMethod
     public void isActive(PluginCall call) {
         com.getcapacitor.JSObject ret = new com.getcapacitor.JSObject();
+        ret.put("nativeGps", NativeTripGps.get(getContext()).isActive());
         ret.put("active", SessionKeepaliveService.isRunning());
         ret.put("tripMode", SessionKeepaliveService.isTripMode());
+        call.resolve(ret);
+    }
+
+    /** Estado del permiso de ubicación (precisa / aproximada) para el aviso en español. */
+    @PluginMethod
+    public void getLocationPermissionStatus(PluginCall call) {
+        JSObject ret = new JSObject();
+        android.content.Context c = getContext();
+        boolean fine = androidx.core.content.ContextCompat.checkSelfPermission(c, Manifest.permission.ACCESS_FINE_LOCATION)
+            == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        boolean coarse = androidx.core.content.ContextCompat.checkSelfPermission(c, Manifest.permission.ACCESS_COARSE_LOCATION)
+            == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        ret.put("fine", fine);
+        ret.put("coarse", coarse);
+        ret.put("nativeGps", NativeTripGps.get(c).isActive());
         call.resolve(ret);
     }
 
