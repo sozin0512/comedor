@@ -4,6 +4,14 @@
     "trailingSlash": false,
     "ignore": [
       "firebase.json",
+      ".git",
+      ".git/**",
+      "**/.git/**",
+      "docs/**",
+      "**/*.md",
+      "**/*.jks",
+      "**/*.keystore",
+      "**/.env*",
       "**/.*",
       "**/node_modules/**",
       "functions/**",
@@ -19,52 +27,85 @@
       "tailwind.config.js"
     ],
     "rewrites": [
-      { "source": "/eliminar-cuenta", "destination": "/eliminar-cuenta.html" },
-      { "source": "/eliminar-cuenta/", "destination": "/eliminar-cuenta.html" }
+      {
+        "source": "/eliminar-cuenta",
+        "destination": "/eliminar-cuenta.html"
+      },
+      {
+        "source": "/eliminar-cuenta/",
+        "destination": "/eliminar-cuenta.html"
+      }
     ],
     "headers": [
       {
         "source": "/version.json",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
         ]
       },
       {
         "source": "/index.html",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-          { "key": "Permissions-Policy", "value": "microphone=(self), camera=(self), geolocation=(self)" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Permissions-Policy",
+            "value": "microphone=(self), camera=(self), geolocation=(self)"
+          }
         ]
       },
       {
         "source": "/js/**",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
         ]
       },
       {
         "source": "/css/**",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
         ]
       },
       {
         "source": "/firebase-messaging-sw.js",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-          { "key": "Service-Worker-Allowed", "value": "/" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          },
+          {
+            "key": "Service-Worker-Allowed",
+            "value": "/"
+          }
         ]
       },
       {
         "source": "/sw.js",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
         ]
       },
       {
         "source": "/manifest.json",
         "headers": [
-          { "key": "Cache-Control", "value": "no-cache, must-revalidate" }
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, must-revalidate"
+          }
         ]
       }
     ]
