@@ -373,19 +373,26 @@ window.guardRouteEndpointChange = async (el, nextAddress) => {
 
     const field = getRouteFieldLabel(el);
     const quoteKey = field === 'origen' ? 'origin' : 'destination';
-    const prev = (el?._routeEndpoint?.address || window.currentTripQuote?.[quoteKey] || '').trim();
     const next = (nextAddress || '').trim();
+    // Solo un destino ya cotizado cuenta como "actual". En Android (WebView) el IME/blur
+    // puede guardar texto parcial ("City") en _routeEndpoint antes de elegir la sugerencia.
+    const prev = String(window.currentTripQuote?.[quoteKey] || '').trim();
+    const _ep = el?._routeEndpoint;
+    if (_ep && !_ep.latLng && !_ep.place) return true;
+    if (_ep?.address && _ep.address.trim() !== prev) return true;
+    const _nn = (v) => String(v || '').trim().toLowerCase();
+    if (_nn(next) && _nn(prev) && (_nn(next).startsWith(_nn(prev)) || _nn(prev).startsWith(_nn(next)))) return true;
 
     if (!prev) return true;
     if (prev === next) return true;
 
     if (!next) {
-        const ok = confirm(`¿Quitar el ${field}?\n\nSe ocultará la tarifa hasta que completes la ruta de nuevo.`);
+        const ok = await (window.hrConfirm || ((m) => Promise.resolve(confirm(m))))(`¿Quitar el ${field}?\n\nSe ocultará la tarifa hasta que completes la ruta de nuevo.`);
         if (ok) window.resetRouteStopsPrompt?.();
         return ok;
     }
 
-    const ok = confirm(
+    const ok = await (window.hrConfirm || ((m) => Promise.resolve(confirm(m))))(
         `¿Cambiar el ${field} y recalcular el precio?\n\n` +
         `Actual: ${prev}\n` +
         `Nuevo: ${next}`
