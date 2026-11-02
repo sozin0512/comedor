@@ -1178,7 +1178,7 @@ function installTutorialStepsHtml() {
     `;
 }
 
-/** 2026.10.26.32 — En la app nativa (Play Store) las actualizaciones las maneja Google Play:
+/** 2026.10.26.33 — En la app nativa (Play Store) las actualizaciones las maneja Google Play:
  *  nunca descargar/instalar APK desde la app; abrir la ficha de Play. */
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.sozin.honduraite';
 async function openPlayStoreListing() {

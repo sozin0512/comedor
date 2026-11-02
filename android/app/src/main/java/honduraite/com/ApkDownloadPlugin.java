@@ -24,7 +24,7 @@ public class ApkDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void download(PluginCall call) {
-        // 2026.10.26.32: versión Play Store — las actualizaciones las maneja Google Play.
+        // 2026.10.26.33: versión Play Store — las actualizaciones las maneja Google Play.
         call.reject("Descarga de APK deshabilitada: actualiza desde Google Play");
     }
 
