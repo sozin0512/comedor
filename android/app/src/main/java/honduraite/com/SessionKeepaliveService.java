@@ -150,7 +150,7 @@ public class SessionKeepaliveService extends Service {
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
-        if (running) {
+        if (running && (driverMode || tripMode) && hasLocationPermission()) {
             Intent restart = new Intent(getApplicationContext(), SessionKeepaliveService.class);
             restart.setAction(ACTION_START);
             restart.putExtra(EXTRA_DRIVER_MODE, driverMode);
@@ -183,10 +183,14 @@ public class SessionKeepaliveService extends Service {
                 // En viaje o conductor en línea: LOCATION (GPS mientras la app está en segundo plano,
                 // con esta notificación visible). Android 14+ exige que el permiso de ubicación YA esté
                 // concedido para el tipo LOCATION; si no, lanzaría SecurityException (la app se cerraba).
-                boolean wantsLocation = (driverMode || tripMode) && hasLocationPermission();
-                int type = wantsLocation
-                    ? (ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION | ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                    : ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
+                // Solo tipo LOCATION (sin dataSync, para Play). Android 14+ exige permiso de ubicación
+                // concedido; sin viaje/conductor o sin permiso no se puede ser FGS: paramos limpio.
+                if (!((driverMode || tripMode) && hasLocationPermission())) {
+                    running = false;
+                    stopSelf();
+                    return;
+                }
+                int type = ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION;
                 startForeground(NOTIFICATION_ID, notification, type);
             } else {
                 startForeground(NOTIFICATION_ID, notification);

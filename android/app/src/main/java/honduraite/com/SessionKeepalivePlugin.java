@@ -46,6 +46,16 @@ public class SessionKeepalivePlugin extends Plugin {
             intent.putExtra(SessionKeepaliveService.EXTRA_GPS_CONFIG, gps.toString());
         }
 
+        // El servicio es solo de tipo LOCATION: sin viaje/conductor o sin permiso de ubicación
+        // no se inicia (evita SecurityException / ANR de startForegroundService en Android 14+).
+        boolean hasLoc = androidx.core.content.ContextCompat.checkSelfPermission(getContext(), android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            || androidx.core.content.ContextCompat.checkSelfPermission(getContext(), android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        if (!(driverMode || tripMode) || !hasLoc) {
+            JSObject r = new JSObject();
+            r.put("started", false);
+            call.resolve(r);
+            return;
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             getContext().startForegroundService(intent);
         } else {

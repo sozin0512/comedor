@@ -64,7 +64,7 @@
             android:name=".SessionKeepaliveService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="location|dataSync"
+            android:foregroundServiceType="location"
             android:stopWithTask="false" />
 
         <!-- Quitar el MessagingService de Capacitor; usamos el nuestro (suena + enciende pantalla) -->
@@ -123,7 +123,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" tools:node="remove" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 </manifest>
