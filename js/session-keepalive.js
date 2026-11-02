@@ -141,7 +141,7 @@ export async function syncAndroidLiveTripKeepalive(trip, roleHint = null) {
             ? (isDriver ? 'Hacia el destino' : 'Viaje en curso')
             : (isDriver ? 'En camino al pasajero' : 'Conductor en camino'));
 
-    // 2026.10.26.30: el conductor manda al APK lo necesario para que el GPS siga NATIVO
+    // 2026.10.26.34: el conductor manda al APK lo necesario para que el GPS siga NATIVO
     // (el WebView se pausa en segundo plano y antes dejaba de subir ubicación).
     const isAssignedDriver = !!(trip?.driverId && trip.driverId === window.currentUser?.uid);
     const gps = isAssignedDriver ? await buildNativeTripGpsConfig(trip) : null;
