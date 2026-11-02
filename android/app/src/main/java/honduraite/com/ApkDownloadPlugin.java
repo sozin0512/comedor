@@ -24,52 +24,8 @@ public class ApkDownloadPlugin extends Plugin {
 
     @PluginMethod
     public void download(PluginCall call) {
-        String url = call.getString("url");
-        if (url == null || url.trim().isEmpty()) {
-            call.reject("URL de descarga vacía");
-            return;
-        }
-
-        String fileName = call.getString("fileName", "HonduRaite.apk");
-        fileName = sanitizeFileName(fileName);
-        if (!fileName.toLowerCase().endsWith(".apk")) {
-            fileName = fileName + ".apk";
-        }
-
-        try {
-            DownloadManager dm = (DownloadManager) getContext().getSystemService(Context.DOWNLOAD_SERVICE);
-            if (dm == null) {
-                call.reject("DownloadManager no disponible");
-                return;
-            }
-
-            Uri uri = Uri.parse(url.trim());
-            DownloadManager.Request request = new DownloadManager.Request(uri);
-            request.setTitle("HonduRaite · " + fileName);
-            request.setDescription("Descargando actualización…");
-            request.setMimeType("application/vnd.android.package-archive");
-            request.setNotificationVisibility(
-                DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED
-            );
-            request.setAllowedOverMetered(true);
-            request.setAllowedOverRoaming(true);
-            request.setAllowedNetworkTypes(
-                DownloadManager.Request.NETWORK_WIFI | DownloadManager.Request.NETWORK_MOBILE
-            );
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, fileName);
-
-            // Firebase Storage usa query tokens; no reescribir la URL
-            long id = dm.enqueue(request);
-
-            JSObject ret = new JSObject();
-            ret.put("ok", true);
-            ret.put("downloadId", id);
-            ret.put("fileName", fileName);
-            ret.put("pathHint", "Descargas/" + fileName);
-            call.resolve(ret);
-        } catch (Exception e) {
-            call.reject("No se pudo iniciar la descarga: " + e.getMessage(), e);
-        }
+        // 2026.10.26.31: versión Play Store — las actualizaciones las maneja Google Play.
+        call.reject("Descarga de APK deshabilitada: actualiza desde Google Play");
     }
 
     @PluginMethod

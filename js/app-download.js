@@ -1033,8 +1033,14 @@ async function startApkDownload() {
     const onAndroidWeb = !onAndroidApp
         && (isCapacitorNative() || /Android/i.test(navigator.userAgent || ''));
 
-    // 1) App nativa Android → DownloadManager (completo en carpeta Descargas)
+    // App nativa (Play Store): sin descarga de APK, ir a Google Play
     if (onAndroidApp) {
+        const okPlay = await openPlayStoreListing();
+        if (okPlay) { markApkDownloadedOrInstalled(cachedApkMeta.buildId); syncAppDownloadBadge(); }
+        return okPlay;
+    }
+    // (legacy, deshabilitado) DownloadManager nativo
+    if (false) {
         window.showToast?.('Iniciando descarga del APK en Descargas…', 'info');
         try {
             const native = await downloadApkNative(url, fileName);
@@ -1172,7 +1178,29 @@ function installTutorialStepsHtml() {
     `;
 }
 
+/** 2026.10.26.31 — En la app nativa (Play Store) las actualizaciones las maneja Google Play:
+ *  nunca descargar/instalar APK desde la app; abrir la ficha de Play. */
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.sozin.honduraite';
+async function openPlayStoreListing() {
+    let ok = false;
+    try { ok = await openInSystemBrowser(PLAY_STORE_URL); } catch (_) { ok = false; }
+    if (!ok) {
+        try { window.open(PLAY_STORE_URL, '_blank', 'noopener'); ok = true; } catch (_) {}
+    }
+    return ok;
+}
+
 function showInstallTutorial({ mode = 'install' } = {}) {
+    if (isCapacitorAndroid()) {
+        openPlayStoreListing().then((ok) => {
+            if (ok) {
+                markApkDownloadedOrInstalled(cachedApkMeta?.buildId);
+                syncAppDownloadBadge();
+                window.showToast?.('Actualiza HonduRaite desde Google Play.', 'info');
+            }
+        });
+        return;
+    }
     if (installTutorialOpen) {
         document.getElementById('apk-install-tutorial')?.remove();
     }
