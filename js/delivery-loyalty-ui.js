@@ -102,6 +102,16 @@ export const loyaltyState = () => L;
 export function loyaltyPromoBoxHtml(fee = lastFee) {
     const s = L.settings;
     if (!s?.enabled) return '<div id="loyalty-promo-box"></div>';
+    const ids = Array.isArray(s.storeIds) ? s.storeIds : [];
+    const storeId = DEPS.getStoreId?.() || '';
+    const only = s.storeLabel ? `<small class="loy-mut">Solo en ${esc(s.storeLabel)}</small>` : '';
+    const started = !s.startsAtMs || Date.now() >= Number(s.startsAtMs);
+    const here = !ids.length || ids.includes(storeId);
+    if (!here) return `<div id="loyalty-promo-box"></div>`;
+    if (!started) {
+        const t = new Date(Number(s.startsAtMs)).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+        return `<div id="loyalty-promo-box" class="loy-box"><b>🎄 ${esc(s.name || 'Promo Navidad')}</b><small class="loy-mut">Empieza el ${esc(t)}.</small>${only}</div>`;
+    }
     const name = esc(s.name || 'Promo Navidad');
     const cycle = Math.max(1, parseInt(s.cycle, 10) || 5);
     const msg = L.msg ? `<small class="loy-msg loy-msg--${L.msgTone || 'info'}">${esc(L.msg)}</small>` : '';
@@ -111,13 +121,13 @@ export function loyaltyPromoBoxHtml(fee = lastFee) {
         const feeTxt = fee != null && Number(fee) > 0
             ? `<span class="loy-fee"><s>${money(fee)}</s> <b>${p.clientDeliveryFee === 0 ? 'GRATIS' : money(p.clientDeliveryFee)}</b></span>`
             : `<small>${p.isFree || p.step === cycle ? 'Este envío es gratis' : `L. ${esc(s.discountL ?? 5)} menos en el envío`}</small>`;
-        return `<div id="loyalty-promo-box" class="loy-box is-member"><div class="loy-head"><b>🎄 ${name} · Pedido ${p.step} de ${cycle} 🎁</b>${feeTxt}</div><div class="loy-dots">${dots}</div><small class="loy-mut">Cuenta al entregar. El ${cycle}.º envío es gratis.</small>${msg}</div>`;
+        return `<div id="loyalty-promo-box" class="loy-box is-member"><div class="loy-head"><b>🎄 ${name} · Pedido ${p.step} de ${cycle} 🎁</b>${feeTxt}</div><div class="loy-dots">${dots}</div><small class="loy-mut">Cuenta al entregar. El ${cycle}.º envío es gratis.</small>${only}${msg}</div>`;
     }
     const left = Math.max(0, (parseInt(s.maxMembers, 10) || 0) - (parseInt(s.memberCount, 10) || 0));
     if (left <= 0) return `<div id="loyalty-promo-box" class="loy-box"><b>🎄 ${name}</b><small class="loy-mut">Ya se llenaron los cupos.</small></div>`;
     return `<div id="loyalty-promo-box" class="loy-box"><b>🎄 ¿Tienes código de promo?</b>
         <div class="loy-row"><input id="loyalty-code-input" class="stores-input" maxlength="20" autocapitalize="characters" placeholder="Código" autocomplete="off">
-        <button type="button" class="stores-primary-btn loy-btn" data-loyalty-action="claim" ${L.busy ? 'disabled' : ''}>${L.busy ? '…' : 'Canjear'}</button></div>${msg}</div>`;
+        <button type="button" class="stores-primary-btn loy-btn" data-loyalty-action="claim" ${L.busy ? 'disabled' : ''}>${L.busy ? '…' : 'Canjear'}</button></div>${only}${msg}</div>`;
 }
 
 /** Línea del pedido para el CLIENTE (seguimiento). La tienda no la ve. */

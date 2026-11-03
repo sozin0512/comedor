@@ -20,7 +20,10 @@ const DEFAULTS = Object.freeze({
     discountL: 5,
     cycle: 5,
     lastFree: true,
-    requireVerifiedPhone: false
+    requireVerifiedPhone: false,
+    storeIds: [],
+    storeLabel: '',
+    startsAtMs: 0
 });
 
 const money = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -36,8 +39,18 @@ function normalizeSettings(raw = {}) {
     s.cycle = Math.max(1, parseInt(s.cycle, 10) || DEFAULTS.cycle);
     s.lastFree = s.lastFree !== false;
     s.requireVerifiedPhone = s.requireVerifiedPhone === true;
+    s.storeIds = Array.isArray(s.storeIds) ? [...new Set(s.storeIds.map((x) => String(x || '').trim()).filter((x) => /^[A-Za-z0-9_-]{3,80}$/.test(x)))].slice(0, 20) : [];
+    s.storeLabel = String(s.storeLabel || '').slice(0, 80);
+    s.startsAtMs = Math.max(0, Number(s.startsAtMs) || 0);
     s.memberCount = Math.max(0, parseInt(raw?.memberCount, 10) || 0);
     return s;
+}
+
+/** ¿Aplica a esta tienda y ya empezó? (storeIds vacío = todas) */
+function appliesTo(settings, storeId, now = Date.now()) {
+    const s = normalizeSettings(settings);
+    if (!s.enabled || now < s.startsAtMs) return false;
+    return !s.storeIds.length || s.storeIds.includes(String(storeId || ''));
 }
 
 /** Paso del ciclo para el próximo pedido (1..cycle) y descuento sobre la tarifa (nunca < 0). */
@@ -90,6 +103,10 @@ module.exports = function createDeliveryLoyalty({ db, FieldValue, HttpsError, on
             const sSnap = await tx.get(settingsRef(APP_ID));
             const s = normalizeSettings(sSnap.exists ? sSnap.data() : {});
             if (!s.enabled || code !== s.code) throw new HttpsError('not-found', 'Código no válido o promo no activa.');
+            if (Date.now() < s.startsAtMs) {
+                const t = new Date(s.startsAtMs).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+                throw new HttpsError('failed-precondition', `${s.name} empieza el ${t}.`);
+            }
             const mRef = memberRef(APP_ID, uid);
             const keys = [hashKey('uid', uid), phoneKey && hashKey('phone', phoneKey), hashKey('device', deviceId)].filter(Boolean);
             const [mSnap, ...locks] = await Promise.all([tx.get(mRef), ...keys.map((k) => tx.get(lockRef(APP_ID, k)))]);
@@ -124,7 +141,7 @@ module.exports = function createDeliveryLoyalty({ db, FieldValue, HttpsError, on
         if (!order?.clientId || !Number.isFinite(Number(fee))) return null;
         const [sSnap, mSnap] = await Promise.all([settingsRef(app).get(), memberRef(app, order.clientId).get()]);
         const s = normalizeSettings(sSnap.exists ? sSnap.data() : {});
-        if (!s.enabled || !mSnap.exists) return null;
+        if (!appliesTo(s, order.storeId) || !mSnap.exists) return null;
         const r = computeLoyalty(s, mSnap.get('deliveredCount') || 0, fee);
         if (!r) return null;
         return { loyaltyPromoId: PROMO_ID, loyaltyStep: r.step, loyaltyCycle: r.cycle, loyaltyDiscount: r.discount, clientDeliveryFee: r.clientDeliveryFee };
@@ -167,4 +184,4 @@ module.exports = function createDeliveryLoyalty({ db, FieldValue, HttpsError, on
 
     return { loyaltyPatchForNewOrder, exports: { claimDeliveryLoyaltyCode, staffSetDeliveryLoyalty, onStoreOrderLoyaltyDelivered } };
 };
-Object.assign(module.exports, { computeLoyalty, normalizeSettings, normalizePhoneKey, hashKey, validDeviceId, normCode, LOYALTY_KEYS, DEFAULTS });
+Object.assign(module.exports, { appliesTo, computeLoyalty, normalizeSettings, normalizePhoneKey, hashKey, validDeviceId, normCode, LOYALTY_KEYS, DEFAULTS });

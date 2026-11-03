@@ -498,7 +498,8 @@ async function loadDeliveryLoyaltySettings() {
     } catch (_) { return {}; }
 }
 export function deliveryLoyaltyCardHtml(raw = {}) {
-    const s = { enabled: false, name: 'Promo Navidad', code: 'HAM', maxMembers: 147, discountL: 5, cycle: 5, lastFree: true, requireVerifiedPhone: false, memberCount: 0, ...raw };
+    const s = { enabled: false, name: 'Promo Navidad', code: 'HAM', maxMembers: 147, discountL: 5, cycle: 5, lastFree: true, requireVerifiedPhone: false, memberCount: 0, storeIds: [], storeLabel: '', startsAtMs: 0, ...raw };
+    const startsLocal = s.startsAtMs ? new Date(Number(s.startsAtMs) - 6 * 3600000).toISOString().slice(0, 16) : '';
     const left = Math.max(0, (parseInt(s.maxMembers, 10) || 0) - (parseInt(s.memberCount, 10) || 0));
     const f = (id, label, val, type = 'text', extra = '') => `<label class="block text-[11px] font-bold text-slate-400">${label}<input id="${id}" type="${type}" value="${escHtml(String(val ?? ''))}" ${extra} class="ops-input w-full mt-1"></label>`;
     return `
@@ -517,6 +518,9 @@ export function deliveryLoyaltyCardHtml(raw = {}) {
                 ${f('loy-max', 'Máx. personas', s.maxMembers, 'number', 'min="0"')}
                 ${f('loy-discount', 'Descuento por envío (L.)', s.discountL, 'number', 'min="0" step="0.5"')}
                 ${f('loy-cycle', 'Ciclo (pedidos)', s.cycle, 'number', 'min="1"')}
+                ${f('loy-starts', 'Empieza (hora Honduras)', startsLocal, 'datetime-local')}
+                ${f('loy-store-label', 'Tienda (texto «Solo en…»)', s.storeLabel)}
+                <div class="col-span-2">${f('loy-stores', 'IDs de tienda (coma; vacío = todas)', (s.storeIds || []).join(', '))}</div>
                 <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300 mt-4"><input id="loy-lastfree" type="checkbox" ${s.lastFree ? 'checked' : ''}> Último del ciclo gratis</label>
                 <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300"><input id="loy-reqphone" type="checkbox" ${s.requireVerifiedPhone ? 'checked' : ''}> Exigir teléfono verificado</label>
                 <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300"><input id="loy-enabled" type="checkbox" ${s.enabled ? 'checked' : ''}> Promo encendida</label>
@@ -694,7 +698,11 @@ export function initPromotions({
             name: v('loy-name')?.value?.trim(), code: v('loy-code')?.value?.trim(),
             maxMembers: parseInt(v('loy-max')?.value, 10), discountL: parseFloat(v('loy-discount')?.value),
             cycle: parseInt(v('loy-cycle')?.value, 10), lastFree: !!v('loy-lastfree')?.checked,
-            requireVerifiedPhone: !!v('loy-reqphone')?.checked, enabled: !!v('loy-enabled')?.checked
+            requireVerifiedPhone: !!v('loy-reqphone')?.checked, enabled: !!v('loy-enabled')?.checked,
+            storeLabel: v('loy-store-label')?.value?.trim() || '',
+            storeIds: String(v('loy-stores')?.value || '').split(/[\s,]+/).filter(Boolean),
+            // datetime-local en hora de Honduras (UTC-6, sin horario de verano)
+            startsAtMs: v('loy-starts')?.value ? Date.parse(`${v('loy-starts').value}:00-06:00`) : 0
         };
         if (btn) btn.disabled = true;
         try {

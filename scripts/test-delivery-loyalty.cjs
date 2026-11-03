@@ -90,6 +90,16 @@ const C = { lat: 14.4598, lng: -87.6378 };
   await fx.onStoreOrderLoyaltyDelivered.run({ params: { appId: APP, orderId: 'OC' }, data: { before: { data: () => oc }, after: { data: () => ({ ...oc, status: 'cancelled' }) } } });
   ok('cancelado no cuenta', ((await db.doc(`${B}/delivery_loyalty_members/B`).get()).data().deliveredCount || 0) === 0);
 
+  // tienda y hora de inicio
+  await db.doc(`${B}/stores/ST2`).set({ name: 'Otra', ownerId: 'OWN', cityId: 'comayagua' });
+  await call('staffSetDeliveryLoyalty', SUP, { enabled: true, name: 'Promo Navidad', code: 'HAM', maxMembers: 147, discountL: 5, cycle: 5, lastFree: true, storeIds: ['ST1'], storeLabel: 'Baleadas', startsAtMs: Date.now() + 3600000 });
+  ok('antes de la hora: canje rechazado', (await err(call('claimDeliveryLoyaltyCode', u('F', '+50499990006'), { code: 'HAM', deviceId: 'web-dev-ffff1' }))).includes('empieza'));
+  const mk = async (id, storeId) => { const r = db.doc(`${B}/store_orders/${id}`); const d = { storeId, ownerId: 'OWN', clientId: 'A', status: 'pending', deliveryLat: C.lat, deliveryLng: C.lng, cityId: 'comayagua' }; await r.set(d); await fx.onStoreOrderCreatedZoneFee.run({ params: { appId: APP, orderId: id }, data: { data: () => d, ref: r } }); return (await r.get()).data(); };
+  ok('antes de la hora: sin descuento', (await mk('OT1', 'ST1')).loyaltyPromoId === undefined);
+  await call('staffSetDeliveryLoyalty', SUP, { enabled: true, name: 'Promo Navidad', code: 'HAM', maxMembers: 147, discountL: 5, cycle: 5, lastFree: true, storeIds: ['ST1'], storeLabel: 'Baleadas', startsAtMs: Date.now() - 1000 });
+  ok('ya empezó + tienda correcta: descuento', (await mk('OT2', 'ST1')).clientDeliveryFee === 35);
+  const ot3 = await mk('OT3', 'ST2');
+  ok('otra tienda: sin descuento', ot3.loyaltyPromoId === undefined, JSON.stringify(ot3.deliveryFee));
   for (const r of res) console.log(r.join(' · '));
   const f = res.filter((r) => r[0] === 'FAIL').length;
   console.log(`\n${res.length - f}/${res.length} PASS`);
