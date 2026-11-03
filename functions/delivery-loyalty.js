@@ -20,7 +20,7 @@ const DEFAULTS = Object.freeze({
     discountL: 5,
     cycle: 5,
     lastFree: true,
-    requireVerifiedPhone: true
+    requireVerifiedPhone: false
 });
 
 const money = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -35,7 +35,7 @@ function normalizeSettings(raw = {}) {
     s.discountL = Math.max(0, money(s.discountL));
     s.cycle = Math.max(1, parseInt(s.cycle, 10) || DEFAULTS.cycle);
     s.lastFree = s.lastFree !== false;
-    s.requireVerifiedPhone = s.requireVerifiedPhone !== false;
+    s.requireVerifiedPhone = s.requireVerifiedPhone === true;
     s.memberCount = Math.max(0, parseInt(raw?.memberCount, 10) || 0);
     return s;
 }

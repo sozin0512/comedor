@@ -498,7 +498,7 @@ async function loadDeliveryLoyaltySettings() {
     } catch (_) { return {}; }
 }
 export function deliveryLoyaltyCardHtml(raw = {}) {
-    const s = { enabled: false, name: 'Promo Navidad', code: 'HAM', maxMembers: 147, discountL: 5, cycle: 5, lastFree: true, requireVerifiedPhone: true, memberCount: 0, ...raw };
+    const s = { enabled: false, name: 'Promo Navidad', code: 'HAM', maxMembers: 147, discountL: 5, cycle: 5, lastFree: true, requireVerifiedPhone: false, memberCount: 0, ...raw };
     const left = Math.max(0, (parseInt(s.maxMembers, 10) || 0) - (parseInt(s.memberCount, 10) || 0));
     const f = (id, label, val, type = 'text', extra = '') => `<label class="block text-[11px] font-bold text-slate-400">${label}<input id="${id}" type="${type}" value="${escHtml(String(val ?? ''))}" ${extra} class="ops-input w-full mt-1"></label>`;
     return `
