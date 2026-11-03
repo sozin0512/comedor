@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.38">
+    <meta name="hr-app-version" content="2026.10.26.39">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -55,12 +55,13 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.38">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.39">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.38">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.38">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.38">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.39">
+    <link rel="stylesheet" href="css/busqueda-f.css?v=2026.10.26.39">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.39">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.39">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -108,7 +109,8 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.38"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.39"></script>
+    <script defer src="js/busqueda-f.js?v=2026.10.26.39"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -425,10 +427,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.38';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.39';
         (function () {
             try {
-                var build = '2026.10.26.38';
+                var build = '2026.10.26.39';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -2620,6 +2622,18 @@
     <!-- Progresión de tarjetas: FUERA del panel (capa flotante sobre el mapa) -->
     <div id="searching-state" class="mt-6 hidden passenger-pending-wrap">
         <div id="install-reminder-banner" class="hidden"></div>
+        <!-- v.39 opción F: panel oscuro -->
+        <div id="hr-f-panel">
+            <div class="hr-f-head">
+                <div><p class="hr-f-title">Buscando conductor…</p><p id="hr-f-sub" class="hr-f-sub">Te avisamos apenas uno acepte</p></div>
+                <span id="hr-f-pill" class="hr-f-pill hr-f-pill--zero">0 viendo</span>
+            </div>
+            <div class="hr-f-actions">
+                <button type="button" id="hr-f-boost-btn" class="hr-f-btn hr-f-btn--up trip-touch-btn"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg> Subir precio</button>
+                <button type="button" id="hr-f-cancel-btn" class="hr-f-btn hr-f-btn--x trip-touch-btn">Cancelar</button>
+            </div>
+        </div>
+        <div id="hr-f-backdrop"></div>
         <div class="passenger-pending-hero text-center">
             <div class="passenger-pending-pulse"><i class="fas fa-radar" aria-hidden="true"></i></div>
             <h4 id="searching-status-headline" class="passenger-pending-title">Buscando conductores</h4>
@@ -2645,6 +2659,7 @@
 
         <!-- Subir tarifa si nadie ve / toma la solicitud -->
         <div id="passenger-boost-price-panel" class="passenger-boost-price hidden" aria-live="polite">
+            <button type="button" id="hr-f-boost-close" aria-label="Cerrar">✕</button>
             <p class="passenger-boost-price-title"><i class="fas fa-bolt" aria-hidden="true"></i> ¿Nadie responde?</p>
             <p class="passenger-boost-price-sub">Sube solo la tarifa de tu solicitud (solo hacia arriba) para atraer más conductores. Si ya te ofrecieron un precio, acéptalo o propón otro — no uses esto para auto-aceptar.</p>
             <p id="passenger-boost-current" class="passenger-boost-price-current">Tu tarifa: —</p>

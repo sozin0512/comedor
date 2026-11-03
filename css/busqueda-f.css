@@ -1,0 +1,56 @@
+/* v.39 — Búsqueda opción F */
+#map.hr-f-css-tilt{transform:perspective(1000px) rotateX(24deg) scale(1.22);transform-origin:50% 60%;transition:transform .5s ease}
+.hr-f-radar{position:absolute;width:0;height:0;pointer-events:none}
+.hr-f-radar span{position:absolute;left:0;top:0;width:240px;height:240px;margin:-120px 0 0 -120px;border-radius:50%;border:1.5px solid rgba(16,185,129,.55);background:radial-gradient(circle,rgba(16,185,129,0) 55%,rgba(16,185,129,.18));animation:hrFPulse 2.7s ease-out infinite;opacity:0}
+.hr-f-radar span:nth-child(2){animation-delay:.9s}.hr-f-radar span:nth-child(3){animation-delay:1.8s}
+.hr-f-radar i{position:absolute;left:-11px;top:-11px;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#34d399,#047857);border:4px solid #fff;box-shadow:0 0 0 6px rgba(16,185,129,.25),0 6px 14px rgba(4,120,87,.5)}
+@keyframes hrFPulse{0%{transform:scale(.2);opacity:.9}100%{transform:scale(1);opacity:0}}
+.hr-f-driver{position:absolute;display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-50%);pointer-events:none}
+.hr-f-veh{filter:drop-shadow(0 4px 6px rgba(0,0,0,.35));transition:transform .4s}
+.hr-f-tag{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:4px 9px;border-radius:99px;background:rgba(10,22,18,.88);color:#fff;font:600 11.5px/1.2 Inter,system-ui,sans-serif;white-space:nowrap}
+.hr-f-tag svg{color:#34d399}
+#hr-f-panel{display:none}
+body.hr-search-f.is-searching #control-panel #searching-state{position:fixed!important;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));top:auto;margin:0!important;z-index:1200;max-height:calc(100vh - 120px);overflow:hidden;border-radius:28px;padding:18px!important;background:linear-gradient(160deg,#10231c,#050d0a)!important;color:#fff;box-shadow:0 24px 50px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)}
+body.hr-search-f #hr-f-panel{display:block}
+body.hr-search-f #searching-state .passenger-pending-hero,
+body.hr-search-f #searching-trip-summary,
+body.hr-search-f #searching-drivers-total,
+body.hr-search-f #searching-driver-card,
+body.hr-search-f #searching-cancel-btn,
+body.hr-search-f #install-reminder-banner{display:none!important}
+body.hr-search-f:not(.hr-f-boost-open) #passenger-boost-price-panel{display:none!important}
+.hr-f-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.hr-f-title{font:800 19px/1.2 Inter,system-ui,sans-serif;margin:0;color:#fff}
+.hr-f-sub{font-size:13px;color:#9fb3ab;margin:3px 0 0}
+.hr-f-pill{display:inline-flex;align-items:center;gap:5px;padding:6px 11px;border-radius:99px;background:rgba(52,211,153,.15);color:#34d399;font-weight:700;font-size:13px;white-space:nowrap}
+.hr-f-pill--zero{background:rgba(255,255,255,.08);color:#9fb3ab}
+.hr-f-actions{display:flex;gap:10px;margin-top:16px}
+.hr-f-btn{height:52px;border-radius:18px;border:0;font-weight:800;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px}
+.hr-f-btn--up{flex:1;background:linear-gradient(135deg,#34d399,#059669);color:#fff;box-shadow:0 10px 24px rgba(5,150,105,.45)}
+.hr-f-btn--x{flex:1;max-width:130px;background:rgba(255,255,255,.08);color:#fda4af}
+body.hr-search-f .hr-f-actions .hr-f-btn--x:only-child{max-width:none}
+/* 75 s: opciones compactas en una fila, sin scroll */
+body.hr-search-f #passenger-search-stall{margin:12px 0 0;padding:10px;border-radius:16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+body.hr-search-f .passenger-search-stall-title{color:#fde68a;font-size:12.5px;margin:0 0 8px}
+body.hr-search-f .passenger-search-stall-row{display:flex;gap:6px;flex-wrap:nowrap}
+body.hr-search-f .passenger-search-stall-btn{flex:1;min-width:0;font-size:11px;padding:8px 4px;border-radius:12px;white-space:normal;line-height:1.15;background:rgba(255,255,255,.1);color:#fff;border:0}
+body.hr-search-f .passenger-search-stall-btn--wa{background:rgba(37,211,102,.2);color:#86efac}
+/* Ofertas de conductores (si las hay) caben sin romper el panel */
+body.hr-search-f #trip-viewers-panel{margin-top:12px;max-height:38vh;overflow:auto}
+/* Popup Subir precio (reusa el panel existente) */
+#hr-f-backdrop{display:none}
+body.hr-f-boost-open #hr-f-backdrop{display:block;position:fixed;inset:0;background:rgba(6,20,15,.55);z-index:1300}
+body.hr-f-boost-open #passenger-boost-price-panel{position:fixed!important;left:16px;right:16px;top:50%;transform:translateY(-50%);z-index:1301;margin:0!important;border-radius:24px;padding:20px!important;background:#fff!important;color:#0b1f17;box-shadow:0 24px 60px rgba(0,0,0,.35)}
+body.hr-f-boost-open #passenger-boost-price-panel .passenger-boost-price-sub{display:none}
+#hr-f-boost-close{position:absolute;right:12px;top:10px;width:34px;height:34px;border-radius:50%;border:0;background:#f1f5f3;color:#334155;font-size:18px;display:none}
+body.hr-f-boost-open #hr-f-boost-close{display:block}
+/* El panel de control no debe atrapar el panel fijo (backdrop-filter/transform crean bloque contenedor) */
+body.hr-search-f #control-panel{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;transform:none!important;background:transparent!important;box-shadow:none!important;border:0!important;pointer-events:none}
+body.hr-search-f #control-panel #searching-state,body.hr-search-f #control-panel #passenger-boost-price-panel,body.hr-search-f #hr-f-backdrop{pointer-events:auto}
+body.hr-search-f.is-searching #searching-state #searching-cancel-btn{display:none!important}
+body.hr-search-f.is-searching #map-container{opacity:1!important;pointer-events:auto!important}
+body.hr-search-f #hr-f-panel,body.hr-search-f #hr-f-panel *{text-align:left}
+body.hr-search-f #hr-f-pill,body.hr-search-f #hr-f-pill *{color:inherit!important;font:inherit!important}
+body.hr-search-f #hr-f-pill{color:#34d399!important;font-weight:700!important;font-size:13px!important}
+body.hr-search-f #hr-f-pill.hr-f-pill--zero{color:#9fb3ab!important}
+body.hr-search-f #hr-f-pill .hr-f-n{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;font-weight:800!important}
