@@ -60,6 +60,9 @@ const serviceAvailability = require('./service-availability')({
 });
 /** Pedido de tienda sigue al viaje: En camino al aceptar, Entregado al completar (ver store-order-sync.js). */
 const storeOrderSync = require('./store-order-sync')({ db, FieldValue, onDocumentUpdated });
+// v.42 «Pedido doble» (2 pedidos de negocio a la vez)
+const pedidoDoble = require('./pedido-doble');
+exports.onPedidoDobleCancelled = pedidoDoble.makeBatchCancelTrigger({ db, FieldValue, onDocumentUpdated });
 /** Comisión HonduRaite por viaje, calculada en el servidor al completar (ver trip-commission.js). */
 const tripCommission = require('./trip-commission')({ db, FieldValue, onDocumentUpdated });
 /** Stock de tiendas que no son comida (ver store-stock.js). */
@@ -1186,6 +1189,15 @@ exports.acceptDriverTrip = onCall(async (request) => {
     patch.offeredToDriverName = null;
     patch.candidateDriverIds = [];
 
+    // v.42 «Pedido doble»: 2º pedido de negocio mientras lleva el 1º (transacción; valida reglas en el servidor)
+    const batchWithTripId = String(request.data?.batchWithTripId || '').trim();
+    let batchResult = null;
+    if (batchWithTripId) {
+        if (reserveScheduled) throw new HttpsError('failed-precondition', 'Un pedido programado no puede ir como pedido doble.');
+        batchResult = await pedidoDoble.acceptBatchedTrip({ db, FieldValue, appId: APP_ID, uid, tripId, batchWithTripId, patch });
+        if (!batchResult.ok) throw new HttpsError(batchResult.code || 'failed-precondition', batchResult.msg || 'No se pudo tomar el pedido doble.');
+    }
+
     const isBirthdayGift = trip.birthdayFree || trip.paymentMethod === 'birthday_gift';
     if (trip.paymentMethod === 'saldo' && !isBirthdayGift && !patch.saldoCharged) {
         const chargeAmount = parseFloat(trip.passengerPaysAmount)
@@ -1200,7 +1212,14 @@ exports.acceptDriverTrip = onCall(async (request) => {
         }
     }
 
-    await tripRef.update(patch);
+    if (batchResult) {
+        // Ya se aceptó en la transacción; aquí solo el cobro de saldo si aplica
+        if (patch.saldoCharged) {
+            await tripRef.update({ saldoCharged: true, saldoChargedAmount: patch.saldoChargedAmount, saldoChargedAt: patch.saldoChargedAt });
+        }
+    } else {
+        await tripRef.update(patch);
+    }
 
     const driverSync = request.data?.driverSync;
     if (driverSync && typeof driverSync === 'object' && !Array.isArray(driverSync)) {
@@ -1211,12 +1230,13 @@ exports.acceptDriverTrip = onCall(async (request) => {
         await privRef.set(syncPatch, { merge: true });
     }
 
-    const queuedTripId = request.data?.queuedTripId;
+    const queuedTripId = batchResult ? null : request.data?.queuedTripId;
     if (queuedTripId) {
         await pubRef.set({ queuedTripId: String(queuedTripId) }, { merge: true });
         await privRef.set({ queuedTripId: String(queuedTripId) }, { merge: true });
     }
 
+    if (batchResult) return { ok: true, tripId, pedidoDoble: true, batchId: batchResult.batchId, batchWithTripId };
     return { ok: true, tripId, driverBusy: !!patch.driverFinishingOtherTrip };
 });
 
@@ -2771,6 +2791,10 @@ async function assignNextTripOfferServer(appId, tripId) {
     const tripDocs = await fetchTripDocsForOffer(appId);
 
     if (isStore) {
+        // v.42: repartidor EN el negocio con un pedido del mismo negocio → oferta exclusiva 25 s (pedido doble)
+        try {
+            if (await pedidoDoble.offerAtStorePriority({ db, FieldValue, appId, trip, tripDocs })) return true;
+        } catch (e) { console.warn('[pedido-doble] prioridad', tripId, e?.message || e); }
         const tripZone = resolveTripZoneId(trip);
         const cityKm = getCityCoverageKm(tripZone);
         let candidates = await collectDriversForTripOffer(appId, trip, tripDocs, {

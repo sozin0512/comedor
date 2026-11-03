@@ -135,6 +135,10 @@ service cloud.firestore {
         'lastResendPushed', 'lastResendNotified', 'lastResendNoToken', 'autoResendAtMs', 'autoResendAfterSeconds',
         // Envío directo de tienda: la verificación del precio la escribe solo el servidor
         'priceVerified', 'priceVerifiedAtMs', 'priceCheckOriginal', 'priceCorrected',
+        // v.42 Pedido doble: el emparejamiento y la prioridad los escribe solo el servidor
+        'batchId', 'batchTripIds', 'batchIndex', 'pedidoDoble', 'batchCreatedAtMs', 'batchReason',
+        'batchPartnerCancelledAtMs', 'batchPartnerCancelledTripId', 'batchPartnerReturnToStore',
+        'offerPedidoDoble', 'offerBatchWithTripId', 'pdPriorityDriverId', 'pdPriorityOfferedIds',
         // Comisión HonduRaite: la calcula solo el servidor al completar (trip-commission.js)
         'serverCommissionKey', 'serverCommissionPercent', 'serverCommissionAmount', 'serverCommissionBase',
         'serverDriverNet', 'serverCommissionWaived', 'serverCommissionSource', 'serverCommissionAtMs', 'serverCommissionClientAmount',

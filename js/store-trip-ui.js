@@ -104,7 +104,7 @@ export function getDeliveryStageMeta(t) {
             headerTitle: `🏪 En ${storeName} · Recogiendo pedido`,
             shortBadge: "🏪 En el negocio",
             routeLabel: `📦 PASO 1/2 · EN ${storeName.toUpperCase()} · RECOGIENDO PEDIDO`,
-            primaryBtnLabel: "📦 Ya recogí el pedido · Ir al cliente",
+            primaryBtnLabel: t?.batchId ? "📦 Ya recogí los 2 pedidos · Ir a entregar" : "📦 Ya recogí el pedido · Ir al cliente",
             secondaryBtnLabel: null,
             subtext: "Sin PIN · Cuando tengas el pedido en mano, toca para iniciar ruta hacia el cliente.",
         };
