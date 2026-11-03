@@ -294,6 +294,26 @@ try {
     <p style="font-size:12px;opacity:.7;margin:4px 0 8px">Después de aceptar</p><div class="c">${panelZ}</div>`, { waitUntil: 'networkidle0' }).catch(() => {});
   await zshot(d, '2-repartidor-oferta-envio-restaurante.png');
 
+  // 2a/2b/2c) Etapas secuenciales tras aceptar (un solo botón principal por etapa)
+  const stages = [
+    ['2a-etapa-llegue.png', { status: 'accepted', driverArrived: false }, 'arrived-store', 'Llegué al negocio'],
+    ['2b-etapa-recogido.png', { status: 'accepted', driverArrived: true }, 'picked-up', 'Ya recogí el pedido'],
+    ['2c-etapa-entregar.png', { status: 'in_progress', driverArrived: true }, 'delivered', 'Pedido entregado'],
+  ];
+  const tzc = { ...tz, deliveryDetails: { ...tz.deliveryDetails, recipientName: '' }, driverId: 'd1' };
+  for (const [png, patch, act, label] of stages) {
+    const h = await pz.evaluate((t) => T.storeAcceptedPanelHtml(t), { ...tzc, ...patch });
+    const acts = [...h.matchAll(/data-driver-delivery-act="([^"]+)"/g)].map((x) => x[1]);
+    ok(`etapa ${png.slice(0, 2)}: solo «${label}» (+ link cancelar)`, JSON.stringify(acts) === JSON.stringify([act, 'cancel']) && h.includes(label), acts.join());
+    const plain = h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    ok(`etapa ${png.slice(0, 2)}: «2. Entregar a Cliente», «Por definir — llamá al cliente», nunca la tienda`, /2\. Entregar a Cliente/.test(plain) && /Por definir — llamá al cliente/.test(plain) && !/Entregar a Baleadas/.test(plain) && /tel:98765432/.test(h) && /wa\.me\/50498765432/.test(h), plain.slice(0, 200));
+    await d.setContent(`<meta charset="utf-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>body{margin:0;background:#0f172a;font-family:Inter,system-ui,sans-serif;color:#fff;padding:12px}.c{background:#1e293b;border-radius:16px;padding:14px}${await pz.evaluate(() => T.STORE_TRIP_CSS)}</style>
+      <p style="font-size:12px;opacity:.7;margin:4px 0 8px">Repartidor · envío de restaurante aceptado</p><div class="c">${h}</div>`, { waitUntil: 'networkidle0' }).catch(() => {});
+    await zshot(d, png);
+  }
+  const ride = await pz.evaluate(() => T.storeAcceptedPanelHtml({ status: 'accepted', serviceType: 'taxi' }));
+  ok('viaje normal (no tienda): sin panel de tienda', ride === '');
+
   // 3) Hoja «Pedido entregado»
   await d.goto(`${url}/__zd.html`);
   await d.addScriptTag({ type: 'module', content: `import { showZoneDeliveryResult } from '/js/zone-delivery.js'; let cb; window.saved = []; showZoneDeliveryResult('t1', { subscribe: (id, f) => { cb = f; return () => {}; }, saveSuggested: async (id, n) => { window.saved.push(n); } }); window.pushTrip = (t) => cb(t); window.zdReady = true;` });

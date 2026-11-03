@@ -63,7 +63,9 @@ export function getDeliveryStoreName(t) {
 export function getDeliveryRecipientName(t) {
     if (!t || typeof t !== "object") return "Cliente";
     const d = t.deliveryDetails || {};
-    const raw = String(t.recipientName || d.recipientName || t.clientName || "").trim();
+    // Envío directo de tienda: clientName es la TIENDA (quien pidió), nunca el que recibe.
+    const merchantReq = !!(t.merchantDirectDelivery || t.createdByMerchant || d.merchantDirectDelivery);
+    const raw = String(t.recipientName || d.recipientName || (merchantReq ? "" : t.clientName) || "").trim();
     return raw || "Cliente";
 }
 
@@ -102,7 +104,7 @@ export function getDeliveryStageMeta(t) {
             headerTitle: `🏪 En ${storeName} · Recogiendo pedido`,
             shortBadge: "🏪 En el negocio",
             routeLabel: `📦 PASO 1/2 · EN ${storeName.toUpperCase()} · RECOGIENDO PEDIDO`,
-            primaryBtnLabel: "📦 Pedido recogido · Iniciar ruta al cliente",
+            primaryBtnLabel: "📦 Ya recogí el pedido · Ir al cliente",
             secondaryBtnLabel: null,
             subtext: "Sin PIN · Cuando tengas el pedido en mano, toca para iniciar ruta hacia el cliente.",
         };
@@ -116,7 +118,7 @@ export function getDeliveryStageMeta(t) {
         shortBadge: "🏪 Hacia el negocio",
         routeLabel: `🏪 PASO 1/2 · IR A ${storeName.toUpperCase()} A RECOGER EL PEDIDO`,
         primaryBtnLabel: "🏪 Llegué al negocio",
-        secondaryBtnLabel: "📦 Ya recogí el pedido · Ir al cliente",
+        secondaryBtnLabel: null, // secuencial: «Ya recogí» aparece solo después de «Llegué al negocio»
         subtext: "Sin PIN · Ve primero al negocio a recoger la comida/pedido y luego al cliente.",
     };
 }
@@ -219,7 +221,7 @@ export function storeOrderSummary(t, deliveryPrice = null) {
         direct,
         productsPaid: paid,
         cashToCollect,
-        recipientName: String(d.recipientName || t.clientName || ""),
+        recipientName: String(d.recipientName || ((t.merchantDirectDelivery || t.createdByMerchant || d.merchantDirectDelivery) ? "" : t.clientName) || ""),
         recipientPhone: String(d.recipientPhone || t.clientPhone || ""),
         notes: String(d.deliveryNotes || ""),
         packageDescription: String(d.packageDescription || ""),
@@ -292,6 +294,7 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
     if (!s) return "";
     const stageMeta = getDeliveryStageMeta(t);
     const isStep2 = stageMeta.stepNum === 2;
+    const zoneTrip = t.zoneBilling === true || t.deliveryDetails?.zoneBilling === true;
     const items = s.items.length
         ? s.items.map((i) => `<li><span>${esc(i.qty)}× ${esc(i.name)}</span>${i.price != null ? `<b>${money(i.price * i.qty)}</b>` : ""}</li>`).join("")
         : `<li><span>${esc(s.packageDescription || "Revisa el pedido con la tienda")}</span></li>`;
@@ -324,9 +327,9 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
             <p class="hr-store-stage-title">${esc(stageMeta.headerTitle)}</p>
             <p class="hr-store-stage-sub">${esc(stageMeta.subtext)}</p>
             <div class="hr-store-steps">
-                <span class="hr-store-step ${!isStep2 ? "is-active" : "is-done"}">1. 🏪 Recoger en negocio</span>
+                <span class="hr-store-step ${!isStep2 ? "is-active" : "is-done"}" data-step="1">${isStep2 ? "✓ " : ""}1. 🏪 ${stageMeta.stage === "at_store" ? "En el negocio" : "Recoger en negocio"}</span>
                 <span class="hr-store-step-arrow">→</span>
-                <span class="hr-store-step ${isStep2 ? "is-active" : ""}">2. 👤 Entregar al cliente</span>
+                <span class="hr-store-step ${isStep2 ? "is-active" : ""}" data-step="2">2. 👤 Entregar al cliente</span>
             </div>
             ${driverStageActionsHtml(t, stageMeta)}
         </div>
@@ -345,8 +348,8 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
             ${storePhoneBtns}
         </div>`}
         <div class="hr-store-box ${isStep2 ? "hr-store-box--active-leg" : ""}">
-            <p class="hr-store-box-title"><i class="fas fa-user"></i> 2. Entregar a ${esc(s.recipientName || "cliente")} (recibe)</p>
-            ${s.deliveryAddress ? `<p class="hr-store-addr"><i class="fas fa-location-arrow"></i> ${esc(s.deliveryAddress)}</p>` : ""}
+            <p class="hr-store-box-title"><i class="fas fa-user"></i> 2. Entregar a ${esc(s.recipientName || (zoneTrip ? "Cliente" : "cliente"))} (recibe)</p>
+            ${zoneTrip ? `<p class="hr-store-addr" data-zone-dest><i class="fas fa-location-arrow"></i> Por definir — llamá al cliente</p>` : s.deliveryAddress ? `<p class="hr-store-addr"><i class="fas fa-location-arrow"></i> ${esc(s.deliveryAddress)}</p>` : ""}
             ${s.notes ? `<p class="hr-store-muted">«${esc(s.notes)}»</p>` : ""}
             ${phoneBtns}
         </div>
@@ -363,9 +366,9 @@ export function driverStageActionsHtml(t, stageMeta = null) {
             <button type="button" class="hr-store-stage-btn hr-store-stage-btn--deliver" data-driver-delivery-act="delivered" onclick="window.driverSignalDestinationArrival ? window.driverSignalDestinationArrival() : window.finishTrip?.()">
                 ${esc(m.primaryBtnLabel)}
             </button>
-            <button type="button" class="hr-store-stage-btn hr-store-stage-btn--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()">
-                ✕ Cancelar envío (pide confirmación)
-            </button>
+            <button type="button" class="hr-store-stage-link--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()" style="background:none;border:0;color:#fca5a5;font-size:12px;font-weight:700;text-decoration:underline;padding:6px;margin-top:2px;align-self:center;cursor:pointer">
+            Cancelar envío
+        </button>
         </div>`;
     }
     if (m.stage === "at_store") {
@@ -373,20 +376,17 @@ export function driverStageActionsHtml(t, stageMeta = null) {
             <button type="button" class="hr-store-stage-btn hr-store-stage-btn--pickup" data-driver-delivery-act="picked-up" onclick="window.driverConfirmOrderPickedUp?.()">
                 ${esc(m.primaryBtnLabel)}
             </button>
-            <button type="button" class="hr-store-stage-btn hr-store-stage-btn--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()">
-                ✕ Cancelar envío (pide confirmación)
-            </button>
+            <button type="button" class="hr-store-stage-link--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()" style="background:none;border:0;color:#fca5a5;font-size:12px;font-weight:700;text-decoration:underline;padding:6px;margin-top:2px;align-self:center;cursor:pointer">
+            Cancelar envío
+        </button>
         </div>`;
     }
     return `<div class="hr-store-stage-actions" data-driver-stage-actions="to_store">
         <button type="button" class="hr-store-stage-btn hr-store-stage-btn--arrived" data-driver-delivery-act="arrived-store" onclick="window.markArrival?.()">
             ${esc(m.primaryBtnLabel)}
         </button>
-        ${m.secondaryBtnLabel ? `<button type="button" class="hr-store-stage-btn hr-store-stage-btn--pickup" data-driver-delivery-act="picked-up" onclick="window.driverConfirmOrderPickedUp?.()">
-            ${esc(m.secondaryBtnLabel)}
-        </button>` : ""}
-        <button type="button" class="hr-store-stage-btn hr-store-stage-btn--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()">
-            ✕ Cancelar envío (pide confirmación)
+        <button type="button" class="hr-store-stage-link--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()" style="background:none;border:0;color:#fca5a5;font-size:12px;font-weight:700;text-decoration:underline;padding:6px;margin-top:2px;align-self:center;cursor:pointer">
+            Cancelar envío
         </button>
     </div>`;
 }
