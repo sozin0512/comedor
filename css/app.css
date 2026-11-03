@@ -26591,3 +26591,14 @@ body.is-searching #trip-viewers-count.passenger-offers-title {
 .passenger-search-stall-btn--wa { background: #059669; border-color: #059669; color: #fff; }
 .hr-pulse-once { animation: hrPulseOnce 0.8s ease-in-out 2; }
 @keyframes hrPulseOnce { 50% { box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.55); } }
+
+/* v.47: mientras se escribe Origen/Destino (buscador abierto) no animar ni desenfocar nada detrás.
+   En iPhone backdrop-filter + animaciones (radar, mapa inclinado) re-pintan en cada tecla. */
+body.trip-autocomplete-open *,
+body.trip-autocomplete-open *::before,
+body.trip-autocomplete-open *::after {
+    animation-play-state: paused !important;
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+body.trip-autocomplete-open #map { will-change: auto !important; }

@@ -5,8 +5,8 @@
  * (o se sugiere si la eligió a mano). Reglas en user-city-rules.js.
  */
 import { doc, setDoc } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { findZoneForCoords, findNearestZone, getZoneById, setActiveServiceZone, updateServiceZoneSummary, updateZoneHint } from './zones.js?v=2026.10.26.46';
-import { ucDecide, ucAddSample, ucDetect } from './user-city-rules.js?v=2026.10.26.46';
+import { findZoneForCoords, findNearestZone, getZoneById, setActiveServiceZone, updateServiceZoneSummary, updateZoneHint } from './zones.js?v=2026.10.26.47';
+import { ucDecide, ucAddSample, ucDetect } from './user-city-rules.js?v=2026.10.26.47';
 
 const W = window;
 const uid = () => W.currentUser?.uid || W.auth?.currentUser?.uid || null;

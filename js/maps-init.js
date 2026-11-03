@@ -758,6 +758,9 @@
         const host = getPlacesHostEl(el);
         const hasOwnInput = !!el.querySelector?.('input, .input-container');
         const box = computePlacesDropdownBox(host, { hasOwnInput });
+        // v.47: mismas medidas y Google no tocó el style → no reescribir 25 propiedades (re-estilo forzado por tecla)
+        const cardSig = [dark, hasOwnInput, box.pinTop, box.top, box.bottom, box.left, box.width, box.maxH].join('|');
+        if (el._hrCardSig === cardSig && el.getAttribute('style') === el._hrCardStyle) return;
         try {
             el.style.setProperty('position', 'fixed', 'important');
             el.style.setProperty('inset', 'auto', 'important');
@@ -796,6 +799,8 @@
             } else {
                 el.style.setProperty('display', 'block', 'important');
             }
+            el._hrCardSig = cardSig;
+            el._hrCardStyle = el.getAttribute('style');
         } catch (_) {}
     };
 
@@ -865,14 +870,18 @@
             const box = computePlacesDropdownBox(el, { hasOwnInput: false });
             const topVal = box.pinTop ? `${box.top}px` : 'auto';
             const bottomVal = box.pinTop ? 'auto' : `${box.bottom}px`;
-            try {
+            const sig = [topVal, bottomVal, box.left, box.width, box.maxH].join('|');
+            // v.47: mismas medidas → no tocar estilos (escribir en <html> invalida el estilo de toda la página)
+            const sameBox = el._hrListSig === sig && document.documentElement._hrListSig === sig;
+            el._hrListSig = sig; document.documentElement._hrListSig = sig;
+            if (!sameBox) try {
                 el.style.setProperty('--hr-places-list-top', topVal);
                 el.style.setProperty('--hr-places-list-bottom', bottomVal);
                 el.style.setProperty('--hr-places-list-left', `${box.left}px`);
                 el.style.setProperty('--hr-places-list-width', `${box.width}px`);
                 el.style.setProperty('--hr-places-list-max-h', `${box.maxH}px`);
             } catch (_) {}
-            try {
+            if (!sameBox) try {
                 document.documentElement.style.setProperty('--hr-places-list-top', topVal);
                 document.documentElement.style.setProperty('--hr-places-list-bottom', bottomVal);
                 document.documentElement.style.setProperty('--hr-places-list-left', `${box.left}px`);
@@ -1051,8 +1060,9 @@
     const applyPlacesOverlaySafeTop = () => {
         syncPlacesOverlayModeClass();
         try {
-            const top = readSearchSafeTopPx();
-            document.documentElement.style.setProperty('--search-safe-top', `${top}px`);
+            const top = `${readSearchSafeTopPx()}px`;
+            const de = document.documentElement;
+            if (de.style.getPropertyValue('--search-safe-top') !== top) de.style.setProperty('--search-safe-top', top);
         } catch (_) {}
         try {
             document.querySelectorAll('dialog[open], .pac-container').forEach((el) => {
@@ -1325,11 +1335,16 @@
     const scheduleApplyPlacesOverlaySafeTop = () => {
         if (applyTimer) return;
         // v.45: rAF (máx. 1 por frame) y nada si no hay buscador de lugares abierto/enfocado
-        applyTimer = requestAnimationFrame(() => {
+        // v.47: como mucho cada 200 ms (cada predicción de Google muta el DOM; abrir/cerrar ya lo hacen showModal/close)
+        const run = () => requestAnimationFrame(() => {
+            // escribiendo: esperar a que pare (cada medida fuerza re-estilo de toda la página)
+            const idle = Date.now() - (window._hrPlacesKeyAt || 0);
+            if (idle < 300) { applyTimer = setTimeout(run, 320 - idle); return; }
             applyTimer = 0;
             if (!placesUiActive()) return;
             applyPlacesOverlaySafeTop();
         });
+        applyTimer = setTimeout(run, 200);
     };
 
     const ensurePersistentShield = () => {
@@ -2718,6 +2733,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             const setTripAutocompleteOpen = (on, el = null) => {
                 const active = !!on;
+                // v.47: ya abierto → no repetir toda la tanda (antes cada tecla re-programaba 7 restilados completos)
+                if (active && document.body.classList.contains('trip-autocomplete-open') && window._hrTripAcOpenEl === el) return;
+                window._hrTripAcOpenEl = active ? el : null;
                 document.body.classList.toggle('trip-autocomplete-open', active);
                 try {
                     const panel = document.getElementById('control-panel');
@@ -3179,9 +3197,15 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         // eventos sintéticos y no deben abrir el modo búsqueda.
                         if (ev && ev.isTrusted === false) return;
                         clearTimeout(blurTimer);
-                        setActive(true);
-                        syncTripAutocompleteViewport();
-                        window.applyPlacesListPlacement?.(el);
+                        // v.47: el teclado no cambia de tamaño por tecla: re-colocar como mucho cada 250 ms
+                        if (!wrap.classList.contains('is-autocomplete-active')) setActive(true);
+                        window._hrPlacesKeyAt = Date.now();
+                        clearTimeout(el._hrTypeLayoutT);
+                        el._hrTypeLayoutT = setTimeout(() => {
+                            el._hrTypeLayoutT = 0;
+                            syncTripAutocompleteViewport();
+                            window.applyPlacesListPlacement?.(el);
+                        }, 350);
                     });
                     input.addEventListener('click', () => {
                         clearTimeout(blurTimer);
