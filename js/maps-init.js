@@ -1198,6 +1198,7 @@
                         try {
                             const pending = (hostEl._hrProgrammaticValue || hostEl._routeEndpoint?.address || "").trim();
                             if (!pending || hostEl._userClearedInput) return;
+                            if (Date.now() - (hostEl._hrUserTypedAt || 0) < 2500) return;
                             shadow.querySelectorAll("input, [part=\"input\"]").forEach((inp) => {
                                 if (!inp.value) inp.value = pending;
                             });
@@ -1567,7 +1568,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             if (!wrote && val) {
                 [50, 180, 450, 1000].forEach((ms) => {
                     setTimeout(() => {
-                        if (el._hrProgrammaticValue === val && !el._userClearedInput) applyToInputs();
+                        if (el._hrProgrammaticValue === val && !el._userClearedInput && !hrUserEditingField(el)) applyToInputs();
                     }, ms);
                 });
             }
@@ -1577,6 +1578,19 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 window.updateDestinationMapButton?.();
             }
         };
+
+        // v.46: ¿la persona está escribiendo en este campo? (foco dentro o tecla hace < 2.5 s)
+        const hrUserEditingField = (el) => {
+            try {
+                if (Date.now() - (el?._hrUserTypedAt || 0) < 2500) return true;
+                const root = el?.shadowRoot || el?._hrShadow;
+                const ae = root?.activeElement;
+                if (ae && ae.localName === 'input') return true;
+                if (document.activeElement === el) return true;
+            } catch (_) {}
+            return false;
+        };
+        window.hrUserEditingField = hrUserEditingField;
 
         window.readAutocompleteText = (el) => {
             if (!el) return '';
@@ -1595,7 +1609,10 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         || ''
                     ).trim();
                     if (heal) {
-                        inputs.forEach((inp) => { try { inp.value = heal; } catch (_) {} });
+                        // v.46: leer NO debe reescribir el input mientras se escribe (iOS: borrar quedaba congelado)
+                        if (!hrUserEditingField(el)) {
+                            inputs.forEach((inp) => { try { inp.value = heal; } catch (_) {} });
+                        }
                         return heal;
                     }
                     return '';
@@ -3124,6 +3141,10 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                             const autoFilled = src === 'gps' || src === 'map' || /^[23456789CFGHJMPQRVWX]{4}\+[23456789CFGHJMPQRVWX]{2,3}/i.test(val);
                             if (!autoFilled || !val) return;
                             if (Date.now() - (el._hrUserTypedAt || 0) < 3000) return;
+                            // v.46: solo si el texto sigue siendo el autollenado (no lo que la persona ya editó)
+                            const auto = String(el._routeEndpoint?.gpsAddress || el._routeEndpoint?.address || '').trim();
+                            if (!auto || val.trim() !== auto) return;
+                            if (root.querySelector?.('dialog[open]')) return;
                             setTimeout(() => { try { t.select(); } catch (_) {} }, 0);
                             setTimeout(() => { try { if (t.value === val) t.select(); } catch (_) {} }, 120);
                         }, true);
@@ -3140,7 +3161,19 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         setTimeout(() => window.applyPlacesListPlacement?.(el), 220);
                     });
                     // Borrar origen y seguir escribiendo: mantener modo búsqueda activo
-                    root.addEventListener('input', () => { el._hrUserTypedAt = Date.now(); }, true);
+                    root.addEventListener('input', (ev) => {
+                        if (ev && ev.isTrusted === false) return;
+                        el._hrUserTypedAt = Date.now();
+                        // v.46: cualquier input interno (también el del diálogo de iPhone) es lo que manda
+                        try {
+                            const t = ev?.target;
+                            if (t && t.localName === 'input' && !window._hrProgrammaticInputWrite) {
+                                const v = String(t.value || '').trim();
+                                el._userClearedInput = !v;
+                                el._hrProgrammaticValue = v;
+                            }
+                        } catch (_) {}
+                    }, true);
                     input.addEventListener('input', (ev) => {
                         // Solo lo que escribe la persona: GPS/favoritos/pin rellenan el campo con
                         // eventos sintéticos y no deben abrir el modo búsqueda.
@@ -3212,7 +3245,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     }
                     // Espacio para pin (siempre) + GPS (si vacío)
                     if (originEl) {
-                        originEl.style.paddingRight = hasValue ? '52px' : '5.5rem';
+                        // v.46: escribir solo si cambia (WebKit anota mutación de style aunque sea igual)
+                        const pr = hasValue ? '52px' : '5.5rem';
+                        if (originEl.style.paddingRight !== pr) originEl.style.paddingRight = pr;
                     }
                 };
 
