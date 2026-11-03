@@ -372,7 +372,49 @@
             opacity: 1 !important;
             pointer-events: auto !important;
         }
-    `;
+            /* v.44: diálogo de Google con su propio input (iPhone): input arriba y lista debajo,
+           dentro del diálogo. Antes .dropdown iba fixed y tapaba el campo donde se escribe. */
+        .full-window-autocomplete-dialog[open] .dropdown,
+        dialog[open]:has(input) .dropdown {
+            position: static !important;
+            inset: auto !important;
+            top: auto !important; left: auto !important; right: auto !important; bottom: auto !important;
+            width: auto !important; max-width: none !important;
+            height: auto !important; max-height: none !important;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            margin: 0 !important;
+            transform: none !important;
+            box-shadow: none !important;
+            border: none !important;
+            border-top: 1px solid var(--hr-places-border, #e2e8f0) !important;
+            border-radius: 0 !important;
+        }
+        dialog.full-window-autocomplete-dialog[open] .widget-container,
+        dialog[open]:has(input) .widget-container {
+            display: flex !important;
+            flex-direction: column !important;
+            flex: 1 1 auto !important;
+            height: auto !important;
+            max-height: 100% !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+        dialog.full-window-autocomplete-dialog[open] .predictions-anchor,
+        dialog[open]:has(input) .predictions-anchor {
+            position: static !important;
+            display: flex !important;
+            flex-direction: column !important;
+            flex: 1 1 auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+        .full-window-autocomplete-dialog[open] .input-container,
+        dialog[open]:has(input) .input-container { flex: 0 0 auto !important; order: -1 !important; }
+`;
 
     const overlayFullWindowCss = `
         :host {
@@ -630,22 +672,42 @@
                 width = Math.round(rect.width);
                 fieldTop = rect.top;
                 fieldBottom = rect.bottom;
+                // v.44: si el teclado tapa el campo, traerlo a la vista (una vez por foco)
+                if (compact && !hasOwnInput && (rect.bottom > vv.bottom - 4 || rect.top < vv.top) && !(wrap || host).__hrKbScrolled) {
+                    (wrap || host).__hrKbScrolled = true;
+                    setTimeout(() => { try { (wrap || host).__hrKbScrolled = false; } catch (_) {} }, 1500);
+                    try { (wrap || host).scrollIntoView({ block: 'center' }); } catch (_) {}
+                }
             }
         } catch (_) {}
-        if (compact) {
-            // Arriba del área visible: el teclado no cubre el input ni las sugerencias.
+        if (compact && hasOwnInput) {
+            // v.44: modo búsqueda enfocada: el diálogo de Google (input propio + lista) arriba
+            // del área visible y con altura tope hasta el teclado.
             left = Math.round(vv.left + 12);
             width = Math.max(160, Math.round(vv.width - 24));
-            const top = Math.round(vv.top + gap);
-            const maxH = Math.max(180, Math.round(vv.height - gap * 2));
             return {
-                top,
-                bottom: null,
-                left,
-                width,
-                maxH,
-                hasOwnInput: !!hasOwnInput,
-                pinTop: true
+                top: Math.round(vv.top + gap), bottom: null, left, width,
+                maxH: Math.max(140, Math.round(vv.height - gap * 2)), hasOwnInput: true, pinTop: true
+            };
+        }
+        if (compact) {
+            // v.44: la lista va pegada al input (debajo si cabe, si no encima), nunca tapándolo.
+            // Antes se fijaba arriba del área visible y en iPhone tapaba el campo que se escribe.
+            left = Math.round(vv.left + 12);
+            width = Math.max(160, Math.round(vv.width - 24));
+            const visTop = vv.top + gap;
+            const visBottom = vv.bottom - gap;
+            const below = visBottom - (fieldBottom + 4);
+            const above = (fieldTop - 4) - visTop;
+            if (below >= 150 || below >= above) {
+                return {
+                    top: Math.round(fieldBottom + 4), bottom: null, left, width,
+                    maxH: Math.max(96, Math.round(below)), hasOwnInput: !!hasOwnInput, pinTop: true
+                };
+            }
+            return {
+                top: null, bottom: Math.max(0, Math.round(layoutH - (fieldTop - 4))), left, width,
+                maxH: Math.max(96, Math.round(above)), hasOwnInput: !!hasOwnInput, pinTop: false
             };
         }
         const attachBottom = hasOwnInput ? fieldBottom : fieldTop;
@@ -678,6 +740,15 @@
 
     const stylePlacesDropdownCard = (el) => {
         if (!el || el.nodeType !== 1) return;
+        // v.44: la lista dentro del diálogo con input propio va en flujo (CSS), no fixed encima del input.
+        try {
+            const dlg = el.localName !== 'dialog' ? el.closest?.('dialog') : null;
+            if (dlg && dlg.querySelector?.('input, .input-container')) {
+                ['position', 'inset', 'top', 'bottom', 'left', 'right', 'width', 'max-width', 'height', 'max-height', 'z-index', 'box-shadow', 'border', 'border-radius', 'transform', 'margin', 'display', 'flex-direction']
+                    .forEach((prop) => { try { el.style.removeProperty(prop); } catch (_) {} });
+                return;
+            }
+        } catch (_) {}
         // Diálogo de Google cerrado: NO forzar display/opacity. Si no, queda una barra blanca
         // vacía (fixed) encima del campo Origen y los clics caen en «Destino final».
         if (el.localName === 'dialog' && !el.open) {
