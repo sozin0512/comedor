@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.37">
+    <meta name="hr-app-version" content="2026.10.26.38">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -55,12 +55,12 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.37">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.38">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.37">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.37">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.37">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.38">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.38">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.38">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -108,7 +108,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.37"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.38"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -425,10 +425,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.37';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.38';
         (function () {
             try {
-                var build = '2026.10.26.37';
+                var build = '2026.10.26.38';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -2661,6 +2661,16 @@
             <div id="trip-viewers-list" class="passenger-offers-list"></div>
             <p id="trip-viewers-more" class="hidden passenger-offers-more"></p>
         </div>
+        <!-- v.38: nadie acepta tras ~75 s -->
+        <div id="passenger-search-stall" class="passenger-search-stall hidden" aria-live="polite">
+            <p class="passenger-search-stall-title">Nadie ha aceptado todavía. ¿Qué querés hacer?</p>
+            <div class="passenger-search-stall-row">
+                <button type="button" onclick="window.hrStallBoost?.()" class="passenger-search-stall-btn trip-touch-btn"><i class="fas fa-bolt" aria-hidden="true"></i> Subir precio</button>
+                <button type="button" onclick="window.hrStallChangeVehicle?.()" class="passenger-search-stall-btn trip-touch-btn"><i class="fas fa-car-side" aria-hidden="true"></i> Cambiar vehículo</button>
+                <button type="button" onclick="window.hrStallWhatsApp?.()" class="passenger-search-stall-btn passenger-search-stall-btn--wa trip-touch-btn"><i class="fab fa-whatsapp" aria-hidden="true"></i> Pedir por WhatsApp</button>
+            </div>
+        </div>
+
         <p id="searching-drivers-total" class="passenger-pending-foot hidden"></p>
         <div id="searching-driver-card" class="hidden" aria-hidden="true">
             <p id="searching-driver-card-title"></p>

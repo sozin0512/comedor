@@ -846,8 +846,12 @@ function setDismissed(challengeId, dismissed) {
 }
 
 function isPublicPassengerCopaStripDismissedThisSession() {
+    // localStorage con vencimiento (12 h): en iPhone/PWA sessionStorage se borra al cerrar la app
+    // y la ✕ «no duraba». Compatibilidad: valor viejo '1' en sessionStorage también cuenta.
     try {
-        return sessionStorage.getItem(PUBLIC_STRIP_DISMISS_KEY) === '1';
+        if (sessionStorage.getItem(PUBLIC_STRIP_DISMISS_KEY) === '1') return true;
+        const until = Number(localStorage.getItem(PUBLIC_STRIP_DISMISS_KEY) || 0);
+        return Number.isFinite(until) && until > Date.now();
     } catch (_) {
         return false;
     }
@@ -855,9 +859,15 @@ function isPublicPassengerCopaStripDismissedThisSession() {
 
 function setPublicPassengerCopaStripDismissedThisSession(dismissed) {
     try {
-        if (dismissed) sessionStorage.setItem(PUBLIC_STRIP_DISMISS_KEY, '1');
-        else sessionStorage.removeItem(PUBLIC_STRIP_DISMISS_KEY);
+        if (dismissed) {
+            sessionStorage.setItem(PUBLIC_STRIP_DISMISS_KEY, '1');
+            localStorage.setItem(PUBLIC_STRIP_DISMISS_KEY, String(Date.now() + 12 * 60 * 60 * 1000));
+        } else {
+            sessionStorage.removeItem(PUBLIC_STRIP_DISMISS_KEY);
+            localStorage.removeItem(PUBLIC_STRIP_DISMISS_KEY);
+        }
     } catch (_) {}
+    try { window.hrSyncPublicCopaStrips?.(); } catch (_) {}
 }
 
 function dismissPublicPassengerCopaStripOnScreen() {
@@ -869,7 +879,7 @@ function dismissPublicPassengerCopaStripOnScreen() {
         el.innerHTML = '';
     }
     if (!already) {
-        window.showToast?.('Ranking de Copa Pasajeros oculto. Volverá al iniciar sesión o desde el menú ☰.', 'info');
+        window.showToast?.('Ranking de Copa Pasajeros oculto por 12 horas. Lo podés abrir desde el menú ☰.', 'info');
     }
 }
 

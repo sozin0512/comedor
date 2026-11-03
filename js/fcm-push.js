@@ -978,11 +978,31 @@ try {
     }
 } catch (_) {}
 
+const type0 = (data) => String(data?.type || '');
+/** v.38: nunca mostrar un aviso vacío («HonduRaite · Notificación»): texto según el tipo. */
+function hrPushFallbackBody(type) {
+    const map = {
+        trip_offer: 'Tienes una nueva solicitud de viaje.',
+        new_trip_staff: 'Hay un viaje nuevo en tu ciudad.',
+        ride_demand_alert: 'Hay clientes pidiendo viaje cerca.',
+        freight_trip_alert: 'Hay un flete nuevo disponible.',
+        trip_price_boost: 'Subió la tarifa de un viaje pendiente.',
+        trip_accepted: 'Un conductor aceptó tu viaje.',
+        trip_arrived: 'Tu conductor llegó.',
+        driver_bid: 'Recibiste una oferta de un conductor.',
+        chat: 'Tienes un mensaje nuevo.',
+        app_update: 'Hay una versión nueva de HonduRaite.',
+        broadcast: 'Tienes un aviso nuevo de HonduRaite.',
+    };
+    return map[type] || 'Tienes un aviso nuevo de HonduRaite.';
+}
+
 function routeForegroundPush(payload) {
     const data = payload.data || payload.notification?.data || {};
     ackPushToServer(data, isCapacitorAndroid() ? 'android' : 'foreground');
     const title = payload.notification?.title || data.title || payload.title || 'HonduRaite';
-    const body = payload.notification?.body || data.body || payload.body || '';
+    const body = String(payload.notification?.body || data.body || payload.body || data.message || data.text || '').trim()
+        || hrPushFallbackBody(type0(data));
     const tripId = data.tripId || null;
     const type = data.type || '';
 

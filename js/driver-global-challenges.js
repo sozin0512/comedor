@@ -855,8 +855,12 @@ function setDismissed(challengeId, dismissed) {
 }
 
 function isPublicCopaStripDismissedThisSession() {
+    // localStorage con vencimiento (12 h): en iPhone/PWA sessionStorage se borra al cerrar la app
+    // y la ✕ «no duraba». Compatibilidad: valor viejo '1' en sessionStorage también cuenta.
     try {
-        return sessionStorage.getItem(PUBLIC_STRIP_DISMISS_KEY) === '1';
+        if (sessionStorage.getItem(PUBLIC_STRIP_DISMISS_KEY) === '1') return true;
+        const until = Number(localStorage.getItem(PUBLIC_STRIP_DISMISS_KEY) || 0);
+        return Number.isFinite(until) && until > Date.now();
     } catch (_) {
         return false;
     }
@@ -864,9 +868,15 @@ function isPublicCopaStripDismissedThisSession() {
 
 function setPublicCopaStripDismissedThisSession(dismissed) {
     try {
-        if (dismissed) sessionStorage.setItem(PUBLIC_STRIP_DISMISS_KEY, '1');
-        else sessionStorage.removeItem(PUBLIC_STRIP_DISMISS_KEY);
+        if (dismissed) {
+            sessionStorage.setItem(PUBLIC_STRIP_DISMISS_KEY, '1');
+            localStorage.setItem(PUBLIC_STRIP_DISMISS_KEY, String(Date.now() + 12 * 60 * 60 * 1000));
+        } else {
+            sessionStorage.removeItem(PUBLIC_STRIP_DISMISS_KEY);
+            localStorage.removeItem(PUBLIC_STRIP_DISMISS_KEY);
+        }
     } catch (_) {}
+    try { window.hrSyncPublicCopaStrips?.(); } catch (_) {}
 }
 
 function dismissPublicCopaStripOnScreen() {
@@ -878,7 +888,7 @@ function dismissPublicCopaStripOnScreen() {
         el.innerHTML = '';
     }
     if (!already) {
-        window.showToast?.('Ranking oculto. Volverá al iniciar sesión de nuevo.', 'info');
+        window.showToast?.('Ranking oculto por 12 horas. Lo podés abrir desde el menú ☰.', 'info');
     }
 }
 
@@ -3374,4 +3384,56 @@ export function initDriverGlobalChallenges({
     window.renderDriverCopaPanel = () => reloadDriverCopaState();
     window.incrementCopaOnTripComplete = incrementCopaOnTripComplete;
     window.applyCopaRatingFromTrip = applyCopaRatingFromTrip;
+}
+
+
+// ─── v.38: Copa conductores + Copa pasajeros en UNA sola píldora compacta ───
+// Antes salían dos franjas apiladas tapando el mapa. Ahora, si hay dos, se
+// muestra solo la primera con un botón «+1» que despliega la otra.
+function hrSyncPublicCopaStrips() {
+    const a = document.getElementById('public-copa-strip');
+    const b = document.getElementById('public-pcopa-strip');
+    if (!a || !b) return;
+    const aOn = !a.classList.contains('hidden') && !!a.innerHTML.trim();
+    const bOn = !b.classList.contains('hidden') && !!b.innerHTML.trim();
+    const both = aOn && bOn;
+    document.body.classList.toggle('copa-strips-both', both);
+    if (!both) document.body.classList.remove('copa-strips-expanded');
+    let more = a.querySelector('[data-copa-more]');
+    if (both && !more) {
+        more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'copa-strip-more';
+        more.setAttribute('data-copa-more', '');
+        more.setAttribute('aria-label', 'Ver otra Copa');
+        more.textContent = '+1';
+        more.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const open = document.body.classList.toggle('copa-strips-expanded');
+            more.textContent = open ? '−' : '+1';
+        });
+        const inner = a.querySelector('.public-copa-strip-inner') || a;
+        const close = inner.querySelector('.copa-chip-close');
+        inner.insertBefore(more, close || null);
+    } else if (!both && more) {
+        more.remove();
+    }
+}
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    window.hrSyncPublicCopaStrips = hrSyncPublicCopaStrips;
+    const bootCopaStripObserver = () => {
+        const ids = ['public-copa-strip', 'public-pcopa-strip'];
+        const els = ids.map((id) => document.getElementById(id)).filter(Boolean);
+        if (!els.length) return;
+        let raf = 0;
+        const mo = new MutationObserver(() => {
+            if (raf) return;
+            raf = requestAnimationFrame(() => { raf = 0; hrSyncPublicCopaStrips(); });
+        });
+        els.forEach((el) => mo.observe(el, { attributes: true, attributeFilter: ['class'], childList: true }));
+        hrSyncPublicCopaStrips();
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootCopaStripObserver, { once: true });
+    else bootCopaStripObserver();
 }

@@ -26485,3 +26485,109 @@ body.driver-mode #control-panel, body.driver-mode #control-panel *,
         body.trip-active.driver-mode #control-panel.panel-collapsed #driver-active-veh-badge {
             display: none !important;
         }
+
+/* ── v.38 mapa: copa compacta, foto del sheet de viaje, no solapar arriba ── */
+/* Dos Copas → una sola píldora con «+1»; la segunda solo al desplegar */
+body.copa-strips-both:not(.copa-strips-expanded) #public-pcopa-strip {
+    display: none !important;
+}
+body.copa-strips-both.copa-strips-expanded #public-pcopa-strip:not(.hidden) {
+    top: calc(max(4.35rem, calc(var(--safe-top, env(safe-area-inset-top, 0px)) + 3.55rem)) + 2.05rem);
+}
+#public-copa-strip .copa-chip--map,
+#public-pcopa-strip .copa-chip--map {
+    max-width: min(12.5rem, calc(100vw - 6.5rem));
+}
+#public-copa-strip .copa-chip-meta,
+#public-pcopa-strip .copa-chip-meta {
+    max-width: 6.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.copa-strip-more {
+    flex: 0 0 auto;
+    min-width: 1.75rem;
+    height: 1.55rem;
+    padding: 0 0.4rem;
+    border-radius: 999px;
+    background: #fff7ed;
+    border: 1px solid #fdba74;
+    color: #9a3412;
+    font-size: 0.68rem;
+    font-weight: 900;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    pointer-events: auto;
+}
+
+/* Foto del pasajero en el sheet del conductor: tamaño fijo SIEMPRE.
+   Antes solo tenía tamaño con body.trip-active.driver-mode; si el panel de viaje
+   quedaba visible sin esas clases, el SVG «Sin foto» se estiraba a todo el ancho
+   (el «cuadro gris con un círculo» del panel de abajo). */
+#driver-uber-pax-photo,
+.driver-uber-pax-photo {
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+    max-width: 2.75rem !important;
+    max-height: 2.75rem !important;
+    border-radius: 999px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+.driver-uber-pax { display: flex; align-items: center; gap: 0.65rem; }
+/* El panel de viaje activo del conductor solo existe con viaje en curso */
+body:not(.trip-active) #active-trip-panel {
+    display: none !important;
+}
+
+/* v.38 búsqueda pasajero: el título no queda debajo del asa «Minimizar» */
+body.client-mode.is-searching #passenger-panel-min-btn {
+    position: relative;
+    flex-shrink: 0;
+    margin-bottom: 0.35rem;
+}
+body.is-searching #trip-viewers-panel {
+    padding-top: 0.35rem;
+    overflow: visible;
+}
+body.is-searching #trip-viewers-count.passenger-offers-title {
+    position: relative;
+    z-index: 1;
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.25;
+    margin-top: 0.35rem;
+    padding-right: 0.25rem;
+}
+.passenger-viewer-vd {
+    margin: 0.1rem 0 0;
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: #0f766e;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.passenger-search-stall {
+    margin: 0 0.25rem 0.65rem;
+    padding: 0.65rem;
+    border-radius: 1rem;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+}
+.passenger-search-stall-title { margin: 0 0 0.5rem; font-size: 0.78rem; font-weight: 900; color: #9a3412; }
+.passenger-search-stall-row { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.passenger-search-stall-btn {
+    flex: 1 1 30%;
+    min-height: 44px;
+    padding: 0.45rem 0.5rem;
+    border-radius: 0.8rem;
+    background: #fff;
+    border: 1px solid #fdba74;
+    color: #9a3412;
+    font-size: 0.72rem;
+    font-weight: 900;
+}
+.passenger-search-stall-btn--wa { background: #059669; border-color: #059669; color: #fff; }
+.hr-pulse-once { animation: hrPulseOnce 0.8s ease-in-out 2; }
+@keyframes hrPulseOnce { 50% { box-shadow: 0 0 0 4px rgba(251, 146, 60, 0.55); } }
