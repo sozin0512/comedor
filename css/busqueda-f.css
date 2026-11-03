@@ -12,7 +12,7 @@ body.hr-search-f .panel-expand-fab,body.hr-search-f #panel-expand-fab,body.hr-se
 .hr-f-tag{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:4px 9px;border-radius:99px;background:rgba(10,22,18,.88);color:#fff;font:600 11.5px/1.2 Inter,system-ui,sans-serif;white-space:nowrap}
 .hr-f-tag svg{color:#34d399}
 #hr-f-panel{display:none}
-body.hr-search-f.is-searching #control-panel #searching-state{position:fixed!important;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));top:auto;margin:0!important;z-index:1200;max-height:calc(100vh - 120px);overflow:hidden;border-radius:28px;padding:18px!important;background:linear-gradient(160deg,#10231c,#050d0a)!important;color:#fff;box-shadow:0 24px 50px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)}
+body.hr-search-f #searching-state{position:fixed!important;left:12px;right:12px;bottom:calc(16px + env(safe-area-inset-bottom));top:auto;margin:0!important;z-index:1200;max-height:calc(100vh - 120px);overflow:hidden;border-radius:28px;padding:18px!important;background:linear-gradient(160deg,#10231c,#050d0a)!important;color:#fff;box-shadow:0 24px 50px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08)}
 body.hr-search-f #hr-f-panel{display:block}
 body.hr-search-f #searching-state .passenger-pending-hero,
 body.hr-search-f #searching-trip-summary,
@@ -47,9 +47,9 @@ body.hr-f-boost-open #passenger-boost-price-panel .passenger-boost-price-sub{dis
 #hr-f-boost-close{position:absolute;right:12px;top:10px;width:34px;height:34px;border-radius:50%;border:0;background:#f1f5f3;color:#334155;font-size:18px;display:none}
 body.hr-f-boost-open #hr-f-boost-close{display:block}
 /* El panel de control no debe atrapar el panel fijo (backdrop-filter/transform crean bloque contenedor) */
-body.hr-search-f #control-panel{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;transform:none!important;background:transparent!important;box-shadow:none!important;border:0!important;pointer-events:none}
-body.hr-search-f #control-panel #searching-state,body.hr-search-f #control-panel #passenger-boost-price-panel,body.hr-search-f #hr-f-backdrop{pointer-events:auto}
-body.hr-search-f.is-searching #searching-state #searching-cancel-btn{display:none!important}
+body.hr-search-f #control-panel{visibility:hidden!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;transform:none!important;background:transparent!important;box-shadow:none!important;border:0!important;pointer-events:none}
+body.hr-search-f #searching-state,body.hr-search-f #passenger-boost-price-panel,body.hr-search-f #hr-f-backdrop{pointer-events:auto;visibility:visible}
+body.hr-search-f #searching-state #searching-cancel-btn{display:none!important}
 body.hr-search-f.is-searching #map-container{opacity:1!important;pointer-events:auto!important}
 body.hr-search-f #hr-f-panel,body.hr-search-f #hr-f-panel *{text-align:left}
 body.hr-search-f #hr-f-pill *{color:inherit!important}

@@ -129,9 +129,26 @@
         if (sub) sub.textContent = n > 0 ? 'Ya están viendo tu solicitud. Te avisamos apenas uno acepte' : 'Te avisamos apenas uno acepte';
     }
 
+    // v.41: sacar #searching-state del #control-panel (en iOS el panel colapsado/scroll lo recortaba a una tira).
+    let stHome = null;
+    function portal(on) {
+        const st = document.getElementById('searching-state');
+        if (!st) return;
+        try {
+            if (on && st.parentElement !== document.body) {
+                stHome = document.createComment('hr-f-home');
+                st.parentElement.insertBefore(stHome, st);
+                document.body.appendChild(st);
+            } else if (!on && stHome && stHome.parentNode) {
+                stHome.parentNode.insertBefore(st, stHome);
+                stHome.remove(); stHome = null;
+            }
+        } catch (_) {}
+    }
     function enter() {
         if (active) return;
         active = true;
+        portal(true);
         window.__hrFFitSig = null;
         document.body.classList.add('hr-search-f');
         watchPanel(true);
@@ -142,6 +159,7 @@
         active = false;
         watchPanel(false);
         document.body.classList.remove('hr-search-f');
+        portal(false);
         closeBoost();
         clearOverlays();
         setTilt(false);
@@ -154,12 +172,16 @@
     }
     function closeBoost() { document.body.classList.remove('hr-f-boost-open'); }
 
+    function isPending(d) { return !!(d && d.status === 'pending' && !d.driverId); }
     function update(data) {
-        lastData = data;
+        if (data) lastData = data;
+        data = lastData;
         const st = document.getElementById('searching-state');
         const visible = st && !st.classList.contains('hidden');
-        const pending = data && data.status === 'pending' && !data.driverId;
-        if (!visible || !pending) { exit(); return; }
+        // v.41: también vale body.is-searching (viaje restaurado tras recargar con el panel en «Maximizar»)
+        const searching = visible || document.body.classList.contains('is-searching');
+        if (!searching || !isPending(data)) { exit(); return; }
+        if (st && st.classList.contains('hidden')) st.classList.remove('hidden');
         enter();
         paintPanel(data);
         renderMap(data);
@@ -172,6 +194,15 @@
             if (st.classList.contains('hidden')) exit();
             else if (lastData) update(lastData);
         }).observe(st, { attributes: true, attributeFilter: ['class'] });
+        // v.41: reaccionar a is-searching y al viaje guardado aunque updateSearchingStatusUI no llame
+        const resync = () => {
+            const live = window.currentActiveTripData;
+            const d = isPending(live) ? live : lastData;
+            if (document.body.classList.contains('is-searching') && isPending(d)) { if (!active || d !== lastData) update(d); }
+            else if (active && !document.body.classList.contains('is-searching')) exit();
+        };
+        new MutationObserver(resync).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        setInterval(resync, 1500);
         document.addEventListener('click', (e) => {
             if (e.target.closest('#hr-f-boost-btn')) { openBoost(); return; }
             if (e.target.closest('#hr-f-cancel-btn')) { document.getElementById('searching-cancel-btn')?.click(); return; }
