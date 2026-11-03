@@ -1591,3 +1591,6 @@ function buildStatsDashboardBody({
         <div class="space-y-2 max-h-80 overflow-y-auto">${tripTableHtml || '<p class="text-gray-500 text-xs text-center py-4">No hay viajes completados en este período y ciudad</p>'}</div>
     `;
 }
+
+/** Envíos de restaurante «sin destino»: promedio cobrado vs sugerido por el repartidor, por zona (ver zone-delivery.js). */
+export { zoneDeliveryStats } from './zone-delivery.js?v=2026.10.26.37';

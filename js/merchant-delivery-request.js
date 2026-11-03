@@ -444,3 +444,54 @@ export function buildMerchantShareTripWhatsAppUrl({ trip = null, order = null, s
     }
     return `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
 }
+
+// ───────────── Envío de restaurante SIN destino (se cobra por zona al entregar) ─────────────
+export const ZONE_BILLING_DESTINATION = 'Por definir · se cobra por zona al entregar';
+export const ZONE_BILLING_OFFER_TEXT = 'Este envío se cobra por zona. Vas a ver el precio cuando marques «Pedido entregado», según la zona donde lo dejés. Llamá al cliente para saber a dónde va.';
+/** GPS peor que esto (metros) → se marca para revisión. */
+export const ZONE_DROPOFF_POOR_ACCURACY_M = 100;
+
+export function isZoneBillingTrip(t = {}) {
+    return !!t && (t.zoneBilling === true || t.deliveryDetails?.zoneBilling === true);
+}
+
+/** Validación del modo «Sin destino»: teléfono obligatorio (≥ 8 dígitos). */
+export function validateZoneBillingForm(f = {}) {
+    const e = {};
+    if (!normalizeMerchantVehicle(f.vehicle)) e.vehicle = 'Elige moto o carro';
+    if (!isInHonduras(f.pickupLat, f.pickupLng)) e.pickup = 'Guarda primero la ubicación de tu tienda';
+    if (String(f.customerPhone || '').replace(/\D/g, '').length < 8) e.customerPhone = 'Escribe el teléfono del cliente (8 dígitos)';
+    return e;
+}
+
+/** Viaje «sin destino»: nace verifying sin coordenadas de destino ni precio; el servidor cobra al entregar. */
+export function buildZoneBillingTrip({ store, uid, form, zone = null, nowMs = Date.now(), serverTs = null }) {
+    const base = buildMerchantDeliveryTrip({
+        store, uid, zone, nowMs, serverTs,
+        form: { ...form, items: [], collectAmount: '', dropoffAddress: ZONE_BILLING_DESTINATION },
+        estimate: { km: 0, price: 0, tariff: { kind: 'zone_on_delivery', source: 'zone_on_delivery', label: 'Se cobra por zona al entregar' } },
+    });
+    const name = String(store?.name || 'Tienda').slice(0, 80);
+    const notes = String(form.notes || '').slice(0, 300);
+    return {
+        ...base,
+        zoneBilling: true,
+        destinationLat: null, destinationLng: null,
+        destinationFormattedAddress: null,
+        price: 'Por zona', priceNum: 0, tripDistanceKm: 0,
+        deliveryDetails: {
+            ...base.deliveryDetails,
+            zoneBilling: true,
+            packageDescription: (`Envío de ${name} (sin destino)` + (notes ? `: ${notes}` : '')).slice(0, 400),
+            customerTotal: 0,
+        },
+    };
+}
+
+/** Texto para el repartidor al terminar. */
+export function zoneDeliveryResultText(t = {}) {
+    const fee = Number(t.priceNum) || 0;
+    const m = `L. ${fee.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const where = t.deliveryZoneName ? `Entregado en ${t.deliveryZoneName}` : 'Entregado fuera de zona (por kilómetro)';
+    return `${where}. Tu cobro es ${m} — cobráselo al cliente en efectivo`;
+}

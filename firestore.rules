@@ -137,7 +137,9 @@ service cloud.firestore {
         'priceVerified', 'priceVerifiedAtMs', 'priceCheckOriginal', 'priceCorrected',
         // Comisión HonduRaite: la calcula solo el servidor al completar (trip-commission.js)
         'serverCommissionKey', 'serverCommissionPercent', 'serverCommissionAmount', 'serverCommissionBase',
-        'serverDriverNet', 'serverCommissionWaived', 'serverCommissionSource', 'serverCommissionAtMs', 'serverCommissionClientAmount'];
+        'serverDriverNet', 'serverCommissionWaived', 'serverCommissionSource', 'serverCommissionAtMs', 'serverCommissionClientAmount',
+        // Envío de restaurante sin destino: zona y precio final los fija solo el servidor al entregar
+        'zoneFee', 'zoneFeeAtMs', 'zoneDropoffKm', 'dropoffAccuracyPoor'];
     }
 
     // === EDAD (+18) ===
@@ -225,6 +227,14 @@ service cloud.firestore {
         && d.storeId is string
         && !d.keys().hasAny(['storeOrderId', 'driverId', 'staffAssistedClient'])
         && d.get('offeredToDriverId', null) == null
+        // «Sin destino» (cobro por zona): teléfono del cliente obligatorio, sin destino ni precio
+        && (d.get('zoneBilling', false) != true || (
+          d.deliveryDetails.recipientPhone is string
+          && d.deliveryDetails.recipientPhone.matches('^[+]?[0-9]{8,20}$')
+          && d.get('destinationLat', null) == null
+          && d.get('priceNum', 0) == 0
+          && !d.keys().hasAny(['dropoffLat', 'dropoffLng', 'dropoffAccuracyM', 'dropoffAtMs', 'riderSuggestedFee'])
+        ))
         && ((d.deliveryVehicle == 'moto' && d.allowedDriverVehicles == ['moto'])
           || (d.deliveryVehicle == 'auto' && d.allowedDriverVehicles == ['auto']))
         && exists(/databases/$(database)/documents/artifacts/$(app)/public/data/stores/$(d.storeId))
@@ -256,6 +266,23 @@ service cloud.firestore {
           && request.resource.data.status == 'cancelled'
           && request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['status', 'cancelledBy', 'cancelReason', 'cancelledAtMs', 'cancelledAt', 'updatedAt'])
+        );
+    }
+
+    // «Sin destino»: precio/zona solo servidor; punto de entrega y precio sugerido solo el conductor asignado.
+    function zoneBillingUpdateOk(app) {
+      let keys = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.get('zoneBilling', false) != true
+        || isStaff(app)
+        || (
+          !keys.hasAny(['zoneBilling', 'priceNum', 'price', 'deliveryZoneId', 'deliveryZoneName', 'deliveryFeeSource', 'fareLabel', 'destinationLat', 'destinationLng'])
+          && (!keys.hasAny(['dropoffLat', 'dropoffLng', 'dropoffAccuracyM', 'dropoffAtMs', 'riderSuggestedFee', 'riderSuggestedAtMs'])
+            || resource.data.get('driverId', null) == requestUid())
+          && (!keys.hasAny(['dropoffLat', 'dropoffLng', 'dropoffAccuracyM', 'dropoffAtMs'])
+            || (resource.data.get('dropoffLat', null) == null && resource.data.status == 'in_progress'))
+          && (!keys.hasAny(['riderSuggestedFee'])
+            || (request.resource.data.riderSuggestedFee is number
+              && request.resource.data.riderSuggestedFee >= 0 && request.resource.data.riderSuggestedFee <= 5000))
         );
     }
 
@@ -396,6 +423,7 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(tripServerOnlyKeys())
         && merchantDirectDeliveryUpdateOk(app)
+        && zoneBillingUpdateOk(app)
         && (
         isStaff(app)
         || isTripParticipant()

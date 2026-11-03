@@ -36,6 +36,8 @@ import { tripWaitChipHtml } from '/js/trip-wait.js';
 import * as Alert from '/js/store-order-alert.js';
 const q = new URLSearchParams(location.search);
 const config = q.get('motoOff') ? { comayagua: { delivery: { mode: 'off' } } } : {};
+import * as ZD from '/js/zone-delivery.js';
+window.ZD = ZD;
 window.T = { created: [], cancelled: [], toasts: [], quotes: [], saved: [], pushList: null, mapMove: null, driverCanServeTrip, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, STORE_TRIP_CSS, tripWaitChipHtml, Alert, calculateServiceFare };
 const store = { id: 's1', name: 'Baleadas Doña Mary', address: 'Barrio Abajo, frente al parque, Comayagua', lat: 14.4598, lng: -87.6378, cityId: 'comayagua', phone: '+50499990000' };
 if (q.get('noLoc')) { store.lat = 14.4513; store.lng = -87.6374; store.locationApprox = true; }
@@ -66,7 +68,7 @@ const res = []; const ok = (n, c, x = '') => res.push([c ? 'PASS' : 'FAIL', n, x
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MOCK = process.env.MOCKUPS || '';
 if (MOCK) fs.mkdirSync(MOCK, { recursive: true });
-const { srv, url } = await serve(ROOT, { '/__pedir.html': page });
+const { srv, url } = await serve(ROOT, { '/__pedir.html': page, '/__zd.html': `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>body{margin:0;background:#cbd5e1;font-family:Inter,system-ui,sans-serif;height:900px}</style></head><body><div style="padding:20px;color:#334155;font-weight:800">Viaje en curso · Baleadas Doña Mary</div></body></html>` });
 const puppeteer = await loadPuppeteer();
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--no-sandbox', '--mute-audio', '--autoplay-policy=no-user-gesture-required'] });
 const shot = async (p, name, full = true) => { if (MOCK) { await sleep(300); await p.screenshot({ path: path.join(MOCK, name), fullPage: full }); } };
@@ -231,6 +233,99 @@ try {
   await p.setViewport({ width: 360, height: 760, deviceScaleFactor: 2 });
   await sleep(150);
   ok('360 px sin scroll horizontal', await p.evaluate(() => document.documentElement.scrollWidth <= 361));
+
+  // ───── Envío de restaurante SIN destino (cobro por zona al entregar) ─────
+  const ZS = process.env.ZONE_SHOTS || '/workspace/artifacts/envio-zona';
+  fs.mkdirSync(ZS, { recursive: true });
+  const zshot = async (pg, name) => { await sleep(350); await pg.screenshot({ path: path.join(ZS, name), fullPage: false }); };
+  const st0 = { id: 's1', ownerId: 'owner', lat: 14.4598, lng: -87.6378 };
+  const zq = (lat, lng, outside = 'block', vehicle = 'moto') => DZ.quoteDelivery({ zones: ZONES, storeFees: STORE_FEES, lat, lng, cityId: 'comayagua', outsideBehavior: outside, vehicle });
+  const zt = (o) => ({ zoneBilling: true, merchantId: 'owner', deliveryVehicle: 'moto', deliveryDetails: { recipientPhone: '98765432', zoneBilling: true }, ...o });
+  let r = DZ.verifyZoneBillingCreate({ trip: zt({}), store: st0 });
+  ok('zona servidor: crear → pending, precio 0 «Por zona»', r.ok && r.patch.status === 'pending' && r.patch.priceNum === 0 && r.patch.deliveryFeeSource === 'zone_on_delivery');
+  ok('zona servidor: sin teléfono del cliente → cancelado', DZ.verifyZoneBillingCreate({ trip: zt({ deliveryDetails: { recipientPhone: '123' } }), store: st0 }).reason === 'no_customer_phone');
+  ok('zona servidor: tienda de otro dueño → cancelado', DZ.verifyZoneBillingCreate({ trip: zt({ merchantId: 'x' }), store: st0 }).reason === 'store_mismatch');
+  const qc = zq(14.465, -87.64);
+  r = DZ.computeZoneDeliveryFee({ trip: zt({ dropoffLat: 14.465, dropoffLng: -87.64, dropoffAccuracyM: 12 }), store: st0, quote: qc });
+  ok('zona servidor: entrega en Zona céntrica → tarifa base de la zona', r.ok && r.patch.deliveryZoneName === 'Zona céntrica' && r.fee === qc.feeMoto && r.patch.zoneFee === r.fee && r.patch.dropoffAccuracyPoor === false && r.patch.zoneFeeAtMs > 0, JSON.stringify(r.patch));
+  const qa = zq(14.50, -87.60);
+  r = DZ.computeZoneDeliveryFee({ trip: zt({ dropoffLat: 14.50, dropoffLng: -87.60, dropoffAccuracyM: 30 }), store: st0, quote: qa });
+  ok('zona servidor: tarifa propia de la tienda en la zona (L. 80)', r.fee === 80 && r.patch.deliveryFeeSource === qa.source, JSON.stringify(r.patch));
+  const qo = zq(14.30, -87.62, 'block');
+  r = DZ.computeZoneDeliveryFee({ trip: zt({ dropoffLat: 14.30, dropoffLng: -87.62, dropoffAccuracyM: 250 }), store: st0, quote: qo, rate: DZ.deliveryRateFrom(null) });
+  const kmO = r.patch.zoneDropoffKm;
+  ok('zona servidor: fuera de TODAS las zonas (ciudad «bloquear») → por km tienda→punto', !qo.inZone && r.ok && r.patch.deliveryFeeSource === 'distance_outside_zone' && r.fee === DZ.distanceDeliveryFee(kmO, 'moto', DZ.deliveryRateFrom(null)) && r.patch.deliveryZoneId === null, JSON.stringify(r.patch));
+  ok('zona servidor: GPS impreciso (>100 m) o sin precisión → marcado', r.patch.dropoffAccuracyPoor === true && DZ.computeZoneDeliveryFee({ trip: zt({ dropoffLat: 14.465, dropoffLng: -87.64 }), store: st0, quote: qc }).patch.dropoffAccuracyPoor === true);
+  ok('zona servidor: carro = zona × 1.25', DZ.computeZoneDeliveryFee({ trip: zt({ deliveryVehicle: 'auto', dropoffLat: 14.465, dropoffLng: -87.64, dropoffAccuracyM: 5 }), store: st0, quote: zq(14.465, -87.64, 'block', 'auto') }).fee === qc.feeCar);
+
+  // 1) Formulario «Sin destino»
+  const pz = await browser.newPage();
+  await pz.setViewport({ width: 412, height: 900, deviceScaleFactor: 2 });
+  pz.on('pageerror', (e) => res.push(['FAIL', 'error JS en la página (zona)', e.message]));
+  await pz.exposeFunction('serverQuote', (s) => JSON.stringify(quote(JSON.parse(s))));
+  await pz.goto(`${url}/__pedir.html`); await pz.waitForFunction('window.ready'); await sleep(300);
+  ok('zona UI: botones «Con destino» / «Sin destino»', (await pz.$$('[data-md-mode]')).length === 2);
+  await pz.click('[data-md-mode="zone"]'); await sleep(250);
+  await pz.click('[data-md-vehicle="moto"]'); await sleep(200);
+  ok('zona UI: sin buscador de destino, con aviso «se cobra por zona»', !(await pz.$('#md-dropoffAddress')) && /por zona/i.test(await txt(pz, '[data-md-zone-info]')));
+  await pz.type('#md-customerPhone', '9876-5432');
+  await pz.type('#md-notes', 'Pedido #12 · 2 baleadas');
+  await zshot(pz, '1-restaurante-pedir-repartidor-sin-destino.png');
+  await pz.$eval('#md-customerPhone', (e) => { e.value = ''; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await pz.click('[data-md-submit]'); await sleep(250);
+  ok('zona UI: teléfono obligatorio (no crea sin teléfono)', (await pz.evaluate(() => T.created.length)) === 0 && /tel[eé]fono/i.test(await pz.evaluate(() => document.body.textContent)));
+  await pz.type('#md-customerPhone', '9876-5432');
+  await pz.click('[data-md-submit]'); await sleep(300);
+  const tz = await pz.evaluate(() => T.created[0]);
+  ok('zona UI: crea viaje zoneBilling sin destino, «Por zona», teléfono', tz && tz.zoneBilling === true && tz.destinationLat === null && tz.priceNum === 0 && tz.status === 'verifying' && tz.deliveryDetails.recipientPhone.replace(/\D/g, '') === '98765432', JSON.stringify(tz || {}).slice(0, 300));
+  ok('zona: el viaje del panel pasa la verificación del servidor', DZ.verifyZoneBillingCreate({ trip: tz, store: st0 }).ok);
+
+  // 2) Oferta al repartidor
+  const offer = await pz.evaluate((t) => T.storeCollectHtml(t), tz);
+  const offerTxt = offer.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  ok('oferta: sin monto + texto «Este envío se cobra por zona… Llamá al cliente»', /Envío de restaurante/.test(offerTxt) && /se cobra por zona/.test(offerTxt) && /Llamá al cliente/.test(offerTxt) && !/L\.\s*\d/.test(offerTxt), offerTxt);
+  const panelZ = await pz.evaluate((t) => T.storeAcceptedPanelHtml(t), tz);
+  ok('aceptado: llamar / WhatsApp al cliente', /tel:/.test(panelZ) && /wa\.me/.test(panelZ));
+  const d = await browser.newPage(); await d.setViewport({ width: 412, height: 900, deviceScaleFactor: 2 });
+  await d.setContent(`<meta charset="utf-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>body{margin:0;background:#0f172a;font-family:Inter,system-ui,sans-serif;color:#fff;padding:12px}.c{background:#1e293b;border-radius:16px;padding:14px;margin-bottom:12px}h4{margin:6px 0}.btn{display:flex;gap:8px;margin-top:12px}.btn span{flex:1;text-align:center;padding:14px;border-radius:12px;font-weight:900}${await pz.evaluate(() => T.STORE_TRIP_CSS)}</style>
+    <p style="font-size:12px;opacity:.7;margin:4px 0 8px">Nueva oferta · Repartidor (moto)</p>
+    <div class="c">${await pz.evaluate((t) => T.storeOfferBadgesHtml(t), tz)}<h4>Baleadas Doña Mary → Por definir</h4><div style="font-size:24px;font-weight:900">Por zona al entregar</div>${offer}
+    <div class="btn"><span style="background:#334155">Rechazar</span><span style="background:#16a34a">Aceptar</span></div></div>
+    <p style="font-size:12px;opacity:.7;margin:4px 0 8px">Después de aceptar</p><div class="c">${panelZ}</div>`, { waitUntil: 'networkidle0' }).catch(() => {});
+  await zshot(d, '2-repartidor-oferta-envio-restaurante.png');
+
+  // 3) Hoja «Pedido entregado»
+  await d.goto(`${url}/__zd.html`);
+  await d.addScriptTag({ type: 'module', content: `import { showZoneDeliveryResult } from '/js/zone-delivery.js'; let cb; window.saved = []; showZoneDeliveryResult('t1', { subscribe: (id, f) => { cb = f; return () => {}; }, saveSuggested: async (id, n) => { window.saved.push(n); } }); window.pushTrip = (t) => cb(t); window.zdReady = true;` });
+  await d.waitForFunction('window.zdReady');
+  ok('hoja: «Calculando tu cobro…» mientras el servidor calcula', /Calculando/.test(await d.$eval('[data-zd-ov]', (e) => e.textContent)));
+  await d.evaluate(() => window.pushTrip({ id: 't1', zoneFeeAtMs: Date.now(), deliveryZoneName: 'Zona céntrica', priceNum: 35, dropoffAccuracyM: 12 }));
+  const sheet = await d.$eval('[data-zd-ov]', (e) => e.textContent.replace(/\s+/g, ' '));
+  ok('hoja: «Entregado en Zona X · Tu cobro es L. XX · cobráselo en efectivo» + pregunta opcional', /Entregado en Zona céntrica/.test(sheet) && /L\. 35\.00/.test(sheet) && /efectivo/.test(sheet) && /¿Cuánto cobrarías hasta aquí\?/.test(sheet) && /opcional/.test(sheet), sheet);
+  await d.type('[data-zd-sug]', '50');
+  await zshot(d, '3-repartidor-pedido-entregado-cobro-zona.png');
+  await d.click('[data-zd="save"]'); await sleep(200);
+  ok('hoja: guarda riderSuggestedFee (no cambia el precio)', JSON.stringify(await d.evaluate(() => window.saved)) === '[50]' && /Gracias/.test(await d.$eval('[data-zd-ov]', (e) => e.textContent)));
+
+  // 4) Admin «Envíos por zona»
+  const zNow = Date.parse('2026-11-02T18:30:00Z');
+  const sample = [
+    { id: 'a1', zoneBilling: true, status: 'completed', zoneFeeAtMs: zNow, completedAt: zNow, deliveryZoneId: 'z-centro', deliveryZoneName: 'Zona céntrica', priceNum: 35, riderSuggestedFee: 40, dropoffLat: 14.465, dropoffLng: -87.64, dropoffAccuracyM: 9, merchantName: 'Baleadas Doña Mary', driverName: 'Carlos M.' },
+    { id: 'a2', zoneBilling: true, status: 'completed', zoneFeeAtMs: zNow - 3.6e6, completedAt: zNow - 3.6e6, deliveryZoneId: 'z-centro', deliveryZoneName: 'Zona céntrica', priceNum: 35, riderSuggestedFee: 35, dropoffLat: 14.458, dropoffLng: -87.645, dropoffAccuracyM: 15, merchantName: 'Pollo Rey', driverName: 'Luis R.' },
+    { id: 'a3', zoneBilling: true, status: 'completed', zoneFeeAtMs: zNow - 7.2e6, completedAt: zNow - 7.2e6, deliveryZoneId: 'z-afuera', deliveryZoneName: 'Fuera de ciudad', priceNum: 80, riderSuggestedFee: 100, dropoffLat: 14.50, dropoffLng: -87.60, dropoffAccuracyM: 160, dropoffAccuracyPoor: true, merchantName: 'Baleadas Doña Mary', driverName: 'Carlos M.' },
+    { id: 'a4', zoneBilling: true, status: 'completed', zoneFeeAtMs: zNow - 9e6, completedAt: zNow - 9e6, deliveryZoneId: null, deliveryZoneName: null, zoneDropoffKm: 17.8, priceNum: 317.6, dropoffLat: 14.30, dropoffLng: -87.62, dropoffAccuracyM: 20, merchantName: 'Pizzería Roma', driverName: 'Ana P.' },
+  ];
+  const stats = await pz.evaluate((s) => ZD.zoneDeliveryStats(s), sample);
+  const sc = stats.find((x) => x.zoneId === 'z-centro');
+  ok('stats por zona: promedio cobrado vs sugerido y diferencia', sc.count === 2 && sc.avgFee === 35 && sc.avgSuggested === 37.5 && sc.avgDiff === 2.5 && stats.find((x) => x.zoneId === null).avgSuggested === null, JSON.stringify(stats));
+  const adm = await pz.evaluate((s) => ZD.zoneDeliveriesViewHtml(s, { noMap: false }), sample);
+  ok('vista admin: mapa del punto, zona, cobrado, sugerido (+dif.), tienda, repartidor, GPS impreciso', /maps\.google\.com\/maps\?q=14\.465000,-87\.640000/.test(adm) && /Baleadas Doña Mary/.test(adm) && /Carlos M\./.test(adm) && /\+L\. 5\.00/.test(adm) && /GPS impreciso/.test(adm) && /Fuera de zona \(por km\)/.test(adm));
+  await d.setContent(`<meta charset="utf-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"><style>body{margin:0;background:#f1f5f9;font-family:Inter,system-ui,sans-serif;padding:10px}${await pz.evaluate(() => ZD.ZONE_DELIVERY_CSS)}
+    .tabs{display:flex;gap:6px;margin-bottom:10px;overflow:hidden}.tabs span{font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:#e2e8f0;white-space:nowrap}.tabs .on{background:#0c4a8e;color:#fff}</style>
+    <div style="font-size:11px;font-weight:800;color:#0c4a8e;text-transform:uppercase">Supervisión · Pedidos de tiendas</div><div class="tabs"><span>En vivo</span><span>Historial</span><span>Contadores</span><span class="on">Envíos por zona</span></div>
+    ${await pz.evaluate((s) => ZD.zoneDeliveriesViewHtml(s, { noMap: true }), sample)}`, { waitUntil: 'networkidle0' }).catch(() => {});
+  await zshot(d, '4-admin-envios-por-zona.png');
+  await d.close(); await pz.close();
 } finally { await browser.close(); srv.close(); }
 for (const r of res) console.log(r.join(' | '));
 const fail = res.filter((r) => r[0] === 'FAIL').length;

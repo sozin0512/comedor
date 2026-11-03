@@ -9,7 +9,8 @@ import {
     resolveMerchantDeliveryPrice, storeHasSavedLocation, isInHonduras, customerChargeText,
     parseHondurasCoordsInput, buildDeliveryTrackingUrl, buildMerchantShareTripMessage, buildMerchantShareTripWhatsAppUrl,
     normalizeSelectedDeliveryItems, calculateDeliveryItemsSubtotal, formatDeliveryItemsSummary, formatDeliveryItemsBannerText,
-} from './merchant-delivery-request.js?v=2026.10.25.4';
+    validateZoneBillingForm, buildZoneBillingTrip, isZoneBillingTrip,
+} from './merchant-delivery-request.js?v=2026.10.26.37';
 
 function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -101,6 +102,13 @@ export const MERCHANT_DELIVERY_CSS = `
 
 .md-f input:focus,.md-f textarea:focus,.md-drop input:focus,.md-cash input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15)}
 .md-card h3 i{color:var(--hn-blue,#0c4a8e)}
+.md-mode{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.md-mode button{border:2px solid #e2e8f0;border-radius:12px;padding:8px;background:#f8fafc;font-weight:800;font-size:12.5px;line-height:1.25;color:#334155}
+.md-mode button.on{border-color:#ea580c;background:#fff7ed;color:#9a3412}
+.md-mode small{display:block;font-weight:600;font-size:10.5px;color:#64748b}
+.md-zone-info{background:#fff7ed;border:1.5px solid #fdba74;border-radius:12px;padding:10px;margin-top:10px;font-size:12.5px;color:#7c2d12;line-height:1.4}
+.md-zone-info b{display:block;font-size:13.5px;margin-bottom:2px}
+.md-zone-tag{display:inline-block;font-size:10.5px;font-weight:800;color:#9a3412;background:#ffedd5;border-radius:999px;padding:1px 7px;margin-left:4px}
 `;
 
 const TITLE = { pickup: 'Ubicación de tu tienda', dropoff: 'Punto de entrega' };
@@ -108,6 +116,7 @@ const TITLE = { pickup: 'Ubicación de tu tienda', dropoff: 'Punto de entrega' }
 export function createMerchantDeliveryTab(ctx) {
     const st = {
         vehicle: null,
+        mode: 'dest',
         form: {
             pickupAddress: '', pickupLat: null, pickupLng: null,
             dropoffAddress: '', dropoffLat: null, dropoffLng: null,
@@ -211,7 +220,7 @@ export function createMerchantDeliveryTab(ctx) {
                 <div style="min-width:0;flex:1">
                     <div style="font-weight:800;font-size:13px"><i class="fas ${veh.icon}"></i> ${esc(t.destination || 'Entrega')}</div>
                     ${itemsSummary ? `<div class="md-req-items" data-md-req-items><i class="fas fa-utensils"></i> ${esc(itemsSummary)}</div>` : ''}
-                    <div style="font-size:12px;color:#64748b">Cliente paga ${esc(money((Number(t.priceNum) || 0) + collect))}${collect > 0 ? ` (envío ${esc(t.price || '')} + productos ${esc(money(collect))})` : ' (envío)'}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>
+                    ${isZoneBillingTrip(t) ? `<div style="font-size:12px;color:#9a3412;font-weight:700" data-md-zone-req>${t.zoneFeeAtMs ? `${esc(t.deliveryZoneName || 'Fuera de zona (por km)')} · cliente pagó ${esc(money(t.priceNum))} (envío)` : 'Se cobra por zona al entregar'}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>` : `<div style="font-size:12px;color:#64748b">Cliente paga ${esc(money((Number(t.priceNum) || 0) + collect))}${collect > 0 ? ` (envío ${esc(t.price || '')} + productos ${esc(money(collect))})` : ' (envío)'}${t.driverName ? ` · ${esc(t.driverName)}` : ''} ${wait}</div>`}
                     ${recipientName || recipientPhone ? `<div style="font-size:11px;color:#475569;margin-top:2px"><i class="fas fa-user"></i> Recibe: <b>${esc(recipientName || 'Cliente')}</b>${recipientPhone ? ` · ${esc(recipientPhone)}` : ''}</div>` : ''}
                     ${canShare ? `<div class="md-req-actions">
                         <button type="button" class="md-wa-btn" data-md-share-wa="${esc(t.id)}" title="Compartir seguimiento en vivo al cliente por WhatsApp">
@@ -306,26 +315,17 @@ export function createMerchantDeliveryTab(ctx) {
         </div>`;
     }
 
-    function html() {
-        const a = avail(); const f = st.form; const e = st.errors; const p = price();
-        const vehBtn = (v) => {
-            const m = MERCHANT_DELIVERY_VEHICLES[v]; const ok = a[v].available;
-            return `<button type="button" data-md-vehicle="${v}" class="${st.vehicle === v ? 'on' : ''}" ${ok ? '' : 'disabled'} title="${esc(a[v].message)}">
-                <i class="fas ${m.icon}" style="font-size:20px"></i>${m.label}${ok ? '' : '<small>No disponible</small>'}</button>`;
-        };
-        const field = (k, label, extra = '', tag = 'input') => `<div class="md-f"><label for="md-${k}">${label}</label>
-            ${tag === 'textarea' ? `<textarea id="md-${k}" data-md-field="${k}" rows="2" ${extra}>${esc(f[k])}</textarea>` : `<input id="md-${k}" data-md-field="${k}" value="${esc(f[k])}" ${extra}>`}
-            ${e[k] ? `<span class="md-err">${esc(e[k])}</span>` : ''}</div>`;
-        const collect = Number(f.collectAmount) || 0;
-        const canGo = st.vehicle && !st.busy && hasPick() && (!p || !p.blocked);
-        return `<div class="md-wrap">
-            <div class="md-card"><h3><i class="fas fa-paper-plane"></i> Pedir envío</h3>
-                <div class="md-veh">${vehBtn('moto')}${vehBtn('auto')}</div>
-                ${e.vehicle ? `<span class="md-err">${esc(e.vehicle)}</span>` : ''}
-                <span class="md-lbl">Recoger en</span>
-                ${pickupHtml()}
-                ${e.pickup ? `<span class="md-err">${esc(e.pickup)}</span>` : ''}
-                <label class="md-lbl" for="md-dropoffAddress">Entregar en</label>
+    function zoneFormHtml(field) {
+        return `${field('customerPhone', 'Teléfono del cliente (obligatorio)', 'inputmode="tel" placeholder="Ej. 9988-7766"')}
+                ${field('customerName', 'Nombre del cliente (opcional)')}
+                ${field('notes', 'Nota para el repartidor (opcional)', 'maxlength="300" placeholder="Ej. pedido de Juan, 2 bolsas"', 'textarea')}
+                <div class="md-zone-info" data-md-zone-info><b><i class="fas fa-map-location-dot"></i> Se cobra por zona al entregar</b>
+                    El repartidor llama al cliente para saber a dónde va. Cuando marque «Pedido entregado», el sistema ve en qué zona lo dejó y calcula el envío (fuera de zona: por kilómetro). El cliente le paga el envío en efectivo al repartidor.</div>`;
+    }
+
+    function destFormHtml(field, collect) {
+        const f = st.form; const e = st.errors;
+        return `                <label class="md-lbl" for="md-dropoffAddress">Entregar en</label>
                 <div class="md-drop">
                     <input id="md-dropoffAddress" data-md-field="dropoffAddress" value="${esc(f.dropoffAddress)}" autocomplete="off" placeholder="Buscar dirección o lugar">
                     <button type="button" class="md-btn2" data-md-map="dropoff"><i class="fas fa-map-location-dot"></i> Usar mapa</button>
@@ -342,8 +342,34 @@ export function createMerchantDeliveryTab(ctx) {
                     <input id="md-collectAmount" data-md-field="collectAmount" value="${esc(f.collectAmount)}" inputmode="decimal" placeholder="L. 0.00">
                     <input id="md-productCharge" data-md-field="collectAmount" value="${esc(f.collectAmount)}" type="hidden">
                     <small>El valor de tus productos. El conductor lo cobra junto con el envío y te lo entrega (puedes dejarlo en 0 o editarlo).</small>
-                    ${e.collectAmount ? `<span class="md-err">${esc(e.collectAmount)}</span>` : ''}</div>
-                ${p && !p.blocked ? `<div class="md-total" data-md-summary>${esc(customerChargeText(p.price, collect))}</div>` : ''}
+                    ${e.collectAmount ? `<span class="md-err">${esc(e.collectAmount)}</span>` : ''}</div>`;
+    }
+
+    function html() {
+        const a = avail(); const f = st.form; const e = st.errors; const p = price();
+        const vehBtn = (v) => {
+            const m = MERCHANT_DELIVERY_VEHICLES[v]; const ok = a[v].available;
+            return `<button type="button" data-md-vehicle="${v}" class="${st.vehicle === v ? 'on' : ''}" ${ok ? '' : 'disabled'} title="${esc(a[v].message)}">
+                <i class="fas ${m.icon}" style="font-size:20px"></i>${m.label}${ok ? '' : '<small>No disponible</small>'}</button>`;
+        };
+        const field = (k, label, extra = '', tag = 'input') => `<div class="md-f"><label for="md-${k}">${label}</label>
+            ${tag === 'textarea' ? `<textarea id="md-${k}" data-md-field="${k}" rows="2" ${extra}>${esc(f[k])}</textarea>` : `<input id="md-${k}" data-md-field="${k}" value="${esc(f[k])}" ${extra}>`}
+            ${e[k] ? `<span class="md-err">${esc(e[k])}</span>` : ''}</div>`;
+        const collect = Number(f.collectAmount) || 0;
+        const canGo = st.vehicle && !st.busy && hasPick() && (st.mode === 'zone' || !p || !p.blocked);
+        return `<div class="md-wrap">
+            <div class="md-card"><h3><i class="fas fa-paper-plane"></i> Pedir envío</h3>
+                <div class="md-veh">${vehBtn('moto')}${vehBtn('auto')}</div>
+                ${e.vehicle ? `<span class="md-err">${esc(e.vehicle)}</span>` : ''}
+                <span class="md-lbl">Recoger en</span>
+                ${pickupHtml()}
+                ${e.pickup ? `<span class="md-err">${esc(e.pickup)}</span>` : ''}
+                <div class="md-mode" data-md-modes>
+                    <button type="button" data-md-mode="dest" class="${st.mode === 'dest' ? 'on' : ''}"><i class="fas fa-location-dot"></i> Con destino<small>Pones la dirección y ves el precio</small></button>
+                    <button type="button" data-md-mode="zone" class="${st.mode === 'zone' ? 'on' : ''}"><i class="fas fa-map"></i> Sin destino<small>Se cobra por zona al entregar</small></button>
+                </div>
+                ${st.mode === 'zone' ? zoneFormHtml(field) : destFormHtml(field, collect)}
+                ${st.mode !== 'zone' && p && !p.blocked ? `<div class="md-total" data-md-summary>${esc(customerChargeText(p.price, collect))}</div>` : ''}
                 <button type="button" class="md-go" data-md-submit ${canGo ? '' : 'disabled'}>${st.busy ? 'Pidiendo…' : `Pedir ${st.vehicle ? MERCHANT_DELIVERY_VEHICLES[st.vehicle].label.toLowerCase() : 'envío'}`}</button>
             </div>
             <div class="md-card"><h3>Mis envíos</h3><div data-md-list>${requestsHtml()}</div></div>
@@ -593,10 +619,34 @@ export function createMerchantDeliveryTab(ctx) {
             catch (e) { ctx.toast?.('Ya no se puede cancelar: un conductor lo aceptó', 'error'); c.disabled = false; }
             return;
         }
+        const md = ev.target.closest('[data-md-mode]');
+        if (md) { st.mode = md.dataset.mdMode === 'zone' ? 'zone' : 'dest'; st.errors = {}; return render(); }
         if (ev.target.closest('[data-md-submit]')) return submit();
     }
 
+    async function submitZone() {
+        syncPickup();
+        const form = { ...st.form, vehicle: st.vehicle };
+        st.errors = validateZoneBillingForm(form);
+        const a = st.vehicle ? avail()[st.vehicle] : null;
+        if (a && !a.available) st.errors.vehicle = a.message || 'No disponible';
+        if (Object.keys(st.errors).length) return render();
+        st.busy = true; render();
+        try {
+            const payload = buildZoneBillingTrip({ store: ctx.store, uid: ctx.uid, form, zone: ctx.zone, serverTs: ctx.serverTs?.() ?? null });
+            const id = await ctx.createTrip(payload);
+            st.lastCreatedTrip = { id, ...payload };
+            try { ctx.onTripCreated?.(payload, { id, items: [], store: ctx.store }); } catch (_) {}
+            ctx.toast?.(`Repartidor pedido · se cobra por zona al entregar`, 'success');
+            st.form = { ...st.form, customerName: '', customerPhone: '', notes: '' };
+            if (!st.requests.some((r) => String(r.id) === String(id))) st.requests = [{ id, ...payload }, ...st.requests];
+        } catch (e) {
+            ctx.toast?.(e?.message || 'No se pudo pedir el repartidor', 'error');
+        } finally { st.busy = false; render(); }
+    }
+
     async function submit() {
+        if (st.mode === 'zone') return submitZone();
         syncPickup();
         syncSelectedItems(false);
         const form = { ...st.form, vehicle: st.vehicle, items: st.form.items };

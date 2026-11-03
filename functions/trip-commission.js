@@ -118,7 +118,11 @@ module.exports = ({ db, FieldValue, onDocumentUpdated } = {}) => {
             const before = event.data?.before?.data() || {};
             const after = event.data?.after?.data() || {};
             // Solo en la transición a completado (los viajes viejos no se recalculan con el % de hoy)
-            if (before.status === 'completed' || after.status !== 'completed') return;
+            // Envío «sin destino» (cobro por zona): esperar a que el servidor fije el precio (zoneFeeAtMs)
+            const zoneBilling = after.zoneBilling === true || after.deliveryDetails?.zoneBilling === true;
+            if (zoneBilling) {
+                if (after.status !== 'completed' || after.zoneFeeAtMs == null || before.zoneFeeAtMs != null) return;
+            } else if (before.status === 'completed' || after.status !== 'completed') return;
             if (after.serverCommissionAtMs != null || after.isDemandSimulation) return;
             const { appId, tripId } = event.params;
             let r;

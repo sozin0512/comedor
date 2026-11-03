@@ -227,6 +227,12 @@ export function storeOrderSummary(t, deliveryPrice = null) {
     };
 }
 
+/** Envío de restaurante «sin destino»: se cobra por zona al entregar. */
+export function isZoneBillingTrip(t) {
+    return !!t && (t.zoneBilling === true || t.deliveryDetails?.zoneBilling === true);
+}
+export const ZONE_BILLING_OFFER_TEXT = "Este envío se cobra por zona. Vas a ver el precio cuando marques «Pedido entregado», según la zona donde lo dejés. Llamá al cliente para saber a dónde va.";
+
 export function storeOfferBadgesHtml(t) {
     if (!isStoreOrderTrip(t)) return "";
     const zone = t.deliveryZoneName ? `<span class="hr-store-zone-badge"><i class="fas fa-map-marker-alt"></i> ${esc(t.deliveryZoneName)}</span>` : "";
@@ -236,6 +242,16 @@ export function storeOfferBadgesHtml(t) {
 /** Caja verde/azul: qué cobrar. */
 export function storeCollectHtml(t, deliveryPrice = null) {
     if (!isStoreOrderTrip(t)) return "";
+    if (isZoneBillingTrip(t)) {
+        const done = t.zoneFeeAtMs != null;
+        return `<div class="hr-store-collect" data-store-zone-billing style="background:linear-gradient(135deg,#9a3412,#c2410c)">
+            <p class="hr-store-collect-title">🍔 Envío de restaurante</p>
+            ${done
+                ? `<p class="hr-store-collect-row hr-store-collect-total"><span>${esc(t.deliveryZoneName || "Fuera de zona (por km)")}</span><b>${money(t.priceNum)}</b></p>
+                   <p class="hr-store-collect-note">Cobráselo al cliente en efectivo.</p>`
+                : `<p class="hr-store-collect-note" style="font-size:13px;line-height:1.4;color:#FFF7ED">${esc(ZONE_BILLING_OFFER_TEXT)}</p>`}
+        </div>`;
+    }
     const s = storeOrderSummary(t, deliveryPrice);
     if (!s) return "";
     const zone = s.zoneName ? ` · ${esc(s.zoneName)}` : "";

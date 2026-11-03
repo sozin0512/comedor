@@ -10,6 +10,7 @@
  */
 import { collection, doc, onSnapshot, query, where, orderBy, limit, getDocs, getDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { esc, money } from './delivery-zones-shared.js?v=2026.10.25.4';
+import { zoneDeliveriesViewHtml, ZONE_DELIVERY_CSS, isZoneBillingTrip } from './zone-delivery.js?v=2026.10.26.37';
 import { orderWaitChipHtml, injectWaitChipCss, startWaitTicker } from './trip-wait.js?v=2026.10.25.4';
 
 export const STAGES = [
@@ -521,15 +522,31 @@ function countersHtml() {
         <tbody>${c.byStore.map((s) => `<tr><td><b>${esc(s.name)}</b> ${s.storeId ? `<button type="button" class="tz-btn ghost sm" style="margin-left:6px;padding:2px 7px;font-size:11px;" data-pd="add-branch" data-store-id="${esc(s.storeId)}" title="Agregar nueva sucursal a esta tienda">+ Sucursal</button>` : ''}</td><td><span class="pd-sbar"><i style="width:${Math.round((s.total / maxS) * 100)}%"></i></span> <b>${s.total}</b></td><td class="r">${s.delivered}</td><td class="r ${s.cancelled ? 'tz-errtxt' : ''}">${s.cancelled}</td><td class="r">${esc(money(s.sold))}</td><td class="r">${esc(money(s.ticket))}</td><td>${s.topZone === 'Sin zona' ? '<span class="tz-tag">Sin zona</span>' : `<span class="tz-tag blue">${esc(s.topZone)}</span>`}</td></tr>`).join('') || '<tr><td colspan="7" class="tz-mut">Sin pedidos en este rango.</td></tr>'}
         ${c.byStore.length ? `<tr class="tot"><td>Total</td><td>${tot.total}</td><td class="r">${tot.delivered}</td><td class="r">${tot.cancelled}</td><td class="r">${esc(money(tot.sold))}</td><td class="r">${esc(money(tot.delivered ? tot.sold / tot.delivered : 0))}</td><td></td></tr>` : ''}</tbody></table></div></div>`;
 }
+function zoneTabHtml() {
+    if (typeof document !== 'undefined' && !document.getElementById('zd-css')) { const st = document.createElement('style'); st.id = 'zd-css'; st.textContent = ZONE_DELIVERY_CSS; document.head.appendChild(st); }
+    if (S.zoneLoading) return '<div class="tz-card">Cargando envíos por zona…</div>';
+    return zoneDeliveriesViewHtml(S.zoneTrips || [], { noMap: S.zoneNoMap === true });
+}
+/** «Envíos por zona»: últimos 300 viajes zoneBilling (igualdad simple, sin índice compuesto). */
+async function loadZoneTrips() {
+    if (!DEPS.db || !DEPS.appId) return;
+    S.zoneLoading = true; render();
+    try {
+        const snap = await getDocs(query(collection(DEPS.db, 'artifacts', DEPS.appId, 'public', 'data', 'trips'), where('zoneBilling', '==', true), limit(300)));
+        S.zoneTrips = snap.docs.map((d) => ({ id: d.id, ...d.data() })).filter(isZoneBillingTrip);
+    } catch (e) { S.error = 'No se pudieron cargar los envíos por zona: ' + (e?.message || e); }
+    S.zoneLoading = false; render();
+}
+
 export function viewHtml() {
-    const tabs = [['live', `En vivo <b class="${S.active.length ? 'r' : ''}">${S.active.length}</b>`], ['history', 'Historial'], ['counters', 'Contadores']];
+    const tabs = [['live', `En vivo <b class="${S.active.length ? 'r' : ''}">${S.active.length}</b>`], ['history', 'Historial'], ['counters', 'Contadores'], ['zona', 'Envíos por zona']];
     return `<div class="tz-root pd-root">
         <div class="pd-head"><div class="pd-tabs">${tabs.map(([id, l]) => `<button type="button" class="${S.tab === id ? 'on' : ''}" data-pd="tab" data-tab="${id}">${l}</button>`).join('')}</div>
             <span class="tz-sp"></span>
             <label class="tz-tog ${S.sound ? 'on' : ''}"><input type="checkbox" data-pd-f="sound" ${S.sound ? 'checked' : ''}><i></i>${S.sound ? 'Sonido activado' : 'Activar sonido'}</label>
             <button type="button" class="tz-btn ghost sm" data-pd="test-sound"><i class="fas fa-bell"></i> Probar sonido</button></div>
         ${S.error ? `<div class="tz-card tz-errbox">${esc(S.error)}</div>` : ''}
-        ${S.tab === 'live' ? liveHtml() : S.tab === 'history' ? historyHtml() : countersHtml()}
+        ${S.tab === 'live' ? liveHtml() : S.tab === 'history' ? historyHtml() : S.tab === 'zona' ? zoneTabHtml() : countersHtml()}
     </div>`;
 }
 
@@ -689,7 +706,7 @@ async function handleStaffMarkDelivered(orderId, tripId, driverId, driverName) {
 function onClick(e) {
     const b = e.target.closest('[data-pd]'); if (!b) return;
     const a = b.getAttribute('data-pd');
-    if (a === 'tab') { S.tab = b.getAttribute('data-tab'); if (S.tab !== 'live' && !S.hist.length) loadHistory(); return render(); }
+    if (a === 'tab') { S.tab = b.getAttribute('data-tab'); if (S.tab === 'zona') { loadZoneTrips(); return render(); } if (S.tab !== 'live' && !S.hist.length) loadHistory(); return render(); }
     if (a === 'stuck') { S.f.stuckOnly = b.getAttribute('data-v') === '1'; return render(); }
     if (a === 'add-branch') {
         const sid = b.getAttribute('data-store-id') || S.f.storeId;
@@ -859,7 +876,7 @@ export function initStoreOrdersAdmin(deps = {}) {
 /** Arnés de capturas (sin Firebase). */
 export function mountStoreOrdersWithData(container, data = {}) {
     DEPS = {};
-    Object.assign(S, { active: data.active || [], todayDone: data.todayDone || [], hist: data.hist || [], histFrom: 0, now: data.now || Date.now(), tab: data.tab || 'live', alert: data.alert || null, error: '' });
+    Object.assign(S, { zoneTrips: data.zoneTrips || [], zoneNoMap: data.zoneNoMap === true, active: data.active || [], todayDone: data.todayDone || [], hist: data.hist || [], histFrom: 0, now: data.now || Date.now(), tab: data.tab || 'live', alert: data.alert || null, error: '' });
     if (data.f) Object.assign(S.f, data.f);
     if (data.cRange) S.cRange = data.cRange;
     if (data.histRange) S.histRange = data.histRange;

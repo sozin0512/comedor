@@ -218,6 +218,58 @@ function verifyMerchantDirectDelivery({ trip, store, quote, rate, nowMs = Date.n
     };
     return { ok: true, corrected, fee, original: Number.isFinite(sent) ? sent : null, patch };
 }
+
+// ───────────── Envío de restaurante SIN destino: cobro por zona al entregar ─────────────
+const ZONE_DROPOFF_POOR_ACCURACY_M = 100;
+function isZoneBillingTrip(t) { return !!t && (t.zoneBilling === true || t.deliveryDetails?.zoneBilling === true); }
+/** Al crear: verifica tienda y teléfono; pasa a «pending» sin precio (se cobra al entregar). */
+function verifyZoneBillingCreate({ trip, store, nowMs = Date.now() }) {
+    const t = trip || {};
+    const fail = (reason) => ({ ok: false, reason, patch: { status: 'cancelled', cancelledBy: 'system', cancelReason: reason, cancelledAtMs: nowMs, priceVerified: false, priceVerifiedAtMs: nowMs } });
+    if (!store || store.ownerId !== t.merchantId) return fail('store_mismatch');
+    const sLat = Number(store.lat); const sLng = Number(store.lng);
+    if (![sLat, sLng].every(Number.isFinite)) return fail('no_location');
+    if (String(t.deliveryDetails?.recipientPhone || '').replace(/\D/g, '').length < 8) return fail('no_customer_phone');
+    return { ok: true, patch: {
+        status: 'pending', priceNum: 0, price: 'Por zona', deliveryZoneId: null, deliveryZoneName: null,
+        deliveryFeeSource: 'zone_on_delivery', fareLabel: 'Se cobra por zona al entregar',
+        originLat: sLat, originLng: sLng, destinationLat: null, destinationLng: null,
+        priceVerified: true, priceVerifiedAtMs: nowMs, priceCorrected: false, priceCheckOriginal: null,
+        'deliveryDetails.customerTotal': 0, 'deliveryDetails.collectAmount': 0, 'deliveryDetails.itemsTotal': 0,
+    } };
+}
+/**
+ * Al entregar: zona del punto GPS → tarifa de la tienda en esa zona (o base); fuera de TODAS las zonas
+ * → por km (tienda → punto), aunque la ciudad tenga «bloquear» (el envío ya se hizo).
+ */
+function computeZoneDeliveryFee({ trip, store, quote, rate, nowMs = Date.now() }) {
+    const t = trip || {};
+    const dLat = Number(t.dropoffLat); const dLng = Number(t.dropoffLng);
+    const sLat = Number(store?.lat ?? t.originLat); const sLng = Number(store?.lng ?? t.originLng);
+    if (![dLat, dLng, sLat, sLng].every(Number.isFinite)) return { ok: false, reason: 'no_location' };
+    const vehicle = deliveryVehicleChoice(t.deliveryVehicle) || 'moto';
+    const km = Math.round(Math.max(MERCHANT_DIRECT_MIN_KM, haversineKmPts(sLat, sLng, dLat, dLng)) * 100) / 100;
+    let fee; let source; let zoneId = null; let zoneName = null; let zoneFee = null; let label;
+    if (quote?.inZone) {
+        fee = money(vehicle === 'auto' ? quote.feeCar : quote.feeMoto);
+        zoneFee = fee; source = quote.source || 'zone_base'; zoneId = quote.zoneId || null; zoneName = quote.zoneName || null;
+        label = `Tarifa: ${zoneName || 'Zona'}${source === 'store_custom' ? ' (tarifa de la tienda)' : ''}${vehicle === 'auto' ? ' · carro +25%' : ''}`;
+    } else {
+        fee = distanceDeliveryFee(km, vehicle, rate || DEFAULT_DELIVERY_RATE);
+        source = 'distance_outside_zone';
+        label = `Tarifa: por distancia (fuera de zona) · ${km} km${vehicle === 'auto' ? ' · carro +25%' : ''}`;
+    }
+    const acc = Number(t.dropoffAccuracyM);
+    const poor = !Number.isFinite(acc) || acc > ZONE_DROPOFF_POOR_ACCURACY_M;
+    return { ok: true, fee, patch: {
+        priceNum: fee, price: lmoney(fee),
+        deliveryZoneId: zoneId, deliveryZoneName: zoneName, zoneFee, deliveryFeeSource: source, fareLabel: label,
+        tripDistanceKm: km, zoneDropoffKm: km,
+        dropoffAccuracyPoor: poor,
+        'deliveryDetails.customerTotal': fee,
+        zoneFeeAtMs: nowMs,
+    } };
+}
 const HISTORY_FIELDS = ['name', 'cityId', 'baseFee', 'minFee', 'maxFee', 'priority', 'active', 'note', 'polygon'];
 function diffZone(before, after) {
     const out = [];
@@ -475,9 +527,13 @@ module.exports = function createDeliveryZones(deps) {
         try {
             const st = await db.doc(`artifacts/${appId}/public/data/stores/${t.storeId}`).get();
             const store = st.exists ? st.data() : null;
-            const q = store ? await quoteFor(appId, { storeId: t.storeId, lat: t.destinationLat, lng: t.destinationLng, cityId: store.cityId || null, vehicle: t.deliveryVehicle }) : null;
-            const settings = await db.doc(`artifacts/${appId}/public/data/appSettings/main`).get();
-            result = verifyMerchantDirectDelivery({ trip: t, store, quote: q, rate: deliveryRateFrom(settings.get('fixedFares')), nowMs: Date.now() });
+            if (isZoneBillingTrip(t)) {
+                result = verifyZoneBillingCreate({ trip: t, store, nowMs: Date.now() });
+            } else {
+                const q = store ? await quoteFor(appId, { storeId: t.storeId, lat: t.destinationLat, lng: t.destinationLng, cityId: store.cityId || null, vehicle: t.deliveryVehicle }) : null;
+                const settings = await db.doc(`artifacts/${appId}/public/data/appSettings/main`).get();
+                result = verifyMerchantDirectDelivery({ trip: t, store, quote: q, rate: deliveryRateFrom(settings.get('fixedFares')), nowMs: Date.now() });
+            }
         } catch (e) {
             console.error('[envio-directo] verificar', tripId, e?.message || e);
             return; // queda «verifying» (nadie lo ve); la tienda puede cancelar y reintentar
@@ -491,9 +547,31 @@ module.exports = function createDeliveryZones(deps) {
         });
     });
 
+    /** «Sin destino»: al completar con el punto GPS, el servidor fija zona y precio (la comisión sale después). */
+    const onZoneDeliveryCompleted = onDocumentUpdated('artifacts/{appId}/public/data/trips/{tripId}', async (event) => {
+        const after = event.data?.after?.data() || {};
+        if (!isZoneBillingTrip(after) || after.status !== 'completed' || after.zoneFeeAtMs != null) return;
+        if (!Number.isFinite(Number(after.dropoffLat)) || !Number.isFinite(Number(after.dropoffLng))) return;
+        const { appId, tripId } = event.params;
+        let r;
+        try {
+            const st = await db.doc(`artifacts/${appId}/public/data/stores/${after.storeId}`).get();
+            const store = st.exists ? st.data() : null;
+            const q = await quoteFor(appId, { storeId: after.storeId, lat: after.dropoffLat, lng: after.dropoffLng, cityId: store?.cityId || null, vehicle: after.deliveryVehicle });
+            const settings = await db.doc(`artifacts/${appId}/public/data/appSettings/main`).get();
+            r = computeZoneDeliveryFee({ trip: after, store, quote: q, rate: deliveryRateFrom(settings.get('fixedFares')), nowMs: Date.now() });
+        } catch (e) { console.error('[envio-zona] calcular', tripId, e?.message || e); return; }
+        if (!r.ok) { console.warn('[envio-zona] sin punto', tripId, r.reason); return; }
+        await db.runTransaction(async (tx) => {
+            const cur = await tx.get(event.data.after.ref);
+            if (!cur.exists || cur.get('zoneFeeAtMs') != null) return;
+            tx.update(event.data.after.ref, { ...r.patch, updatedAt: FieldValue.serverTimestamp() });
+        });
+    });
+
     return {
-        exports: { onMerchantDirectDeliveryCreated, staffUpsertDeliveryZone, staffSetDeliveryZoneActive, staffSetDeliveryOutsideBehavior, staffSeedDeliveryZones, merchantSetStoreZoneFees, quoteStoreDeliveryFee, onStoreOrderCreatedZoneFee, onStoreOrderTripZoneFee },
+        exports: { onZoneDeliveryCompleted, onMerchantDirectDeliveryCreated, staffUpsertDeliveryZone, staffSetDeliveryZoneActive, staffSetDeliveryOutsideBehavior, staffSeedDeliveryZones, merchantSetStoreZoneFees, quoteStoreDeliveryFee, onStoreOrderCreatedZoneFee, onStoreOrderTripZoneFee },
         helpers: { quoteFor }
     };
 };
-Object.assign(module.exports, { verifyMerchantDirectDelivery, distanceDeliveryFee, deliveryRateFrom, DEFAULT_DELIVERY_RATE, pointInPolygon, polygonAreaKm2, validateZoneInput, findZoneForPoint, validateStoreFee, resolveStoreFee, quoteDelivery, deliveryVehicleChoice, diffZone, cleanPolygon, SEED_ZONES, ZONE_SOURCES, MAX_FEE, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee });
+Object.assign(module.exports, { isZoneBillingTrip, verifyZoneBillingCreate, computeZoneDeliveryFee, ZONE_DROPOFF_POOR_ACCURACY_M, verifyMerchantDirectDelivery, distanceDeliveryFee, deliveryRateFrom, DEFAULT_DELIVERY_RATE, pointInPolygon, polygonAreaKm2, validateZoneInput, findZoneForPoint, validateStoreFee, resolveStoreFee, quoteDelivery, deliveryVehicleChoice, diffZone, cleanPolygon, SEED_ZONES, ZONE_SOURCES, MAX_FEE, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee });

@@ -31,8 +31,13 @@ const all = (ms) => ms.map(bodyOf).join('\n');
   // ── puras ──
   const v = W.phoneVariants('50498765432');
   ok('variantes de teléfono: 504…, +504…, 8 dígitos, con guion', ['50498765432', '+50498765432', '98765432', '9876-5432', '+504 9876-5432'].every((x) => v.includes(x)));
-  ok('entrada: «envío», «envio tienda», botón tienda_envio', W.isEntry('', 'envio') && W.isEntry('', 'envio tienda') && W.isEntry('tienda_envio', '') && !W.isEntry('', 'quiero un viaje'));
+  ok('entrada flujo con destino: «envio con destino», «envio tienda», botón tienda_envio', W.isEntry('', 'envio con destino') && W.isEntry('', 'envio tienda') && !W.isEntry('', 'envio') && W.isEntry('tienda_envio', '') && !W.isEntry('', 'quiero un viaje'));
   ok('estado: pending sin conductor → buscando · accepted · in_progress · completed', W.storeStatusKey({ status: 'pending' }) === 'searching' && W.storeStatusKey({ status: 'verifying' }) === null && W.storeStatusKey({ status: 'in_progress' }) === 'on_the_way' && W.storeStatusKey({ status: 'completed' }) === 'delivered');
+  ok('disparadores «repartidor»: necesito un envio, envio, rider, ryder, raider, repartidor, motorista (+typos)', ['necesito un envio', 'envio', 'rider', 'ryder', 'raider', 'repartidor', 'repartido', 'motorista', 'motorsita', 'mandame un rider porfa'].every((x) => W.isZoneTrigger('', x)) && !['quiero un viaje', 'hola', 'envio con destino', 'cancelar envio'].some((x) => W.isZoneTrigger('', x)));
+  const pp = W.parseCustomerPhoneAndNote('9876-5432 pedido de Juan, 2 bolsas');
+  ok('teléfono hondureño + nota en el mismo mensaje', pp.phone === '98765432' && pp.note === 'pedido de Juan, 2 bolsas' && W.parseCustomerPhoneAndNote('+504 3311 2233').phone === '33112233' && W.parseCustomerPhoneAndNote('1234-5678') === null && W.parseCustomerPhoneAndNote('hola') === null);
+  ok('zona: «entregado» solo cuando el servidor puso el precio', W.storeStatusKey({ status: 'completed', zoneBilling: true }) === null && W.storeStatusKey({ status: 'completed', zoneBilling: true, zoneFeeAtMs: 1 }) === 'delivered' && /Entregado en \*Zona Centro\* · \*L\. 45\.00\*/.test(W.storeStatusText('delivered', { zoneBilling: true, deliveryZoneName: 'Zona Centro', priceNum: 45 })));
+  ok('zona: aviso aceptado con repartidor, teléfono y link', (() => { const x = W.storeStatusText('accepted', { zoneBilling: true, driverName: 'Carlos', driverPhone: '+50499990000', driverVehicle: { plate: 'M 1' } }, 'TRIP1'); return /Carlos/.test(x) && /99990000/.test(x) && /followTrip=TRIP1/.test(x); })());
   ok('aviso aceptado: nombre y placa del conductor', /Carlos/.test(W.storeStatusText('accepted', { driverName: 'Carlos', driverVehicle: { plate: 'HAA 1234' } })) && /HAA 1234/.test(W.storeStatusText('accepted', { driverName: 'Carlos', driverVehicle: { plate: 'HAA 1234' } })));
 
   if (!process.env.FIRESTORE_EMULATOR_HOST) { finish(); return; }
@@ -51,7 +56,7 @@ const all = (ms) => ms.map(bodyOf).join('\n');
   const say = async (from, text, buttonId = '', location = null) => { await wa.routeAssistantMessage(from, text, buttonId, 'Ana', location, null, null); return take(); };
 
   // ── número sin tienda ──
-  let m = await say(STRANGER, 'envío');
+  let m = await say(STRANGER, 'envío', 'tienda_envio');
   ok('número sin tienda: no permite envío de tienda', /no está vinculado a ninguna tienda/.test(all(m)));
   ok('número sin tienda: muestra el menú normal (sin «Pedir envío (tienda)»)', m.some((x) => JSON.stringify(x.interactive || {}).includes('"id":"viaje"')) && !JSON.stringify(m).includes('tienda_envio'), JSON.stringify(m).slice(0,600));
   m = await say(STRANGER, 'hola');
@@ -59,6 +64,10 @@ const all = (ms) => ms.map(bodyOf).join('\n');
 
   // ── dueño con 2 tiendas: menú + lista ──
   m = await say(OWNER_PHONE, 'hola');
+  ok('saludo de número de tienda → [Pedir repartidor][Mis envíos][Menú]', JSON.stringify(m.map((x) => x.interactive?.action?.buttons?.map((b) => b.reply.id))) === '[["zr_start","zr_list","menu"]]', JSON.stringify(m).slice(0, 400));
+  m = await say(STRANGER, 'repartidor');
+  ok('cliente/número sin tienda que escribe «repartidor» → flujo normal (sin repartidor de tienda)', !JSON.stringify(m).includes('zr_') && !/teléfono del cliente/.test(all(m)));
+  m = await say(OWNER_PHONE, 'Menú', 'menu');
   ok('menú del dueño incluye «Pedir envío (tienda)»', JSON.stringify(m).includes('tienda_envio') && JSON.stringify(m).includes('Pedir envío (tienda)'));
   m = await say(OWNER_PHONE, 'Pedir envío (tienda)', 'tienda_envio');
   const list = m.find((x) => x.interactive?.type === 'list');
@@ -139,10 +148,43 @@ const all = (ms) => ms.map(bodyOf).join('\n');
   await W3.onTripStatusChange({ status: 'pending' }, { status: 'accepted', driverName: 'Carlos', createdVia: 'whatsapp_store', waStorePhone: OWNER_PHONE, deliveryDetails: { storeName: 'Baleadas' } }, 'x', null);
   ok('fuera de 24 h con plantilla → envio_tienda_estado {{1}} tienda {{2}} estado', tpl && tpl[1] === 'envio_tienda_estado' && tpl[2][0] === 'Baleadas' && /Carlos/.test(tpl[2][1]));
 
+  // ── «Pedir repartidor» sin destino (cobro por zona) ──
+  await db.doc(`${A}/appSettings/main`).set({ serviceAvailability: { comayagua: { auto: { mode: 'off' }, delivery: { mode: 'on' } } } });
+  m = await say(OWNER_PHONE, 'necesito un ryder');
+  ok('repartidor (2 sucursales, sin preferencia) → pregunta la sucursal', m.some((x) => x.interactive?.type === 'list' && JSON.stringify(x).includes('zr_store:S1')), JSON.stringify(m).slice(0, 400));
+  m = await say(OWNER_PHONE, 'Baleadas', 'zr_store:S1');
+  ok('sucursal elegida → pide teléfono del cliente (nota opcional)', /teléfono del cliente/.test(all(m)) && (await db.doc(`${A}/wa_store_prefs/${OWNER_PHONE}`).get()).get('storeId') === 'S1');
+  m = await say(OWNER_PHONE, '1234');
+  ok('teléfono inválido → lo vuelve a pedir', /no parece hondureño/.test(all(m)));
+  m = await say(OWNER_PHONE, '9876-5432 pedido de Juan, 2 bolsas');
+  const zc = m.find((x) => /Repartidor pedido/.test(bodyOf(x)));
+  ok('crea el viaje al instante y confirma con [Cancelar envío]', zc && zc.interactive.action.buttons[0].reply.id.startsWith('zr_cancel:') && /9876-5432/.test(bodyOf(zc)) && /2 bolsas/.test(bodyOf(zc)), JSON.stringify(m).slice(0, 500));
+  const zid = zc.interactive.action.buttons[0].reply.id.slice(10);
+  const zref = db.doc(`${A}/trips/${zid}`); let zt = (await zref.get()).data();
+  ok('viaje sin destino: zoneBilling, moto, teléfono, precio «Por zona», sin coordenadas de destino', zt.zoneBilling === true && zt.deliveryDetails.zoneBilling === true && zt.deliveryVehicle === 'moto' && zt.deliveryDetails.recipientPhone === '98765432' && zt.priceNum === 0 && zt.price === 'Por zona' && zt.destinationLat === null && zt.status === 'verifying' && zt.storeId === 'S1' && zt.createdVia === 'whatsapp_store');
+  await fx.onMerchantDirectDeliveryCreated.run({ params: { appId: 'comayagua-vip-pro-v4', tripId: zid }, data: await zref.get() });
+  zt = (await zref.get()).data();
+  ok("servidor: sin destino verificado → 'pending' (priceNum 0, zone_on_delivery)", zt.status === 'pending' && zt.priceNum === 0 && zt.deliveryFeeSource === 'zone_on_delivery', JSON.stringify({ s: zt.status, p: zt.priceNum, f: zt.deliveryFeeSource }));
+  m = await say(OWNER_PHONE, 'repartidor');
+  ok('segunda vez recuerda la sucursal → directo al teléfono', /teléfono del cliente/.test(all(m)) && /Baleadas/.test(all(m)));
+  await say(OWNER_PHONE, 'salir');
+  m = await say(OWNER_PHONE, 'Mis envíos', 'zr_list');
+  ok('«Mis envíos» lista el envío por zona', /Tus últimos envíos/.test(all(m)) && /98765432/.test(all(m)) && /Por zona/.test(all(m)));
+  m = await say(STRANGER, 'x', `zr_cancel:${zid}`);
+  ok('[Cancelar envío] desde otro número → no cancela', (await zref.get()).get('status') === 'pending');
+  m = await say(OWNER_PHONE, 'Cancelar envío', `zr_cancel:${zid}`);
+  ok('[Cancelar envío] antes de aceptar → cancela', /cancelé el envío/.test(all(m)) && (await zref.get()).get('status') === 'cancelled');
+  const zt2 = { ...zt, id: 'Z2', status: 'completed', driverId: 'd', zoneFeeAtMs: Date.now(), deliveryZoneName: 'Zona Centro', priceNum: 45 };
+  const zr2 = db.doc(`${A}/trips/Z2`); await zr2.set(zt2);
+  await fx.onWaStoreDeliveryStatus.run({ params: { tripId: 'Z2' }, data: { before: { data: () => ({ ...zt2, zoneFeeAtMs: null }) }, after: { data: () => zt2, ref: zr2 } } });
+  m = take();
+  ok('al entregar: «Entregado en Zona X · L. XX» a la tienda', /Entregado en \*Zona Centro\* · \*L\. 45\.00\*/.test(all(m)), all(m));
+  await zr2.delete();
+
   // ── cancelar antes de aceptar ──
   await db.doc(`${A}/appSettings/main`).set({ serviceAvailability: { comayagua: { auto: { mode: 'on' }, delivery: { mode: 'on' } } } });
   // tienda S2 sin ubicación → la pide una vez y la guarda
-  await say(OWNER_PHONE, 'envío'); await say(OWNER_PHONE, 'Pulpería Ana', 'st_store:S2');
+  await say(OWNER_PHONE, 'envío con destino'); await say(OWNER_PHONE, 'Pulpería Ana', 'st_store:S2');
   m = await say(OWNER_PHONE, 'Carro', 'st_veh_auto');
   ok('tienda sin ubicación → pide compartirla', /no tiene ubicación guardada/.test(all(m)), JSON.stringify(m).slice(0,600));
   m = await say(OWNER_PHONE, '', '', { lat: 14.455, lng: -87.645, address: 'Col. San Miguel' });
@@ -166,19 +208,19 @@ const all = (ms) => ms.map(bodyOf).join('\n');
   ok('ya aceptado → no cancela por WhatsApp', /ya aceptó/.test(all(m)) && (await t2ref.get()).get('status') === 'accepted');
 
   // ── número de la tienda (stores.phone) con 1 tienda → confirmar ──
-  m = await say(STORE_PHONE, 'envío');
+  m = await say(STORE_PHONE, 'envío', 'tienda_envio');
   ok('número de WhatsApp de la tienda con 1 tienda → pide confirmar esa tienda', /Pedir envío para \*Farmacia Ajena\*/.test(all(m)) && m.some((x) => x.interactive?.action?.buttons?.some((b) => b.reply.id === 'st_store:S3')), JSON.stringify(m).slice(0,600));
   m = await say(STORE_PHONE, 'No', 'st_abort');
   ok('«No» → no pide nada', /no pedí el envío/.test(all(m)));
   // ── empleado autorizado (stores.waAuthorizedPhones, lo edita solo el dueño/staff) ──
   const STAFF = '50487776666';
-  m = await say(STAFF, 'envío');
+  m = await say(STAFF, 'envío', 'tienda_envio');
   ok('empleado sin autorizar → no vinculado', /no está vinculado a ninguna tienda/.test(all(m)));
   const STAFF2 = '50487775555';
   await db.doc(`${A}/stores/S4`).update({ waAuthorizedPhones: [STAFF2] });
-  m = await say(STAFF2, 'hola');
+  m = await say(STAFF2, 'Menú', 'menu');
   ok('empleado autorizado → menú con «Pedir envío (tienda)» y viaje primero', JSON.stringify(m).includes('tienda_envio') && m.flatMap((x) => x.interactive?.action?.sections?.[0]?.rows || [])[0]?.id === 'viaje');
-  m = await say(STAFF2, 'envío');
+  m = await say(STAFF2, 'envío', 'tienda_envio');
   ok('empleado autorizado → su tienda (S4)', /Tienda De Otro/.test(all(m)) && !/Farmacia Ajena/.test(all(m)), all(m).slice(0, 300));
   await say(STAFF2, 'No', 'st_abort');
   ok('ninguna llamada de red fuera de Meta/Geocode simulados', UNEXPECTED.length === 0, UNEXPECTED.join());

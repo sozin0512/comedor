@@ -365,12 +365,47 @@ const hrDestFreshPos = () => new Promise((resolve) => {
         resolve(window.currentDriverPos);
     }, () => { clearTimeout(t); resolve(window.currentDriverPos || null); }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 4000 });
 });
+/** Envío de restaurante «sin destino»: guarda el punto GPS, finaliza y muestra el cobro por zona (lo calcula el servidor). */
+const hrZoneDeliveryDone = async (trip) => {
+    const ok = await (window.hrConfirm
+        ? window.hrConfirm('¿Entregaste el pedido al cliente? Guardamos tu ubicación para calcular el cobro según la zona.', { okText: 'Sí, entregado' })
+        : Promise.resolve(confirm('¿Entregaste el pedido al cliente?')));
+    if (!ok) return;
+    if (trip.dropoffLat == null) {
+        window.showToast?.('Leyendo tu ubicación GPS…', 'warning');
+        const pos = await hrDestFreshPos();
+        if (!pos || !Number.isFinite(Number(pos.lat))) {
+            return window.showToast?.('No tenemos tu ubicación GPS. Activa la ubicación e intenta de nuevo.', 'error');
+        }
+        const drop = {
+            dropoffLat: Number(pos.lat), dropoffLng: Number(pos.lng),
+            dropoffAccuracyM: Number.isFinite(Number(pos.accuracy)) ? Math.round(Number(pos.accuracy)) : null,
+            dropoffAtMs: Date.now(),
+        };
+        await window.hrWithTimeout(updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', trip.id), drop), 15000, 'sin-conexion');
+        window.activeTrip = { ...trip, ...drop };
+        window.currentActiveTripData = { ...window.activeTrip };
+    }
+    await window.finishTrip?.({ skipConfirm: true });
+    try {
+        const [{ showZoneDeliveryResult }, fs] = await Promise.all([
+            import("./zone-delivery.js?v=2026.10.26.37"),
+            import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
+        ]);
+        const ref = (id) => fs.doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
+        showZoneDeliveryResult(trip.id, {
+            subscribe: (id, cb) => fs.onSnapshot(ref(id), (snap) => cb(snap.exists() ? { id: snap.id, ...snap.data() } : null), () => {}),
+            saveSuggested: (id, n) => updateDoc(ref(id), { riderSuggestedFee: n, riderSuggestedAtMs: Date.now() }),
+        });
+    } catch (e) { console.warn('[envio-zona] hoja', e); }
+};
 const hrDestArrivalInner = async () => {
     const trip = window.activeTrip || window.currentActiveTripData;
     const uid = window.currentUser?.uid || window.currentUser?.uid;
     if (!trip?.id || trip.status !== 'in_progress' || trip.driverId !== uid) {
         return window.showToast?.('Solo disponible durante un viaje en curso.', 'error');
     }
+    if (trip.zoneBilling === true || trip.deliveryDetails?.zoneBilling === true) return hrZoneDeliveryDone(trip);
     if (trip.driverArrivedDestination) {
         // Ya marcó llegada antes (p. ej. falló el cierre): reintentar finalizar.
         window.showToast?.('Finalizando viaje…', 'warning');

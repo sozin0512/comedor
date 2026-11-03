@@ -18,6 +18,7 @@ const VEHICLES = {
     moto: { id: 'moto', label: 'Moto', emoji: '🏍️', allowed: ['moto'], availService: 'delivery' },
     auto: { id: 'auto', label: 'Carro', emoji: '🚗', allowed: ['auto'], availService: 'auto' },
 };
+const ZR_STEPS = ['zr_branch', 'zr_pickup_loc', 'zr_phone'];
 const STEPS = ['st_pick', 'st_vehicle', 'st_pickup_loc', 'st_dest', 'st_dest_confirm', 'st_recipient', 'st_notes', 'st_collect', 'st_confirm'];
 const WINDOW_MS = 24 * 60 * 60 * 1000 - 5 * 60 * 1000;
 
@@ -49,8 +50,60 @@ function samePhone(a, b) {
     return !!n(a) && n(a) === n(b);
 }
 
+/** Flujo CON destino (el de antes): botón del menú o «envío con destino». */
 function isEntry(id, t) {
-    return id === 'tienda_envio' || /^(pedir )?envio( tienda| de tienda| para mi tienda)?$/.test(t) || /^envio tienda$/.test(t);
+    return id === 'tienda_envio' || /^(pedir )?envio (con destino|tienda|de tienda|para mi tienda)$/.test(t);
+}
+
+/**
+ * Flujo simple SIN destino (cobro por zona): «necesito un envío», «envío», «rider», «ryder», «raider»,
+ * «repartidor», «motorista»… tolerante a tildes y errores comunes. Solo aplica a números de tienda.
+ */
+const ZR_WORDS = ['envio', 'envios', 'rider', 'ryder', 'raider', 'raidr', 'rayder', 'repartidor', 'repartidora', 'repartido', 'repatidor', 'reparidor', 'motorista', 'motoritsa', 'motorsita', 'motoriste', 'delivery', 'delivey'];
+function lev1(a, b) {
+    if (a === b) return true;
+    if (Math.abs(a.length - b.length) > 1 || a.length < 5) return false;
+    let i = 0; let j = 0; let d = 0;
+    while (i < a.length && j < b.length) {
+        if (a[i] === b[j]) { i += 1; j += 1; continue; }
+        d += 1; if (d > 1) return false;
+        if (a.length > b.length) i += 1; else if (b.length > a.length) j += 1; else { i += 1; j += 1; }
+    }
+    return d + (a.length - i) + (b.length - j) <= 1;
+}
+function isZoneTrigger(id, t) {
+    if (id === 'zr_start') return true;
+    const s = String(t || '').replace(/[^a-z0-9ñ ]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!s || s.length > 60) return false;
+    if (/\b(con destino|cancelar|mis envios)\b/.test(s)) return false;
+    return s.split(' ').some((w) => ZR_WORDS.some((k) => lev1(w, k)));
+}
+function isGreeting(t) {
+    return /^(hola+|buenas?( tardes| noches| dias)?|buenos dias|hey|ola|saludos|que tal|hi)\b/.test(String(t || '').trim());
+}
+
+/** Teléfono hondureño del cliente + nota opcional en el mismo mensaje. null si no hay número válido. */
+function parseCustomerPhoneAndNote(raw) {
+    const s = String(raw || '').trim();
+    const m = s.match(/(\+?\s*504[\s-]*)?([2389]\d{3})[\s.-]?(\d{4})(?!\d)/);
+    if (!m) return null;
+    const local = `${m[2]}${m[3]}`;
+    const note = (s.slice(0, m.index) + ' ' + s.slice(m.index + m[0].length)).replace(/^[\s,.;:·-]+|[\s,.;:·-]+$/g, '').replace(/\s+/g, ' ').slice(0, 300);
+    return { phone: local, display: `${m[2]}-${m[3]}`, note };
+}
+
+/** Viaje «sin destino» (igual que buildZoneBillingTrip del panel) + marcas de WhatsApp. */
+function buildWaZoneTrip({ store, storeId, vehicle = 'moto', customerPhone, notes, phone, nowMs, serverTs }) {
+    const base = buildWaStoreTrip({ store, storeId, vehicle, dest: { address: 'Por definir · se cobra por zona al entregar', lat: null, lng: null }, recipientName: '', recipientPhone: customerPhone, notes, collect: 0, quote: null, fee: 0, km: 0, phone, nowMs, serverTs });
+    const name = String(store?.name || 'Tienda').slice(0, 80);
+    return {
+        ...base,
+        zoneBilling: true,
+        destinationLat: null, destinationLng: null, destinationFormattedAddress: null,
+        price: 'Por zona', priceNum: 0, deliveryFeeSource: 'zone_on_delivery', fareLabel: 'Se cobra por zona al entregar',
+        deliveryZoneId: null, deliveryZoneName: null,
+        deliveryDetails: { ...base.deliveryDetails, zoneBilling: true, customerTotal: 0, packageDescription: (`Envío de ${name} (sin destino)` + (notes ? `: ${notes}` : '')).slice(0, 400) },
+    };
 }
 
 /** Mismo viaje que el panel (buildMerchantDeliveryTrip) + marcas de WhatsApp. */
@@ -133,6 +186,8 @@ function buildWaStoreTrip({ store, storeId, vehicle, dest, recipientName, recipi
 /** Estado para avisar a la tienda (null = no avisar). */
 function storeStatusKey(t = {}) {
     const s = t.status;
+    // Sin destino: «entregado» cuando el servidor ya puso zona y precio
+    if (s === 'completed' && (t.zoneBilling === true || t.deliveryDetails?.zoneBilling === true)) return t.zoneFeeAtMs != null ? 'delivered' : null;
     if (s === 'pending' && !t.driverId) return 'searching';
     if (s === 'accepted') return 'accepted';
     if (s === 'in_progress') return 'on_the_way';
@@ -145,6 +200,17 @@ function storeStatusText(key, t = {}, tripId = '') {
     const plate = String(t.driverVehicle?.plate || t.driverVehiclePlate || '').trim();
     const tid = String(tripId || t.id || '').trim();
     const linkSuffix = tid ? `\n📍 Link para compartir al cliente: https://honduraite.com/?followTrip=${encodeURIComponent(tid)}` : '';
+    if (t.zoneBilling === true || t.deliveryDetails?.zoneBilling === true) {
+        const drvPhone = String(t.driverPhone || '').replace(/[^\d+]/g, '');
+        switch (key) {
+            case 'searching': return `🔎 Buscando repartidor para *${store}* · se cobra por zona al entregar.`;
+            case 'accepted': return `✅ *${t.driverName || 'Un repartidor'}* aceptó el envío${plate ? ` · placa *${plate}*` : ''}${drvPhone ? ` · 📞 ${drvPhone}` : ''}. Va hacia *${store}* a recoger.${linkSuffix}`;
+            case 'on_the_way': return `🛵 El repartidor ya recogió el pedido y va con el cliente.${linkSuffix}`;
+            case 'delivered': return `📦 Entregado en ${t.deliveryZoneName ? `*${t.deliveryZoneName}*` : '*fuera de zona* (por km)'} · *${lmoney(t.priceNum)}* (lo pagó el cliente en efectivo al repartidor).`;
+            case 'cancelled': return '❌ El envío se canceló. Escribe *repartidor* para pedir otro.';
+            default: return '';
+        }
+    }
     switch (key) {
         case 'searching': return `🔎 Buscando conductor para el envío de *${store}* (${t.price || ''}).${linkSuffix}`;
         case 'accepted': return `✅ *${t.driverName || 'Un conductor'}* aceptó el envío${plate ? ` · placa *${plate}*` : ''}. Va hacia *${store}* a recoger.${linkSuffix}`;
@@ -285,6 +351,133 @@ module.exports = function createWaStoreDelivery(deps) {
         });
     }
 
+
+    async function storePref(phone) {
+        try { const d = await db.doc(`${base}/wa_store_prefs/${phone}`).get(); return d.exists ? (d.get('storeId') || null) : null; } catch (_) { return null; }
+    }
+    async function setStorePref(phone, storeId) {
+        await db.doc(`${base}/wa_store_prefs/${phone}`).set({ storeId, updatedAtMs: now() }, { merge: true }).catch(() => {});
+    }
+    async function askCustomerPhone(from, store, save, sess) {
+        await save({ ...sess, step: 'zr_phone', zrStoreId: store.id });
+        return send.text(from, `🛵 *Pedir repartidor · ${store.name || 'tu tienda'}*\n📞 Escribe el *teléfono del cliente*. Si querés, agregá una nota en el mismo mensaje.\nEj.: *9876-5432 pedido de Juan, 2 bolsas*\n\nEl repartidor llama al cliente para saber a dónde va y el envío se cobra por zona al entregar.`);
+    }
+    async function zoneStart(from, stores, save) {
+        if (stores.length === 1) return askCustomerPhone(from, stores[0], save, {});
+        const pref = await storePref(from);
+        const st = pref && stores.find((s) => s.id === pref);
+        if (st) return askCustomerPhone(from, st, save, {});
+        await save({ step: 'zr_branch', stStoreIds: stores.map((s) => s.id) });
+        return send.list(from, '¿Para cuál sucursal es el repartidor? (lo recuerdo para la próxima)', 'Ver sucursales',
+            stores.map((s) => ({ id: `zr_store:${s.id}`, title: (s.branchName ? `${s.name || 'Tienda'} · ${s.branchName}` : (s.name || 'Tienda')).slice(0, 24), description: String([s.branchName, s.address || s.cityName || ''].filter(Boolean).join(' · ')).slice(0, 72) })),
+            'Tus tiendas');
+    }
+    async function listMine(from) {
+        const snap = await db.collection(`${base}/trips`).where('waStorePhone', '==', from).limit(30).get().catch(() => null);
+        const docs = (snap?.docs || []).map((d) => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (Number(b.storeOrderCreatedAtMs) || 0) - (Number(a.storeOrderCreatedAtMs) || 0)).slice(0, 5);
+        if (!docs.length) return send.buttons(from, 'Todavía no pediste envíos por aquí.', [{ id: 'zr_start', title: 'Pedir repartidor' }]);
+        const label = { verifying: '🔎 Buscando', pending: '🔎 Buscando', accepted: '✅ Aceptado', in_progress: '🛵 En camino', completed: '📦 Entregado', cancelled: '❌ Cancelado' };
+        const lines = docs.map((d) => {
+            const zone = d.zoneBilling ? (d.zoneFeeAtMs != null ? `${d.deliveryZoneName || 'Fuera de zona'} · ${lmoney(d.priceNum)}` : 'Por zona') : (d.price || '');
+            return `${label[d.status] || d.status} · ${d.deliveryDetails?.recipientPhone || d.destination || ''} · ${zone}${d.driverName ? ` · ${d.driverName}` : ''}`;
+        });
+        return send.buttons(from, `*Tus últimos envíos*\n${lines.join('\n')}`, [{ id: 'zr_start', title: 'Pedir repartidor' }, { id: 'menu', title: 'Menú' }]);
+    }
+    async function cancelById(from, tripId) {
+        if (!/^[A-Za-z0-9_-]{5,80}$/.test(tripId)) return null;
+        const ref = db.doc(`${base}/trips/${tripId}`);
+        return db.runTransaction(async (tx) => {
+            const cur = await tx.get(ref);
+            const tt = cur.data() || {};
+            if (!cur.exists || tt.waStorePhone !== from) return null;
+            if (!['verifying', 'pending'].includes(tt.status) || tt.driverId) return { ok: false, trip: tt };
+            tx.update(ref, { status: 'cancelled', cancelledBy: 'merchant', cancelReason: 'merchant_cancel_whatsapp', cancelledAtMs: now() });
+            return { ok: true, trip: tt };
+        });
+    }
+
+    async function handleZone({ from, text, id, idl, t, location, sess, save, clearSession }) {
+        const zrFlow = ZR_STEPS.includes(sess.step);
+        if (idl.startsWith('zr_cancel:')) {
+            const r = await cancelById(from, id.slice('zr_cancel:'.length));
+            if (!r) return false;
+            await send.text(from, r.ok ? 'Listo, cancelé el envío ✅. Escribe *repartidor* para pedir otro.' : 'El repartidor ya aceptó este envío, ya no se puede cancelar por aquí. Escribe *soporte* si necesitas ayuda.');
+            return true;
+        }
+        const inOld = STEPS.includes(sess.step);
+        if (!zrFlow) {
+            if (inOld) return false;
+            const trig = isZoneTrigger(idl, t) && !isEntry(idl, t);
+            const greet = !idl && isGreeting(t);
+            const mine = idl === 'zr_list' || /^mis envios$/.test(t);
+            if (!trig && !greet && !mine) return false;
+            const stores = await findLinkedStores(from, { fresh: trig || mine });
+            if (!stores.length) return false; // clientes y números sin tienda: flujo normal
+            if (mine) { await listMine(from); return true; }
+            if (greet) {
+                await send.buttons(from, `¡Hola! 👋 ¿Qué necesita *${stores.length === 1 ? (stores[0].name || 'tu tienda') : 'tu tienda'}*?`, [
+                    { id: 'zr_start', title: 'Pedir repartidor' }, { id: 'zr_list', title: 'Mis envíos' }, { id: 'menu', title: 'Menú' },
+                ]);
+                return true;
+            }
+            await zoneStart(from, stores, save);
+            return true;
+        }
+        if (idl === 'st_abort' || /^(cancelar|salir)$/.test(t)) {
+            await clearSession(from);
+            await send.text(from, 'Listo, no pedí el repartidor. Escribe *repartidor* cuando quieras.');
+            return true;
+        }
+        if (idl === 'menu' || /^(menu|inicio)$/.test(t)) { await clearSession(from); return false; }
+        if (sess.step === 'zr_branch') {
+            const sid = idl.startsWith('zr_store:') ? id.slice('zr_store:'.length) : '';
+            const store = sid && (sess.stStoreIds || []).includes(sid) ? await loadLinkedStore(from, sid) : null;
+            if (!store) {
+                const stores = await findLinkedStores(from, { fresh: true });
+                if (!stores.length) { await clearSession(from); return false; }
+                await save({ step: 'zr_branch', stStoreIds: stores.map((s) => s.id) });
+                await send.list(from, 'Elegí la sucursal de la lista 👇', 'Ver sucursales', stores.map((s) => ({ id: `zr_store:${s.id}`, title: (s.branchName ? `${s.name || 'Tienda'} · ${s.branchName}` : (s.name || 'Tienda')).slice(0, 24) })), 'Tus tiendas');
+                return true;
+            }
+            await setStorePref(from, store.id);
+            await askCustomerPhone(from, store, save, {});
+            return true;
+        }
+        const store = await loadLinkedStore(from, sess.zrStoreId);
+        if (!store) { await clearSession(from); await send.text(from, 'Esa tienda ya no está vinculada a este número.'); return true; }
+        if (sess.step === 'zr_pickup_loc') {
+            if (!location || !isInHonduras(location.lat, location.lng)) { await send.text(from, 'Necesito la *ubicación* de la tienda en Honduras: 📎 → Ubicación → Enviar.'); return true; }
+            await db.doc(`${base}/stores/${store.id}`).update({ lat: Number(location.lat), lng: Number(location.lng), locationUpdatedVia: 'whatsapp', locationUpdatedAtMs: now() });
+            store.lat = Number(location.lat); store.lng = Number(location.lng);
+            await send.text(from, '✅ Guardé la ubicación de la tienda.');
+            if (!sess.zrPhone) { await askCustomerPhone(from, store, save, {}); return true; }
+            return createZoneTrip(from, store, sess, clearSession);
+        }
+        if (sess.step === 'zr_phone') {
+            const p = parseCustomerPhoneAndNote(text);
+            if (!p) { await send.text(from, 'Ese número no parece hondureño 🤔. Escribe los 8 dígitos del cliente (ej. *9876-5432*), y si querés una nota después.'); return true; }
+            const next = { ...sess, zrPhone: p.phone, zrNote: p.note };
+            if (![Number(store.lat), Number(store.lng)].every(Number.isFinite) || !isInHonduras(store.lat, store.lng)) {
+                await save({ ...next, step: 'zr_pickup_loc' });
+                await send.locationRequest(from, `📍 *${store.name}* no tiene ubicación guardada. Compártela una vez (📎 → Ubicación) y la guardo.`, 'Tienda: enviar pin');
+                return true;
+            }
+            return createZoneTrip(from, store, next, clearSession);
+        }
+        return false;
+    }
+
+    async function createZoneTrip(from, store, sess, clearSession) {
+        const a = await vehicleAvailability(store);
+        if (!a.moto.available) { await clearSession(from); await send.text(from, `Moto: ${a.moto.message || 'No disponible'} 🙏. Intenta más tarde.`); return true; }
+        const trip = buildWaZoneTrip({ store, storeId: store.id, vehicle: 'moto', customerPhone: sess.zrPhone, notes: sess.zrNote || '', phone: from, nowMs: now(), serverTs: FieldValue.serverTimestamp() });
+        const ref = await db.collection(`${base}/trips`).add(trip);
+        await clearSession(from);
+        await send.buttons(from, `✅ *Repartidor pedido* para *${store.name}*\n📞 Cliente: ${sess.zrPhone.slice(0, 4)}-${sess.zrPhone.slice(4)}${sess.zrNote ? `\n📝 ${sess.zrNote}` : ''}\n💵 Se cobra por zona al entregar (el cliente le paga al repartidor en efectivo).\nTe aviso aquí cuando un repartidor acepte.`, [{ id: `zr_cancel:${ref.id}`, title: 'Cancelar envío' }]);
+        return { handled: true, tripId: ref.id };
+    }
+
     /**
      * @returns {Promise<boolean>} true si este módulo atendió el mensaje.
      */
@@ -295,6 +488,10 @@ module.exports = function createWaStoreDelivery(deps) {
         const sess = session || { step: 'idle' };
         const inFlow = STEPS.includes(sess.step);
         const save = (data) => saveSession(from, data);
+
+        // ── Flujo simple «Pedir repartidor» (sin destino, cobro por zona) ──
+        const zr = await handleZone({ from, text, id, idl, t, location, sess, save, clearSession });
+        if (zr) return zr;
 
         if (!inFlow && !isEntry(idl, t)) {
             if (/^cancelar( envio)?$/.test(t) && (sess.step === 'idle' || !sess.step)) {
@@ -505,4 +702,4 @@ module.exports = function createWaStoreDelivery(deps) {
 
     return { handle, findLinkedStores, hasLinkedStores, onTripStatusChange, vehicleAvailability };
 };
-Object.assign(module.exports, { phoneVariants, samePhone, buildWaStoreTrip, storeStatusKey, storeStatusText, isEntry, VEHICLES, STEPS, isInHondurasPublic: isInHonduras });
+Object.assign(module.exports, { isZoneTrigger, isGreeting, parseCustomerPhoneAndNote, buildWaZoneTrip, ZR_STEPS, phoneVariants, samePhone, buildWaStoreTrip, storeStatusKey, storeStatusText, isEntry, VEHICLES, STEPS, isInHondurasPublic: isInHonduras });
