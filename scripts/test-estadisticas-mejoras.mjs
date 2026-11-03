@@ -320,7 +320,7 @@ check('Req 6: Excluir papelera (trashedAt / trashedAtMs) ignora viajes borrados 
 });
 
 check('Req 1: Desglose por servicio y comisión propia calcula viajes, facturación, % y comisión de los 6 servicios', () => {
-    assert.equal(snapshotAll.serviceBreakdown.length, 6);
+    assert.equal(snapshotAll.serviceBreakdown.length, 7); // + «Restaurante sin destino (por zona)»;
     const byKey = Object.fromEntries(snapshotAll.serviceBreakdown.map((s) => [s.key, s]));
 
     // Auto / Taxi: 1 viaje, L. 120, 15% = L. 18.00

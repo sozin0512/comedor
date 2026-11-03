@@ -3,6 +3,9 @@
  */
 import { formatLempiras } from './money-format.js';
 import { HONDURAS_CITIES } from './honduras-cities.js';
+import { zoneDeliveryStats, isZoneBillingTrip } from './zone-delivery.js?v=2026.10.26.37';
+/** Envíos de restaurante «sin destino»: promedio cobrado vs sugerido por el repartidor, por zona (ver zone-delivery.js). */
+export { zoneDeliveryStats, isZoneBillingTrip };
 
 export const DEFAULT_STORE_COMMISSION_PCT = 10;
 
@@ -51,6 +54,15 @@ export const SERVICE_BREAKDOWN_DEFS = [
         badgeClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
         barClass: 'bg-indigo-500',
         configKeys: ['flete', 'grua'],
+    },
+    {
+        key: 'tiendas_zona',
+        label: 'Restaurante sin destino (por zona)',
+        subtitle: 'Cobro por zona al entregar · efectivo al repartidor',
+        icon: 'fa-map-location-dot',
+        badgeClass: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
+        barClass: 'bg-orange-500',
+        configKeys: ['tiendas', 'delivery'],
     },
     {
         key: 'tiendas',
@@ -328,6 +340,8 @@ export function isStoreDeliveryTrip(t) {
 
 export function classifyTripServiceBucket(t) {
     if (!t || typeof t !== 'object') return 'auto_taxi';
+    // Línea propia (se cuenta una sola vez: no entra en «Envíos de Tiendas» ni en store_orders sintéticos).
+    if (isZoneBillingTrip(t)) return 'tiendas_zona';
     if (isStoreDeliveryTrip(t)) {
         return 'tiendas';
     }
@@ -677,7 +691,7 @@ export function computeGlobalStatsSnapshot({
     }
 
     for (const t of trips || []) {
-        if (!t || t.isDemandSimulation || !isStoreDeliveryTrip(t)) continue;
+        if (!t || t.isDemandSimulation || !isStoreDeliveryTrip(t) || isZoneBillingTrip(t)) continue;
         const oid = t.storeOrderId || t.deliveryDetails?.storeOrderId || '';
         if ((t.id && coveredTripIdsForStore.has(t.id)) || (oid && seenStoreOrderIds.has(oid))) continue;
         if (t.id) coveredTripIdsForStore.add(t.id);
@@ -984,6 +998,17 @@ export function computeGlobalStatsSnapshot({
 
     const driverSummaryList = Object.values(driverStats).sort((a, b) => b.earned - a.earned);
 
+    // Envíos de restaurante por zona (respeta período y ciudad: periodTrips ya está filtrado)
+    const zoneDone = periodTrips.filter((t) => isZoneBillingTrip(t) && t.status === 'completed' && t.zoneFeeAtMs != null);
+    const zoneByZone = zoneDeliveryStats(zoneDone).map((z) => ({ ...z, totalFee: round2(zoneDone.filter((t) => (t.deliveryZoneId || null) === z.zoneId).reduce((a, t) => a + (Number(t.priceNum) || 0), 0)) }));
+    const zoneDeliveries = {
+        count: zoneDone.length,
+        pendingPrice: periodTrips.filter((t) => isZoneBillingTrip(t) && t.status === 'completed' && t.zoneFeeAtMs == null).length,
+        totalCharged: round2(zoneDone.reduce((a, t) => a + (Number(t.priceNum) || 0), 0)),
+        commission: round2(zoneDone.reduce((a, t) => a + resolveTripCommissionAmount(t, commissionConfig).amount, 0)),
+        byZone: zoneByZone,
+    };
+
     return {
         filter: {
             period: range.period,
@@ -1043,10 +1068,36 @@ export function computeGlobalStatsSnapshot({
             byStore,
             orderRows,
         },
+        zoneDeliveries,
         driverSummary: driverSummaryList,
         tripRows,
         owingDrivers,
     };
+}
+
+/** Bloque «Envíos de restaurante por zona» (Estadísticas). */
+export function zoneDeliveriesStatsHtml(z) {
+    if (!z) return '';
+    const rows = z.byZone.length ? z.byZone.map((r) => `
+        <tr class="border-b border-slate-800/80">
+            <td class="py-2 px-2 text-xs font-black text-white">${escHtml(r.zoneName)}</td>
+            <td class="py-2 px-2 text-xs text-center text-white">${r.count}</td>
+            <td class="py-2 px-2 text-xs text-right text-slate-200">${formatLempiras(r.totalFee)}<span class="block text-[10px] text-slate-500">prom. ${formatLempiras(r.avgFee)}</span></td>
+            <td class="py-2 px-2 text-xs text-right text-slate-200">${r.avgSuggested == null ? '—' : formatLempiras(r.avgSuggested)}<span class="block text-[10px] text-slate-500">${r.suggestedCount} resp.</span></td>
+            <td class="py-2 px-2 text-xs text-right font-black ${r.avgDiff > 0 ? 'text-rose-300' : r.avgDiff < 0 ? 'text-emerald-300' : 'text-slate-400'}">${r.avgDiff == null ? '—' : `${r.avgDiff > 0 ? '+' : ''}${formatLempiras(r.avgDiff)}`}</td>
+        </tr>`).join('') : '<tr><td colspan="5" class="py-3 text-center text-xs text-slate-500">Sin envíos por zona en este período.</td></tr>';
+    return `<div class="bg-gray-900 border border-orange-700/40 rounded-2xl p-4 mb-4" data-stats-zone-deliveries>
+        <p class="text-xs font-black text-orange-300 uppercase tracking-wider flex items-center gap-1.5"><i class="fas fa-map-location-dot"></i> Envíos de restaurante por zona</p>
+        <p class="text-[10px] text-slate-400 font-semibold mb-3">Sin destino · cobro por zona al entregar. Sugerido = «¿Cuánto cobrarías hasta aquí?» del repartidor (solo referencia).</p>
+        <div class="grid grid-cols-3 gap-2 text-center mb-3">
+            <div class="bg-slate-800/80 rounded-xl p-2 border border-slate-700/60"><p class="text-[10px] text-slate-400 font-bold uppercase">Envíos</p><p class="text-lg font-black text-white">${z.count}</p>${z.pendingPrice ? `<p class="text-[10px] text-amber-300">${z.pendingPrice} calculando</p>` : ''}</div>
+            <div class="bg-slate-800/80 rounded-xl p-2 border border-slate-700/60"><p class="text-[10px] text-slate-400 font-bold uppercase">Cobrado</p><p class="text-lg font-black text-emerald-300">${formatLempiras(z.totalCharged)}</p></div>
+            <div class="bg-slate-800/80 rounded-xl p-2 border border-slate-700/60"><p class="text-[10px] text-slate-400 font-bold uppercase">Comisión</p><p class="text-lg font-black text-amber-300">${formatLempiras(z.commission)}</p></div>
+        </div>
+        <div class="overflow-x-auto"><table class="w-full"><thead><tr class="text-[10px] text-slate-400 uppercase">
+            <th class="py-1 px-2 text-left">Zona</th><th class="py-1 px-2">Envíos</th><th class="py-1 px-2 text-right">Cobrado</th><th class="py-1 px-2 text-right">Sugerido prom.</th><th class="py-1 px-2 text-right">Dif.</th>
+        </tr></thead><tbody>${rows}</tbody></table></div>
+    </div>`;
 }
 
 function csvEscape(val) {
@@ -1361,6 +1412,7 @@ export function renderGlobalStatsHtml(snapshot) {
         driverSummaryHtml,
         tripRows,
         tripTableHtml,
+        zoneHtml: zoneDeliveriesStatsHtml(snapshot.zoneDeliveries),
     });
 }
 
@@ -1384,6 +1436,7 @@ function buildStatsDashboardBody({
     driverSummaryHtml,
     tripRows,
     tripTableHtml,
+    zoneHtml = '',
 }) {
     return `
         <div class="flex flex-wrap items-center justify-between gap-2 mb-4 bg-slate-900/90 border border-slate-700/70 rounded-xl px-3.5 py-2.5 text-xs">
@@ -1572,6 +1625,7 @@ function buildStatsDashboardBody({
             <div class="space-y-1.5 max-h-48 overflow-y-auto">${topStoresHtml}</div>
         </div>
 
+        ${zoneHtml}
         <div class="bg-gray-900 border border-amber-700/40 rounded-2xl p-4 mb-4">
             <p class="text-[10px] font-black text-amber-300 uppercase tracking-widest mb-1">
                 <i class="fas fa-piggy-bank"></i> Sin depositar · comisión en la calle (${owingDrivers.length})
@@ -1591,6 +1645,3 @@ function buildStatsDashboardBody({
         <div class="space-y-2 max-h-80 overflow-y-auto">${tripTableHtml || '<p class="text-gray-500 text-xs text-center py-4">No hay viajes completados en este período y ciudad</p>'}</div>
     `;
 }
-
-/** Envíos de restaurante «sin destino»: promedio cobrado vs sugerido por el repartidor, por zona (ver zone-delivery.js). */
-export { zoneDeliveryStats } from './zone-delivery.js?v=2026.10.26.37';
