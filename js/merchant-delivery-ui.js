@@ -10,7 +10,7 @@ import {
     parseHondurasCoordsInput, buildDeliveryTrackingUrl, buildMerchantShareTripMessage, buildMerchantShareTripWhatsAppUrl,
     normalizeSelectedDeliveryItems, calculateDeliveryItemsSubtotal, formatDeliveryItemsSummary, formatDeliveryItemsBannerText,
     validateZoneBillingForm, buildZoneBillingTrip, isZoneBillingTrip,
-} from './merchant-delivery-request.js?v=2026.10.26.44';
+} from './merchant-delivery-request.js?v=2026.10.26.45';
 
 function esc(v) {
     return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

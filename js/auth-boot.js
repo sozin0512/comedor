@@ -13,7 +13,7 @@ import {
     setPersistence,
     browserLocalPersistence
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { APP_CONFIG } from './config.js?v=2026.10.26.44';
+import { APP_CONFIG } from './config.js?v=2026.10.26.45';
 import {
     saveUserLogin,
     loadDriverLogin,
@@ -22,9 +22,9 @@ import {
     shouldSkipDriverAutoLogin,
     clearSkipDriverAutoLogin,
     shouldKeepSession
-} from './driver-session.js?v=2026.10.26.44';
-import { applyAuthRoleUi } from './auth-ui.js?v=2026.10.26.44';
-import { initInstallHomeUi } from './pwa-install.js?v=2026.10.26.44';
+} from './driver-session.js?v=2026.10.26.45';
+import { applyAuthRoleUi } from './auth-ui.js?v=2026.10.26.45';
+import { initInstallHomeUi } from './pwa-install.js?v=2026.10.26.45';
 window.APP_CONFIG = APP_CONFIG;
 
 function getPersistentAuth(app) {

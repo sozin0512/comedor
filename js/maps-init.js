@@ -672,12 +672,6 @@
                 width = Math.round(rect.width);
                 fieldTop = rect.top;
                 fieldBottom = rect.bottom;
-                // v.44: si el teclado tapa el campo, traerlo a la vista (una vez por foco)
-                if (compact && !hasOwnInput && (rect.bottom > vv.bottom - 4 || rect.top < vv.top) && !(wrap || host).__hrKbScrolled) {
-                    (wrap || host).__hrKbScrolled = true;
-                    setTimeout(() => { try { (wrap || host).__hrKbScrolled = false; } catch (_) {} }, 1500);
-                    try { (wrap || host).scrollIntoView({ block: 'center' }); } catch (_) {}
-                }
             }
         } catch (_) {}
         if (compact && hasOwnInput) {
@@ -1226,7 +1220,12 @@
                             window._hrPlacesDismissLockUntil = Date.now() + 800;
                             try { window.hideTripKeyboard?.(e.target); } catch (_) {}
                         });
+                        let moRaf = 0;
                         const mo = new MutationObserver(() => {
+                            // v.45: una sola pasada por frame (antes, cada tecla/predicción restilaba y medía todo)
+                            if (moRaf) return;
+                            moRaf = requestAnimationFrame(() => {
+                            moRaf = 0;
                             try {
                                 hideGoogleMapsHeaderInRoot(shadow);
                                 shadow.querySelectorAll('dialog').forEach((d) => {
@@ -1235,6 +1234,7 @@
                                 });
                                 shadow.querySelectorAll('[popover]:popover-open, .full-window-autocomplete-dialog, .place-autocomplete-element-overlay, [role="listbox"], [part="prediction-list"]').forEach(stylePlacesOverlayEl);
                             } catch (_) {}
+                            });
                         });
                         mo.observe(shadow, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
                     } catch (_) {}
@@ -1313,12 +1313,22 @@
     }
 
     let applyTimer = 0;
+    const placesUiActive = () => {
+        try {
+            if (document.body?.classList.contains('trip-autocomplete-open')) return true;
+            const ae = document.activeElement;
+            if (ae && (isPlacesHostName(ae.localName) || ae.closest?.('gmp-place-autocomplete, gmp-basic-place-autocomplete'))) return true;
+            return !!document.querySelector('.pac-container:not([style*="display: none"])');
+        } catch (_) { return true; }
+    };
     const scheduleApplyPlacesOverlaySafeTop = () => {
         if (applyTimer) return;
-        applyTimer = setTimeout(() => {
+        // v.45: rAF (máx. 1 por frame) y nada si no hay buscador de lugares abierto/enfocado
+        applyTimer = requestAnimationFrame(() => {
             applyTimer = 0;
+            if (!placesUiActive()) return;
             applyPlacesOverlaySafeTop();
-        }, 32);
+        });
     };
 
     const ensurePersistentShield = () => {
@@ -1346,6 +1356,21 @@
             };
             try { window.matchMedia('(max-width: 639px)')?.addEventListener?.('change', onMode); } catch (_) {}
             window.addEventListener('resize', onMode, { passive: true });
+            // v.45: si el teclado tapa Origen/Destino, traerlo a la vista UNA vez por foco (no en cada repintado).
+            document.addEventListener('focusin', (ev) => {
+                const host = ev.target?.closest?.('gmp-place-autocomplete, gmp-basic-place-autocomplete')
+                    || (isPlacesHostName(ev.target?.localName) ? ev.target : null);
+                if (!host || !isCompactPlacesUi()) return;
+                setTimeout(() => {
+                    try {
+                        if (host.shadowRoot?.querySelector?.('dialog[open]') || host._hrShadow?.querySelector?.('dialog[open]')) return;
+                        const wrap = host.closest('.trip-origin-wrap, .trip-dest-wrap, .trip-extra-stop-wrap') || host;
+                        const r = wrap.getBoundingClientRect();
+                        const vv = readVisualViewportBox();
+                        if (r.bottom > vv.bottom - 4 || r.top < vv.top) wrap.scrollIntoView({ block: 'center' });
+                    } catch (_) {}
+                }, 350);
+            }, true);
             try {
                 window.visualViewport?.addEventListener('resize', onMode, { passive: true });
                 window.visualViewport?.addEventListener('scroll', onMode, { passive: true });
