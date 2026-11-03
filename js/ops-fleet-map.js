@@ -604,6 +604,11 @@ function upsertFleetMarker(id, lat, lng, name, vehicleType, heading, phone, opti
             domEv?.stopPropagation?.();
             domEv?.preventDefault?.();
         } catch (_) {}
+        // Un toque dispara 3 eventos (click del contenido + gmp-click + click): abrir solo una vez.
+        const now = Date.now();
+        if (window.__hrFleetTapId === id && now - (window.__hrFleetTapAt || 0) < 800) return;
+        window.__hrFleetTapId = id;
+        window.__hrFleetTapAt = now;
         const fn = window.openStaffFleetDriverPanel || window.showStaffDriverFinanceMapSheet;
         if (typeof fn === 'function') fn(id, name);
     };
