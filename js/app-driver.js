@@ -389,7 +389,7 @@ const hrZoneDeliveryDone = async (trip) => {
     await window.finishTrip?.({ skipConfirm: true });
     try {
         const [{ showZoneDeliveryResult }, fs] = await Promise.all([
-            import("./zone-delivery.js?v=2026.10.26.41"),
+            import("./zone-delivery.js?v=2026.10.26.42"),
             import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
         ]);
         const ref = (id) => fs.doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);
@@ -405,6 +405,8 @@ const hrDestArrivalInner = async () => {
     if (!trip?.id || trip.status !== 'in_progress' || trip.driverId !== uid) {
         return window.showToast?.('Solo disponible durante un viaje en curso.', 'error');
     }
+    // v.42 Pedido doble: si el otro pedido sigue abierto, entregar solo este (sin cerrar el turno ni calificar)
+    if (trip.batchId && window.hrPedidoDoble?.partnerOpen?.(trip)) return window.hrPedidoDoble.deliver(trip.id);
     if (trip.zoneBilling === true || trip.deliveryDetails?.zoneBilling === true) return hrZoneDeliveryDone(trip);
     if (trip.driverArrivedDestination) {
         // Ya marcó llegada antes (p. ej. falló el cierre): reintentar finalizar.

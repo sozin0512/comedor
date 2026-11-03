@@ -4,7 +4,7 @@
  * Si aún no están (viaje en curso, o completado antes del deploy) se muestra una VISTA PREVIA
  * con el % del admin para ese servicio; la app nunca guarda el valor oficial.
  */
-import { storeOrderSummary } from './store-trip-ui.js?v=2026.10.26.41';
+import { storeOrderSummary } from './store-trip-ui.js?v=2026.10.26.42';
 
 const r2 = (v) => Math.round(Number(v) * 100) / 100;
 const money = (n) => 'L. ' + (Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -56,12 +56,13 @@ export function commissionBreakdownHtml(t, info, { compact = false } = {}) {
     const prod = productsCashForStore(t);
     const tag = info?.server ? '' : '<span class="hr-comm-tag">estimado</span>';
     const waived = info?.waived ? `<span class="hr-comm-tag hr-comm-tag--ok">${esc(WAIVED_LABEL[info.waived] || 'sin comisión')}</span>` : '';
+    const pd = (t?.pedidoDoble || t?.batchId) ? `<span class="hr-comm-tag hr-comm-tag--pd" title="${esc(t.batchId || '')}">📦 Pedido doble${t.batchIndex ? ' ' + esc(t.batchIndex) + '/2' : ''}</span>` : '';
     if (compact) {
-        return `<div class="hr-comm hr-comm--compact" data-trip-commission>${esc(commissionLineText(t, info))}${prod > 0 ? ` · Productos para la tienda ${money(prod)}` : ''}${tag}</div>`;
+        return `<div class="hr-comm hr-comm--compact" data-trip-commission>${pd}${esc(commissionLineText(t, info))}${prod > 0 ? ` · Productos para la tienda ${money(prod)}` : ''}${tag}</div>`;
     }
     const pctTxt = info?.amount == null ? 'pendiente' : (info.waived ? '0%' : `${+info.pct.toFixed(2)}%`);
     return `<div class="hr-comm" data-trip-commission>
-        <p class="hr-comm-title"><i class="fas fa-percent"></i> Tu ganancia de este viaje ${tag}${waived}</p>
+        <p class="hr-comm-title"><i class="fas fa-percent"></i> Tu ganancia de este viaje ${tag}${waived}${pd}</p>
         <p class="hr-comm-row"><span>${baseLabel(t)}</span><b>${money(info?.base)}</b></p>
         <p class="hr-comm-row hr-comm-row--minus"><span>Comisión HonduRaite (${pctTxt})</span><b>${info?.amount == null ? '—' : '− ' + money(info.amount)}</b></p>
         <p class="hr-comm-row hr-comm-row--net"><span>Te quedas</span><b>${info?.net == null ? '—' : money(info.net)}</b></p>
@@ -74,6 +75,7 @@ export function commissionBreakdownHtml(t, info, { compact = false } = {}) {
 export const TRIP_COMMISSION_CSS = `
 .hr-comm{background:#fff;border:1px solid #cbd5e1;border-radius:14px;padding:10px 12px;margin-top:8px;font-family:Inter,system-ui,sans-serif;color:#0f172a}
 .hr-comm-title{font-weight:900;font-size:13px;margin:0 0 6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:#0c4a8e}
+.hr-comm-tag--pd{background:#d1fae5!important;color:#047857!important;margin-right:4px}
 .hr-comm-row{display:flex;justify-content:space-between;font-size:13px;margin:3px 0}
 .hr-comm-row--minus b{color:#b91c1c}
 .hr-comm-row--net{border-top:1px dashed #cbd5e1;padding-top:5px;font-weight:900}

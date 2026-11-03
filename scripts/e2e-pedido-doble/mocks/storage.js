@@ -1,0 +1,2 @@
+export const getStorage=()=>({}); export const ref=(s,p)=>({fullPath:p}); export async function getDownloadURL(){ return '/icons/placeholder-avatar.svg'; }
+export async function uploadBytes(){ return {}; } export function uploadBytesResumable(){ return { on(){}, then(f){ return Promise.resolve({}).then(f); } }; } export async function uploadString(){ return {}; } export async function deleteObject(){}
