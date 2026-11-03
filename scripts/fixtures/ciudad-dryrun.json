@@ -1,0 +1,2 @@
+{"users":[{"uid":"a","role":"client","serviceZoneId":"comayagua"},{"uid":"b","role":"driver","serviceZoneId":"comayagua"},{"uid":"c","role":"client","serviceZoneId":"comayagua","serviceZoneSource":"manual"},{"uid":"d","role":"client","serviceZoneId":"comayagua"},{"uid":"e","role":"admin"},{"uid":"f","role":"client"}],
+"drivers_location":{"b":{"lat":15.505,"lng":-88.025}},"lastPickup":{"a":{"lat":14.0723,"lng":-87.1921},"c":{"lat":14.0723,"lng":-87.1921},"d":{"lat":14.4598,"lng":-87.6378},"f":{"lat":14.15,"lng":-87.0333}}}

@@ -8084,15 +8084,33 @@ if (document.readyState === 'loading') {
             }
         };
 
+        /** v.42: ciudad al registrarse. GPS → esa ciudad; elegida a mano → esa; si no, la de defecto marcada 'default' (se corrige con el 1er GPS). */
+        async function hrSignupCity() {
+            try {
+                const g = await window.hrUserCity?.detectCityForSignup?.();
+                if (g?.zoneId) { setActiveServiceZone(g.zoneId, { persist: true, biasMap: false }); return { zoneId: g.zoneId, source: 'gps' }; }
+            } catch (_) {}
+            if (window._hrManualZoneId && window.activeServiceZoneId === window._hrManualZoneId) return { zoneId: window.activeServiceZoneId, source: 'manual' };
+            return { zoneId: window.activeServiceZoneId || getDefaultZoneId(), source: 'default' };
+        }
+        window.hrSignupCity = hrSignupCity;
+
         // Helper: save operating city to Firestore profile for drivers AND passengers (Facebook-style city choice)
-        async function persistOperatingCity(zoneId, zoneName) {
+        async function persistOperatingCity(zoneId, zoneName, source = null) {
             if (!currentUser || !zoneId) return;
             try {
                 const update = {
                     serviceZoneId: zoneId,
                     serviceZoneName: zoneName || null,
+                    cityId: zoneId,
+                    cityName: zoneName || null,
                     updatedAt: Date.now()
                 };
+                // v.42: de dónde salió la ciudad (manual = elegida en la lista; gps/trip = se corrige sola)
+                if (source) { update.serviceZoneSource = source; update.serviceZoneSetAtMs = Date.now(); }
+                if (window.userProfile) {
+                    window.userProfile.serviceZoneSource = source || window.userProfile.serviceZoneSource;
+                }
                 await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'data'), update, { merge: true });
                 await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.uid), update, { merge: true });
                 if (window.userProfile) {
@@ -8135,7 +8153,9 @@ if (document.readyState === 'loading') {
 
             // Persist chosen city (drivers and clients; staff have separate handling)
             if (currentUser) {
-                persistOperatingCity(zone.id, zone.name);
+                const src = window._hrZoneSourceNext || 'manual';
+                window._hrZoneSourceNext = null;
+                persistOperatingCity(zone.id, zone.name, src);
             }
 
             // Mantener selector de ciudad usable en ambos roles
@@ -29380,7 +29400,9 @@ window.saveProfileChanges = async () => {
                 if (!vehicleCheck.ok) return window.showToast(vehicleCheck.message);
             }
 
-            const currentZoneId = window.activeServiceZoneId || getDefaultZoneId();
+            // v.42: ciudad real por GPS al registrarse (antes quedaba la de defecto «Comayagua»)
+            const signupCity = (await window.hrSignupCity?.()) || { zoneId: window.activeServiceZoneId || getDefaultZoneId(), source: "default" };
+            const currentZoneId = signupCity.zoneId;
             const currentZone = getZoneById(currentZoneId);
             const data = {
                 uid: currentUser.uid, name, phone, emergencyContact, role: userRole,
@@ -29388,6 +29410,9 @@ window.saveProfileChanges = async () => {
                 gender: gender || null, birthDate: ageCheck.birthDate || null,
                 serviceZoneId: currentZoneId,
                 serviceZoneName: currentZone?.name || null,
+                cityId: currentZoneId,
+                cityName: currentZone?.name || null,
+                serviceZoneSource: signupCity.source,
                 totalTrips: 0, ratingSum: 5, ratingCount: 1, setupComplete: true,
                 termsAccepted: false,
                 termsAcceptedAt: null,
@@ -31710,6 +31735,7 @@ onAuthStateChanged(auth, async (user) => {
                 }
 
                 initServiceZoneUI();
+                setTimeout(() => { try { window.hrUserCity?.checkUserCity?.(); } catch (_) {} }, 2500); // v.42 ciudad por GPS
                 window.initControlPanelVisibility?.();
                 window.hideCenterMapFab?.();
                 window.syncNavigationMapFabs?.();
@@ -37970,7 +37996,9 @@ window.saveSimplePassengerProfile = async () => {
     if (!ageCheck.ok) return alert(ageCheck.message);
     // Foto opcional en el registro (estilo Uber: entrar ya; verificar después)
 
-    const currentZoneId = window.activeServiceZoneId || getDefaultZoneId();
+    // v.42: ciudad real por GPS al registrarse (antes quedaba la de defecto «Comayagua»)
+    const signupCity = (await window.hrSignupCity?.()) || { zoneId: window.activeServiceZoneId || getDefaultZoneId(), source: "default" };
+    const currentZoneId = signupCity.zoneId;
     const currentZone = getZoneById(currentZoneId);
     const data = {
         uid: currentUser.uid,
@@ -37983,6 +38011,9 @@ window.saveSimplePassengerProfile = async () => {
         role: 'client',
         serviceZoneId: currentZoneId,
         serviceZoneName: currentZone?.name || null,
+        cityId: currentZoneId,
+        cityName: currentZone?.name || null,
+        serviceZoneSource: signupCity.source,
         approvalStatus: 'pending',
         identityVerificationSubmitted: false,
         setupComplete: true,
@@ -41452,7 +41483,8 @@ window.cancelSetupAndLogout = () => {
             }
             // Save chosen city for passenger too (sticks like FB city selection)
             if (zone && currentUser) {
-                persistOperatingCity(zone.id, zone.name);
+                // Ciudad del viaje: no pisa una ciudad elegida a mano
+                if (window.userProfile?.serviceZoneSource !== 'manual' || window.userProfile?.serviceZoneId === zone.id) persistOperatingCity(zone.id, zone.name, 'trip');
             }
 
             // Strong defense against stale quote after service switch (moto -> VIP etc.)
@@ -44848,8 +44880,8 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
             window.syncMapLocationChipVisibility?.();
             window.refreshNearbyDriversFromCache?.();
             window.refreshDemandHeatmapFromCache?.();
-            if (currentUser) {
-                persistOperatingCity(zone.id, zone.name);
+            if (currentUser && (window.userProfile?.serviceZoneSource !== 'manual' || window._hrManualZoneId === zone.id)) {
+                persistOperatingCity(zone.id, zone.name, opts.fromGps ? 'gps' : 'trip');
             }
             window.updatePlacesLocationBias?.(nlat, nlng);
             if (!silent) {

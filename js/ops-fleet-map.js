@@ -154,7 +154,8 @@ export function resolveFleetDriverCity(data = {}, userObj = null) {
         return { cityId: rawId.toLowerCase(), cityName: label };
     }
 
-    return { cityId: 'comayagua', cityName: 'Comayagua' };
+    // v.42: sin ciudad ni GPS → «Sin ciudad» (antes se mostraba Comayagua por defecto)
+    return { cityId: 'sin_ciudad', cityName: 'Sin ciudad' };
 }
 
 export function buildDriverWhatsAppHref(rawPhone, driverName = '') {
@@ -932,11 +933,11 @@ export function getFleetDriversDirectorySnapshot() {
         byCategoryAll[cat].push(d);
         if (d.online) byCategoryOnline[cat].push(d);
 
-        const cKey = d.cityId || 'comayagua';
+        const cKey = d.cityId || 'sin_ciudad';
         if (!citiesMap.has(cKey)) {
             citiesMap.set(cKey, {
                 cityId: cKey,
-                cityName: d.cityName || 'Comayagua',
+                cityName: d.cityName || 'Sin ciudad',
                 allDrivers: [],
                 onlineDrivers: [],
                 byCategoryAll: { moto: [], auto: [], taxi: [], vip: [], carga: [] },

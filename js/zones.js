@@ -782,6 +782,7 @@ export async function detectAndSetCityFromGPS() {
                     const dist = Math.round(nearest.distanceKm * 10) / 10;
                     // Delegate to onServiceZoneChange so it handles set + persist for drivers + toast
                     if (typeof window.onServiceZoneChange === "function") {
+                        window._hrZoneSourceNext = 'gps';
                         window.onServiceZoneChange(nearest.zone.id);
                         window.showToast?.(`Ciudad detectada: ${nearest.zone.name} (${dist} km del centro)`);
                     } else {
