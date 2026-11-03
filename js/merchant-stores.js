@@ -13,33 +13,34 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.47';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.47';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.48';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.48';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.26.47';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.26.47';
-import { APP_CONFIG } from './config.js?v=2026.10.26.47';
-import { calculateAge } from './age-verification.js?v=2026.10.26.47';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.47';
+} from './zones.js?v=2026.10.26.48';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.26.48';
+import { APP_CONFIG } from './config.js?v=2026.10.26.48';
+import { calculateAge } from './age-verification.js?v=2026.10.26.48';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.48';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.26.47';
+} from './store-delivery-zones.js?v=2026.10.26.48';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.26.47';
+} from './store-week.js?v=2026.10.26.48';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.47';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.47';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.48';
+import { configureLoyalty, loadLoyalty, loyaltyPromoBoxHtml, orderLoyaltyLineHtml } from './delivery-loyalty-ui.js?v=2026.10.26.48';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.48';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.26.47';
+} from './merchant-delivery-request.js?v=2026.10.26.48';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -3626,6 +3627,8 @@ function renderCheckoutHtml() {
     const destVal = dest?.value || dest?.getAttribute?.('value') || '';
     // «Envío a <zona>: L X» (cotiza el servidor; se pinta al llegar)
     setTimeout(() => { refreshCheckoutQuote(false, viewingStore).catch(() => {}); }, 0);
+    // Promo Navidad: carga membresía/ajustes y repinta la caja (no bloquea el checkout).
+    setTimeout(() => { loadLoyalty().then(() => { const el = document.getElementById('loyalty-promo-box'); if (el) el.outerHTML = loyaltyPromoBoxHtml(); }).catch(() => {}); }, 0);
     return `
         <div class="checkout-box space-y-3">
             <p class="stores-section-label">Entrega</p>
@@ -3661,6 +3664,7 @@ function renderCheckoutHtml() {
                        value="${esc(destVal)}" class="stores-input">
             </label>
             ${checkoutFeeHtml()}
+            ${loyaltyPromoBoxHtml()}
             <label class="stores-field">
                 <span>Quién recibe *</span>
                 <input id="store-checkout-recipient" type="text" placeholder="Nombre"
@@ -3779,7 +3783,7 @@ function orderCardHtml(o, { merchant = false } = {}) {
                     ${o.paymentStatus === 'refunded' ? ' · reembolsado' : ''}
                 </span>
                 ${o.deliveryAddress ? `<span><i class="fas fa-map-marker-alt"></i> ${esc(o.deliveryAddress)}</span>` : ''}
-                ${orderFeeLineHtml(o)}
+                ${!merchant && o.loyaltyPromoId ? orderLoyaltyLineHtml(o) : orderFeeLineHtml(o)}
             </div>
             ${o.tariffSplit === true ? `
                 <p class="text-[10px] text-slate-500 font-semibold mt-1 leading-snug">
@@ -9595,6 +9599,7 @@ export function initMerchantStores(deps = {}) {
     getCurrentUser = deps.getCurrentUser || (() => null);
     getUserProfile = deps.getUserProfile || (() => null);
     configureStoreZones({ db: dbRef, appId: appIdRef, functions: deps.functions || null, getCurrentUser, toast });
+    configureLoyalty({ db: dbRef, appId: appIdRef, functions: deps.functions || null, getCurrentUser });
 
     bindUiHooks();
 

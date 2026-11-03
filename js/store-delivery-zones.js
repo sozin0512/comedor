@@ -277,6 +277,16 @@ function paintCheckout() {
     ensureCss();
     const el = typeof document !== 'undefined' && document.getElementById('store-zone-fee-box');
     if (el) el.outerHTML = checkoutFeeHtml(Q);
+    try { document.dispatchEvent(new CustomEvent('hr:checkout-fee', { detail: { fee: checkoutQuotedFee() } })); } catch (_) {}
+}
+
+/** Tarifa cotizada en el checkout (moto o carro), o null si aún no hay tarifa de zona. */
+export function checkoutQuotedFee(st = Q) {
+    const q = st.quote;
+    if (!q?.inZone || !st.vehicle) return null;
+    if (st.vehicle === 'auto') return Math.max(CAR_MIN_DELIVERY_FEE, Number(q.feeCar ?? computeCarDeliveryFee(q.feeMoto ?? q.fee)) || 0);
+    const f = Number(q.feeMoto ?? q.fee);
+    return Number.isFinite(f) ? f : null;
 }
 
 async function fetchQuote(storeId, p, vehicle) {

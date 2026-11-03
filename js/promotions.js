@@ -490,7 +490,44 @@ function showClaimPromoModal(prefillCode = '', promoId = '') {
     });
 }
 
-function renderStaffPromotionsPage(promos, debts) {
+/** Promo Navidad (fidelidad de envío en pedidos de tienda): ajustes y cupos restantes. */
+async function loadDeliveryLoyaltySettings() {
+    try {
+        const s = await getDoc(doc(dbRef, 'artifacts', appIdRef, 'public', 'data', 'appSettings', 'deliveryLoyalty'));
+        return s.exists() ? s.data() : {};
+    } catch (_) { return {}; }
+}
+export function deliveryLoyaltyCardHtml(raw = {}) {
+    const s = { enabled: false, name: 'Promo Navidad', code: 'HAM', maxMembers: 147, discountL: 5, cycle: 5, lastFree: true, requireVerifiedPhone: true, memberCount: 0, ...raw };
+    const left = Math.max(0, (parseInt(s.maxMembers, 10) || 0) - (parseInt(s.memberCount, 10) || 0));
+    const f = (id, label, val, type = 'text', extra = '') => `<label class="block text-[11px] font-bold text-slate-400">${label}<input id="${id}" type="${type}" value="${escHtml(String(val ?? ''))}" ${extra} class="ops-input w-full mt-1"></label>`;
+    return `
+        <div class="ops-list-card" id="loyalty-admin-card" style="border:1px solid rgba(34,197,94,.45)">
+            <div class="flex justify-between items-start gap-2">
+                <div>
+                    <p class="font-black text-white text-sm">🎄 ${escHtml(s.name)} · envíos de tienda</p>
+                    <p class="text-xs text-slate-400 mt-0.5">Código <strong class="text-amber-300">${escHtml(s.code)}</strong> · pedidos 1–${(s.cycle || 5) - 1}: L. ${escHtml(s.discountL)} menos · pedido ${escHtml(s.cycle)}: ${s.lastFree ? 'gratis' : `L. ${escHtml(s.discountL)} menos`} · el conductor gana la tarifa completa (HonduRaite le abona la diferencia).</p>
+                    <p class="text-xs mt-1"><b class="text-emerald-300" data-loyalty-left>${left} cupos restantes</b> <span class="text-slate-500">(${escHtml(s.memberCount || 0)}/${escHtml(s.maxMembers)} personas)</span></p>
+                </div>
+                <span class="ops-badge ${s.enabled ? 'ops-badge--emerald' : 'ops-badge--amber'}">${s.enabled ? 'Encendida' : 'Apagada'}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mt-3">
+                ${f('loy-name', 'Nombre', s.name)}
+                ${f('loy-code', 'Código (sin mayúsc./minúsc.)', s.code)}
+                ${f('loy-max', 'Máx. personas', s.maxMembers, 'number', 'min="0"')}
+                ${f('loy-discount', 'Descuento por envío (L.)', s.discountL, 'number', 'min="0" step="0.5"')}
+                ${f('loy-cycle', 'Ciclo (pedidos)', s.cycle, 'number', 'min="1"')}
+                <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300 mt-4"><input id="loy-lastfree" type="checkbox" ${s.lastFree ? 'checked' : ''}> Último del ciclo gratis</label>
+                <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300"><input id="loy-reqphone" type="checkbox" ${s.requireVerifiedPhone ? 'checked' : ''}> Exigir teléfono verificado</label>
+                <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300"><input id="loy-enabled" type="checkbox" ${s.enabled ? 'checked' : ''}> Promo encendida</label>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-3">
+                <button type="button" class="ops-btn ops-btn--emerald text-xs" onclick="window.saveDeliveryLoyalty(this)">Guardar promo</button>
+            </div>
+        </div>`;
+}
+
+function renderStaffPromotionsPage(promos, debts, loyalty = {}) {
     const U = window.OpsUi;
     const promoCards = promos.length
         ? promos.map((p) => {
@@ -616,8 +653,8 @@ async function renderStaffPromotions(container) {
     if (!container) return;
     container.innerHTML = window.OPS_LOADING_HTML || '<div class="ops-loading"><p>Cargando promociones…</p></div>';
     try {
-        const [promos, debts] = await Promise.all([loadAllPromotionsForStaff(), loadPromoDebts()]);
-        container.innerHTML = renderStaffPromotionsPage(promos, debts);
+        const [promos, debts, loyalty] = await Promise.all([loadAllPromotionsForStaff(), loadPromoDebts(), loadDeliveryLoyaltySettings()]);
+        container.innerHTML = deliveryLoyaltyCardHtml(loyalty) + renderStaffPromotionsPage(promos, debts, loyalty);
     } catch (e) {
         console.error('renderStaffPromotions:', e);
         container.innerHTML = `<p class="text-red-400 text-center p-6">Error: ${escHtml(e.message)}</p>`;
@@ -649,6 +686,25 @@ export function initPromotions({
         if (!container) return;
         window.setSupervisorNavActive?.('promotions');
         await renderStaffPromotions(container);
+    };
+
+    window.saveDeliveryLoyalty = async (btn) => {
+        const v = (id) => document.getElementById(id);
+        const payload = {
+            name: v('loy-name')?.value?.trim(), code: v('loy-code')?.value?.trim(),
+            maxMembers: parseInt(v('loy-max')?.value, 10), discountL: parseFloat(v('loy-discount')?.value),
+            cycle: parseInt(v('loy-cycle')?.value, 10), lastFree: !!v('loy-lastfree')?.checked,
+            requireVerifiedPhone: !!v('loy-reqphone')?.checked, enabled: !!v('loy-enabled')?.checked
+        };
+        if (btn) btn.disabled = true;
+        try {
+            await httpsCallableRef(cloudFunctionsRef, 'staffSetDeliveryLoyalty')(payload);
+            window.showToast?.('Promo guardada.', 'success');
+            if (window.currentAdminTab === 'promotions') await window.loadAdminPromotions();
+            else await window.loadSupervisorPromotions?.();
+        } catch (e) {
+            window.showToast?.(e?.message || 'No se pudo guardar.', 'error');
+        } finally { if (btn) btn.disabled = false; }
     };
 
     window.createPromotion = async (btn) => {

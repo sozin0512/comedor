@@ -48,9 +48,15 @@ const driverPushStatus = require('./driver-push-status')({
     zoneName: (id) => HN_ZONE_NAMES.get(String(id || '')) || '',
     wa: () => require('./whatsapp-cloud')
 });
+/** Promo Navidad (HAM): fidelidad de envío en pedidos de tienda (ver delivery-loyalty.js). */
+const deliveryLoyalty = require('./delivery-loyalty')({
+    db, FieldValue, HttpsError, onCall, onDocumentUpdated, APP_ID,
+    assertCallerCanModerate: (...a) => assertCallerCanModerate(...a)
+});
 /** Tiendas · zonas de envío con tarifa fija (ver delivery-zones.js). */
 const deliveryZones = require('./delivery-zones')({
     db, FieldValue, HttpsError, onCall, onDocumentCreated, onDocumentUpdated, APP_ID,
+    loyaltyPatchForNewOrder: deliveryLoyalty.loyaltyPatchForNewOrder,
     assertCallerCanModerate: (...a) => assertCallerCanModerate(...a)
 });
 /** Viajes › Disponibilidad: modo por servicio y ciudad + bloqueo en WhatsApp (ver service-availability.js). */
@@ -7032,6 +7038,7 @@ exports.onWaCustomerOrderStatus = onDocumentUpdated(
 Object.assign(exports, viajesPanel.exports);
 Object.assign(exports, driverPushStatus.exports);
 Object.assign(exports, deliveryZones.exports);
+Object.assign(exports, deliveryLoyalty.exports);
 Object.assign(exports, tripCommission.exports);
 Object.assign(exports, serviceAvailability.exports);
 Object.assign(exports, storeOrderSync.exports);

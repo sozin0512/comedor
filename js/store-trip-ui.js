@@ -206,7 +206,10 @@ export function storeOrderSummary(t, deliveryPrice = null) {
     const fee = deliveryPrice != null ? num(deliveryPrice) : num(t.negotiatedPrice ?? t.priceNum ?? t.price);
     const direct = t.merchantDirectDelivery === true || (!isStore && hasLegacyDeliveryDetails && itemsTotal === 0);
     const paid = !direct && (d.productsPaid === true || d.productsPaymentMethod === "saldo");
-    const cashToCollect = paid ? fee : fee + itemsTotal;
+    // Promo Navidad: el cliente paga menos envío; HonduRaite abona la diferencia al conductor.
+    const loyaltyDiscount = !direct && t?.loyaltyPromoId ? Math.min(fee, Math.max(0, num(t.loyaltyDiscount))) : 0;
+    const clientFee = Math.max(0, Math.round((fee - loyaltyDiscount) * 100) / 100);
+    const cashToCollect = paid ? clientFee : clientFee + itemsTotal;
     return {
         storeName: String(d.storeName || d.restaurant || t.originPlaceName || "Tienda"),
         storePhone: String(d.storePhone || ""),
@@ -218,6 +221,10 @@ export function storeOrderSummary(t, deliveryPrice = null) {
         itemsDetailText,
         itemsTotal,
         fee,
+        clientFee,
+        loyaltyDiscount,
+        loyaltyStep: loyaltyDiscount > 0 ? (Number(t.loyaltyStep) || null) : null,
+        loyaltyCycle: loyaltyDiscount > 0 ? (Number(t.loyaltyCycle) || 5) : null,
         direct,
         productsPaid: paid,
         cashToCollect,
@@ -272,18 +279,23 @@ export function storeCollectHtml(t, deliveryPrice = null) {
             <p class="hr-store-collect-note">${s.itemsTotal > 0 ? `Le entregas ${money(s.itemsTotal)} a la tienda · tu envío ${money(s.fee)} (menos la comisión HonduRaite).` : "La tienda no puso cobro de productos."}</p>
         </div>`;
     }
+    const promo = s.loyaltyDiscount > 0
+        ? `<p class="hr-store-collect-note" data-loyalty-rider style="font-weight:800;color:#FEF08A;background:rgba(0,0,0,.18);border-radius:8px;padding:6px 8px;margin:4px 0">🎁 Promo cliente (pedido ${esc(s.loyaltyStep || "")} de ${esc(s.loyaltyCycle || 5)}): cobra envío ${money(s.clientFee)} · HonduRaite te abona ${money(s.loyaltyDiscount)} a tu saldo al entregar. Tu envío sigue siendo ${money(s.fee)}.</p>`
+        : "";
     if (s.productsPaid) {
         return `<div class="hr-store-collect hr-store-collect--paid">
             <p class="hr-store-collect-title"><i class="fas fa-check-circle"></i> Productos ya pagados con puntos</p>
-            <p class="hr-store-collect-row hr-store-collect-total"><span>Cobrar solo el envío${zone}</span><b>${money(s.fee)}</b></p>
+            <p class="hr-store-collect-row hr-store-collect-total"><span>Cobrar solo el envío${zone}</span><b>${money(s.clientFee)}</b></p>
+            ${promo}
             <p class="hr-store-collect-note">No cobres los productos: la tienda ya recibió el pago.</p>
         </div>`;
     }
     return `<div class="hr-store-collect">
         <p class="hr-store-collect-title"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo</p>
         <p class="hr-store-collect-row"><span>Productos (son de la tienda)</span><b>${money(s.itemsTotal)}</b></p>
-        <p class="hr-store-collect-row"><span>Tu envío${zone}</span><b>${money(s.fee)}</b></p>
+        <p class="hr-store-collect-row"><span>${s.loyaltyDiscount > 0 ? "Envío que paga el cliente" : "Tu envío"}${zone}</span><b>${money(s.clientFee)}</b></p>
         <p class="hr-store-collect-row hr-store-collect-total"><span>Total a cobrar</span><b>${money(s.cashToCollect)}</b></p>
+        ${promo}
         <p class="hr-store-collect-note">Le pasas ${money(s.itemsTotal)} a la tienda al recoger · tu envío ${money(s.fee)} (menos la comisión HonduRaite).</p>
     </div>`;
 }

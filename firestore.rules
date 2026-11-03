@@ -118,12 +118,16 @@ service cloud.firestore {
         'support_tickets', 'verification_alerts', 'driver_payout_records', 'driver_payout_bank_events', 'driver_deposits',
         'balance_adjustments', 'permission_logs', 'notification_campaigns', 'wa_invite_contacted', 'trip_purge_log',
         'whatsapp_cloud_inbox', 'whatsapp_cloud_outbox', 'whatsapp_cloud_statuses', 'whatsapp_cloud_events',
-        'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions', 'auth_phone_index', 'platformConfig'];
+        'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions', 'auth_phone_index', 'platformConfig',
+        'delivery_loyalty_members', 'delivery_loyalty_credits', 'promotions_loyalty'];
     }
 
     // Pedidos de tiendas: campos de la tarifa de envío por zona (solo servidor).
     function storeOrderZoneKeys() {
-      return ['deliveryZoneId', 'deliveryZoneName', 'deliveryFeeSource', 'deliveryFeeQuotedAtMs'];
+      return ['deliveryZoneId', 'deliveryZoneName', 'deliveryFeeSource', 'deliveryFeeQuotedAtMs',
+        // Promo Navidad (fidelidad de envío): solo el servidor fija paso, descuento y abono al conductor.
+        'loyaltyPromoId', 'loyaltyStep', 'loyaltyCycle', 'loyaltyDiscount', 'clientDeliveryFee',
+        'loyaltyCountedAtMs', 'loyaltyRiderCredit', 'loyaltyRiderCreditedTo', 'loyaltyRiderCreditedAtMs'];
     }
 
     function tripServerOnlyKeys() {
@@ -636,6 +640,19 @@ service cloud.firestore {
     match /artifacts/{app}/public/data/bankAccounts/{docId} {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && isStaff(app);
+    }
+
+    // Promo Navidad (fidelidad de envío): miembros, abonos y candados los escribe SOLO el servidor.
+    match /artifacts/{app}/public/data/delivery_loyalty_members/{uid} {
+      allow read: if isSignedIn() && (isOwner(uid) || isStaff(app));
+      allow write: if false;
+    }
+    match /artifacts/{app}/public/data/delivery_loyalty_credits/{orderId} {
+      allow read: if isSignedIn() && (isStaff(app) || resource.data.driverId == requestUid());
+      allow write: if false;
+    }
+    match /artifacts/{app}/public/data/promotions_loyalty/{promoId}/{document=**} {
+      allow read, write: if false;
     }
 
     // Promociones (lectura usuarios autenticados; escritura staff)

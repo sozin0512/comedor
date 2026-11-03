@@ -485,6 +485,11 @@ module.exports = function createDeliveryZones(deps) {
         const patch = { deliveryFeeQuotedAtMs: Date.now() };
         if (q.inZone) {
             Object.assign(patch, { deliveryZoneId: q.zoneId, deliveryZoneName: q.zoneName, deliveryFee: q.fee, deliveryFeeSource: q.source });
+            // Promo Navidad (HAM): solo miembros; el cliente paga clientDeliveryFee, el conductor gana deliveryFee.
+            if (typeof deps.loyaltyPatchForNewOrder === 'function') {
+                const lp = await deps.loyaltyPatchForNewOrder(appId, d, q.fee).catch((e) => { console.warn('loyaltyPatch', e?.message || e); return null; });
+                if (lp) Object.assign(patch, lp);
+            }
         } else {
             Object.assign(patch, { deliveryZoneId: null, deliveryZoneName: null, deliveryFeeSource: q.reason === 'no_location' ? 'distance_no_location' : 'distance' });
             if (q.blocked) {
@@ -506,6 +511,11 @@ module.exports = function createDeliveryZones(deps) {
         const tripRef = db.doc(`artifacts/${appId}/public/data/trips/${after.tripId}`);
         const t = await tripRef.get();
         if (!t.exists || t.get('storeOrderId') !== event.params.orderId) return;
+        // Promo Navidad: el conductor ve cuánto cobrar al cliente y cuánto le abona HonduRaite.
+        if (after.loyaltyPromoId && t.get('loyaltyDiscount') !== after.loyaltyDiscount) {
+            await tripRef.update({ loyaltyPromoId: after.loyaltyPromoId, loyaltyStep: after.loyaltyStep || null, loyaltyCycle: after.loyaltyCycle || null,
+                loyaltyDiscount: money(after.loyaltyDiscount), clientDeliveryFee: money(after.clientDeliveryFee) }).catch(() => {});
+        }
         if (Number(t.get('priceNum')) === fee) return;
         if (!['pending', 'scheduled'].includes(t.get('status'))) return;
         await tripRef.update({ priceNum: fee, price: `L. ${fee.toFixed(2)}`, deliveryZoneId: after.deliveryZoneId || null, deliveryZoneName: after.deliveryZoneName || null, deliveryFeeSource: after.deliveryFeeSource });

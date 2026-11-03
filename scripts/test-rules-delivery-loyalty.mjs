@@ -1,0 +1,42 @@
+// Reglas: Promo Navidad (fidelidad de envío). Campos del pedido, miembros, candados y abonos solo los escribe el servidor.
+// RULES=firestore.rules firebase emulators:exec --project demo-hr --only firestore "node scripts/test-rules-delivery-loyalty.mjs"
+import fs from 'node:fs';
+import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { doc, setDoc, getDoc, updateDoc, addDoc, collection } from 'firebase/firestore';
+const APP = 'comayagua-vip-pro-v4';
+const env = await initializeTestEnvironment({ projectId: 'demo-hr', firestore: { rules: fs.readFileSync(process.env.RULES, 'utf8'), host: '127.0.0.1', port: 8080 } });
+const P = `artifacts/${APP}/public/data`;
+await env.clearFirestore();
+await env.withSecurityRulesDisabled(async (c) => {
+  const db = c.firestore();
+  await setDoc(doc(db, `${P}/users/sup`), { role: 'supervisor' });
+  await setDoc(doc(db, `artifacts/${APP}/roles/sup`), { role: 'supervisor', source: 'test' });
+  await setDoc(doc(db, `${P}/users/cli`), { role: 'client' });
+  await setDoc(doc(db, `${P}/users/own`), { role: 'client' });
+  await setDoc(doc(db, `${P}/delivery_loyalty_members/cli`), { deliveredCount: 2 });
+  await setDoc(doc(db, `${P}/delivery_loyalty_credits/o1`), { driverId: 'drv', amount: 5 });
+  await setDoc(doc(db, `${P}/promotions_loyalty/promo_navidad/locks/uid_x`), { uid: 'cli' });
+  await setDoc(doc(db, `${P}/appSettings/deliveryLoyalty`), { enabled: true, memberCount: 3, maxMembers: 147 });
+  await setDoc(doc(db, `${P}/store_orders/o1`), { storeId: 'st', ownerId: 'own', clientId: 'cli', status: 'pending', deliveryFee: 40, deliveryFeeSource: 'zone_base', loyaltyPromoId: 'promo_navidad', loyaltyDiscount: 5, clientDeliveryFee: 35 });
+});
+const cx = (u) => env.authenticatedContext(u, { email: `${u}@x.com` }).firestore();
+let pass = 0, fail = 0;
+const t = async (name, p, want) => { try { await (want ? assertSucceeds(p) : assertFails(p)); pass++; console.log('PASS', name); } catch (e) { fail++; console.log('FAIL', name, e.message); } };
+const order = (extra = {}) => ({ storeId: 'st', ownerId: 'own', clientId: 'cli', status: 'pending', items: [], deliveryFee: null, ...extra });
+await t('cliente lee ajustes de la promo', getDoc(doc(cx('cli'), `${P}/appSettings/deliveryLoyalty`)), true);
+await t('cliente NO sube el contador', updateDoc(doc(cx('cli'), `${P}/appSettings/deliveryLoyalty`), { memberCount: 0 }), false);
+await t('cliente lee su membresía', getDoc(doc(cx('cli'), `${P}/delivery_loyalty_members/cli`)), true);
+await t('otro NO lee membresía ajena', getDoc(doc(cx('own'), `${P}/delivery_loyalty_members/cli`)), false);
+await t('cliente NO se hace miembro solo', setDoc(doc(cx('own'), `${P}/delivery_loyalty_members/own`), { deliveredCount: 4 }), false);
+await t('cliente NO cambia su conteo', updateDoc(doc(cx('cli'), `${P}/delivery_loyalty_members/cli`), { deliveredCount: 4 }), false);
+await t('nadie lee/escribe candados', getDoc(doc(cx('sup'), `${P}/promotions_loyalty/promo_navidad/locks/uid_x`)), false);
+await t('cliente NO borra candado', setDoc(doc(cx('cli'), `${P}/promotions_loyalty/promo_navidad/locks/uid_x`), {}), false);
+await t('conductor lee su abono', getDoc(doc(cx('drv'), `${P}/delivery_loyalty_credits/o1`)), true);
+await t('cliente NO crea abonos', setDoc(doc(cx('cli'), `${P}/delivery_loyalty_credits/o9`), { driverId: 'cli', amount: 99 }), false);
+await t('cliente NO crea pedido con descuento propio', addDoc(collection(cx('cli'), `${P}/store_orders`), order({ clientDeliveryFee: 0, loyaltyDiscount: 40 })), false);
+await t('cliente NO cambia clientDeliveryFee', updateDoc(doc(cx('cli'), `${P}/store_orders/o1`), { clientDeliveryFee: 0 }), false);
+await t('tienda NO cambia loyaltyDiscount', updateDoc(doc(cx('own'), `${P}/store_orders/o1`), { loyaltyDiscount: 40 }), false);
+await t('cliente sigue creando pedido normal', addDoc(collection(cx('cli'), `${P}/store_orders`), order()), true);
+console.log(`\n${pass}/${pass + fail} PASS`);
+await env.cleanup();
+process.exit(fail ? 1 : 0);
