@@ -104,9 +104,10 @@ export function loyaltyPromoBoxHtml(fee = lastFee) {
     if (!s?.enabled) return '<div id="loyalty-promo-box"></div>';
     const ids = Array.isArray(s.storeIds) ? s.storeIds : [];
     const storeId = DEPS.getStoreId?.() || '';
+    const parentId = DEPS.getParentStoreId?.() || '';
     const only = s.storeLabel ? `<small class="loy-mut">Solo en ${esc(s.storeLabel)}</small>` : '';
     const started = !s.startsAtMs || Date.now() >= Number(s.startsAtMs);
-    const here = !ids.length || ids.includes(storeId);
+    const here = !ids.length || ids.includes(storeId) || (!!parentId && ids.includes(parentId));
     if (!here) return `<div id="loyalty-promo-box"></div>`;
     if (!started) {
         const t = new Date(Number(s.startsAtMs)).toLocaleString('es-HN', { timeZone: 'America/Tegucigalpa', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });

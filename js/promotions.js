@@ -520,7 +520,7 @@ export function deliveryLoyaltyCardHtml(raw = {}) {
                 ${f('loy-cycle', 'Ciclo (pedidos)', s.cycle, 'number', 'min="1"')}
                 ${f('loy-starts', 'Empieza (hora Honduras)', startsLocal, 'datetime-local')}
                 ${f('loy-store-label', 'Tienda (texto «Solo en…»)', s.storeLabel)}
-                <div class="col-span-2">${f('loy-stores', 'IDs de tienda (coma; vacío = todas)', (s.storeIds || []).join(', '))}</div>
+                <div class="col-span-2">${f('loy-stores', 'IDs de tienda o principal (incluye sus sucursales; coma; vacío = todas)', (s.storeIds || []).join(', '))}</div>
                 <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300 mt-4"><input id="loy-lastfree" type="checkbox" ${s.lastFree ? 'checked' : ''}> Último del ciclo gratis</label>
                 <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300"><input id="loy-reqphone" type="checkbox" ${s.requireVerifiedPhone ? 'checked' : ''}> Exigir teléfono verificado</label>
                 <label class="flex items-center gap-2 text-[11px] font-bold text-slate-300"><input id="loy-enabled" type="checkbox" ${s.enabled ? 'checked' : ''}> Promo encendida</label>

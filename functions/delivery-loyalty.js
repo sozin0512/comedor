@@ -47,10 +47,11 @@ function normalizeSettings(raw = {}) {
 }
 
 /** ¿Aplica a esta tienda y ya empezó? (storeIds vacío = todas) */
-function appliesTo(settings, storeId, now = Date.now()) {
+/** storeIds acepta la tienda o su principal (parentStoreId): así entran todas las sucursales, también las nuevas. */
+function appliesTo(settings, storeId, now = Date.now(), parentStoreId = null) {
     const s = normalizeSettings(settings);
     if (!s.enabled || now < s.startsAtMs) return false;
-    return !s.storeIds.length || s.storeIds.includes(String(storeId || ''));
+    return !s.storeIds.length || s.storeIds.includes(String(storeId || '')) || (!!parentStoreId && s.storeIds.includes(String(parentStoreId)));
 }
 
 /** Paso del ciclo para el próximo pedido (1..cycle) y descuento sobre la tarifa (nunca < 0). */
@@ -141,7 +142,13 @@ module.exports = function createDeliveryLoyalty({ db, FieldValue, HttpsError, on
         if (!order?.clientId || !Number.isFinite(Number(fee))) return null;
         const [sSnap, mSnap] = await Promise.all([settingsRef(app).get(), memberRef(app, order.clientId).get()]);
         const s = normalizeSettings(sSnap.exists ? sSnap.data() : {});
-        if (!appliesTo(s, order.storeId) || !mSnap.exists) return null;
+        if (!mSnap.exists) return null;
+        let parent = null;
+        if (s.storeIds.length && !s.storeIds.includes(String(order.storeId || ''))) {
+            const st = await db.doc(`${base(app)}/stores/${order.storeId}`).get().catch(() => null);
+            parent = st?.exists ? (st.get('parentStoreId') || null) : null;
+        }
+        if (!appliesTo(s, order.storeId, Date.now(), parent)) return null;
         const r = computeLoyalty(s, mSnap.get('deliveredCount') || 0, fee);
         if (!r) return null;
         return { loyaltyPromoId: PROMO_ID, loyaltyStep: r.step, loyaltyCycle: r.cycle, loyaltyDiscount: r.discount, clientDeliveryFee: r.clientDeliveryFee };

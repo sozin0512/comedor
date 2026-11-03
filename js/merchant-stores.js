@@ -13,34 +13,34 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.49';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.49';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.50';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.50';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.26.49';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.26.49';
-import { APP_CONFIG } from './config.js?v=2026.10.26.49';
-import { calculateAge } from './age-verification.js?v=2026.10.26.49';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.49';
+} from './zones.js?v=2026.10.26.50';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.26.50';
+import { APP_CONFIG } from './config.js?v=2026.10.26.50';
+import { calculateAge } from './age-verification.js?v=2026.10.26.50';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.50';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.26.49';
+} from './store-delivery-zones.js?v=2026.10.26.50';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.26.49';
+} from './store-week.js?v=2026.10.26.50';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.49';
-import { configureLoyalty, loadLoyalty, loyaltyPromoBoxHtml, orderLoyaltyLineHtml } from './delivery-loyalty-ui.js?v=2026.10.26.49';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.49';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.50';
+import { configureLoyalty, loadLoyalty, loyaltyPromoBoxHtml, orderLoyaltyLineHtml } from './delivery-loyalty-ui.js?v=2026.10.26.50';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.50';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.26.49';
+} from './merchant-delivery-request.js?v=2026.10.26.50';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -9599,7 +9599,7 @@ export function initMerchantStores(deps = {}) {
     getCurrentUser = deps.getCurrentUser || (() => null);
     getUserProfile = deps.getUserProfile || (() => null);
     configureStoreZones({ db: dbRef, appId: appIdRef, functions: deps.functions || null, getCurrentUser, toast });
-    configureLoyalty({ db: dbRef, appId: appIdRef, functions: deps.functions || null, getCurrentUser, getStoreId: () => viewingStore?.id || '' });
+    configureLoyalty({ db: dbRef, appId: appIdRef, functions: deps.functions || null, getCurrentUser, getStoreId: () => viewingStore?.id || '', getParentStoreId: () => viewingStore?.parentStoreId || '' });
 
     bindUiHooks();
 

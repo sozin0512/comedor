@@ -100,6 +100,8 @@ const C = { lat: 14.4598, lng: -87.6378 };
   ok('ya empezó + tienda correcta: descuento', (await mk('OT2', 'ST1')).clientDeliveryFee === 35);
   const ot3 = await mk('OT3', 'ST2');
   ok('otra tienda: sin descuento', ot3.loyaltyPromoId === undefined, JSON.stringify(ot3.deliveryFee));
+  await db.doc(`${B}/stores/ST3`).set({ name: 'Sucursal', ownerId: 'OWN', cityId: 'comayagua', parentStoreId: 'ST1' });
+  ok('sucursal (parentStoreId) de la tienda: descuento', (await mk('OT4', 'ST3')).clientDeliveryFee === 35);
   for (const r of res) console.log(r.join(' · '));
   const f = res.filter((r) => r[0] === 'FAIL').length;
   console.log(`\n${res.length - f}/${res.length} PASS`);
