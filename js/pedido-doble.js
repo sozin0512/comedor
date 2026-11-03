@@ -7,7 +7,7 @@
  * - Cancelación: el otro sigue como pedido normal; si ya lo recogió, «Devuelto al negocio».
  */
 import { doc, onSnapshot, updateDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { pdCanPair, pdPriority, pdIsZone, pdDeliveryOrder, PD_PRIORITY_SEC, PD_DEST_NEAR_KM, PD_DETOUR_MAX_KM } from './pedido-doble-rules.js?v=2026.10.26.42';
+import { pdCanPair, pdPriority, pdIsZone, pdDeliveryOrder, PD_PRIORITY_SEC, PD_DEST_NEAR_KM, PD_DETOUR_MAX_KM } from './pedido-doble-rules.js?v=2026.10.26.43';
 
 const W = window;
 const trips = new Map();       // id → datos vivos
