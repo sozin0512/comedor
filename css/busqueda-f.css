@@ -1,5 +1,7 @@
 /* v.39 — Búsqueda opción F */
-#map.hr-f-css-tilt{transform:perspective(1000px) rotateX(24deg) scale(1.22);transform-origin:50% 60%;transition:transform .5s ease}
+#map.hr-f-css-tilt{-webkit-transform:perspective(1000px) rotateX(20deg) scale(1.18)!important;transform:perspective(1000px) rotateX(20deg) scale(1.18)!important;-webkit-transform-origin:50% 60%;transform-origin:50% 60%!important;transition:transform .5s ease}
+body.hr-search-f #map-container{-webkit-perspective:none;overflow:hidden}
+body.hr-search-f .panel-expand-fab,body.hr-search-f #panel-expand-fab,body.hr-search-f #panel-hide-btn,body.hr-search-f #passenger-panel-min-btn{display:none!important}
 .hr-f-radar{position:absolute;width:0;height:0;pointer-events:none}
 .hr-f-radar span{position:absolute;left:0;top:0;width:240px;height:240px;margin:-120px 0 0 -120px;border-radius:50%;border:1.5px solid rgba(16,185,129,.55);background:radial-gradient(circle,rgba(16,185,129,0) 55%,rgba(16,185,129,.18));animation:hrFPulse 2.7s ease-out infinite;opacity:0}
 .hr-f-radar span:nth-child(2){animation-delay:.9s}.hr-f-radar span:nth-child(3){animation-delay:1.8s}
@@ -50,7 +52,8 @@ body.hr-search-f #control-panel #searching-state,body.hr-search-f #control-panel
 body.hr-search-f.is-searching #searching-state #searching-cancel-btn{display:none!important}
 body.hr-search-f.is-searching #map-container{opacity:1!important;pointer-events:auto!important}
 body.hr-search-f #hr-f-panel,body.hr-search-f #hr-f-panel *{text-align:left}
-body.hr-search-f #hr-f-pill,body.hr-search-f #hr-f-pill *{color:inherit!important;font:inherit!important}
+body.hr-search-f #hr-f-pill *{color:inherit!important}
 body.hr-search-f #hr-f-pill{color:#34d399!important;font-weight:700!important;font-size:13px!important}
 body.hr-search-f #hr-f-pill.hr-f-pill--zero{color:#9fb3ab!important}
 body.hr-search-f #hr-f-pill .hr-f-n{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;font-weight:800!important}
+body.hr-search-f #hr-f-pill,body.hr-search-f #hr-f-pill *{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif!important;font-variant-emoji:text;font-variant-numeric:tabular-nums}

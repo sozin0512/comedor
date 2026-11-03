@@ -389,7 +389,7 @@ const hrZoneDeliveryDone = async (trip) => {
     await window.finishTrip?.({ skipConfirm: true });
     try {
         const [{ showZoneDeliveryResult }, fs] = await Promise.all([
-            import("./zone-delivery.js?v=2026.10.26.39"),
+            import("./zone-delivery.js?v=2026.10.26.40"),
             import('https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js'),
         ]);
         const ref = (id) => fs.doc(db, 'artifacts', appId, 'public', 'data', 'trips', id);

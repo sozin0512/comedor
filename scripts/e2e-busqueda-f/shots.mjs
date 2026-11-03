@@ -37,7 +37,7 @@ async function session({ geo, site }) {
     const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
     const ctx = await browser.newContext({
         viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block',
-        userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
+        userAgent: process.env.UA || 'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36',
         geolocation: { latitude: 14.0818, longitude: -87.2068, accuracy: 15 }, permissions: geo ? ['geolocation'] : [],
         locale: 'es-HN', timezoneId: 'America/Tegucigalpa'
     });
@@ -80,9 +80,9 @@ async function session({ geo, site }) {
 const siteDir = path.resolve(process.argv[2]);
 const out = process.argv[3] || '/workspace/artifacts/busqueda-f';
 fs.mkdirSync(out, { recursive: true });
-async function shot(file, { viewers, stalled, popup }) {
+async function shot(file, { viewers, stalled, popup, minimized }) {
     const s = await session({ geo: true, site: siteDir });
-    const info = await s.page.evaluate(({ viewers, stalled }) => {
+    const info = await s.page.evaluate(({ viewers, stalled, minimized }) => {
         const now = Date.now();
         const vb = {};
         if (viewers) {
@@ -97,19 +97,26 @@ async function shot(file, { viewers, stalled, popup }) {
         const st = document.getElementById('searching-state');
         let n = st; while (n && n !== document.body) { n.classList.remove('hidden'); n = n.parentElement; }
         document.getElementById('passenger-boost-price-panel')?.classList.remove('hidden');
+        if (minimized) { document.body.classList.add('panel-minimized', 'panel-collapsed', 'panel-hidden'); document.getElementById('control-panel')?.classList.add('panel-collapsed', 'panel-hidden'); }
         if (stalled) document.getElementById('passenger-search-stall')?.classList.remove('hidden');
         window.hrSearchF?.update(trip);
         const r = st.getBoundingClientRect();
-        return { top: r.top, bottom: r.bottom, sh: st.scrollHeight, ch: st.clientHeight, hasF: document.body.classList.contains('hr-search-f'), gmap: !!window.gMap, tilt: window.gMap?.getTilt?.() };
-    }, { viewers, stalled });
+        return { top: r.top, bottom: r.bottom, sh: st.scrollHeight, ch: st.clientHeight, hasF: document.body.classList.contains('hr-search-f'), gmap: !!window.gMap, tilt: window.gMap?.getTilt?.(), pillN: (() => { const e = document.querySelector('#hr-f-pill .hr-f-n'); if (!e) return null; const c = getComputedStyle(e); return [c.color, c.opacity, c.webkitTextFillColor, c.fontFamily, c.fontVariantNumeric, e.outerHTML]; })(), fab: getComputedStyle(document.getElementById('panel-expand-fab')).display, bodyCls: document.body.className };
+    }, { viewers, stalled, minimized });
     if (popup) await s.page.evaluate(() => window.hrSearchF.openBoost());
     await s.page.waitForTimeout(2500);
     await s.page.screenshot({ path: file });
     console.log(file, JSON.stringify(info), 'cssTilt', await s.page.evaluate(() => document.getElementById('map')?.classList.contains('hr-f-css-tilt')), s.errors.slice(0, 3));
     await s.browser.close();
 }
-await shot(`${out}/f-0-viendo.png`, { viewers: false });
-await shot(`${out}/f-2-viendo.png`, { viewers: true });
-await shot(`${out}/f-popup-precio.png`, { viewers: true, popup: true });
-await shot(`${out}/f-75s.png`, { viewers: true, stalled: true });
+const pre = process.argv[4] || 'fix40-';
+const only = process.argv[5] || 'all';
+if (only === 'repro') { await shot(`${out}/${pre}antes-minimizado.png`, { viewers: true, minimized: true }); }
+else {
+await shot(`${out}/${pre}minimizado.png`, { viewers: true, minimized: true });
+await shot(`${out}/${pre}0-viendo.png`, { viewers: false });
+await shot(`${out}/${pre}2-viendo.png`, { viewers: true });
+await shot(`${out}/${pre}popup-precio.png`, { viewers: true, popup: true });
+await shot(`${out}/${pre}75s.png`, { viewers: true, stalled: true });
+}
 console.log('ok');

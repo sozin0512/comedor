@@ -89,21 +89,33 @@
         } catch (_) {}
     }
 
+    // v.40: inclinación por CSS siempre (en iPhone el tilt vectorial de Google se anula al alejar el zoom).
     function setTilt(on) {
         const mapEl = document.getElementById('map');
         try {
-            if (on) {
-                window.gMap?.setTilt?.(45);
-                setTimeout(() => {
-                    const t = Number(window.gMap?.getTilt?.()) || 0;
-                    if (active && t < 1) { usedCssTilt = true; mapEl?.classList.add('hr-f-css-tilt'); }
-                }, 700);
-            } else {
-                window.gMap?.setTilt?.(0);
-                mapEl?.classList.remove('hr-f-css-tilt');
-                usedCssTilt = false;
-            }
+            if (on) { usedCssTilt = true; mapEl?.classList.add('hr-f-css-tilt'); }
+            else { mapEl?.classList.remove('hr-f-css-tilt'); usedCssTilt = false; }
         } catch (_) {}
+    }
+
+    // v.40: mientras se busca, el panel siempre abierto (ignora «Minimizar» / estado guardado).
+    const PANEL_CLS = ['panel-hidden', 'panel-minimized', 'panel-collapsed'];
+    let panelObs = null;
+    function forcePanelOpen() {
+        const panel = document.getElementById('control-panel');
+        PANEL_CLS.forEach((c) => {
+            if (document.body.classList.contains(c)) document.body.classList.remove(c);
+            if (panel?.classList.contains(c)) panel.classList.remove(c);
+        });
+    }
+    function watchPanel(on) {
+        if (panelObs) { panelObs.disconnect(); panelObs = null; }
+        if (!on) return;
+        forcePanelOpen();
+        panelObs = new MutationObserver(() => { if (active) forcePanelOpen(); });
+        panelObs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        const panel = document.getElementById('control-panel');
+        if (panel) panelObs.observe(panel, { attributes: true, attributeFilter: ['class'] });
     }
 
     function paintPanel(data) {
@@ -122,11 +134,13 @@
         active = true;
         window.__hrFFitSig = null;
         document.body.classList.add('hr-search-f');
+        watchPanel(true);
         setTilt(true);
     }
     function exit() {
         if (!active) return;
         active = false;
+        watchPanel(false);
         document.body.classList.remove('hr-search-f');
         closeBoost();
         clearOverlays();
