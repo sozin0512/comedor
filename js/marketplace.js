@@ -82,6 +82,7 @@ const src = () => DEPS.source || fsSource;
 // ───────── Estilos ─────────
 const CSS = `
 #mk-root *,#mk-root *::before,#mk-root *::after,.mk-modal *{box-sizing:border-box}
+#mk-root,#mk-root *,.mk-modal,.mk-modal *{font-variant-emoji:normal}
 #mk-root{position:fixed;inset:0;z-index:9000;background:#f1f5f9;color:#0f172a;font-family:'Inter',system-ui,sans-serif;display:flex;flex-direction:column}
 #mk-root.hidden{display:none}
 .mk-top{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 14px;box-shadow:0 4px 18px rgba(30,58,138,.25)}
