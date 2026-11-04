@@ -53,6 +53,11 @@ const deliveryLoyalty = require('./delivery-loyalty')({
     db, FieldValue, HttpsError, onCall, onDocumentUpdated, APP_ID,
     assertCallerCanModerate: (...a) => assertCallerCanModerate(...a)
 });
+/** Marketplace HonduRaite: aprobar, vendido/rentado y comisiones 10% al vendedor (ver marketplace.js). */
+const marketplace = require('./marketplace')({
+    db, FieldValue, HttpsError, onCall, APP_ID,
+    assertCallerCanModerate: (...a) => assertCallerCanModerate(...a)
+});
 /** Tiendas · zonas de envío con tarifa fija (ver delivery-zones.js). */
 const deliveryZones = require('./delivery-zones')({
     db, FieldValue, HttpsError, onCall, onDocumentCreated, onDocumentUpdated, APP_ID,
@@ -7039,6 +7044,7 @@ Object.assign(exports, viajesPanel.exports);
 Object.assign(exports, driverPushStatus.exports);
 Object.assign(exports, deliveryZones.exports);
 Object.assign(exports, deliveryLoyalty.exports);
+Object.assign(exports, marketplace.exports);
 Object.assign(exports, tripCommission.exports);
 Object.assign(exports, serviceAvailability.exports);
 Object.assign(exports, storeOrderSync.exports);
