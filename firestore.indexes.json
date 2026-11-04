@@ -97,6 +97,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "marketplace_listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "approvedAtMs",
+          "order": "DESCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

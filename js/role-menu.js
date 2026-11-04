@@ -19,6 +19,7 @@ const I = {
     moon: ['<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>', '#1f2937'],
     wa: ['<path d="M4 20l1.3-3.8A8 8 0 1 1 8 19z"/><path d="M9 9.5c.3 2.5 2.5 4.6 5 5l1.2-1.2-1.8-1-1 .8a4 4 0 0 1-2-2l.8-1-1-1.8z" stroke-width="1.4"/>', '#16a34a'],
     store: ['<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5.5 11v9h13v-9"/>', '#ea8a1c'],
+    market: ['<path d="M3 7h18l-1.5 11a2 2 0 0 1-2 1.7H6.5a2 2 0 0 1-2-1.7z"/><path d="M8 7a4 4 0 0 1 8 0"/><path d="M9 12h6"/>', '#2563eb'],
     mystore: ['<path d="M4 9l1.5-5h13L20 9"/><path d="M4 9a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0"/><path d="M5.5 11v9h13v-9"/><path d="M10 20v-5h4v5"/>', '#16a37a'],
     history: ['<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4.5h4.5"/><path d="M12 7.5V12l3 2"/>', '#2563eb'],
     check: ['<circle cx="12" cy="12" r="9.5"/><path d="M8 12.3l2.8 2.7L16.3 9.5" stroke="#fff" stroke-width="2.4" fill="none"/>', '#16a34a', true],
@@ -118,6 +119,7 @@ function passengerItems(ctx) {
     return [
         item({ k: 'car', label: 'Pedir viaje / Inicio', act: 'home' }),
         item({ k: 'store', label: 'Tiendas virtuales', act: 'stores' }),
+        item({ k: 'market', label: 'Marketplace HonduRaite', act: 'marketplace', sub: 'Carros, motos, repuestos · venta y renta' }),
         item({ k: 'mystore', label: 'Mi tienda', act: store ? 'mystore' : 'createstore', sub: store ? esc(store.count > 1 ? `${store.name || 'Mi tienda'} (+${store.count - 1} sucursal${store.count - 1 === 1 ? '' : 'es'})` : (store.name || 'Abrir mi tienda')) : '¿Aún no tienes? <b>Crear mi tienda o restaurante</b>' }),
         item({ k: 'history', label: 'Mis viajes + Facturas', act: 'history' }),
         item({ k: 'pin', label: 'Lugares favoritos', act: 'favorites' }),
@@ -166,11 +168,13 @@ export function buildMenuHtml(role, ctx = {}) {
         }
         body.push(...common(ctx));
         if (role === 'supervisor') {
-            body.push(staffBox([item({ k: 'superv', label: 'Supervisión', act: 'supervisor', extra: badge(ctx.staffPending) })]));
+            body.push(staffBox([item({ k: 'superv', label: 'Supervisión', act: 'supervisor', extra: badge(ctx.staffPending) }),
+                item({ k: 'market', label: 'Marketplace (revisar)', act: 'marketplaceadmin' })]));
         } else if (role === 'admin') {
             body.push(staffBox([
                 item({ k: 'superv', label: 'Supervisión', act: 'supervisor', extra: badge(ctx.staffPending) }),
-                item({ k: 'shield', label: 'Panel Admin', act: 'admin', extra: badge(ctx.adminReports) })
+                item({ k: 'shield', label: 'Panel Admin', act: 'admin', extra: badge(ctx.adminReports) }),
+                item({ k: 'market', label: 'Marketplace (revisar)', act: 'marketplaceadmin' })
             ]));
         }
         body.push(logout());
@@ -305,6 +309,8 @@ async function pushTest() {
 const ACTIONS = {
     home: () => window.setPassengerHomeMode?.('home'),
     stores: () => window.openStoresMarketplace?.(),
+    marketplace: () => window.hrOpenMarketplace?.(),
+    marketplaceadmin: () => window.hrOpenMarketplace?.({ admin: true }),
     mystore: () => window.openMerchantPanel?.({ createNew: false }),
     createstore: () => window.openMerchantPanel?.({ createNew: true }),
     history: () => window.showMyPastTrips?.(),

@@ -130,6 +130,13 @@ function ensureHomeUi() {
                         <small>Pedidos</small>
                     </span>
                 </button>
+                <button type="button" class="passenger-home-card passenger-home-card--market" data-home-mode="marketplace" role="listitem" title="Carros, motos y repuestos en venta o renta">
+                    <span class="passenger-home-card-icon"><i class="fas fa-tags"></i></span>
+                    <span class="passenger-home-card-text">
+                        <strong>Marketplace</strong>
+                        <small>Carros · Motos · Renta</small>
+                    </span>
+                </button>
                 <button type="button" class="passenger-home-card passenger-home-card--delivery" data-home-mode="delivery" role="listitem" title="Recoger y entregar">
                     <span class="passenger-home-card-icon"><i class="fas fa-box"></i></span>
                     <span class="passenger-home-card-text">
@@ -247,6 +254,7 @@ function ensureHomeUi() {
             const mode = btn.getAttribute('data-home-mode');
             if (!mode) return;
             e.preventDefault();
+            if (mode === 'marketplace') { window.hrOpenMarketplace?.(); return; }
             setPassengerHomeMode(mode);
         });
     }

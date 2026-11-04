@@ -26602,3 +26602,23 @@ body.trip-autocomplete-open *::after {
     backdrop-filter: none !important;
 }
 body.trip-autocomplete-open #map { will-change: auto !important; }
+
+.passenger-home-card--market .passenger-home-card-icon {
+  /* azul bandera de Honduras */
+  background: linear-gradient(135deg, #00bce4, #0073cf);
+}
+/* 6 mosaicos (con Marketplace): 3×2 parejo, sin hueco en la última fila */
+.passenger-home-grid .passenger-home-card--freight,
+.passenger-home-grid .passenger-home-card--tow {
+  grid-column: auto !important;
+}
+@media (min-width: 420px) {
+  .passenger-home-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+@media (min-width: 640px) {
+  .passenger-home-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
+}

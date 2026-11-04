@@ -3,7 +3,7 @@
  */
 import { formatLempiras } from './money-format.js';
 import { HONDURAS_CITIES } from './honduras-cities.js';
-import { zoneDeliveryStats, isZoneBillingTrip } from './zone-delivery.js?v=2026.10.26.51';
+import { zoneDeliveryStats, isZoneBillingTrip } from './zone-delivery.js?v=2026.10.26.52';
 /** Envíos de restaurante «sin destino»: promedio cobrado vs sugerido por el repartidor, por zona (ver zone-delivery.js). */
 export { zoneDeliveryStats, isZoneBillingTrip };
 

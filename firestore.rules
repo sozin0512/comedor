@@ -119,7 +119,8 @@ service cloud.firestore {
         'balance_adjustments', 'permission_logs', 'notification_campaigns', 'wa_invite_contacted', 'trip_purge_log',
         'whatsapp_cloud_inbox', 'whatsapp_cloud_outbox', 'whatsapp_cloud_statuses', 'whatsapp_cloud_events',
         'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions', 'auth_phone_index', 'platformConfig',
-        'delivery_loyalty_members', 'delivery_loyalty_credits', 'promotions_loyalty'];
+        'delivery_loyalty_members', 'delivery_loyalty_credits', 'promotions_loyalty',
+        'marketplace_listings', 'marketplace_commissions'];
     }
 
     // Pedidos de tiendas: campos de la tarifa de envío por zona (solo servidor).
@@ -653,6 +654,46 @@ service cloud.firestore {
     }
     match /artifacts/{app}/public/data/promotions_loyalty/{promoId}/{document=**} {
       allow read, write: if false;
+    }
+
+    // Marketplace HonduRaite (aparte de Tiendas). Cualquiera con sesión publica; entra «pending».
+    // Solo las aprobadas son públicas. Estado, vendido/rentado y comisiones: SOLO el servidor (callables).
+    function mkEditableKeys() {
+      return ['category', 'title', 'description', 'price', 'priceDay', 'priceWeek', 'priceMonth', 'currency',
+        'city', 'cityName', 'photos', 'whatsapp', 'ownerName', 'year', 'brand', 'model', 'mileageKm',
+        'condition', 'status', 'createdAtMs', 'updatedAtMs', 'ownerUid'];
+    }
+    function mkNum(d, k) {
+      return !d.keys().hasAny([k]) || d[k] == null || ((d[k] is int || d[k] is float) && d[k] >= 0 && d[k] <= 100000000);
+    }
+    function mkListingOk(d) {
+      return d.status == 'pending'
+        && d.ownerUid == requestUid()
+        && d.category in ['carros_venta', 'carros_renta', 'motos', 'repuestos', 'otros']
+        && d.title is string && d.title.size() >= 3 && d.title.size() <= 80
+        && d.get('description', '') is string && d.get('description', '').size() <= 2000
+        && d.city is string && d.city.size() > 0 && d.city.size() <= 64
+        && d.whatsapp is string && d.whatsapp.size() >= 8 && d.whatsapp.size() <= 20
+        && d.photos is list && d.photos.size() >= 1 && d.photos.size() <= 8
+        && mkNum(d, 'price') && mkNum(d, 'priceDay') && mkNum(d, 'priceWeek') && mkNum(d, 'priceMonth')
+        && (d.category == 'carros_renta'
+            ? (d.get('priceDay', 0) is number && d.get('priceDay', 0) > 0)
+            : (d.get('price', 0) is number && d.get('price', 0) > 0));
+    }
+    match /artifacts/{app}/public/data/marketplace_listings/{listingId} {
+      allow read: if resource.data.status == 'approved'
+        || (isSignedIn() && (resource.data.ownerUid == requestUid() || isStaff(app)));
+      allow create: if isSignedIn() && request.resource.data.keys().hasOnly(mkEditableKeys()) && mkListingOk(request.resource.data);
+      // El dueño edita mientras está en revisión o rechazada; al guardar vuelve a «pending».
+      allow update: if isSignedIn() && resource.data.ownerUid == requestUid()
+        && resource.data.status in ['pending', 'rejected']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(mkEditableKeys())
+        && mkListingOk(request.resource.data);
+      allow delete: if false;
+    }
+    match /artifacts/{app}/public/data/marketplace_commissions/{commissionId} {
+      allow read: if isSignedIn() && (isStaff(app) || resource.data.sellerUid == requestUid());
+      allow write: if false;
     }
 
     // Promociones (lectura usuarios autenticados; escritura staff)
