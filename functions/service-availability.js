@@ -79,21 +79,30 @@ module.exports = function createServiceAvailability(deps) {
                 serviceAvailabilityUpdatedBy: caller.uid,
             };
             // El apagado viejo (admin, por categoría) ganaría sobre «abierto»: si se abre, se limpia aquí.
-            const legacy = data.disabledServicesByCity && typeof data.disabledServicesByCity === 'object'
-                ? JSON.parse(JSON.stringify(data.disabledServicesByCity)) : null;
-            if (legacy && zoneId !== '_all' && legacy[zoneId] && mode !== 'off') {
+            // OJO: set(..., {merge:true}) mezcla mapas a fondo; quitar la llave del objeto NO la borra
+            // en Firestore. Hay que mandar FieldValue.delete() en la ruta exacta.
+            const legacyZone = data.disabledServicesByCity && typeof data.disabledServicesByCity === 'object'
+                ? data.disabledServicesByCity[zoneId] : null;
+            if (legacyZone && typeof legacyZone === 'object' && zoneId !== '_all' && mode !== 'off') {
                 const cat = svc === 'flete_paila' || svc === 'flete_camion' ? 'fletes' : svc;
-                if (legacy[zoneId][cat]) {
-                    delete legacy[zoneId][cat];
+                const aliases = cat === 'grua' ? ['grua', 'tow'] : cat === 'fletes' ? ['fletes', 'flete', 'flete_paila', 'flete_camion']
+                    : cat === 'auto' ? ['auto', 'vip', 'taxi_vip', 'taxiVip'] : cat === 'taxi' ? ['taxi', 'flete_taxi', 'taxi_tradicional']
+                    : cat === 'moto' ? ['moto', 'motorcycle', 'motocicleta'] : [cat];
+                const del = {};
+                aliases.forEach((k) => { if (Object.prototype.hasOwnProperty.call(legacyZone, k)) del[k] = FieldValue.delete(); });
+                if (Object.keys(del).length) {
                     if (cat === 'fletes') {
                         // el otro flete queda cerrado a mano para no abrirlo sin querer
                         const other = svc === 'flete_paila' ? 'flete_camion' : 'flete_paila';
                         if (!zone[other]) zone[other] = { mode: 'off' };
                     }
-                    if (!Object.keys(legacy[zoneId]).length) delete legacy[zoneId];
-                    patch.disabledServicesByCity = legacy;
+                    patch.disabledServicesByCity = { [zoneId]: del };
                 }
             }
+            // Mensaje vacío: borrar el viejo (merge lo dejaría vivo).
+            const cfgWrite = JSON.parse(JSON.stringify(cfg));
+            if (!message) cfgWrite[zoneId][svc].message = FieldValue.delete();
+            patch.serviceAvailability = cfgWrite;
             tx.set(ref, patch, { merge: true });
             return { cfg };
         });
