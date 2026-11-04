@@ -1,4 +1,4 @@
-const { onDocumentUpdated, onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onDocumentUpdated, onDocumentCreated, onDocumentWritten } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { initializeApp } = require('firebase-admin/app');
@@ -3521,7 +3521,7 @@ async function notifyModerators(appId, { title, body, data = {} }) {
 
     for (const doc of snap.docs) {
         const u = doc.data() || {};
-        const isMod = u.role === 'supervisor' || u.email === ADMIN_EMAIL;
+        const isMod = u.role === 'supervisor' || u.role === 'admin' || u.email === ADMIN_EMAIL;
         if (!isMod || sent.has(doc.id)) continue;
         sent.add(doc.id);
         await sendPushToUser(appId, doc.id, {
@@ -5512,6 +5512,26 @@ exports.onVerificationAlertPush = onDocumentCreated(
                 openReports: 'true'
             }
         });
+    }
+);
+
+/**
+ * Tiendas: aviso (push/FCM, no WhatsApp) a admin y supervisores cuando una tienda queda por verificar.
+ * Antes no había ningún trigger sobre stores: el registro se guardaba con approvalStatus 'pending'
+ * y nadie se enteraba hasta abrir «Verificar tiendas».
+ * - Alta nueva en 'pending' (no las sucursales que crea el staff ya aprobadas).
+ * - Reenvío: approvalStatus pasa a 'pending' desde otro estado (p. ej. rechazada → corregida).
+ */
+const { storeReviewNotice } = require('./store-review-notice');
+
+exports.onStorePendingReviewPush = onDocumentWritten(
+    'artifacts/{appId}/public/data/stores/{storeId}',
+    async (event) => {
+        const before = event.data?.before?.exists ? event.data.before.data() : null;
+        const after = event.data?.after?.exists ? event.data.after.data() : null;
+        const n = storeReviewNotice(before, after, event.params.storeId);
+        if (!n) return;
+        await notifyModerators(event.params.appId, n).catch((e) => console.warn('onStorePendingReviewPush', e?.message || e));
     }
 );
 
