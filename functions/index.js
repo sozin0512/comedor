@@ -7065,6 +7065,21 @@ Object.assign(exports, driverPushStatus.exports);
 Object.assign(exports, deliveryZones.exports);
 Object.assign(exports, deliveryLoyalty.exports);
 Object.assign(exports, marketplace.exports);
+
+/** Pedir sin cuenta (nombre + WhatsApp) desde la app/web: viajes y pedidos de tienda (ver guest-checkout.js). */
+const guestCheckout = require('./guest-checkout')({
+    db, FieldValue, HttpsError, onCall, APP_ID,
+    createTrip: (args) => require('./whatsapp-cloud').createWhatsAppTrip(args),
+    checkAvailability: async ({ serviceType, origin, dest, scheduled }) => {
+        const zone = require('./whatsapp-cloud').resolveTripZone(origin, dest);
+        return require('./service-availability').checkServiceAvailable(db, APP_ID, {
+            serviceType, zoneId: zone?.id || null, zoneName: zone?.name || '',
+            center: zone?.lat != null ? { lat: zone.lat, lng: zone.lng } : null, scheduled
+        });
+    },
+    orderHelpers: require('./wa-customer-order'),
+});
+Object.assign(exports, guestCheckout.exports);
 Object.assign(exports, tripCommission.exports);
 Object.assign(exports, serviceAvailability.exports);
 Object.assign(exports, storeOrderSync.exports);

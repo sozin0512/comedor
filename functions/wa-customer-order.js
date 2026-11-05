@@ -477,3 +477,8 @@ module.exports = function createWaCustomerOrder(deps) {
     return { handle, onOrderStatusChange, nearbyStores, loadProducts };
 };
 Object.assign(module.exports, { isEntry, isRestaurant, isOpenNow, approved, isAdultsOnly, tracksStock, buildWaCustomerOrder, orderStatusKey, orderStatusText, cartTotal, STEPS });
+
+module.exports.buildWaCustomerOrder = buildWaCustomerOrder;
+module.exports.isOpenNow = isOpenNow;
+module.exports.stockLeft = stockLeft;
+module.exports.storeApproved = (s) => !!s?.ownerId && approved(s) && !isAdultsOnly(s);

@@ -13,34 +13,34 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.52';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.52';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.53';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.53';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.26.52';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.26.52';
-import { APP_CONFIG } from './config.js?v=2026.10.26.52';
-import { calculateAge } from './age-verification.js?v=2026.10.26.52';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.52';
+} from './zones.js?v=2026.10.26.53';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.26.53';
+import { APP_CONFIG } from './config.js?v=2026.10.26.53';
+import { calculateAge } from './age-verification.js?v=2026.10.26.53';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.53';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.26.52';
+} from './store-delivery-zones.js?v=2026.10.26.53';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.26.52';
+} from './store-week.js?v=2026.10.26.53';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.52';
-import { configureLoyalty, loadLoyalty, loyaltyPromoBoxHtml, orderLoyaltyLineHtml } from './delivery-loyalty-ui.js?v=2026.10.26.52';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.52';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.53';
+import { configureLoyalty, loadLoyalty, loyaltyPromoBoxHtml, orderLoyaltyLineHtml } from './delivery-loyalty-ui.js?v=2026.10.26.53';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.53';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.26.52';
+} from './merchant-delivery-request.js?v=2026.10.26.53';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -4457,12 +4457,25 @@ function markCheckoutFieldInvalid(inputId, message) {
     try { el.focus?.({ preventScroll: true }); } catch (_) { try { el.focus?.(); } catch (_2) {} }
 }
 
-async function placeOrder() {
+async function placeOrder(orderOpts = {}) {
     const user = getCurrentUser();
     const profile = getUserProfile() || {};
-    if (!user?.uid) {
+    // Sin cuenta: nombre + WhatsApp → el servidor crea el pedido (guestCreateRequest), solo efectivo.
+    const guest = !user?.uid && orderOpts.guestContact ? orderOpts.guestContact : null;
+    if (!user?.uid && !guest) {
         if (typeof window.requireAuthForService === 'function') {
+            const adults = viewingStore && isStoreAdultsOnly(viewingStore);
             window.requireAuthForService('enviar tu pedido en Tiendas', {
+                guest: adults ? null : (contact) => {
+                    const rn = document.getElementById('store-checkout-recipient');
+                    const rp = document.getElementById('store-checkout-phone');
+                    if (rn && !rn.value.trim()) rn.value = contact.name;
+                    if (rp && !rp.value.trim()) rp.value = String(contact.phone).slice(-8);
+                    return placeOrder({ guestContact: contact });
+                },
+                guestTitle: 'Envía tu pedido sin crear cuenta',
+                guestSub: 'Tu carrito y dirección ya están listos. Pagas en efectivo al recibir; la tienda te escribe a tu WhatsApp.',
+                guestCta: 'Enviar pedido',
                 role: 'client',
                 mode: 'register',
                 icon: '🛍️',
@@ -4584,6 +4597,24 @@ async function placeOrder() {
     const platformFeeTotal = 0;
     const itemsTotal = itemsBaseTotal;
     if (itemsTotal <= 0) return toast('Total inválido', 'warning');
+
+    if (guest) {
+        if (!Number.isFinite(Number(deliveryLat)) || !Number.isFinite(Number(deliveryLng))) {
+            throw new Error('Toca «Usar mi ubicación» o marca la entrega en el mapa.');
+        }
+        const res = await window.hrGuest.guestCreate('store_order', guest, {
+            storeId: viewingStore.id,
+            items: cart.map((i) => ({ productId: i.productId, qty: i.qty, name: i.name })),
+            deliveryAddress: address, deliveryLat, deliveryLng, recipientName, recipientPhone, notes,
+            deliveryVehicle: ride, cityId: city.cityId, cityName: city.cityName,
+        });
+        resetCheckoutZone();
+        cart = [];
+        renderMarketplace();
+        toast('¡Pedido enviado! Pagarás en efectivo al recibir. La tienda te escribe a tu WhatsApp.', 'success');
+        window.hrGuest.openGuestOrderTracker(res.id);
+        return;
+    }
 
     // Elegir pago: efectivo o puntos/saldo (como viajes)
     const paymentMethod = await chooseStorePaymentMethod(itemsTotal);

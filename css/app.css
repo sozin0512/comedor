@@ -26622,3 +26622,8 @@ body.trip-autocomplete-open #map { will-change: auto !important; }
     grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
   }
 }
+
+/* Pedido sin cuenta (guest checkout) */
+.hr-guest-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:11px;font-weight:800;white-space:nowrap;margin:2px 4px 2px 0;font-variant-emoji:normal}
+.hr-guest-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px;font-variant-emoji:normal}
+.hr-guest-wa{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;background:#16a34a;color:#fff !important;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap}

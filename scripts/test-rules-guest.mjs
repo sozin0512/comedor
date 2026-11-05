@@ -1,0 +1,32 @@
+// RULES=firestore.rules firebase emulators:exec --project demo-hr --only firestore "node scripts/test-rules-guest.mjs"
+import fs from 'node:fs';
+import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+const APP = 'comayagua-vip-pro-v4';
+const env = await initializeTestEnvironment({ projectId: 'demo-hr', firestore: { rules: fs.readFileSync(process.env.RULES, 'utf8'), host: '127.0.0.1', port: 8080 } });
+const P = `artifacts/${APP}/public/data`;
+await env.clearFirestore();
+await env.withSecurityRulesDisabled(async (c) => {
+  const db = c.firestore();
+  await setDoc(doc(db, `artifacts/${APP}/roles/sup`), { role: 'supervisor' });
+  await setDoc(doc(db, `${P}/guest_requests/t1`), { kind: 'trip', tokenHash: 'h', phone: '50499112233' });
+  await setDoc(doc(db, `${P}/guest_limits/p_50499112233`), { dayCount: 1 });
+  await setDoc(doc(db, `${P}/trips/t1`), { status: 'pending', clientId: 'guest_50499112233', guestClient: true, guestCheckout: true });
+});
+const cx = (u) => env.authenticatedContext(u, { email: `${u}@x.com` }).firestore();
+const anon = env.unauthenticatedContext().firestore();
+let pass = 0, fail = 0;
+const t = async (n, p, want) => { try { await (want ? assertSucceeds(p) : assertFails(p)); pass++; console.log('PASS', n); } catch (e) { fail++; console.log('FAIL', n, e.message); } };
+await t('cuenta NO lee guest_requests (hash del token)', getDoc(doc(cx('cli'), `${P}/guest_requests/t1`)), false);
+await t('cuenta NO escribe guest_requests con su uid', setDoc(doc(cx('cli'), `${P}/guest_requests/cli`), { tokenHash: 'x' }), false);
+await t('cuenta NO borra su límite', setDoc(doc(cx('cli'), `${P}/guest_limits/cli`), { dayCount: 0 }), false);
+await t('cuenta NO lee límites', getDoc(doc(cx('cli'), `${P}/guest_limits/p_50499112233`)), false);
+await t('cuenta NO se quita del bloqueo', setDoc(doc(cx('cli'), `${P}/guest_blocklist/cli`), { x: 1 }), false);
+await t('sin sesión NO lee guest_requests', getDoc(doc(anon, `${P}/guest_requests/t1`)), false);
+await t('staff lee guest_requests', getDoc(doc(cx('sup'), `${P}/guest_requests/t1`)), true);
+await t('staff bloquea un número', setDoc(doc(cx('sup'), `${P}/guest_blocklist/50477778888`), { by: 'sup' }), true);
+await t('sin sesión sigue su viaje por ID', getDoc(doc(anon, `${P}/trips/t1`)), true);
+await t('sin sesión NO crea viaje directo', setDoc(doc(anon, `${P}/trips/t2`), { status: 'pending', clientId: 'guest_1' }), false);
+console.log(`\n${pass}/${pass + fail} ${fail ? 'FAIL' : 'PASS'}`);
+await env.cleanup();
+process.exit(fail ? 1 : 0);

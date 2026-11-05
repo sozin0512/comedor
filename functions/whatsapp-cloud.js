@@ -1767,7 +1767,7 @@ function templateParamMismatch(res) {
     return /132000|number of param|parameter count|unexpected number|missing required/i.test(blob);
 }
 
-async function createWhatsAppTrip({ phone, name, origin, dest, scheduledFor, clientChoosesSchedule, clientChoosesRoute, serviceType, stops }) {
+async function createWhatsAppTrip({ phone, name, origin, dest, scheduledFor, clientChoosesSchedule, clientChoosesRoute, serviceType, stops, extra = null }) {
     const svc = normalizeServiceType(serviceType);
     const chooseRoute = clientChoosesRoute === true || !stopLatLng(dest) || !stopLatLng(origin);
     const additionalStops = (!chooseRoute && serviceAllowsExtraStops(svc))
@@ -1845,7 +1845,8 @@ async function createWhatsAppTrip({ phone, name, origin, dest, scheduledFor, cli
         staffAssistedClient: true,
         staffCreatedClientClaimed: hasRoute === true,
         createdVia: 'whatsapp',
-        negotiationEnabled: false
+        negotiationEnabled: false,
+        ...(extra && typeof extra === 'object' ? extra : {})
     };
     const ref = await db().collection(`artifacts/${APP_ID}/public/data/trips`).add(payload);
     return { id: ref.id, priceNum, km, payload, zone };
@@ -3092,3 +3093,6 @@ exports.sendCloudMenu = sendCloudMenu;
 exports.sendLocationRequest = sendLocationRequest;
 exports.sendLocationPin = sendLocationPin;
 exports.geocodeHn = geocodeHn;
+exports.createWhatsAppTrip = createWhatsAppTrip;
+exports.normalizeServiceType = normalizeServiceType;
+exports.resolveTripZone = (o, d) => resolveTripZone(o, d);
