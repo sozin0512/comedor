@@ -544,6 +544,7 @@ window.calculateTripRoute = async (options = {}) => {
     window._tripRouteCalcGen = (window._tripRouteCalcGen || 0) + 1;
     const calcGen = window._tripRouteCalcGen;
     window._tripRouteCalcInFlight = (window._tripRouteCalcInFlight || 0) + 1;
+    window.setTripRequestHint?.('Calculando tarifa…');
 
     try {
     if (window.userProfile?.role !== 'client' && !document.body.classList.contains('client-mode')) {
@@ -611,10 +612,9 @@ window.calculateTripRoute = async (options = {}) => {
         const recipientName = document.getElementById('delivery-recipient-name')?.value.trim();
         const recipientPhone = normalizeHondurasPhone(document.getElementById('delivery-recipient-phone')?.value.trim());
         const packageDescription = document.getElementById('delivery-package-desc')?.value.trim();
-        if (!recipientName || !recipientPhone || !packageDescription) {
-            if (!silent) window.showToast('Completa nombre, WhatsApp y descripción del envío.');
-            return;
-        }
+        // Ya no bloquea la tarifa: los datos de quien recibe se piden al tocar «Pedir».
+        // (Antes: return silencioso → la tarjeta quedaba en «Calculando tarifa…» para siempre.)
+        window._hrDeliveryDetailsMissing = !recipientName || !recipientPhone || !packageDescription;
     }
 
     if (!options.skipStopsPrompt) {
@@ -1204,6 +1204,12 @@ window.calculateTripRoute = async (options = {}) => {
     }
     } finally {
         window._tripRouteCalcInFlight = Math.max(0, (window._tripRouteCalcInFlight || 1) - 1);
+        // Si terminó sin tarifa (falta un punto, error de ruta, etc.), no dejar «Calculando tarifa…» colgado.
+        if (calcGen === window._tripRouteCalcGen && !document.getElementById('fare-card')?.classList.contains('hidden')) {
+            document.getElementById('trip-request-hint')?.classList.add('hidden');
+        } else if (calcGen === window._tripRouteCalcGen) {
+            window.setTripRequestHint?.('No pudimos calcular la tarifa. Revisa origen y destino («Origen / destino») y toca Reintentar.', { retry: true });
+        }
     }
 };
 
