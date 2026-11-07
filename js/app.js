@@ -4719,12 +4719,6 @@ if (document.readyState === 'loading') {
                     showGuestRegisterAfterTrip(t);
                     return true;
                 }
-                // Panel de invitado (conductor, placa, Llamar/WhatsApp, precio y PIN), igual que al abrir
-                // el link de WhatsApp. Sin cuenta no hay chat ni se puede cancelar desde la app.
-                try {
-                    window._guestFollowExplicit = true;
-                    startGuestTripFollow(t.id, { explicitFollow: true }).catch(() => {});
-                } catch (_) {}
                 subscribeToTripDocument(t.id);
                 if (t.status === 'pending') {
                     restorePendingTripUI?.(t);
@@ -37039,7 +37033,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 }
                 renderChat(data.chat || []);
 
-                if (window.userProfile.role === 'driver') {
+                if (window.userProfile?.role === 'driver') {
                     if (isTestDriverProfile() && (data.status === 'accepted' || data.status === 'in_progress')) {
                         window.showToast?.(
                             `Viaje activo con ${data.clientName || 'pasajero'}. Usa el botón flotante ¡HE LLEGADO! y el chat en el mapa.`,
