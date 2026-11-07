@@ -39542,7 +39542,12 @@ window.cancelSetupAndLogout = () => {
         }
 
         window.cancelOrder = async (cancelOpts = {}) => {
-            if (window._cancelTripLock) return;
+            // Candado viejo (una cancelación que se colgó sin red) no debe dejar el botón muerto para siempre
+            if (window._cancelTripLock && Date.now() - (window._cancelTripLockAt || 0) < 20000) {
+                window.showToast?.('Cancelando… espera un momento.', 'info');
+                return;
+            }
+            window._cancelTripLock = false;
 
             const trip = await resolveTripForCancel();
             if (!trip?.id) {
@@ -39580,6 +39585,8 @@ window.cancelSetupAndLogout = () => {
             const tripId = trip.id;
             const previousStatus = trip.status;
             window._cancelTripLock = true;
+            window._cancelTripLockAt = Date.now();
+            window.showToast?.('Cancelando viaje…', 'info');
             window._cancellingTripIds = window._cancellingTripIds || new Set();
             window._cancellingTripIds.add(tripId);
 
@@ -39587,7 +39594,11 @@ window.cancelSetupAndLogout = () => {
                 let cancelled = false;
 
                 try {
-                    const res = await httpsCallable(cloudFunctions, 'cancelTrip')({ tripId });
+                    // Máx. 10 s: si el servidor no responde, seguir con la cancelación directa
+                    const callP = httpsCallable(cloudFunctions, 'cancelTrip')({ tripId });
+                    const res = window.hrWithTimeout
+                        ? await window.hrWithTimeout(callP, 10000, 'timeout')
+                        : await callP;
                     if (res?.data?.requeued) {
                         activeTrip = null;
                         window.currentActiveTripData = null;
