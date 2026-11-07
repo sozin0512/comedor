@@ -698,11 +698,17 @@ export function openCancelConfirmModal(opts = {}) {
             try { modal.remove(); } catch (_) {}
             resolve(ok);
         };
+        // «Toque fantasma»: la app abre este modal en pointerup y el navegador manda después un
+        // click en el mismo punto, que caía en el fondo (= «no») y lo cerraba al instante.
+        // Ignorar toques en los primeros 450 ms.
+        const openedAt = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        const nowMs = () => ((typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now());
         modal.addEventListener("click", (ev) => {
             const btn = ev.target.closest("[data-cancel-confirm]");
             if (!btn) return;
             ev.preventDefault();
             ev.stopPropagation();
+            if (nowMs() - openedAt < 450) return;
             finish(btn.getAttribute("data-cancel-confirm") === "yes");
         });
         document.body.appendChild(modal);
