@@ -27255,3 +27255,10 @@ body.driver-moto-compact:has(.hr-store-more[open]) #control-panel {
     }
     body.driver-moto-compact #driver-panel-nav { display: none !important; }
 }
+
+/* La faja «Pasajero / Cargando…» es SOLO del conductor: nunca mostrarla a pasajeros
+   (admin, invitados, cuentas que no son «client» la veían vacía y tapaba su panel). */
+body:not(.driver-mode) #driver-uber-sheet,
+body:not(.driver-mode) .driver-uber-sheet {
+    display: none !important;
+}

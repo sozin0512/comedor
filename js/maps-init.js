@@ -3960,6 +3960,99 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
     st.anim = requestAnimationFrame(step);
   };
 
+  /**
+   * Roads API («pegar a la calle») SOLO cuando el conductor va FUERA de la ruta
+   * o aún no hay ruta dibujada (ahí es cuando el carro aparecía «dentro de una casa»).
+   * - Sobre la ruta (≤25 m) no se consulta: el mapa ya lo pega gratis a la línea.
+   * - Máximo 1 consulta cada 8 s, solo en viaje activo (accepted / in_progress).
+   * - Entre consultas: se proyecta el GPS sobre el último tramo de calle devuelto.
+   * - Si Roads falla (403, sin red…) se usa el GPS normal y se reintenta en 10 min.
+   * Devuelve SIEMPRE una posición (pegada o la original).
+   */
+  const ROAD_SNAP = { raw: [], seg: null, lastCallAt: 0, inflight: false, disabledUntil: 0, calls: 0 };
+  window._hrRoadSnap = ROAD_SNAP;
+  const roadProjectOnLine = (a, b, p) => {
+    const kx = 111320 * Math.cos(a.lat * Math.PI / 180), ky = 110540;
+    const bx = (b.lng - a.lng) * kx, by = (b.lat - a.lat) * ky;
+    const px = (p.lng - a.lng) * kx, py = (p.lat - a.lat) * ky;
+    const L2 = bx * bx + by * by;
+    if (L2 < 9) return null;
+    const t = (px * bx + py * by) / L2;
+    if (t < 0) return null; // quedó atrás del tramo
+    const qx = bx * t, qy = by * t;
+    const beyondM = (t - 1) * Math.sqrt(L2);
+    if (beyondM > 150) return null; // demasiado lejos del tramo conocido
+    return { lat: a.lat + qy / ky, lng: a.lng + qx / kx, d: Math.hypot(px - qx, py - qy) };
+  };
+  const roadSnapRequest = () => {
+    const key = window.APP_CONFIG?.googleMaps?.apiKey;
+    if (!key || typeof fetch !== 'function' || ROAD_SNAP.raw.length < 1) return;
+    ROAD_SNAP.inflight = true;
+    ROAD_SNAP.lastCallAt = Date.now();
+    ROAD_SNAP.calls++;
+    const path = ROAD_SNAP.raw.map((p) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join('|');
+    const url = `https://roads.googleapis.com/v1/snapToRoads?interpolate=true&path=${encodeURIComponent(path)}&key=${encodeURIComponent(key)}`;
+    fetch(url)
+      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        if (!ok || !Array.isArray(j?.snappedPoints)) {
+          ROAD_SNAP.disabledUntil = Date.now() + 10 * 60 * 1000;
+          console.warn('[road-snap] Roads API no disponible:', j?.error?.status || j?.error?.message || 'sin datos');
+          return;
+        }
+        const pts = j.snappedPoints
+          .map((s) => ({ lat: Number(s.location?.latitude), lng: Number(s.location?.longitude) }))
+          .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+        // Último tramo con largo útil (≥3 m) = dirección de la calle actual
+        for (let i = pts.length - 1; i > 0; i--) {
+          for (let k = i - 1; k >= 0; k--) {
+            if (selfDistM(pts[k], pts[i]) >= 3) {
+              ROAD_SNAP.seg = { a: pts[k], b: pts[i], at: Date.now() };
+              return;
+            }
+          }
+        }
+      })
+      .catch(() => { ROAD_SNAP.disabledUntil = Date.now() + 60 * 1000; })
+      .finally(() => { ROAD_SNAP.inflight = false; });
+  };
+  window.hrRoadSnapPosition = (lat, lng) => {
+    const raw = { lat: Number(lat), lng: Number(lng) };
+    if (!Number.isFinite(raw.lat) || !Number.isFinite(raw.lng)) return { lat, lng, snapped: false };
+    try {
+      const t = window.currentActiveTripData || window.activeTrip;
+      const live = t && ['accepted', 'in_progress'].includes(t.status);
+      // Llegó al punto de recogida: mostrar dónde está realmente
+      if (!live || (t.status === 'accepted' && t.driverArrived)) {
+        ROAD_SNAP.raw = []; ROAD_SNAP.seg = null;
+        return { ...raw, snapped: false };
+      }
+      const path = window.currentRouteFullPath || window.currentNavRoute?.path || [];
+      if (path.length >= 2) {
+        const dRoute = window.getDistanceToRouteMeters?.(path, raw);
+        if (Number.isFinite(dRoute) && dRoute <= 25) {
+          ROAD_SNAP.raw = []; ROAD_SNAP.seg = null;
+          return { ...raw, snapped: false }; // sobre la ruta: gratis, sin Roads
+        }
+      }
+      const last = ROAD_SNAP.raw[ROAD_SNAP.raw.length - 1];
+      if (!last || selfDistM(last, raw) >= 3) {
+        ROAD_SNAP.raw.push(raw);
+        if (ROAD_SNAP.raw.length > 5) ROAD_SNAP.raw.shift();
+      }
+      const now = Date.now();
+      if (!ROAD_SNAP.inflight && now >= ROAD_SNAP.disabledUntil && now - ROAD_SNAP.lastCallAt >= 8000) {
+        roadSnapRequest();
+      }
+      const seg = ROAD_SNAP.seg;
+      if (seg && now - seg.at < 30000) {
+        const p = roadProjectOnLine(seg.a, seg.b, raw);
+        if (p && p.d <= 20) return { lat: p.lat, lng: p.lng, snapped: true };
+      }
+    } catch (_) {}
+    return { ...raw, snapped: false };
+  };
+
   window.updateDriverMarker = (driverId, lat, lng, isSelf = false, options = {}) => {
     if (!isSelf && options.variant === 'assigned' && !options._smoothed && !options.noSmooth
         && window.mapLoaded && window.gMap && typeof requestAnimationFrame === 'function') {
@@ -4306,7 +4399,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         /** Flotante unificado del pasajero (conductor + PIN). Evita doble panel. */
         window.syncClientTripFloat = (data) => {
             const isGuestFollow = !!data && (window._guestFollowTripId === data.id || document.body.classList.contains('guest-trip-follow'));
-            if (!data || (window.userProfile?.role !== 'client' && !isGuestFollow)) return;
+            if (!data || (window.userProfile?.role !== 'client' && !isGuestFollow && !window.isViewerPassengerOfTrip?.(data))) return;
             const floatEl = document.getElementById('client-trip-float');
             if (!floatEl || floatEl.classList.contains('hidden')) return;
 
