@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.68">
+    <meta name="hr-app-version" content="2026.10.26.69">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -55,14 +55,14 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.68">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.69">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.68">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.69">
     <link rel="stylesheet" href="css/busqueda-f.css?v=2026.10.26.59">
     <link rel="stylesheet" href="css/pedido-doble.css?v=2026.10.26.59">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.68">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.68">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.69">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.69">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -110,7 +110,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.68"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.69"></script>
     <script defer src="js/busqueda-f.js?v=2026.10.26.59"></script>
     <script type="module" src="js/pedido-doble.js?v=2026.10.26.59"></script>
     <script type="module" src="js/user-city.js?v=2026.10.26.59"></script>
@@ -430,10 +430,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.68';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.69';
         (function () {
             try {
-                var build = '2026.10.26.68';
+                var build = '2026.10.26.69';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -1078,10 +1078,7 @@
                 <div id="pin-input-group" class="hidden driver-pin-input-group mt-2">
                     <input id="driver-pin-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="PIN" aria-label="PIN del pasajero" class="driver-pin-input w-full min-w-0 px-3 py-3 border-2 border-blue-100 rounded-2xl outline-none text-center font-black text-2xl tracking-[0.25em]">
                     <button type="button" data-trip-action="verify-pin" data-no-drag class="driver-pin-submit bg-blue-600 text-white w-full rounded-2xl font-black text-xs uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]"><span class="pointer-events-none">INICIAR VIAJE</span></button>
-                    <button type="button" id="driver-skip-pin-btn" data-trip-action="skip-pin" data-no-drag class="w-full mt-2 py-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-800 font-black text-[11px] uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]">
-                        <span class="pointer-events-none"><i class="fas fa-forward mr-1"></i> Iniciar sin PIN</span>
-                    </button>
-                    <p class="text-[9px] text-slate-500 mt-1.5 text-center leading-snug">Úsalo si el pasajero no tiene el código a la mano. Admin/supervisor también pueden omitirlo desde el panel.</p>
+                    <p class="text-[9px] text-slate-500 mt-1.5 text-center leading-snug">Pídele el PIN al pasajero para iniciar el viaje.</p>
                 </div>
             </div>
             </div>
@@ -2970,12 +2967,9 @@
                             <!-- PIN en ficha central (además del flotante) -->
                             <div id="driver-panel-pin" class="hidden driver-panel-pin space-y-2 mt-1">
                                 <p class="driver-pin-hero-kicker text-center"><i class="fas fa-key"></i> PIN del pasajero</p>
-                                <p class="driver-pin-hero-hint text-center text-[11px]">Ingresá el PIN o iniciá sin PIN</p>
+                                <p class="driver-pin-hero-hint text-center text-[11px]">Pídele el PIN al pasajero</p>
                                 <input id="driver-panel-pin-input" type="tel" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" placeholder="PIN" aria-label="PIN del pasajero" class="driver-pin-input w-full min-w-0 px-3 py-3 border-2 border-blue-100 rounded-2xl outline-none text-center font-black text-2xl tracking-[0.25em]" data-no-drag>
                                 <button type="button" data-trip-action="verify-pin" data-no-drag class="driver-pin-submit bg-blue-600 text-white w-full rounded-2xl font-black text-xs uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]"><span class="pointer-events-none">INICIAR VIAJE</span></button>
-                                <button type="button" id="driver-panel-skip-pin-btn" data-trip-action="skip-pin" data-no-drag class="w-full py-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-amber-800 font-black text-[11px] uppercase active:scale-95 transition-all trip-touch-btn min-h-[48px]">
-                                    <span class="pointer-events-none"><i class="fas fa-forward mr-1"></i> Iniciar sin PIN</span>
-                                </button>
                             </div>
 
                             <!-- tools legacy id (compat) -->
