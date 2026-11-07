@@ -19973,6 +19973,9 @@ if (document.readyState === 'loading') {
                         ? `<p class="text-emerald-400 text-xs font-bold mb-3"><i class="fas fa-check-circle"></i> Activo: ${testDriverName}</p>`
                         : '<p class="text-amber-500 text-xs mb-3">Aún no hay conductor de prueba designado.</p>'}
                     ${U.btn('Guardar conductor de prueba', 'window.saveTestDriver(this)', { variant: 'primary', icon: 'fa-flask', full: true })}
+                    ${testDriverUid
+                        ? `<div class="mt-2">${U.btn('Quitar conductor de prueba', 'window.clearTestDriver(this)', { variant: 'ghost', icon: 'fa-user-slash', full: true })}</div>`
+                        : ''}
                     <div class="ops-hint-box mt-3">
                         <p class="ops-hint-box-title">Flujo de prueba</p>
                         <p>1. Pasajero pide viaje → 2. Admin asigna conductor → 3. Llegada al origen → 4. Inicio con PIN → 5. Finalizar → 6. Calificar</p>
@@ -20135,6 +20138,40 @@ if (document.readyState === 'loading') {
             } catch (e) {
                 console.error('loadAdminTestingPanel:', e);
                 container.innerHTML = '<p class="text-red-500 text-center font-bold">Error al cargar panel de pruebas</p>';
+            }
+        };
+
+        /** Quita la designación de conductor de prueba (deja de tratar esa cuenta como conductor de prueba). */
+        window.clearTestDriver = async (btn) => {
+            if (!isAdminUser(currentUser, window.userProfile)) {
+                return window.showToast('Solo el administrador puede hacer esto.');
+            }
+            if (btn) { btn.disabled = true; btn.innerText = 'QUITANDO...'; }
+            try {
+                const settingsRef = doc(db, 'artifacts', appId, 'public', 'data', 'appSettings', 'main');
+                const prev = await getDoc(settingsRef);
+                const prevUid = prev.exists() ? prev.data().testDriverUid : null;
+                if (prevUid) {
+                    const clearFields = { isTestDriver: false };
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', prevUid), clearFields).catch(() => {});
+                    await updateDoc(doc(db, 'artifacts', appId, 'users', prevUid, 'profile', 'data'), clearFields).catch(() => {});
+                }
+                await setDoc(settingsRef, {
+                    testDriverUid: null,
+                    testDriverName: null,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+                if (prevUid && prevUid === currentUser?.uid && window.userProfile) {
+                    window.userProfile.isTestDriver = false;
+                    window.userProfile._isDesignatedTestDriver = false;
+                }
+                window.showToast('Ya no hay conductor de prueba. Recarga la app para aplicar el cambio.', 'success');
+                await window.loadAdminTestingPanel();
+            } catch (e) {
+                console.error('clearTestDriver:', e);
+                window.showToast('No se pudo quitar el conductor de prueba.');
+            } finally {
+                if (btn) { btn.disabled = false; btn.innerText = 'QUITAR CONDUCTOR DE PRUEBA'; }
             }
         };
 
