@@ -1,0 +1,31 @@
+# Publica la app en Firebase Hosting (comedor-86278.web.app) cada vez que se une algo a main.
+# La app de Play Store carga esa página, así que el cambio llega a los teléfonos sin subir otra versión.
+#
+# Requiere el secreto de GitHub FIREBASE_SERVICE_ACCOUNT con la llave JSON de una cuenta de servicio
+# de Firebase (Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada).
+name: Publicar en Firebase Hosting
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: firebase-hosting-live
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: comedor-86278
+          channelId: live
