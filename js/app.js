@@ -4739,6 +4739,32 @@ if (document.readyState === 'loading') {
             }
         };
 
+        /**
+         * Invitado que recarga o vuelve a abrir la app: recuperar su viaje activo pedido en este
+         * teléfono (lista guardada por guest-checkout.js con id + token). Solo viajes de las últimas 12 h.
+         */
+        window.resumeGuestTripFromDevice = async () => {
+            if (hasLoggedInAccount() || currentUser || window._guestFollowTripId) return false;
+            const list = (window.hrGuest?.guestRequests?.() || [])
+                .filter((x) => x && x.kind === 'trip' && x.id && !x.claimed && Date.now() - (Number(x.atMs) || 0) < 12 * 60 * 60 * 1000)
+                .slice(0, 3);
+            for (const r of list) {
+                try {
+                    const snap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'trips', String(r.id)));
+                    if (!snap.exists()) continue;
+                    const st = String(snap.data()?.status || '');
+                    if (!['pending', 'accepted', 'in_progress', 'scheduled'].includes(st)) continue;
+                    if (hasLoggedInAccount() || currentUser || window._guestFollowTripId) return false;
+                    window._guestFollowExplicit = true;
+                    const ok = await window.openGuestTripFollowFromLink?.(r.id);
+                    if (ok) return true;
+                } catch (e) {
+                    console.warn('[guest-resume]', e?.code || e?.message || e);
+                }
+            }
+            return false;
+        };
+
         window.consumeStaffTripShareLink = async () => {
             const id = peekStaffTripShareId();
             if (!id) return;
@@ -31227,6 +31253,8 @@ onAuthStateChanged(auth, async (user) => {
             return;
         }
         enterGuestBrowseSession();
+        // Invitado que recargó / volvió a abrir la app: retomar su viaje activo de este teléfono
+        setTimeout(() => { window.resumeGuestTripFromDevice?.().catch?.(() => {}); }, 1800);
         return;
     }
 
