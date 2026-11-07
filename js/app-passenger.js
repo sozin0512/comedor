@@ -422,6 +422,8 @@ window.openStandardStopsAdder = () => {
     }
     panel.classList.remove('hidden');
     window.syncAddExtraStopBtnState?.();
+    // Quitar la tarjeta de tipo de vehículo que tapaba el panel (ver syncBookingProgression)
+    try { window.syncBookingProgression?.({ scroll: false }); } catch (_) {}
 
     // Desplazar el panel (#panel-content es el que hace scroll) hasta dejar el buscador de la
     // parada ARRIBA y visible: quedaba debajo de origen/destino y había que deslizar para verlo.
