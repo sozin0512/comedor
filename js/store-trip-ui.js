@@ -602,8 +602,31 @@ export function buildCancelConfirmModalHtml({
     orderShortId = "",
     itemsSummary = "",
     refundNote = "",
+    kind = "delivery",
+    placeName = "",
 } = {}) {
-    const roleMeta = {
+    // Viaje de pasajero (carro, moto, taxi…): textos de viaje, no de pedido/envío de tienda.
+    const tripMeta = kind === "trip" ? ({
+        client: {
+            badge: "👤 Cancelar tu viaje",
+            badgeColor: "#DBEAFE",
+            badgeText: "#1E40AF",
+            title: placeName ? `¿Seguro que quieres cancelar tu viaje a «${placeName}»?` : "¿Seguro que quieres cancelar tu viaje?",
+            desc: refundNote || "Le avisaremos al conductor. Si pagaste con saldo, se te devuelve automáticamente.",
+            keepLabel: "No, seguir con el viaje",
+            confirmLabel: "Sí, cancelar viaje",
+        },
+        driver: {
+            badge: "🚗 Cancelar viaje",
+            badgeColor: "#FCE7F3",
+            badgeText: "#9D174D",
+            title: clientName ? `¿Confirmas cancelar el viaje de «${clientName}»?` : "¿Confirmas cancelar este viaje?",
+            desc: "Le avisaremos al pasajero que cancelaste el viaje.",
+            keepLabel: "No, continuar el viaje",
+            confirmLabel: "Sí, cancelar viaje",
+        },
+    })[role] : null;
+    const roleMeta = tripMeta || {
         client: {
             badge: "👤 Confirmación del Cliente",
             badgeColor: "#DBEAFE",
