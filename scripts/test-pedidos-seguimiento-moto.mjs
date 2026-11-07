@@ -191,7 +191,7 @@ check('la ficha staff de Josué sigue en la app y no se tocó la versión', () =
     assert.match(app, /Ya recogió el pedido/);
     assert.match(app, /isStaffUser\(currentUser, window\.userProfile\) && trip\.driverId/);
     const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8'));
-    assert.equal(version.version, '2026.10.26.58');
+    assert.equal(version.version, '2026.10.26.59');
     assert.match(fs.readFileSync(path.join(ROOT, 'js/merchant-stores.js'), 'utf8'), /openClientOrdersTracking/);
     assert.match(fs.readFileSync(path.join(ROOT, 'js/merchant-stores.js'), 'utf8'), /clientTrackOrderId = placedRef\.id/);
 });
