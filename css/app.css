@@ -27262,3 +27262,9 @@ body:not(.driver-mode) #driver-uber-sheet,
 body:not(.driver-mode) .driver-uber-sheet {
     display: none !important;
 }
+
+/* Conductor en viaje: la pastilla de ganancias («L. 0.00 hoy») tapaba el mapa de navegación.
+   Se oculta mientras hay viaje activo y vuelve al terminar. */
+body.driver-mode.trip-active #driver-earnings-float {
+    display: none !important;
+}

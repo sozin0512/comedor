@@ -6902,6 +6902,22 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             window.currentRoutePolyline = null;
         };
 
+        /**
+         * Quita del mapa las líneas viejas (p. ej. la vista previa naranja de la oferta) que no son
+         * parte de la ruta de progreso actual. Antes se perdía la referencia sin quitarlas y quedaban
+         * dos rutas encimadas todo el viaje (clearRoutePolylinesOnly no borra durante la navegación).
+         */
+        const dropOrphanRoutePolylines = (keep) => {
+            const keepSet = new Set((keep || []).filter(Boolean));
+            const prev = window.currentRoutePolyline;
+            const list = Array.isArray(prev) ? prev : (prev ? [prev] : []);
+            list.forEach((pl) => {
+                if (pl && !keepSet.has(pl)) {
+                    try { pl.setMap?.(null); } catch (_) {}
+                }
+            });
+        };
+
         window.drawProgressRouteOnMap = (route, driverPos, options = {}) => {
             const path = window.getRouteDisplayPath(route, options);
             if (!path.length || !window.gMap) return;
@@ -6942,7 +6958,9 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                         window.stopRouteProgressAnimation?.();
                     }
                 }
-                window.currentRoutePolyline = Object.values(reuse).filter(Boolean);
+                const keepReuse = Object.values(reuse).filter(Boolean);
+                dropOrphanRoutePolylines(keepReuse);
+                window.currentRoutePolyline = keepReuse;
                 return;
             }
 
@@ -7069,6 +7087,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 remaining: remainingLine,
                 anim: animLine
             };
+            dropOrphanRoutePolylines(polylines);
             window.currentRoutePolyline = polylines;
         };
 
