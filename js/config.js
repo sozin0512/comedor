@@ -4,7 +4,7 @@
  */
 export const APP_CONFIG = {
     /** Sube este número cada vez que publicas cambios (y el mismo valor en version.json). */
-    appVersion: '2026.10.26.62',
+    appVersion: '2026.10.26.63',
     /** Push nativo Android (auto: google-services.json + paquete APK) */
     androidFcmEnabled: true,
     firebase: {
@@ -74,7 +74,7 @@ export const APP_CONFIG = {
      * Admin → Comisión de plataforma / Panel Viajes → Ajustes › Comisiones. Este número solo se usa si
      * ese documento no carga. Mantenlo igual al valor real para que nunca se vean dos números distintos.
      */
-    commissionPercent: 25,
+    commissionPercent: 10,
     referrals: {
         /** Quien ingresa con código — al meter el código (registro) */
         newUserAmount: 20,
