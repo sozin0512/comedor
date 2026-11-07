@@ -689,6 +689,7 @@ export const STORE_TRIP_CSS = `
 .hr-store-more>summary{cursor:pointer;font-size:12px;font-weight:800;color:#475569}
 `;
 
-if (typeof window !== "undefined") {
-    window.syncDriverSheetSafeArea = syncDriverSheetSafeArea;
+const _hrRoot = typeof globalThis === "undefined" ? null : globalThis;
+if (_hrRoot && _hrRoot.window) {
+    _hrRoot.window.syncDriverSheetSafeArea = syncDriverSheetSafeArea;
 }
