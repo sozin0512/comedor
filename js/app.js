@@ -364,6 +364,7 @@ import {
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
 } from "./trip-experience.js?v=2026.10.26.54";
+import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.54";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
@@ -7362,7 +7363,7 @@ if (document.readyState === 'loading') {
                 const isDelivery = window.currentServiceType === 'delivery';
                 deliveryPanel.classList.toggle('hidden', !isDelivery);
                 if (isDelivery) {
-                    window.expandTripAdvancedPanel?.();
+                    try { window.syncDeliveryWizard?.(); } catch (_) {}
                 }
                 // Tiendas virtuales viven en sección propia (no dentro de Envíos)
                 try { window.onMerchantAuthReady?.(); } catch (_) {}
@@ -39636,12 +39637,13 @@ window.cancelSetupAndLogout = () => {
                 chips.dataset.ready = '1';
                 chips.innerHTML = DELIVERY_CATEGORIES.map((c) => `
                     <button type="button" data-cat="${c.id}" onclick="window.selectDeliveryCategory('${c.id}')"
-                            class="delivery-cat-chip px-2 py-1 rounded-lg text-[9px] font-black uppercase border border-amber-200 bg-white text-amber-800">
+                            class="delivery-cat-chip px-2 py-1 rounded-lg text-[9px] font-black border border-amber-200 bg-white text-amber-800"
+                            aria-pressed="false">
                         <i class="fas ${c.icon}"></i> ${c.label}
                     </button>
                 `).join('');
-                window.selectDeliveryCategory?.('pulperia');
             }
+            try { mountDeliveryWizard?.(); } catch (_) {}
         };
 
         window.selectDeliveryCategory = (catId) => {
@@ -39649,12 +39651,15 @@ window.cancelSetupAndLogout = () => {
             const hidden = document.getElementById('delivery-category');
             if (hidden) hidden.value = cat.id;
             document.querySelectorAll('.delivery-cat-chip').forEach((btn) => {
-                btn.classList.toggle('bg-amber-500', btn.dataset.cat === cat.id);
-                btn.classList.toggle('text-white', btn.dataset.cat === cat.id);
-                btn.classList.toggle('border-amber-500', btn.dataset.cat === cat.id);
+                const on = btn.dataset.cat === cat.id;
+                btn.classList.toggle('bg-amber-500', on);
+                btn.classList.toggle('text-white', on);
+                btn.classList.toggle('border-amber-500', on);
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
             });
             const desc = document.getElementById('delivery-package-desc');
             if (desc && !desc.value.trim()) desc.placeholder = cat.placeholder;
+            try { window.onDeliveryCategoryPicked?.(cat.id); } catch (_) {}
         };
 
         window.toggleTripScheduleFields = () => {
@@ -40162,6 +40167,7 @@ window.cancelSetupAndLogout = () => {
 
             window.clearOriginDestinationMarkers?.();
             window.clearRoutePolylines?.();
+            try { resetDeliveryWizard?.(); } catch (_) {}
             window.setServiceAdderOpen?.(false);
             window.setPassengersAdderOpen?.(false);
             window.setWhenAdderOpen?.(false);
@@ -40186,16 +40192,11 @@ window.cancelSetupAndLogout = () => {
             try { window.showPassengerHomeMenu?.(); } catch (_) {}
         };
 
-        /** Abre el panel con «Datos del envío» y enfoca el primer campo vacío. */
+        /** Abre la pregunta de envío que todavía falta (nombre, WhatsApp o detalle). */
         window.openDeliveryDetailsForm = () => {
-            try { window.goBackBookingStep?.('route'); } catch (_) {}
             try { window.showControlPanel?.({ forceExpand: true }); } catch (_) {}
             document.getElementById('delivery-details-panel')?.classList.remove('hidden');
-            setTimeout(() => {
-                const el = ['delivery-recipient-name', 'delivery-recipient-phone', 'delivery-package-desc']
-                    .map((id) => document.getElementById(id)).find((x) => x && !x.value.trim());
-                if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus({ preventScroll: true }); }
-            }, 350);
+            try { window.revealDeliveryWizardGap?.(); } catch (_) {}
         };
 
         window.bindBookingBackBar = () => {

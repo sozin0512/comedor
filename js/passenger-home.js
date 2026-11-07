@@ -554,8 +554,8 @@ function applyMode(mode) {
         setServicePickerFilter(allowed);
         // Expandir panel de control
         window.showControlPanel?.();
-        // Avanzados para delivery/flete/grúa
-        if (['delivery', 'freight', 'tow'].includes(mode)) {
+        // Flete y grúa siguen abriendo «Más opciones». El envío usa sus tarjetas.
+        if (['freight', 'tow'].includes(mode)) {
             window.expandTripAdvancedPanel?.();
         }
     } else {
