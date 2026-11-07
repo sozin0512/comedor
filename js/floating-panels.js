@@ -1060,12 +1060,15 @@ export function syncTripFloatPanels(data) {
     const isGuestFollow = !!data && !window.currentUser
         && (window._guestFollowTripId === data.id || document.body.classList.contains('guest-trip-follow'));
     const role = isGuestFollow ? 'client' : window.userProfile?.role;
-    const isDriver = role === 'driver';
-    const isClient = role === 'client';
+    // Cuenta admin / conductor de prueba / otra que es el PASAJERO de este viaje → tratar como pasajero
+    const passengerOfTrip = !isGuestFollow && !!window.isViewerPassengerOfTrip?.(data);
+    const isDriver = role === 'driver' && !passengerOfTrip;
+    const isClient = role === 'client' || passengerOfTrip;
     const isMine = !!data && (
         isGuestFollow
         || (isDriver && document.body.classList.contains('driver-mode'))
         || (isClient && document.body.classList.contains('client-mode'))
+        || passengerOfTrip
     );
     const inTrip = isTripActive && isMine && data && ['accepted', 'in_progress'].includes(data.status);
 

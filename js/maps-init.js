@@ -4399,7 +4399,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
         /** Flotante unificado del pasajero (conductor + PIN). Evita doble panel. */
         window.syncClientTripFloat = (data) => {
             const isGuestFollow = !!data && (window._guestFollowTripId === data.id || document.body.classList.contains('guest-trip-follow'));
-            if (!data || (window.userProfile?.role !== 'client' && !isGuestFollow)) return;
+            if (!data || (window.userProfile?.role !== 'client' && !isGuestFollow && !window.isViewerPassengerOfTrip?.(data))) return;
             const floatEl = document.getElementById('client-trip-float');
             if (!floatEl || floatEl.classList.contains('hidden')) return;
 
