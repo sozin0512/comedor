@@ -26853,3 +26853,236 @@ body.trip-autocomplete-open #map { will-change: auto !important; }
 .hr-guest-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:999px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:11px;font-weight:800;white-space:nowrap;margin:2px 4px 2px 0;font-variant-emoji:normal}
 .hr-guest-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:4px;font-variant-emoji:normal}
 .hr-guest-wa{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:999px;background:#16a34a;color:#fff !important;font-size:12px;font-weight:800;text-decoration:none;white-space:nowrap}
+
+/* Mapa limpio del conductor (sin viaje, panel minimizado). El pasajero no usa estas reglas. */
+#driver-map-dock {
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 46;
+    pointer-events: none;
+}
+body.driver-mode.panel-minimized:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #driver-map-dock,
+body.driver-mode.panel-collapsed:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #driver-map-dock {
+    display: block;
+}
+.driver-map-dock-top,
+.driver-map-dock-bottom {
+    position: absolute;
+    left: max(0.55rem, var(--safe-left, env(safe-area-inset-left, 0px)));
+    right: max(0.55rem, var(--safe-right, env(safe-area-inset-right, 0px)));
+    pointer-events: none;
+}
+.driver-map-dock-top {
+    /* MainActivity pone --native-safe-* en <html>. env() en el WebView Android suele ser 0. */
+    top: calc(3.7rem + var(--native-safe-top, var(--safe-top, env(safe-area-inset-top, 0px))));
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    max-width: calc(100% - 1.1rem);
+}
+.driver-map-dock-bottom {
+    /* Fija al viewport: el mapa es edge-to-edge y su bottom:0 queda detrás de la barra del sistema. */
+    position: fixed;
+    z-index: 80;
+    bottom: calc(0.75rem + var(--native-safe-bottom, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+}
+/* Hasta que MainActivity inyecte el inset: 48px cubre los 3 botones (Atrás/Inicio/Recientes).
+   Con .native-insets-ready se usa el alto real (gestos ~16–24px, 3 botones ~48px). */
+body.capacitor-android:not(.native-insets-ready) .driver-map-dock-bottom {
+    bottom: calc(0.75rem + 48px);
+}
+.driver-map-earn-slot,
+.driver-map-status,
+.driver-map-copa-toggle,
+.driver-map-open {
+    pointer-events: auto;
+}
+.driver-map-earn-slot {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 100%;
+}
+body.driver-mode.panel-minimized:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #driver-map-dock #driver-earnings-float,
+body.driver-mode.panel-collapsed:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #driver-map-dock #driver-earnings-float {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+    z-index: auto !important;
+    pointer-events: none !important;
+}
+body.driver-mode.panel-minimized:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #driver-map-dock .driver-earnings-float--min,
+body.driver-mode.panel-collapsed:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #driver-map-dock .driver-earnings-float--min {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    max-width: min(12.5rem, 46vw) !important;
+}
+body.driver-mode.panel-minimized:not(.trip-active) #driver-map-dock .driver-earnings-min-pill {
+    min-height: 2.35rem;
+    max-width: 100%;
+    box-shadow: 0 6px 16px rgba(5, 150, 105, 0.28);
+}
+body.driver-mode.panel-minimized:not(.trip-active) #driver-map-dock .driver-earnings-min-pill .trip-float-grip {
+    display: none;
+}
+body.driver-mode.panel-minimized:not(.trip-active) #driver-map-dock .driver-earnings-float:not(.driver-earnings-float--min) {
+    position: fixed !important;
+    top: calc(6.5rem + var(--safe-top, env(safe-area-inset-top, 0px))) !important;
+    left: max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px))) !important;
+    right: max(0.65rem, var(--safe-right, env(safe-area-inset-right, 0px))) !important;
+    width: auto !important;
+    max-width: 22rem;
+    z-index: 140 !important;
+}
+.driver-map-status,
+.driver-map-copa-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 2.35rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #0f172a;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: normal;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+.driver-map-status { color: #047857; border-color: #a7f3d0; }
+.driver-map-status[data-online="0"] { color: #64748b; border-color: #e2e8f0; }
+.driver-map-status-dot {
+    width: 0.48rem;
+    height: 0.48rem;
+    border-radius: 999px;
+    background: #10b981;
+    flex: 0 0 auto;
+}
+.driver-map-status[data-online="0"] .driver-map-status-dot { background: #94a3b8; }
+.driver-map-copa-toggle { color: #b45309; border-color: #fde68a; margin-left: auto; }
+.driver-map-copa-toggle.is-live { background: #fffbeb; }
+.driver-map-copa-toggle[aria-expanded="true"] { background: #fef3c7; }
+.driver-map-open {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 3.35rem;
+    padding: 0.4rem 0.4rem 0.4rem 0.7rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 1.15rem;
+    background: #fff;
+    color: #0f172a;
+    text-align: left;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    font-variant-emoji: text;
+    letter-spacing: normal;
+}
+.driver-map-open-ico {
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 0.7rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #eff6ff;
+    color: #1d4ed8;
+    flex: 0 0 auto;
+}
+.driver-map-open-copy {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.05rem;
+}
+.driver-map-open-copy strong {
+    font-size: 0.78rem;
+    font-weight: 900;
+    line-height: 1.15;
+}
+.driver-map-open-copy small {
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: #64748b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.driver-map-open-count {
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.68rem;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.driver-map-open-count[hidden] { display: none !important; }
+.driver-map-open-action {
+    flex: 0 0 auto;
+    min-height: 2.45rem;
+    padding: 0.45rem 0.75rem;
+    border-radius: 0.85rem;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+body.driver-mode.panel-minimized:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #driver-radar-float,
+body.driver-mode.panel-collapsed:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #driver-radar-float,
+body.driver-mode.panel-minimized:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #panel-expand-fab,
+body.driver-mode.panel-collapsed:not(.trip-active):not(.is-navigating):not(.driver-nav-mode) #panel-expand-fab {
+    display: none !important;
+}
+body.driver-mode.panel-minimized:not(.trip-active):not(.driver-copa-tray) #public-copa-strip,
+body.driver-mode.panel-minimized:not(.trip-active):not(.driver-copa-tray) #public-pcopa-strip,
+body.driver-mode.panel-minimized:not(.trip-active):not(.driver-copa-tray) #driver-copa-map-strip,
+body.driver-mode.panel-collapsed:not(.trip-active):not(.driver-copa-tray) #public-copa-strip,
+body.driver-mode.panel-collapsed:not(.trip-active):not(.driver-copa-tray) #public-pcopa-strip,
+body.driver-mode.panel-collapsed:not(.trip-active):not(.driver-copa-tray) #driver-copa-map-strip {
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+body.driver-mode.driver-copa-tray:not(.trip-active) #public-copa-strip:not(.hidden),
+body.driver-mode.driver-copa-tray:not(.trip-active) #public-pcopa-strip:not(.hidden),
+body.driver-mode.driver-copa-tray:not(.trip-active) #driver-copa-map-strip:not(.hidden) {
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    position: fixed !important;
+    left: max(0.65rem, var(--safe-left, env(safe-area-inset-left, 0px))) !important;
+    right: auto !important;
+    width: auto !important;
+    max-width: calc(100vw - 1.3rem - var(--safe-left, 0px) - var(--safe-right, 0px)) !important;
+    top: calc(11.5rem + var(--safe-top, env(safe-area-inset-top, 0px)) + (var(--copa-tray-i, 0) * 3.4rem)) !important;
+    z-index: 125 !important;
+}
+html[data-theme="dark"] .driver-map-status,
+html[data-theme="dark"] .driver-map-copa-toggle,
+html[data-theme="dark"] .driver-map-open {
+    background: #0f172a;
+    color: #f8fafc;
+    border-color: #334155;
+}
+html[data-theme="dark"] .driver-map-open-copy small { color: #94a3b8; }

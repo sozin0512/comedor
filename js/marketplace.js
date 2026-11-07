@@ -10,9 +10,9 @@ import {
     collection, doc, setDoc, getDocs, query, where, orderBy, limit,
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { httpsCallable } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-functions.js';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.26.55';
-import { compressDataUrlFromFile } from './camera-capture.js?v=2026.10.26.55';
-import { HONDURAS_CITIES } from './honduras-cities.js?v=2026.10.26.55';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.26.56';
+import { compressDataUrlFromFile } from './camera-capture.js?v=2026.10.26.56';
+import { HONDURAS_CITIES } from './honduras-cities.js?v=2026.10.26.56';
 
 export const MK_COMMISSION_LINE = 'HonduRaite cobra 10% al vendedor, sin costo para el comprador';
 export const MK_CATEGORIES = [
