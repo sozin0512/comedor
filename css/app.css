@@ -27086,3 +27086,172 @@ html[data-theme="dark"] .driver-map-open {
     border-color: #334155;
 }
 html[data-theme="dark"] .driver-map-open-copy small { color: #94a3b8; }
+
+/* Pedidos del cliente: en curso separado del historial, un solo paso visible */
+.orders-section-title {
+    margin: 0.15rem 0 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 900;
+    color: #0f172a;
+}
+.orders-active-empty,
+.orders-history-empty {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #64748b;
+}
+.orders-history {
+    margin-top: 0.85rem;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 0.45rem;
+}
+.orders-history > summary {
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 900;
+    color: #334155;
+    padding: 0.35rem 0;
+}
+.order-card--history .order-progress-stepper,
+.order-card--history .client-order-track { display: none; }
+.client-order-track,
+.client-order-track *,
+.client-home-order-access,
+.client-home-order-access *,
+.order-card,
+.order-card * {
+    font-variant-emoji: text;
+    letter-spacing: normal;
+}
+.client-order-track { margin-top: 0.45rem; }
+.client-track-dots { display: flex; gap: 0.35rem; margin: 0 0 0.35rem; }
+.client-track-dot {
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    font-weight: 900;
+    background: #e2e8f0;
+    color: #64748b;
+}
+.client-track-dot.is-current { background: #7c3aed; color: #fff; }
+.client-track-dot.is-done { background: #10b981; color: #fff; }
+.client-track-step { margin: 0; font-size: 0.78rem; font-weight: 900; color: #0f172a; }
+.client-track-note,
+.client-track-rider,
+.client-track-where,
+.client-track-eta {
+    margin: 0.2rem 0 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #475569;
+}
+.client-track-phone,
+.client-track-maplink {
+    display: inline-flex;
+    margin-top: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 900;
+    color: #1d4ed8;
+}
+.client-home-order-access {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.1rem 0.5rem;
+    margin: 0 0 0.65rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: 1rem;
+    border: 1.5px solid #c4b5fd;
+    background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+    color: #3b0764;
+    text-align: left;
+    cursor: pointer;
+}
+.client-home-order-access__kicker {
+    grid-column: 1 / -1;
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.client-home-order-access__title { font-size: 0.86rem; font-weight: 900; }
+.client-home-order-access__step { grid-column: 1 / 2; font-size: 0.72rem; font-weight: 700; }
+.client-home-order-access__cta {
+    grid-row: 2 / span 2;
+    grid-column: 2;
+    align-self: center;
+    font-size: 0.68rem;
+    font-weight: 900;
+    background: #fff;
+    border-radius: 999px;
+    padding: 0.35rem 0.55rem;
+}
+
+/* Moto en envío: faja corta, mapa grande, una acción, sin hueco blanco */
+body.trip-active.driver-mode.driver-moto-compact:not(.panel-minimized):not(.panel-collapsed) #control-panel,
+body.capacitor-android.trip-active.driver-mode.driver-moto-compact:not(.panel-minimized):not(.panel-collapsed) #control-panel,
+body.trip-active.driver-mode.driver-moto-compact.driver-trip-dest-phase:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: min(46dvh, 19rem) !important;
+    overflow: hidden !important;
+    padding-bottom: max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+}
+body.driver-moto-compact #panel-content,
+body.driver-moto-compact #active-trip-panel,
+body.driver-moto-compact #driver-active-body,
+body.trip-active.driver-mode.driver-moto-compact:not(.panel-minimized) #control-panel:not(.panel-collapsed) .driver-active-body {
+    flex: 0 1 auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+}
+body.driver-moto-compact #driver-route-hero,
+body.driver-moto-compact #driver-uber-pax,
+body.driver-moto-compact #driver-trip-actions,
+body.driver-moto-compact #active-trip-route-summary {
+    display: none !important;
+}
+body.driver-moto-compact #driver-active-veh-badge .hr-veh-badge {
+    margin: 0 0 0.25rem !important;
+    padding: 0.35rem 0.6rem !important;
+    font-size: 0.78rem !important;
+}
+body.driver-moto-compact .hr-moto-primary {
+    min-height: 48px;
+}
+body.driver-moto-compact #driver-trip-commission .hr-comm {
+    margin-top: 0.35rem;
+    padding: 0.4rem 0.55rem;
+}
+body.android-3btn.driver-moto-compact:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+    padding-bottom: calc(max(0.35rem, var(--safe-bottom, 0px)) + var(--android-nav-inset, 48px)) !important;
+}
+body.android-gesture.driver-moto-compact:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+    padding-bottom: max(0.45rem, var(--safe-bottom, env(safe-area-inset-bottom, 0px))) !important;
+}
+body.driver-moto-compact.hr-keyboard-open #control-panel,
+body.driver-moto-compact #control-panel:focus-within {
+    max-height: min(62dvh, 22rem) !important;
+}
+body.driver-moto-compact:has(.hr-store-more[open]) #control-panel {
+    max-height: min(68dvh, 28rem) !important;
+}
+@media (max-width: 360px) {
+    body.driver-moto-compact .hr-moto-next { font-size: 0.82rem; }
+    body.driver-moto-compact .hr-moto-primary { font-size: 0.78rem; min-height: 46px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+    body.trip-active.driver-mode.driver-moto-compact:not(.panel-minimized):not(.panel-collapsed) #control-panel {
+        max-height: min(58dvh, 13.5rem) !important;
+    }
+    body.driver-moto-compact #driver-panel-nav { display: none !important; }
+}

@@ -248,7 +248,26 @@ export function storeOfferBadgesHtml(t) {
     return `<span class="hr-store-badge"><i class="fas fa-shopping-bag"></i> Pedido de tienda</span>${zone}`;
 }
 
-/** Caja verde/azul: qué cobrar. */
+/**
+ * El cálculo de cobro no cambia (storeOrderSummary.cashToCollect).
+ * «Ya pagado / no pagues» solo si deliveryDetails.productsPaid === true.
+ * Si el método dice saldo pero ese flag no está, el monto sigue el cálculo viejo
+ * y el texto dice que el pago no está confirmado.
+ */
+export function restaurantPayVerdict(t) {
+    const d = t?.deliveryDetails || {};
+    const raw = d.itemsTotal;
+    const parsed = Number(String(raw ?? "").replace(/[^0-9.\-]/g, ""));
+    const known = raw != null && raw !== "" && Number.isFinite(parsed);
+    return {
+        known,
+        amount: known ? num(raw) : null,
+        verifiedPaid: d.productsPaid === true,
+        methodSaysSaldo: String(d.productsPaymentMethod || "") === "saldo",
+    };
+}
+
+/** Caja verde/azul: qué cobrar. Separa restaurante, cliente y envío del repartidor. */
 export function storeCollectHtml(t, deliveryPrice = null) {
     if (!isStoreOrderTrip(t)) return "";
     if (isZoneBillingTrip(t)) {
@@ -264,39 +283,64 @@ export function storeCollectHtml(t, deliveryPrice = null) {
     const s = storeOrderSummary(t, deliveryPrice);
     if (!s) return "";
     const zone = s.zoneName ? ` · ${esc(s.zoneName)}` : "";
+    const verdict = restaurantPayVerdict(t);
+    const riderLine = `<p class="hr-store-collect-row" data-pay-role="rider"><span>Tu envío, antes de comisión</span><b>${money(s.fee)}</b></p>
+        <p class="hr-store-collect-note" data-pay-role="rider-note">Eso no es tu ganancia. El neto queda en «Te quedas», después de la comisión.</p>`;
     if (s.direct) {
         // Envío directo de tienda: el cliente paga el envío (+ productos si la tienda puso monto)
         const rows = s.itemsTotal > 0
-            ? `<p class="hr-store-collect-row"><span>Envío${zone}</span><b>${money(s.fee)}</b></p>
+            ? `<p class="hr-store-collect-row" data-pay-role="restaurant" data-pay-verified="cash"><span>Pagar al restaurante</span><b>${money(s.itemsTotal)}</b></p>
+               <p class="hr-store-collect-row"><span>Envío${zone}</span><b>${money(s.fee)}</b></p>
                <p class="hr-store-collect-row"><span>Productos (son de la tienda)</span><b>${money(s.itemsTotal)}</b></p>`
-            : "";
+            : `<p class="hr-store-collect-row" data-pay-role="restaurant" data-pay-verified="none"><span>Pagar al restaurante</span><b>Sin cobro de productos</b></p>`;
         const detailRow = s.itemsDetailText ? `<p class="hr-store-collect-note" data-driver-trip-items style="font-weight:800;color:#FEF3C7;margin-bottom:4px">📦 Detalle: ${esc(s.itemsDetailText)}</p>` : "";
         return `<div class="hr-store-collect" data-store-direct>
             <p class="hr-store-collect-title"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo</p>
             ${detailRow}
             ${rows}
-            <p class="hr-store-collect-row hr-store-collect-total"><span>${s.itemsTotal > 0 ? `Envío ${money(s.fee)} + productos ${money(s.itemsTotal)}` : `Solo el envío${zone}`}</span><b>${money(s.cashToCollect)}</b></p>
+            <p class="hr-store-collect-row hr-store-collect-total" data-pay-role="customer"><span>${s.itemsTotal > 0 ? `Envío ${money(s.fee)} + productos ${money(s.itemsTotal)}` : `Solo el envío${zone}`}</span><b>${money(s.cashToCollect)}</b></p>
+            ${riderLine}
             <p class="hr-store-collect-note">${s.itemsTotal > 0 ? `Le entregas ${money(s.itemsTotal)} a la tienda · tu envío ${money(s.fee)} (menos la comisión HonduRaite).` : "La tienda no puso cobro de productos."}</p>
         </div>`;
     }
     const promo = s.loyaltyDiscount > 0
         ? `<p class="hr-store-collect-note" data-loyalty-rider style="font-weight:800;color:#FEF08A;background:rgba(0,0,0,.18);border-radius:8px;padding:6px 8px;margin:4px 0">🎁 Promo cliente (pedido ${esc(s.loyaltyStep || "")} de ${esc(s.loyaltyCycle || 5)}): cobra envío ${money(s.clientFee)} · HonduRaite te abona ${money(s.loyaltyDiscount)} a tu saldo al entregar. Tu envío sigue siendo ${money(s.fee)}.</p>`
         : "";
-    if (s.productsPaid) {
+    if (s.productsPaid && verdict.verifiedPaid) {
         return `<div class="hr-store-collect hr-store-collect--paid">
             <p class="hr-store-collect-title"><i class="fas fa-check-circle"></i> Productos ya pagados con puntos</p>
-            <p class="hr-store-collect-row hr-store-collect-total"><span>Cobrar solo el envío${zone}</span><b>${money(s.clientFee)}</b></p>
+            <p class="hr-store-collect-row" data-pay-role="restaurant" data-pay-verified="paid"><span>Pagar al restaurante</span><b>Ya pagado · no pagues</b></p>
+            <p class="hr-store-collect-row hr-store-collect-total" data-pay-role="customer"><span>Cobrar al cliente · solo el envío${zone}</span><b>${money(s.clientFee)}</b></p>
+            ${riderLine}
             ${promo}
-            <p class="hr-store-collect-note">No cobres los productos: la tienda ya recibió el pago.</p>
+            <p class="hr-store-collect-note">No cobres los productos: la tienda ya recibió el pago. Tu envío ${money(s.fee)} (menos la comisión HonduRaite).</p>
         </div>`;
     }
+    if (s.productsPaid && !verdict.verifiedPaid) {
+        return `<div class="hr-store-collect" data-pay-verified="unknown">
+            <p class="hr-store-collect-title"><i class="fas fa-question-circle"></i> Pago de productos no confirmado</p>
+            <p class="hr-store-collect-row" data-pay-role="restaurant" data-pay-verified="unknown"><span>Pagar al restaurante</span><b>No confirmado</b></p>
+            <p class="hr-store-collect-row hr-store-collect-total" data-pay-role="customer"><span>Cobrar al cliente · el cálculo actual es solo el envío${zone}</span><b>${money(s.clientFee)}</b></p>
+            ${riderLine}
+            ${promo}
+            <p class="hr-store-collect-note">El pedido no trae la marca de pago verificado. No lo trates como ya pagado. Tu envío ${money(s.fee)} (menos la comisión HonduRaite).</p>
+        </div>`;
+    }
+    const restaurantLine = verdict.known
+        ? `<p class="hr-store-collect-row" data-pay-role="restaurant" data-pay-verified="cash"><span>Pagar al restaurante</span><b>${money(s.itemsTotal)}</b></p>`
+        : `<p class="hr-store-collect-row" data-pay-role="restaurant" data-pay-verified="unknown"><span>Pagar al restaurante</span><b>No confirmado</b></p>`;
+    const passNote = verdict.known
+        ? `Le pasas ${money(s.itemsTotal)} a la tienda al recoger · tu envío ${money(s.fee)} (menos la comisión HonduRaite).`
+        : `Monto al restaurante: no confirmado. Tu envío ${money(s.fee)} (menos la comisión HonduRaite).`;
     return `<div class="hr-store-collect">
         <p class="hr-store-collect-title"><i class="fas fa-money-bill-wave"></i> Cobrar al cliente en efectivo</p>
-        <p class="hr-store-collect-row"><span>Productos (son de la tienda)</span><b>${money(s.itemsTotal)}</b></p>
+        ${restaurantLine}
+        <p class="hr-store-collect-row"><span>Productos (son de la tienda)</span><b>${verdict.known ? money(s.itemsTotal) : "No confirmado"}</b></p>
         <p class="hr-store-collect-row"><span>${s.loyaltyDiscount > 0 ? "Envío que paga el cliente" : "Tu envío"}${zone}</span><b>${money(s.clientFee)}</b></p>
-        <p class="hr-store-collect-row hr-store-collect-total"><span>Total a cobrar</span><b>${money(s.cashToCollect)}</b></p>
+        <p class="hr-store-collect-row hr-store-collect-total" data-pay-role="customer"><span>Total a cobrar</span><b>${money(s.cashToCollect)}</b></p>
+        ${riderLine}
         ${promo}
-        <p class="hr-store-collect-note">Le pasas ${money(s.itemsTotal)} a la tienda al recoger · tu envío ${money(s.fee)} (menos la comisión HonduRaite).</p>
+        <p class="hr-store-collect-note">${passNote}</p>
     </div>`;
 }
 
@@ -333,7 +377,19 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
           </div>${clientChatBtn}`
         : clientChatBtn;
 
-    return `<div class="hr-store-panel" data-store-order-panel data-delivery-stage="${esc(stageMeta.stage)}">
+    const destLine = isStep2
+        ? (zoneTrip ? "Destino por definir con el cliente" : (s.deliveryAddress || "Destino no confirmado"))
+        : (s.storeAddress || s.storeName || "Negocio sin dirección");
+    const cancelBtn = `<button type="button" class="hr-store-stage-link--cancel" data-driver-delivery-act="cancel" onclick="window.cancelOrder?.()" style="background:none;border:0;color:#fca5a5;font-size:12px;font-weight:700;text-decoration:underline;padding:6px;margin-top:2px;align-self:center;cursor:pointer">Cancelar envío</button>`;
+
+    return `<div class="hr-store-panel hr-moto-sheet" data-store-order-panel data-delivery-stage="${esc(stageMeta.stage)}">
+        <div class="hr-moto-stage" data-driver-stage-actions="${esc(stageMeta.stage)}">
+            <p class="hr-moto-next">${esc(stageMeta.headerTitle)}</p>
+            <p class="hr-moto-dest">${esc(destLine)}</p>
+            ${driverStagePrimaryHtml(t, stageMeta)}
+        </div>
+        <details class="hr-store-more">
+        <summary>Detalles, chat y cobro</summary>
         <p class="hr-store-panel-head">${storeOfferBadgesHtml(t)}<span class="hr-store-nopin-badge"><i class="fas fa-check-circle"></i> Sin PIN de pasajero</span>${s.orderShortId ? `<span class="hr-store-id">#${esc(s.orderShortId)}</span>` : ""}</p>
         <div class="hr-store-stage-banner hr-store-stage-banner--${esc(stageMeta.stage)}">
             <p class="hr-store-stage-title">${esc(stageMeta.headerTitle)}</p>
@@ -343,7 +399,6 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
                 <span class="hr-store-step-arrow">→</span>
                 <span class="hr-store-step ${isStep2 ? "is-active" : ""}" data-step="2">2. 👤 Entregar al cliente</span>
             </div>
-            ${driverStageActionsHtml(t, stageMeta)}
         </div>
         ${s.direct ? `<div class="hr-store-box ${!isStep2 ? "hr-store-box--active-leg" : ""}">
             <p class="hr-store-box-title"><i class="fas fa-store"></i> 1. Recoger en negocio · ${esc(s.storeName)}</p>
@@ -366,7 +421,54 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
             ${phoneBtns}
         </div>
         ${storeCollectHtml(t, deliveryPrice)}
+        ${cancelBtn}
+        </details>
     </div>`;
+}
+
+/** Un solo botón de la etapa. Los mismos onclick que driverStageActionsHtml. */
+export function driverStagePrimaryHtml(t, stageMeta = null) {
+    const m = stageMeta || getDeliveryStageMeta(t);
+    if (!m) return "";
+    if (m.stage === "to_customer") {
+        return `<button type="button" class="hr-store-stage-btn hr-store-stage-btn--deliver hr-moto-primary" data-driver-delivery-act="delivered" onclick="window.driverSignalDestinationArrival ? window.driverSignalDestinationArrival() : window.finishTrip?.()">${esc(m.primaryBtnLabel)}</button>`;
+    }
+    if (m.stage === "at_store") {
+        return `<button type="button" class="hr-store-stage-btn hr-store-stage-btn--pickup hr-moto-primary" data-driver-delivery-act="picked-up" onclick="window.driverConfirmOrderPickedUp?.()">${esc(m.primaryBtnLabel)}</button>`;
+    }
+    return `<button type="button" class="hr-store-stage-btn hr-store-stage-btn--arrived hr-moto-primary" data-driver-delivery-act="arrived-store" onclick="window.markArrival?.()">${esc(m.primaryBtnLabel)}</button>`;
+}
+
+/**
+ * Inset inferior en Android. No inventa un hueco grande si el sistema ya reportó safe-area.
+ * Teclado: visualViewport mucho más bajo que la ventana.
+ */
+export function syncDriverSheetSafeArea() {
+    if (typeof document === "undefined" || typeof window === "undefined") return;
+    const body = document.body;
+    if (!body) return;
+    const root = document.documentElement;
+    const vv = window.visualViewport;
+    const keyboard = !!(vv && window.innerHeight - vv.height > 140);
+    body.classList.toggle("hr-keyboard-open", keyboard);
+    const narrow = window.matchMedia?.("(max-width: 820px)")?.matches !== false;
+    const android = body.classList.contains("capacitor-android")
+        || root.classList.contains("capacitor-android")
+        || /Android/i.test(navigator.userAgent || "");
+    if (!narrow || !android || keyboard) {
+        if (!android) body.classList.remove("android-3btn", "android-gesture");
+        return;
+    }
+    let safe = 0;
+    try {
+        safe = parseFloat(getComputedStyle(body).getPropertyValue("--safe-bottom")) || 0;
+    } catch (_) {}
+    const sys = (window.screen?.height || 0) - (window.innerHeight || 0);
+    const three = safe < 24 && sys >= 36 && sys <= 180;
+    body.classList.toggle("android-3btn", three);
+    body.classList.toggle("android-gesture", !three);
+    if (three) root.style.setProperty("--android-nav-inset", `${Math.min(64, Math.max(48, Math.round(sys)))}px`);
+    else root.style.removeProperty("--android-nav-inset");
 }
 
 
@@ -531,6 +633,7 @@ export const STORE_TRIP_CSS = `
 .hr-store-step.is-active{background:#F59E0B;color:#111827;font-weight:900}
 .hr-store-step.is-done{background:rgba(34,197,94,.22);color:#86EFAC}
 .hr-store-step-arrow{color:#64748B;font-weight:900}
+.hr-store-collect,.hr-store-collect *,.hr-moto-stage,.hr-moto-stage *{letter-spacing:normal;font-variant-emoji:text;font-variant-numeric:tabular-nums}
 .hr-store-collect{background:#052E16;border:1.5px solid #22C55E;border-radius:14px;padding:9px 11px;margin:8px 0;color:#DCFCE7}
 .hr-store-collect--paid{background:#082F49;border-color:#38BDF8;color:#E0F2FE}
 .hr-store-collect-title{font-weight:900;margin:0 0 4px}
@@ -578,4 +681,15 @@ export const STORE_TRIP_CSS = `
 .hr-cancel-modal__btn{border-radius:12px;padding:10px 12px;font-weight:900;font-size:12.5px;cursor:pointer;border:none}
 .hr-cancel-modal__btn--keep{background:#F1F5F9;color:#1E293B;border:1px solid #CBD5E1}
 .hr-cancel-modal__btn--confirm{background:#DC2626;color:#fff;box-shadow:0 4px 12px rgba(220,38,38,.3)}
+.hr-moto-stage{display:flex;flex-direction:column;gap:6px}
+.hr-moto-next{margin:0;font-size:14px;font-weight:900;line-height:1.25;color:#0f172a}
+.hr-moto-dest{margin:0;font-size:12px;font-weight:700;line-height:1.3;color:#334155;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hr-moto-primary{min-height:48px;font-size:14px}
+.hr-store-more{margin-top:6px}
+.hr-store-more>summary{cursor:pointer;font-size:12px;font-weight:800;color:#475569}
 `;
+
+const _hrRoot = typeof globalThis === "undefined" ? null : globalThis;
+if (_hrRoot && _hrRoot.window) {
+    _hrRoot.window.syncDriverSheetSafeArea = syncDriverSheetSafeArea;
+}

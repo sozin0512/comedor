@@ -39,8 +39,8 @@ t('el mapa limpio solo aplica al conductor y no al pasajero', () => {
     ok(!/MutationObserver|ResizeObserver|setInterval|requestAnimationFrame/.test(fn), 'el sync observa el DOM');
 });
 
-t('la versión de publicación es .57 y la app no trae datos de ejemplo', () => {
-    ok(version.includes('2026.10.26.57'));
+t('la versión de publicación es .58 y la app no trae datos de ejemplo', () => {
+    ok(version.includes('2026.10.26.58'));
     ok(!html.includes('L. 0.00 hoy'));
     ok(!html.includes('__HR_MOCK'));
 });

@@ -13,34 +13,43 @@ import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc,
     serverTimestamp, query, where, orderBy, limit, getDocs, deleteDoc, runTransaction, Timestamp, arrayUnion, increment
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
-import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.57';
-import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.57';
+import { calculateServiceFare, getServiceMeta } from './service-types.js?v=2026.10.26.58';
+import { orderWaitChipHtml, tripWaitChipHtml, tsMs as waitTsMs } from './trip-wait.js?v=2026.10.26.58';
 import {
     haversineKm, getDefaultZoneId, getZoneById, getStoredManualZoneId,
     getAllKnownZones, findNearestZone, isUsZone,
-} from './zones.js?v=2026.10.26.57';
-import { resolvePhotoUrl } from './storage.js?v=2026.10.26.57';
-import { APP_CONFIG } from './config.js?v=2026.10.26.57';
-import { calculateAge } from './age-verification.js?v=2026.10.26.57';
-import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.57';
+} from './zones.js?v=2026.10.26.58';
+import { resolvePhotoUrl } from './storage.js?v=2026.10.26.58';
+import { APP_CONFIG } from './config.js?v=2026.10.26.58';
+import { calculateAge } from './age-verification.js?v=2026.10.26.58';
+import { pickPhotoWithSourceChoice } from './camera-capture.js?v=2026.10.26.58';
 import {
     configureStoreZones, renderMerchantZonesTab, checkoutFeeHtml, refreshCheckoutQuote,
     checkoutGateForOrder, resetCheckoutZone, orderFeeLineHtml, deliveryTripPrice,
     setCheckoutVehicle, checkoutVehicle, checkoutPoint, checkoutPointSource, setCheckoutPoint, CAR_DELIVERY_FACTOR, CAR_MIN_DELIVERY_FEE, computeCarDeliveryFee, quoteStoreDeliveryFeeFor,
-} from './store-delivery-zones.js?v=2026.10.26.57';
+} from './store-delivery-zones.js?v=2026.10.26.58';
 import {
     WEEKLY_COMMISSION_RATE, hondurasWeekRange, formatWeekLabel, weeklySalesReport,
-} from './store-week.js?v=2026.10.26.57';
+} from './store-week.js?v=2026.10.26.58';
 
 import { formatLempiras } from './money-format.js';
-import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.57';
-import { configureLoyalty, loadLoyalty, loyaltyPromoBoxHtml, orderLoyaltyLineHtml } from './delivery-loyalty-ui.js?v=2026.10.26.57';
-import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.57';
+import { openCancelConfirmModal } from './store-trip-ui.js?v=2026.10.26.58';
+import {
+    splitClientOrders,
+    isActiveClientOrder,
+    clientOrderStep,
+    clientOrderStepNote,
+    clientOrderTrackHtml,
+    clientHomeOrderAccessHtml,
+    clientOrdersBoardHtml,
+} from './client-order-track.js?v=2026.10.26.58';
+import { configureLoyalty, loadLoyalty, loyaltyPromoBoxHtml, orderLoyaltyLineHtml } from './delivery-loyalty-ui.js?v=2026.10.26.58';
+import { createMerchantDeliveryTab } from './merchant-delivery-ui.js?v=2026.10.26.58';
 import {
     buildDeliveryTrackingUrl,
     buildMerchantShareTripMessage,
     buildMerchantShareTripWhatsAppUrl,
-} from './merchant-delivery-request.js?v=2026.10.26.57';
+} from './merchant-delivery-request.js?v=2026.10.26.58';
 const STORE_CATEGORIES = [
     { id: 'comida', label: 'Comida / restaurante', shortLabel: 'Comida', icon: 'fa-utensils' },
     { id: 'pulperia', label: 'Pulpería', shortLabel: 'Pulpería', icon: 'fa-store' },
@@ -116,6 +125,11 @@ let myProducts = [];
 let merchantOrders = [];
 /** @type {object[]} */
 let clientOrders = [];
+let clientTrackOrderId = '';
+let pendingPlacedOrder = null;
+let clientTrackLive = null;
+let unsubClientTrackTrip = null;
+let clientTrackTripId = '';
 let merchantTab = 'orders';
 let marketplaceView = 'list'; // list | store | cart | checkout | my-orders
 /** true = formulario vacío para registrar una tienda nueva (no editar la actual) */
@@ -2440,9 +2454,110 @@ function handleClientOrdersListUpdate(nextOrders, uid) {
     }
     clientOrdersBootstrappedUid = uid;
     clientOrders = nextOrders;
-    const slot = typeof document !== 'undefined' ? document.getElementById('client-active-order-slot') : null;
-    if (slot) slot.innerHTML = activeClientOrderPillHtml();
+    if (pendingPlacedOrder && nextOrders.some((o) => o.id === pendingPlacedOrder.id)) pendingPlacedOrder = null;
+    mountClientOrderHomeChip();
     if (marketplaceView === 'my-orders') renderMarketplace();
+}
+
+function ordersForClientView() {
+    const list = clientOrders.slice();
+    if (pendingPlacedOrder && !list.some((o) => o.id === pendingPlacedOrder.id)) list.unshift(pendingPlacedOrder);
+    return list;
+}
+
+function focusedActiveOrder() {
+    const { active } = splitClientOrders(ordersForClientView());
+    return active.find((o) => o.id === clientTrackOrderId) || active[0] || null;
+}
+
+function mountClientOrderHomeChip() {
+    if (typeof document === 'undefined') return;
+    const hub = document.getElementById('passenger-home-hub');
+    const order = splitClientOrders(ordersForClientView()).active[0] || null;
+    const html = clientHomeOrderAccessHtml(order);
+    let el = document.getElementById('client-home-order-access');
+    if (!html) {
+        el?.remove();
+        return;
+    }
+    if (!hub) return;
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'client-home-order-access';
+        const hero = hub.querySelector('.passenger-home-hero');
+        if (hero?.nextSibling) hub.insertBefore(el, hero.nextSibling);
+        else hub.prepend(el);
+    }
+    if (el.dataset.html !== html) {
+        el.innerHTML = html;
+        el.dataset.html = html;
+    }
+}
+
+function stopClientTrackTrip() {
+    try { unsubClientTrackTrip?.(); } catch (_) {}
+    unsubClientTrackTrip = null;
+    clientTrackTripId = '';
+}
+
+function liveFromTrip(t) {
+    if (!t || typeof t !== 'object') return null;
+    const lat = Number(t.driverLat);
+    const lng = Number(t.driverLng);
+    const eta = Number(t.driverEtaMin ?? t.etaMinutes);
+    return {
+        driverId: t.driverId || '',
+        driverName: t.driverName || '',
+        driverPhone: t.driverPhone || '',
+        lat: Number.isFinite(lat) ? lat : null,
+        lng: Number.isFinite(lng) ? lng : null,
+        etaMin: Number.isFinite(eta) ? eta : null,
+    };
+}
+
+function paintFocusedTrack(order) {
+    if (!order?.id || typeof document === 'undefined') return;
+    const node = document.querySelector(`[data-client-track="${CSS.escape(order.id)}"]`);
+    if (!node) return;
+    const html = clientOrderTrackHtml(order, clientTrackLive, { riderOnly: true });
+    if (node.dataset.html !== html) {
+        node.innerHTML = html;
+        node.dataset.html = html;
+    }
+}
+
+function watchFocusedOrderTrip(order) {
+    const tripId = order?.tripId ? String(order.tripId) : '';
+    if (!tripId || !dbRef) {
+        stopClientTrackTrip();
+        clientTrackLive = null;
+        return;
+    }
+    if (unsubClientTrackTrip && clientTrackTripId === tripId) return;
+    stopClientTrackTrip();
+    clientTrackTripId = tripId;
+    clientTrackLive = null;
+    unsubClientTrackTrip = onSnapshot(publicDoc('trips', tripId), (snap) => {
+        clientTrackLive = snap.exists() ? liveFromTrip(snap.data() || {}) : null;
+        const current = focusedActiveOrder();
+        if (current?.tripId && String(current.tripId) === tripId) paintFocusedTrack(current);
+    }, () => {
+        clientTrackLive = null;
+        const current = focusedActiveOrder();
+        if (current) paintFocusedTrack(current);
+    });
+}
+
+export function openClientOrdersTracking(orderId = '') {
+    if (!getCurrentUser()?.uid) {
+        window.requireAuthForService?.('ver tus pedidos en Tiendas', { role: 'client', mode: 'login', icon: '📦' });
+        return;
+    }
+    const wanted = String(orderId || '').trim();
+    clientTrackOrderId = wanted || focusedActiveOrder()?.id || '';
+    openMarketplace();
+    marketplaceView = 'my-orders';
+    renderMarketplace();
 }
 
 function startClientOrdersListener() {
@@ -2840,6 +2955,7 @@ export function buildStoreStarProductsSectionHtml(products = [], store = viewing
 function renderMarketplace() {
     const body = document.getElementById('stores-panel-body');
     if (!body) return;
+    if (marketplaceView !== 'my-orders') stopClientTrackTrip();
 
     if (marketplaceView === 'list') {
         setMarketplaceTitle('Tiendas');
@@ -2991,6 +3107,16 @@ function renderMarketplace() {
         setToolbarVisible(false);
         setMarketplaceTitle('Mis pedidos');
         body.innerHTML = renderClientOrdersHtml();
+        const focus = focusedActiveOrder();
+        watchFocusedOrderTrip(focus);
+        if (clientTrackOrderId && typeof document !== 'undefined') {
+            const id = clientTrackOrderId;
+            setTimeout(() => {
+                try {
+                    document.querySelector(`[data-order-id="${CSS.escape(id)}"]`)?.scrollIntoView?.({ block: 'nearest' });
+                } catch (_) {}
+            }, 0);
+        }
     }
 
     updateCartBar();
@@ -3687,11 +3813,15 @@ function renderCheckoutHtml() {
 }
 
 function renderClientOrdersHtml() {
-    if (!clientOrders.length) {
-        return `<div class="stores-empty"><i class="fas fa-receipt"></i><p>No tienes pedidos aún.</p></div>`;
-    }
-    const activePill = activeClientOrderPillHtml();
-    return `<div id="client-active-order-slot">${activePill}</div><div class="orders-list">${clientOrders.map((o) => orderCardHtml(o, { merchant: false })).join('')}</div>`;
+    const orders = ordersForClientView();
+    const historyOpen = typeof document !== 'undefined' && !!document.getElementById('client-orders-history')?.open;
+    const focus = focusedActiveOrder();
+    return clientOrdersBoardHtml(orders, {
+        historyOpen,
+        focusId: clientTrackOrderId || focus?.id || '',
+        liveFor: (o) => (focus && o.id === focus.id ? clientTrackLive : null),
+        cardHtml: (o, ctx) => orderCardHtml(o, { merchant: false, history: ctx.history, focused: ctx.focused, live: ctx.live }),
+    });
 }
 
 /** Estado visible: «Pedido preparado» con viaje pedido = «Pedido preparado · buscando delivery» (nadie lo aceptó todavía). */
@@ -3704,7 +3834,7 @@ export function orderStatusView(o) {
 }
 
 /** Barra de progreso de 5 pasos: 1. Recibido -> 2. Preparando el pedido -> 3. Pedido preparado (llamando delivery) -> 4. En camino -> 5. Entregado */
-export function orderProgressStepperHtml(o) {
+export function orderProgressStepperHtml(o, opts = {}) {
     if (!o || o.status === 'cancelled') return '';
     const steps = [
         { num: 1, label: 'Recibido' },
@@ -3740,39 +3870,46 @@ export function orderProgressStepperHtml(o) {
         capClass = 'order-progress-caption--ready';
     }
 
+    const client = opts.client === true;
+    const clientStep = client ? clientOrderStep(o) : null;
     const trackHtml = steps.map((s) => {
         const cls = s.num < current
             ? 'is-done'
             : (s.num === current ? ('is-current' + (current >= 3 ? ' is-ready' : '')) : '');
         const dotText = s.num < current ? '✓' : String(s.num);
-        return `<div class="order-progress-step ${cls}">
+        const label = client ? (clientStep && s.num === clientStep.current ? clientStep.label : (['', 'Recibido', 'Preparando', 'Preparado', 'En camino', 'Entregado'][s.num] || s.label)) : s.label;
+        return `<div class="order-progress-step order-progress-node ${cls}">
             <span class="order-progress-dot">${dotText}</span>
-            <span class="order-progress-label">${esc(s.label)}</span>
+            <span class="order-progress-label">${esc(label)}</span>
         </div>`;
     }).join('');
+    const note = client ? clientOrderStepNote(o) : caption;
 
     return `
         <div class="order-progress-stepper" data-order-step="${current}">
+            ${client && clientStep ? `<div class="order-progress-head"><p class="order-progress-headline">${esc(clientStep.headline)}</p></div>` : ''}
             <div class="order-progress-track">${trackHtml}</div>
-            ${caption ? `<div class="order-progress-caption ${capClass}"><span>${esc(caption)}</span></div>` : ''}
+            ${note ? `<p class="order-progress-note ${capClass}">${esc(note)}</p>` : ''}
         </div>
     `;
 }
 
-function orderCardHtml(o, { merchant = false } = {}) {
+function orderCardHtml(o, { merchant = false, history = false, focused = false, live = null } = {}) {
     const st = orderStatusView(o);
     const items = Array.isArray(o.items) ? o.items : [];
     const itemsLine = items.map((i) => `${i.qty}× ${i.name}`).join(', ');
     const actions = merchant ? merchantOrderActionsHtml(o) : clientOrderActionsHtml(o);
+    const clientActive = !merchant && !history && isActiveClientOrder(o);
+    const showStatus = merchant || history || !clientActive;
     return `
-        <div class="order-card" data-order-id="${esc(o.id)}">
+        <div class="order-card${history ? ' order-card--history' : ''}${clientActive ? ' order-card--active' : ''}${focused ? ' order-card--focus' : ''}" data-order-id="${esc(o.id)}">
             <div class="order-card-top">
                 <div>
                     <p class="order-card-title">${esc(merchant ? (o.clientName || 'Cliente') : (o.storeName || 'Tienda'))}</p>
                     <p class="order-card-sub">${esc(itemsLine || 'Pedido')}</p>
                     ${merchant ? orderWaitChipHtml(o) : ''}
                 </div>
-                <span class="order-status order-status--${st.tone}">${esc(st.label)}</span>
+                ${showStatus ? `<span class="order-status order-status--${st.tone}">${esc(st.label)}</span>` : ''}
             </div>
             <div class="order-card-meta">
                 <span>${money(o.itemsTotal)}</span>
@@ -3795,7 +3932,8 @@ function orderCardHtml(o, { merchant = false } = {}) {
             ` : ''}
             ${o.notes ? `<p class="order-notes">${esc(o.notes)}</p>` : ''}
             ${o.cancelReason === 'out_of_stock' ? `<p class="order-notes">No había stock suficiente. Si pagaste con puntos, se reembolsan.</p>` : ''}
-            ${orderProgressStepperHtml(o)}
+            ${history ? '' : orderProgressStepperHtml(o, { client: !merchant })}
+            ${clientActive ? `<div class="client-order-track" data-client-track="${esc(o.id)}">${clientOrderTrackHtml(o, live, { riderOnly: true })}</div>` : ''}
             ${actions}
         </div>
     `;
@@ -4025,7 +4163,7 @@ function clientOrderActionsHtml(o) {
         `;
     }
     if (o.tripId) {
-        return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> ${o.driverName ? `${esc(String(o.driverName).split(/\s+/)[0])} va con tu pedido` : 'Envío activo'} · sigue el viaje en el mapa</p>
+        return `<p class="text-[11px] text-blue-700 font-bold mt-2"><i class="fas fa-motorcycle"></i> ${o.driverName ? `${esc(String(o.driverName).split(/\s+/)[0])} va con tu pedido` : 'Envío activo'}.</p>
             <div class="order-actions mt-2">
                 <button type="button" class="stores-secondary-btn w-full" data-stores-action="chat-driver" data-order-id="${esc(o.id)}" data-trip-id="${esc(o.tripId)}">
                     <i class="fas fa-comments text-blue-600"></i> 💬 Chat con repartidor
@@ -4679,12 +4817,24 @@ async function placeOrder(orderOpts = {}) {
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         };
-        await addDoc(publicCol('store_orders'), payload);
+        const placedRef = await addDoc(publicCol('store_orders'), payload);
         if (viewingStore?.id) {
             recordStoreSaleActivity(viewingStore.id, { nowMs: Date.now() });
         }
         resetCheckoutZone();
         cart = [];
+        pendingPlacedOrder = {
+            id: placedRef.id,
+            storeName: payload.storeName,
+            items: payload.items,
+            itemsTotal: payload.itemsTotal,
+            paymentMethod: payload.paymentMethod,
+            paymentStatus: payload.paymentStatus,
+            status: 'pending',
+            deliveryAddress: payload.deliveryAddress,
+            tripId: null,
+        };
+        clientTrackOrderId = placedRef.id;
         marketplaceView = 'my-orders';
         startClientOrdersListener();
         renderMarketplace();
@@ -9639,9 +9789,16 @@ export function initMerchantStores(deps = {}) {
         if (e.target.closest('#header-profile-btn-mobile, [data-header-action="profile"], [onclick*="openProfilePanel"]')) {
             setTimeout(injectProfileEntry, 200);
         }
+        const homeOrder = e.target.closest?.('[data-client-order-home]');
+        if (homeOrder) {
+            e.preventDefault();
+            openClientOrdersTracking(homeOrder.getAttribute('data-order-id') || '');
+        }
     });
 
     window.openStoresMarketplace = openMarketplace;
+    window.openClientOrdersTracking = openClientOrdersTracking;
+    window.mountClientOrderHomeChip = mountClientOrderHomeChip;
     window.closeStoresMarketplace = (opts) => closeMarketplace(opts || {});
     window.openMerchantPanel = openMerchantPanel;
     /** Menú por rol: resumen de tienda(s) y sucursales del emprendedor. */
