@@ -423,15 +423,25 @@ window.openStandardStopsAdder = () => {
     panel.classList.remove('hidden');
     window.syncAddExtraStopBtnState?.();
 
-    // Subir el buscador de la parada a la parte de arriba del panel ANTES de abrir el teclado:
-    // quedaba abajo y el teclado del teléfono lo tapaba («no desplegó nada»).
-    panel.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    // Desplazar el panel (#panel-content es el que hace scroll) hasta dejar el buscador de la
+    // parada ARRIBA y visible: quedaba debajo de origen/destino y había que deslizar para verlo.
+    const scrollAdderToTop = (smooth = true) => {
+        const scroller = panel.closest('#panel-content, .trip-panel-scroll')
+            || document.getElementById('panel-content');
+        if (scroller && scroller.scrollHeight > scroller.clientHeight + 2) {
+            const delta = panel.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 8;
+            scroller.scrollTo({ top: Math.max(0, scroller.scrollTop + delta), behavior: smooth ? 'smooth' : 'auto' });
+        } else {
+            panel.scrollIntoView?.({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+        }
+    };
+    requestAnimationFrame(() => scrollAdderToTop(true));
     setTimeout(() => {
-        panel.scrollIntoView?.({ behavior: 'auto', block: 'start' });
+        scrollAdderToTop(false);
         const stopInput = document.getElementById('extra-stop-autocomplete');
-        stopInput?.focus?.();
-        // Cuando el teclado ya abrió (viewport más chico), volver a dejarlo arriba y visible
-        setTimeout(() => { panel.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); }, 450);
+        stopInput?.focus?.({ preventScroll: true });
+        // Cuando el teclado ya abrió (panel más chico), volver a dejarlo arriba y visible
+        setTimeout(() => scrollAdderToTop(true), 450);
     }, 320);
 };
 
