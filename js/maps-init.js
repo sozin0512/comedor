@@ -7880,22 +7880,17 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 return motion;
             }
 
-            // 2) Lento / parado: brújula (hacia dónde apunta el teléfono)
-            if (compass != null) {
-                if (onRoute && pathHeading != null && !moving) {
-                    // Parado en ruta: brújula manda (usuario mira a dónde va a girar)
-                    return compass;
-                }
-                return compass;
-            }
-
-            // 3) Fallbacks
-            if (motion != null) return motion;
+            // 2) Lento / parado (semáforo, tráfico, arranque): como Google Maps/Waze, NO girar con
+            //    la brújula del teléfono (dentro del carro falla por el metal/soporte y el mapa
+            //    «bailaba»). Sobre la ruta: rumbo de la calle. Si no: último rumbo conocido.
             if (onRoute && pathHeading != null) return pathHeading;
-            if (pathHeading != null) return pathHeading;
+            if (motion != null) return motion;
             if (window.currentDriverHeading != null && Number.isFinite(window.currentDriverHeading)) {
                 return window.currentDriverHeading;
             }
+            if (pathHeading != null) return pathHeading;
+            // 3) Sin ningún rumbo todavía (recién abierto, sin ruta): brújula como último recurso
+            if (compass != null) return compass;
             return 0;
         };
 
@@ -8065,9 +8060,10 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 // Siempre alinear carrito con brújula (aunque el mapa esté en free-look)
                 const compass = window.getDriverCompassHeading?.();
                 const motion = window.getDriverMotionHeading?.();
-                const hHint = (compass != null)
-                    ? compass
-                    : (motion ?? window.currentDriverHeading);
+                // Carrito = mismo rumbo que la cámara (movimiento/ruta); brújula solo si no hay otro
+                const hHint = motion
+                    ?? (Number.isFinite(Number(window.currentDriverHeading)) ? window.currentDriverHeading : null)
+                    ?? compass;
                 if (hHint != null && Number.isFinite(Number(hHint))) {
                     if (ts - (window._lastSelfCarRotTs || 0) > 50) {
                         window._lastSelfCarRotTs = ts;
@@ -8741,14 +8737,15 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 const mps = Number.isFinite(speed) && speed >= 0 ? speed : 0;
                 const userZoom = Number(window._driverPreferredZoom);
                 let zoom;
+                // Tope 18.3 en navegación: más cerca solo se ven edificios y no la calle que viene
                 if (Number.isFinite(userZoom) && userZoom >= 3) {
-                    zoom = Math.min(21, Math.max(3, userZoom));
+                    zoom = Math.min(18.3, Math.max(14, userZoom));
                 } else {
-                    zoom = lowPower ? 17.2 : 17.8;
-                    if (mps >= 22) zoom = lowPower ? 16.2 : 16.6;
-                    else if (mps >= 14) zoom = lowPower ? 16.6 : 17.2;
-                    else if (mps < 2) zoom = lowPower ? 17.6 : 18.2;
-                    zoom = Math.min(21, Math.max(14, zoom));
+                    zoom = lowPower ? 16.9 : 17.3;
+                    if (mps >= 22) zoom = lowPower ? 15.9 : 16.2;
+                    else if (mps >= 14) zoom = lowPower ? 16.4 : 16.8;
+                    else if (mps < 2) zoom = lowPower ? 17.2 : 17.6;
+                    zoom = Math.min(18.3, Math.max(14, zoom));
                 }
 
                 // Centro un poco ADELANTE del carro → ves por dónde vas
@@ -8792,7 +8789,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             } catch (_) {
                 try {
                     window.gMap.setCenter(pos);
-                    window.gMap.setZoom(20.5);
+                    window.gMap.setZoom(17.5);
                     window.gMap.setHeading(h);
                     window.syncSelfDriverMarkerHeading?.(h);
                 } catch (__) {
