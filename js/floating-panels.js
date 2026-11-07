@@ -513,6 +513,7 @@ export function syncDriverRadarFloatPanel() {
         if (isDriver && !onTrip && isDriverPanelExpanded()) {
             dockControlPanelForDriverTrip();
         }
+        syncDriverMapDock();
         return;
     }
 
@@ -537,6 +538,84 @@ export function syncDriverRadarFloatPanel() {
         </div>
     `;
     bindFloatingRadarPanel();
+    syncDriverMapDock();
+}
+
+const COPA_TRAY_IDS = ['driver-copa-map-strip', 'public-copa-strip', 'public-pcopa-strip'];
+
+function driverMapIsClean() {
+    const body = document.body;
+    if (!body.classList.contains('driver-mode')) return false;
+    if (body.classList.contains('trip-active') || body.classList.contains('is-navigating') || body.classList.contains('driver-nav-mode')) return false;
+    if (body.classList.contains('client-mode') && !body.classList.contains('driver-mode')) return false;
+    return body.classList.contains('panel-minimized')
+        || body.classList.contains('panel-collapsed')
+        || body.classList.contains('panel-hidden');
+}
+
+/** Mapa del conductor sin viaje: balance + estado arriba, una sola tarjeta abajo, Copa en bandeja. */
+try { window.syncDriverMapDock = syncDriverMapDock; } catch (_) {}
+
+export function syncDriverMapDock() {
+    const dock = document.getElementById('driver-map-dock');
+    const earn = document.getElementById('driver-earnings-float');
+    const slot = document.getElementById('driver-map-earn-slot');
+    const clean = driverMapIsClean();
+    if (earn && slot) {
+        if (clean) {
+            if (earn.parentElement !== slot) slot.appendChild(earn);
+        } else if (earn.parentElement === slot) {
+            document.body.appendChild(earn);
+        }
+    }
+    if (!clean) document.body.classList.remove('driver-copa-tray');
+    const count = Number(window._driverRadarOfferCount) || 0;
+    const sub = document.getElementById('driver-map-open-sub');
+    const badge = document.getElementById('driver-map-open-count');
+    if (sub) sub.textContent = count > 0 ? 'Toca para ver las ofertas' : 'Mapa libre · abre el panel';
+    if (badge) {
+        badge.hidden = count <= 0;
+        badge.textContent = count > 0 ? String(count) : '';
+    }
+    const online = typeof window.isDriverOnlineActive === 'function'
+        ? !!window.isDriverOnlineActive()
+        : /en línea/i.test(document.getElementById('driver-online-badge')?.textContent || '');
+    const status = document.getElementById('driver-map-status');
+    const label = document.getElementById('driver-map-status-label');
+    if (status) {
+        status.dataset.online = online ? '1' : '0';
+        status.title = online ? 'Toca para pausar' : 'Toca para ponerte en línea';
+    }
+    if (label) label.textContent = online ? 'En línea' : 'Desconectado';
+    let trayIndex = 0;
+    COPA_TRAY_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const live = !el.classList.contains('hidden') && (el.textContent || '').trim().length > 0;
+        if (live) el.style.setProperty('--copa-tray-i', String(trayIndex++));
+        else el.style.removeProperty('--copa-tray-i');
+    });
+    const copaBtn = document.getElementById('driver-map-copa-toggle');
+    if (copaBtn) copaBtn.classList.toggle('is-live', trayIndex > 0);
+}
+
+function bindDriverMapDock() {
+    const root = document.getElementById('driver-map-dock');
+    if (!root || root.dataset.bound === '1') return;
+    root.dataset.bound = '1';
+    root.querySelector('#driver-map-copa-toggle')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!driverMapIsClean()) return;
+        const on = document.body.classList.toggle('driver-copa-tray');
+        e.currentTarget.setAttribute('aria-expanded', on ? 'true' : 'false');
+    });
+    root.querySelector('#driver-map-status')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const online = root.querySelector('#driver-map-status')?.dataset.online === '1';
+        window.toggleDriverOnline?.(!online);
+    });
 }
 
 function isEarningsOffScreen(el) {
@@ -1465,6 +1544,8 @@ export function initFloatingPanels() {
     bindFloatingTripPanels();
     bindPassengerPromoStrip();
     bindFloatingDriverCopaMapStrip();
+    bindDriverMapDock();
+    syncDriverMapDock();
 }
 
 /**

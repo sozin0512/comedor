@@ -2321,6 +2321,31 @@
                 <div id="public-copa-strip" class="hidden" aria-label="Ranking Copa Conductores"></div>
                 <div id="public-pcopa-strip" class="hidden" aria-label="Ranking Copa Pasajeros"></div>
 
+                <div id="driver-map-dock" class="driver-map-dock">
+                    <div class="driver-map-dock-top">
+                        <div id="driver-map-earn-slot" class="driver-map-earn-slot"></div>
+                        <button type="button" id="driver-map-status" class="driver-map-status" data-online="1" aria-live="polite" title="Toca para pausar o volver en línea">
+                            <span class="driver-map-status-dot" aria-hidden="true"></span>
+                            <span id="driver-map-status-label">En línea</span>
+                        </button>
+                        <button type="button" id="driver-map-copa-toggle" class="driver-map-copa-toggle" aria-expanded="false" aria-controls="public-copa-strip public-pcopa-strip driver-copa-map-strip">
+                            <i class="fas fa-trophy pointer-events-none" aria-hidden="true"></i>
+                            <span class="pointer-events-none">Copa</span>
+                        </button>
+                    </div>
+                    <div class="driver-map-dock-bottom">
+                        <button type="button" id="driver-map-open" class="driver-map-open" data-trip-action="show-panel" aria-label="Abrir panel de clientes pidiendo viajes">
+                            <span class="driver-map-open-ico pointer-events-none" aria-hidden="true"><i class="fas fa-radar"></i></span>
+                            <span class="driver-map-open-copy pointer-events-none">
+                                <strong id="driver-map-open-title">Clientes pidiendo viajes</strong>
+                                <small id="driver-map-open-sub">Mapa libre · abre el panel</small>
+                            </span>
+                            <span id="driver-map-open-count" class="driver-map-open-count pointer-events-none" hidden>0</span>
+                            <span class="driver-map-open-action pointer-events-none">Abrir panel</span>
+                        </button>
+                    </div>
+                </div>
+
                 <button type="button" id="panel-expand-fab" data-trip-action="show-panel"
                         class="panel-expand-fab" aria-label="Abrir panel de viaje">
                     <i class="fas fa-chevron-up pointer-events-none"></i>

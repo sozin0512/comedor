@@ -26391,6 +26391,7 @@ if (document.readyState === 'loading') {
 
                 window.bindFloatingEarningsPanel?.();
                 try { window.parkEarningsClearOfPanel?.(wrap.querySelector('.driver-earnings-float')); } catch (_) {}
+                try { window.syncDriverMapDock?.(); } catch (_) {}
             } catch (e) {
                 console.warn('renderDriverEarningsToday:', e);
                 wrap.classList.remove('hidden');
@@ -26405,6 +26406,7 @@ if (document.readyState === 'loading') {
                 `;
                 window.bindFloatingEarningsPanel?.();
                 try { window.parkEarningsClearOfPanel?.(wrap.querySelector('.driver-earnings-float')); } catch (_) {}
+                try { window.syncDriverMapDock?.(); } catch (_) {}
             }
         };
 
@@ -44854,18 +44856,20 @@ window.cancelSetupAndLogout = () => {
 
         window.updateDriverOnlineBadge = (isOnline) => {
             const badge = document.getElementById('driver-online-badge');
-            if (!badge) return;
-            if (isOnline) {
-                badge.textContent = 'En línea';
-                badge.className = 'text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full cursor-pointer';
-                badge.onclick = () => window.toggleDriverOnline(false);
-                badge.title = 'Toca para pausar (desconectarte)';
-            } else {
-                badge.textContent = 'Desconectado';
-                badge.className = 'text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-100 px-2 py-1 rounded-full cursor-pointer';
-                badge.onclick = () => window.toggleDriverOnline(true);
-                badge.title = 'Toca para ponerte en línea';
+            if (badge) {
+                if (isOnline) {
+                    badge.textContent = 'En línea';
+                    badge.className = 'text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full cursor-pointer';
+                    badge.onclick = () => window.toggleDriverOnline(false);
+                    badge.title = 'Toca para pausar (desconectarte)';
+                } else {
+                    badge.textContent = 'Desconectado';
+                    badge.className = 'text-[9px] font-black uppercase tracking-widest text-gray-500 bg-gray-100 px-2 py-1 rounded-full cursor-pointer';
+                    badge.onclick = () => window.toggleDriverOnline(true);
+                    badge.title = 'Toca para ponerte en línea';
+                }
             }
+            try { window.syncDriverMapDock?.(); } catch (_) {}
         };
 
     
