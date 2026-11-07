@@ -4,29 +4,29 @@ import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/
 import {
     isEmailLike, maskEmail, syncAuthPhoneIndex, resolveLoginEmail,
     authErrorMessage, sendPasswordResetForIdentifier
-} from "./auth-credentials.js?v=2026.10.26.69";
+} from "./auth-credentials.js?v=2026.10.26.70";
 import {
     collection, addDoc, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, serverTimestamp,
     arrayUnion, getDocs, runTransaction, query, where, orderBy, limit,
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
     Timestamp
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { APP_CONFIG } from "./config.js?v=2026.10.26.69";
-import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.69";
+import { APP_CONFIG } from "./config.js?v=2026.10.26.70";
+import { showEnlargedPhoto as sharedShowEnlargedPhoto } from "./photo-viewer.js?v=2026.10.26.70";
 import {
     initMarketDetection, isUsMarket, formatMoney, applyMarketFromCoords,
     getCurrencyCode, isServiceAllowedInMarket, filterTypesForMarket
-} from "./market.js?v=2026.10.26.69";
+} from "./market.js?v=2026.10.26.70";
 import {
     normalizeHondurasPhone, formatHondurasPhone, getWhatsAppLink
-} from "./phone-utils.js?v=2026.10.26.69";
-import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.69";
+} from "./phone-utils.js?v=2026.10.26.70";
+import { initStorage, resolvePhotoUrl, uploadFile, uploadDataUrl } from "./storage.js?v=2026.10.26.70";
 import {
     ensureReferralCode, processReferral, claimPendingReferralRewards,
     getMyReferrals, resolveReferralCodeInput, getPendingReferralCode,
     storeReferralFromURL, showReferralInviteModal, clearPendingReferralCode,
     creditReferralOnFirstTrip, creditReferralSignupBonus, normalizeReferralCode
-} from "./referrals.js?v=2026.10.26.69";
+} from "./referrals.js?v=2026.10.26.70";
 import {
     getZoneConfig, getDefaultZoneId, setActiveServiceZone, initServiceZoneUI, toggleServiceZonePanel, updateServiceZoneSummary,
     resolveServiceZone, tripMatchesZone, tripVisibleToDriver, tripSameCity, getTripCityId,
@@ -41,13 +41,13 @@ import {
     getDepartmentForZone, sameDepartment,
     haversineKm, detectAndSetCityFromGPS,
     setRuntimeCustomZones, normalizeCustomZone, buildZoneSelectOptionsHtml, getRuntimeCustomZones
-} from "./zones.js?v=2026.10.26.69";
+} from "./zones.js?v=2026.10.26.70";
 import {
     initTripNotifications, requestTripNotificationPermission, getNotificationPermission,
     setAndroidNotificationPermissionCache,
     notifyChatMessage, notifyTripEvent, shouldNotifyInBackground, isNotificationSupported,
     triggerSuperFreightVibration, triggerSuperTripVibration
-} from "./trip-notifications.js?v=2026.10.26.69";
+} from "./trip-notifications.js?v=2026.10.26.70";
 window.getNotificationPermission = getNotificationPermission;
 import {
     installNotificationTonesApi,
@@ -69,10 +69,10 @@ import {
     stopPassengerWaitingLoop,
     playPassengerAcceptedTone,
     stopLoopingTone
-} from "./notification-tones.js?v=2026.10.26.69";
+} from "./notification-tones.js?v=2026.10.26.70";
 
 installNotificationTonesApi();
-import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.69";
+import { syncStoreOrderAlert, markStoreOrderHandled, stopStoreOrderAlert, bindStoreOrderAudioUnlock } from "./store-order-alert.js?v=2026.10.26.70";
 bindStoreOrderAudioUnlock();
 
 try {
@@ -107,7 +107,7 @@ window.triggerSuperFreightVibration = triggerSuperFreightVibration;
 import {
     initPassengerAlertSettings, syncPassengerAlertSettingsVisibility,
     updatePassengerProximityAlerts, triggerPassengerArrivedAlert, resetPassengerAlertSession
-} from "./passenger-alerts.js?v=2026.10.26.69";
+} from "./passenger-alerts.js?v=2026.10.26.70";
 window.resetPassengerAlertSession = resetPassengerAlertSession;
 window.syncPassengerAlertSettingsVisibility = syncPassengerAlertSettingsVisibility;
 import {
@@ -116,22 +116,22 @@ import {
     isPassengerVerificationPendingReview, hasSubmittedPassengerVerification,
     canStaffApprovePassenger, isMinorProfile, promptPassengerVerificationIfNeeded,
     clearPassengerVerificationPromptDismissed
-} from "./passenger-verification.js?v=2026.10.26.69";
-import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.69";
-import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.69";
-import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.69";
+} from "./passenger-verification.js?v=2026.10.26.70";
+import { pickPhotoFromCamera, pickPhotoFromGallery, pickPhotoWithSourceChoice, compressDataUrlFromFile } from "./camera-capture.js?v=2026.10.26.70";
+import { remindInstallIfNeeded, renderInstallReminderBanner, isPwaInstalled, isIOS, isIosStandalonePwa, canReceiveBackgroundWebPush, initIOSInstallBanner, showIOSInstallBannerIfNeeded, tryNativeInstall, canTriggerNativeInstall, hideInstallUiForNativeApp, showInstallGuide, isIosNonSafariBrowser } from "./pwa-install.js?v=2026.10.26.70";
+import { initAppUpdateCheck } from "./pwa-update.js?v=2026.10.26.70";
 
-import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.69";
+import { initFcmPush, initAndroidFcmPush, isAndroidFcmConfigured, ensureAndroidTripWakePermissions, hasSavedWebPushToken, initClosedSessionPushReceiver, refreshAndroidNativePermission, openAndroidNotificationSettings, hasAndroidFcmToken, pingMyPushFromClient, bootWebPushServiceWorker, getThisDevicePushTarget, ensureAndroidPushToken, beginAndroidNotificationPermissionRequest, finishAndroidPermissionRequest, registerAndroidPushNow, prefetchAndroidFcmToken, getAndroidPushRegisterState, resetAndroidPushRegisterFailure, healThisDevicePushToken, verifyThisDevicePushOnServer, checkPushTripStillAvailable, isStalePushTripType, getAndroidPushDiagnostic } from "./fcm-push.js?v=2026.10.26.70";
 import {
     initCrashReporting, showSuggestionModal, showBugReportModal,
     isAppFeedbackAlert, renderAppFeedbackCard
-} from "./feedback.js?v=2026.10.26.69";
+} from "./feedback.js?v=2026.10.26.70";
 import {
     buildUserGreeting, isBirthdayToday, canUseBirthdayFreeTrip,
     isDriverBirthdayNoCommission, getBirthdayCelebrationMessage, getHondurasHoliday,
     getBirthdayBannerDetail, getFirstName, getGenderedBirthdayWord, getHondurasDateParts,
     getClientTripHeadline, getHonduranCompanionTerm
-} from "./greetings.js?v=2026.10.26.69";
+} from "./greetings.js?v=2026.10.26.70";
 import {
     normalizeServiceType, getServiceMeta, calculateServiceFare, calculateFreightFare, formatFreightFareBreakdown,
     driverCanServeTrip, driverTripMismatchMessage,
@@ -148,9 +148,9 @@ import {
     getCityDisabledCategories, isServiceTypeDisabledInCity, getCityServiceDisabledMessage,
     getDisabledServiceTypesForCity, normalizeDisabledServicesByCity, countCitiesWithDisabledServices,
     isMalePassengerMotoRideBlocked, firstAllowedPassengerTripType, DECRETO_91_2012_MSG
-} from "./service-types.js?v=2026.10.26.69";
-import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.69";
-import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.69";
+} from "./service-types.js?v=2026.10.26.70";
+import { extraStopsSurcharge } from "./extra-stops-fare.js?v=2026.10.26.70";
+import { isStoreOrderTrip, isDeliveryTrip, getDeliveryStoreName, getDeliveryRecipientName, getDeliveryStageMeta, getDeliveryChatMessages, getDefaultDeliveryChatChannel, buildDeliveryDualChatTabsHtml, storeOfferBadgesHtml, storeCollectHtml, storeAcceptedPanelHtml, openCancelConfirmModal, STORE_TRIP_CSS, isZoneBillingTrip } from "./store-trip-ui.js?v=2026.10.26.70";
 window.openCancelConfirmModal = openCancelConfirmModal;
 window.isStoreOrderTrip = isStoreOrderTrip;
 window.isDeliveryTrip = isDeliveryTrip;
@@ -175,23 +175,23 @@ import {
     planNextStoreDeliveryOffer,
     storeExclusiveTurnBadgeHtml,
     usesTimedExclusiveOffer
-} from "./store-delivery-rotation.js?v=2026.10.26.69";
+} from "./store-delivery-rotation.js?v=2026.10.26.70";
 window.isStoreDeliveryTrip = isStoreDeliveryTrip;
 window.rankDriversForStoreDelivery = rankDriversForStoreDelivery;
 window.planNextStoreDeliveryOffer = planNextStoreDeliveryOffer;
 window.isStoreOfferExclusiveActive = isStoreOfferExclusiveActive;
 window.getStoreOfferRemainingSec = getStoreOfferRemainingSec;
 window.storeExclusiveTurnBadgeHtml = storeExclusiveTurnBadgeHtml;
-import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.69";
+import { tripCommissionInfo, commissionBreakdownHtml, commissionLineText, hasServerCommission, TRIP_COMMISSION_CSS } from "./trip-commission-view.js?v=2026.10.26.70";
 import {
     resolveServiceAvailability, countOnlineByVehicle, normalizeAvailabilityConfig, getServiceCustomMessage,
     unavailableMessage, AVAIL_SERVICES
-} from "./service-availability.js?v=2026.10.26.69";
-import * as HrAvail from "./service-availability.js?v=2026.10.26.69";
+} from "./service-availability.js?v=2026.10.26.70";
+import * as HrAvail from "./service-availability.js?v=2026.10.26.70";
 import {
     tripWaitChipHtml, sortDriverOffers, isLongWaitPriority, learnClockFromTripSnap,
     injectWaitChipCss, startWaitTicker
-} from "./trip-wait.js?v=2026.10.26.69";
+} from "./trip-wait.js?v=2026.10.26.70";
 try { injectWaitChipCss(); startWaitTicker(); } catch (_) {}
 try {
     if (typeof document !== 'undefined' && !document.getElementById('hr-store-trip-css')) {
@@ -208,49 +208,49 @@ import {
     applyActiveVehicleToProfile, enrichDriverForVerificationDisplay, buildDriverApprovalFields,
     removeVehicleById, vehicleDupKey, buildVehicleLabel, driverHasPendingVehicleVerification,
     buildDriverVehicleUpdateFields
-} from "./driver-vehicles-v2.js?v=2026.10.26.69";
+} from "./driver-vehicles-v2.js?v=2026.10.26.70";
 import {
     applyFixedRouteFareToPrice, getFixedFaresConfig, setFixedFaresConfig,
     normalizeFixedFaresConfig, normalizePlace, normalizeRoute,
     makePlaceId, makeRouteId, DEFAULT_FIXED_FARES_CONFIG, getComayaguaMinFare
-} from "./route-fixed-fares.js?v=2026.10.26.69";
+} from "./route-fixed-fares.js?v=2026.10.26.70";
 import {
     setCommissionFreeDayConfig, getCommissionFreeDayConfig, normalizeCommissionFreeDayConfig,
     isCommissionFreeDayActive, getCommissionFreeDayStatusText, getRotatingFreeWeekdayLabel,
     getNextWeekFreeWeekdayLabel, isCityInCommissionFreeDayProgram, resolveZoneIdForCommission,
     getDriverFreeWeekdayLabel, getDriverNextWeekFreeWeekdayLabel, isDriverFreeCommissionDayToday,
     resolveDriverIdForCommission
-} from "./commission-free-day.js?v=2026.10.26.69";
+} from "./commission-free-day.js?v=2026.10.26.70";
 import {
     analyzeTrafficFromRoute, buildRouteConditions, getRouteConditions,
     formatConditionsSummary, formatConditionsNote, getAdjustedDurationMinutes
-} from "./route-conditions.js?v=2026.10.26.69";
-import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.69";
-import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.69";
-import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.69";
-import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.69";
-import { formatLempiras } from "./money-format.js?v=2026.10.26.69";
-import { displayPersonName } from "./display-name.js?v=2026.10.26.69";
+} from "./route-conditions.js?v=2026.10.26.70";
+import { initTheme, toggleTheme } from "./theme.js?v=2026.10.26.70";
+import { initRoleMenu, onRoleProfileReady, getTrustedStaffRole } from "./role-menu.js?v=2026.10.26.70";
+import { openAccountDeletion, openPrivacyAndAccount } from "./account-deletion-ui.js?v=2026.10.26.70";
+import { showLocationDisclosure, hasLocationDisclosure } from "./location-disclosure.js?v=2026.10.26.70";
+import { formatLempiras } from "./money-format.js?v=2026.10.26.70";
+import { displayPersonName } from "./display-name.js?v=2026.10.26.70";
 import {
     startDemandHeatmapListener, stopDemandHeatmapListener, refreshDemandHeatmapFromCache
-} from "./demand-heatmap.js?v=2026.10.26.69";
+} from "./demand-heatmap.js?v=2026.10.26.70";
 import {
     startOpsFleetMapListener, stopOpsFleetMapListener, refreshOpsFleetMapFromCache,
     pruneGhostFleetMarkers, mergeFleetFromApprovedDrivers,
     getFleetActiveTripForDriver, removeFleetDriverMarker
-} from "./ops-fleet-map.js?v=2026.10.26.69";
+} from "./ops-fleet-map.js?v=2026.10.26.70";
 import {
     syncLiveTripKeepalive,
     registerLiveTripGpsPulse,
-} from "./live-trip-keepalive.js?v=2026.10.26.69";
-import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.69";
+} from "./live-trip-keepalive.js?v=2026.10.26.70";
+import { isCapacitorNative, isCapacitorAndroid, markCapacitorBodyClasses } from "./capacitor-native.js?v=2026.10.26.70";
 import {
     saveUserLogin, clearDriverLogin, loadDriverLogin,
     markSkipDriverAutoLogin, shouldSkipDriverAutoLogin, restoreDriverLoginForm,
     markKeepSession, clearKeepSession, shouldKeepSession,
     markDriverWantedOnline, clearDriverWantedOnline, shouldResumeDriverOnline,
     driverOnlinePreferenceUnset
-} from "./driver-session.js?v=2026.10.26.69";
+} from "./driver-session.js?v=2026.10.26.70";
 import {
     startAndroidSessionKeepalive,
     stopAndroidSessionKeepalive,
@@ -259,7 +259,7 @@ import {
     syncAndroidLiveTripKeepalive,
     bindSessionKeepaliveResume,
     showDriverBackgroundModeModal,
-} from "./session-keepalive.js?v=2026.10.26.69";
+} from "./session-keepalive.js?v=2026.10.26.70";
 
 
 // —— Boot splash: quitar lo antes posible (si un init falla, la UI no debe quedarse colgada)
@@ -349,32 +349,32 @@ const startOpsMapListeners = () => {
     );
     startOpsFleetMapListener(db, appId);
 };
-import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.69";
+import { initSozinCopyright, getSozinCopyrightHtml, SOZIN_OWNER, SOZIN_COPYRIGHT_LINE } from "./brand.js?v=2026.10.26.70";
 import {
     getAuthHeroHtml, getAuthCardShell, syncAuthHeroLogos, applyAuthRoleUi
-} from "./auth-ui.js?v=2026.10.26.69";
+} from "./auth-ui.js?v=2026.10.26.70";
 import {
     validateRegistrationAge, isClientTripEligible, isDriverOperationEligible,
     calculateAge, normalizeBirthDate
-} from "./age-verification.js?v=2026.10.26.69";
-import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.69";
+} from "./age-verification.js?v=2026.10.26.70";
+import { createVerificationAlert } from "./verification-alerts.js?v=2026.10.26.70";
 import {
     DELIVERY_CATEGORIES, buildTripOptionsFromUI, validateTripOptions,
     formatDriverEtaMessage, getDeliverySlaText, getFavoriteKeys, getFavoriteLabels,
     initTripScheduleUI, updateTripScheduleLabels, setTripScheduleMode,
     getScheduleServiceCopy,
-} from "./trip-experience.js?v=2026.10.26.69";
-import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.69";
-import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.69";
+} from "./trip-experience.js?v=2026.10.26.70";
+import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.70";
+import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.70";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
-} from "./support-tickets.js?v=2026.10.26.69";
-import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.69";
+} from "./support-tickets.js?v=2026.10.26.70";
+import { initPromotions, getBestClaimedPromoForTrip, resetPromoStripSessionDismiss } from "./promotions.js?v=2026.10.26.70";
 
-import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.69";
-import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.69";
-import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.69";
+import { initPassengerHome, syncPassengerHomeForRole, showPassengerHomeMenu } from "./passenger-home.js?v=2026.10.26.70";
+import { showDriverSleepGuide, maybeRemindDriverSleepGuide } from "./driver-sleep-guide.js?v=2026.10.26.70";
+import { openGuestForm, guestCreate, claimGuestRequests, getGuestContact } from "./guest-checkout.js?v=2026.10.26.70";
 
 // ==================== CONFIRMACIÓN IN-APP (reemplaza window.confirm nativo) ====================
 // En el APK (Android WebView) el confirm() nativo bloquea el hilo JS y a veces se queda pegado.
@@ -11149,7 +11149,9 @@ if (document.readyState === 'loading') {
                             : (pickupKm < 1
                                 ? `${Math.round(pickupKm * 1000)} m a ti`
                                 : `${pickupKm.toFixed(1)} km a ti`);
-                        chip.innerHTML = `<i class="fas fa-location-arrow"></i> ${distLabel}`;
+                        chip.innerHTML = chip.dataset.pickupStyle === 'eta'
+                            ? (window.hrPickupEtaLabel?.(pickupKm) || distLabel)
+                            : `<i class="fas fa-location-arrow"></i> ${distLabel}`;
                     }
                 });
 
@@ -11308,6 +11310,16 @@ if (document.readyState === 'loading') {
             return `<div class="hr-veh-badge" data-veh-required="${info.required.join(',')}" style="background:${info.color};color:#fff;border-radius:14px;padding:${size === 'lg' ? '10px 14px' : '6px 10px'};margin:0 0 8px;font-weight:900;font-size:${fs};letter-spacing:.3px;line-height:1.2;text-align:center;box-shadow:0 4px 12px rgba(0,0,0,.18)"><span aria-hidden="true">${info.emoji}</span> ${info.label}${warn}</div>`;
         }
         window.tripVehicleBadgeHtml = tripVehicleBadgeHtml;
+
+        /** «A ~14 min (7.1 km) de distancia» (ciudad ~30 km/h). */
+        window.hrPickupEtaLabel = (km) => {
+            const k = Number(km);
+            if (km == null || !Number.isFinite(k)) return '';
+            if (k < 0.05) return 'Estás en el punto de recogida';
+            const mins = Math.max(1, Math.round((k / 30) * 60));
+            const kmTxt = k < 1 ? `${Math.round(k * 1000)} m` : `${k.toFixed(1)} km`;
+            return `A ~${mins} min (${kmTxt}) de distancia`;
+        };
 
         function buildTripOfferCardHtml(tripId, t, { distanceKm, driverBusy = false, compact = false, queueIndex = null, idPrefix = '' } = {}) {
             const pfx = String(idPrefix || '');
@@ -11527,43 +11539,69 @@ if (document.readyState === 'loading') {
                             <i class="fas fa-check pointer-events-none"></i>
                             <span class="pointer-events-none">Aceptar ${acceptDisplay}</span>
                        </button>`;
-                const fullRouteHtml = buildDriverOfferRouteHtml(t, { compact: true });
+                // Tarjeta de oferta (estilo HonduRaite): precio grande, L/km, chips, recogida → destino y Aceptar.
+                const tripKmNum = Number(t.tripDistanceKm || t.distanceKmForCharge || 0) || null;
+                const tripMinNum = Number(t.tripDurationMs) > 0 ? Math.max(1, Math.round(Number(t.tripDurationMs) / 60000)) : null;
+                const totalKmNum = (pickupKmNum || 0) + (tripKmNum || 0);
+                const perKmTxt = !isZoneBillingTrip(t) && totalKmNum >= 0.5 && acceptPriceNum > 0
+                    ? `${formatLempiras(acceptPriceNum / totalKmNum)}/km est.`
+                    : '';
+                const extraNum = Number(t.passengerSurcharge) || 0;
+                const extraChipHtml = extraNum > 0
+                    ? `<span class="hr-ofr-chip"><i class="fas fa-bolt"></i> +${formatLempiras(extraNum)} incluido</span>`
+                    : '';
+                const originTxt = escapeViewerText(getDriverTripPointLabel(t, 'origin') || 'Origen');
+                const destTxt = escapeViewerText(getDriverTripPointLabel(t, 'destination') || (t.bookingType === 'hourly' ? 'Por horas' : 'Destino'));
+                const nStops = Array.isArray(t.additionalStops) ? t.additionalStops.length : 0;
+                const tripLegTxt = [tripMinNum ? `${tripMinNum} min` : null, tripKmNum ? `${tripKmNum.toFixed(1)} km` : null].filter(Boolean);
+                const pickupEtaTxt = window.hrPickupEtaLabel?.(pickupKmNum) || 'Calculando distancia…';
                 return `
-                <div class="driver-offer-card driver-offer-card--uber-vert" data-preview-offer="${tripId}" data-trip-id="${tripId}" data-offer-id-prefix="${pfx}">
-                    ${tripVehicleBadgeHtml(t)}
-                    <div class="uber-vert-toolbar">
-                        <span class="uber-vert-timer" id="uber-vert-timer-label" aria-live="polite">
+                <div class="driver-offer-card driver-offer-card--uber-vert hr-ofr" data-preview-offer="${tripId}" data-trip-id="${tripId}" data-offer-id-prefix="${pfx}">
+                    <div class="hr-ofr-top">
+                        <div class="hr-ofr-top-left">${tripVehicleBadgeHtml(t, { size: 'sm' })}</div>
+                        <span class="uber-vert-timer hr-ofr-timer" id="uber-vert-timer-label" aria-live="polite">
                             <i class="fas fa-clock"></i> <span class="uber-vert-timer-sec">—</span>s
                         </span>
-                        <div class="uber-vert-toolbar-right">
-                            <button type="button" class="uber-vert-map trip-touch-btn" data-driver-offer-map-expand data-preview-offer="${tripId}" aria-label="Ver mapa completo" title="Ver mapa completo">
-                                <i class="fas fa-map pointer-events-none"></i>
-                            </button>
-                            <button type="button" class="uber-vert-x trip-touch-btn" data-driver-offer-popup-dismiss aria-label="Cerrar">
-                                <i class="fas fa-times pointer-events-none"></i>
-                            </button>
+                        <button type="button" class="uber-vert-map hr-ofr-icon-btn trip-touch-btn" data-driver-offer-map-expand data-preview-offer="${tripId}" aria-label="Ver mapa completo" title="Ver mapa completo">
+                            <i class="fas fa-map pointer-events-none"></i>
+                        </button>
+                        <button type="button" class="uber-vert-x hr-ofr-icon-btn trip-touch-btn" data-driver-offer-popup-dismiss aria-label="Cerrar">
+                            <i class="fas fa-times pointer-events-none"></i>
+                        </button>
+                    </div>
+                    <div class="hr-ofr-price-block">
+                        <p class="hr-ofr-price uber-vert-price">${priceLabel}</p>
+                        <p class="hr-ofr-perkm">${perKmTxt}${perKmTxt && paymentBadge ? ' · ' : ''}${paymentBadge}</p>
+                    </div>
+                    <div class="hr-ofr-chips">
+                        <span class="hr-ofr-chip hr-ofr-chip--name"><i class="fas fa-user"></i> <span class="client-name-${tripId}">${clientShort}</span></span>
+                        <span class="hr-ofr-chip"><i class="fas fa-star"></i> ${clientStars}</span>
+                        ${showPaxCompact ? `<span class="hr-ofr-chip"><i class="fas fa-users"></i> ${paxNCompact === 1 ? '1 pers.' : `${paxNCompact} pers.`}</span>` : ''}
+                        ${extraChipHtml}
+                        ${waitChip}
+                        ${isUnverified ? `<span class="hr-ofr-chip hr-ofr-chip--warn"><i class="fas fa-exclamation-triangle"></i> Sin verificar</span>` : ''}
+                        ${noAccountClientBadgeHtml(t)}
+                    </div>
+                    ${isStoreOrderTrip(t) ? `<div class="hr-ofr-chips">${storeOfferBadgesHtml(t)}</div>${storeExclusiveTurnBadgeHtml({ ...t, id: tripId })}${window.hrPedidoDoble?.offerBadgeHtml?.({ id: tripId, ...t }) || ''}` : ''}
+                    <div class="hr-ofr-route">
+                        <div class="hr-ofr-row hr-ofr-row--pickup">
+                            <span class="hr-ofr-dot" aria-hidden="true"></span>
+                            <div class="hr-ofr-row-body">
+                                <p class="hr-ofr-eta" data-pickup-km-for="${tripId}" data-pickup-style="eta">${pickupEtaTxt}</p>
+                                <p class="hr-ofr-addr" title="${originTxt}">${originTxt}</p>
+                            </div>
+                        </div>
+                        ${nStops > 0 ? `<div class="hr-ofr-row hr-ofr-row--mid"><span class="hr-ofr-dot hr-ofr-dot--mid" aria-hidden="true"></span><div class="hr-ofr-row-body"><p class="hr-ofr-meta">${nStops} parada${nStops > 1 ? 's' : ''} en el camino</p></div></div>` : ''}
+                        <div class="hr-ofr-row hr-ofr-row--dest">
+                            <span class="hr-ofr-square" aria-hidden="true"></span>
+                            <div class="hr-ofr-row-body">
+                                ${tripLegTxt.length ? `<p class="hr-ofr-meta">Viaje: ${tripLegTxt[0]}${tripLegTxt[1] ? ` (${tripLegTxt[1]})` : ''}</p>` : ''}
+                                <p class="hr-ofr-addr" title="${destTxt}">${destTxt}</p>
+                            </div>
                         </div>
                     </div>
-                    <div class="uber-vert-head">
-                        <p class="uber-vert-name client-name-${tripId}">${clientShort}</p>${noAccountClientBadgeHtml(t)}
-                        <div class="uber-vert-chips">
-                            ${waitChip}
-                            ${starsHtml}
-                            ${paxChipHtml}
-                            <span class="uber-vert-dist" data-pickup-km-for="${tripId}" title="Distancia de ti al pasajero (recogida)">
-                                <i class="fas fa-location-arrow"></i> ${distTxt || '… km a ti'}
-                            </span>
-                            ${unverifiedHtml}
-                        </div>
-                    </div>
-                    ${isStoreOrderTrip(t) ? `<div class="uber-vert-chips" style="margin:4px 0">${storeOfferBadgesHtml(t)}</div>${storeExclusiveTurnBadgeHtml({ ...t, id: tripId })}${window.hrPedidoDoble?.offerBadgeHtml?.({ id: tripId, ...t }) || ''}` : ''}
-                    ${fullRouteHtml}
                     ${storeCollectHtml(t, acceptPriceNum)}
-                    <div class="uber-vert-price-row">
-                        <span class="uber-vert-price">${priceLabel}</span>
-                        ${paymentBadge}
-                    </div>
-                    <div class="uber-vert-actions">
+                    <div class="uber-vert-actions hr-ofr-actions">
                         ${primaryBtn}
                         <button type="button" data-decline-trip="${tripId}" class="uber-vert-btn uber-vert-btn--skip trip-touch-btn">Pasar</button>
                     </div>
@@ -26317,6 +26355,8 @@ if (document.readyState === 'loading') {
         }
 
         /** Oculta flotantes que estorban en viaje (ganancias, copas públicas, etc.). */
+        window.hrBuildTripOfferCardHtml = (...a) => buildTripOfferCardHtml(...a);
+
         window.syncDriverChromeForActiveTrip = () => {
             const onTrip = document.body.classList.contains('trip-active')
                 && document.body.classList.contains('driver-mode');

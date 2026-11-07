@@ -27268,3 +27268,51 @@ body:not(.driver-mode) .driver-uber-sheet {
 body.driver-mode.trip-active #driver-earnings-float {
     display: none !important;
 }
+
+/* ===== Tarjeta de oferta del conductor (v.70): precio grande + recogida → destino ===== */
+.hr-ofr { gap: 0 !important; color: #0f172a; }
+.hr-ofr-top { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.hr-ofr-top-left { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.hr-ofr-top-left > * { margin: 0 !important; }
+.hr-ofr-timer { flex-shrink: 0; }
+.hr-ofr-icon-btn { flex-shrink: 0; width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; font-size: 16px; }
+.hr-ofr-price-block { padding: 2px 2px 8px; }
+.hr-ofr-price { margin: 0; font-size: 2.6rem !important; line-height: 1.05; font-weight: 900; letter-spacing: -0.02em; color: #0f172a; font-variant-numeric: tabular-nums; }
+.hr-ofr-perkm { margin: 4px 0 0; font-size: 1rem; font-weight: 700; color: #475569; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
+.hr-ofr-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 12px; }
+.hr-ofr-chips > * { margin: 0 !important; }
+.hr-ofr-chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 12px; background: #f1f5f9; border: 1px solid #e2e8f0; color: #1e293b; font-weight: 800; font-size: 0.95rem; line-height: 1.1; }
+.hr-ofr-chip i { color: #0073cf; }
+.hr-ofr-chip .fa-star { color: #f59e0b; }
+.hr-ofr-chip--name { max-width: 100%; }
+.hr-ofr-chip--name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 9rem; }
+.hr-ofr-chip--warn { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+.hr-ofr-chip--warn i { color: #b45309; }
+.hr-ofr-route { position: relative; border-top: 1px solid #e2e8f0; padding: 14px 2px 6px 0; margin-bottom: 12px; }
+.hr-ofr-row { position: relative; display: flex; gap: 14px; padding-bottom: 12px; }
+.hr-ofr-row:last-child { padding-bottom: 0; }
+.hr-ofr-row:not(:last-child)::before { content: ""; position: absolute; left: 7px; top: 18px; bottom: -2px; width: 2px; background: #94a3b8; border-radius: 2px; }
+.hr-ofr-dot, .hr-ofr-square { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 3px; background: #fff; border: 3px solid #059669; position: relative; z-index: 1; }
+.hr-ofr-dot { border-radius: 50%; }
+.hr-ofr-dot--mid { border-color: #64748b; width: 14px; height: 14px; margin-left: 1px; }
+.hr-ofr-square { border-radius: 3px; border-color: #0f172a; }
+.hr-ofr-row-body { min-width: 0; flex: 1 1 auto; }
+.hr-ofr-eta { margin: 0 0 2px; font-size: 1.05rem; font-weight: 900; color: #0f172a; }
+.hr-ofr-meta { margin: 0 0 2px; font-size: 1rem; font-weight: 800; color: #0f172a; }
+.hr-ofr-addr { margin: 0; font-size: 0.98rem; font-weight: 600; color: #475569; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-transform: uppercase; }
+.hr-ofr-actions { display: flex !important; flex-direction: column; gap: 8px; }
+.hr-ofr-actions .uber-vert-btn--go { min-height: 56px !important; font-size: 1.1rem !important; border-radius: 16px !important; }
+.hr-ofr-actions .uber-vert-btn--skip { min-height: 42px !important; border-radius: 14px !important; }
+html[data-theme="dark"] .hr-ofr, html[data-theme="dark"] .hr-ofr-price, html[data-theme="dark"] .hr-ofr-eta, html[data-theme="dark"] .hr-ofr-meta { color: #f8fafc; }
+html[data-theme="dark"] .hr-ofr-perkm, html[data-theme="dark"] .hr-ofr-addr { color: #cbd5e1; }
+html[data-theme="dark"] .hr-ofr-chip, html[data-theme="dark"] .hr-ofr-icon-btn { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+html[data-theme="dark"] .hr-ofr-chip i { color: #38bdf8; }
+html[data-theme="dark"] .hr-ofr-route { border-top-color: #334155; }
+html[data-theme="dark"] .hr-ofr-dot, html[data-theme="dark"] .hr-ofr-square { background: #0f172a; }
+html[data-theme="dark"] .hr-ofr-square { border-color: #f8fafc; }
+/* Oferta nueva: dígitos con fuente normal (no emoji anchos) y ventana más alta para ver la ruta completa */
+#driver-trip-offer-popup, #driver-trip-offer-popup * { font-variant-emoji: text !important; }
+.hr-ofr, .hr-ofr * { letter-spacing: normal; }
+.hr-ofr-price { font-size: 2.4rem !important; white-space: nowrap; }
+body.driver-offer-popup-open .driver-trip-offer-popup-sheet:has(.hr-ofr) { max-height: min(76vh, 40rem) !important; }
+.hr-ofr .hr-veh-badge { font-size: 13px !important; padding: 7px 11px !important; text-align: left !important; box-shadow: none !important; border-radius: 12px !important; }
