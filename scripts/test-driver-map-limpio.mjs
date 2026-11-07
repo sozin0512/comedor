@@ -39,10 +39,19 @@ t('el mapa limpio solo aplica al conductor y no al pasajero', () => {
     ok(!/MutationObserver|ResizeObserver|setInterval|requestAnimationFrame/.test(fn), 'el sync observa el DOM');
 });
 
-t('sigue siendo la versión .55, sin datos de ejemplo en la app', () => {
-    ok(version.includes('2026.10.26.55'));
+t('la versión de publicación es .56 y la app no trae datos de ejemplo', () => {
+    ok(version.includes('2026.10.26.56'));
     ok(!html.includes('L. 0.00 hoy'));
     ok(!html.includes('__HR_MOCK'));
+});
+
+t('la tarjeta queda sobre la barra de Android, gestos o 3 botones', () => {
+    const dock = css.split('Mapa limpio del conductor')[1] || '';
+    ok(dock.includes('--native-safe-bottom'), 'no usa el inset que inyecta MainActivity');
+    ok(/capacitor-android:not\(\.native-insets-ready\) \.driver-map-dock-bottom/.test(dock));
+    ok(/0\.75rem \+ 48px/.test(dock), 'falta el piso de 3 botones antes del inset');
+    ok(dock.includes('position: fixed'), 'la tarjeta no se ancla al viewport');
+    ok(!dock.includes('#passenger-booking') && !passenger.includes('driver-map-dock'));
 });
 
 t('el estado en línea y el conteo salen del mismo sync del radar', () => {

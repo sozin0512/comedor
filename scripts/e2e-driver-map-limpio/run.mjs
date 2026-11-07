@@ -136,6 +136,68 @@ const sample = { copa: chip('Copa', 'Carrera a 1000'), pax: chip('Copa pax', 'To
     t('android: balance y En línea van juntos, Copa no tapa el balance', layout.earnInSlot && layout.status === 'En línea' && layout.online === '1' && layout.stacked && layout.copaHidden && !layout.overflow, JSON.stringify(layout));
     t('android: el mapa sigue alto', layout.mapH > layout.vh * 0.55, `${layout.mapH}/${layout.vh}`);
     await s.page.screenshot({ path: path.join(out, 'android_mapa_limpio.png') });
+    const nav = async (inset, ready) => {
+        await s.page.evaluate(({ inset, ready }) => {
+            document.documentElement.style.setProperty('--native-safe-bottom', `${inset}px`);
+            document.body.classList.add('capacitor-android', 'capacitor-native');
+            document.documentElement.classList.add('capacitor-android', 'capacitor-native');
+            document.body.classList.toggle('native-insets-ready', ready);
+            document.documentElement.classList.toggle('native-insets-ready', ready);
+            let bar = document.getElementById('e2e-nav-bar');
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.id = 'e2e-nav-bar';
+                document.body.appendChild(bar);
+            }
+            bar.style.cssText = `position:fixed;left:0;right:0;bottom:0;height:${inset}px;z-index:70;pointer-events:auto;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:space-around;font:700 12px/1 sans-serif`;
+            bar.textContent = inset >= 40 ? '◁    ○    □' : '';
+        }, { inset, ready });
+        return s.page.evaluate((inset) => {
+            const btn = document.getElementById('driver-map-open');
+            const box = btn.getBoundingClientRect();
+            const x = Math.round(box.left + box.width * 0.82);
+            const y = Math.round(box.top + box.height / 2);
+            const hit = document.elementFromPoint(x, y);
+            return {
+                gap: Math.round(innerHeight - inset - box.bottom),
+                hit: !!(hit && hit.closest && hit.closest('#driver-map-open')),
+                cssBottom: getComputedStyle(document.querySelector('.driver-map-dock-bottom')).bottom,
+            };
+        }, inset);
+    };
+    const buttons = await nav(48, true);
+    await s.page.screenshot({ path: path.join(out, 'android_nav_tres_botones.png') });
+    t('3 botones: la tarjeta queda encima de la barra y se puede tocar', buttons.hit && buttons.gap >= 8 && buttons.gap < 40, JSON.stringify(buttons));
+    const gesture = await nav(20, true);
+    await s.page.screenshot({ path: path.join(out, 'android_nav_gestos.png') });
+    t('gestos: la tarjeta baja con el inset real y sigue tocable', gesture.hit && gesture.gap >= 8 && gesture.gap < buttons.gap + 2, JSON.stringify(gesture));
+    await s.page.evaluate(() => {
+        document.documentElement.style.setProperty('--native-safe-bottom', '0px');
+        document.body.classList.add('capacitor-android');
+        document.body.classList.remove('native-insets-ready');
+        document.documentElement.classList.remove('native-insets-ready');
+        const bar = document.getElementById('e2e-nav-bar');
+        if (bar) bar.style.height = '48px';
+    });
+    const early = await s.page.evaluate(() => {
+        const box = document.getElementById('driver-map-open').getBoundingClientRect();
+        const css = parseFloat(getComputedStyle(document.querySelector('.driver-map-dock-bottom')).bottom);
+        const y = Math.round(box.top + box.height / 2);
+        const x = Math.round(box.left + box.width * 0.82);
+        const hit = document.elementFromPoint(x, y);
+        return {
+            css,
+            gap: Math.round(innerHeight - 48 - box.bottom),
+            hit: !!(hit && hit.closest && hit.closest('#driver-map-open')),
+        };
+    });
+    t('sin inset todavía: piso de 48px para no quedar bajo los 3 botones', early.hit && early.css >= 56 && early.gap >= 8, JSON.stringify(early));
+    await s.page.evaluate(() => {
+        document.getElementById('e2e-nav-bar')?.remove();
+        document.body.classList.remove('capacitor-android', 'capacitor-native', 'native-insets-ready');
+        document.documentElement.classList.remove('capacitor-android', 'capacitor-native', 'native-insets-ready');
+        document.documentElement.style.removeProperty('--native-safe-bottom');
+    });
     await s.page.locator('#driver-map-copa-toggle').click();
     const more = s.page.locator('[data-copa-more]');
     if (await more.count()) await more.click();

@@ -26874,7 +26874,8 @@ body.driver-mode.panel-collapsed:not(.trip-active):not(.is-navigating):not(.driv
     pointer-events: none;
 }
 .driver-map-dock-top {
-    top: calc(3.7rem + var(--safe-top, env(safe-area-inset-top, 0px)));
+    /* MainActivity pone --native-safe-* en <html>. env() en el WebView Android suele ser 0. */
+    top: calc(3.7rem + var(--native-safe-top, var(--safe-top, env(safe-area-inset-top, 0px))));
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -26882,7 +26883,15 @@ body.driver-mode.panel-collapsed:not(.trip-active):not(.is-navigating):not(.driv
     max-width: calc(100% - 1.1rem);
 }
 .driver-map-dock-bottom {
-    bottom: calc(0.7rem + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+    /* Fija al viewport: el mapa es edge-to-edge y su bottom:0 queda detrás de la barra del sistema. */
+    position: fixed;
+    z-index: 80;
+    bottom: calc(0.75rem + var(--native-safe-bottom, var(--safe-bottom, env(safe-area-inset-bottom, 0px))));
+}
+/* Hasta que MainActivity inyecte el inset: 48px cubre los 3 botones (Atrás/Inicio/Recientes).
+   Con .native-insets-ready se usa el alto real (gestos ~16–24px, 3 botones ~48px). */
+body.capacitor-android:not(.native-insets-ready) .driver-map-dock-bottom {
+    bottom: calc(0.75rem + 48px);
 }
 .driver-map-earn-slot,
 .driver-map-status,
