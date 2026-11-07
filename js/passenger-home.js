@@ -177,6 +177,7 @@ function ensureHomeUi() {
         if (isNew) {
             clientView.insertBefore(hub, clientView.firstChild);
         }
+        try { window.mountClientOrderHomeChip?.(); } catch (_) {}
     }
 
     if (!document.getElementById('passenger-mode-bar')) {

@@ -36107,6 +36107,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             const storePanelEl = document.getElementById('driver-store-order-panel');
             if (!active) {
+                document.body.classList.remove('driver-moto-compact', 'hr-keyboard-open');
                 storePanelEl?.classList.add('hidden');
                 routeHero?.classList.add('hidden');
                 destControls?.classList.add('hidden');
@@ -36172,6 +36173,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
 
             const isInProgress = data.status === 'in_progress';
             const isDelivTrip = isDeliveryTrip(data);
+            document.body.classList.toggle('driver-moto-compact', isDelivTrip && isStoreOrderTrip(data));
+            try { window.syncDriverSheetSafeArea?.(); } catch (_) {}
             const waitingPin = data.status === 'accepted' && !!data.driverArrived && !isDelivTrip;
             document.body.classList.toggle('driver-trip-dest-phase', isInProgress);
             document.body.classList.toggle('driver-pin-phase', waitingPin);

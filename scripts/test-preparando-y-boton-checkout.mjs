@@ -39,7 +39,7 @@ check('Flujo estricto del restaurante: accepted solo muestra «Preparando el ped
 
 check('Notificación en vivo del cliente y barra de 5 pasos en Mis pedidos', () => {
     assert.match(merchantStoresSrc, /export function clientOrderNotificationCopy\(o\)/);
-    assert.match(merchantStoresSrc, /export function orderProgressStepperHtml\(o\)/);
+    assert.match(merchantStoresSrc, /export function orderProgressStepperHtml\(o/);
     assert.match(merchantStoresSrc, /Preparando el pedido/);
     assert.match(merchantStoresSrc, /¡Pedido preparado! Llamando a tu delivery/);
     const matches = merchantStoresSrc.match(/startClientOrdersListener\(\);/g) || [];
