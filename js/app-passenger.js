@@ -537,10 +537,28 @@ async function maybePromptExtraStopsBeforeCalc(origin, destination) {
         window._routeStopsPromptSig = sig;
         window._routeStopsPromptDone = false;
     }
-    if (window._routeStopsPromptDone) return 'continue';
+    if (window._routeStopsPromptDone) {
+        // Ya respondió «Sí»: mientras el buscador de la parada siga abierto, no calcular tarifa
+        return window._routeStopsPromptWantsStop && !adder.classList.contains('hidden') ? 'stop' : 'continue';
+    }
 
-    const wantsStop = await showExtraStopPromptModal(origin, destination);
+    // Si la pregunta YA está abierta (otro cálculo casi simultáneo: auto + normal), esperar la misma
+    // respuesta. Antes el segundo cálculo lo tomaba como «no», calculaba la tarifa y abría la elección
+    // de vehículo detrás de la pregunta: al tocar «Sí, agregar parada» se saltaba directo al vehículo.
+    if (window._routeStopsPromptPromise) {
+        const wants = await window._routeStopsPromptPromise;
+        return wants ? 'stop' : 'continue';
+    }
+
+    window._routeStopsPromptPromise = showExtraStopPromptModal(origin, destination);
+    let wantsStop = false;
+    try {
+        wantsStop = await window._routeStopsPromptPromise;
+    } finally {
+        window._routeStopsPromptPromise = null;
+    }
     window._routeStopsPromptDone = true;
+    window._routeStopsPromptWantsStop = !!wantsStop;
 
     if (wantsStop) {
         window.openStandardStopsAdder?.();
