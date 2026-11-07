@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.54">
+    <meta name="hr-app-version" content="2026.10.26.55">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -55,14 +55,14 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.54">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.55">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.54">
-    <link rel="stylesheet" href="css/busqueda-f.css?v=2026.10.26.54">
-    <link rel="stylesheet" href="css/pedido-doble.css?v=2026.10.26.54">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.54">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.54">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.55">
+    <link rel="stylesheet" href="css/busqueda-f.css?v=2026.10.26.55">
+    <link rel="stylesheet" href="css/pedido-doble.css?v=2026.10.26.55">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.55">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.55">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -110,10 +110,10 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.54"></script>
-    <script defer src="js/busqueda-f.js?v=2026.10.26.54"></script>
-    <script type="module" src="js/pedido-doble.js?v=2026.10.26.54"></script>
-    <script type="module" src="js/user-city.js?v=2026.10.26.54"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.55"></script>
+    <script defer src="js/busqueda-f.js?v=2026.10.26.55"></script>
+    <script type="module" src="js/pedido-doble.js?v=2026.10.26.55"></script>
+    <script type="module" src="js/user-city.js?v=2026.10.26.55"></script>
     <style>
         #hr-boot-loading {
             position: fixed; inset: 0; z-index: 99999;
@@ -430,10 +430,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.54';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.55';
         (function () {
             try {
-                var build = '2026.10.26.54';
+                var build = '2026.10.26.55';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -2462,6 +2462,111 @@
     </section>
 
     <section id="passenger-booking-advanced" class="trip-step-card trip-step-advanced">
+    <div id="delivery-details-panel" class="hidden delivery-panel">
+        <div id="delivery-wizard" class="delivery-wizard">
+            <article class="dw-card" data-dw-step="category" data-dw-state="open">
+                <button type="button" class="dw-summary" data-dw-edit="category" hidden>
+                    <span class="dw-summary-kicker">Qué envías</span>
+                    <span class="dw-summary-value" data-dw-summary="category"></span>
+                    <span class="dw-summary-edit">Editar</span>
+                </button>
+                <div class="dw-body">
+                    <p class="dw-q">¿Qué envías?</p>
+                    <p class="dw-hint">Elige una. La puedes cambiar tocando el resumen.</p>
+                    <div id="delivery-category-chips" class="delivery-wizard-chips"></div>
+                    <input type="hidden" id="delivery-category" value="">
+                    <p class="dw-error hidden" data-dw-error="category" role="alert"></p>
+                    <button type="button" class="dw-next" data-dw-next="category">Siguiente</button>
+                </div>
+            </article>
+            <article class="dw-card" data-dw-step="place" data-dw-state="upcoming" hidden>
+                <button type="button" class="dw-summary" data-dw-edit="place" hidden>
+                    <span class="dw-summary-kicker" data-dw-kicker="place">Dónde recoger</span>
+                    <span class="dw-summary-value" data-dw-summary="place"></span>
+                    <span class="dw-summary-edit">Editar</span>
+                </button>
+                <div class="dw-body" hidden>
+                    <p class="dw-q" data-dw-q="place">¿En qué restaurante o lugar recogemos?</p>
+                    <p class="dw-hint" data-dw-hint="place">La dirección va en Origen.</p>
+                    <input id="delivery-restaurant" type="text" autocomplete="organization" enterkeyhint="next"
+                           placeholder="Restaurante o lugar (ej: Pollo Campero, pulpería, farmacia...)"
+                           class="dw-input">
+                    <p class="dw-error hidden" data-dw-error="place" role="alert"></p>
+                    <div class="dw-actions">
+                        <button type="button" class="dw-back" data-dw-back="place">Atrás</button>
+                        <button type="button" class="dw-next" data-dw-next="place">Siguiente</button>
+                    </div>
+                    <button type="button" class="dw-skip" data-dw-skip="place">Seguir sin el nombre del lugar</button>
+                </div>
+            </article>
+            <article class="dw-card" data-dw-step="name" data-dw-state="upcoming" hidden>
+                <button type="button" class="dw-summary" data-dw-edit="name" hidden>
+                    <span class="dw-summary-kicker">Quién recibe</span>
+                    <span class="dw-summary-value" data-dw-summary="name"></span>
+                    <span class="dw-summary-edit">Editar</span>
+                </button>
+                <div class="dw-body" hidden>
+                    <p class="dw-q">¿Quién recibe?</p>
+                    <p class="dw-hint">Nombre de la persona en la entrega.</p>
+                    <input id="delivery-recipient-name" type="text" autocomplete="name" enterkeyhint="next"
+                           placeholder="Nombre de quien recibe" class="dw-input">
+                    <p class="dw-error hidden" data-dw-error="name" role="alert"></p>
+                    <div class="dw-actions">
+                        <button type="button" class="dw-back" data-dw-back="name">Atrás</button>
+                        <button type="button" class="dw-next" data-dw-next="name">Siguiente</button>
+                    </div>
+                </div>
+            </article>
+            <article class="dw-card" data-dw-step="phone" data-dw-state="upcoming" hidden>
+                <button type="button" class="dw-summary" data-dw-edit="phone" hidden>
+                    <span class="dw-summary-kicker">WhatsApp</span>
+                    <span class="dw-summary-value" data-dw-summary="phone"></span>
+                    <span class="dw-summary-edit">Editar</span>
+                </button>
+                <div class="dw-body" hidden>
+                    <p class="dw-q">¿WhatsApp de quien recibe?</p>
+                    <p class="dw-hint">8 dígitos de Honduras. Ej: 9988-7766</p>
+                    <input id="delivery-recipient-phone" type="tel" inputmode="tel" autocomplete="tel" enterkeyhint="next"
+                           placeholder="WhatsApp de quien recibe (+504...)" class="dw-input">
+                    <p class="dw-error hidden" data-dw-error="phone" role="alert"></p>
+                    <div class="dw-actions">
+                        <button type="button" class="dw-back" data-dw-back="phone">Atrás</button>
+                        <button type="button" class="dw-next" data-dw-next="phone">Siguiente</button>
+                    </div>
+                </div>
+            </article>
+            <article class="dw-card" data-dw-step="details" data-dw-state="upcoming" hidden>
+                <button type="button" class="dw-summary" data-dw-edit="details" hidden>
+                    <span class="dw-summary-kicker">Detalle</span>
+                    <span class="dw-summary-value" data-dw-summary="details"></span>
+                    <span class="dw-summary-edit">Editar</span>
+                </button>
+                <div class="dw-body" hidden>
+                    <p class="dw-q">¿Qué llevamos?</p>
+                    <p class="dw-hint" data-dw-hint="details">Comida, paquete, documentos…</p>
+                    <textarea id="delivery-package-desc" rows="2" enterkeyhint="done"
+                              placeholder="Qué pediste o envías (comida, paquete, documentos...)"
+                              class="dw-input dw-textarea"></textarea>
+                    <p class="dw-error hidden" data-dw-error="details" role="alert"></p>
+                    <div class="dw-actions">
+                        <button type="button" class="dw-back" data-dw-back="details">Atrás</button>
+                        <button type="button" class="dw-next" data-dw-next="details">Siguiente</button>
+                    </div>
+                </div>
+            </article>
+            <article class="dw-card" data-dw-step="review" data-dw-state="upcoming" hidden>
+                <div class="dw-body" hidden>
+                    <p class="dw-q">Revisa y pide el envío</p>
+                    <p class="dw-hint">Toca un resumen si quieres corregir. El pedido usa estos mismos datos.</p>
+                    <ul class="dw-review" data-dw-review></ul>
+                    <p class="dw-route" data-dw-route></p>
+                    <p class="dw-fare" data-dw-fare></p>
+                    <button type="button" class="dw-request" data-trip-action="request">Solicitar envío</button>
+                    <button type="button" class="dw-back dw-back--full" data-dw-back="review">Atrás</button>
+                </div>
+            </article>
+        </div>
+    </div>
         <button type="button" id="trip-advanced-toggle" class="trip-advanced-toggle" aria-expanded="false">
             <span class="trip-advanced-toggle-left">
                 <span class="trip-step-badge trip-step-badge--muted">2</span>
@@ -2546,20 +2651,6 @@
         </div>
         <textarea id="tow-notes" rows="2" placeholder="Notas: acceso, tráfico, taller de destino, seguro..."
                   class="w-full px-3 py-2.5 border border-rose-200 rounded-xl text-sm bg-white resize-none"></textarea>
-    </div>
-
-    <div id="delivery-details-panel" class="hidden trip-advanced-block delivery-panel space-y-2">
-        <p class="trip-advanced-block-title"><i class="fas fa-utensils"></i> Datos del envío</p>
-        <div id="delivery-category-chips" class="flex flex-wrap gap-1.5"></div>
-        <input type="hidden" id="delivery-category" value="comida">
-        <input id="delivery-restaurant" type="text" placeholder="Restaurante o lugar (ej: Pollo Campero, pulpería, farmacia...)"
-               class="w-full px-3 py-2.5 border border-amber-200 rounded-xl text-sm bg-white">
-        <input id="delivery-recipient-name" type="text" placeholder="Nombre de quien recibe"
-               class="w-full px-3 py-2.5 border border-amber-200 rounded-xl text-sm bg-white">
-        <input id="delivery-recipient-phone" type="tel" placeholder="WhatsApp de quien recibe (+504...)"
-               class="w-full px-3 py-2.5 border border-amber-200 rounded-xl text-sm bg-white">
-        <textarea id="delivery-package-desc" rows="2" placeholder="Qué pediste o envías (comida, paquete, documentos...)"
-                  class="w-full px-3 py-2.5 border border-amber-200 rounded-xl text-sm bg-white resize-none"></textarea>
     </div>
 
     <div id="trip-options-panel" class="trip-advanced-block space-y-2.5">

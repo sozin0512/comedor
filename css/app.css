@@ -5371,6 +5371,214 @@
             margin-bottom: 0.45rem;
         }
 
+        /* Envío: una pregunta a la vez, arriba del origen/destino */
+        body.passenger-mode-delivery #passenger-booking-advanced { order: 2; }
+        body.passenger-mode-delivery #passenger-booking-route { order: 4; }
+        body.passenger-mode-delivery #searching-state { order: 6; }
+
+        .delivery-panel {
+            padding: 0.65rem 0.7rem 0.35rem;
+        }
+        .delivery-wizard {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        .dw-card {
+            border: 1px solid #fde68a;
+            border-radius: 0.9rem;
+            background: #fff;
+            overflow: hidden;
+        }
+        .dw-card[hidden],
+        .dw-summary[hidden],
+        .dw-body[hidden] {
+            display: none !important;
+        }
+        .dw-card[data-dw-state="open"] {
+            border-color: #d97706;
+            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.12);
+        }
+        .dw-summary {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            min-height: 2.5rem;
+            padding: 0.35rem 0.65rem;
+            border: 0;
+            background: #fffbeb;
+            text-align: left;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .dw-summary-kicker {
+            flex: 0 0 auto;
+            font-size: 0.62rem;
+            font-weight: 800;
+            color: #92400e;
+        }
+        .dw-summary-value {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-size: 0.78rem;
+            font-weight: 900;
+            color: #0f172a;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .dw-summary-edit {
+            flex: 0 0 auto;
+            font-size: 0.62rem;
+            font-weight: 900;
+            color: #b45309;
+        }
+        .dw-body { padding: 0.65rem 0.7rem 0.7rem; }
+        .dw-q {
+            margin: 0;
+            font-size: 0.95rem;
+            font-weight: 900;
+            color: #0f172a;
+            letter-spacing: -0.01em;
+            line-height: 1.2;
+        }
+        .dw-hint {
+            margin: 0.2rem 0 0.55rem;
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: #64748b;
+            line-height: 1.3;
+        }
+        .delivery-wizard-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+            margin-bottom: 0.55rem;
+        }
+        .delivery-wizard .delivery-cat-chip {
+            font-size: 0.68rem !important;
+            line-height: 1.2;
+            padding: 0.45rem 0.65rem !important;
+            border-radius: 999px !important;
+            letter-spacing: 0;
+            text-transform: none !important;
+            font-weight: 800 !important;
+            touch-action: manipulation;
+        }
+        .dw-input {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 2.75rem;
+            padding: 0.55rem 0.75rem;
+            border: 1px solid #fcd34d;
+            border-radius: 0.8rem;
+            background: #fff;
+            color: #0f172a;
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+        .dw-textarea {
+            min-height: 4.25rem;
+            resize: none;
+        }
+        .dw-error {
+            margin: 0.35rem 0 0;
+            font-size: 0.68rem;
+            font-weight: 800;
+            color: #b91c1c;
+        }
+        .dw-actions {
+            display: flex;
+            gap: 0.4rem;
+            margin-top: 0.55rem;
+        }
+        .dw-next,
+        .dw-request {
+            flex: 1 1 auto;
+            width: 100%;
+            min-height: 2.75rem;
+            margin-top: 0.55rem;
+            border: 0;
+            border-radius: 0.8rem;
+            background: #d97706;
+            color: #fff;
+            font-size: 0.82rem;
+            font-weight: 900;
+            letter-spacing: 0.01em;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .dw-actions .dw-next { margin-top: 0; width: auto; }
+        .dw-back {
+            flex: 0 0 auto;
+            min-height: 2.75rem;
+            padding: 0 0.85rem;
+            border-radius: 0.8rem;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #334155;
+            font-size: 0.75rem;
+            font-weight: 800;
+            touch-action: manipulation;
+        }
+        .dw-back--full {
+            width: 100%;
+            margin-top: 0.4rem;
+        }
+        .dw-skip {
+            display: block;
+            width: 100%;
+            margin-top: 0.35rem;
+            padding: 0.35rem 0.2rem 0;
+            border: 0;
+            background: transparent;
+            color: #92400e;
+            font-size: 0.68rem;
+            font-weight: 800;
+            text-decoration: underline;
+            touch-action: manipulation;
+        }
+        .dw-review {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.28rem;
+        }
+        .dw-review li {
+            display: flex;
+            gap: 0.45rem;
+            align-items: baseline;
+            min-width: 0;
+        }
+        .dw-review-k {
+            flex: 0 0 5.6rem;
+            font-size: 0.62rem;
+            font-weight: 800;
+            color: #92400e;
+        }
+        .dw-review-v {
+            flex: 1 1 auto;
+            min-width: 0;
+            font-size: 0.78rem;
+            font-weight: 800;
+            color: #0f172a;
+        }
+        .dw-route,
+        .dw-fare {
+            margin: 0.45rem 0 0;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #57534e;
+            line-height: 1.35;
+        }
+        .dw-fare:empty,
+        .dw-route:empty { display: none; }
+        .dw-fare { color: #9a3412; font-weight: 900; }
+
         /* —— Programar viaje / envío / flete (fácil, multi-servicio) —— */
         .trip-when-panel {
             margin-top: 0.65rem;
@@ -9852,6 +10060,24 @@
 
         html[data-theme="dark"] .trip-advanced-body {
             border-top-color: var(--dm-border);
+        }
+        html[data-theme="dark"] .dw-card {
+            background: #1e293b;
+            border-color: #92400e;
+        }
+        html[data-theme="dark"] .dw-summary { background: #292524; }
+        html[data-theme="dark"] .dw-q,
+        html[data-theme="dark"] .dw-summary-value,
+        html[data-theme="dark"] .dw-review-v { color: #f8fafc; }
+        html[data-theme="dark"] .dw-input {
+            background: #0f172a;
+            color: #f8fafc;
+            border-color: #b45309;
+        }
+        html[data-theme="dark"] .dw-back {
+            background: #0f172a;
+            color: #e2e8f0;
+            border-color: #334155;
         }
 
         html[data-theme="dark"] .trip-btn-secondary {
