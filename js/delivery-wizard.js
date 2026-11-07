@@ -4,8 +4,8 @@
  * para que la tarifa, el envío de invitado y el de cuenta usen los mismos valores.
  * Sin observers ni bucles: un click, un teclado y un foco.
  */
-import { DELIVERY_CATEGORIES } from './trip-experience.js?v=2026.10.26.54';
-import { formatHondurasPhone, normalizeHondurasPhone } from './phone-utils.js?v=2026.10.26.54';
+import { DELIVERY_CATEGORIES } from './trip-experience.js?v=2026.10.26.55';
+import { formatHondurasPhone, normalizeHondurasPhone } from './phone-utils.js?v=2026.10.26.55';
 
 /** Negocio con nombre propio. Documentos y «otro» usan solo el origen. */
 export const DELIVERY_PLACE_CATEGORIES = ['comida', 'pulperia', 'farmacia'];
