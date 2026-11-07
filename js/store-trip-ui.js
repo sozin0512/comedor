@@ -344,8 +344,97 @@ export function storeCollectHtml(t, deliveryPrice = null) {
     </div>`;
 }
 
+function phoneDigits(raw) {
+    return String(raw || "").replace(/\D/g, "");
+}
+
+/** País ya escrito en el viaje. Sin marca de EE. UU., un número de 8 dígitos sigue la regla de Honduras. Un número de 10 sin marca US no se adivina. */
+export function customerPhoneCountryHint(trip) {
+    const d = trip?.deliveryDetails || {};
+    const blobs = [trip?.market, trip?.country, trip?.phoneCountry, d.country, d.phoneCountry, trip?.serviceZoneId, d.serviceZoneId]
+        .map((v) => String(v || "").trim().toLowerCase())
+        .filter(Boolean);
+    if (blobs.some((v) => v === "us" || v === "usa" || v.startsWith("us-"))) return "us";
+    if (blobs.some((v) => v === "hn" || v === "hnd" || v === "honduras" || v === "504")) return "hn";
+    const zone = String(trip?.serviceZoneId || "").toLowerCase();
+    if (zone.startsWith("us-")) return "us";
+    if (zone) return "hn";
+    return "hn-unmarked";
+}
+
+/**
+ * Normaliza el teléfono del cliente solo cuando el país es explícito o es el caso Honduras de 8 dígitos.
+ * No rellena con ceros ni recorta un número largo.
+ */
+export function parseCustomerPhone(raw, trip) {
+    let d = phoneDigits(raw);
+    if (!d) return { ok: false, reason: "missing" };
+    if (d.startsWith("00")) d = d.slice(2);
+    const country = customerPhoneCountryHint(trip);
+    if (d.startsWith("504")) {
+        const rest = d.slice(3);
+        if (rest.length === 8 && rest !== "00000000") {
+            return { ok: true, country: "hn", e164: `504${rest}`, display: `504 ${rest.slice(0, 4)}-${rest.slice(4)}`, tel: `tel:+504${rest}`, wa: `https://wa.me/504${rest}` };
+        }
+        return { ok: false, reason: "invalid" };
+    }
+    if (d.startsWith("1") && d.length === 11 && d[1] >= "2" && d[1] <= "9") {
+        const n = d.slice(1);
+        return { ok: true, country: "us", e164: d, display: `+1 (${n.slice(0, 3)}) ${n.slice(3, 6)}-${n.slice(6)}`, tel: `tel:+1${n}`, wa: `https://wa.me/1${n}` };
+    }
+    if (d.length === 8) {
+        if (country === "us" || d === "00000000") return { ok: false, reason: country === "us" ? "ambiguous" : "invalid" };
+        return { ok: true, country: "hn", e164: `504${d}`, display: `504 ${d.slice(0, 4)}-${d.slice(4)}`, tel: `tel:+504${d}`, wa: `https://wa.me/504${d}` };
+    }
+    if (d.length === 10 && d[0] >= "2" && d[0] <= "9") {
+        if (country === "us") {
+            return { ok: true, country: "us", e164: `1${d}`, display: `+1 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`, tel: `tel:+1${d}`, wa: `https://wa.me/1${d}` };
+        }
+        return { ok: false, reason: "ambiguous" };
+    }
+    return { ok: false, reason: "invalid" };
+}
+
+export function viewerIsAssignedRider(trip, viewerId) {
+    const assigned = String(trip?.driverId || "").trim();
+    const viewer = String(viewerId || "").trim();
+    if (!assigned || !viewer) return false;
+    return assigned === viewer;
+}
+
+/** Teléfono para mostrar al llegar al local. Solo el repartidor asignado. clientPhone si existe; si no, recipientPhone. */
+export function arrivalCustomerPhone(trip, viewerId) {
+    if (!viewerIsAssignedRider(trip, viewerId)) return { visible: false, reason: "not_assigned" };
+    if (getDeliveryStageMeta(trip).stage !== "at_store") return { visible: false, reason: "not_arrival" };
+    const d = trip?.deliveryDetails || {};
+    const clientRaw = String(trip?.clientPhone || "").trim();
+    const recipientRaw = String(d.recipientPhone || "").trim();
+    const source = clientRaw ? "clientPhone" : (recipientRaw ? "recipientPhone" : "");
+    const raw = clientRaw || recipientRaw;
+    if (!raw) return { visible: true, state: "unavailable", source: "", reason: "missing" };
+    const parsed = parseCustomerPhone(raw, trip);
+    if (!parsed.ok) return { visible: true, state: "unavailable", source, reason: parsed.reason };
+    return { visible: true, state: "ready", source, ...parsed };
+}
+
+export function arrivalCustomerPhoneHtml(trip, viewerId) {
+    const info = arrivalCustomerPhone(trip, viewerId);
+    if (!info.visible) return "";
+    if (info.state !== "ready") {
+        return `<p class="hr-arrival-phone hr-arrival-phone--missing" data-arrival-customer-phone="unavailable" data-phone-source="${esc(info.source || "")}" data-phone-reason="${esc(info.reason || "")}">Teléfono del cliente no disponible</p>`;
+    }
+    const who = info.source === "recipientPhone" ? "Quien recibe" : "Cliente";
+    return `<div class="hr-arrival-phone" data-arrival-customer-phone="ready" data-phone-source="${esc(info.source)}">
+        <p class="hr-arrival-phone__label">${who} · ${esc(info.display)}</p>
+        <div class="hr-arrival-phone__links">
+            <a class="hr-arrival-phone__call" href="${esc(info.tel)}">Llamar</a>
+            <a class="hr-arrival-phone__wa" href="${esc(info.wa)}" target="_blank" rel="noopener">WhatsApp</a>
+        </div>
+    </div>`;
+}
+
 /** Panel después de aceptar: ruta en 2 pasos (1. Negocio → 2. Cliente) sin PIN + productos + quién recibe + cobro. */
-export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
+export function storeAcceptedPanelHtml(t, deliveryPrice = null, opts = {}) {
     const s = storeOrderSummary(t, deliveryPrice);
     if (!s) return "";
     const stageMeta = getDeliveryStageMeta(t);
@@ -386,6 +475,7 @@ export function storeAcceptedPanelHtml(t, deliveryPrice = null) {
         <div class="hr-moto-stage" data-driver-stage-actions="${esc(stageMeta.stage)}">
             <p class="hr-moto-next">${esc(stageMeta.headerTitle)}</p>
             <p class="hr-moto-dest">${esc(destLine)}</p>
+            ${stageMeta.stage === "at_store" ? arrivalCustomerPhoneHtml(t, opts.viewerId) : ""}
             ${driverStagePrimaryHtml(t, stageMeta)}
         </div>
         <details class="hr-store-more">
@@ -685,6 +775,12 @@ export const STORE_TRIP_CSS = `
 .hr-moto-next{margin:0;font-size:14px;font-weight:900;line-height:1.25;color:#0f172a}
 .hr-moto-dest{margin:0;font-size:12px;font-weight:700;line-height:1.3;color:#334155;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .hr-moto-primary{min-height:48px;font-size:14px}
+.hr-arrival-phone{display:flex;flex-direction:column;gap:6px;margin:0;padding:8px;border-radius:12px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a8a}
+.hr-arrival-phone--missing{font-size:12px;font-weight:800;background:#f8fafc;border-color:#cbd5e1;color:#475569}
+.hr-arrival-phone__label{margin:0;font-size:13px;font-weight:900;letter-spacing:normal;font-variant-emoji:text}
+.hr-arrival-phone__links{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.hr-arrival-phone__call,.hr-arrival-phone__wa{display:flex;align-items:center;justify-content:center;min-height:40px;border-radius:10px;font-size:12px;font-weight:900;text-decoration:none;color:#fff}
+.hr-arrival-phone__call{background:#1d4ed8}.hr-arrival-phone__wa{background:#16a34a}
 .hr-store-more{margin-top:6px}
 .hr-store-more>summary{cursor:pointer;font-size:12px;font-weight:800;color:#475569}
 `;

@@ -36145,7 +36145,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (sp) {
                     if (isStoreOrderTrip(data)) {
                         const fee = data.negotiatedPrice ?? data.priceNum ?? data.price;
-                        const html = storeAcceptedPanelHtml(data, fee);
+                        const html = storeAcceptedPanelHtml(data, fee, { viewerId: currentUser?.uid || '' });
                         if (sp.dataset.html !== html) { sp.innerHTML = html; sp.dataset.html = html; }
                         sp.classList.remove('hidden');
                     } else {
