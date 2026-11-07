@@ -365,6 +365,7 @@ import {
     getScheduleServiceCopy,
 } from "./trip-experience.js?v=2026.10.26.56";
 import { mountDeliveryWizard, resetDeliveryWizard } from "./delivery-wizard.js?v=2026.10.26.56";
+import { planCancellationNotice } from "./cancel-notice.js?v=2026.10.26.56";
 import {
     getSupportWhatsAppUrl, createSupportTicket, createQuickWeirdReport,
     fetchOpenSupportTickets, resolveSupportTicket,
@@ -16727,7 +16728,7 @@ if (document.readyState === 'loading') {
                     activeTrip = null;
                     window.currentActiveTripData = null;
                     clearStoredClientTripId();
-                    handleTripCancelled?.(tripId, { ...trip, status: 'cancelled', cancelledFromStatus: previousStatus });
+                    handleTripCancelled?.(tripId, { ...trip, status: 'cancelled', cancelledFromStatus: previousStatus }, 'staff');
                 }
 
                 window.showToast?.(
@@ -21222,13 +21223,46 @@ if (document.readyState === 'loading') {
             return unread;
         }
 
+        function localNoticeUnread() {
+            return (window._hrLocalNotices || []).filter((n) => n && !n.read).length;
+        }
+
+        function loadLocalNotices() {
+            try {
+                const stored = JSON.parse(sessionStorage.getItem('honduber_local_notices') || '[]');
+                if (Array.isArray(stored)) window._hrLocalNotices = stored.slice(0, 30);
+            } catch (_) {
+                window._hrLocalNotices = window._hrLocalNotices || [];
+            }
+        }
+        loadLocalNotices();
+
+        function pushLocalNotice(notice) {
+            if (!notice?.id) return;
+            window._hrLocalNotices = window._hrLocalNotices || [];
+            if (window._hrLocalNotices.some((n) => n.id === notice.id)) return;
+            window._hrLocalNotices.unshift({
+                id: notice.id,
+                title: notice.title || 'Aviso',
+                body: notice.body || '',
+                at: Date.now(),
+                read: false,
+            });
+            window._hrLocalNotices = window._hrLocalNotices.slice(0, 30);
+            try { sessionStorage.setItem('honduber_local_notices', JSON.stringify(window._hrLocalNotices)); } catch (_) {}
+            applyNotificationBadgeCount(window.unreadNotifications || 0);
+        }
+        window.pushLocalNotice = pushLocalNotice;
+
         function applyNotificationBadgeCount(unread) {
-            window.unreadNotifications = unread;
-            const label = unread > 9 ? '9+' : String(unread);
+            const serverUnread = Number(unread) || 0;
+            window.unreadNotifications = serverUnread;
+            const total = serverUnread + localNoticeUnread();
+            const label = total > 9 ? '9+' : String(total);
             ['notification-badge', 'notification-badge-mobile'].forEach((id) => {
                 const badge = document.getElementById(id);
                 if (!badge) return;
-                if (unread > 0) {
+                if (total > 0) {
                     badge.innerText = label;
                     badge.classList.remove('hidden');
                 } else {
@@ -34285,43 +34319,51 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             // (nombre + teléfono) para poder contactar después.
         }
 
-        function handleTripCancelled(tripId, data) {
+        function handleTripCancelled(tripId, data, source = 'listener') {
             if (window.handledCancelledTripIds.has(tripId)) return;
             if (data?.status && data.status !== 'cancelled') return;
-            // Si el pasajero estaba en espera, cortar el sonido en bucle
             try { stopPassengerWaitingLoop(); } catch (_) {}
 
-            // Pre-accept (pending) cancel must NEVER trigger the cancellation questionnaire
-            const fromStatus = data?.cancelledFromStatus;
-            if (fromStatus === 'pending' || fromStatus === 'scheduled') {
-                const iCancelled = data.cancelledBy === currentUser.uid;
-                window.showToast(iCancelled ? 'Viaje cancelado correctamente.' : 'El otro participante canceló el viaje.', 'warning');
+            const watchingTripId = activeTrip?.id || window.currentActiveTripData?.id || '';
+            const plan = planCancellationNotice({
+                trip: { ...data, id: tripId, status: 'cancelled' },
+                uid: currentUser?.uid || '',
+                source,
+                watchingTripId,
+                handledIds: window.handledCancelledTripIds,
+            });
+            if (!plan.markHandled && !plan.toast && !plan.bell && !plan.needsExistingSurveyPath) return;
+            if (plan.markHandled) markCancelledTripHandled(tripId);
+            if (plan.bell) pushLocalNotice(plan.bell);
+            if (plan.toast) window.showToast(plan.toast.message, plan.toast.level || 'warning');
+
+            if (plan.needsExistingSurveyPath) {
+                const needsSurvey = isConfirmedCancellation(data) && !userAlreadySubmittedCancellationSurvey(data);
+                const iCancelled = data.cancelledBy === currentUser?.uid;
+                const msg = needsSurvey
+                    ? (iCancelled
+                        ? 'Viaje cancelado. Graba un audio corto para continuar.'
+                        : 'Viaje cancelado. Graba un audio con tu versión.')
+                    : (iCancelled
+                        ? 'Viaje cancelado correctamente.'
+                        : 'El otro participante canceló el viaje.');
+                if (!plan.toast) window.showToast(msg, 'warning');
+                if (needsSurvey) {
+                    if (window.cancellationSurveyTripId === tripId) return;
+                    try { window.stopClientTracking?.(); } catch (_) {}
+                    document.body.classList.remove('trip-active', 'is-navigating', 'driver-nav-mode', 'driver-trip-dest-phase');
+                    try { window.hideTripFloatPanels?.(); } catch (_) {}
+                    try { window.clearRoutePolylines?.({ force: true }); } catch (_) {}
+                    showCancellationSurvey({ id: tripId, ...data });
+                    return;
+                }
                 finishCancelledTrip(tripId, data);
                 return;
             }
 
-            const needsSurvey = isConfirmedCancellation(data) && !userAlreadySubmittedCancellationSurvey(data);
-            const iCancelled = data.cancelledBy === currentUser.uid;
-            const msg = needsSurvey
-                ? (iCancelled
-                    ? 'Viaje cancelado. Graba un audio corto para continuar.'
-                    : 'Viaje cancelado. Graba un audio con tu versión.')
-                : (iCancelled
-                    ? 'Viaje cancelado correctamente.'
-                    : 'El otro participante canceló el viaje.');
-            window.showToast(msg, 'warning');
-
-            if (needsSurvey) {
-                if (window.cancellationSurveyTripId === tripId) return;
-                try { window.stopClientTracking?.(); } catch (_) {}
-                document.body.classList.remove('trip-active', 'is-navigating', 'driver-nav-mode', 'driver-trip-dest-phase');
-                try { window.hideTripFloatPanels?.(); } catch (_) {}
-                try { window.clearRoutePolylines?.({ force: true }); } catch (_) {}
-                showCancellationSurvey({ id: tripId, ...data });
-                return;
+            if (plan.finishWatching && (watchingTripId === tripId || source === 'user-action')) {
+                finishCancelledTrip(tripId, data);
             }
-
-            finishCancelledTrip(tripId, data);
         }
 
         function restoreUiAfterCancellationSurvey() {
@@ -34689,8 +34731,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         const t = { id: storedDoc.id, ...storedDoc.data() };
                         if (isDemandSimulationTrip(t) || isMerchantOwnedDeliveryTrip(t, currentUser?.uid)) { /* ignorar prueba admin o envío de tienda */ }
                         else if (t.status === 'completed' && t[getRatedFieldForUser(t)]) { /* continuar */ }
-                        else if (t.status === 'cancelled' && window.handledCancelledTripIds.has(t.id)) { /* continuar */ }
-                        else if (['pending', 'accepted', 'in_progress', 'scheduled', 'completed', 'cancelled'].includes(t.status)) {
+                        else if (t.status === 'cancelled') { /* un cancelado guardado no es el viaje en vivo */ }
+                        else if (['pending', 'accepted', 'in_progress', 'scheduled', 'completed'].includes(t.status)) {
                             return t;
                         }
                     }
@@ -34716,13 +34758,13 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 .filter((t) => {
                     if (isDemandSimulationTrip(t)) return false;
                     if (window.userProfile?.role !== 'driver' && isMerchantOwnedDeliveryTrip(t, currentUser?.uid)) return false;
-                    if (t.status === 'cancelled' && window.handledCancelledTripIds.has(t.id)) return false;
+                    if (t.status === 'cancelled') return false;
                     const isMine = t.clientId === currentUser.uid || t.driverId === currentUser.uid;
                     if (!isMine) return false;
                     if (t.status === 'completed') return !t[getRatedFieldForUser(t)];
                     // scheduled con driver: reserva programada del conductor
                     if (t.status === 'scheduled') return !!t.driverId && t.driverId === currentUser.uid;
-                    return ['pending', 'accepted', 'cancelled', 'in_progress'].includes(t.status);
+                    return ['pending', 'accepted', 'in_progress'].includes(t.status);
                 });
 
             if (candidates.length === 0) return null;
@@ -37206,6 +37248,10 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
         window.fetchAndRestoreClientActiveTrip = fetchAndRestoreClientActiveTrip;
 
         window.processActiveTripUpdate = processActiveTripUpdate;
+        window.hrFindMyRelevantTrip = (rows) => findMyRelevantTrip({
+            docs: (rows || []).map((t) => ({ id: t.id, data: () => t })),
+        });
+        window.handleTripCancelled = (tripId, data, source) => handleTripCancelled(tripId, data, source);
         window.hrSubscribeTripDoc = (tid) => subscribeToTripDocument(tid);
         window.restoreLiveTripUiOnResume = function restoreLiveTripUiOnResume() {
             const trip = (typeof activeTrip !== 'undefined' && activeTrip) || window.currentActiveTripData;
@@ -37304,6 +37350,30 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             } catch (e) { console.warn('hrShowDriverReservedScheduled', e); }
         };
 
+        function absorbHistoricalOwnCancels(snap) {
+            const uid = currentUser?.uid;
+            if (!uid || !snap?.docs) return;
+            const watching = activeTrip?.id || window.currentActiveTripData?.id || '';
+            let n = 0;
+            snap.docs.forEach((d) => {
+                const t = typeof d.data === 'function' ? d.data() : {};
+                if (t.status !== 'cancelled' || t.cancelledBy !== uid) return;
+                if (d.id === watching) return;
+                if (window.handledCancelledTripIds.has(d.id)) return;
+                markCancelledTripHandled(d.id);
+                n += 1;
+            });
+            if (n > 0) {
+                pushLocalNotice({
+                    id: `cancel-history-${uid}`,
+                    title: 'Cancelaciones anteriores',
+                    body: n === 1
+                        ? 'Una cancelación tuya ya estaba en el historial. No afecta lo que estás viendo.'
+                        : `${n} cancelaciones tuyas ya estaban en el historial. No afectan lo que estás viendo.`,
+                });
+            }
+        }
+
         function listenToMyActiveTrip() {
             if (!currentUser) return;
 
@@ -37327,6 +37397,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             }
 
             window.activeTripUnsub = onSnapshot(tripQuery, (rawSnap) => {
+                absorbHistoricalOwnCancels(rawSnap);
                 // «Pedir envío» de la tienda: el dueño es clientId pero no es su viaje de pasajero
                 // (lo sigue en Mi tienda → Pedir envío). No secuestrar la pantalla del pasajero.
                 const isClientRole = window.userProfile?.role !== 'driver';
@@ -39520,7 +39591,7 @@ window.cancelSetupAndLogout = () => {
                 activeTrip = null;
                 window.currentActiveTripData = null;
                 clearStoredClientTripId();
-                handleTripCancelled(tripId, payload);
+                handleTripCancelled(tripId, payload, 'user-action');
             } catch (e) {
                 window._cancellingTripIds?.delete(tripId);
                 console.error('cancelOrder error', e);
@@ -47286,7 +47357,11 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
         window.showNotificationsModal = async () => {
             const modal = document.createElement('div');
             modal.className = `fixed inset-0 bg-black/60 z-[40000] flex items-end md:items-center justify-center`;
-            
+            const local = (window._hrLocalNotices || []).slice();
+            (window._hrLocalNotices || []).forEach((n) => { n.read = true; });
+            try { sessionStorage.setItem('honduber_local_notices', JSON.stringify(window._hrLocalNotices || [])); } catch (_) {}
+            applyNotificationBadgeCount(window.unreadNotifications || 0);
+
             let html = `
                 <div class="bg-white w-full md:w-[420px] md:rounded-3xl rounded-t-3xl p-5 max-h-[85vh] overflow-auto">
                     <div class="flex justify-between items-center mb-4">
@@ -47294,6 +47369,11 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                         <button onclick="this.closest('.fixed').remove()" class="text-2xl text-gray-400">&times;</button>
                     </div>
             `;
+            local.forEach((n) => {
+                const title = String(n.title || 'Aviso').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+                const body = String(n.body || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+                html += `<div class="border border-amber-100 bg-amber-50 rounded-2xl p-4 mb-3"><p class="text-[10px] font-black text-amber-700 uppercase">Actividad</p><p class="font-black text-sm text-slate-900 mt-1">${title}</p><p class="text-xs text-slate-600 mt-1">${body}</p></div>`;
+            });
 
             try {
                 const notifSnap = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'notifications'));
@@ -47334,7 +47414,7 @@ window.getAdjustedDurationMinutes = window.getAdjustedDurationMinutes || getAdju
                 const merged = sortNotificationsByTime([...threadRoots, ...standalone]).slice(0, 40);
 
                 if (merged.length === 0) {
-                    html += `<p class="text-center text-gray-500 py-8">No tienes notificaciones.</p>`;
+                    if (!local.length) html += `<p class="text-center text-gray-500 py-8">No tienes notificaciones.</p>`;
                 } else {
                     merged.forEach((n) => {
                         const isThread = threadIdSet.has(n.id) || isPersonalThreadRoot(n)
