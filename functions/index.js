@@ -1369,6 +1369,68 @@ exports.guestSendTripMessage = onCall(async (request) => {
     return { ok: true, message: msg };
 });
 
+/**
+ * Invitado (viaje sin cuenta: pedido desde la app o por WhatsApp) cancela su viaje.
+ * Mismo resultado que cuando el pasajero con cuenta cancela (status 'cancelled').
+ * Seguridad: solo viajes de invitado activos. Si el viaje se pidió desde la app
+ * (guest_requests/{tripId}), exige el token que se le dio al invitado en ese teléfono.
+ */
+exports.guestCancelTrip = onCall(async (request) => {
+    const tripId = String(request.data?.tripId || '').trim();
+    if (!/^[a-zA-Z0-9_-]{8,64}$/.test(tripId)) {
+        throw new HttpsError('invalid-argument', 'Viaje no válido.');
+    }
+    const token = String(request.data?.token || '').trim();
+    const reqSnap = await db.doc(`artifacts/${APP_ID}/public/data/guest_requests/${tripId}`).get().catch(() => null);
+    if (reqSnap?.exists) {
+        const hash = require('crypto').createHash('sha256').update(token).digest('hex');
+        if (!token || reqSnap.get('tokenHash') !== hash) {
+            throw new HttpsError('permission-denied', 'No pudimos confirmar que este viaje es tuyo. Cancélalo desde el teléfono donde lo pediste.');
+        }
+    }
+    const tripRef = db.doc(`artifacts/${APP_ID}/public/data/trips/${tripId}`);
+    const result = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(tripRef);
+        if (!snap.exists) throw new HttpsError('not-found', 'No encontramos ese viaje.');
+        const t = snap.data() || {};
+        const isGuest = t.guestClient === true || t.guestInvitePending === true
+            || t.createdVia === 'whatsapp' || String(t.clientId || '').startsWith('guest_');
+        if (!isGuest) throw new HttpsError('permission-denied', 'Este viaje requiere iniciar sesión.');
+        const previousStatus = String(t.status || '');
+        if (!['pending', 'accepted', 'in_progress', 'scheduled'].includes(previousStatus)) {
+            throw new HttpsError('failed-precondition', 'Este viaje ya no se puede cancelar.');
+        }
+        tx.update(tripRef, {
+            status: 'cancelled',
+            cancelledBy: String(t.clientId || `guest_${tripId}`),
+            cancelledByGuest: true,
+            cancelledFromStatus: previousStatus,
+            cancelledAt: FieldValue.serverTimestamp(),
+            cancelledAtMs: Date.now(),
+            lastDriverId: t.driverId || t.lastDriverId || null,
+            lastDriverName: t.driverName || t.lastDriverName || null,
+            offeredToDriverId: null,
+            offeredToDriverName: null,
+            candidateDriverIds: [],
+            offerSentAt: null,
+            offerDistanceKm: null,
+            offerToBusyDriver: false,
+            offerSearchTier: null,
+            updatedAt: FieldValue.serverTimestamp()
+        });
+        return { previousStatus, driverId: t.driverId || null };
+    });
+    if (result.driverId && ['accepted', 'in_progress'].includes(result.previousStatus)) {
+        await sendPushToUser(APP_ID, result.driverId, {
+            title: 'El pasajero canceló el viaje',
+            body: 'Quedas libre para otros viajes.',
+            data: { type: 'trip_cancelled', tripId, tag: `trip-cancel-${tripId}` },
+            highPriority: true
+        }).catch(() => {});
+    }
+    return { ok: true, tripId, cancelledFromStatus: result.previousStatus };
+});
+
 exports.cancelTrip = onCall(async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
