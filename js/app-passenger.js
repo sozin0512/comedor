@@ -411,16 +411,28 @@ window.openStandardStopsAdder = () => {
     const toggleBtn = document.getElementById('add-extra-stop-btn');
     if (!panel || toggleBtn?.classList.contains('hidden')) return;
 
+    // Si el panel quedó minimizado (p. ej. tras elegir destino para ver la ruta) o la tarjeta de ruta
+    // oculta, el buscador de la parada se «abría» por dentro pero no se veía nada.
+    try { window.showControlPanel?.({ forceExpand: true }); } catch (_) {}
+    const routeCard = document.getElementById('passenger-booking-route');
+    if (routeCard && !document.body.classList.contains('passenger-mode-home')) {
+        routeCard.classList.remove('hidden');
+        routeCard.closest('.trip-route-fields')?.classList.remove('hidden');
+        document.querySelector('.trip-route-fields')?.classList.remove('hidden');
+    }
     panel.classList.remove('hidden');
     window.syncAddExtraStopBtnState?.();
 
-    const routeSection = document.getElementById('passenger-booking-route');
-    routeSection?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    // Subir el buscador de la parada a la parte de arriba del panel ANTES de abrir el teclado:
+    // quedaba abajo y el teclado del teléfono lo tapaba («no desplegó nada»).
+    panel.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     setTimeout(() => {
-        panel.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+        panel.scrollIntoView?.({ behavior: 'auto', block: 'start' });
         const stopInput = document.getElementById('extra-stop-autocomplete');
         stopInput?.focus?.();
-    }, 280);
+        // Cuando el teclado ya abrió (viewport más chico), volver a dejarlo arriba y visible
+        setTimeout(() => { panel.scrollIntoView?.({ behavior: 'smooth', block: 'start' }); }, 450);
+    }, 320);
 };
 
 function truncateRoutePromptLabel(address, max = 48) {
