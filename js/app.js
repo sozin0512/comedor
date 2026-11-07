@@ -44390,12 +44390,13 @@ window.cancelSetupAndLogout = () => {
                 const driverZoneId = window.activeServiceZoneId || getDefaultZoneId();
                 const driverZone = getZoneById(driverZoneId);
                 const locVehicle = getActiveVehicle(window.userProfile);
+                const pub = window.hrRoadSnapPosition?.(lat, lng) || { lat, lng };
                 try {
                     await setDoc(
                         doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid),
                         {
-                            lat,
-                            lng,
+                            lat: pub.lat,
+                            lng: pub.lng,
                             heading,
                             accuracy: accuracy != null ? Number(accuracy) : null,
                             online: true,
@@ -44434,7 +44435,7 @@ window.cancelSetupAndLogout = () => {
                 } else if (activeTrip?.status === 'in_progress') {
                     window.syncDriverDestinationArrivalUi?.({ lat, lng });
                 }
-                try { window.__mirrorDriverLiveToTrip?.(lat, lng, heading, accuracy); } catch (_) {}
+                try { window.__mirrorDriverLiveToTrip?.(pub.lat, pub.lng, heading, accuracy); } catch (_) {}
             };
             window.__publishDriverGpsPulse = publishDriverGps;
             window.__mirrorDriverLiveToTrip = (lat, lng, heading = null, accuracy = null) => {
@@ -44690,11 +44691,13 @@ window.cancelSetupAndLogout = () => {
 
                     try {
                         const locVehicle = getActiveVehicle(window.userProfile);
+                        // Fuera de la ruta: pegar a la calle con Roads API (no «dentro de casas»)
+                        const pub = window.hrRoadSnapPosition?.(lat, lng) || { lat, lng };
                         await setDoc(
                             doc(db, 'artifacts', appId, 'public', 'data', 'drivers_location', currentUser.uid),
                             {
-                                lat,
-                                lng,
+                                lat: pub.lat,
+                                lng: pub.lng,
                                 heading,
                                 accuracy: accuracy != null ? Number(accuracy) : null,
                                 online: true,
@@ -44713,7 +44716,7 @@ window.cancelSetupAndLogout = () => {
                             },
                             { merge: true }
                         );
-                        try { window.__mirrorDriverLiveToTrip?.(lat, lng, heading, accuracy); } catch (_) {}
+                        try { window.__mirrorDriverLiveToTrip?.(pub.lat, pub.lng, heading, accuracy); } catch (_) {}
                     } catch (e) {}
                 },
                 (err) => {
