@@ -3403,6 +3403,11 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 };
            
   window.removeDriverMarker = (driverId) => {
+    const sm = window._hrAssignedMarkerSmooth?.[driverId];
+    if (sm) {
+      if (sm.anim) cancelAnimationFrame(sm.anim);
+      delete window._hrAssignedMarkerSmooth[driverId];
+    }
     const marker = window.driverMarkers?.[driverId];
     if (!marker) return;
     if (marker.map !== undefined) {
@@ -3871,7 +3876,98 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
     SELF_SMOOTH.anim = requestAnimationFrame(step);
   };
 
+  /**
+   * Suavizado del carro ASIGNADO en el mapa del pasajero (evita que «salte solo»):
+   * el mismo marcador lo actualizan varias fuentes (doc del viaje con GPS crudo,
+   * seguimiento con posición pegada a la ruta, repintado cada ~1 s). Antes cada una lo
+   * teletransportaba a un punto distinto y el carro brincaba de un lado a otro.
+   * Ahora todas pasan por aquí: misma regla de pegado a ruta, filtro de jitter,
+   * rumbo estable y UNA animación por conductor.
+   */
+  const ASSIGNED_SMOOTH = {};
+  window._hrAssignedMarkerSmooth = ASSIGNED_SMOOTH;
+  window.smoothAssignedDriverMarker = (driverId, lat, lng, options, raw) => {
+    let target = { lat: Number(lat), lng: Number(lng) };
+    if (!Number.isFinite(target.lat) || !Number.isFinite(target.lng)) return;
+    const st = ASSIGNED_SMOOTH[driverId] || (ASSIGNED_SMOOTH[driverId] = { anim: null, shown: null, heading: null, lastAt: 0 });
+    // Si el marcador fue quitado del mapa, empezar de cero
+    if (!window.driverMarkers?.[driverId]) {
+      if (st.anim) cancelAnimationFrame(st.anim);
+      st.anim = null; st.shown = null; st.heading = null; st.lastAt = 0;
+    }
+    let routeHeading = null;
+    // Misma regla de pegado a la ruta para todas las fuentes (≤25 m de la línea).
+    // No pegar cuando el conductor marcó llegada (el cliente debe verlo donde está).
+    try {
+      const t = window.currentActiveTripData || window.activeTrip;
+      const arrived = !!t?.driverArrived && t?.status === 'accepted';
+      const path = window.currentRouteFullPath || window.currentPassengerTrackRoute?.path || [];
+      if (!arrived && path.length >= 2) {
+        const d = window.getDistanceToRouteMeters?.(path, target);
+        if (Number.isFinite(d) && d <= 25) {
+          const sp = window.snapPositionToRoute?.(path, target);
+          if (sp?.lat != null && sp?.lng != null) {
+            target = { lat: Number(sp.lat), lng: Number(sp.lng) };
+            if (Number.isFinite(sp.heading)) routeHeading = ((sp.heading % 360) + 360) % 360;
+          }
+        }
+      }
+    } catch (_) {}
+    const now = Date.now();
+    const from = st.shown;
+    const dist = from ? selfDistM(from, target) : Infinity;
+    // Rumbo: preferir el de la ruta; sin rumbo (o 0 sospechoso) → conservar el último
+    const optH = Number(options.heading);
+    const hasH = Number.isFinite(optH) && !(optH === 0 && st.heading != null);
+    let heading = routeHeading != null ? routeHeading : (hasH ? optH : (st.heading ?? 0));
+    if (st.heading != null) {
+      const dH = angDiff(st.heading, heading);
+      if (dist < 6 && Math.abs(dH) > 100) heading = st.heading; // ruido estando casi quieto
+      else {
+        const maxStep = dist < 15 ? 30 : 60;
+        if (Math.abs(dH) > maxStep) heading = (st.heading + Math.sign(dH) * maxStep + 360) % 360;
+      }
+    }
+    // Jitter (<4 m): no mover, solo actualizar rumbo si cambió
+    if (from && dist < 4) {
+      if (st.heading == null || Math.abs(angDiff(st.heading, heading)) > 3) {
+        st.heading = heading;
+        raw(driverId, from.lat, from.lng, false, { ...options, heading, forceReposition: false });
+      }
+      return;
+    }
+    st.heading = heading;
+    if (st.anim) cancelAnimationFrame(st.anim);
+    st.anim = null;
+    // Primer punto, salto grande (>300 m) o pestaña oculta: colocar directo
+    if (!from || dist > 300 || document.hidden) {
+      st.shown = target;
+      st.lastAt = now;
+      raw(driverId, target.lat, target.lng, false, { ...options, heading });
+      return;
+    }
+    const dur = Math.min(1500, Math.max(400, now - (st.lastAt || now)));
+    st.lastAt = now;
+    const t0 = performance.now();
+    const step = (ts) => {
+      const k = Math.min(1, (ts - t0) / dur);
+      const e = k * (2 - k);
+      const p = { lat: from.lat + (target.lat - from.lat) * e, lng: from.lng + (target.lng - from.lng) * e };
+      st.shown = p;
+      raw(driverId, p.lat, p.lng, false, { ...options, heading, forceReposition: true });
+      st.anim = k < 1 ? requestAnimationFrame(step) : null;
+    };
+    st.anim = requestAnimationFrame(step);
+  };
+
   window.updateDriverMarker = (driverId, lat, lng, isSelf = false, options = {}) => {
+    if (!isSelf && options.variant === 'assigned' && !options._smoothed && !options.noSmooth
+        && window.mapLoaded && window.gMap && typeof requestAnimationFrame === 'function') {
+      window.smoothAssignedDriverMarker(driverId, lat, lng, options, (id, la, ln, self, o) => {
+        window._updateDriverMarkerRaw(id, la, ln, self, { ...o, _smoothed: true });
+      });
+      return;
+    }
     if (isSelf && !options._smoothed && window.mapLoaded && window.gMap && typeof requestAnimationFrame === 'function') {
       // currentDriverPos debe quedar con la posición real, no la interpolada
       const keepPos = window.currentDriverPos;
