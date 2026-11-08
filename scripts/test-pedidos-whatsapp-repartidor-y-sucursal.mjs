@@ -138,13 +138,15 @@ ok('t195u: cuando el repartidor recoge (in_progress) o entrega (completed), el p
 ok('t192u/t194u: ficha del repartidor muestra los botones de 3 pasos (Llegué, Ya recogí, Pedido entregado y Cancelar)', () => {
     const tStep1 = { id: 't1', status: 'accepted', driverArrived: false, storeDelivery: true, storeName: 'LA SOPOTA' };
     const html1 = storeAcceptedPanelHtml(tStep1, 'L 50.00', { isDriver: true });
+    // Etapas en orden (un botón por etapa): «Ya recogí» aparece solo después de «Llegué al negocio»
     assert.ok(html1.includes('🏪 Llegué al negocio'));
-    assert.ok(html1.includes('📦 Ya recogí el pedido · Ir al cliente'));
-    assert.ok(html1.includes('✕ Cancelar envío'));
+    assert.ok(!html1.includes('Ya recogí el pedido'));
+    assert.ok(html1.includes('Cancelar envío'));
 
     const tStep2 = { id: 't1', status: 'accepted', driverArrived: true, storeDelivery: true, storeName: 'LA SOPOTA' };
     const html2 = storeAcceptedPanelHtml(tStep2, 'L 50.00', { isDriver: true });
-    assert.ok(html2.includes('📦 Pedido recogido · Iniciar ruta al cliente'));
+    assert.ok(html2.includes('📦 Ya recogí el pedido · Ir al cliente'));
+    assert.ok(!html2.includes('Llegué al negocio'));
 
     const tStep3 = { id: 't1', status: 'in_progress', driverArrived: true, storeDelivery: true, storeName: 'LA SOPOTA' };
     const html3 = storeAcceptedPanelHtml(tStep3, 'L 50.00', { isDriver: true });
