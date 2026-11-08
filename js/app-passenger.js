@@ -406,10 +406,80 @@ window.resetRouteStopsPrompt = () => {
     window._routeStopsPromptDone = false;
 };
 
+/**
+ * Tarjeta propia para agregar parada (como «¿Parada en el camino?»), arriba de la pantalla.
+ * Mientras #standard-stops-adder está abierto se muestra dentro de esta tarjeta (se mueve el mismo
+ * buscador, que ya sabe guardar la parada); al agregar/cancelar vuelve a su lugar en el panel.
+ * Así no compite con el panel ni con la tarjeta de tipo de vehículo, y en iPhone el teclado no lo tapa.
+ */
+function ensureExtraStopSheet() {
+    const adder = document.getElementById('standard-stops-adder');
+    if (!adder || adder._hrSheetObs) return;
+    const home = { parent: adder.parentNode, next: adder.nextSibling };
+
+    const cancelAdder = () => {
+        const btn = document.getElementById('btn-extra-stop-cancel') || document.getElementById('btn-extra-stop-cancel-inline');
+        if (btn) btn.click();
+        else adder.classList.add('hidden');
+    };
+
+    const openSheet = () => {
+        let ov = document.getElementById('extra-stop-sheet');
+        if (!ov) {
+            const hint = document.getElementById('extra-stop-cost-hint')?.textContent?.trim()
+                || 'Se suma al precio del viaje.';
+            ov = document.createElement('div');
+            ov.id = 'extra-stop-sheet';
+            ov.className = 'extra-stop-sheet-overlay';
+            ov.setAttribute('role', 'dialog');
+            ov.setAttribute('aria-modal', 'true');
+            ov.setAttribute('aria-labelledby', 'extra-stop-sheet-title');
+            ov.innerHTML = `
+                <div class="extra-stop-prompt-backdrop" data-extra-stop-sheet-dismiss aria-hidden="true"></div>
+                <div class="extra-stop-sheet-card">
+                    <div class="extra-stop-sheet-head">
+                        <span class="extra-stop-sheet-icon" aria-hidden="true"><i class="fas fa-map-signs"></i></span>
+                        <div class="extra-stop-sheet-head-text">
+                            <h2 id="extra-stop-sheet-title" class="extra-stop-sheet-title">Agregar parada</h2>
+                            <p class="extra-stop-sheet-sub">${escapeExtraStopPromptText(hint)}</p>
+                        </div>
+                        <button type="button" class="extra-stop-sheet-close" data-extra-stop-sheet-dismiss aria-label="Cerrar">×</button>
+                    </div>
+                    <p class="extra-stop-sheet-help">Escribe la dirección y elige una sugerencia, o toca el botón azul para marcarla en el mapa.</p>
+                    <div class="extra-stop-sheet-slot"></div>
+                </div>`;
+            ov.querySelectorAll('[data-extra-stop-sheet-dismiss]').forEach((el) => {
+                el.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); cancelAdder(); });
+            });
+            document.body.appendChild(ov);
+        }
+        const slot = ov.querySelector('.extra-stop-sheet-slot');
+        if (adder.parentNode !== slot) slot.appendChild(adder);
+        document.body.classList.add('extra-stop-sheet-open');
+    };
+
+    const closeSheet = () => {
+        if (home.parent && adder.parentNode !== home.parent) {
+            const ref = home.next && home.next.parentNode === home.parent ? home.next : null;
+            home.parent.insertBefore(adder, ref);
+        }
+        document.getElementById('extra-stop-sheet')?.remove();
+        document.body.classList.remove('extra-stop-sheet-open');
+    };
+
+    const sync = () => (adder.classList.contains('hidden') ? closeSheet() : openSheet());
+    adder._hrSheetObs = new MutationObserver(sync);
+    adder._hrSheetObs.observe(adder, { attributes: true, attributeFilter: ['class'] });
+    sync();
+}
+window.ensureExtraStopSheet = ensureExtraStopSheet;
+[0, 800, 2500].forEach((ms) => setTimeout(() => { try { ensureExtraStopSheet(); } catch (_) {} }, ms));
+
 window.openStandardStopsAdder = () => {
     const panel = document.getElementById('standard-stops-adder');
     const toggleBtn = document.getElementById('add-extra-stop-btn');
     if (!panel || toggleBtn?.classList.contains('hidden')) return;
+    try { ensureExtraStopSheet(); } catch (_) {}
 
     // Si el panel quedó minimizado (p. ej. tras elegir destino para ver la ruta) o la tarjeta de ruta
     // oculta, el buscador de la parada se «abría» por dentro pero no se veía nada.
@@ -428,6 +498,7 @@ window.openStandardStopsAdder = () => {
     // Desplazar el panel (#panel-content es el que hace scroll) hasta dejar el buscador de la
     // parada ARRIBA y visible: quedaba debajo de origen/destino y había que deslizar para verlo.
     const scrollAdderToTop = (smooth = true) => {
+        if (panel.closest('#extra-stop-sheet')) return; // va en su propia tarjeta
         const scroller = panel.closest('#panel-content, .trip-panel-scroll')
             || document.getElementById('panel-content');
         if (scroller && scroller.scrollHeight > scroller.clientHeight + 2) {
