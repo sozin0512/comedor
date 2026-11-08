@@ -2,8 +2,8 @@
  * Pruebas de firestore.rules para Tiendas (+18 en el servidor). Solo emulador, nunca producción.
  * Requiere Java + (fuera del repo): npm i firebase-tools @firebase/rules-unit-testing@5 firebase@12
  *   npx firebase emulators:exec --only firestore --project demo-hr "node scripts/test-rules-tiendas-18.mjs"
- * La prueba "sup (por role) puede quitar +18" FALLA hoy por un error previo en getRole()
- * (usa userDoc.exists, que no existe en reglas): los supervisores por role no pasan isStaff().
+ * Staff (supervisor) = rol dado por el servidor (artifacts/{app}/roles/{uid} o claim), no el perfil.
+ * Sin sesión: se ven las tiendas normales (invitados ven el catálogo), nunca las +18.
  */
 import fs from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
@@ -27,6 +27,9 @@ await env.withSecurityRulesDisabled(async (c) => {
   await setDoc(doc(db, `${P}/users/privonly`), { role: 'client' });
   await setDoc(doc(db, `artifacts/${APP}/users/privonly/profile/data`), { birthDate: ymd(40) });
   await setDoc(doc(db, `${P}/users/sup`), { role: 'supervisor' });
+  await setDoc(doc(db, `artifacts/${APP}/roles/sup`), { role: 'supervisor', source: 'test' });
+  // Solo el perfil dice supervisor (sin rol del servidor): NO es staff
+  await setDoc(doc(db, `${P}/users/fakesup`), { role: 'supervisor' });
   await setDoc(doc(db, `${P}/stores/normal`), { name: 'Pasion', ownerId: 'o1', active: true, adultsOnly: false, approvalStatus: 'approved' });
   await setDoc(doc(db, `${P}/stores/adult18`), { name: 'Ferias', ownerId: 'minorOwner', active: true, adultsOnly: true, requiresAge18: true, approvalStatus: 'approved' });
 });
@@ -50,7 +53,8 @@ await t('minor: consulta vieja (sin filtro adultsOnly) DENEGADA', assertFails(ol
 await t('adult: consulta vieja sigue funcionando', assertSucceeds(oldQ(db('adult'))));
 await t('minor: enlace directo a tienda +18 DENEGADO', assertFails(getDoc(doc(db('minor'), `${P}/stores/adult18`))));
 await t('minor: enlace directo a tienda normal OK', assertSucceeds(getDoc(doc(db('minor'), `${P}/stores/normal`))));
-await t('no logueado: DENEGADO', assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), `${P}/stores/normal`))));
+await t('no logueado: tienda normal OK (invitados ven el catálogo)', assertSucceeds(getDoc(doc(env.unauthenticatedContext().firestore(), `${P}/stores/normal`))));
+await t('no logueado: tienda +18 DENEGADA', assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), `${P}/stores/adult18`))));
 await t('dueño menor lee su propia tienda +18', assertSucceeds(getDoc(doc(db('minorOwner'), `${P}/stores/adult18`))));
 await t('dueño: consulta por ownerId', assertSucceeds(getDocs(query(collection(db('minorOwner'), `${P}/stores`), where('ownerId', '==', 'minorOwner'), limit(1)))));
 await t('sup: lista staff sin filtros', assertSucceeds(getDocs(query(collection(db('sup'), `${P}/stores`), limit(300)))));
@@ -60,8 +64,8 @@ await t('admin (email) puede quitar +18', assertSucceeds(updateDoc(doc(env.authe
 await t('ghost (sin documentos de perfil): consulta +18 DENEGADA', assertFails(adultQ(db('ghost'))));
 await t('ghost: consulta general OK', assertSucceeds(general(db('ghost'))));
 await t('minor: catch-all de otra coleccion publica sigue OK', assertSucceeds(getDoc(doc(db('minor'), `${P}/appSettings/x`))));
-// Conocido: falla por getRole() (ver encabezado)
-await t('sup (por role) puede quitar +18 [verifica isStaff por role]', assertSucceeds(updateDoc(doc(db('sup'), `${P}/stores/adult18`), { adultsOnly: false })));
+await t('sup (rol del servidor) puede quitar +18', assertSucceeds(updateDoc(doc(db('sup'), `${P}/stores/adult18`), { adultsOnly: false })));
+await t('perfil que solo dice «supervisor» NO puede quitar +18', assertFails(updateDoc(doc(db('fakesup'), `${P}/stores/adult18`), { adultsOnly: true })));
 await t('dueño guarda números autorizados de WhatsApp', assertSucceeds(updateDoc(doc(db('o1'), `${P}/stores/normal`), { waAuthorizedPhones: ['50487776666'] })));
 await t('otro usuario NO puede autorizarse en tienda ajena', assertFails(updateDoc(doc(db('adult'), `${P}/stores/normal`), { waAuthorizedPhones: ['50411111111'] })));
 await t('dueño: máximo 10 números autorizados', assertFails(updateDoc(doc(db('o1'), `${P}/stores/normal`), { waAuthorizedPhones: Array.from({ length: 11 }, (_, i) => `5049000000${i}`) })));

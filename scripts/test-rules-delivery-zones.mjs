@@ -34,7 +34,8 @@ const t = async (name, p, want) => { try { await (want ? assertSucceeds(p) : ass
 const order = (extra = {}) => ({ storeId: 'st', ownerId: 'own', clientId: 'cli', status: 'pending', items: [], deliveryFee: null, ...extra });
 
 await t('cliente lee zonas', getDoc(doc(ctx.cli(), `${P}/delivery_zones/z1`)), true);
-await t('sin sesión NO lee zonas', getDoc(doc(ctx.anon(), `${P}/delivery_zones/z1`)), false);
+// Zonas públicas: los invitados (sin cuenta) cotizan el envío
+await t('sin sesión lee zonas (invitados cotizan)', getDoc(doc(ctx.anon(), `${P}/delivery_zones/z1`)), true);
 await t('cliente NO escribe zona', setDoc(doc(ctx.cli(), `${P}/delivery_zones/z2`), { name: 'x' }), false);
 await t('supervisor NO escribe zona directo (solo callable)', updateDoc(doc(ctx.sup(), `${P}/delivery_zones/z1`), { baseFee: 1 }), false);
 await t('supervisor NO borra zona', deleteDoc(doc(ctx.sup(), `${P}/delivery_zones/z1`)), false);

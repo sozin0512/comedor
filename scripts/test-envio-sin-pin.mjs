@@ -105,7 +105,8 @@ check('getDeliveryStageMeta Paso 1 (accepted, !driverArrived): ir al negocio a r
     assert.equal(m.stepNum, 1);
     assert.match(m.headerTitle, /En camino a Comedor y Baleadas Doña Ana a recoger el pedido/);
     assert.match(m.primaryBtnLabel, /LLEGUÉ AL NEGOCIO/i);
-    assert.match(m.secondaryBtnLabel, /YA RECOGÍ EL PEDIDO · IR AL CLIENTE/i);
+    // Etapas en orden: «Ya recogí» sale en el paso 1B (después de «Llegué al negocio»)
+    assert.equal(m.secondaryBtnLabel, null);
     assert.ok(!/PIN/i.test(m.primaryBtnLabel));
     return m.headerTitle;
 });
@@ -115,7 +116,7 @@ check('getDeliveryStageMeta Paso 1B (accepted, driverArrived): en el negocio rec
     assert.equal(m.stage, 'at_store');
     assert.equal(m.stepNum, 1);
     assert.match(m.headerTitle, /En Comedor y Baleadas Doña Ana · Recogiendo pedido/);
-    assert.match(m.primaryBtnLabel, /PEDIDO RECOGIDO · INICIAR RUTA AL CLIENTE/i);
+    assert.match(m.primaryBtnLabel, /YA RECOGÍ EL PEDIDO · IR AL CLIENTE/i);
     assert.ok(!m.secondaryBtnLabel);
     return m.primaryBtnLabel;
 });
