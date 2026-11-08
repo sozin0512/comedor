@@ -39,6 +39,13 @@ let installTutorialOpen = false;
 /** Evita re-mostrar el badge en cada snapshot de perfil dentro de la misma sesión de login */
 let badgeSessionUid = null;
 
+/**
+ * Avisos de «Nueva versión disponible» para instalar el APK fuera de Google Play (cartel grande,
+ * franja naranja «ACTUALIZAR» y pastilla «Actualiza la app»). Apagados: la app ya se actualiza por
+ * Google Play y la página web se actualiza sola. Para volver a encenderlos: true.
+ */
+const APK_UPDATE_PROMPTS_ENABLED = false;
+
 function settingsDocRef() {
     return doc(dbRef, 'artifacts', appIdRef, 'public', 'data', 'appSettings', SETTINGS_DOC);
 }
@@ -195,6 +202,7 @@ function markApkDownloadedOrInstalled(buildId = cachedApkMeta?.buildId) {
 
 /** En web: hay APK nuevo respecto al que ya descargó/instaló (misma regla: buildId de cada subida). */
 function hasWebApkUpdateAvailable() {
+    if (!APK_UPDATE_PROMPTS_ENABLED) return false;
     if (!cachedApkMeta?.url || !cachedApkMeta.buildId) return false;
     const installed = getWebInstalledBuildId();
     if (installed == null) return false; // nunca instaló → badge de "descarga", no "update"
@@ -290,6 +298,7 @@ export async function refreshNativeAppInfo() {
  * No hace falta que el número de versión sea "mayor".
  */
 export function hasApkUpdateAvailable() {
+    if (!APK_UPDATE_PROMPTS_ENABLED) return false;
     if (!isInstalledAndroidApp()) return false;
     if (!cachedApkMeta?.url) return false;
 
@@ -1278,6 +1287,7 @@ function showInstallTutorial({ mode = 'install' } = {}) {
 
 /* —— Modal: nueva versión (usuarios con app instalada) —— */
 function showApkUpdateModal({ force = false } = {}) {
+    if (!APK_UPDATE_PROMPTS_ENABLED) return;
     if (!hasApkUpdateAvailable() && !force) return;
     if (!cachedApkMeta?.url) return;
     if (!force && isUpdateSnoozed()) return;
