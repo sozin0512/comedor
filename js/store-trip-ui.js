@@ -557,7 +557,9 @@ export function syncDriverSheetSafeArea() {
     const three = safe < 24 && sys >= 36 && sys <= 180;
     body.classList.toggle("android-3btn", three);
     body.classList.toggle("android-gesture", !three);
-    if (three) root.style.setProperty("--android-nav-inset", `${Math.min(64, Math.max(48, Math.round(sys)))}px`);
+    // v.94 · La barra de 3 botones de Android mide 48 dp. Antes se usaba (pantalla − ventana), que también
+    // suma la barra de estado → hasta 64 px de franja blanca de más debajo del panel del conductor.
+    if (three) root.style.setProperty("--android-nav-inset", "48px");
     else root.style.removeProperty("--android-nav-inset");
 }
 
