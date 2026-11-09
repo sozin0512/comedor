@@ -3878,8 +3878,18 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
     const dur = Math.min(900, Math.max(250, now - (SELF_SMOOTH.lastAt || now)));
     SELF_SMOOTH.lastAt = now;
     const t0 = performance.now();
+    // v.97 · Gama baja / APK: el carrito se mueve a ~8 cuadros por segundo (antes 60). Cada cuadro
+    // obliga al mapa a redibujarse; a 60 por segundo el teléfono no daba abasto manejando.
+    const lowP = !!(window.hrUseLiteMaps?.() || window.shouldUseLowPowerMode?.());
+    const frameGap = lowP ? 120 : 0;
+    let lastPaint = 0;
     const step = (ts) => {
       const k = Math.min(1, (ts - t0) / dur);
+      if (k < 1 && frameGap && ts - lastPaint < frameGap) {
+        SELF_SMOOTH.anim = requestAnimationFrame(step);
+        return;
+      }
+      lastPaint = ts;
       const e = k * (2 - k);
       const p = { lat: from.lat + (target.lat - from.lat) * e, lng: from.lng + (target.lng - from.lng) * e };
       SELF_SMOOTH.shown = p;
@@ -8097,7 +8107,10 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 }
                 window._deviceCompassAt = Date.now();
                 // Free-look: NO girar el mapa aquí (el loop de cámara ya respeta autoCenter).
-                // Sí rotar el carrito top-down con la brújula (como Google).
+                // Sí rotar el carrito top-down con la brújula (como Google), máx. 5 veces por segundo.
+                const nowC = Date.now();
+                if (nowC - (window._hrCompassCarAt || 0) < 200) return;
+                window._hrCompassCarAt = nowC;
                 window.syncSelfDriverMarkerHeading?.(window._deviceCompassHeading);
             };
 
@@ -8137,7 +8150,12 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const meta = window._driverMarkerMeta?.[uid];
             const rot = window.getDriverMarkerScreenRotation?.(h) ?? h;
             if (meta?.contentEl) {
-                meta.contentEl.style.transform = `rotate(${rot}deg)`;
+                // v.97 · No tocar el DOM si el giro es < 2° (la brújula manda ~60 lecturas por segundo)
+                const prevRot = meta._hrRot;
+                if (prevRot == null || Math.abs(((rot - prevRot + 540) % 360) - 180) >= 2) {
+                    meta.contentEl.style.transform = `rotate(${rot}deg)`;
+                    meta._hrRot = rot;
+                }
                 meta.lastHeading = h;
                 return;
             }
@@ -8175,7 +8193,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                     ?? (Number.isFinite(Number(window.currentDriverHeading)) ? window.currentDriverHeading : null)
                     ?? compass;
                 if (hHint != null && Number.isFinite(Number(hHint))) {
-                    if (ts - (window._lastSelfCarRotTs || 0) > 50) {
+                    if (ts - (window._lastSelfCarRotTs || 0) > (window.hrUseLiteMaps?.() ? 200 : 50)) {
                         window._lastSelfCarRotTs = ts;
                         window.syncSelfDriverMarkerHeading?.(hHint);
                     }
