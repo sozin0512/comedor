@@ -23,6 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Minifica JS/CSS al publicar (scripts/build-hosting.js corre como predeploy).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instalar esbuild (solo para minificar)
+        run: |
+          npm install --prefix "$RUNNER_TEMP/esb" esbuild@0.24.0
+          echo "ESBUILD_PATH=$RUNNER_TEMP/esb/node_modules/esbuild" >> "$GITHUB_ENV"
+
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

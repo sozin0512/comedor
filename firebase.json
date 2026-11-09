@@ -1,6 +1,7 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "dist-hosting",
+    "predeploy": ["node scripts/build-hosting.js"],
     "trailingSlash": false,
     "ignore": [
       "firebase.json",
