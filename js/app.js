@@ -36270,7 +36270,7 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
             let box = document.getElementById('driver-active-veh-badge');
             const show = !!data && window.userProfile?.role === 'driver'
                 && ['accepted', 'in_progress', 'arrived', 'started'].includes(String(data.status || ''));
-            if (!show) { box?.remove(); return; }
+            if (!show) { box?.remove(); document.getElementById('driver-pax-contact')?.remove(); return; }
             if (!box) {
                 box = document.createElement('div');
                 box.id = 'driver-active-veh-badge';
@@ -36278,12 +36278,57 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 if (minBtn && minBtn.parentElement === panel) minBtn.after(box); else panel.prepend(box);
             }
             box.innerHTML = tripVehicleBadgeHtml(data, { size: 'md' });
+            try { window.syncDriverPaxContact?.(data, box); } catch (_) {}
             const mini = document.getElementById('trip-mini-bar');
             const lbl = mini?.querySelector('.driver-active-eta-label');
             if (lbl) {
                 const info = getTripVehicleBadgeInfo(data);
                 lbl.textContent = `En viaje · ${info.emoji} ${info.label}`;
                 lbl.style.color = info.color;
+            }
+        };
+
+        /** v.87 · Conductor: franja fija con foto, nombre y número del pasajero (llamar / WhatsApp). */
+        window.syncDriverPaxContact = (data, afterEl) => {
+            const panel = document.getElementById('active-trip-panel');
+            if (!panel || !data) return;
+            let strip = document.getElementById('driver-pax-contact');
+            if (!strip) {
+                strip = document.createElement('div');
+                strip.id = 'driver-pax-contact';
+                strip.className = 'drv-pax';
+                strip.setAttribute('data-no-drag', '');
+                if (afterEl && afterEl.parentElement === panel) afterEl.after(strip); else panel.prepend(strip);
+            }
+            const esc = (t) => String(t || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+            const paint = (phoneRaw, photoUrl) => {
+                const digits = String(phoneRaw || '').replace(/\D/g, '');
+                const local = digits.startsWith('504') && digits.length === 11 ? digits.slice(3) : digits;
+                const shown = local.length === 8 ? `${local.slice(0, 4)}-${local.slice(4)}` : (phoneRaw || '');
+                const full = digits ? (digits.length === 8 ? `504${digits}` : digits) : '';
+                const photo = photoUrl || data.clientPhoto || '/icons/placeholder-avatar.svg';
+                strip.innerHTML = `
+                    <img class="drv-pax-photo" src="${esc(photo)}" alt="" onerror="this.src='/icons/placeholder-avatar.svg'">
+                    <div class="drv-pax-txt">
+                        <span class="drv-pax-kicker">Tu pasajero</span>
+                        <b class="drv-pax-name">${esc(data.clientName || 'Pasajero')}</b>
+                        <span class="drv-pax-phone">${shown ? esc(shown) : 'Sin número'}</span>
+                    </div>
+                    ${full ? `<a class="drv-pax-btn drv-pax-call" href="tel:+${full}" data-no-drag aria-label="Llamar al pasajero"><i class="fas fa-phone"></i></a>
+                    <a class="drv-pax-btn drv-pax-wa" href="${esc(getWhatsAppLink(full))}" target="_blank" rel="noopener" data-no-drag aria-label="WhatsApp al pasajero"><i class="fab fa-whatsapp"></i></a>` : ''}`;
+            };
+            const phone = data.clientPhone || data.pendingClientPhone || '';
+            paint(phone, data.clientPhoto);
+            // Si el viaje no trae número o foto, buscarlos en el perfil del pasajero (una vez por viaje)
+            if ((!phone || !data.clientPhoto) && data.clientId && !String(data.clientId).startsWith('guest_')
+                && strip.dataset.lookup !== data.id) {
+                strip.dataset.lookup = data.id;
+                getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', data.clientId)).then((snap) => {
+                    if (!snap.exists()) return;
+                    const pr = snap.data() || {};
+                    if (document.getElementById('driver-pax-contact') !== strip) return;
+                    paint(phone || pr.phone || '', data.clientPhoto || pr.photo || '');
+                }).catch(() => {});
             }
         };
 
