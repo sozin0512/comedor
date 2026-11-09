@@ -42281,6 +42281,14 @@ window.cancelSetupAndLogout = () => {
                     return;
                 }
                 const tripRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'trips'), tripPayload);
+                try {
+                    window.hrRememberRecentPlace?.({
+                        address: tripPayload.destinationFormattedAddress || tripPayload.destination || '',
+                        name: tripPayload.destinationPlaceName || '',
+                        lat: tripPayload.destinationLat, lng: tripPayload.destinationLng,
+                        svc: serviceType
+                    });
+                } catch (_) {}
 
                 const newTrip = {
                     id: tripRef.id,
@@ -43259,6 +43267,7 @@ window.cancelSetupAndLogout = () => {
                 }
 
                 let html = '';
+                window._hrHistTrips = [];
                 for (const t of trips) {
                     const date = t.completedAt?.toDate ? t.completedAt.toDate().toLocaleDateString('es-HN') : '';
                     const chatCount = (t.chat || []).length;
@@ -43281,6 +43290,9 @@ window.cancelSetupAndLogout = () => {
                             <div class="mt-2 text-xs">
                                 <b>Conductor:</b> ${t.driverName || '—'} &nbsp; <b>Pasajero:</b> ${t.clientName || '—'}
                             </div>
+                            ${(isMineAsClient && t.destination && ['moto', 'auto', 'taxi'].includes(t.serviceType)) ? `
+                                <button type="button" class="hr-repeat-trip" onclick="window.hrRepeatTrip && window.hrRepeatTrip(${window._hrHistTrips.push({ address: t.destinationFormattedAddress || t.destination, name: t.destinationPlaceName || '', lat: t.destinationLat ?? null, lng: t.destinationLng ?? null, svc: t.serviceType }) - 1}, this)"><i class="fas fa-redo"></i> Repetir viaje a este destino</button>
+                            ` : ''}
 
                             ${chatCount > 0 ? `
                                 <details class="mt-2">
