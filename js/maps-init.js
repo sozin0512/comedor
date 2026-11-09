@@ -584,7 +584,20 @@
         }
     `;
 
-    const overlayCssText = () => overlayThemeCss + (usePlacesFullWindowOverlay() ? overlayFullWindowCss : overlayDropdownCss);
+    /* v.81 · Lista de sugerencias vacía: invisible (antes quedaba una raya gris cruzando los campos). */
+    const overlayEmptyListCss = `
+        .widget-container .dropdown.dropdown[part="prediction-list"]:not(:has(li, [role="option"])),
+        .widget-container .dropdown.dropdown:not(:has(li, [role="option"])) [role="listbox"][role="listbox"],
+        .widget-container [part="prediction-list"][part="prediction-list"]:not(:has(li, [role="option"])),
+        .widget-container [role="listbox"][role="listbox"]:not(:has(li, [role="option"])) {
+            /* El JS pone borde/sombra en línea con !important; clip-path no lo toca y la oculta del todo. */
+            clip-path: inset(0 0 100% 0) !important;
+            border-width: 0 !important;
+            box-shadow: none !important;
+        }
+    `;
+
+    const overlayCssText = () => overlayThemeCss + (usePlacesFullWindowOverlay() ? overlayFullWindowCss : overlayDropdownCss) + overlayEmptyListCss;
 
     const placesThemeIsDark = () => {
         try {
