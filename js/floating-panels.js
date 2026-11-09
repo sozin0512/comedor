@@ -1045,6 +1045,10 @@ function applyTripFloatMinState(floatEl, key, minimized) {
         fullView.classList.toggle('hidden', !!minimized);
         fullView.style.display = minimized ? 'none' : '';
     }
+    // v.86b · Al abrir la hoja del pasajero, empezar desde arriba (estado + PIN)
+    if (!minimized && key === 'client-trip') {
+        try { floatEl.scrollTop = 0; floatEl.querySelector('.client-trip-float-body').scrollTop = 0; } catch (_) {}
+    }
     // Si está minimizado, no dejar que el hero del PIN force foco/teclado
     if (minimized && key === 'driver-pin') {
         try { document.getElementById('driver-pin-input')?.blur?.(); } catch (_) {}

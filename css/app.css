@@ -27665,3 +27665,26 @@ body.passenger-trip-float-active.hr-trip-one-card:not(.driver-mode) #control-pan
 #client-trip-float .client-trip-merged-actions #passenger-alert-settings label { color: #0a1f44 !important; }
 #client-trip-float .client-trip-merged-actions #passenger-alert-settings p:last-child { color: #5b6b85 !important; }
 #client-trip-float .client-trip-merged-actions #client-driver-busy-notice { margin: 0 !important; }
+
+/* v.86b · Pasajero en viaje: la tarjeta abierta es el PANEL DE ABAJO (hoja), no una tarjeta flotante.
+   Flotan solo la píldora (conductor · PIN) y el botón de Chat. Tocar la píldora abre esta hoja. */
+body.hr-trip-one-card #client-trip-float.hr-raite:not(.trip-float--min):not(.hidden) {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: min(86dvh, 52rem) !important;
+    margin: 0 !important;
+    transform: none !important;
+    border-radius: 22px 22px 0 0 !important;
+    padding-bottom: max(0.4rem, env(safe-area-inset-bottom, 0px)) !important;
+    box-shadow: 0 -12px 34px rgba(10, 31, 68, 0.22) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+}
+body.hr-trip-one-card #client-trip-float.hr-raite:not(.trip-float--min) .trip-float-full-view { max-height: none !important; }
+body.hr-trip-one-card #client-trip-float.hr-raite:not(.trip-float--min) .trip-float-head { border-radius: 22px 22px 0 0 !important; cursor: default; }
+body.hr-trip-one-card #client-trip-float.hr-raite:not(.trip-float--min) .trip-float-grip { display: none !important; }
