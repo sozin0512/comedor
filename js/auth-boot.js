@@ -11,9 +11,16 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     setPersistence,
-    browserLocalPersistence
+    browserLocalPersistence,
+    GoogleAuthProvider,
+    OAuthProvider,
+    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult,
+    signInWithCredential,
+    browserPopupRedirectResolver
 } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
-import { APP_CONFIG } from './config.js?v=2026.10.26.84';
+import { APP_CONFIG } from './config.js?v=2026.10.26.85';
 import {
     saveUserLogin,
     loadDriverLogin,
@@ -22,9 +29,9 @@ import {
     shouldSkipDriverAutoLogin,
     clearSkipDriverAutoLogin,
     shouldKeepSession
-} from './driver-session.js?v=2026.10.26.84';
-import { applyAuthRoleUi } from './auth-ui.js?v=2026.10.26.84';
-import { initInstallHomeUi } from './pwa-install.js?v=2026.10.26.84';
+} from './driver-session.js?v=2026.10.26.85';
+import { applyAuthRoleUi } from './auth-ui.js?v=2026.10.26.85';
+import { initInstallHomeUi } from './pwa-install.js?v=2026.10.26.85';
 window.APP_CONFIG = APP_CONFIG;
 
 function getPersistentAuth(app) {
@@ -404,6 +411,116 @@ try {
 
 window.__hrRunAuth = runAuth;
 window.executeAuth = runAuth;
+
+// ───────── v.85 · Entrar con Google / Apple ─────────
+// Web y PWA: ventana de Google (o redirección si el navegador la bloquea).
+// App de Play Store: Google NO deja iniciar sesión dentro de un WebView; solo funciona cuando la APK
+// trae el plugin nativo @capacitor-firebase/authentication. Sin él, el botón no se muestra en la APK.
+const nativeAuthPlugin = () => {
+    try { return window.Capacitor?.isNativePlatform?.() ? (window.Capacitor?.Plugins?.FirebaseAuthentication || null) : null; } catch (_) { return null; }
+};
+const isNativeShell = () => { try { return window.Capacitor?.isNativePlatform?.() === true; } catch (_) { return false; } };
+function socialProvider(kind) {
+    if (kind === 'apple') {
+        const p = new OAuthProvider('apple.com');
+        p.addScope('email');
+        p.addScope('name');
+        p.setCustomParameters({ locale: 'es' });
+        return p;
+    }
+    const p = new GoogleAuthProvider();
+    p.setCustomParameters({ prompt: 'select_account' });
+    return p;
+}
+function socialAuthErrorMessage(err) {
+    const code = err?.code || '';
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' || code === 'auth/user-cancelled') return '';
+    if (code === 'auth/account-exists-with-different-credential') {
+        return 'Ese correo ya tiene cuenta con contraseña. Entrá con tu correo y contraseña.';
+    }
+    if (code === 'auth/unauthorized-domain') return 'Este sitio todavía no está autorizado para entrar con Google.';
+    if (code === 'auth/operation-not-allowed') return 'Este método de inicio de sesión todavía no está activado.';
+    return authErrorMessage(err, 'login');
+}
+function afterSocialLogin() {
+    showEnteringShell('Sesión iniciada. Abriendo tu cuenta…');
+    try { window.ensureMapsLoaded?.(); } catch (_) {}
+    loadAppRuntime();
+}
+async function socialLogin(kind) {
+    const role = document.getElementById('role-driver')?.classList.contains('bg-white') ? 'driver' : 'client';
+    try { localStorage.setItem('lastUserRole', role); } catch (_) {}
+    const app = getApps()[0] || initializeApp(APP_CONFIG.firebase);
+    const auth = getPersistentAuth(app);
+    window._authEntering = true;
+    // Web: abrir la ventana de Google YA (sin await antes); si no, el navegador la bloquea por no venir del toque.
+    const popupPromise = (!isNativeShell()) ? signInWithPopup(auth, socialProvider(kind), browserPopupRedirectResolver) : null;
+    try {
+        const plugin = nativeAuthPlugin();
+        if (plugin) {
+            const res = kind === 'apple'
+                ? await plugin.signInWithApple({ skipNativeAuth: true })
+                : await plugin.signInWithGoogle({ skipNativeAuth: true });
+            const c = res?.credential || {};
+            const cred = kind === 'apple'
+                ? new OAuthProvider('apple.com').credential({ idToken: c.idToken, rawNonce: c.nonce })
+                : GoogleAuthProvider.credential(c.idToken, c.accessToken);
+            await signInWithCredential(auth, cred);
+            afterSocialLogin();
+            return;
+        }
+        if (isNativeShell()) {
+            window._authEntering = false;
+            toast('Para entrar con Google actualizá la app desde Play Store.');
+            return;
+        }
+        try {
+            await popupPromise;
+        } catch (err) {
+            if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/operation-not-supported-in-this-environment') {
+                try { sessionStorage.setItem('hr_social_redirect', kind); } catch (_) {}
+                await signInWithRedirect(auth, socialProvider(kind), browserPopupRedirectResolver);
+                return;
+            }
+            throw err;
+        }
+        afterSocialLogin();
+    } catch (err) {
+        window._authEntering = false;
+        revealLoginScreen();
+        const msg = socialAuthErrorMessage(err);
+        if (msg) toast(msg);
+    }
+}
+window.hrSocialLogin = socialLogin;
+function syncSocialButtons() {
+    const wrap = document.getElementById('auth-social');
+    if (!wrap) return;
+    const native = isNativeShell();
+    const plugin = !!nativeAuthPlugin();
+    const googleOk = !native || plugin;
+    const appleOk = APP_CONFIG.appleSignInEnabled === true && (!native || plugin);
+    wrap.querySelector('[data-social="google"]')?.toggleAttribute('hidden', !googleOk);
+    wrap.querySelector('[data-social="apple"]')?.toggleAttribute('hidden', !appleOk);
+    wrap.hidden = !(googleOk || appleOk);
+}
+// Volver de una redirección de Google/Apple (cuando el navegador bloqueó la ventana)
+(async () => {
+    try { syncSocialButtons(); } catch (_) {}
+    setTimeout(() => { try { syncSocialButtons(); } catch (_) {} }, 1500);
+    let pending = null;
+    try { pending = sessionStorage.getItem('hr_social_redirect'); } catch (_) {}
+    if (!pending) return;
+    try { sessionStorage.removeItem('hr_social_redirect'); } catch (_) {}
+    try {
+        const app = getApps()[0] || initializeApp(APP_CONFIG.firebase);
+        const res = await getRedirectResult(getPersistentAuth(app), browserPopupRedirectResolver);
+        if (res?.user) afterSocialLogin();
+    } catch (err) {
+        const msg = socialAuthErrorMessage(err);
+        if (msg) toast(msg);
+    }
+})();
 window.__hrAuthBootReady = true;
 
 if (window.__hrPendingAuth) {
