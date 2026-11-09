@@ -4366,6 +4366,79 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             }
         };
 
+        /**
+         * Estilo HonduRaite (v.77) en la tarjeta del pasajero: «Tu raite llega en X min», avance en la
+         * carretera (distancia del conductor a tu punto / destino) y PIN como boleto.
+         * Solo presentación: no cambia la lógica del estado del viaje.
+         */
+        window._hrRaiteProgStart = window._hrRaiteProgStart || {};
+        window.hrSyncRaitePinDigits = () => {
+            const box = document.getElementById('hr-raite-pin-digits');
+            const code = String(document.getElementById('client-pin-code')?.textContent || '').trim();
+            if (!box) return;
+            const digits = /^\d{3,6}$/.test(code) ? code.split('') : [];
+            const html = digits.map((d) => `<b>${d}</b>`).join('');
+            if (box.innerHTML !== html) box.innerHTML = html;
+            box.closest('.hr-raite-ticket')?.classList.toggle('hidden', !digits.length);
+        };
+        window.hrSyncRaiteHeader = (data, status, etaText) => {
+            if (!data) return;
+            const badgeEl = document.getElementById('client-trip-status-badge');
+            const subEl = document.getElementById('client-trip-status-sub');
+            const first = String(data.driverName || '').trim().split(/\s+/)[0] || 'Tu conductor';
+            const eta = String(etaText || '').trim();
+            const etaPhrase = eta ? (/min/i.test(eta) ? eta : `${eta} min`) : '';
+            const st = String(data.status || '');
+            const isDeliv = data.serviceType === 'delivery' || data.storeDelivery === true;
+            if (badgeEl && subEl && !isDeliv) {
+                if (st === 'accepted' && !data.driverArrived) {
+                    badgeEl.textContent = etaPhrase ? `Tu raite llega en ${etaPhrase}` : '¡Tu raite va en camino!';
+                    subEl.textContent = `${first} va en camino hacia vos`;
+                } else if (st === 'accepted' && data.driverArrived) {
+                    badgeEl.textContent = '¡Tu raite llegó!';
+                    subEl.textContent = 'Dale tu PIN al conductor al subir';
+                } else if (st === 'in_progress') {
+                    badgeEl.textContent = etaPhrase ? `Llegás en ${etaPhrase}` : 'Vas en camino';
+                    subEl.textContent = 'Viaja seguro, llega lejos';
+                }
+            }
+            // Avance en la carretera
+            const prog = document.getElementById('hr-raite-prog');
+            const live = !!data.driverId && (st === 'accepted' || st === 'in_progress');
+            if (!prog) return;
+            prog.classList.toggle('hidden', !live);
+            if (!live) return;
+            const toDest = st === 'in_progress';
+            const target = toDest
+                ? (data.destinationLat != null ? { lat: Number(data.destinationLat), lng: Number(data.destinationLng) } : null)
+                : (window.getTripPickupCoords?.(data) || (data.originLat != null ? { lat: Number(data.originLat), lng: Number(data.originLng) } : null));
+            const pos = window.currentDriverTrackPos || window._lastDriverFirebasePos
+                || (data.driverLiveLat != null ? { lat: Number(data.driverLiveLat), lng: Number(data.driverLiveLng) } : null);
+            let frac = (st === 'accepted' && data.driverArrived) ? 1 : 0.05;
+            let leftTxt = toDest ? 'En viaje' : 'En camino';
+            if (target && pos && Number.isFinite(Number(pos.lat)) && !(st === 'accepted' && data.driverArrived)) {
+                const R = 6371000, r = Math.PI / 180;
+                const dLat = (target.lat - pos.lat) * r, dLng = (target.lng - pos.lng) * r;
+                const a = Math.sin(dLat / 2) ** 2 + Math.cos(pos.lat * r) * Math.cos(target.lat * r) * Math.sin(dLng / 2) ** 2;
+                const m = 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+                const key = `${data.id}:${toDest ? 'dest' : 'pickup'}`;
+                const start = Math.max(window._hrRaiteProgStart[key] || 0, m, 1);
+                window._hrRaiteProgStart[key] = start;
+                frac = Math.min(1, Math.max(0.05, 1 - m / start));
+                leftTxt = m < 1000 ? `A ${Math.round(m / 10) * 10} m` : `A ${(m / 1000).toFixed(1)} km`;
+            }
+            const done = document.getElementById('hr-raite-prog-done');
+            const car = document.getElementById('hr-raite-prog-car');
+            const pct = `${Math.round(frac * 100)}%`;
+            if (done) done.style.width = pct;
+            if (car) car.style.left = `calc(${pct} - 12px)`;
+            const l = document.getElementById('hr-raite-prog-left');
+            const rr = document.getElementById('hr-raite-prog-right');
+            if (l) l.textContent = leftTxt;
+            if (rr) rr.textContent = toDest ? 'Tu destino' : 'Tu punto';
+            window.hrSyncRaitePinDigits?.();
+        };
+
         const tpPassengerDriverStatus = (data) => {
             if (data.status === 'in_progress') {
                 return { badge: 'Viaje en curso', sub: '', tone: 'en-route', showEta: false };
@@ -4471,6 +4544,10 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 etaFull?.classList.add('hidden');
                 etaMin?.classList.add('hidden');
             }
+            try {
+                const okEta = status.showEta && etaText && etaText !== '-- min' && etaText !== '--';
+                window.hrSyncRaiteHeader?.(data, status, okEta ? etaText : '');
+            } catch (_) {}
 
             // WhatsApp del conductor: SOLO si va en camino al origen (accepted y aún no marcó llegada)
             const waBox = document.getElementById('client-trip-wa-contact');
@@ -7440,17 +7517,14 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             if (RouteCtor) {
                 const routeFields = ['path', 'distanceMeters', 'durationMillis', 'staticDurationMillis', 'legs'];
-                // Tráfico siempre (excepto estimate): km/ETA reales, no línea recta.
+                // v.78 ahorro: ruta SIN tráfico en tiempo real (nivel Essentials de Google, ~mitad de precio
+                // que Pro). TRAFFIC_AWARE era «Routes: Compute Routes Pro» (~72 % de la factura de octubre).
+                // Para volver a pedir tráfico: window.HR_ROUTES_TRAFFIC = true.
                 const routingAttempts = (mode === 'estimate')
                     ? []
-                    : [
-                        {
-                            routingPreference: 'TRAFFIC_AWARE',
-                            // Routes API exige hora futura; «ahora» ya es pasado al llegar (400 INVALID_ARGUMENT)
-                            departureTime: new Date(Date.now() + 60 * 1000)
-                        },
-                        { routingPreference: 'TRAFFIC_UNAWARE' }
-                    ];
+                    : (window.HR_ROUTES_TRAFFIC === true
+                        ? [{ routingPreference: 'TRAFFIC_AWARE', departureTime: new Date(Date.now() + 60 * 1000) }]
+                        : [{ routingPreference: 'TRAFFIC_UNAWARE' }]);
                 const requestVariants = (mode === 'nav' && navDriving)
                     ? [
                         { withNavVoice: true },
@@ -7481,12 +7555,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
                             const response = await RouteCtor.computeRoutes(routeRequest);
                             const built = await buildRouteResultFromApi(response?.routes?.[0]);
-                            if (built && isSparseStreetPath(built)) {
-                                if (!sparseKeep || (built.path?.length || 0) > (sparseKeep.path?.length || 0)) {
-                                    sparseKeep = built;
-                                }
-                                continue;
-                            }
+                            // v.78 ahorro: UN pedido por ruta. Antes, si venía con pocos puntos, se pedía otra
+                            // vez (hasta 4 pedidos cobrados por ruta en navegación). Se acepta la respuesta.
                             if (built) {
                                 window._routesApiWorked = true;
                                 return cacheRoute(built);

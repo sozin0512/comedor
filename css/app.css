@@ -27350,3 +27350,69 @@ html[data-theme="dark"] .extra-stop-sheet-card { background: #0f172a; }
 html[data-theme="dark"] .extra-stop-sheet-title { color: #f8fafc; }
 html[data-theme="dark"] .extra-stop-sheet-sub, html[data-theme="dark"] .extra-stop-sheet-help { color: #cbd5e1; }
 html[data-theme="dark"] .extra-stop-sheet-close { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+
+/* ===== v.77 · Tarjeta del pasajero estilo HonduRaite («Tu raite llega en…») ===== */
+#client-trip-float.hr-raite {
+    --hr-navy: #0a1f44; --hr-navy2: #123a7a; --hr-blue: #1e6bd6; --hr-glow: #3b8bff; --hr-cyan: #38bdf8;
+    --hr-ink: #0b1730; --hr-muted: #5b6b85; --hr-line: #dbe4f0; --hr-bg: #eef3fa;
+}
+#client-trip-float.hr-raite, #client-trip-float.hr-raite * { font-variant-emoji: text; }
+#client-trip-float.hr-raite .trip-float-full-view { background: var(--hr-bg) !important; border-radius: 22px !important; overflow: hidden; border: 1px solid #c9d8ef !important; }
+#client-trip-float.hr-raite .trip-float-head { background: var(--hr-navy) !important; color: #fff !important; border-bottom: 0 !important; }
+#client-trip-float.hr-raite .trip-float-head .trip-float-title { color: #fff !important; font-style: italic; }
+#client-trip-float.hr-raite .trip-float-head .trip-float-grip { color: #8fa6cc !important; }
+#client-trip-float.hr-raite .trip-float-head .trip-float-min-btn { background: rgba(255,255,255,.12) !important; color: #fff !important; border-color: rgba(255,255,255,.25) !important; }
+#client-trip-float.hr-raite .client-trip-float-body { background: var(--hr-bg) !important; padding-top: 0 !important; }
+/* Encabezado azul con la carretera del logo */
+#client-trip-float.hr-raite #client-trip-status {
+    position: relative; overflow: hidden; display: block !important;
+    margin: 0 -0.9rem 0.75rem !important; padding: 0.9rem 1rem 0.85rem !important; border-radius: 0 0 18px 18px !important;
+    background: radial-gradient(120% 120% at 90% 0%, #2a5fb8, var(--hr-navy2) 40%, var(--hr-navy)) !important; color: #fff !important; border: 0 !important;
+}
+#client-trip-float.hr-raite .hr-raite-road { position: absolute; right: -40px; top: -30px; width: 200px; height: 145px; opacity: .45; pointer-events: none; }
+#client-trip-float.hr-raite .client-trip-status-text { position: relative; display: block !important; }
+#client-trip-float.hr-raite .client-trip-status-badge { display: block !important; background: none !important; color: #fff !important; padding: 0 !important; font-size: 1.32rem !important; font-weight: 900 !important; font-style: italic; letter-spacing: -0.01em; line-height: 1.15; text-transform: none !important; }
+#client-trip-float.hr-raite .client-trip-status-sub { display: block !important; color: #bcd4ff !important; font-weight: 700 !important; font-size: 0.82rem !important; margin-top: 2px; }
+#client-trip-float.hr-raite #client-trip-status-eta { display: none !important; }
+#client-trip-float.hr-raite .hr-raite-prog { position: relative; margin-top: 0.75rem; }
+#client-trip-float.hr-raite .hr-raite-prog-track { position: relative; height: 26px; }
+#client-trip-float.hr-raite .hr-raite-prog-track::before { content: ""; position: absolute; left: 0; right: 0; top: 9px; height: 9px; border-radius: 9px; background: rgba(255,255,255,.18); }
+#client-trip-float.hr-raite .hr-raite-prog-track::after { content: ""; position: absolute; left: 8px; right: 14px; top: 12.5px; border-top: 2px dashed rgba(255,255,255,.65); }
+#client-trip-float.hr-raite .hr-raite-prog-done { position: absolute; left: 0; top: 9px; height: 9px; width: 5%; border-radius: 9px; background: linear-gradient(90deg, var(--hr-cyan), var(--hr-glow)); box-shadow: 0 0 12px var(--hr-glow); z-index: 1; transition: width .8s ease; }
+#client-trip-float.hr-raite .hr-raite-prog-car { position: absolute; left: 0; top: 1px; z-index: 2; color: #fff; font-size: 1.15rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,.45)); transition: left .8s ease; }
+#client-trip-float.hr-raite .hr-raite-prog-pin { position: absolute; right: -2px; top: 0; color: #fff; font-size: 1.1rem; z-index: 2; }
+#client-trip-float.hr-raite .hr-raite-prog-labels { display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 800; color: #bcd4ff; margin-top: 2px; }
+/* PIN como boleto */
+#client-trip-float.hr-raite #client-pin-display { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; margin: 0 0 0.7rem !important; }
+#client-trip-float.hr-raite #client-pin-display #client-trip-accepted-kicker,
+#client-trip-float.hr-raite #client-pin-display #client-pin-btn { display: none !important; }
+#client-trip-float.hr-raite .hr-raite-ticket { position: relative; display: flex; align-items: center; background: #fff; border: 1.5px solid #bcd4ff; border-radius: 16px; overflow: hidden; cursor: pointer; }
+#client-trip-float.hr-raite .hr-raite-ticket.hidden { display: none !important; }
+#client-trip-float.hr-raite .hr-raite-ticket::before, #client-trip-float.hr-raite .hr-raite-ticket::after { content: ""; position: absolute; left: 86px; width: 14px; height: 14px; border-radius: 50%; background: var(--hr-bg); }
+#client-trip-float.hr-raite .hr-raite-ticket::before { top: -8px; } #client-trip-float.hr-raite .hr-raite-ticket::after { bottom: -8px; }
+#client-trip-float.hr-raite .hr-raite-ticket-l { flex: 0 0 92px; align-self: stretch; background: linear-gradient(180deg, var(--hr-blue), var(--hr-navy2)); color: #fff; padding: 0.6rem 0.65rem; font-weight: 900; font-size: 0.78rem; line-height: 1.2; }
+#client-trip-float.hr-raite .hr-raite-ticket-l small { display: block; font-size: 0.64rem; color: #cfe3ff; font-weight: 700; margin-top: 2px; }
+#client-trip-float.hr-raite .hr-raite-stars { display: block; color: #fde68a; letter-spacing: 2px; font-size: 0.66rem; margin-top: 4px; }
+#client-trip-float.hr-raite .hr-raite-pin-digits { display: flex; gap: 6px; padding: 0.5rem 0.7rem; }
+#client-trip-float.hr-raite .hr-raite-pin-digits b { width: 2.35rem; height: 2.8rem; border-radius: 10px; background: #eff5ff; border: 1.5px solid #bcd4ff; display: flex; align-items: center; justify-content: center; font-size: 1.55rem; font-weight: 900; color: var(--hr-navy); font-variant-numeric: tabular-nums; }
+#client-trip-float.hr-raite #client-pin-hint { font-size: 0.7rem !important; color: var(--hr-muted) !important; margin-top: 4px !important; text-align: center; }
+/* Conductor + placa hondureña */
+#client-trip-float.hr-raite .client-trip-driver-row { background: #fff; border: 1px solid var(--hr-line); border-radius: 16px; padding: 0.7rem; box-shadow: 0 8px 22px rgba(30,107,214,.12); }
+#client-trip-float.hr-raite .client-trip-photo { box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--hr-glow) !important; }
+#client-trip-float.hr-raite .client-trip-name { color: var(--hr-ink) !important; font-weight: 900 !important; }
+#client-trip-float.hr-raite .client-trip-rating .fa-star { color: #fbbf24 !important; }
+#client-trip-float.hr-raite #client-trip-plate {
+    display: inline-flex !important; flex-direction: column; align-items: center; vertical-align: middle; margin-left: 6px;
+    background: #fff !important; color: var(--hr-ink) !important; border: 2px solid #1e293b !important; border-radius: 7px !important;
+    padding: 0 7px 1px !important; font-size: 0.95rem !important; font-weight: 900 !important; letter-spacing: .06em; line-height: 1.1;
+    box-shadow: 0 2px 0 #94a3b8; overflow: hidden;
+}
+#client-trip-float.hr-raite #client-trip-plate::before { content: "HONDURAS"; display: block; align-self: stretch; margin: 0 -7px 1px; background: linear-gradient(90deg, #1e6bd6, #0a3d91); color: #fff; font-size: 0.48rem; letter-spacing: .3em; text-align: center; padding: 1px 0; }
+#client-trip-float.hr-raite .client-trip-vehicle { color: var(--hr-muted) !important; font-weight: 700 !important; }
+/* Botones */
+#client-trip-float.hr-raite .client-trip-chat-btn { background: linear-gradient(135deg, var(--hr-blue), var(--hr-navy2)) !important; color: #fff !important; border: 0 !important; border-radius: 14px !important; font-weight: 900 !important; }
+#client-trip-float.hr-raite .client-trip-wa-contact { border-radius: 14px !important; }
+#client-trip-float.hr-raite .client-trip-cancel-btn { border-radius: 14px !important; background: transparent !important; }
+#client-trip-float.hr-raite .hr-raite-slogan { text-align: center; font-size: 0.62rem; letter-spacing: .2em; font-weight: 900; color: #8fa6cc; margin: 0.55rem 0 0.1rem; }
+/* La columna del cuerpo encogía el encabezado (overflow:hidden) a ~28px: ninguna pieza se encoge, se desplaza */
+#client-trip-float.hr-raite .client-trip-float-body > * { flex-shrink: 0 !important; }
