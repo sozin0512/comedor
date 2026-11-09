@@ -1045,6 +1045,10 @@ function applyTripFloatMinState(floatEl, key, minimized) {
         fullView.classList.toggle('hidden', !!minimized);
         fullView.style.display = minimized ? 'none' : '';
     }
+    // v.86b · Al abrir la hoja del pasajero, empezar desde arriba (estado + PIN)
+    if (!minimized && key === 'client-trip') {
+        try { floatEl.scrollTop = 0; floatEl.querySelector('.client-trip-float-body').scrollTop = 0; } catch (_) {}
+    }
     // Si está minimizado, no dejar que el hero del PIN force foco/teclado
     if (minimized && key === 'driver-pin') {
         try { document.getElementById('driver-pin-input')?.blur?.(); } catch (_) {}
@@ -1082,6 +1086,7 @@ export function syncTripFloatPanels(data) {
         document.getElementById('trip-chat-float-pill')?.classList.add('hidden');
         document.getElementById('chat-float')?.classList.add('hidden');
         document.body.classList.remove('trip-chat-open', 'passenger-trip-float-active');
+        mergeClientTripActions(false);
         return;
     }
 
@@ -1143,10 +1148,12 @@ export function syncTripFloatPanels(data) {
             }
             // Rellenar datos del conductor en el flotante
             try { window.syncClientTripFloat?.(data); } catch (_) {}
+            mergeClientTripActions(true);
         } else {
             clientTripFloat.classList.add('hidden');
             clientPinDisplay?.classList.add('hidden');
             document.body.classList.remove('passenger-trip-float-active');
+            mergeClientTripActions(false);
         }
     }
 
@@ -1861,4 +1868,59 @@ function bindPassengerPromoStrip() {
     window.addEventListener('resize', () => {
         if (strip.classList.contains('is-drag-positioned')) clampToViewport();
     }, { passive: true });
+}
+
+/* v.86 · Pasajero en viaje: UNA sola tarjeta. Compartir/SOS, "conductor en otro viaje" y alertas de
+   llegada se mueven del panel de abajo a la tarjeta «Tu conductor»; el panel de abajo se oculta (CSS).
+   Se mueven los mismos nodos (no copias): los toques siguen funcionando igual. Al terminar, vuelven. */
+const HR_MERGED_IDS = ['client-driver-busy-notice', 'client-security-controls', 'passenger-alert-settings'];
+// Si otra parte de la app quita la tarjeta del pasajero, devolver los botones al panel de abajo.
+try {
+    new MutationObserver(() => {
+        if (document.body.classList.contains('hr-trip-one-card')
+            && !document.body.classList.contains('passenger-trip-float-active')) {
+            mergeClientTripActions(false);
+        }
+    }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+} catch (_) {}
+function mergeClientTripActions(on) {
+    try {
+        const fl = document.getElementById('client-trip-float');
+        const body = fl?.querySelector('.client-trip-float-body');
+        if (on) {
+            if (!body) return;
+            let slot = document.getElementById('client-trip-merged-actions');
+            if (!slot) {
+                slot = document.createElement('div');
+                slot.id = 'client-trip-merged-actions';
+                slot.className = 'client-trip-merged-actions';
+                slot.setAttribute('data-no-drag', '');
+                const cancel = document.getElementById('client-trip-cancel-btn');
+                if (cancel) cancel.insertAdjacentElement('beforebegin', slot);
+                else body.appendChild(slot);
+            }
+            HR_MERGED_IDS.forEach((id) => {
+                const el = document.getElementById(id);
+                if (!el || el.parentElement === slot) return;
+                // Marca de lugar para devolverlo exactamente donde estaba
+                if (!document.getElementById(`${id}-home`) && el.parentElement) {
+                    const mark = document.createElement('span');
+                    mark.id = `${id}-home`;
+                    mark.hidden = true;
+                    el.parentElement.insertBefore(mark, el);
+                }
+                el.setAttribute('data-no-drag', '');
+                slot.appendChild(el);
+            });
+            document.body.classList.add('hr-trip-one-card');
+        } else {
+            [...HR_MERGED_IDS].reverse().forEach((id) => {
+                const el = document.getElementById(id);
+                const mark = document.getElementById(`${id}-home`);
+                if (!el || !mark || el.nextSibling === mark) return;
+                mark.parentElement?.insertBefore(el, mark);
+            });
+            document.body.classList.remove('hr-trip-one-card');
+        }
+    } catch (_) {}
 }
