@@ -27738,3 +27738,28 @@ body.trip-chat-open #client-trip-float { display: none !important; }
 /* Con la franja del pasajero arriba, no repetir su foto y nombre más abajo (queda dirección + min) */
 #active-trip-panel:has(#driver-pax-contact) #driver-uber-pax-photo,
 #active-trip-panel:has(#driver-pax-contact) #driver-uber-pax-name { display: none !important; }
+
+/* v.88 · Conductor en viaje: panel más alto (crece con el contenido) para ver pasajero, cobro y ganancia */
+body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed),
+body.capacitor-native.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed),
+body.capacitor-android.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed),
+body.trip-active.driver-mode.is-navigating:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed),
+body.trip-active.driver-mode.driver-nav-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed),
+body.trip-active.driver-mode.driver-moto-compact:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed),
+body.capacitor-android.trip-active.driver-mode.driver-moto-compact:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) {
+    max-height: min(66dvh, 38rem) !important;
+    height: auto !important;
+    top: auto !important;
+}
+#driver-pax-contact.drv-pax { flex-wrap: wrap; min-height: 4rem; }
+#driver-pax-contact .drv-pax-fare { flex: 1 1 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.35rem; margin-top: 0.45rem; }
+#driver-pax-contact .drv-pax-fare span { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,.12); border-radius: 10px; padding: 0.3rem 0.2rem; }
+#driver-pax-contact .drv-pax-fare small { font-size: 0.56rem; font-weight: 900; text-transform: uppercase; letter-spacing: .06em; color: #bcd4ff; }
+#driver-pax-contact .drv-pax-fare b { font-size: 0.82rem; font-weight: 900; color: #fff; white-space: nowrap; }
+#driver-pax-contact .drv-pax-fare b.drv-pax-net { color: #86efac; }
+/* La franja del pasajero nunca se aplasta (en el teléfono quedaba como una raya oscura) */
+#active-trip-panel > #driver-pax-contact,
+body.driver-moto-compact #active-trip-panel > #driver-pax-contact {
+    flex: 0 0 auto !important; min-height: max-content !important; height: auto !important; max-height: none !important; overflow: visible !important;
+}
+#active-trip-panel > #driver-active-veh-badge { flex: 0 0 auto !important; }
