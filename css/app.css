@@ -27640,3 +27640,13 @@ html.hr-lite #passenger-home-hub.hrh .hrh-circles i,
 html.hr-lite #passenger-home-hub.hrh .hrh-ico,
 html.hr-lite #passenger-home-hub.hrh .hrh-tile,
 html.hr-lite .trip-step-card { box-shadow: none !important; }
+
+/* v.85 · Entrar con Google / Apple */
+.auth-social { display: flex; flex-direction: column; gap: 0.55rem; margin-top: 0.35rem; }
+.auth-social[hidden], .auth-social-btn[hidden] { display: none !important; }
+.auth-social-or { display: flex; align-items: center; gap: 0.6rem; color: #94a3b8; font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.auth-social-or::before, .auth-social-or::after { content: ""; flex: 1; height: 1px; background: #e2e8f0; }
+.auth-social-btn { width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.6rem; padding: 0.85rem 1rem; border-radius: 1rem; font-weight: 800; font-size: 0.85rem; cursor: pointer; }
+.auth-social-google { background: #fff; color: #1f2937; border: 1.5px solid #dbe4f0; box-shadow: 0 4px 12px rgba(15,23,42,.06); }
+.auth-social-apple { background: #000; color: #fff; border: 0; }
+html[data-theme="dark"] .auth-social-google { background: #0f172a; color: #f8fafc; border-color: #334155; }
