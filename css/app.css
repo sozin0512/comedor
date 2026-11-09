@@ -27816,3 +27816,22 @@ body.driver-mode #active-trip-panel .driver-pin-input { border: 2px solid #cfe0f
 body.driver-mode #active-trip-panel .driver-uber-pax-text { flex: 1 1 auto !important; }
 body.driver-mode #active-trip-panel .driver-panel-nav [class*="text-emerald"],
 body.driver-mode #active-trip-panel .driver-panel-nav .driver-panel-nav-eta { color: #86efac !important; }
+
+/* v.91 · Conductor en viaje: el cuerpo del panel (navegación, dirección, minutos) no se aplasta.
+   Antes era flex encogible con min-height 0: en el teléfono quedaba como una raya oscura y sobraba
+   espacio blanco abajo. Ahora tiene su altura natural y, si no cabe, se desliza el panel completo. */
+body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #active-trip-panel {
+    flex: 0 0 auto !important;
+    overflow: visible !important;
+    min-height: max-content !important;
+}
+body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #driver-active-body {
+    flex: 0 0 auto !important;
+    max-height: none !important;
+    min-height: max-content !important;
+    overflow: visible !important;
+}
+body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content {
+    overflow-y: auto !important;
+    flex: 1 1 auto !important;
+}
