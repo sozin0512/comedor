@@ -8841,20 +8841,21 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 let zoom;
                 // Tope 18.3 en navegación: más cerca solo se ven edificios y no la calle que viene
                 if (Number.isFinite(userZoom) && userZoom >= 3) {
-                    zoom = Math.min(18.3, Math.max(13, userZoom));
+                    // El conductor acerca / aleja con los dedos y se respeta (12 a 18.3)
+                    zoom = Math.min(18.3, Math.max(12, userZoom));
                 } else {
-                    // v.90 · Un nivel menos de zoom: el conductor ve más calles por delante (antes 17.3–17.6)
-                    zoom = lowPower ? 15.9 : 16.2;
-                    if (mps >= 22) zoom = lowPower ? 14.9 : 15.2;
-                    else if (mps >= 14) zoom = lowPower ? 15.4 : 15.7;
-                    else if (mps < 2) zoom = lowPower ? 16.2 : 16.5;
-                    zoom = Math.min(17.5, Math.max(13, zoom));
+                    // v.92 · Vista amplia de ciudad (pedido de conductores): ~14 en vez de 17
+                    zoom = 14.3;
+                    if (mps >= 22) zoom = 13.7;
+                    else if (mps >= 14) zoom = 14;
+                    else if (mps < 2) zoom = 14.6;
+                    zoom = Math.min(17.5, Math.max(12, zoom));
                 }
 
-                // Centro un poco ADELANTE del carro → ves por dónde vas
+                // Centro un poco ADELANTE del carro → ves por dónde vas (más lejos con vista amplia)
                 const lookAheadM = mps < 2
-                    ? (lowPower ? 36 : 48)
-                    : (mps >= 18 ? (lowPower ? 90 : 120) : (lowPower ? 60 : 80));
+                    ? 90
+                    : (mps >= 18 ? 380 : 220);
                 const camCenter = window.offsetLatLngByMeters?.(pos.lat, pos.lng, h, lookAheadM) || pos;
 
                 const padding = window.getDriverNavMapPadding?.() || {
@@ -8892,7 +8893,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             } catch (_) {
                 try {
                     window.gMap.setCenter(pos);
-                    window.gMap.setZoom(17.5);
+                    window.gMap.setZoom(14.3);
                     window.gMap.setHeading(h);
                     window.syncSelfDriverMarkerHeading?.(h);
                 } catch (__) {
@@ -8959,7 +8960,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             } catch (_) {
                 try {
                     window.gMap.panTo(window.currentDriverPos);
-                    window.gMap.setZoom(17.5);
+                    window.gMap.setZoom(14.3);
                 } catch (__) {}
             }
             window.syncNavigationMapFabs?.();
