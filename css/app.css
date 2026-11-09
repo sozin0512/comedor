@@ -27588,3 +27588,38 @@ body.client-mode .trip-fare-card .fare-request-btn {
 #passenger-home-hub.hrh .hrh-nav .hrh-fab i { width: 3.1rem; height: 3.1rem; margin-top: -1.3rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 1.2rem;
   background: radial-gradient(circle at 30% 25%, #4f9bff, var(--hb) 55%, var(--hn2)); box-shadow: 0 8px 18px rgba(30,107,214,.4); border: 3px solid #fff; }
 #passenger-home-hub.hrh .hrh-nav .hrh-fab { color: var(--hb); }
+
+/* v.82 · Conductor con estilo HonduRaite: encabezado del radar, estado y ganancias */
+body.driver-mode #driver-view .driver-view-header #driver-list-title { color: #0a1f44 !important; font-style: italic; }
+body.driver-mode #driver-view .driver-radar-status {
+    position: relative; overflow: hidden; color: #fff;
+    background: radial-gradient(120% 140% at 90% 0%, #2a5fb8 0%, #123a7a 40%, #0a1f44 85%) !important;
+    border: 0 !important; border-radius: 16px !important; box-shadow: 0 8px 20px rgba(10,31,68,.25) !important; padding-bottom: 0.8rem !important;
+}
+body.driver-mode #driver-view .driver-radar-status::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+    background: linear-gradient(90deg, #1e6bd6 0 33%, #fff 33% 66%, #1e6bd6 66%);
+}
+body.driver-mode #driver-view .driver-radar-status-main { color: #fff !important; font-weight: 900 !important; }
+body.driver-mode #driver-view .driver-radar-status-sub { color: #bcd4ff !important; }
+body.driver-mode #driver-view .driver-radar-status-icon { color: #7fb3ff !important; }
+body.driver-mode #driver-earnings-float .driver-earnings-min-pill {
+    background: radial-gradient(120% 160% at 90% 0%, #2a5fb8, #123a7a 50%, #0a1f44) !important; color: #fff !important;
+    border: 1px solid rgba(255,255,255,.25) !important; box-shadow: 0 8px 18px rgba(10,31,68,.3) !important;
+}
+body.driver-mode #driver-earnings-float .driver-earnings-min-pill i { color: #7fb3ff !important; }
+body.driver-mode #driver-earnings-float .driver-earnings-float-head {
+    background: radial-gradient(120% 160% at 90% 0%, #2a5fb8, #123a7a 50%, #0a1f44) !important; color: #fff !important;
+}
+body.driver-mode #driver-earnings-float .driver-earnings-float-title,
+body.driver-mode #driver-earnings-float .driver-earnings-float-head * { color: #fff !important; }
+body.driver-mode #driver-earnings-float .driver-earnings-total-value { color: #0a1f44 !important; font-style: italic; }
+.driver-earnings-week { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0 0.5rem; margin: 0 0 0.6rem; padding: 0.55rem 0.7rem;
+    border-radius: 12px; background: #eef4ff; border: 1px solid #cfe0fb; }
+.driver-earnings-week span { font-size: 0.68rem; font-weight: 900; color: #123a7a; text-transform: uppercase; letter-spacing: .04em; }
+.driver-earnings-week span i { color: #1e6bd6; margin-right: 0.25rem; }
+.driver-earnings-week b { font-size: 1rem; font-weight: 900; color: #0a1f44; grid-row: span 2; }
+.driver-earnings-week small { font-size: 0.64rem; color: #5b6b85; font-weight: 700; }
+html[data-theme="dark"] .driver-earnings-week { background: #13233f; border-color: #24406d; }
+html[data-theme="dark"] .driver-earnings-week b { color: #e6efff; }
+body.driver-mode #driver-earnings-float .driver-earnings-float-head { padding: 0.5rem 0.75rem !important; border-radius: 12px !important; margin-bottom: 0.5rem !important; }

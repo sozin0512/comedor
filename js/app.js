@@ -25802,10 +25802,28 @@ if (document.readyState === 'loading') {
             let cashCommissionOwed = 0;
             let saldoCommissionCovered = 0;
 
+            // v.82 · Resumen de la semana (lunes a hoy)
+            const weekStart = new Date(today);
+            weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+            let weekEarned = 0;
+            let weekTrips = 0;
+
             tripsSnap.forEach((tripDoc) => {
                 const trip = tripDoc.data();
                 if (trip.driverId !== driverId || trip.status !== 'completed') return;
                 const tripDate = tripCompletedDate(trip);
+                if (tripDate && tripDate >= weekStart && tripDate < tomorrow) {
+                    try {
+                        const wp = parseTripPrice(trip);
+                        const wi = driverTripCommission(trip, commission);
+                        const isSaldo = trip.paymentMethod === 'saldo' || trip.paymentMethod === 'birthday_gift' || trip.birthdayFree;
+                        const wn = isSaldo
+                            ? (trip.driverNetPaid != null ? parseFloat(trip.driverNetPaid) : (wi.net ?? wp))
+                            : wp - (wi.amount || 0);
+                        if (Number.isFinite(wn)) weekEarned += wn;
+                        weekTrips++;
+                    } catch (_) {}
+                }
                 if (!tripDate || tripDate < today || tripDate >= tomorrow) return;
 
                 const price = parseTripPrice(trip);
@@ -25872,6 +25890,8 @@ if (document.readyState === 'loading') {
             const totalOwed = pendingDepositDebt + remainingToDeposit;
 
             return {
+                weekEarned: Math.round(weekEarned * 100) / 100,
+                weekTrips,
                 totalEarnedToday: Math.round(totalEarnedToday * 100) / 100,
                 grossEarnedToday: Math.round(grossEarnedToday * 100) / 100,
                 cashEarnedToday,
@@ -26507,6 +26527,11 @@ if (document.readyState === 'loading') {
                                         return `<p class="text-[10px] font-black text-emerald-600 mt-1">🎉 Hoy es TU día sin comisión · 100%</p>`;
                                     })()}
                                     <p class="driver-earnings-total-meta">${s.tripCount} viaje${s.tripCount !== 1 ? 's' : ''} · saldo: ${formatLempiras(parseFloat(driverWallet))}</p>
+                                </div>
+                                <div class="driver-earnings-week">
+                                    <span><i class="fas fa-calendar-week"></i> Esta semana</span>
+                                    <b>${formatLempiras(s.weekEarned || 0)}</b>
+                                    <small>${s.weekTrips || 0} viaje${(s.weekTrips || 0) !== 1 ? 's' : ''} desde el lunes</small>
                                 </div>
                                 <div class="driver-earnings-split">
                                     <div>
