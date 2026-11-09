@@ -27475,7 +27475,7 @@ body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.p
 /* v.81 · Viaje / Envío / Flete / Grúa: el panel crece con el contenido (como el inicio)
    y usa el estilo HonduRaite (azul marino, brillo azul, franja de bandera). */
 body.client-mode.passenger-mode-active:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
-    max-height: min(84dvh, 54rem) !important;
+    max-height: min(88dvh, 56rem) !important;
     height: auto !important;
 }
 body.client-mode.passenger-mode-active:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content {
@@ -27543,4 +27543,12 @@ body.client-mode #client-view .dw-q { color: #0a1f44 !important; font-weight: 90
 body.client-mode #client-view .dw-next {
     background: radial-gradient(120% 160% at 90% 0%, #3b8bff, #1e6bd6 50%, #123a7a) !important; color: #fff !important;
     border: 0 !important; border-radius: 14px !important; font-weight: 900 !important; box-shadow: 0 8px 18px rgba(30,107,214,.3) !important;
+}
+
+/* v.81 · Buscando conductor / ofertas: el panel crece con las ofertas (antes 55–58% fijo) */
+body.client-mode.is-searching:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed):not(.panel-hidden),
+body.capacitor-native.client-mode.is-searching:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed):not(.panel-hidden),
+body.capacitor-android.client-mode.is-searching:not(.trip-active):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    max-height: min(82dvh, 52rem) !important;
+    height: auto !important;
 }
