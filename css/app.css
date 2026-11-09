@@ -27650,3 +27650,18 @@ html.hr-lite .trip-step-card { box-shadow: none !important; }
 .auth-social-google { background: #fff; color: #1f2937; border: 1.5px solid #dbe4f0; box-shadow: 0 4px 12px rgba(15,23,42,.06); }
 .auth-social-apple { background: #000; color: #fff; border: 0; }
 html[data-theme="dark"] .auth-social-google { background: #0f172a; color: #f8fafc; border-color: #334155; }
+
+/* v.86 · Pasajero en viaje: una sola tarjeta (Tu conductor + Compartir/SOS + alertas + cancelar).
+   El panel de abajo no se muestra mientras la tarjeta está activa. */
+body.client-mode.passenger-trip-float-active.hr-trip-one-card #control-panel,
+body.passenger-trip-float-active.hr-trip-one-card:not(.driver-mode) #control-panel { display: none !important; }
+#client-trip-float .client-trip-merged-actions { display: flex; flex-direction: column; gap: 0.55rem; margin: 0.15rem 0 0.55rem; }
+#client-trip-float .client-trip-merged-actions > .hidden { display: none !important; }
+#client-trip-float .client-trip-merged-actions #client-security-controls button { border-radius: 14px !important; padding: 0.8rem 0 !important; font-size: 0.75rem !important; }
+#client-trip-float .client-trip-merged-actions #passenger-alert-settings {
+    background: #f3f7fd !important; border: 1px solid #dbe4f0 !important; border-radius: 14px !important; padding: 0.6rem 0.75rem !important; margin: 0 !important;
+}
+#client-trip-float .client-trip-merged-actions #passenger-alert-settings p:first-child { color: #123a7a !important; }
+#client-trip-float .client-trip-merged-actions #passenger-alert-settings label { color: #0a1f44 !important; }
+#client-trip-float .client-trip-merged-actions #passenger-alert-settings p:last-child { color: #5b6b85 !important; }
+#client-trip-float .client-trip-merged-actions #client-driver-busy-notice { margin: 0 !important; }
