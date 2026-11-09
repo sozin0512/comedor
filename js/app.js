@@ -36314,6 +36314,24 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                 const shown = local.length === 8 ? `${local.slice(0, 4)}-${local.slice(4)}` : (phoneRaw || '');
                 const full = digits ? (digits.length === 8 ? `504${digits}` : digits) : '';
                 const photo = photoUrl || data.clientPhoto || '/icons/placeholder-avatar.svg';
+                // Cobro y ganancia del conductor en este viaje
+                let fareHtml = '';
+                try {
+                    const price = parseTripPrice(data);
+                    if (price > 0) {
+                        const info = driverTripCommission(data, platformCommissionForSync(data));
+                        const comm = Number(info?.amount) || 0;
+                        const net = Math.max(0, price - comm);
+                        const pay = String(data.paymentMethod || '').toLowerCase();
+                        const payTxt = pay === 'saldo' ? 'Saldo' : (pay ? (pay === 'cash' || pay === 'efectivo' ? 'Efectivo' : pay) : 'Efectivo');
+                        fareHtml = `<div class="drv-pax-fare">
+                            <span><small>Cobrás</small><b>${formatLempiras(price)}</b></span>
+                            <span><small>Ganás</small><b class="drv-pax-net">${formatLempiras(net)}</b></span>
+                            <span><small>Comisión</small><b>${formatLempiras(comm)}</b></span>
+                            <span><small>Pago</small><b>${esc(payTxt)}</b></span>
+                        </div>`;
+                    }
+                } catch (_) {}
                 strip.innerHTML = `
                     <img class="drv-pax-photo" src="${esc(photo)}" alt="" onerror="this.src='/icons/placeholder-avatar.svg'">
                     <div class="drv-pax-txt">
@@ -36322,7 +36340,8 @@ function handleFirestoreError(e, fallbackMsg = 'Ocurrió un error. Intenta de nu
                         <span class="drv-pax-phone">${shown ? esc(shown) : 'Sin número'}</span>
                     </div>
                     ${full ? `<a class="drv-pax-btn drv-pax-call" href="tel:+${full}" data-no-drag aria-label="Llamar al pasajero"><i class="fas fa-phone"></i></a>
-                    <a class="drv-pax-btn drv-pax-wa" href="${esc(getWhatsAppLink(full))}" target="_blank" rel="noopener" data-no-drag aria-label="WhatsApp al pasajero"><i class="fab fa-whatsapp"></i></a>` : ''}`;
+                    <a class="drv-pax-btn drv-pax-wa" href="${esc(getWhatsAppLink(full))}" target="_blank" rel="noopener" data-no-drag aria-label="WhatsApp al pasajero"><i class="fab fa-whatsapp"></i></a>` : ''}
+                    ${fareHtml}`;
             };
             const phone = data.clientPhone || data.pendingClientPhone || '';
             paint(phone, data.clientPhoto);
