@@ -96,12 +96,109 @@ function isBusyWithTripUi() {
     return false;
 }
 
+// v.82 · Lugares recientes: los últimos destinos de raite (solo en este teléfono) para pedir con un toque.
+const HR_RECENT_KEY = 'hr_recent_places';
+const HR_RECENT_SVCS = ['moto', 'auto', 'taxi'];
+function readRecentPlaces() {
+    try {
+        const arr = JSON.parse(localStorage.getItem(HR_RECENT_KEY) || '[]');
+        return Array.isArray(arr) ? arr.filter((r) => r && r.address) : [];
+    } catch (_) { return []; }
+}
+function hrEsc(t) {
+    return String(t || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function renderHomeRecents() {
+    const box = document.getElementById('hrh-recent');
+    if (!box) return;
+    const list = readRecentPlaces().slice(0, 3);
+    if (!list.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = `<p class="hrh-h">Recientes</p>` + list.map((r, i) => {
+        const parts = String(r.address).split(',');
+        const title = r.name || parts[0];
+        const sub = parts.filter((x) => x.trim() && x.trim() !== String(title).trim()).slice(0, 2).join(',');
+        return `<button type="button" class="hrh-recent-row" data-hrh-recent="${i}">
+            <span class="hrh-recent-ico"><i class="fas fa-history"></i></span>
+            <span class="hrh-recent-txt"><strong>${hrEsc(title)}</strong><small>${hrEsc(sub.trim())}</small></span>
+            <i class="fas fa-chevron-right"></i>
+        </button>`;
+    }).join('');
+}
+window.hrRememberRecentPlace = (rec) => {
+    try {
+        if (!rec || !rec.address || !HR_RECENT_SVCS.includes(rec.svc)) return;
+        const key = String(rec.address).trim().toLowerCase();
+        const list = readRecentPlaces().filter((r) => String(r.address).trim().toLowerCase() !== key);
+        list.unshift({
+            address: String(rec.address).slice(0, 200), name: String(rec.name || '').slice(0, 80),
+            lat: Number.isFinite(rec.lat) ? rec.lat : null, lng: Number.isFinite(rec.lng) ? rec.lng : null,
+            svc: rec.svc, at: Date.now()
+        });
+        localStorage.setItem(HR_RECENT_KEY, JSON.stringify(list.slice(0, 6)));
+        renderHomeRecents();
+    } catch (_) {}
+};
+window.hrRepeatTrip = (idx, btn) => {
+    const r = (window._hrHistTrips || [])[idx];
+    if (!r || !r.address) return;
+    try { btn?.closest('.fixed')?.remove(); } catch (_) {}
+    applyRecentPlace(-1, r);
+};
+function applyRecentPlace(idx, given) {
+    const r = given || readRecentPlaces()[idx];
+    if (!r) return;
+    window._hrHomePreferredService = r.svc;
+    setPassengerHomeMode('trip');
+    setTimeout(() => {
+        try {
+            const el = document.getElementById('destination-autocomplete');
+            if (!el) return;
+            window.storeRouteEndpoint?.(el, {
+                address: r.address,
+                latLng: r.lat != null && r.lng != null ? { lat: r.lat, lng: r.lng } : null,
+                source: 'recent'
+            });
+            window.writeAutocompleteText?.(el, r.address);
+            window.calculateTripRoute?.({ silent: true });
+        } catch (_) {}
+    }, 120);
+}
+
+// v.82 · Barra de abajo del inicio (Inicio · Servicios · Raite · Actividad · Cuenta)
+function runHomeNav(what, hub) {
+    const loggedIn = !!(window.currentUser?.uid || window.auth?.currentUser?.uid);
+    if (what === 'raite') { setPassengerHomeMode('trip'); return; }
+    if (what === 'home') {
+        hub.setAttribute('data-hrh-active', 'raites');
+        try { document.getElementById('panel-content')?.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) {}
+        return;
+    }
+    if (what === 'services') {
+        hub.setAttribute('data-hrh-active', 'envios');
+        try { localStorage.setItem('hr_home_tab', 'envios'); } catch (_) {}
+        try { hub.querySelector('.hrh-seg')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {}
+        return;
+    }
+    if (!loggedIn) { window.openGuestAuthModal?.(); return; }
+    if (what === 'activity') { window.showMyPastTrips?.(); return; }
+    if (what === 'account') {
+        const t = document.getElementById('header-more-toggle');
+        if (t && t.offsetParent !== null) {
+            try { t.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); } catch (_) {}
+            t.click();
+        } else {
+            window.openProfilePanel?.();
+        }
+    }
+}
+
 function ensureHomeUi() {
     const clientView = document.getElementById('client-view');
     if (!clientView) return;
 
     let hub = document.getElementById('passenger-home-hub');
-    if (!hub || hub.getAttribute('data-layout') !== 'hr-v2') {
+    if (!hub || hub.getAttribute('data-layout') !== 'hr-v3') {
         const isNew = !hub;
         if (!hub) {
             hub = document.createElement('section');
@@ -109,7 +206,7 @@ function ensureHomeUi() {
             hub.className = 'passenger-home-hub';
             hub.setAttribute('aria-label', 'Menú principal del pasajero');
         }
-        hub.setAttribute('data-layout', 'hr-v2');
+        hub.setAttribute('data-layout', 'hr-v3');
         hub.classList.add('hrh');
         let tab = 'raites';
         try { tab = localStorage.getItem('hr_home_tab') === 'envios' ? 'envios' : 'raites'; } catch (_) {}
@@ -130,6 +227,7 @@ function ensureHomeUi() {
                 <button type="button" class="hrh-search" data-hrh-go="trip"><span class="hrh-dot"></span><span>Pedí tu raite</span><i class="fas fa-arrow-right"></i></button>
             </div>
             <div class="hrh-flag" aria-hidden="true"></div>
+            <div id="hrh-recent" class="hrh-recent" hidden></div>
             <div class="hrh-seg" role="tablist">
                 <button type="button" role="tab" data-hrh-tab="raites"><i class="fas fa-car-side"></i> Raites</button>
                 <button type="button" role="tab" data-hrh-tab="envios"><i class="fas fa-shopping-bag"></i> Envíos y tiendas</button>
@@ -161,6 +259,13 @@ function ensureHomeUi() {
                     <i class="fas fa-chevron-right"></i>
                 </button>
             </div>
+            <nav class="hrh-nav" aria-label="Navegación">
+                <button type="button" data-hrh-nav="home" class="on"><i class="fas fa-home"></i><span>Inicio</span></button>
+                <button type="button" data-hrh-nav="services"><i class="fas fa-th-large"></i><span>Servicios</span></button>
+                <button type="button" data-hrh-nav="raite" class="hrh-fab" aria-label="Pedí tu raite"><i class="fas fa-car-side"></i><span>Raite</span></button>
+                <button type="button" data-hrh-nav="activity"><i class="fas fa-receipt"></i><span>Actividad</span></button>
+                <button type="button" data-hrh-nav="account"><i class="fas fa-user"></i><span>Cuenta</span></button>
+            </nav>
         `;
         if (!hub.dataset.hrhBound) {
             hub.dataset.hrhBound = '1';
@@ -172,6 +277,10 @@ function ensureHomeUi() {
                     try { localStorage.setItem('hr_home_tab', t); } catch (_) {}
                     return;
                 }
+                const nav = e.target.closest('[data-hrh-nav]');
+                if (nav) { e.preventDefault(); runHomeNav(nav.getAttribute('data-hrh-nav'), hub); return; }
+                const rec = e.target.closest('[data-hrh-recent]');
+                if (rec) { e.preventDefault(); applyRecentPlace(Number(rec.getAttribute('data-hrh-recent'))); return; }
                 const go = e.target.closest('[data-hrh-go]');
                 if (go) { e.preventDefault(); setPassengerHomeMode(go.getAttribute('data-hrh-go')); return; }
                 const svcBtn = e.target.closest('[data-hrh-svc]');
@@ -190,6 +299,7 @@ function ensureHomeUi() {
         if (isNew) {
             clientView.insertBefore(hub, clientView.firstChild);
         }
+        renderHomeRecents();
         try { window.mountClientOrderHomeChip?.(); } catch (_) {}
     }
 
