@@ -7517,17 +7517,14 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
             if (RouteCtor) {
                 const routeFields = ['path', 'distanceMeters', 'durationMillis', 'staticDurationMillis', 'legs'];
-                // Tráfico siempre (excepto estimate): km/ETA reales, no línea recta.
+                // v.78 ahorro: ruta SIN tráfico en tiempo real (nivel Essentials de Google, ~mitad de precio
+                // que Pro). TRAFFIC_AWARE era «Routes: Compute Routes Pro» (~72 % de la factura de octubre).
+                // Para volver a pedir tráfico: window.HR_ROUTES_TRAFFIC = true.
                 const routingAttempts = (mode === 'estimate')
                     ? []
-                    : [
-                        {
-                            routingPreference: 'TRAFFIC_AWARE',
-                            // Routes API exige hora futura; «ahora» ya es pasado al llegar (400 INVALID_ARGUMENT)
-                            departureTime: new Date(Date.now() + 60 * 1000)
-                        },
-                        { routingPreference: 'TRAFFIC_UNAWARE' }
-                    ];
+                    : (window.HR_ROUTES_TRAFFIC === true
+                        ? [{ routingPreference: 'TRAFFIC_AWARE', departureTime: new Date(Date.now() + 60 * 1000) }]
+                        : [{ routingPreference: 'TRAFFIC_UNAWARE' }]);
                 const requestVariants = (mode === 'nav' && navDriving)
                     ? [
                         { withNavVoice: true },
@@ -7558,12 +7555,8 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
 
                             const response = await RouteCtor.computeRoutes(routeRequest);
                             const built = await buildRouteResultFromApi(response?.routes?.[0]);
-                            if (built && isSparseStreetPath(built)) {
-                                if (!sparseKeep || (built.path?.length || 0) > (sparseKeep.path?.length || 0)) {
-                                    sparseKeep = built;
-                                }
-                                continue;
-                            }
+                            // v.78 ahorro: UN pedido por ruta. Antes, si venía con pocos puntos, se pedía otra
+                            // vez (hasta 4 pedidos cobrados por ruta en navegación). Se acepta la respuesta.
                             if (built) {
                                 window._routesApiWorked = true;
                                 return cacheRoute(built);
