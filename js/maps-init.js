@@ -6451,8 +6451,16 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             const isDriver = !!options.driverNav;
             const isPassengerNav = !!options.passengerTrack
                 && document.body.classList.contains('passenger-nav-mode');
-            // Conductor y pasajero en nav: ruta completa por calles (sin recortar esquinas)
-            if (isDriver || isPassengerNav) return raw;
+            // Conductor y pasajero en nav: ruta completa por calles (sin recortar esquinas).
+            // v.93 · En teléfonos lentos, máx. 450 puntos (antes ~1000 cada medio segundo → trabas).
+            if (isDriver || isPassengerNav) {
+                const lp = typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode();
+                if (!lp || raw.length <= 450 || typeof window.simplifyRoutePath !== 'function') return raw;
+                if (route?._navDisplayPath && route._navDisplaySrc === raw) return route._navDisplayPath;
+                const simp = window.simplifyRoutePath(raw, 450);
+                if (route) { route._navDisplayPath = simp; route._navDisplaySrc = raw; }
+                return simp;
+            }
             const lowPower = typeof window.shouldUseLowPowerMode === 'function' && window.shouldUseLowPowerMode();
             const maxPts = lowPower ? 120 : 200;
             if (route?._displayPath?.length && route._displayMaxPts === maxPts) return route._displayPath;
@@ -7212,7 +7220,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             // Conductor: actualizar más seguido (como Google Maps)
             const minMs = isPassenger
                 ? (lowPower ? 280 : 160)
-                : (isDriver ? (lowPower ? 450 : 220) : (lowPower ? 1400 : 800));
+                : (isDriver ? (lowPower ? 1000 : 400) : (lowPower ? 1400 : 800));
             const timeOk = !window._lastRouteProgressUpdate || now - window._lastRouteProgressUpdate > minMs;
             if (!options.force && !moved && !timeOk) return;
 
@@ -8824,7 +8832,14 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 ? 999
                 : Math.abs(((h - window._lastDriverNavCamHeading + 540) % 360) - 180);
             // Brújula: umbral bajo para que el mapa gire con el teléfono
-            if (!force && !moved && headingDelta < 0.9) return;
+            // v.93 · Antes se movía la cámara con cada grado de brújula (decenas de veces por segundo)
+            // y el mapa se trababa manejando. Ahora: giro desde 4° (2.5° en teléfonos rápidos) y como
+            // máximo ~2.5 movimientos por segundo (6 en teléfonos rápidos).
+            if (!force && !moved && headingDelta < (lowPower ? 4 : 2.5)) return;
+            const camNow = Date.now();
+            const camGapMs = lowPower ? 400 : 160;
+            if (!force && window._lastDriverNavCamAt && camNow - window._lastDriverNavCamAt < camGapMs) return;
+            window._lastDriverNavCamAt = camNow;
             window._lastDriverNavCamPos = { lat: pos.lat, lng: pos.lng };
             window._lastDriverNavCamHeading = h;
             // Solo actualizar rumbo “oficial” cuando la nav controla la cámara
@@ -8841,20 +8856,21 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 let zoom;
                 // Tope 18.3 en navegación: más cerca solo se ven edificios y no la calle que viene
                 if (Number.isFinite(userZoom) && userZoom >= 3) {
-                    zoom = Math.min(18.3, Math.max(13, userZoom));
+                    // El conductor acerca / aleja con los dedos y se respeta (12 a 18.3)
+                    zoom = Math.min(18.3, Math.max(12, userZoom));
                 } else {
-                    // v.90 · Un nivel menos de zoom: el conductor ve más calles por delante (antes 17.3–17.6)
-                    zoom = lowPower ? 15.9 : 16.2;
-                    if (mps >= 22) zoom = lowPower ? 14.9 : 15.2;
-                    else if (mps >= 14) zoom = lowPower ? 15.4 : 15.7;
-                    else if (mps < 2) zoom = lowPower ? 16.2 : 16.5;
-                    zoom = Math.min(17.5, Math.max(13, zoom));
+                    // v.92 · Vista amplia de ciudad (pedido de conductores): ~14 en vez de 17
+                    zoom = 14.3;
+                    if (mps >= 22) zoom = 13.7;
+                    else if (mps >= 14) zoom = 14;
+                    else if (mps < 2) zoom = 14.6;
+                    zoom = Math.min(17.5, Math.max(12, zoom));
                 }
 
-                // Centro un poco ADELANTE del carro → ves por dónde vas
+                // Centro un poco ADELANTE del carro → ves por dónde vas (más lejos con vista amplia)
                 const lookAheadM = mps < 2
-                    ? (lowPower ? 36 : 48)
-                    : (mps >= 18 ? (lowPower ? 90 : 120) : (lowPower ? 60 : 80));
+                    ? 90
+                    : (mps >= 18 ? 380 : 220);
                 const camCenter = window.offsetLatLngByMeters?.(pos.lat, pos.lng, h, lookAheadM) || pos;
 
                 const padding = window.getDriverNavMapPadding?.() || {
@@ -8892,7 +8908,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             } catch (_) {
                 try {
                     window.gMap.setCenter(pos);
-                    window.gMap.setZoom(17.5);
+                    window.gMap.setZoom(14.3);
                     window.gMap.setHeading(h);
                     window.syncSelfDriverMarkerHeading?.(h);
                 } catch (__) {
@@ -8959,7 +8975,7 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
             } catch (_) {
                 try {
                     window.gMap.panTo(window.currentDriverPos);
-                    window.gMap.setZoom(17.5);
+                    window.gMap.setZoom(14.3);
                 } catch (__) {}
             }
             window.syncNavigationMapFabs?.();
