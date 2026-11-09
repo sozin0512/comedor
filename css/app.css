@@ -27471,3 +27471,76 @@ body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.p
 body.client-mode.passenger-mode-home:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content {
     max-height: none !important;
 }
+
+/* v.81 · Viaje / Envío / Flete / Grúa: el panel crece con el contenido (como el inicio)
+   y usa el estilo HonduRaite (azul marino, brillo azul, franja de bandera). */
+body.client-mode.passenger-mode-active:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed):not(.panel-hidden) {
+    max-height: min(84dvh, 54rem) !important;
+    height: auto !important;
+}
+body.client-mode.passenger-mode-active:not(.trip-active):not(.is-searching):not(.panel-minimized):not(.panel-collapsed) #control-panel:not(.panel-collapsed) #panel-content {
+    max-height: none !important;
+}
+body.passenger-mode-active #passenger-mode-bar {
+    --hn: #0a1f44; --hn2: #123a7a; --hb: #1e6bd6;
+    position: relative; overflow: hidden;
+    background: radial-gradient(120% 140% at 90% 0%, #2a5fb8 0%, var(--hn2) 40%, var(--hn) 80%) !important;
+    border: 0 !important; border-radius: 16px !important; padding: 0.6rem 0.7rem 0.75rem !important;
+    box-shadow: 0 8px 20px rgba(10,31,68,.25) !important;
+}
+body.passenger-mode-active #passenger-mode-bar::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+    background: linear-gradient(90deg, var(--hb) 0 33%, #fff 33% 66%, var(--hb) 66%);
+}
+body.passenger-mode-active #passenger-mode-bar .passenger-mode-title { color: #fff !important; font-weight: 900 !important; font-style: italic; letter-spacing: -0.01em; }
+body.passenger-mode-active #passenger-mode-bar .passenger-mode-sub { color: #bcd4ff !important; font-weight: 700 !important; }
+body.passenger-mode-active #passenger-mode-bar .passenger-mode-back,
+body.passenger-mode-active #passenger-mode-bar .passenger-mode-change {
+    background: rgba(255,255,255,.14) !important; color: #fff !important; border: 1px solid rgba(255,255,255,.28) !important;
+    border-radius: 12px !important; font-weight: 900 !important; box-shadow: none !important;
+}
+body.passenger-mode-active #passenger-mode-bar .passenger-mode-back * ,
+body.passenger-mode-active #passenger-mode-bar .passenger-mode-change * { color: #fff !important; }
+
+body.client-mode #client-view .trip-step-card {
+    border: 1px solid #dbe4f0 !important; border-radius: 18px !important; background: #fff !important;
+    box-shadow: 0 6px 16px rgba(30,107,214,.08) !important;
+}
+body.client-mode #client-view .trip-step-badge {
+    background: radial-gradient(circle at 30% 25%, #4f9bff, #1e6bd6 55%, #123a7a) !important; color: #fff !important;
+    box-shadow: 0 4px 10px rgba(30,107,214,.35) !important; font-weight: 900 !important;
+}
+body.client-mode #client-view .trip-step-title { color: #0a1f44 !important; font-weight: 900 !important; }
+body.client-mode #client-view .trip-step-head .text-\[9px\] { color: #5b6b85 !important; }
+body.client-mode #client-view .favorite-chip {
+    border: 1px solid #dbe4f0 !important; background: #f3f7fd !important; color: #0a1f44 !important;
+    border-radius: 999px !important; font-weight: 900 !important;
+}
+body.client-mode #client-view .favorite-chip i { color: #1e6bd6 !important; }
+body.client-mode #client-view .favorite-chip-save { background: #e6f0ff !important; color: #1e6bd6 !important; border-color: #b9d3fb !important; }
+body.client-mode #client-view .favorite-chip-promo { background: #fff7e0 !important; color: #b45309 !important; border-color: #f6d98b !important; }
+body.client-mode #client-view .favorite-chip-promo i { color: #d97706 !important; }
+body.client-mode #client-view .trip-origin-wrap,
+body.client-mode #client-view .trip-dest-wrap {
+    border-radius: 15px !important; box-shadow: 0 4px 12px rgba(10,31,68,.07);
+}
+body.client-mode #client-view .trip-origin-wrap::before,
+body.client-mode #client-view .trip-dest-wrap::before {
+    content: ""; position: absolute; left: -0.35rem; top: 50%; width: 4px; height: 60%; transform: translateY(-50%);
+    border-radius: 4px; background: #1e6bd6; z-index: 2; pointer-events: none;
+}
+body.client-mode #client-view .trip-dest-wrap::before { background: #0a1f44; }
+body.client-mode #client-view .add-extra-stop-btn {
+    border: 1.5px dashed #b9d3fb !important; background: #f6f9ff !important; border-radius: 16px !important;
+}
+body.client-mode #client-view .add-extra-stop-btn-icon {
+    background: radial-gradient(circle at 30% 25%, #4f9bff, #1e6bd6 55%, #123a7a) !important; color: #fff !important;
+    box-shadow: 0 6px 14px rgba(30,107,214,.3) !important;
+}
+body.client-mode #client-view .add-extra-stop-btn-label { color: #0a1f44 !important; }
+body.client-mode #client-view .dw-card { border-color: #dbe4f0 !important; border-radius: 16px !important; }
+body.client-mode #client-view .dw-q { color: #0a1f44 !important; font-weight: 900 !important; }
+body.client-mode #client-view .dw-next {
+    background: radial-gradient(120% 160% at 90% 0%, #3b8bff, #1e6bd6 50%, #123a7a) !important; color: #fff !important;
+    border: 0 !important; border-radius: 14px !important; font-weight: 900 !important; box-shadow: 0 8px 18px rgba(30,107,214,.3) !important;
+}
