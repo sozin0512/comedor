@@ -27688,3 +27688,53 @@ body.hr-trip-one-card #client-trip-float.hr-raite:not(.trip-float--min):not(.hid
 body.hr-trip-one-card #client-trip-float.hr-raite:not(.trip-float--min) .trip-float-full-view { max-height: none !important; }
 body.hr-trip-one-card #client-trip-float.hr-raite:not(.trip-float--min) .trip-float-head { border-radius: 22px 22px 0 0 !important; cursor: default; }
 body.hr-trip-one-card #client-trip-float.hr-raite:not(.trip-float--min) .trip-float-grip { display: none !important; }
+
+/* v.87 · Pasajero: el chat abierto es un panel completo desde abajo (encima del teclado). */
+body.client-mode.passenger-trip-float-active #chat-float.trip-float--chat:not(.hidden) {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: var(--keyboard-inset, 0px) !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: min(74dvh, 42rem) !important;
+    max-height: calc(var(--vv-height, 100dvh) - 64px) !important;
+    margin: 0 !important;
+    transform: none !important;
+    border-radius: 22px 22px 0 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)) !important;
+    box-shadow: 0 -12px 34px rgba(10, 31, 68, 0.22) !important;
+}
+body.client-mode.passenger-trip-float-active #chat-float.trip-float--chat:not(.hidden) .trip-float-head { border-radius: 22px 22px 0 0 !important; cursor: default; }
+body.client-mode.passenger-trip-float-active #chat-float.trip-float--chat:not(.hidden) .trip-float-grip { display: none !important; }
+body.client-mode.passenger-trip-float-active #chat-float.trip-float--chat:not(.hidden) .trip-chat-body {
+    flex: 1 1 auto !important; min-height: 0 !important; display: flex !important; flex-direction: column !important;
+}
+body.client-mode.passenger-trip-float-active #chat-float.trip-float--chat:not(.hidden) .trip-chat-messages {
+    flex: 1 1 auto !important; height: auto !important; max-height: none !important; min-height: 0 !important;
+}
+body.client-mode.passenger-trip-float-active #chat-float.trip-float--chat:not(.hidden) { background: #ffffff !important; }
+html[data-theme="dark"] body.client-mode.passenger-trip-float-active #chat-float.trip-float--chat:not(.hidden) { background: #0f172a !important; }
+html.hr-lite #chat-float, html.hr-lite #client-trip-float { background-color: #ffffff !important; }
+html.hr-lite[data-theme="dark"] #chat-float, html.hr-lite[data-theme="dark"] #client-trip-float { background-color: #0f172a !important; }
+
+/* v.87 · Conductor en viaje: franja fija del pasajero (foto, nombre, número, llamar / WhatsApp) */
+#driver-pax-contact.drv-pax { display: flex; align-items: center; gap: 0.6rem; margin: 0.45rem 0 0.5rem; padding: 0.55rem 0.65rem; border-radius: 16px;
+    background: radial-gradient(120% 160% at 90% 0%, #2a5fb8, #123a7a 50%, #0a1f44); color: #fff; box-shadow: 0 8px 18px rgba(10,31,68,.25); flex-shrink: 0; }
+#driver-pax-contact .drv-pax-photo { width: 3rem; height: 3rem; border-radius: 50%; object-fit: cover; border: 2px solid rgba(255,255,255,.7); background: #dbe4f0; flex: 0 0 auto; }
+#driver-pax-contact .drv-pax-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+#driver-pax-contact .drv-pax-kicker { font-size: 0.6rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: #bcd4ff; }
+#driver-pax-contact .drv-pax-name { font-size: 0.95rem; font-weight: 900; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#driver-pax-contact .drv-pax-phone { font-size: 0.82rem; font-weight: 800; color: #e6efff; letter-spacing: .02em; }
+#driver-pax-contact .drv-pax-btn { width: 2.6rem; height: 2.6rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.05rem; color: #fff; flex: 0 0 auto; text-decoration: none; }
+#driver-pax-contact .drv-pax-call { background: #1e6bd6; border: 2px solid rgba(255,255,255,.35); }
+#driver-pax-contact .drv-pax-wa { background: #16a34a; border: 2px solid rgba(255,255,255,.35); }
+
+/* v.87 · Con el chat del viaje abierto, no mostrar encima la píldora/tarjeta del conductor (PIN) */
+body.trip-chat-open #client-trip-float { display: none !important; }
+/* Con la franja del pasajero arriba, no repetir su foto y nombre más abajo (queda dirección + min) */
+#active-trip-panel:has(#driver-pax-contact) #driver-uber-pax-photo,
+#active-trip-panel:has(#driver-pax-contact) #driver-uber-pax-name { display: none !important; }
