@@ -8841,13 +8841,14 @@ window.recoverGoogleMapAfterResume = function recoverGoogleMapAfterResume(reason
                 let zoom;
                 // Tope 18.3 en navegación: más cerca solo se ven edificios y no la calle que viene
                 if (Number.isFinite(userZoom) && userZoom >= 3) {
-                    zoom = Math.min(18.3, Math.max(14, userZoom));
+                    zoom = Math.min(18.3, Math.max(13, userZoom));
                 } else {
-                    zoom = lowPower ? 16.9 : 17.3;
-                    if (mps >= 22) zoom = lowPower ? 15.9 : 16.2;
-                    else if (mps >= 14) zoom = lowPower ? 16.4 : 16.8;
-                    else if (mps < 2) zoom = lowPower ? 17.2 : 17.6;
-                    zoom = Math.min(18.3, Math.max(14, zoom));
+                    // v.90 · Un nivel menos de zoom: el conductor ve más calles por delante (antes 17.3–17.6)
+                    zoom = lowPower ? 15.9 : 16.2;
+                    if (mps >= 22) zoom = lowPower ? 14.9 : 15.2;
+                    else if (mps >= 14) zoom = lowPower ? 15.4 : 15.7;
+                    else if (mps < 2) zoom = lowPower ? 16.2 : 16.5;
+                    zoom = Math.min(17.5, Math.max(13, zoom));
                 }
 
                 // Centro un poco ADELANTE del carro → ves por dónde vas

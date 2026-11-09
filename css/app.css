@@ -27763,3 +27763,56 @@ body.driver-moto-compact #active-trip-panel > #driver-pax-contact {
     flex: 0 0 auto !important; min-height: max-content !important; height: auto !important; max-height: none !important; overflow: visible !important;
 }
 #active-trip-panel > #driver-active-veh-badge { flex: 0 0 auto !important; }
+
+/* v.90 · Conductor en viaje con el estilo HonduRaite (marino, brillo azul, franja de bandera) */
+body.driver-mode #active-trip-panel { --hn: #0a1f44; --hn2: #123a7a; --hb: #1e6bd6; --hg: #3b8bff; }
+body.driver-mode #active-trip-panel #trip-mini-bar .driver-active-eta-label { color: #5b6b85 !important; }
+body.driver-mode #active-trip-panel #trip-mini-time { color: var(--hn) !important; font-style: italic; }
+body.driver-mode #active-trip-panel .driver-uber-sheet { background: #fff !important; border: 1px solid #dbe4f0 !important; border-radius: 16px !important; box-shadow: 0 6px 16px rgba(30,107,214,.08) !important; }
+body.driver-mode #active-trip-panel .driver-uber-next-addr { color: var(--hn) !important; font-weight: 800 !important; }
+body.driver-mode #active-trip-panel .driver-uber-eta {
+    background: radial-gradient(120% 160% at 90% 0%, #2a5fb8, var(--hn2) 50%, var(--hn)) !important;
+    border: 0 !important; border-radius: 14px !important; box-shadow: 0 6px 14px rgba(10,31,68,.25) !important;
+}
+body.driver-mode #active-trip-panel .driver-uber-eta-time { color: #fff !important; font-style: italic; }
+body.driver-mode #active-trip-panel .driver-uber-eta-label { color: #bcd4ff !important; }
+body.driver-mode #active-trip-panel .driver-panel-nav {
+    position: relative; overflow: hidden;
+    background: radial-gradient(120% 160% at 90% 0%, #2a5fb8, var(--hn2) 45%, var(--hn)) !important;
+    border: 0 !important; border-radius: 16px !important; box-shadow: 0 8px 20px rgba(10,31,68,.28) !important; padding-bottom: 0.7rem !important;
+}
+body.driver-mode #active-trip-panel .driver-panel-nav::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 4px;
+    background: linear-gradient(90deg, var(--hb) 0 33%, #fff 33% 66%, var(--hb) 66%);
+}
+body.driver-mode #active-trip-panel .driver-panel-nav-text { color: #fff !important; font-weight: 900 !important; }
+body.driver-mode #active-trip-panel .driver-panel-nav-dist { color: #bcd4ff !important; }
+body.driver-mode #active-trip-panel .driver-panel-nav-icon { background: rgba(255,255,255,.14) !important; color: #fff !important; border-radius: 12px !important; }
+body.driver-mode #active-trip-panel .driver-panel-nav-voice-btn,
+body.driver-mode #active-trip-panel .driver-panel-nav-center-btn { background: rgba(255,255,255,.14) !important; color: #fff !important; border: 1px solid rgba(255,255,255,.25) !important; }
+body.driver-mode #active-trip-panel .driver-active-primary-btn,
+body.driver-mode #active-trip-panel .driver-panel-arrived-btn,
+body.driver-mode #active-trip-panel .driver-pin-submit {
+    position: relative; overflow: hidden;
+    background: radial-gradient(120% 160% at 90% 0%, #3b8bff, var(--hb) 45%, var(--hn2)) !important;
+    color: #fff !important; border: 0 !important; border-radius: 16px !important;
+    box-shadow: 0 8px 20px rgba(30,107,214,.35) !important; font-weight: 900 !important; letter-spacing: .06em;
+}
+body.driver-mode #active-trip-panel .driver-panel-arrived-btn::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: linear-gradient(90deg, var(--hb) 0 33%, #fff 33% 66%, var(--hb) 66%);
+}
+body.driver-mode #active-trip-panel .driver-panel-arrived-dest-btn {
+    background: radial-gradient(120% 160% at 90% 0%, #34d399, #059669 50%, #065f46) !important;
+    border-radius: 16px !important; box-shadow: 0 8px 20px rgba(5,150,105,.32) !important;
+}
+body.driver-mode #active-trip-panel .driver-active-tool-btn,
+body.driver-mode #active-trip-panel .driver-gmaps-secondary-btn {
+    background: #eef4ff !important; color: var(--hn2) !important; border: 1px solid #cfe0fb !important; border-radius: 12px !important; font-weight: 800 !important;
+}
+body.driver-mode #active-trip-panel .driver-cancel-trip-btn { border-radius: 14px !important; border-color: #fecaca !important; background: #fff !important; }
+body.driver-mode #active-trip-panel #pin-input-group input,
+body.driver-mode #active-trip-panel .driver-pin-input { border: 2px solid #cfe0fb !important; border-radius: 14px !important; color: var(--hn) !important; font-weight: 900 !important; }
+body.driver-mode #active-trip-panel .driver-uber-pax-text { flex: 1 1 auto !important; }
+body.driver-mode #active-trip-panel .driver-panel-nav [class*="text-emerald"],
+body.driver-mode #active-trip-panel .driver-panel-nav .driver-panel-nav-eta { color: #86efac !important; }
