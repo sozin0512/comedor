@@ -75,3 +75,6 @@ analyze_*.py
 $null
 assets
 functions/scripts/out/
+
+# Copia minificada que se publica en Firebase Hosting (scripts/build-hosting.js)
+dist-hosting/

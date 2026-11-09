@@ -2,7 +2,7 @@
  * Zonas de alta demanda del día — mapa para conductores (rojo + $ animados).
  * Se activan desde 3 pedidos en la misma zona; el rojo sube gradualmente.
  */
-import { collection, onSnapshot } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+import { collection, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
 import { tripMatchesZone } from './zones.js';
 
 const CELL_SIZE = 0.007;
@@ -323,11 +323,17 @@ export function startDemandHeatmapListener(db, appId, getZoneId, getRadiusKm) {
 
     if (!db || !appId) return;
 
-    unsub = onSnapshot(
-        collection(db, 'artifacts', appId, 'public', 'data', 'trips'),
-        (snap) => scheduleRender(snap),
-        () => {}
-    );
+    // v.83 · Staff ve toda la demanda; los demás solo pendientes y programados (las reglas no dejan más).
+    const tripsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'trips');
+    const startLimited = () => {
+        if (unsub) { try { unsub(); } catch (_) {} }
+        unsub = onSnapshot(
+            query(tripsColRef, where('status', 'in', ['pending', 'scheduled'])),
+            (snap) => scheduleRender(snap),
+            () => {}
+        );
+    };
+    unsub = onSnapshot(tripsColRef, (snap) => scheduleRender(snap), () => startLimited());
 
     // No forzar la leyenda visible al arrancar: solo aparece cuando hay zonas calientes.
     // El chip de ciudad debe seguir disponible para que el conductor cambie de ciudad.

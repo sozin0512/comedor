@@ -121,7 +121,9 @@ service cloud.firestore {
         'whatsapp_booking_sessions', 'whatsapp_assistant_dedup', 'account_deletions', 'auth_phone_index', 'platformConfig',
         'delivery_loyalty_members', 'delivery_loyalty_credits', 'promotions_loyalty',
         'marketplace_listings', 'marketplace_commissions',
-        'guest_limits', 'guest_requests', 'guest_blocklist'];
+        'guest_limits', 'guest_requests', 'guest_blocklist',
+        // v.83 · Viajes: solo por su propia regla (participantes, pendientes/programados o staff).
+        'trips'];
     }
 
     // Pedidos de tiendas: campos de la tarifa de envío por zona (solo servidor).

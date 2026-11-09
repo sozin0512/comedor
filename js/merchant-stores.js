@@ -8993,7 +8993,7 @@ function startRecentStoreDeliveriesListener() {
     if (!dbRef || !appIdRef || unsubRecentStoreDeliveries) return;
     try {
         const q = query(publicCol('trips'), where('storeDelivery', '==', true), limit(80));
-        unsubRecentStoreDeliveries = onSnapshot(q, (snap) => {
+        const onHotSnap = (snap) => {
             const cutoff = Date.now() - FIRE_ZONE_WINDOW_MS;
             const list = [];
             snap.docs.forEach((d) => {
@@ -9004,7 +9004,16 @@ function startRecentStoreDeliveriesListener() {
             });
             recentStoreDeliveryTrips = list;
             try { syncDriverHotStoresOnMap(); } catch (_) {}
-        }, () => {});
+        };
+        // v.83 · Staff ve todo; un conductor solo los envíos de tienda pendientes (las reglas no dejan más).
+        unsubRecentStoreDeliveries = onSnapshot(q, onHotSnap, () => {
+            try {
+                unsubRecentStoreDeliveries = onSnapshot(
+                    query(publicCol('trips'), where('storeDelivery', '==', true), where('status', '==', 'pending'), limit(80)),
+                    onHotSnap, () => {}
+                );
+            } catch (_) {}
+        });
     } catch (_) {}
 }
 
