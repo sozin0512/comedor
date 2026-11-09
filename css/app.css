@@ -27623,3 +27623,20 @@ body.driver-mode #driver-earnings-float .driver-earnings-total-value { color: #0
 html[data-theme="dark"] .driver-earnings-week { background: #13233f; border-color: #24406d; }
 html[data-theme="dark"] .driver-earnings-week b { color: #e6efff; }
 body.driver-mode #driver-earnings-float .driver-earnings-float-head { padding: 0.5rem 0.75rem !important; border-radius: 12px !important; margin-bottom: 0.5rem !important; }
+
+/* v.84 · Modo liviano (html.hr-lite): sin desenfoques ni sombras pesadas (las transiciones se dejan: Places depende de ellas).
+   Lo activa index.html en celulares lentos; el diseño se mantiene. */
+html.hr-lite *, html.hr-lite *::before, html.hr-lite *::after {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+
+    scroll-behavior: auto !important;
+}
+html.hr-lite .glass-panel,
+html.hr-lite #control-panel { background-color: #ffffff !important; }
+html.hr-lite[data-theme="dark"] .glass-panel,
+html.hr-lite[data-theme="dark"] #control-panel { background-color: #0f172a !important; }
+html.hr-lite #passenger-home-hub.hrh .hrh-circles i,
+html.hr-lite #passenger-home-hub.hrh .hrh-ico,
+html.hr-lite #passenger-home-hub.hrh .hrh-tile,
+html.hr-lite .trip-step-card { box-shadow: none !important; }
