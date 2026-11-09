@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <meta name="hr-app-version" content="2026.10.26.76">
+    <meta name="hr-app-version" content="2026.10.26.77">
     <meta name="theme-color" content="#2563eb">
     <meta name="facebook-domain-verification" content="1yy0yvtpcr1oc0cbveoew4cn80qx64" />
     <script>
@@ -55,14 +55,14 @@
     <title>HonduRaite — Empresa SOZIN</title>
     
     <!-- Frameworks Externos -->
-    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.76">
+    <link rel="stylesheet" href="css/tailwind.css?v=2026.10.26.77">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="css/app.css?v=2026.10.26.76">
+    <link rel="stylesheet" href="css/app.css?v=2026.10.26.77">
     <link rel="stylesheet" href="css/busqueda-f.css?v=2026.10.26.59">
     <link rel="stylesheet" href="css/pedido-doble.css?v=2026.10.26.59">
-    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.76">
-    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.76">
+    <link rel="stylesheet" href="css/role-menu.css?v=2026.10.26.77">
+    <link rel="stylesheet" href="css/qa-play.css?v=2026.10.26.77">
     <script>
         window.initMap = window.initMap || function () { window.__mapsInitQueued = true; };
         window.ensureMapsLoaded = function () {
@@ -110,7 +110,7 @@
             return window.__mapsLoadPromise;
         };
     </script>
-    <script type="module" src="js/auth-boot.js?v=2026.10.26.76"></script>
+    <script type="module" src="js/auth-boot.js?v=2026.10.26.77"></script>
     <script defer src="js/busqueda-f.js?v=2026.10.26.59"></script>
     <script type="module" src="js/pedido-doble.js?v=2026.10.26.59"></script>
     <script type="module" src="js/user-city.js?v=2026.10.26.59"></script>
@@ -430,10 +430,10 @@
         }, 4500);
     </script>
     <script>
-        window.__HR_BUILD_VERSION__ = '2026.10.26.76';
+        window.__HR_BUILD_VERSION__ = '2026.10.26.77';
         (function () {
             try {
-                var build = '2026.10.26.76';
+                var build = '2026.10.26.77';
                 function showEarlyUpdateBanner(remote) {
                     if (document.getElementById('hr-early-update')) return;
                     var el = document.createElement('div');
@@ -944,7 +944,7 @@
 
     <!-- Pasajero: 1 flotante unificado (conductor + PIN). Evita 2 paneles superpuestos. -->
     <div id="trip-floats-layer" class="hidden" aria-live="polite">
-        <div id="client-trip-float" class="trip-float trip-float--passenger trip-float--client-trip hidden" data-trip-float="client-trip">
+        <div id="client-trip-float" class="trip-float trip-float--passenger trip-float--client-trip hr-raite hidden" data-trip-float="client-trip">
             <div class="trip-float-min-view hidden" data-trip-float-expand="client-trip" title="Toca para ver · arrastra para mover">
                 <div class="client-trip-min-pill" role="presentation">
                     <img id="client-trip-min-photo" class="client-trip-min-photo" alt="" src="/icons/placeholder-avatar.svg">
@@ -967,11 +967,34 @@
                 </div>
                 <div class="client-trip-float-body trip-float-body">
                     <div id="client-trip-status" class="client-trip-status tone-en-route">
+                        <svg class="hr-raite-road" viewBox="0 0 230 170" aria-hidden="true"><path d="M10 170 C70 120 120 110 150 70 C175 38 200 25 230 20" stroke="#5aa2ff" stroke-width="34" fill="none" opacity=".35"/><path d="M10 170 C70 120 120 110 150 70 C175 38 200 25 230 20" stroke="#cfe3ff" stroke-width="3" stroke-dasharray="10 10" fill="none"/></svg>
                         <div class="client-trip-status-text">
                             <span id="client-trip-status-badge" class="client-trip-status-badge">¡Va en camino!</span>
                             <span id="client-trip-status-sub" class="client-trip-status-sub">Síguelo en el mapa</span>
                         </div>
                         <span id="client-trip-status-eta" class="client-trip-status-eta hidden">-- min</span>
+                        <div id="hr-raite-prog" class="hr-raite-prog hidden" aria-hidden="true">
+                            <div class="hr-raite-prog-track"><div id="hr-raite-prog-done" class="hr-raite-prog-done"></div><span id="hr-raite-prog-car" class="hr-raite-prog-car"><i class="fas fa-car-side"></i></span><span class="hr-raite-prog-pin"><i class="fas fa-map-marker-alt"></i></span></div>
+                            <div class="hr-raite-prog-labels"><span id="hr-raite-prog-left">En camino</span><span id="hr-raite-prog-right">Tu punto</span></div>
+                        </div>
+                    </div>
+                    <div id="client-pin-display" class="hidden client-pin-hero client-pin-hero--in-float">
+                        <p id="client-trip-accepted-kicker" class="client-pin-hero-kicker"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
+                        <button type="button" data-trip-action="copy-pin" id="client-pin-btn" class="client-pin-hero-btn trip-touch-btn w-full">
+                            <div class="flex items-center justify-center gap-2 pointer-events-none">
+                                <i class="fas fa-key text-lg"></i>
+                                <div class="text-left flex-1 min-w-0">
+                                    <p class="client-pin-hero-label">Tu PIN de Seguridad</p>
+                                    <p id="client-pin-code" class="client-pin-hero-code">----</p>
+                                </div>
+                                <i class="fas fa-copy text-sm opacity-80 shrink-0"></i>
+                            </div>
+                        </button>
+                        <div class="hr-raite-ticket trip-touch-btn" data-trip-action="copy-pin" role="button" aria-label="Copiar PIN">
+                            <div class="hr-raite-ticket-l">TU PIN<small>Dáselo al subir</small><span class="hr-raite-stars">★★★★★</span></div>
+                            <div id="hr-raite-pin-digits" class="hr-raite-pin-digits"></div>
+                        </div>
+                        <p id="client-pin-hint" class="client-pin-hero-hint">Toca para copiar · muéstraselo al conductor al subir</p>
                     </div>
                     <div class="client-trip-driver-row">
                         <img id="client-trip-photo" class="client-trip-photo profile-photo-img" alt="Conductor" src="/icons/placeholder-avatar.svg">
@@ -1003,6 +1026,7 @@
                     <button type="button" data-trip-action="cancel" id="client-trip-cancel-btn" data-no-drag class="client-trip-cancel-btn trip-touch-btn w-full">
                         <span class="pointer-events-none">Cancelar viaje</span>
                     </button>
+                    <p class="hr-raite-slogan">VIAJA SEGURO, LLEGA LEJOS</p>
                     <div id="client-trip-vehicle-photos" class="client-trip-vehicle-photos hidden">
                         <p class="client-trip-vehicle-photos-label"><i class="fas fa-car"></i> Referencia del vehículo</p>
                         <div class="client-trip-vehicle-photos-grid">
@@ -1015,20 +1039,6 @@
                                 <span>Atrás</span>
                             </a>
                         </div>
-                    </div>
-                    <div id="client-pin-display" class="hidden client-pin-hero client-pin-hero--in-float">
-                        <p id="client-trip-accepted-kicker" class="client-pin-hero-kicker"><i class="fas fa-check-circle"></i> ¡Viaje aceptado!</p>
-                        <button type="button" data-trip-action="copy-pin" id="client-pin-btn" class="client-pin-hero-btn trip-touch-btn w-full">
-                            <div class="flex items-center justify-center gap-2 pointer-events-none">
-                                <i class="fas fa-key text-lg"></i>
-                                <div class="text-left flex-1 min-w-0">
-                                    <p class="client-pin-hero-label">Tu PIN de Seguridad</p>
-                                    <p id="client-pin-code" class="client-pin-hero-code">----</p>
-                                </div>
-                                <i class="fas fa-copy text-sm opacity-80 shrink-0"></i>
-                            </div>
-                        </button>
-                        <p id="client-pin-hint" class="client-pin-hero-hint">Toca para copiar · muéstraselo al conductor al subir</p>
                     </div>
                 </div>
             </div>
