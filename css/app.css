@@ -27835,3 +27835,25 @@ body.trip-active.driver-mode:not(.panel-minimized):not(.panel-collapsed) #contro
     overflow-y: auto !important;
     flex: 1 1 auto !important;
 }
+
+/* v.96 · Conductor en viaje: el panel va en su propia capa (el mapa al moverse no lo redibuja y
+   viceversa). Sin dropdowns de búsqueda dentro, así que contain es seguro aquí. */
+body.trip-active.driver-mode #control-panel:not(.panel-collapsed) {
+    contain: layout paint style;
+    will-change: transform;
+}
+/* Modo liviano (gama baja): colores planos, sin sombras ni degradados en el panel del viaje */
+html.hr-lite body.driver-mode #active-trip-panel *,
+html.hr-lite body.driver-mode #active-trip-panel *::before,
+html.hr-lite body.driver-mode #active-trip-panel *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+html.hr-lite body.driver-mode #driver-pax-contact.drv-pax,
+html.hr-lite body.driver-mode #active-trip-panel .driver-panel-nav,
+html.hr-lite body.driver-mode #active-trip-panel .driver-uber-eta { background: #123a7a !important; }
+html.hr-lite body.driver-mode #active-trip-panel .driver-active-primary-btn,
+html.hr-lite body.driver-mode #active-trip-panel .driver-panel-arrived-btn,
+html.hr-lite body.driver-mode #active-trip-panel .driver-pin-submit { background: #1e6bd6 !important; }
+html.hr-lite body.driver-mode #active-trip-panel .driver-panel-arrived-dest-btn { background: #059669 !important; }
+html.hr-lite body.driver-mode #control-panel { box-shadow: 0 -2px 8px rgba(15,23,42,.12) !important; }
